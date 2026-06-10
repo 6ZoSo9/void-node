@@ -72,6 +72,16 @@ for i in $(seq 1 100); do
 done
 
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
+SAMPLE2="$OUT/sample-2.txt"
+printf 'VOID public node local data drop second proof sample v1\n' > "$SAMPLE2"
+EXPECTED_SHA2="$(sha256sum "$SAMPLE2" | awk '{print $1}')"
+
+DATA_DIR="$OUT/data" ops/mainnet0/public-node-local-data-drop-import.sh "$SAMPLE2" proof-sample-2.txt > "$OUT/import-2.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" "$OUT/import-2.log"
+
+# Refresh index after importing object 2; the earlier readiness fetch only proved the server was live.
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop.json" > "$OUT/local-data-drop.json"
+
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA2" > "$OUT/fetched-sample-2-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.json" > "$OUT/object-proof.json"
@@ -119,27 +129,30 @@ ok(index.status === "local_data_drop_ready", "status");
 ok(index.manifest_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "index manifest marker");
 ok(index.manifest_href === "http://127.0.0.1:4150/public-node/local-data-drop/manifest.json", "index manifest href");
 ok(index.object_count === 2, "object count");
-ok(index.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "object 1 id/sha");
-ok(index.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "object 2 id/sha");
-const object1 = index.objects.find(o => o.object_id === "proof-sample.txt");
-const object2 = index.objects.find(o => o.object_id === "proof-sample-2.txt");
+const object1 = index.objects.find(o => o.object_id === "proof-sample.txt" || o.sha256 === expectedSha);
+const object2 = index.objects.find(o => o.object_id === "proof-sample-2.txt" || o.sha256 === expectedSha2);
 ok(object1, "object 1 present");
 ok(object2, "object 2 present");
-ok(index.objects[0].sha256 === expectedSha, "sha256");
-ok(index.objects[0].href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
-ok(index.objects[0].href_by_sha256 === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "href by sha256");
-ok(index.objects[0].proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "proof href");
+ok(object1.object_id === "proof-sample.txt", "object id");
+ok(object1.sha256 === expectedSha, "sha256");
+ok(object2.object_id === "proof-sample-2.txt", "object 2 id");
+ok(object2.sha256 === expectedSha2, "sha256 2");
+ok(index.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "object 1 id/sha");
+ok(index.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "object 2 id/sha");
+ok(object1.href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
+ok(object1.href_by_sha256 === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "href by sha256");
+ok(object1.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "proof href");
 ok(index.public_content_address_route_template === "/public-node/local-data-drop/by-sha256/:sha256", "content address route template");
 ok(index.public_proof_route_template === "/public-node/local-data-drop/proof/:sha256.json", "proof route template");
 ok(index.receipt_ledger_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "receipt ledger marker");
-ok(index.objects[0].receipt_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "object receipt marker");
-ok(index.objects[0].receipt_sha256 === expectedSha, "object receipt sha");
-ok(index.objects[0].receipt_valid_for_current_object === true, "receipt valid for current object");
+ok(object1.receipt_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "object receipt marker");
+ok(object1.receipt_sha256 === expectedSha, "object receipt sha");
+ok(object1.receipt_valid_for_current_object === true, "receipt valid for current object");
 ok(proof.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", "proof marker");
 ok(proof.proof_type === "operator_local_public_read_only_object_proof", "proof type");
 ok(proof.object_id === "proof-sample.txt", "proof object id");
 ok(proof.sha256 === expectedSha, "proof sha");
-ok(proof.bytes === index.objects[0].bytes, "proof bytes");
+ok(proof.bytes === object1.bytes, "proof bytes");
 ok(proof.content_address_href === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "proof content address href");
 ok(proof.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "proof proof href");
 ok(proof.receipt_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "proof receipt marker");
