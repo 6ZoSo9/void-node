@@ -45179,6 +45179,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
+      { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45615,6 +45616,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/external-tester-copy-pack.json",
     "/public-node/tester-result-intake.json",
     "/public-node/standalone-outside-tester-smoke.sh",
+    "/public-node/tester-share",
     "/public-node",
     "/public-node/self-check-snapshot.json",
     "/public-node/route-manifest.json",
@@ -45641,6 +45643,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       external_tester_copy_pack: effectiveBaseUrl + "/public-node/external-tester-copy-pack.json",
       tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
+      tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -45655,6 +45658,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       external_tester_copy_pack_present: true,
       tester_result_intake_present: true,
       standalone_outside_tester_smoke_script_present: true,
+      tester_share_page_present: true,
       route_index_present: true,
       route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
@@ -45688,6 +45692,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/external-tester-copy-pack.json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", purpose: "copy/paste pack for outside testers", safety_class: "public_read_only" },
     { path: "/public-node/tester-result-intake.json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", purpose: "operator-local external tester result intake status", safety_class: "public_read_only_local_file_status" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
+    { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
     { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
@@ -45775,6 +45780,7 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       self_check_snapshot_url: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
       outside_tester_smoke_url: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
       standalone_smoke_script_url: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
+      tester_share_page_url: effectiveBaseUrl + "/public-node/tester-share",
       tester_bundle_url: effectiveBaseUrl + "/public-node/tester-bundle.json",
       tester_result_receipt_url: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
       proofs_url: effectiveBaseUrl + "/proofs",
@@ -45925,6 +45931,71 @@ echo "trusted_as_network_truth=false"
 echo "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 `;
   res.type("text/plain").send(script);
+});
+
+
+
+APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const scriptUrl = effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh";
+  const command = "curl -fsSL " + scriptUrl + " -o /tmp/void-public-node-smoke.sh && PUBLIC_NODE_BASE=" + effectiveBaseUrl + " bash /tmp/void-public-node-smoke.sh";
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>VOID Public Node Tester Share</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 20px;line-height:1.5;background:#0b0b10;color:#f4f4f5}
+    .card{border:1px solid #2a2a35;border-radius:14px;padding:18px;margin:16px 0;background:#14141c}
+    code,pre{background:#050508;color:#d6f99d;border:1px solid #2a2a35;border-radius:10px}
+    pre{padding:14px;overflow:auto}
+    a{color:#9bdcff}
+    .ok{color:#d6f99d}
+    .muted{color:#a1a1aa}
+  </style>
+</head>
+<body>
+  <main id="voidPublicNodeTesterSharePage"><!-- VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1 -->
+    <h1>VOID Public Node Tester Share</h1>
+    <p class="muted">Human tester page for checking this VOID public node with curl and bash.</p>
+
+    <div class="card">
+      <h2>1. Run this command</h2>
+      <pre><code>${command}</code></pre>
+    </div>
+
+    <div class="card">
+      <h2>2. Expected green marker</h2>
+      <p class="ok"><code>VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN</code></p>
+    </div>
+
+    <div class="card">
+      <h2>3. Send back the receipt</h2>
+      <p>The script writes a local file named:</p>
+      <p><code>tester-receipt.json</code></p>
+      <p>Send that receipt file back to the node operator. It is an external test receipt, not network truth.</p>
+    </div>
+
+    <div class="card">
+      <h2>Useful links</h2>
+      <p><a href="${effectiveBaseUrl}/public-node">Public node</a></p>
+      <p><a href="${effectiveBaseUrl}/.well-known/void-public-node.json">Well-known discovery JSON</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/route-manifest.json">Route manifest JSON</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/self-check-snapshot.json">Self-check snapshot JSON</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/external-tester-copy-pack.json">External tester copy pack JSON</a></p>
+      <p><a href="${scriptUrl}">Standalone smoke script</a></p>
+      <p><a href="${effectiveBaseUrl}/proofs">Public proofs</a></p>
+    </div>
+
+    <div class="card">
+      <h2>Safety boundary</h2>
+      <p>This test checks public read-only routes only. It does not move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat the receipt as consensus/network truth.</p>
+    </div>
+  </main>
+</body>
+</html>`);
 });
 
 
@@ -46462,6 +46533,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Public read-only shell script for outside testers who do not have a checked-out VOID repo. It checks public routes only and emits the expected green marker plus a tester receipt.</p>
           <p><code>/public-node/standalone-outside-tester-smoke.sh</code></p>
         </div>
+
+        <div class="card" id="publicNodeTesterSharePageCard"><!-- VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_UI_V1 -->
+          <h2>Tester Share Page</h2>
+          <p>Human page with the exact curl command, expected green marker, receipt instructions, and useful public tester links.</p>
+          <p><code>/public-node/tester-share</code></p>
+        </div>
+
 
 
 
