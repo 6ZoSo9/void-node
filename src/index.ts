@@ -45457,6 +45457,20 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           </ol>
           <p class="muted">VOID nodes serve bounded public data. Clients and requesters do the expensive per-view work.</p>
         </div>
+
+        <div class="card" id="publicNodeCopyLinkPackCard"><!-- VOID_PUBLIC_NODE_COPY_LINK_PACK_UI_V1 -->
+          <b>Copy link pack</b>
+          <p class="muted">Public routes to copy, share, and test:</p>
+          <ul>
+            <li><code>/public-node</code> — public node profile</li>
+            <li><code>/public-node/client-work-pack.json</code> — client/agent bootstrap pack</li>
+            <li><code>/public-node/ai-readiness.json</code> — AI readiness score</li>
+            <li><code>/public-node/fresh-proof-seed.json</code> — fresh public proof seed</li>
+            <li><code>/public-node/requester-work-policy.json</code> — requester work policy</li>
+            <li><code>/proofs</code> — public proofs index</li>
+          </ul>
+          <p class="muted">Share public routes only. Do not use private owner routes.</p>
+        </div>
 </body>
 </html>`);
         });
