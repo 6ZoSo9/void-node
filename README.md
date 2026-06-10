@@ -194,3 +194,23 @@ Use this before posting publicly about VOID Network. It keeps public posts point
 - [Mainnet-0 public share posts](docs/public/mainnet0-public-share-posts.md)
 
 Use these proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.
+
+## Public node entry point <!-- VOID_PUBLIC_NODE_README_POINTER_V1 -->
+
+The public node surface starts at:
+
+    /public-node
+
+Operators exposing a node to the internet should start it with the public base URL testers should copy:
+
+    PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-domain.example npm start
+
+Outside testers can fetch the smoke pack:
+
+    /public-node/public-exposure-smoke-pack.json
+
+Or run the short public-route smoke check:
+
+    PUBLIC_NODE_BASE=https://your-domain.example; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done
+
+This checks public routes only. It does not touch private APIs, wallets, swaps, Buy VOID fulfillment, validators, or proof mutation.
