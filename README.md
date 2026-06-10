@@ -229,3 +229,22 @@ That route gives a copy-paste invite and points testers to:
 
 The tester bundle links the quickstart, handoff, smoke pack, route index, and public proofs. This path is public-route and read-only only: no wallet sends, no WC to VOID swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.
 
+## Public Node Outside Tester Lane <!-- VOID_PUBLIC_NODE_TESTER_LANE_README_POINTER_V1 -->
+
+VOID public nodes now expose a complete read-only outside tester lane.
+
+Start here:
+
+    /public-node/tester-share
+
+Machine-readable summary:
+
+    /public-node/tester-lane-summary.json
+
+A tester can open the share page, run one curl/bash command, get the expected green marker, and send back `tester-receipt.json`.
+
+Expected green marker:
+
+    VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
+
+Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.

@@ -40,3 +40,11 @@ It summarizes:
 This route is public-read-only.
 
 It does not expose a public POST endpoint, call private APIs, mutate chain state, move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat outside tester receipts as network truth.
+
+
+## GitHub pointer <!-- VOID_PUBLIC_NODE_TESTER_LANE_README_POINTER_DOC_V1 -->
+
+The top-level README points outside testers to:
+
+    /public-node/tester-share
+    /public-node/tester-lane-summary.json
