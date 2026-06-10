@@ -81,9 +81,9 @@ function ok(x, msg) {
 }
 
 ok(manifest.routes.some(r => r.path === "/public-node/tester-share" && r.marker === "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1"), "manifest has tester share page");
-ok(manifest.route_count === 19, "manifest route count 18");
+ok(manifest.route_count === 20, "manifest route count 18");
 ok(snap.expected_routes.includes("/public-node/tester-share"), "self-check has tester share page");
-ok(snap.expected_route_count === 19, "self-check route count 18");
+ok(snap.expected_route_count === 20, "self-check route count 18");
 ok(pack.copy_pack.tester_share_page_url === "http://127.0.0.1:4147/public-node/tester-share", "copy pack tester share page url");
 ok(pack.copy_pack.standalone_smoke_script_url === "http://127.0.0.1:4147/public-node/standalone-outside-tester-smoke.sh", "copy pack standalone script url");
 
@@ -96,8 +96,8 @@ echo "ui_marker=VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_UI_V1"
 echo "doc=docs/public/public-node-tester-share-page.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
-echo "route_manifest_route_count=19"
-echo "self_check_expected_route_count=19"
+echo "route_manifest_route_count=20"
+echo "self_check_expected_route_count=20"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "receipt_file=tester-receipt.json"
 echo "standalone_script_route=/public-node/standalone-outside-tester-smoke.sh"

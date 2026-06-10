@@ -79,6 +79,7 @@ const required = [
   "/public-node/standalone-outside-tester-smoke.sh",
   "/public-node/tester-share",
   "/public-node/tester-lane-summary.json",
+  "/public-node/first-tester-request-copy-pack.json",
   "/public-node",
   "/public-node/self-check-snapshot.json",
   "/public-node/route-manifest.json",
@@ -137,7 +138,7 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=19"
+echo "expected_route_count=20"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
