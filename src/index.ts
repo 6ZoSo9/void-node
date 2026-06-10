@@ -45703,6 +45703,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>/public-node/external-base-url.json</code></p>
           <p class="muted">Defaults to localhost. Set <code>PUBLIC_NODE_EXTERNAL_BASE_URL</code> or <code>VOID_PUBLIC_BASE_URL</code> when exposing this node publicly.</p>
         </div>
+
+        <div class="card" id="publicNodePublicUrlOperatorNoteCard"><!-- VOID_PUBLIC_NODE_PUBLIC_URL_OPERATOR_NOTE_UI_V1 -->
+          <b>Operator public URL note</b>
+          <p class="muted">When this node is exposed to the internet, start it with the public base URL testers should copy:</p>
+          <pre><code>PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-domain.example npm start</code></pre>
+          <p class="muted">Local testers can keep localhost. Public testers should use the external URL shown by <code>/public-node/external-base-url.json</code>.</p>
+        </div>
 </body>
 </html>`);
         });
