@@ -83,7 +83,7 @@ import { registerP2PRoutes } from "./http/p2p_routes.js";
 import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
-import "./http/participant_wallet_native_v1";
+import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
 
 
 // __VOID_TS_DECLARES_V1__
