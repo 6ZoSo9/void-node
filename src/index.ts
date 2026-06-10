@@ -45155,6 +45155,40 @@ APP.get("/public-node/tester-checklist.json", (_req:any, res:any) => { // VOID_P
   });
 });
 
+
+APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
+    purpose: "public_node_route_index",
+    headline: "VOID public node route index",
+    routes: [
+      { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
+      { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
+      { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
+      { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
+      { path: "/public-node/ai-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_AI_READINESS_V1", use: "AI readiness score" },
+      { path: "/public-node/fresh-proof-seed.json", kind: "json", marker: "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1", use: "fresh public proof seed" },
+      { path: "/public-node/requester-work-policy.json", kind: "json", marker: "VOID_PUBLIC_NODE_REQUESTER_WORK_POLICY_V1", use: "requester CPU/work policy" },
+      { path: "/public-node/data-quality.json", kind: "json", marker: "VOID_PUBLIC_NODE_DATA_QUALITY_V1", use: "public data quality score" },
+      { path: "/public-node/link-health.json", kind: "json", marker: "VOID_PUBLIC_NODE_LINK_HEALTH_V1", use: "public link health" },
+      { path: "/public-node/intelligence.json", kind: "json", marker: "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1", use: "public node intelligence summary" },
+      { path: "/proofs", kind: "html", marker: "VOID_PUBLIC_PROOFS_INDEX", use: "public proofs index" }
+    ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -45574,6 +45608,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <li>Open <code>/proofs</code> and verify proofs client-side.</li>
           </ol>
           <p class="muted">Do not touch private owner routes, buy APIs, wallet send paths, WC swap paths, validator mutation paths, or proof generation mutation paths.</p>
+        </div>
+
+        <div class="card" id="publicNodeRouteIndexCard"><!-- VOID_PUBLIC_NODE_ROUTE_INDEX_UI_V1 -->
+          <b>Route index</b>
+          <p class="muted">Machine-readable registry of public routes and expected markers:</p>
+          <p><code>/public-node/route-index.json</code></p>
+          <p class="muted">Agents and testers can start here to discover safe public routes without touching private APIs.</p>
         </div>
 </body>
 </html>`);
