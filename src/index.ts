@@ -45170,6 +45170,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-handoff.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1", use: "single outside tester handoff packet" },
       { path: "/public-node/tester-result-receipt.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", use: "outside tester result receipt template" },
       { path: "/public-node/tester-bundle.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1", use: "single canonical outside tester bundle" },
+      { path: "/public-node/share-link.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1", use: "copy-paste outside tester invite link" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45462,6 +45463,37 @@ APP.get("/public-node/tester-bundle.json", (_req:any, res:any) => { // VOID_PUBL
     proofs: effectiveBaseUrl + "/proofs",
     smoke_command: smokeCommand,
     expected_success: "Smoke command prints ok for every public route.",
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/share-link.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SHARE_LINK_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const testerBundleUrl = effectiveBaseUrl + "/public-node/tester-bundle.json";
+  const publicNodeUrl = effectiveBaseUrl + "/public-node";
+  res.json({
+    marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1",
+    purpose: "public_node_copy_paste_tester_invite",
+    headline: "VOID public node share link",
+    effective_base_url: effectiveBaseUrl,
+    public_node_url: publicNodeUrl,
+    tester_bundle_url: testerBundleUrl,
+    copy_paste_invite: "Want to test a VOID public node? Open " + publicNodeUrl + " and use the tester bundle at " + testerBundleUrl + ". It is public-route/read-only smoke testing only: no wallet sends, no swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.",
+    short_invite: "Test this VOID public node: " + publicNodeUrl,
+    report_back: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45955,6 +45987,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Tester bundle</b>
           <p class="muted">Single canonical packet linking quickstart, tester handoff, result receipt, smoke pack, route index, and proofs.</p>
           <p><code>/public-node/tester-bundle.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeShareLinkCard"><!-- VOID_PUBLIC_NODE_SHARE_LINK_UI_V1 -->
+          <b>Share link</b>
+          <p class="muted">Copy-paste tester invite linking the public node, tester bundle, and result receipt.</p>
+          <p><code>/public-node/share-link.json</code></p>
         </div>
 </body>
 </html>`);
