@@ -45172,6 +45172,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-bundle.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1", use: "single canonical outside tester bundle" },
       { path: "/public-node/share-link.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1", use: "copy-paste outside tester invite link" },
       { path: "/public-node/tester-loop-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1", use: "outside tester loop wiring status" },
+      { path: "/public-node/outside-tester-smoke.json", kind: "json", marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", use: "outside tester smoke command surface" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45544,6 +45545,45 @@ APP.get("/public-node/tester-loop-status.json", (_req:any, res:any) => { // VOID
       route_index: true,
       proofs: true
     },
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/outside-tester-smoke.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1",
+    purpose: "public_node_outside_tester_smoke_command_surface",
+    headline: "VOID public node outside tester smoke command",
+    effective_base_url: effectiveBaseUrl,
+    script_path: "ops/mainnet0/public-node-outside-tester-smoke.sh",
+    command: "PUBLIC_NODE_BASE=" + effectiveBaseUrl + " ops/mainnet0/public-node-outside-tester-smoke.sh",
+    expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
+    checked_routes: [
+      "/public-node",
+      "/public-node/share-link.json",
+      "/public-node/tester-bundle.json",
+      "/public-node/tester-loop-status.json",
+      "/public-node/tester-result-receipt.json",
+      "/public-node/quickstart.json",
+      "/public-node/tester-handoff.json",
+      "/public-node/public-exposure-smoke-pack.json",
+      "/public-node/route-index.json",
+      "/proofs"
+    ],
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -46049,6 +46089,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Tester loop status</b>
           <p class="muted">Machine-readable status for the README → share link → public node → tester bundle → result receipt loop.</p>
           <p><code>/public-node/tester-loop-status.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeOutsideTesterSmokeSurfaceCard"><!-- VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_UI_V1 -->
+          <b>Outside tester smoke command</b>
+          <p class="muted">Live public route exposing the one-env-var smoke command and expected green marker.</p>
+          <p><code>/public-node/outside-tester-smoke.json</code></p>
         </div>
 </body>
 </html>`);
