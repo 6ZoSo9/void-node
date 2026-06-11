@@ -215,6 +215,28 @@ Or run the short public-route smoke check:
 
 This checks public routes only. It does not touch private APIs, wallets, swaps, Buy VOID fulfillment, validators, or proof mutation.
 
+## Public node data weighting path <!-- VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_README_POINTER_V1 -->
+
+VOID public nodes now expose the storage-to-weighting path:
+
+- Local Data Drop: operator-local files served through public read-only routes.
+- Data Weight Record v1: public schema for ranking stored data by verification, freshness, duplicate status, suspicion state, tombstone state, storage tier, AI visibility, trust score, and promotion eligibility.
+
+Public route:
+
+`/public-node/data-weight-record.json`
+
+Docs:
+
+- `docs/public/public-node-local-data-drop.md`
+- `docs/public/public-node-data-weight-record.md`
+
+Proof:
+
+`ops/mainnet0/public-node-data-weight-record-rollup-proof.sh`
+
+Policy boundary: persistent does not mean equal priority. VOID can preserve data without treating every object as equally trusted, equally visible, or equally eligible for promotion.
+
 ## Public node outside tester path <!-- VOID_PUBLIC_NODE_OUTSIDE_TESTER_README_POINTER_V1 -->
 
 For an outside tester, start with the public-node share link:
