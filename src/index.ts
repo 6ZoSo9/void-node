@@ -45184,6 +45184,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-tester-request-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", use: "first outside tester request copy pack" },
       { path: "/public-node/local-data-drop/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", use: "operator-local public data manifest root" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
+      { path: "/public-node/local-data-drop/weighted.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
       { path: "/public-node/local-data-drop/proof/:sha256.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", use: "operator-local public data object proof by sha256" },
       { path: "/public-node/local-data-drop/by-sha256/:sha256", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", use: "operator-local public data content-address fetch" },
       { path: "/public-node/local-data-drop/:objectId", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", use: "operator-local public data object fetch" },
@@ -45663,6 +45664,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
+      local_data_drop_weighted: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
       data_weight_record: effectiveBaseUrl + "/public-node/data-weight-record.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
@@ -45682,6 +45684,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_lane_summary_present: true,
       first_tester_request_copy_pack_present: true,
       local_data_drop_present: true,
+      local_data_drop_weighted_present: true,
       data_weight_record_present: true,
       route_index_present: true,
       route_manifest_present: true,
@@ -45721,6 +45724,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-tester-request-copy-pack.json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", purpose: "first outside tester request copy pack", safety_class: "public_read_only_copy_pack" },
     { path: "/public-node/local-data-drop/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", purpose: "operator-local public data manifest root", safety_class: "public_read_only_local_file_manifest" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
+    { path: "/public-node/local-data-drop/weighted.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", purpose: "weighted view of operator-local public data drop objects", safety_class: "public_read_only_local_file_weighted_view" },
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
@@ -46219,6 +46223,103 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
 
 
 
+
+
+APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
+
+  fs.mkdirSync(dropDir, { recursive: true });
+  fs.mkdirSync(receiptDir, { recursive: true });
+
+  const safeNames = fs.readdirSync(dropDir)
+    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+
+  const weighted_records = safeNames
+    .map((name:any) => {
+      const objectId = String(name);
+      const filePath = path.join(dropDir, objectId);
+      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+
+      const st = fs.statSync(filePath);
+      const buf = fs.readFileSync(filePath);
+      const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+
+      const receiptPath = path.join(receiptDir, objectId + ".json");
+      let receipt = null;
+      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
+      }
+
+      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+      const trustScore = receiptValid ? 0.90 : 0.55;
+      const storageTier = receiptValid ? "hot" : "warm";
+      const aiVisibility = receiptValid ? "high" : "medium";
+      const promotionEligible = receiptValid;
+
+      return {
+        record_id: "dwr_local_drop_" + sha256.slice(0, 16),
+        object_id: objectId,
+        sha256,
+        bytes: st.size,
+        source_id: "operator_local_data_drop",
+        source_weight: receiptValid ? 0.90 : 0.65,
+        verification_state: receiptValid ? "verified" : "unverified_local",
+        freshness_state: "fresh",
+        duplicate_state: "unknown",
+        suspicion_state: "clean",
+        tombstone_state: "active",
+        storage_tier: storageTier,
+        ai_visibility: aiVisibility,
+        trust_score: trustScore,
+        promotion_eligible: promotionEligible,
+        reason_codes: receiptValid
+          ? ["local_object_present", "sha256_computed", "receipt_valid", "public_read_only"]
+          : ["local_object_present", "sha256_computed", "receipt_missing_or_mismatch", "public_read_only"],
+        object_href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(objectId),
+        content_address_href: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
+        proof_href: effectiveBaseUrl + "/public-node/local-data-drop/proof/" + sha256 + ".json"
+      };
+    })
+    .filter(Boolean)
+    .sort((a:any, b:any) => String(a.object_id).localeCompare(String(b.object_id)));
+
+  res.json({
+    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1",
+    purpose: "weighted_public_node_local_data_drop_view",
+    status: "weighted_local_data_drop_ready",
+    object_count: weighted_records.length,
+    weighted_records,
+    empty_state: weighted_records.length === 0 ? "no_operator_local_data_drop_objects_present" : null,
+    data_weight_record_marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1",
+    doctrine: {
+      persistent_does_not_mean_equal_priority: true,
+      actual_local_objects_weighted: true,
+      sample_records_only: false
+    },
+    links: {
+      local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
+      local_data_drop_manifest: effectiveBaseUrl + "/public-node/local-data-drop/manifest.json",
+      data_weight_record_schema: effectiveBaseUrl + "/public-node/data-weight-record.json"
+    },
+    policy: {
+      public_upload: false,
+      operator_local_import_only: true,
+      public_read_only: true,
+      mutation_from_public: false,
+      trusted_as_network_truth: false
+    }
+  });
+});
 
 APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROUTE_V1
   const fs = require("fs");
@@ -47053,6 +47154,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Public read-only schema for ranking stored data by verification, freshness, duplication, suspicion, tombstone state, storage tier, AI visibility, and promotion eligibility.</p>
           <p><code>/public-node/data-weight-record.json</code></p>
         </div>
+
+        <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
+          <h2>Weighted Local Data Drop</h2>
+          <p>Live weighted view of actual operator-local data drop objects using Data Weight Record fields. Empty-safe when no local objects are present.</p>
+          <p><code>/public-node/local-data-drop/weighted.json</code></p>
+        </div>
+
 
 
 
