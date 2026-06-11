@@ -46984,6 +46984,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>/public-node/local-data-drop.json</code></p>
         </div>
 
+        <div class="card" id="publicNodeLocalDataDropImportDirectoryRunbookCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_RUNBOOK_UI_V1 -->
+          <h2>Import Directory Runbook</h2>
+          <p>Operator-local folder import guide for publishing a local directory through the same public read-only local data drop routes. No public upload endpoint.</p>
+          <p><code>docs/public/public-node-local-data-drop-import-directory-runbook.md</code></p>
+        </div>
+
 
 
 
