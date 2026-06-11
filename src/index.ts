@@ -45632,6 +45632,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/local-data-drop/proof/:sha256.json",
     "/public-node/local-data-drop/by-sha256/:sha256",
     "/public-node/local-data-drop/:objectId",
+    "/public-node/data-weight-record.json",
     "/public-node",
     "/public-node/self-check-snapshot.json",
     "/public-node/route-manifest.json",
