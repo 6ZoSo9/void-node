@@ -4,9 +4,9 @@ Marker: `VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_CLOSEOUT_DOC_V1`
 
 ## Status
 
-Data Weight Record v1 is source/docs/proof-rollup green.
+Data Weight Record v1 is source/docs/proof-rollup green and live-proof green.
 
-Live server proof remains pending and should be handled separately after deliberate live process cleanup.
+Live server proof passed after deliberate live process cleanup.
 
 ## Final checkpoint chain
 
@@ -16,6 +16,7 @@ Live server proof remains pending and should be handled separately after deliber
 - Route Manifest pointer green: `ckpt-public-node-route-manifest-data-weight-pointer-green-20260611-233933`
 - Rollup proof green: `ckpt-public-node-data-weight-record-rollup-green-20260611-234153`
 - README pointer green: `ckpt-public-node-data-weight-record-readme-pointer-green-20260611-234318`
+- Live proof green: `ckpt-public-node-data-weight-record-live-proof-green-20260611-234858`
 
 ## What this added
 
@@ -80,3 +81,18 @@ It does not:
 - fulfill Buy VOID requests
 - mutate validators
 - claim to be consensus/network truth
+
+
+## Live proof update
+
+Marker: `VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_LIVE_PROOF_CLOSEOUT_UPDATE_V1`
+
+The live server proof is no longer pending.
+
+Live proof tag:
+
+`ckpt-public-node-data-weight-record-live-proof-green-20260611-234858`
+
+Live proof marker:
+
+`VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1_GREEN`
