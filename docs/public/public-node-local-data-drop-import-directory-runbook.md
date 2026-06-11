@@ -33,3 +33,21 @@ This is operator-local import only.
 - operator local import only: true
 - public read only: true
 - trusted as network truth: false
+
+## Next layer: Data Weight Record v1
+
+Marker: `VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_POINTER_DOC_V1`
+
+Local Data Drop proves that an operator can place data into the node runtime and expose it through public read-only routes.
+
+Data Weight Record v1 is the next layer after storage. It gives VOID a public schema for ranking stored data by verification, freshness, duplicate status, suspicion state, tombstone state, storage tier, AI visibility, trust score, and promotion eligibility.
+
+Public route:
+
+`/public-node/data-weight-record.json`
+
+Doc:
+
+`docs/public/public-node-data-weight-record.md`
+
+Policy boundary: persistent does not mean equal priority. VOID can preserve data without treating every object as equally trusted, equally fresh, equally visible to AI, or equally eligible for promotion.
