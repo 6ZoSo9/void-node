@@ -45193,6 +45193,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/ai-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_AI_READINESS_V1", use: "AI readiness score" },
       { path: "/public-node/fresh-proof-seed.json", kind: "json", marker: "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1", use: "fresh public proof seed" },
       { path: "/public-node/requester-work-policy.json", kind: "json", marker: "VOID_PUBLIC_NODE_REQUESTER_WORK_POLICY_V1", use: "requester CPU/work policy" },
+      { path: "/public-node/data-weight-record.json", kind: "json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", use: "public data weight record schema and sample fixtures" },
       { path: "/public-node/data-quality.json", kind: "json", marker: "VOID_PUBLIC_NODE_DATA_QUALITY_V1", use: "public data quality score" },
       { path: "/public-node/link-health.json", kind: "json", marker: "VOID_PUBLIC_NODE_LINK_HEALTH_V1", use: "public link health" },
       { path: "/public-node/intelligence.json", kind: "json", marker: "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1", use: "public node intelligence summary" },
@@ -45661,6 +45662,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
+      data_weight_record: effectiveBaseUrl + "/public-node/data-weight-record.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -45679,6 +45681,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_lane_summary_present: true,
       first_tester_request_copy_pack_present: true,
       local_data_drop_present: true,
+      data_weight_record_present: true,
       route_index_present: true,
       route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
@@ -45720,6 +45723,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
+    { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
     { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
@@ -45755,6 +45759,59 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
   });
 });
 
+
+
+APP.get("/public-node/data-weight-record.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  const sampleRecords = [
+    { record_id: "dwr_verified_example_v1", object_id: "example-verified-object.txt", sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", source_weight: 0.90, verification_state: "verified", freshness_state: "fresh", duplicate_state: "canonical", suspicion_state: "clean", tombstone_state: "active", storage_tier: "hot", ai_visibility: "high", trust_score: 0.94, promotion_eligible: true },
+    { record_id: "dwr_stale_example_v1", object_id: "example-stale-object.txt", sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", source_weight: 0.65, verification_state: "previously_verified", freshness_state: "stale", duplicate_state: "canonical", suspicion_state: "clean", tombstone_state: "active", storage_tier: "warm", ai_visibility: "medium", trust_score: 0.58, promotion_eligible: false },
+    { record_id: "dwr_duplicate_example_v1", object_id: "example-duplicate-object.txt", sha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", source_weight: 0.50, verification_state: "verified", freshness_state: "fresh", duplicate_state: "duplicate", suspicion_state: "clean", tombstone_state: "active", storage_tier: "cold", ai_visibility: "low", trust_score: 0.40, promotion_eligible: false },
+    { record_id: "dwr_suspicious_example_v1", object_id: "example-suspicious-object.txt", sha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", source_weight: 0.15, verification_state: "unverified", freshness_state: "unknown", duplicate_state: "unknown", suspicion_state: "suspicious", tombstone_state: "active", storage_tier: "quarantine", ai_visibility: "hidden_by_default", trust_score: 0.08, promotion_eligible: false },
+    { record_id: "dwr_tombstoned_example_v1", object_id: "example-tombstoned-object.txt", sha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", source_weight: 0.00, verification_state: "withheld", freshness_state: "not_applicable", duplicate_state: "not_applicable", suspicion_state: "blocked", tombstone_state: "tombstoned", storage_tier: "tombstone_only", ai_visibility: "none", trust_score: 0.00, promotion_eligible: false }
+  ];
+
+  res.json({
+    marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1",
+    purpose: "public_node_data_weight_record_schema",
+    status: "data_weight_record_schema_ready",
+    effective_base_url: effectiveBaseUrl,
+    doctrine: {
+      persistent_does_not_mean_equal_priority: true,
+      preserve_memory_but_weight_attention: true,
+      separate_existence_from_trust_and_promotion: true,
+      requester_work_model_supported: true
+    },
+    schema: {
+      marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_SCHEMA_V1",
+      fields: ["record_id", "object_id", "sha256", "source_weight", "verification_state", "freshness_state", "duplicate_state", "suspicion_state", "tombstone_state", "storage_tier", "ai_visibility", "trust_score", "promotion_eligible"],
+      allowed_storage_tiers: ["hot", "warm", "cold", "quarantine", "tombstone_only"],
+      allowed_ai_visibility: ["high", "medium", "low", "hidden_by_default", "none"]
+    },
+    sample_records: sampleRecords,
+    links: {
+      local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
+      local_data_drop_manifest: effectiveBaseUrl + "/public-node/local-data-drop/manifest.json",
+      route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
+      self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json"
+    },
+    policy: {
+      public_upload: false,
+      public_read_only: true,
+      mutation_from_public: false,
+      operator_local_import_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false,
+      trusted_as_network_truth: false
+    }
+  });
+});
 
 APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_AGENT_DISCOVERY_ROUTE_V1
   const defaultBaseUrl = "http://127.0.0.1:4100";
@@ -46989,6 +47046,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Operator-local folder import guide for publishing a local directory through the same public read-only local data drop routes. No public upload endpoint.</p>
           <p><code>docs/public/public-node-local-data-drop-import-directory-runbook.md</code></p>
         </div>
+
+        <div class="card" id="publicNodeDataWeightRecordCard"><!-- VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_UI_V1 -->
+          <h2>Data Weight Record</h2>
+          <p>Public read-only schema for ranking stored data by verification, freshness, duplication, suspicion, tombstone state, storage tier, AI visibility, and promotion eligibility.</p>
+          <p><code>/public-node/data-weight-record.json</code></p>
+        </div>
+
 
 
 
