@@ -111,3 +111,17 @@ Marker:
     VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_V1
 
 The helper is operator-local only. It does not enable public uploads. It walks regular files in a source directory, converts relative paths into safe object ids, imports each file with the existing local data drop import helper, and exposes the resulting objects through the same public read-only index, manifest, content-address, proof, receipt, and verifier routes.
+
+## Import a directory <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_POINTER_DOC_V1 -->
+
+Operators can import a whole local folder using the directory import helper.
+
+Runbook:
+
+- [Public Node Local Data Drop Import Directory Runbook](public-node-local-data-drop-import-directory-runbook.md)
+
+Helper:
+
+    ops/mainnet0/public-node-local-data-drop-import-dir.sh
+
+This remains operator-local only. It does not enable public uploads. Imported files are exposed through the existing public read-only local data drop index, manifest, content-address, proof, receipt, and verifier routes.
