@@ -364,3 +364,44 @@ Demo object:
 
 Policy: the imported receipt is operator-local evidence, not automatic network truth. It records offline_verified=true, network_fetch_during_import=false, and trusted_as_network_truth=false.
 
+## Demo 002 receipt intake status <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_RECEIPT_INTAKE_STATUS_POINTER_DOC_V1 -->
+
+Operators can print the current Demo 002 receipt intake state with:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo002-receipt-intake-status.sh
+
+Expected populated marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_RECEIPT_INTAKE_STATUS_V1_GREEN=true
+
+Expected empty marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_RECEIPT_INTAKE_STATUS_V1_EMPTY
+
+The status helper reports:
+
+       latest_present
+       archive_count
+       public_node_base
+       object_id
+       sha256_expected
+       objects_match
+       proof_json_verified
+       offline_verified
+       network_fetch_during_import
+       trusted_as_network_truth
+       source_receipt_sha256
+
+Checkpoint:
+
+       962e1cfa
+       ckpt-public-node-local-data-drop-demo002-receipt-intake-status-green-20260612-215717
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Policy: status is operator-local evidence status, not automatic network truth. It keeps trusted_as_network_truth=false visible.
+
