@@ -83,3 +83,17 @@ Use this before public posts, onboarding replies, or social updates. It records 
 - [Mainnet-0 public share posts](mainnet0-public-share-posts.md)
 
 Proof-checked public templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.
+
+## Demo 002 local data-drop closeout <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_CLOSEOUT_INDEX_POINTER_V1 -->
+
+The Demo 002 closeout card summarizes the full public-node local data-drop evidence lane:
+
+       docs/public/public-node-local-data-drop-demo002-closeout.md
+
+Latest closeout checkpoint:
+
+       603169e4
+       ckpt-public-node-local-data-drop-demo002-closeout-card-green-20260612-225519
+
+It covers public read routes, tester smoke receipts, offline receipt verification, local receipt intake, intake status, evidence roundtrip, shareable evidence pack creation, offline evidence-pack verification, and the safety/trust boundary.
+
