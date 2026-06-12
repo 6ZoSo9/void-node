@@ -221,3 +221,24 @@ Current proven capability is recorded here:
 - proof marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_FINAL_GREEN`
 
 The public node can now import operator-local files into the live route DATA_DIR, expose them as weighted records, serve them by object id, serve the same bytes by sha256 content address, and serve proof JSON.
+## Live public serving posture <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_RUNTIME_QUARANTINE_POINTER_DOC_V1 -->
+
+The live public-node Local Data Drop lane now has an operator-installable quarantined public serving posture.
+
+Install/prove scripts:
+
+    ops/mainnet0/public-node-live-runtime-quarantine-install.sh
+    ops/mainnet0/public-node-live-runtime-quarantine-proof.sh
+
+This posture keeps the public HTTP Local Data Drop routes online while disabling the hot runtime wrapper, txroot, saveblock, forensics, finalize-WAL, and drift families through a user systemd drop-in. It also requires the legacy `void-node.service` to remain inactive/disabled so only `void-node-live.service` owns ports 4100/4700.
+
+Current proven checkpoint:
+
+    08383516
+    ckpt-public-node-live-runtime-quarantine-green-20260612-210820
+    VOID_PUBLIC_NODE_LIVE_RUNTIME_QUARANTINE_PROOF_V1_GREEN
+
+Demo 002 remains publicly verifiable under this posture:
+
+    live-import-demo-002.txt
+    264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871

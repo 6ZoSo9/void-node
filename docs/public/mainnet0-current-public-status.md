@@ -491,3 +491,23 @@ DataNet materialization is currently green on the two-box Mainnet-0 baseline.
 - Stack sweep checkpoint: `ckpt-no-manual-peer-seed-tailscale-preflight-guard-v1-green-20260605-154722`
 
 <!-- VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_END -->
+## Public node live runtime quarantine <!-- VOID_PUBLIC_NODE_LIVE_RUNTIME_QUARANTINE_STATUS_POINTER_V1 -->
+
+The public-node Local Data Drop live service is currently proven in a quarantined public serving posture.
+
+Checkpoint:
+
+    08383516
+    ckpt-public-node-live-runtime-quarantine-green-20260612-210820
+
+Proof marker:
+
+    VOID_PUBLIC_NODE_LIVE_RUNTIME_QUARANTINE_PROOF_V1_GREEN
+
+Operational meaning:
+
+- `void-node-live.service` is the only live owner of ports 4100/4700.
+- legacy `void-node.service` must stay inactive/disabled.
+- public Local Data Drop HTTP routes stay online.
+- hot runtime wrapper/txroot/saveblock/forensics/drift families are disabled through the user systemd quarantine drop-in.
+- Demo 002 object/proof endpoints verified green after the quarantine posture was installed.
