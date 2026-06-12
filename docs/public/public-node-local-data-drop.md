@@ -210,3 +210,14 @@ The first intentional live Local Data Drop import is proven on Precision.
 - route marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1`
 - proof marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_001_STATUS_FINAL_GREEN`
 
+## Current capability
+
+Marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_POINTER_V1`
+
+Current proven capability is recorded here:
+
+- `docs/public/public-node-local-data-drop-current-capability.md`
+- capability marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_V1`
+- proof marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_FINAL_GREEN`
+
+The public node can now import operator-local files into the live route DATA_DIR, expose them as weighted records, serve them by object id, serve the same bytes by sha256 content address, and serve proof JSON.
