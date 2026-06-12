@@ -134,3 +134,51 @@ Demo object:
 
 Safety boundary: public routes only, read-only, no mutation, no wallet send, no money movement, no validator mutation.
 
+## Tester handoff Demo 002 receipt intake <!-- VOID_PUBLIC_NODE_TESTER_HANDOFF_DEMO002_SMOKE_RECEIPT_INTAKE_POINTER_V1 -->
+
+Demo 002 tester receipts can now be collected as local operator evidence.
+
+Tester flow:
+
+       PUBLIC_NODE_BASE=https://your-node.example \
+         ops/mainnet0/public-node-local-data-drop-demo002-tester-smoke.sh
+
+Tester sends back:
+
+       demo002-tester-smoke-receipt.json
+
+Operator verifies and imports the receipt:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo002-import-smoke-receipt.sh \
+         /path/to/demo002-tester-smoke-receipt.json
+
+The import helper first verifies the receipt offline using:
+
+       ops/mainnet0/public-node-local-data-drop-demo002-verify-smoke-receipt.sh
+
+Then it writes:
+
+       .runtime/mainnet0/public-node/local-data-drop-demo002-tester-receipts/latest.json
+       .runtime/mainnet0/public-node/local-data-drop-demo002-tester-receipts/archive/demo002-tester-smoke-receipt-*.json
+
+Expected import marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_SMOKE_RECEIPT_INTAKE_V1_IMPORTED
+
+Expected proof marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_SMOKE_RECEIPT_INTAKE_PROOF_V1_GREEN
+
+Checkpoint:
+
+       93d3402b
+       ckpt-public-node-local-data-drop-demo002-smoke-receipt-intake-green-20260612-215003
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Policy: the imported receipt is operator-local evidence, not automatic network truth. It records offline_verified=true, network_fetch_during_import=false, and trusted_as_network_truth=false.
+
