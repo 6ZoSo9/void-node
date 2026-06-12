@@ -34,3 +34,15 @@ Required route fields:
 - route import marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_V1_IMPORTED`
 - target planner marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_TARGET_PLAN_V1_READY`
 - status proof marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_002_STATUS_V1_GREEN`
+
+## Public endpoint verification
+
+Marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_002_PUBLIC_ENDPOINTS_V1`
+
+Demo 002 public endpoints were verified:
+
+- object route: `/public-node/local-data-drop/live-import-demo-002.txt`
+- content-address route: `/public-node/local-data-drop/by-sha256/264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871`
+- proof route: `/public-node/local-data-drop/proof/264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871.json`
+- object route SHA matched content-address route SHA.
+- proof JSON exposed `object_id`, `sha256`, `object_href`, `content_address_href`, `proof_href`, and `receipt_sha256`.
