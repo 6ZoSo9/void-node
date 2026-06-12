@@ -64,3 +64,23 @@ After live import:
 While Alienware is offline, prefer scratch import proofs unless the goal is explicitly to mutate the Precision public surface.
 
 Do not claim cross-box green until Alienware returns and reruns the Public Node proof stack.
+
+## No-mutation preflight <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_PREFLIGHT_POINTER_DOC_V1 -->
+
+Before running a live import, run the preflight tool first.
+
+The preflight reads the live weighted route, counts source files, predicts the expected post-import object count, and prints the recommended live import command.
+
+It does not run the import.
+
+Command shape:
+
+    ops/mainnet0/public-node-local-data-drop-live-import-preflight.sh /path/to/source-dir
+
+Expected preflight marker:
+
+- `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_PREFLIGHT_V1_READY`
+
+Closeout:
+
+- `docs/public/public-node-local-data-drop-live-import-preflight-closeout.md`
