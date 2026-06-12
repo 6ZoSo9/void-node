@@ -176,3 +176,24 @@ The Local Data Drop import stack status summarizes the current proven import dis
 - current proof mode remains Precision-only green / Alienware deferred / cross-box pending
 
 See `docs/public/public-node-local-data-drop-import-stack-status.md` for the current import stack recap.
+
+## Live import safe ladder status <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SAFE_LADDER_STATUS_POINTER_DOC_V1 -->
+
+For the current no-mutation live import safety path, see:
+
+- `docs/public/public-node-local-data-drop-live-import-safe-ladder-status.md`
+
+Safe order:
+
+1. run preflight
+2. generate plan JSON
+3. inspect expected object count
+4. intentionally run live import only when ready
+
+Routine checker:
+
+- `ops/mainnet0/public-node-local-data-drop-import-stack-lite-smoke.sh`
+
+Expected lite marker:
+
+- `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_STACK_LITE_SMOKE_V1_GREEN`
