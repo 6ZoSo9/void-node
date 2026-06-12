@@ -42,3 +42,19 @@ Verify live weighted route:
 - planner: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_TARGET_PLAN_V1_READY`
 - live demo proof: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_001_V1_GREEN`
 - status final: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_001_STATUS_FINAL_GREEN`
+
+## Standard object endpoint verifier
+
+Marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ENDPOINTS_PROOF_POINTER_V1`
+
+After importing an object, verify the public object route, content-address route, and proof route with:
+
+    bash ops/mainnet0/public-node-local-data-drop-object-endpoints-proof.sh OBJECT_ID SHA256
+
+Known-good Demo 002 example:
+
+    bash ops/mainnet0/public-node-local-data-drop-object-endpoints-proof.sh live-import-demo-002.txt 264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Expected verifier marker:
+
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ENDPOINTS_PROOF_V1_GREEN
