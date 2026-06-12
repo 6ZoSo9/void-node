@@ -69,3 +69,19 @@ This status does not claim cross-box green.
 This status does not claim Alienware has rejoined.
 
 This status does not claim live import has been executed.
+
+## Lite smoke checker <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_STACK_LITE_SMOKE_POINTER_DOC_V1 -->
+
+For routine checks, use the lite smoke instead of the full nested proof stack.
+
+The lite smoke avoids TypeScript builds and nested proof chains.
+
+Command:
+
+    ops/mainnet0/public-node-local-data-drop-import-stack-lite-smoke.sh
+
+Expected marker:
+
+- `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_STACK_LITE_SMOKE_V1_GREEN`
+
+Use the full proof stack only when committing, changing runtime behavior, or preparing a larger closeout.
