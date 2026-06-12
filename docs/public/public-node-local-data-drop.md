@@ -152,3 +152,16 @@ Before importing operator-local data, decide whether this is a scratch proof/tes
 - Live import: use the node runtime data directory. This intentionally changes `/public-node/local-data-drop/weighted.json` and may require updating proofs that expect `object_count=1`.
 
 See `docs/public/public-node-local-data-drop-import-scratch-vs-live.md` for the proven rule.
+
+## Live import runbook <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_RUNBOOK_POINTER_DOC_V1 -->
+
+Live import is the deliberate operator path for changing what the Public Node serves.
+
+Use this only when the goal is to intentionally mutate `/public-node/local-data-drop/weighted.json`.
+
+Current live baseline remains:
+
+- `object_count=1`
+- marker `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1`
+
+See `docs/public/public-node-local-data-drop-live-import-runbook.md` before running any live import.
