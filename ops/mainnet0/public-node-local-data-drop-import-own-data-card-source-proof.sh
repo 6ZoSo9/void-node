@@ -10,6 +10,7 @@ grep -Fq "Import Your Own Local Data" src/index.ts
 grep -Fq "Node runners can place a small local file" src/index.ts
 grep -Fq "mkdir -p /tmp/void-local-data-drop-demo" src/index.ts
 grep -Fq "my-first-void-object.txt" src/index.ts
+grep -Fq "echo 'hello from my VOID node' &gt; /tmp/void-local-data-drop-demo/my-first-void-object.txt" src/index.ts
 grep -Fq "DATA_DIR=&quot;\$PWD/data_a&quot; MAX_FILES=25 ops/mainnet0/public-node-local-data-drop-import-dir.sh /tmp/void-local-data-drop-demo" src/index.ts
 grep -Fq "/public-node/local-data-drop.json" src/index.ts
 grep -Fq "/public-node/local-data-drop/weighted.json" src/index.ts

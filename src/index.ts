@@ -47199,7 +47199,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <li>Refresh this page and open the weighted/object browser links.</li>
           </ol>
           <pre><code>mkdir -p /tmp/void-local-data-drop-demo
-printf 'hello from my VOID node\n' &gt; /tmp/void-local-data-drop-demo/my-first-void-object.txt
+echo 'hello from my VOID node' &gt; /tmp/void-local-data-drop-demo/my-first-void-object.txt
 DATA_DIR=&quot;$PWD/data_a&quot; MAX_FILES=25 ops/mainnet0/public-node-local-data-drop-import-dir.sh /tmp/void-local-data-drop-demo</code></pre>
           <p>After import, check <code>/public-node/local-data-drop.json</code> and <code>/public-node/local-data-drop/weighted.json</code>.</p>
           <p><small>Runbook: <code>docs/public/public-node-local-data-drop-import-directory-runbook.md</code></small></p>
