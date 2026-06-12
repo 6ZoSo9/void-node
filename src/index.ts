@@ -45184,9 +45184,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-tester-request-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", use: "first outside tester request copy pack" },
       { path: "/public-node/local-data-drop/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", use: "operator-local public data manifest root" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
-      { path: "/public-node/local-data-drop/weighted.json",
-    "/public-node/local-data-drop/current-capability.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
-      { path: "/public-node/local-data-drop/current-capability.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_ROUTE_V1", use: "current capability summary for operator-local public data drop" },
+      { path: "/public-node/local-data-drop/weighted.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
       { path: "/public-node/local-data-drop/proof/:sha256.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", use: "operator-local public data object proof by sha256" },
       { path: "/public-node/local-data-drop/by-sha256/:sha256", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", use: "operator-local public data content-address fetch" },
       { path: "/public-node/local-data-drop/:objectId", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", use: "operator-local public data object fetch" },
@@ -45667,8 +45665,6 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
       local_data_drop_weighted: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
-      local_data_drop_current_capability: effectiveBaseUrl + "/public-node/local-data-drop/current-capability.json",
-    "/public-node/local-data-drop/current-capability.json",
       data_weight_record: effectiveBaseUrl + "/public-node/data-weight-record.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
@@ -45728,8 +45724,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-tester-request-copy-pack.json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", purpose: "first outside tester request copy pack", safety_class: "public_read_only_copy_pack" },
     { path: "/public-node/local-data-drop/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", purpose: "operator-local public data manifest root", safety_class: "public_read_only_local_file_manifest" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
-    { path: "/public-node/local-data-drop/weighted.json",
-    "/public-node/local-data-drop/current-capability.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", purpose: "weighted view of operator-local public data drop objects", safety_class: "public_read_only_local_file_weighted_view" },
+    { path: "/public-node/local-data-drop/weighted.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", purpose: "weighted view of operator-local public data drop objects", safety_class: "public_read_only_local_file_weighted_view" },
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
@@ -46230,100 +46225,7 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
 
 
 
-
-
-APP.get("/public-node/local-data-drop/current-capability.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_ROUTE_V1
-  const fs = require("fs");
-  const path = require("path");
-  const crypto = require("crypto");
-
-  const defaultBaseUrl = "http://127.0.0.1:4100";
-  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
-  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
-
-  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
-  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
-  const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
-
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
-
-  const objects = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
-    .map((name:any) => {
-      const objectId = String(name);
-      const filePath = path.join(dropDir, objectId);
-      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
-
-      const st = fs.statSync(filePath);
-      const buf = fs.readFileSync(filePath);
-      const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
-
-      const receiptPath = path.join(receiptDir, objectId + ".json");
-      let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-      }
-
-      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
-
-      return {
-        object_id: objectId,
-        sha256,
-        bytes: st.size,
-        verification_state: receiptValid ? "verified" : "unverified_local",
-        freshness_state: "fresh",
-        suspicion_state: "clean",
-        object_href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(objectId),
-        content_address_href: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
-        proof_href: effectiveBaseUrl + "/public-node/local-data-drop/proof/" + sha256 + ".json"
-      };
-    })
-    .filter(Boolean)
-    .sort((a:any, b:any) => String(a.object_id).localeCompare(String(b.object_id)));
-
-  const demo002Sha = "264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871";
-  const demo002 = objects.find((o:any) => o.object_id === "live-import-demo-002.txt" && o.sha256 === demo002Sha) || null;
-
-  res.json({
-    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_ROUTE_V1",
-    capability_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CURRENT_CAPABILITY_V1",
-    status: "current_capability_ready",
-    purpose: "public_node_local_data_drop_current_capability_summary",
-    object_count: objects.length,
-    current_proven_demo_object: demo002,
-    capabilities: {
-      detect_live_data_dir: true,
-      no_mutation_import_target_plan: true,
-      operator_local_import: true,
-      weighted_records: true,
-      object_id_fetch: true,
-      sha256_content_address_fetch: true,
-      object_proof_json: true,
-      reusable_object_endpoint_verifier: true
-    },
-    links: {
-      local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
-      local_data_drop_manifest: effectiveBaseUrl + "/public-node/local-data-drop/manifest.json",
-      local_data_drop_weighted: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
-      local_data_drop_current_capability: effectiveBaseUrl + "/public-node/local-data-drop/current-capability.json",
-    "/public-node/local-data-drop/current-capability.json",
-      current_demo_object: demo002 ? demo002.object_href : null,
-      current_demo_content_address: demo002 ? demo002.content_address_href : null,
-      current_demo_proof: demo002 ? demo002.proof_href : null
-    },
-    policy: {
-      public_upload: false,
-      operator_local_import_only: true,
-      public_read_only: true,
-      mutation_from_public: false,
-      trusted_as_network_truth: false
-    }
-  });
-});
-
-APP.get("/public-node/local-data-drop/weighted.json",
-    "/public-node/local-data-drop/current-capability.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_ROUTE_V1
+APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_ROUTE_V1
   const fs = require("fs");
   const path = require("path");
   const crypto = require("crypto");
@@ -46767,8 +46669,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       (() => {
         const el = document.getElementById("publicNodeLocalDataDropHumanDemoTopStatus");
         if (!el) return;
-        fetch("/public-node/local-data-drop/weighted.json",
-    "/public-node/local-data-drop/current-capability.json", { cache: "no-store" })
+        fetch("/public-node/local-data-drop/weighted.json", { cache: "no-store" })
           .then((r) => r.ok ? r.json() : Promise.reject(new Error("weighted route unavailable")))
           .then((j) => {
             const n = Number(j && j.object_count || 0);
@@ -47304,8 +47205,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             (() => {
               const el = document.getElementById("publicNodeLocalDataDropWeightedStatus");
               if (!el) return;
-              fetch("/public-node/local-data-drop/weighted.json",
-    "/public-node/local-data-drop/current-capability.json", { cache: "no-store" })
+              fetch("/public-node/local-data-drop/weighted.json", { cache: "no-store" })
                 .then((r) => r.ok ? r.json() : Promise.reject(new Error("weighted route unavailable")))
                 .then((j) => {
                   const n = Number(j && j.object_count || 0);
