@@ -563,3 +563,14 @@ Demo 003 starts the folder-style local data-drop path:
 
 It creates a multi-file fixture, manifest, sha256sums.txt, and tarball for the next local data-drop proof lane.
 
+
+
+## Demo 003 folder intake <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_POINTER_V1 -->
+
+Demo 003 now includes operator-local folder intake:
+
+       ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh
+       ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh
+       ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh
+
+This moves the folder-style local data-drop path from fixture creation/offline verification into local runtime evidence storage while preserving trusted_as_network_truth=false.

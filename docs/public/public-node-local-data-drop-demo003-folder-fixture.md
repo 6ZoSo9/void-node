@@ -48,3 +48,29 @@ Safety boundary:
        validator_mutation=false
 
 Meaning: Demo 003 prepares the multi-file/folder payload model before public serving. The fixture proves the folder can be packaged, hashed, checksummed, and verified without changing node runtime behavior or promoting local evidence into network truth.
+
+
+## Demo 003 folder intake <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_DOC_V1 -->
+
+Demo 003 folder intake verifies a folder fixture offline and imports it into operator-local runtime evidence:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh
+
+Status check:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh
+
+Expected markers:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true
+
+Preserved trust flags:
+
+       offline_verified=true
+       network_fetch_during_import=false
+       trusted_as_network_truth=false
+
+Policy: this is still operator-local evidence. It proves a verified folder payload can enter local runtime storage without becoming automatic network truth.
