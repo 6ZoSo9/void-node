@@ -493,3 +493,52 @@ Demo object:
 
 Policy: the evidence pack is shareable operator-local proof material. It packages receipts, logs, checksums, and manifest data without promoting the receipt into automatic network truth.
 
+## Demo 002 offline evidence-pack verification <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_VERIFY_EVIDENCE_PACK_POINTER_DOC_V1 -->
+
+Anyone receiving a Demo 002 evidence pack tarball can verify it offline with:
+
+       ops/mainnet0/public-node-local-data-drop-demo002-verify-evidence-pack.sh /path/to/demo002-evidence-pack.tar.gz
+
+The verifier checks:
+
+       tarball structure
+       manifest.json marker and fields
+       sha256sums.txt
+       demo002-tester-smoke-receipt.json
+       runtime/latest.json
+       logs/roundtrip.log
+       logs/status.log
+       receipt/latest file hashes recorded in manifest
+       expected object id and sha256
+       no mutation / no money movement / no wallet send / no validator mutation flags
+
+Expected verifier marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_VERIFY_EVIDENCE_PACK_V1_GREEN
+
+Expected proof marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_VERIFY_EVIDENCE_PACK_PROOF_V1_GREEN
+
+Expected preserved trust flags:
+
+       offline_verified=true
+       network_fetch=false
+       trusted_as_network_truth=false
+
+Tamper behavior:
+
+       A pack modified to set trusted_as_network_truth=true must be rejected.
+
+Checkpoint:
+
+       583ae18b
+       ckpt-public-node-local-data-drop-demo002-verify-evidence-pack-green-20260612-224621
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Policy: the verifier is offline and read-only. It validates shareable operator-local evidence without contacting the public node and without promoting local evidence into automatic network truth.
+
