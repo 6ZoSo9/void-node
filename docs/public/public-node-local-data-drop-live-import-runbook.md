@@ -84,3 +84,34 @@ Expected preflight marker:
 Closeout:
 
 - `docs/public/public-node-local-data-drop-live-import-preflight-closeout.md`
+
+## Plan artifact before live import <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_PLAN_POINTER_DOC_V1 -->
+
+After preflight and before live import, generate a no-mutation JSON plan artifact.
+
+Command shape:
+
+    VOID_LIVE_IMPORT_PLAN_OUT=/tmp/void-live-import-plan.json \
+      ops/mainnet0/public-node-local-data-drop-live-import-plan.sh /path/to/source-dir
+
+Expected marker:
+
+- `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_PLAN_V1_READY`
+
+The plan records:
+
+- current live object count
+- source file count
+- expected object count after import
+- source file list
+- recommended live import command
+- proof mode: Precision green, Alienware deferred, cross-box pending
+
+This does not run the import.
+
+Safe order:
+
+1. run preflight
+2. generate plan JSON
+3. inspect expected object count
+4. intentionally run live import only when ready
