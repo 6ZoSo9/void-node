@@ -555,3 +555,11 @@ Latest closeout checkpoint:
 
 This closeout card summarizes the full Demo 002 evidence lane: public read, tester receipt, offline receipt verification, local intake, intake status, evidence roundtrip, shareable evidence pack, offline pack verifier, and docs/tester pointers.
 
+## Demo 003 folder fixture <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_POINTER_V1 -->
+
+Demo 003 starts the folder-style local data-drop path:
+
+       docs/public/public-node-local-data-drop-demo003-folder-fixture.md
+
+It creates a multi-file fixture, manifest, sha256sums.txt, and tarball for the next local data-drop proof lane.
+
