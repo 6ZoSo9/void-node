@@ -197,3 +197,16 @@ Routine checker:
 Expected lite marker:
 
 - `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_STACK_LITE_SMOKE_V1_GREEN`
+
+## Live Import Demo 001 Status
+
+Marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_001_POINTER_V1`
+
+The first intentional live Local Data Drop import is proven on Precision.
+
+- live status: `docs/public/public-node-local-data-drop-live-import-demo-001-status.md`
+- imported object: `live-import-demo-001.txt`
+- live weighted route object count: `2`
+- route marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1`
+- proof marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_DEMO_001_STATUS_FINAL_GREEN`
+
