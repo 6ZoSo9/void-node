@@ -223,3 +223,44 @@ Demo object:
 
 Policy: status is operator-local evidence status, not automatic network truth. It keeps trusted_as_network_truth=false visible.
 
+## Tester handoff Demo 002 evidence roundtrip <!-- VOID_PUBLIC_NODE_TESTER_HANDOFF_DEMO002_EVIDENCE_ROUNDTRIP_POINTER_V1 -->
+
+Operators can run the full Demo 002 evidence chain with one command:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo002-evidence-roundtrip.sh
+
+This command performs the complete local proof loop:
+
+       smoke public Demo 002 routes
+       emit tester receipt JSON
+       verify receipt offline
+       import verified receipt into operator-local runtime evidence
+       print latest/archive intake status
+
+Expected roundtrip marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_EVIDENCE_ROUNDTRIP_V1_GREEN
+
+Expected status marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_RECEIPT_INTAKE_STATUS_V1_GREEN=true
+
+Expected preserved trust flags:
+
+       offline_verified=true
+       network_fetch_during_import=false
+       trusted_as_network_truth=false
+
+Checkpoint:
+
+       22f3c751
+       ckpt-public-node-local-data-drop-demo002-evidence-roundtrip-green-20260612-220315
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Policy: this is an operator-local evidence roundtrip. It proves the tester can read, receipt, verify, import, and inspect Demo 002 evidence without promoting that local receipt into automatic network truth.
+
