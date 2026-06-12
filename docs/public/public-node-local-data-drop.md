@@ -542,3 +542,16 @@ Demo object:
 
 Policy: the verifier is offline and read-only. It validates shareable operator-local evidence without contacting the public node and without promoting local evidence into automatic network truth.
 
+## Demo 002 closeout card <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_CLOSEOUT_POINTER_V1 -->
+
+Compact closeout/status card:
+
+       docs/public/public-node-local-data-drop-demo002-closeout.md
+
+Latest closeout checkpoint:
+
+       73a08335
+       ckpt-public-node-local-data-drop-demo002-verify-evidence-pack-pointer-green-20260612-225042
+
+This closeout card summarizes the full Demo 002 evidence lane: public read, tester receipt, offline receipt verification, local intake, intake status, evidence roundtrip, shareable evidence pack, offline pack verifier, and docs/tester pointers.
+
