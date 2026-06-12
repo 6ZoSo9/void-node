@@ -46642,6 +46642,17 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">The participant page remains the owner console. This page is the public proof surface.</p>
   </section>
 
+        <div class="card" id="publicNodeProofModeStatusCard"><!-- VOID_PUBLIC_NODE_PROOF_MODE_STATUS_UI_V1 -->
+          <h2>Proof Mode Status</h2>
+          <p><strong>Precision-only green.</strong> Alienware is temporarily offline after a storm, so cross-box confirmation is pending.</p>
+          <ul>
+            <li>Storm baseline: <code>ckpt-public-node-precision-only-storm-baseline-green-20260612-084430</code></li>
+            <li>Alienware rejoin runbook: <code>ckpt-public-node-alienware-rejoin-runbook-green-20260612-085138</code></li>
+            <li>Mode: <code>Precision-only green / Alienware deferred / cross-box pending</code></li>
+          </ul>
+          <p><small>Rule: this node is live on Precision, but not yet re-confirmed cross-box.</small></p>
+        </div>
+
   <section class="card" id="publicNodeLocalDataDropHumanDemoTopCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_HUMAN_DEMO_TOP_CARD_UI_V1 -->
     <b>Local data demo</b>
     <p class="muted">This public node is carrying a proof-backed local data object. Jump straight to the storage demo instead of the older metrics panels.</p>
