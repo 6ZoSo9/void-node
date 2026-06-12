@@ -47178,6 +47178,18 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           </script>
         </div>
 
+        <div class="card" id="publicNodeLocalDataDropObjectBrowserCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_BROWSER_CARD_UI_V1 -->
+          <h2>Local Data Drop Object Browser</h2>
+          <p>Open the live weighted seed object, its proof, and both fetch paths from this public node.</p>
+          <ul>
+            <li><a id="publicNodeWeightedObjectBrowserWeightedLink" href="/public-node/local-data-drop/weighted.json">Weighted records JSON</a></li>
+            <li><a id="publicNodeWeightedObjectBrowserProofLink" href="/public-node/local-data-drop/proof/0b3b3284a47dd583f209008a9088c682c82af4609ee3dce222176b9617526a2d.json">Seed object proof</a></li>
+            <li><a id="publicNodeWeightedObjectBrowserObjectLink" href="/public-node/local-data-drop/void-weighted-seed-v1.txt">Fetch by object id</a></li>
+            <li><a id="publicNodeWeightedObjectBrowserShaLink" href="/public-node/local-data-drop/by-sha256/0b3b3284a47dd583f209008a9088c682c82af4609ee3dce222176b9617526a2d">Fetch by SHA-256</a></li>
+          </ul>
+          <p><small>Object: <code>void-weighted-seed-v1.txt</code></small></p>
+        </div>
+
 
 
 
