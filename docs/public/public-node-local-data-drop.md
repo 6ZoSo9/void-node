@@ -273,3 +273,46 @@ Verified object:
     264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
 
 The smoke is public-route-only, read-only, and does not touch wallet sends, money movement, WC swaps, Buy VOID fulfillment, validator mutation, or proof mutation.
+
+## Demo 002 offline receipt verifier <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_OFFLINE_RECEIPT_VERIFY_POINTER_DOC_V1 -->
+
+Demo 002 now has a two-step tester receipt loop:
+
+1. Tester runs the public read-only smoke:
+
+       PUBLIC_NODE_BASE=https://your-node.example \
+         ops/mainnet0/public-node-local-data-drop-demo002-tester-smoke.sh
+
+2. Tester sends back the generated receipt:
+
+       demo002-tester-smoke-receipt.json
+
+3. Operator verifies the receipt offline without fetching the tester's node again:
+
+       ops/mainnet0/public-node-local-data-drop-demo002-verify-smoke-receipt.sh \
+         /path/to/demo002-tester-smoke-receipt.json
+
+Expected verifier marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_VERIFY_SMOKE_RECEIPT_V1_GREEN
+
+Receipt marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_TESTER_SMOKE_RECEIPT_V1
+
+Proof marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_VERIFY_SMOKE_RECEIPT_PROOF_V1_GREEN
+
+Checkpoint:
+
+       8f6b623e
+       ckpt-public-node-local-data-drop-demo002-offline-receipt-verify-green-20260612-214402
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Safety boundary: public routes only, read-only, no mutation, no wallet send, no money movement, no validator mutation.
+
