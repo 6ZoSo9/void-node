@@ -165,3 +165,14 @@ Current live baseline remains:
 - marker `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1`
 
 See `docs/public/public-node-local-data-drop-live-import-runbook.md` before running any live import.
+
+## Import stack status <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_STACK_STATUS_POINTER_DOC_V1 -->
+
+The Local Data Drop import stack status summarizes the current proven import discipline:
+
+- scratch imports are safe proof/test lanes
+- live import is a deliberate public mutation lane
+- live weighted object count remains `1`
+- current proof mode remains Precision-only green / Alienware deferred / cross-box pending
+
+See `docs/public/public-node-local-data-drop-import-stack-status.md` for the current import stack recap.
