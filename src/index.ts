@@ -47158,7 +47158,24 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
           <h2>Weighted Local Data Drop</h2>
           <p>Live weighted view of actual operator-local data drop objects using Data Weight Record fields. Empty-safe when no local objects are present.</p>
+          <p id="publicNodeLocalDataDropWeightedStatus"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_STATUS_UI_V1 -->Status: checking weighted local objects…</p>
           <p><code>/public-node/local-data-drop/weighted.json</code></p>
+          <script>
+            (() => {
+              const el = document.getElementById("publicNodeLocalDataDropWeightedStatus");
+              if (!el) return;
+              fetch("/public-node/local-data-drop/weighted.json", { cache: "no-store" })
+                .then((r) => r.ok ? r.json() : Promise.reject(new Error("weighted route unavailable")))
+                .then((j) => {
+                  const n = Number(j && j.object_count || 0);
+                  const word = n === 1 ? "object" : "objects";
+                  el.textContent = "Status: " + n + " weighted local " + word + " live on this node.";
+                })
+                .catch(() => {
+                  el.textContent = "Status: weighted local object count unavailable.";
+                });
+            })();
+          </script>
         </div>
 
 
