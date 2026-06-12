@@ -46642,6 +46642,36 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">The participant page remains the owner console. This page is the public proof surface.</p>
   </section>
 
+  <section class="card" id="publicNodeLocalDataDropHumanDemoTopCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_HUMAN_DEMO_TOP_CARD_UI_V1 -->
+    <b>Local data demo</b>
+    <p class="muted">This public node is carrying a proof-backed local data object. Jump straight to the storage demo instead of the older metrics panels.</p>
+    <p id="publicNodeLocalDataDropHumanDemoTopStatus"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_HUMAN_DEMO_TOP_STATUS_UI_V1 -->Status: checking local data demo...</p>
+    <p>
+      <a id="publicNodeLocalDataDropHumanDemoWeightedJump" href="#publicNodeLocalDataDropWeightedCard">Weighted count</a>
+      |
+      <a id="publicNodeLocalDataDropHumanDemoBrowserJump" href="#publicNodeLocalDataDropObjectBrowserCard">Object browser</a>
+      |
+      <a id="publicNodeLocalDataDropHumanDemoImportJump" href="#publicNodeLocalDataDropImportOwnDataCard">Import your own file</a>
+    </p>
+    <p><code>/public-node/local-data-drop/weighted.json</code></p>
+    <script>
+      (() => {
+        const el = document.getElementById("publicNodeLocalDataDropHumanDemoTopStatus");
+        if (!el) return;
+        fetch("/public-node/local-data-drop/weighted.json", { cache: "no-store" })
+          .then((r) => r.ok ? r.json() : Promise.reject(new Error("weighted route unavailable")))
+          .then((j) => {
+            const n = Number(j && j.object_count || 0);
+            const word = n === 1 ? "object" : "objects";
+            el.textContent = "Status: " + n + " weighted local " + word + " live. Demo ready.";
+          })
+          .catch(() => {
+            el.textContent = "Status: local data demo route unavailable.";
+          });
+      })();
+    </script>
+  </section>
+
   <section class="card" id="publicNodeDataIntelligenceCard"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 --><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_V1 -->
     <b>Node intelligence</b>
     <p class="muted" id="publicNodeDataIntelligenceSummary">Loading public node intelligence metrics...</p>
