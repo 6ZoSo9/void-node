@@ -143,3 +143,12 @@ Doc:
 `docs/public/public-node-data-weight-record.md`
 
 Policy boundary: persistent does not mean equal priority. VOID can preserve data without treating every object as equally trusted, equally fresh, equally visible to AI, or equally eligible for promotion.
+
+## Scratch vs live import <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_SCRATCH_VS_LIVE_POINTER_DOC_V1 -->
+
+Before importing operator-local data, decide whether this is a scratch proof/test import or a live Public Node import.
+
+- Scratch import: set `DATA_DIR` to a temporary or alternate directory. This proves import behavior without changing the live public object count.
+- Live import: use the node runtime data directory. This intentionally changes `/public-node/local-data-drop/weighted.json` and may require updating proofs that expect `object_count=1`.
+
+See `docs/public/public-node-local-data-drop-import-scratch-vs-live.md` for the proven rule.
