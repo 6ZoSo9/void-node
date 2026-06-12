@@ -97,3 +97,47 @@ Latest closeout checkpoint:
 
 It covers public read routes, tester smoke receipts, offline receipt verification, local receipt intake, intake status, evidence roundtrip, shareable evidence pack creation, offline evidence-pack verification, and the safety/trust boundary.
 
+## Demo 002 local data-drop evidence lane closed <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_CURRENT_STATUS_POINTER_V1 -->
+
+Status: green / closed.
+
+The Demo 002 public-node local data-drop evidence lane is now complete and verifiable:
+
+       docs/public/public-node-local-data-drop-demo002-closeout.md
+
+Latest closeout checkpoint:
+
+       f17b335d
+       ckpt-public-node-local-data-drop-demo002-closeout-index-pointer-green-20260612-225901
+
+What is covered:
+
+       public read object
+       tester smoke receipt
+       offline receipt verification
+       local receipt intake
+       intake status
+       one-command evidence roundtrip
+       shareable evidence pack
+       offline evidence-pack verifier
+       closeout card
+       public docs index pointer
+
+Trust boundary:
+
+       offline_verified=true
+       network_fetch_during_import=false
+       network_fetch=false
+       trusted_as_network_truth=false
+
+Safety boundary:
+
+       public_routes_only=true
+       read_only=true
+       mutation=false
+       money_movement=false
+       wallet_send=false
+       validator_mutation=false
+
+Meaning: Demo 002 is ready as a public-node tester/handoff proof lane. It proves read-only local data-drop serving, receipt generation, local intake, shareable evidence packaging, and offline verification without promoting local receipts into automatic network truth.
+
