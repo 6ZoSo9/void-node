@@ -30,7 +30,7 @@ OUT="$FIXTURE_OUT" "$FIXTURE_SCRIPT" | tee "$OUT/fixture.log"
 TARBALL="$FIXTURE_OUT/demo003-folder-fixture.tar.gz"
 test -f "$TARBALL"
 
-"$VERIFY_SCRIPT" "$TARBALL" "$VERIFY_OUT" | tee "$OUT/verify.log"
+OUT="$VERIFY_OUT" "$VERIFY_SCRIPT" "$TARBALL" | tee "$OUT/verify.log"
 
 test -d "$VERIFY_OUT/extract/demo003-folder-fixture"
 test -f "$VERIFY_OUT/extract/demo003-folder-fixture/manifest.json"
