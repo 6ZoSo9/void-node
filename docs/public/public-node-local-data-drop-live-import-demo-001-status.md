@@ -53,3 +53,15 @@ Before running a live import, detect the DATA_DIR used by the running public nod
 - confirmed live route DATA_DIR on Precision: `/home/zoso/dev/void-node/data_a`
 
 This prevents importing into `.runtime/mainnet0` when the live public route is reading `data_a`.
+
+## Live import target planner
+
+Marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_TARGET_PLAN_POINTER_V1`
+
+Before mutating live local data drop storage, generate a no-mutation target plan:
+
+- planner: `ops/mainnet0/public-node-local-data-drop-live-import-target-plan.sh`
+- planner marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_TARGET_PLAN_V1_READY`
+- planner final marker: `VOID_PUBLIC_NODE_LOCAL_DATA_DROP_LIVE_IMPORT_TARGET_PLAN_FINAL_GREEN`
+
+The planner detects the running route DATA_DIR, counts the source files, reads the current weighted route object count, and prints the exact import command targeting the live route DATA_DIR.
