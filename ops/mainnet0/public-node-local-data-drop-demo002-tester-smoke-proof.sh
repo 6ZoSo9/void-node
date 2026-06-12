@@ -42,6 +42,39 @@ grep -q "object_by_id_sha256=$SHA" "$OUT/smoke.log"
 grep -q "object_by_sha256_sha256=$SHA" "$OUT/smoke.log"
 grep -q "objects_match=true" "$OUT/smoke.log"
 grep -q "proof_json_verified=true" "$OUT/smoke.log"
+grep -q "receipt_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_TESTER_SMOKE_RECEIPT_V1" "$OUT/smoke.log"
+
+RECEIPT="$(grep '^receipt=' "$OUT/smoke.log" | tail -n 1 | cut -d= -f2-)"
+test -f "$RECEIPT"
+
+node - "$RECEIPT" "$SHA" "$OBJECT_ID" <<'NODE'
+const fs = require("fs");
+const receiptPath = process.argv[2];
+const sha = process.argv[3];
+const objectId = process.argv[4];
+const r = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+function ok(x, msg) {
+  if (!x) {
+    console.error("[fail]", msg);
+    process.exit(1);
+  }
+}
+ok(r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_TESTER_SMOKE_RECEIPT_V1", "receipt marker");
+ok(r.smoke_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_TESTER_SMOKE_V1", "smoke marker");
+ok(r.object_id === objectId, "object id");
+ok(r.sha256_expected === sha, "expected sha");
+ok(r.object_by_id_sha256 === sha, "object by id sha");
+ok(r.object_by_sha256_sha256 === sha, "object by sha sha");
+ok(r.objects_match === true, "objects match");
+ok(r.proof_json_verified === true, "proof json verified");
+ok(r.public_routes_only === true, "public routes only");
+ok(r.read_only === true, "read only");
+ok(r.mutation === false, "mutation false");
+ok(r.money_movement === false, "money false");
+ok(r.wallet_send === false, "wallet false");
+ok(r.validator_mutation === false, "validator false");
+console.log("[ok] receipt json verified");
+NODE
 
 if git diff --name-only -- src/index.ts | grep -q .; then
   echo "unexpected_source_diff=true"
