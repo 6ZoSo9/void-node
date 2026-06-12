@@ -47190,6 +47190,21 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><small>Object: <code>void-weighted-seed-v1.txt</code></small></p>
         </div>
 
+        <div class="card" id="publicNodeLocalDataDropImportOwnDataCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_OWN_DATA_CARD_UI_V1 -->
+          <h2>Import Your Own Local Data</h2>
+          <p>Node runners can place a small local file into this same public, weighted, proof-backed flow.</p>
+          <ol>
+            <li>Create a local folder and file.</li>
+            <li>Run the import helper against that folder.</li>
+            <li>Refresh this page and open the weighted/object browser links.</li>
+          </ol>
+          <pre><code>mkdir -p /tmp/void-local-data-drop-demo
+printf 'hello from my VOID node\n' &gt; /tmp/void-local-data-drop-demo/my-first-void-object.txt
+DATA_DIR=&quot;$PWD/data_a&quot; MAX_FILES=25 ops/mainnet0/public-node-local-data-drop-import-dir.sh /tmp/void-local-data-drop-demo</code></pre>
+          <p>After import, check <code>/public-node/local-data-drop.json</code> and <code>/public-node/local-data-drop/weighted.json</code>.</p>
+          <p><small>Runbook: <code>docs/public/public-node-local-data-drop-import-directory-runbook.md</code></small></p>
+        </div>
+
 
 
 
