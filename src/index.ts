@@ -46672,7 +46672,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </script>
   </section>
 
-  <section class="card" id="publicNodeDataIntelligenceCard"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 --><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_V1 -->
+  <section class="card" id="publicNodeDataIntelligenceCard" style="display:none"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_HIDDEN_UNTIL_LIVE_UI_V1 --><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 --><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_V1 -->
     <b>Node intelligence</b>
     <p class="muted" id="publicNodeDataIntelligenceSummary">Loading public node intelligence metrics...</p>
     <div class="grid" id="publicNodeIntelligenceGrid">
