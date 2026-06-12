@@ -446,3 +446,50 @@ Demo object:
 
 Policy: this is an operator-local evidence roundtrip. It proves the tester can read, receipt, verify, import, and inspect Demo 002 evidence without promoting that local receipt into automatic network truth.
 
+## Demo 002 evidence pack <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_EVIDENCE_PACK_POINTER_DOC_V1 -->
+
+Operators can create a shareable Demo 002 evidence tarball with:
+
+       DATA_DIR=.runtime/mainnet0 \
+         ops/mainnet0/public-node-local-data-drop-demo002-evidence-pack.sh
+
+The pack command runs the full roundtrip first, then bundles:
+
+       demo002-tester-smoke-receipt.json
+       manifest.json
+       sha256sums.txt
+       logs/roundtrip.log
+       logs/smoke.log
+       logs/verify.log
+       logs/import.log
+       logs/status.log
+       runtime/latest.json
+       runtime/archive/*.json
+       demo002-evidence-pack.tar.gz
+
+Expected pack marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_EVIDENCE_PACK_V1_GREEN
+
+Expected manifest marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_EVIDENCE_PACK_MANIFEST_V1
+
+Expected preserved trust flags:
+
+       offline_verified=true
+       network_fetch_during_import=false
+       trusted_as_network_truth=false
+
+Checkpoint:
+
+       1853a9d8
+       ckpt-public-node-local-data-drop-demo002-evidence-pack-green-20260612-221420
+
+Demo object:
+
+       live-import-demo-002.txt
+       sha256=264e0d3832fbad60f3a5bd574794148a0db313583717c4b6bedb94e7db75e871
+
+Policy: the evidence pack is shareable operator-local proof material. It packages receipts, logs, checksums, and manifest data without promoting the receipt into automatic network truth.
+
