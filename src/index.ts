@@ -46917,6 +46917,40 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </script>
   </section>
 
+  <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
+    <b>Real Data Import Lane</b>
+    <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
+    <p id="publicNodeRealDataImportLaneStatus"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_UI_V1 -->Status: checking real data lane...</p>
+    <p>
+      <a class="btn" id="publicNodeRealDataImportLaneWeightedLink" href="/public-node/local-data-drop/weighted.json">Weighted records</a>
+      <a class="btn" id="publicNodeRealDataImportLaneManifestLink" href="/public-node/local-data-drop/manifest.json">Manifest</a>
+      <a class="btn" id="publicNodeRealDataImportLaneV1ProofLink" href="/public-node/local-data-drop/proof/ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b.json">v1 proof</a>
+      <a class="btn" id="publicNodeRealDataImportLaneV2ProofLink" href="/public-node/local-data-drop/proof/f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95.json">v2 proof</a>
+    </p>
+    <p class="muted">Proof command: <code>ops/mainnet0/public-node-real-data-import-lane-status-proof.sh</code></p>
+    <p class="muted">Boundary: <code>public_upload=false</code> · <code>operator_local_import_only=true</code> · <code>public_read_only=true</code> · <code>trusted_as_network_truth=false</code></p>
+    <script>
+      (() => {
+        const el = document.getElementById("publicNodeRealDataImportLaneStatus");
+        if (!el) return;
+        fetch("/public-node/local-data-drop/weighted.json", { cache: "no-store" })
+          .then((r) => r.ok ? r.json() : Promise.reject(new Error("weighted route unavailable")))
+          .then((j) => {
+            const rows = Array.isArray(j && j.weighted_records) ? j.weighted_records : [];
+            const ids = new Set(rows.map((r) => String(r.object_id || "")));
+            const v1 = ids.has("void-real-user-note-v1.txt");
+            const v2 = ids.has("void-real-user-note-v2.txt");
+            const count = Number(j && j.object_count || 0);
+            const verifiedRealObjects = Number(v1) + Number(v2);
+            el.textContent = "Status: real_data_lane_green=" + String(v1 && v2 && count >= 5) + " · object_count=" + count + " · verified_real_objects=" + verifiedRealObjects;
+          })
+          .catch(() => {
+            el.textContent = "Status: real data lane route unavailable.";
+          });
+      })();
+    </script>
+  </section>
+
   <section class="card" id="publicNodeLocalDataDropDemo003FolderCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1 -->
     <b>Demo 003: verified folder serving</b>
     <p class="muted">This node is serving an operator-local, offline-verified multi-file folder through public read-only routes. It is a tiny website-style folder payload, not a public upload endpoint.</p>
