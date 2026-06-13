@@ -211,3 +211,11 @@ Expected rollup lines:
     first_external_receipt_imported_closeout_proof_status_trusted_as_network_truth=false
     first_external_receipt_imported_closeout_proof_status_discovery_green=true
     first_external_receipt_imported_closeout_proof_status_ui_green=true
+
+## First external tester closed top-line card guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_CLOSED_TOPLINE_DOC_V1 -->
+
+The live status rollup checks that `/public-node` visibly surfaces the first closed external tester loop.
+
+Expected rollup line:
+
+    first_external_tester_closed_topline_card_ui_green=true

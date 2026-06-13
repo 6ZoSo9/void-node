@@ -490,4 +490,17 @@ grep -Fq "publicNodeFirstExternalReceiptImportedCloseoutProofStatusLink" "$PACKE
 echo "first_external_receipt_imported_closeout_proof_status_discovery_green=true"
 echo "first_external_receipt_imported_closeout_proof_status_ui_green=true"
 
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_CLOSED_TOPLINE_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterClosedToplineCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterClosedToplineStatusLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterClosedToplineIntakeLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "First External Tester Closed" "$PACKET_STATUS_UI_HTML"
+grep -Fq "external_receipt_imported" "$PACKET_STATUS_UI_HTML"
+grep -Fq "standalone-outside-tester" "$PACKET_STATUS_UI_HTML"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_V1_GREEN" "$PACKET_STATUS_UI_HTML"
+grep -Fq "first_external_receipt_imported_closeout_proof_status_green=true" "$PACKET_STATUS_UI_HTML"
+grep -Fq "trusted_as_network_truth" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_closed_topline_card_ui_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
