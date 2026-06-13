@@ -45183,6 +45183,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
       { path: "/public-node/external-tester-receipt-closeout-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_V1", use: "first outside tester receipt closeout status" },
       { path: "/public-node/first-external-receipt-packet-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1", use: "first outside tester receipt packet export status" },
+      { path: "/public-node/first-external-receipt-imported-closeout-proof-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1", use: "first external tester receipt imported closeout proof status" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45684,6 +45685,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/tester-result-intake.json",
     "/public-node/external-tester-receipt-closeout-status.json",
     "/public-node/first-external-receipt-packet-status.json",
+    "/public-node/first-external-receipt-imported-closeout-proof-status.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45726,6 +45728,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
       external_tester_receipt_closeout_status: effectiveBaseUrl + "/public-node/external-tester-receipt-closeout-status.json",
       first_external_receipt_packet_status: effectiveBaseUrl + "/public-node/first-external-receipt-packet-status.json",
+      first_external_receipt_imported_closeout_proof_status: effectiveBaseUrl + "/public-node/first-external-receipt-imported-closeout-proof-status.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45752,6 +45755,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       external_tester_copy_pack_present: true,
       tester_result_intake_present: true,
       external_tester_receipt_closeout_status_present: true,
+      first_external_receipt_imported_closeout_proof_status_present: true,
       standalone_outside_tester_smoke_script_present: true,
       tester_share_page_present: true,
       tester_lane_summary_present: true,
@@ -45795,6 +45799,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/tester-result-intake.json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", purpose: "operator-local external tester result intake status", safety_class: "public_read_only_local_file_status" },
     { path: "/public-node/external-tester-receipt-closeout-status.json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_V1", purpose: "first outside tester receipt closeout status", safety_class: "public_read_only_closeout_status" },
     { path: "/public-node/first-external-receipt-packet-status.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1", purpose: "first outside tester receipt packet export status", safety_class: "public_read_only_operator_export_status" },
+    { path: "/public-node/first-external-receipt-imported-closeout-proof-status.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1", purpose: "first external tester receipt imported closeout proof status", safety_class: "public_read_only_proof_status" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -46390,6 +46395,66 @@ APP.get("/public-node/first-external-receipt-packet-status.json", (_req:any, res
       public_upload: false,
       public_post_endpoint: false,
       operator_local_export_only: true,
+      operator_local_import_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      trusted_as_network_truth: false
+    },
+    safety: {
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/first-external-receipt-imported-closeout-proof-status.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_ROUTE_V1",
+    purpose: "public_node_first_external_receipt_imported_closeout_proof_status",
+    status: "first_external_receipt_imported_closeout_proof_green",
+    effective_base_url: effectiveBaseUrl,
+    proof: {
+      proof_ready: true,
+      proof_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_V1_GREEN",
+      proof_script: "ops/mainnet0/public-node-first-external-receipt-imported-closeout-proof.sh",
+      proof_doc: "docs/public/public-node-first-external-receipt-imported-closeout-proof.md",
+      source_commit_required: true
+    },
+    imported_closeout: {
+      receipt_state: "external_receipt_imported",
+      waiting_for_external_receipt: false,
+      latest_imported: true,
+      latest_result_tester: "standalone-outside-tester",
+      latest_result_status: "green",
+      expected_receipt_file: "tester-receipt.json",
+      expected_receipt_marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1",
+      expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
+      operator_local_import_only: true,
+      trusted_as_network_truth: false
+    },
+    links: {
+      tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
+      external_tester_receipt_closeout_status: effectiveBaseUrl + "/public-node/external-tester-receipt-closeout-status.json",
+      first_external_receipt_packet_status: effectiveBaseUrl + "/public-node/first-external-receipt-packet-status.json",
+      route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
+      self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
+      proofs: effectiveBaseUrl + "/proofs"
+    },
+    policy: {
+      public_routes_only: true,
+      public_upload: false,
+      public_post_endpoint: false,
       operator_local_import_only: true,
       private_api: false,
       mutation: false,
@@ -47244,9 +47309,9 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
 
     <div class="card" id="publicNodeExternalTesterReceiptCloseoutStatusCard"><!-- VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_UI_V1 -->
       <h2>First outside tester receipt closeout</h2>
-      <p class="muted">The public tester lane is ready and waiting for the first external tester receipt.</p>
+      <p class="muted">The first external tester receipt has been imported operator-locally and closed out as external evidence.</p>
       <ul>
-        <li>First outside tester receipt: <strong>waiting</strong></li>
+        <li>First outside tester receipt: <strong>imported</strong></li>
         <li>Safe import guard: <strong>ready</strong></li>
         <li>Public upload: <strong>disabled</strong></li>
         <li>Operator-local import only: <strong>true</strong></li>
@@ -47268,6 +47333,19 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       </ul>
       <p><a id="publicNodeFirstExternalReceiptPacketStatusLink" href="/public-node/first-external-receipt-packet-status.json">Open packet status JSON</a></p>
       <p class="muted">Expected receipt file: <code>tester-receipt.json</code>. Expected green marker: <code>VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN</code>.</p>
+    </div>
+
+    <div class="card" id="publicNodeFirstExternalReceiptImportedCloseoutProofStatusCard"><!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_UI_V1 -->
+      <h2>First external receipt imported closeout proof</h2>
+      <p class="muted">Permanent public status for the first real external tester loop: N153B smoke green, receipt imported operator-locally, closeout flipped imported, and live rollup green.</p>
+      <ul>
+        <li><span class="good">Receipt state:</span> <code>external_receipt_imported</code></li>
+        <li><span class="good">Latest imported:</span> <code>true</code></li>
+        <li><span class="good">Latest tester:</span> <code>standalone-outside-tester</code></li>
+        <li><span class="good">Proof marker:</span> <code>VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_V1_GREEN</code></li>
+        <li><span class="warn">Trusted as network truth:</span> <code>false</code></li>
+      </ul>
+      <p><a id="publicNodeFirstExternalReceiptImportedCloseoutProofStatusLink" href="/public-node/first-external-receipt-imported-closeout-proof-status.json">Open imported closeout proof status JSON</a></p>
     </div>
 
     <p class="muted">Proof command: <code>ops/mainnet0/public-node-real-data-import-lane-status-proof.sh</code></p>
