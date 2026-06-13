@@ -302,4 +302,78 @@ echo "first_external_receipt_packet_archive_public_closeout_url_green=true"
 echo "first_external_receipt_packet_archive_closeout_url_public=true"
 echo "first_external_receipt_packet_archive_closeout_url_localhost=false"
 
+PACKET_STATUS_JSON="$OUT/first-external-receipt-packet-status.json"
+curl -fsS "$LOCAL_BASE/public-node/first-external-receipt-packet-status.json" > "$PACKET_STATUS_JSON"
+
+python3 - "$PACKET_STATUS_JSON" "$EFFECTIVE_BASE" <<'ROLLUPPY'
+import json
+import sys
+from pathlib import Path
+
+status = json.loads(Path(sys.argv[1]).read_text())
+effective_base = sys.argv[2].rstrip("/")
+
+assert status["marker"] == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1"
+assert status["route_marker"] == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_ROUTE_V1"
+assert status["purpose"] == "public_node_first_external_receipt_packet_status"
+assert status["status"] == "first_external_receipt_packet_operator_export_ready"
+assert status["effective_base_url"] == effective_base
+
+packet = status["packet_status"]
+assert packet["packet_export_ready"] is True
+assert packet["packet_archive_ready"] is True
+assert packet["packet_archive_sha256_ready"] is True
+assert packet["public_archive_download"] is False
+assert packet["operator_local_export_only"] is True
+assert packet["public_upload"] is False
+assert packet["expected_receipt_file"] == "tester-receipt.json"
+assert packet["expected_green_marker"] == "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+assert packet["trusted_as_network_truth"] is False
+
+policy = status["policy"]
+assert policy["public_routes_only"] is True
+assert policy["public_archive_download"] is False
+assert policy["public_upload"] is False
+assert policy["public_post_endpoint"] is False
+assert policy["operator_local_export_only"] is True
+assert policy["operator_local_import_only"] is True
+assert policy["private_api"] is False
+assert policy["mutation"] is False
+assert policy["read_only"] is True
+assert policy["trusted_as_network_truth"] is False
+
+safety = status["safety"]
+assert safety["money_movement"] is False
+assert safety["wallet_send"] is False
+assert safety["wc_to_void_swap"] is False
+assert safety["buy_void_fulfillment"] is False
+assert safety["validator_mutation"] is False
+
+links = status["links"]
+assert links["tester_share_page"] == effective_base + "/public-node/tester-share"
+assert links["external_tester_receipt_closeout_status"] == effective_base + "/public-node/external-tester-receipt-closeout-status.json"
+assert links["real_data_import_lane_status"] == effective_base + "/public-node/real-data-import-lane-status.json"
+assert links["route_manifest"] == effective_base + "/public-node/route-manifest.json"
+assert links["self_check_snapshot"] == effective_base + "/public-node/self-check-snapshot.json"
+ROLLUPPY
+
+PACKET_STATUS_ROUTE_INDEX_JSON="$OUT/first-external-receipt-packet-status-route-index.json"
+PACKET_STATUS_ROUTE_MANIFEST_JSON="$OUT/first-external-receipt-packet-status-route-manifest.json"
+PACKET_STATUS_SELF_CHECK_JSON="$OUT/first-external-receipt-packet-status-self-check.json"
+
+curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$PACKET_STATUS_ROUTE_INDEX_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+curl -fsS "$LOCAL_BASE/public-node/self-check-snapshot.json" > "$PACKET_STATUS_SELF_CHECK_JSON"
+
+grep -Fq "/public-node/first-external-receipt-packet-status.json" "$PACKET_STATUS_ROUTE_INDEX_JSON"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1" "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+grep -Fq "first_external_receipt_packet_status" "$PACKET_STATUS_SELF_CHECK_JSON"
+
+echo "first_external_receipt_packet_status_green=true"
+echo "first_external_receipt_packet_status_discovery_green=true"
+echo "first_external_receipt_packet_status_public_archive_download=false"
+echo "first_external_receipt_packet_status_operator_local_export_only=true"
+echo "first_external_receipt_packet_status_public_upload=false"
+echo "first_external_receipt_packet_status_trusted_as_network_truth=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

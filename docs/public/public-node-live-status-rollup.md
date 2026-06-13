@@ -144,3 +144,20 @@ Expected rollup lines:
     first_external_receipt_packet_archive_public_closeout_url_green=true
     first_external_receipt_packet_archive_closeout_url_public=true
     first_external_receipt_packet_archive_closeout_url_localhost=false
+
+## First external receipt packet status guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_DOC_V1 -->
+
+The live status rollup checks:
+
+    /public-node/first-external-receipt-packet-status.json
+
+It verifies the route marker, purpose, status, public/effective links, packet readiness flags, and safety boundary.
+
+Expected rollup lines:
+
+    first_external_receipt_packet_status_green=true
+    first_external_receipt_packet_status_discovery_green=true
+    first_external_receipt_packet_status_public_archive_download=false
+    first_external_receipt_packet_status_operator_local_export_only=true
+    first_external_receipt_packet_status_public_upload=false
+    first_external_receipt_packet_status_trusted_as_network_truth=false
