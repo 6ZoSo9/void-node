@@ -503,4 +503,62 @@ grep -Fq "trusted_as_network_truth" "$PACKET_STATUS_UI_HTML"
 
 echo "first_external_tester_closed_topline_card_ui_green=true"
 
+EARNED_READINESS_JSON="$OUT/first-external-tester-earned-readiness.json"
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-earned-readiness.json" > "$EARNED_READINESS_JSON"
+
+python3 - "$EARNED_READINESS_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+j = json.loads(Path(sys.argv[1]).read_text())
+
+assert j.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_V1"
+assert j.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_ROUTE_V1"
+assert j.get("status") == "external_tester_useful_work_evidence_ready_for_future_wc_accounting"
+
+e = j.get("evidence", {})
+assert e.get("evidence_ready") is True
+assert e.get("actor_label") == "standalone-outside-tester"
+assert e.get("machine_hint") == "N153B"
+assert e.get("result") == "green"
+assert e.get("receipt_state") == "external_receipt_imported"
+assert e.get("latest_imported") is True
+assert e.get("useful_work") is True
+assert e.get("verifiable") is True
+assert e.get("trusted_as_network_truth") is False
+
+w = j.get("work_credit_readiness", {})
+assert w.get("eligible_evidence_for_future_accounting") is True
+assert w.get("candidate_record_ready") is True
+assert w.get("award_created_now") is False
+assert w.get("wc_ledger_mutated_now") is False
+assert w.get("wc_credit_delta_now") == 0
+assert w.get("payout_created_now") is False
+assert w.get("redeemable_now") is False
+assert w.get("wc_to_void_swap") is False
+
+safety = j.get("safety", {})
+assert safety.get("wc_ledger_write") is False
+assert safety.get("wc_credit_award") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+print("first_external_tester_earned_readiness_green=true")
+print("first_external_tester_earned_readiness_eligible_evidence=true")
+print("first_external_tester_earned_readiness_award_created_now=false")
+print("first_external_tester_earned_readiness_wc_ledger_mutated_now=false")
+print("first_external_tester_earned_readiness_wc_credit_delta_now=0")
+print("first_external_tester_earned_readiness_wc_to_void_swap=false")
+PYJSON
+
+grep -Fq "/public-node/first-external-tester-earned-readiness.json" "$PACKET_STATUS_ROUTE_INDEX_JSON"
+grep -Fq "/public-node/first-external-tester-earned-readiness.json" "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+grep -Fq "/public-node/first-external-tester-earned-readiness.json" "$PACKET_STATUS_SELF_CHECK_JSON"
+
+echo "first_external_tester_earned_readiness_discovery_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
