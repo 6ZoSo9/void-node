@@ -47487,6 +47487,26 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Live rollup guard: <code>first_external_tester_earned_readiness_green=true</code></p>
   </section>
 
+  <section class="card" id="publicNodeFirstExternalTesterWcCandidateCard"><!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_UI_V1 -->
+    <b>WC Candidate: First External Tester</b>
+    <p class="muted">The first external tester receipt is now packaged as a reviewable Work Credit candidate. This is still pending operator review: no award, no WC ledger mutation, no credit delta, no payout, and no WC→VOID swap.</p>
+    <ul>
+      <li><span class="good">Candidate status:</span> <code>pending_operator_review</code></li>
+      <li><span class="good">Review required before award:</span> <code>true</code></li>
+      <li><span class="good">Useful work:</span> <code>true</code></li>
+      <li><span class="good">Verifiable:</span> <code>true</code></li>
+      <li><span class="warn">Award created now:</span> <code>false</code></li>
+      <li><span class="warn">WC ledger mutated now:</span> <code>false</code></li>
+      <li><span class="warn">WC credit delta now:</span> <code>0</code></li>
+      <li><span class="warn">WC→VOID swap:</span> <code>false</code></li>
+    </ul>
+    <p>
+      <a class="btn" id="publicNodeFirstExternalTesterWcCandidateLink" href="/public-node/first-external-tester-wc-candidate.json">Open WC candidate JSON</a>
+      <a class="btn" id="publicNodeFirstExternalTesterWcCandidateEarnedReadinessLink" href="/public-node/first-external-tester-earned-readiness.json">Open earned readiness JSON</a>
+    </p>
+    <p class="muted">Live rollup guard: <code>first_external_tester_wc_candidate_green=true</code></p>
+  </section>
+
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
     <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
