@@ -104,6 +104,35 @@ grep -Fq "import_skipped=true" "$OUT/safe-import-dryrun.log"
 echo "safe_import_dryrun_green=true"
 echo "safe_import_dryrun_import_skipped=true"
 
+curl -fsS "$LOCAL_BASE/public-node/local-data-drop/weighted.json" > "$OUT/real-data-weighted.json"
+
+python3 - "$OUT/real-data-weighted.json" <<'PYREALDATA'
+import json, sys
+from pathlib import Path
+
+doc = json.loads(Path(sys.argv[1]).read_text())
+assert doc.get("marker") == "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1"
+assert doc.get("object_count") >= 5
+
+by_id = {r["object_id"]: r for r in doc.get("weighted_records", [])}
+expected = {
+    "void-real-user-note-v1.txt": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
+    "void-real-user-note-v2.txt": "f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95",
+}
+
+for oid, sha in expected.items():
+    r = by_id.get(oid)
+    assert r, f"missing real data object: {oid}"
+    assert r.get("sha256") == sha
+    assert r.get("verification_state") == "verified"
+    assert r.get("storage_tier") == "hot"
+    assert r.get("ai_visibility") == "high"
+    assert r.get("promotion_eligible") is True
+
+print("real_data_lane_green=true")
+print(f"real_data_object_count={doc.get('object_count')}")
+PYREALDATA
+
 ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-after-dryrun.log"
 grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-after-dryrun.log"
 
