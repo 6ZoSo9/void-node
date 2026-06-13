@@ -20,6 +20,7 @@ It verifies:
 - tester receipt safe-import dry-run does not import
 - waiting receipt state is preserved after dry-run
 - real data import lane is live and weighted
+- real data status route is registered and green
 - void-real-user-note-v1.txt and void-real-user-note-v2.txt are verified/hot/high/promotion eligible
 
 Expected green marker:
@@ -36,6 +37,12 @@ Current real-data lane state:
 
 real_data_lane_green=true
 real_data_object_count=5
+real_data_status_route_green=true
+real_data_status_route_index_green=true
+
+Machine-readable status route:
+
+/public-node/real-data-import-lane-status.json
 
 Safety boundary:
 

@@ -38,6 +38,14 @@ Live import:
 
 CONFIRM_LIVE_IMPORT=true ops/mainnet0/public-node-real-data-import-lane.sh /path/to/source-folder
 
+Machine-readable status route:
+
+/public-node/real-data-import-lane-status.json
+
+Expected route marker:
+
+VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
+
 Standalone status proof:
 
 ops/mainnet0/public-node-real-data-import-lane-status-proof.sh
