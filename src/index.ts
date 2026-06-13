@@ -47387,6 +47387,25 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </p>
   </section>
 
+  <section class="card" id="publicNodeFirstExternalTesterEarnedReadinessCard"><!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_UI_V1 -->
+    <b>Earned Readiness: First External Tester</b>
+    <p class="muted">The first external tester loop is now recognized as useful-work evidence for future Work Credit accounting. This is evidence-only: no payout, no WC ledger write, no WC→VOID swap, and no mutation happened.</p>
+    <ul>
+      <li><span class="good">Eligible evidence:</span> <code>true</code></li>
+      <li><span class="good">Useful work:</span> <code>true</code></li>
+      <li><span class="good">Verifiable:</span> <code>true</code></li>
+      <li><span class="warn">Award created now:</span> <code>false</code></li>
+      <li><span class="warn">WC ledger mutated now:</span> <code>false</code></li>
+      <li><span class="warn">WC credit delta now:</span> <code>0</code></li>
+      <li><span class="warn">WC→VOID swap:</span> <code>false</code></li>
+    </ul>
+    <p>
+      <a class="btn" id="publicNodeFirstExternalTesterEarnedReadinessLink" href="/public-node/first-external-tester-earned-readiness.json">Open earned readiness JSON</a>
+      <a class="btn" id="publicNodeFirstExternalTesterEarnedReadinessProofStatusLink" href="/public-node/first-external-receipt-imported-closeout-proof-status.json">Open closeout proof status</a>
+    </p>
+    <p class="muted">Live rollup guard: <code>first_external_tester_earned_readiness_green=true</code></p>
+  </section>
+
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
     <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
