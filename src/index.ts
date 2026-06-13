@@ -45186,6 +45186,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-receipt-imported-closeout-proof-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1", use: "first external tester receipt imported closeout proof status" },
       { path: "/public-node/first-external-tester-earned-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_V1", use: "first external tester useful-work evidence readiness for future Work Credit accounting" },
       { path: "/public-node/first-external-tester-wc-candidate.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_V1", use: "first external tester Work Credit candidate packet for operator review" },
+      { path: "/public-node/first-external-tester-wc-review-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1", use: "operator review checklist for first external tester Work Credit candidate" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45690,6 +45691,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-receipt-imported-closeout-proof-status.json",
     "/public-node/first-external-tester-earned-readiness.json",
     "/public-node/first-external-tester-wc-candidate.json",
+    "/public-node/first-external-tester-wc-review-checklist.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45735,6 +45737,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_receipt_imported_closeout_proof_status: effectiveBaseUrl + "/public-node/first-external-receipt-imported-closeout-proof-status.json",
       first_external_tester_earned_readiness: effectiveBaseUrl + "/public-node/first-external-tester-earned-readiness.json",
       first_external_tester_wc_candidate: effectiveBaseUrl + "/public-node/first-external-tester-wc-candidate.json",
+      first_external_tester_wc_review_checklist: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-checklist.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45764,6 +45767,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_receipt_imported_closeout_proof_status_present: true,
       first_external_tester_earned_readiness_present: true,
       first_external_tester_wc_candidate_present: true,
+      first_external_tester_wc_review_checklist_present: true,
       standalone_outside_tester_smoke_script_present: true,
       tester_share_page_present: true,
       tester_lane_summary_present: true,
@@ -45810,6 +45814,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-receipt-imported-closeout-proof-status.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1", purpose: "first external tester receipt imported closeout proof status", safety_class: "public_read_only_proof_status" },
     { path: "/public-node/first-external-tester-earned-readiness.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_V1", purpose: "first external tester useful-work evidence readiness for future Work Credit accounting", safety_class: "public_read_only_evidence_status_no_payout" },
     { path: "/public-node/first-external-tester-wc-candidate.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_V1", purpose: "first external tester Work Credit candidate packet for operator review", safety_class: "public_read_only_wc_candidate_no_award" },
+    { path: "/public-node/first-external-tester-wc-review-checklist.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1", purpose: "operator review checklist for first external tester Work Credit candidate", safety_class: "public_read_only_review_checklist_no_award" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -46604,6 +46609,88 @@ APP.get("/public-node/first-external-tester-wc-candidate.json", (_req:any, res:a
       imported_closeout_proof_status: effectiveBaseUrl + "/public-node/first-external-receipt-imported-closeout-proof-status.json",
       tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
       live_rollup_doc: effectiveBaseUrl + "/public-node/route-manifest.json"
+    },
+    policy: {
+      public_status_only: true,
+      public_routes_only: true,
+      read_only: true,
+      mutation: false,
+      private_api: false,
+      public_upload: false,
+      public_post_endpoint: false,
+      operator_local_import_only: true,
+      trusted_as_network_truth: false
+    },
+    safety: {
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+APP.get("/public-node/first-external-tester-wc-review-checklist.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_ROUTE_V1",
+    purpose: "public_node_first_external_tester_wc_operator_review_checklist",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    candidate_route: "/public-node/first-external-tester-wc-candidate.json",
+    review_state: "pending_operator_review",
+    checklist_status: "open",
+    review_required_before_award: true,
+    award_decision: "not_decided",
+    approval_gates: {
+      candidate_packet_present: true,
+      earned_readiness_present: true,
+      imported_closeout_proof_present: true,
+      receipt_state_external_imported: true,
+      useful_work_claim_present: true,
+      verifiable_claim_present: true,
+      external_observation_claim_present: true,
+      operator_local_import_confirmed: true,
+      confirm_no_public_upload: true,
+      confirm_no_public_post_endpoint: true,
+      confirm_not_trusted_as_network_truth: true,
+      confirm_no_existing_award: true,
+      confirm_no_money_movement: true,
+      confirm_no_wallet_send: true,
+      confirm_no_wc_to_void_swap: true,
+      manual_operator_acceptance_required: true,
+      ledger_write_allowed_now: false
+    },
+    unresolved_before_award: [
+      "operator_accept_or_reject_candidate",
+      "choose_accounting_policy",
+      "choose_award_delta_if_accepted",
+      "write_separate_review_record_before_any_wc_ledger_mutation"
+    ],
+    accounting_boundary: {
+      award_created_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      proposed_wc_credit_delta: null,
+      payout_created_now: false,
+      redeemable_now: false,
+      wc_to_void_swap: false,
+      money_movement: false,
+      wallet_send: false
+    },
+    review_packet_links: {
+      wc_candidate: effectiveBaseUrl + "/public-node/first-external-tester-wc-candidate.json",
+      earned_readiness: effectiveBaseUrl + "/public-node/first-external-tester-earned-readiness.json",
+      imported_closeout_proof_status: effectiveBaseUrl + "/public-node/first-external-receipt-imported-closeout-proof-status.json",
+      tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
+      live_rollup_manifest: effectiveBaseUrl + "/public-node/route-manifest.json"
     },
     policy: {
       public_status_only: true,
