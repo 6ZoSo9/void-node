@@ -45068,7 +45068,7 @@ a{color:#93c5fd;text-decoration:none}
 
           APP.get("/public-node/client-work-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CLIENT_WORK_PACK_ROUTE_V1
             // VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1
-            res.json({ ok:true, marker:"VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", route:"/public-node/client-work-pack.json", purpose:"agent_and_client_bootstrap_pack", public_routes:["/public-node","/public-node/intelligence.json","/public-node/link-health.json","/public-node/data-quality.json","/public-node/ai-readiness.json","/public-node/fresh-proof-seed.json","/public-node/requester-work-policy.json","/proofs"], node_serves:["proofs","chunks","manifests","minimal_indexes","bounded_summaries"], client_should:["fetch_public_routes","verify_proofs","check_link_health","rank_results_locally","cache_results_locally","retry_failed_public_links","avoid_private_owner_routes"], requester_work_default:true, policy:{ public_pack_only:true, local_path_exposure:false, raw_filesystem_url_exposure:false, mutation:false }, safety:{ read_only:true, money_movement:false, wallet_send:false, wc_to_void_swap:false, buy_void_fulfillment:false, validator_mutation:false } });
+            res.json({ ok:true, marker:"VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", route:"/public-node/client-work-pack.json", purpose:"agent_and_client_bootstrap_pack", public_routes:["/public-node","/public-node/intelligence.json","/public-node/link-health.json","/public-node/data-quality.json","/public-node/ai-readiness.json","/public-node/fresh-proof-seed.json","/public-node/requester-work-policy.json","/public-node/real-data-import-lane-status.json","/proofs"], node_serves:["proofs","chunks","manifests","minimal_indexes","bounded_summaries"], client_should:["fetch_public_routes","verify_proofs","check_link_health","rank_results_locally","cache_results_locally","retry_failed_public_links","avoid_private_owner_routes"], requester_work_default:true, policy:{ public_pack_only:true, local_path_exposure:false, raw_filesystem_url_exposure:false, mutation:false }, safety:{ read_only:true, money_movement:false, wallet_send:false, wc_to_void_swap:false, buy_void_fulfillment:false, validator_mutation:false } });
           });
 
 
@@ -45681,6 +45681,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-tester-request-copy-pack.json",
     "/public-node/local-data-drop/manifest.json",
     "/public-node/local-data-drop.json",
+    "/public-node/real-data-import-lane-status.json",
     "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
     "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
     "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
@@ -45720,6 +45721,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
       local_data_drop_weighted: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
+      real_data_import_lane_status: effectiveBaseUrl + "/public-node/real-data-import-lane-status.json",
       demo003_folder_manifest: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
       demo003_folder_index_html: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       demo003_folder_readme_txt: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
@@ -45744,6 +45746,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_tester_request_copy_pack_present: true,
       local_data_drop_present: true,
       local_data_drop_weighted_present: true,
+      real_data_import_lane_status_present: true,
       demo003_folder_routes_present: true,
       data_weight_record_present: true,
       route_index_present: true,
@@ -45785,6 +45788,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", purpose: "operator-local public data manifest root", safety_class: "public_read_only_local_file_manifest" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
     { path: "/public-node/local-data-drop/weighted.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", purpose: "weighted view of operator-local public data drop objects", safety_class: "public_read_only_local_file_weighted_view" },
+    { path: "/public-node/real-data-import-lane-status.json", marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", purpose: "machine-readable real data import lane status", safety_class: "public_read_only_real_data_status" },
     { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", purpose: "Demo 003 verified folder manifest", safety_class: "public_read_only_local_folder_manifest" },
     { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", purpose: "Demo 003 verified folder index file", safety_class: "public_read_only_local_folder_file" },
     { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", purpose: "Demo 003 verified folder README file", safety_class: "public_read_only_local_folder_file" },
@@ -45899,7 +45903,11 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       outside_tester_smoke: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
       tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
       result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      real_data_import_lane_status: effectiveBaseUrl + "/public-node/real-data-import-lane-status.json",
       proofs: effectiveBaseUrl + "/proofs"
+    },
+    route_markers: {
+      real_data_import_lane_status: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
     },
     policy: {
       public_routes_only: true,
