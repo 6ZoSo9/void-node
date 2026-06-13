@@ -25,6 +25,10 @@ curl -fsS "$LOCAL_BASE/public-node/local-data-drop/manifest.json" > "$OUT/manife
 curl -fsS "$LOCAL_BASE/public-node" > "$OUT/public-node.html"
 curl -fsS "$LOCAL_BASE/public-node/real-data-import-lane-status.json" > "$OUT/real-data-status-route.json"
 curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$OUT/route-index.json"
+curl -fsS "$LOCAL_BASE/public-node/client-work-pack.json" > "$OUT/client-work-pack.json"
+curl -fsS "$LOCAL_BASE/.well-known/void-public-node.json" > "$OUT/well-known.json"
+curl -fsS "$LOCAL_BASE/public-node/self-check-snapshot.json" > "$OUT/self-check-snapshot.json"
+curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$OUT/route-manifest.json"
 
 grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1" "$OUT/public-node.html"
 grep -Fq "publicNodeRealDataImportLaneCard" "$OUT/public-node.html"
@@ -43,6 +47,10 @@ weighted = json.loads((out / "weighted.json").read_text())
 manifest = json.loads((out / "manifest.json").read_text())
 status_route = json.loads((out / "real-data-status-route.json").read_text())
 route_index = json.loads((out / "route-index.json").read_text())
+client_work_pack = json.loads((out / "client-work-pack.json").read_text())
+well_known = json.loads((out / "well-known.json").read_text())
+self_check = json.loads((out / "self-check-snapshot.json").read_text())
+route_manifest = json.loads((out / "route-manifest.json").read_text())
 
 base = external.get("effective_base_url", "").rstrip("/")
 assert base and base != "http://127.0.0.1:4100"
@@ -101,11 +109,28 @@ status_by_id = {o["object_id"]: o for o in status_route.get("expected_objects", 
 for oid in expected:
     assert status_by_id[oid]["verified"] is True
 
+real_data_route = "/public-node/real-data-import-lane-status.json"
+real_data_marker = "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
+
 routes = {r["path"]: r for r in route_index.get("routes", [])}
-assert routes["/public-node/real-data-import-lane-status.json"]["marker"] == "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
+assert routes[real_data_route]["marker"] == real_data_marker
+
+assert real_data_route in client_work_pack.get("public_routes", [])
+assert well_known.get("links", {}).get("real_data_import_lane_status", "").endswith(real_data_route)
+assert well_known.get("route_markers", {}).get("real_data_import_lane_status") == real_data_marker
+assert real_data_route in self_check.get("expected_routes", [])
+assert self_check.get("links", {}).get("real_data_import_lane_status", "").endswith(real_data_route)
+assert self_check.get("checks", {}).get("real_data_import_lane_status_present") is True
+
+manifest_routes = {r["path"]: r for r in route_manifest.get("routes", [])}
+assert manifest_routes[real_data_route]["marker"] == real_data_marker
 
 print("real_data_status_route_green=true")
 print("real_data_status_route_index_green=true")
+print("real_data_client_work_pack_discovery_green=true")
+print("real_data_well_known_discovery_green=true")
+print("real_data_self_check_discovery_green=true")
+print("real_data_route_manifest_discovery_green=true")
 print("real_data_status_checks=green")
 print(f"effective_base_url={base}")
 print(f"weighted_object_count={weighted.get('object_count')}")
