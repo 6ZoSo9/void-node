@@ -109,6 +109,16 @@ grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_PROOF_V1_GREEN" "$OUT/re
 grep -Fq "weighted_object_count=5" "$OUT/real-data-status-proof.log"
 echo "real_data_lane_green=true"
 grep -F "weighted_object_count=" "$OUT/real-data-status-proof.log" | sed "s/^weighted_/real_data_/"
+for line in \
+  real_data_status_route_green=true \
+  real_data_status_route_index_green=true \
+  real_data_client_work_pack_discovery_green=true \
+  real_data_well_known_discovery_green=true \
+  real_data_self_check_discovery_green=true \
+  real_data_route_manifest_discovery_green=true; do
+  grep -Fq "$line" "$OUT/real-data-status-proof.log"
+  echo "$line"
+done
 
 ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-after-dryrun.log"
 grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-after-dryrun.log"
