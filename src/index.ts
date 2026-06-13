@@ -46791,6 +46791,37 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </script>
   </section>
 
+  <section class="card" id="publicNodeLocalDataDropDemo003FolderCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1 -->
+    <b>Demo 003: verified folder serving</b>
+    <p class="muted">This node is serving an operator-local, offline-verified multi-file folder through public read-only routes. It is a tiny website-style folder payload, not a public upload endpoint.</p>
+    <p id="publicNodeLocalDataDropDemo003FolderStatus"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_STATUS_V1 -->Status: checking Demo 003 folder manifest...</p>
+    <p>
+      <a class="btn" id="publicNodeLocalDataDropDemo003FolderManifestLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json">Folder manifest</a>
+      <a class="btn" id="publicNodeLocalDataDropDemo003FolderIndexLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html">Open index.html</a>
+      <a class="btn" id="publicNodeLocalDataDropDemo003FolderReadmeLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt">README</a>
+      <a class="btn" id="publicNodeLocalDataDropDemo003FolderMetadataLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json">metadata.json</a>
+    </p>
+    <p class="muted">Boundary: <code>offline_verified=true</code> · <code>network_fetch_during_import=false</code> · <code>trusted_as_network_truth=false</code> · <code>public_read_only=true</code></p>
+    <script>
+      (() => {
+        const el = document.getElementById("publicNodeLocalDataDropDemo003FolderStatus");
+        if (!el) return;
+        fetch("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", { cache: "no-store" })
+          .then((r) => r.ok ? r.json() : Promise.reject(new Error("Demo 003 folder manifest unavailable")))
+          .then((j) => {
+            const objectSet = String(j && j.object_set_id || "unknown");
+            const files = j && j.manifest && Array.isArray(j.manifest.files) ? j.manifest.files.length : 0;
+            const offline = !!(j && j.offline_verified === true);
+            const trusted = !!(j && j.trusted_as_network_truth === true);
+            el.textContent = "Status: " + objectSet + " served · files=" + files + " · offline_verified=" + offline + " · trusted_as_network_truth=" + trusted;
+          })
+          .catch(() => {
+            el.textContent = "Status: Demo 003 folder route unavailable.";
+          });
+      })();
+    </script>
+  </section>
+
   <section class="card" id="publicNodeDataIntelligenceCard" style="display:none"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_HIDDEN_UNTIL_LIVE_UI_V1 --><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 --><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_V1 -->
     <b>Node intelligence</b>
     <p class="muted" id="publicNodeDataIntelligenceSummary">Loading public node intelligence metrics...</p>

@@ -95,3 +95,27 @@ Expected marker:
        VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_PROOF_V1_GREEN
 
 Policy: public folder serving is read-only. The folder was operator-imported, offline verified, and still carries trusted_as_network_truth=false.
+
+
+## Demo 003 public-node card <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_DOC_V1 -->
+
+The public node page now surfaces Demo 003 as a visible verified folder card.
+
+Card marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1
+
+Card links:
+
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json
+
+Proof:
+
+       ops/mainnet0/public-node-local-data-drop-demo003-folder-card-proof.sh
+
+Expected marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_PROOF_V1_GREEN

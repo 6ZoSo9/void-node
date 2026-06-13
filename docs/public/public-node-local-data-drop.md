@@ -586,3 +586,10 @@ Demo 003 now exposes the verified folder fixture through read-only public routes
        /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json
 
 This is the first tiny folder/site-style local data-drop serving path. It remains operator-local, read-only, offline verified, and not automatic network truth.
+
+
+## Demo 003 visible folder card <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_POINTER_V1 -->
+
+The `/public-node` page now includes a visible Demo 003 verified folder card with links to the folder manifest, `index.html`, `README.txt`, and `metadata.json`.
+
+This exposes the tiny website-style local data-drop demo to human testers while preserving the same boundary: operator-local import, public read-only serving, offline verification, and `trusted_as_network_truth=false`.
