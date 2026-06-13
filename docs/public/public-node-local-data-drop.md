@@ -593,3 +593,10 @@ This is the first tiny folder/site-style local data-drop serving path. It remain
 The `/public-node` page now includes a visible Demo 003 verified folder card with links to the folder manifest, `index.html`, `README.txt`, and `metadata.json`.
 
 This exposes the tiny website-style local data-drop demo to human testers while preserving the same boundary: operator-local import, public read-only serving, offline verification, and `trusted_as_network_truth=false`.
+
+
+## Demo 003 outside tester smoke pointer <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_OUTSIDE_TESTER_SMOKE_POINTER_V1 -->
+
+The outside tester smoke lane now includes Demo 003 verified folder coverage. A tester running the standalone public smoke script checks the visible `/public-node` Demo 003 card plus the folder manifest, `index.html`, `README.txt`, and `metadata.json`.
+
+This keeps the demo public-read-only and preserves `trusted_as_network_truth=false`.

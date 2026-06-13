@@ -119,3 +119,27 @@ Proof:
 Expected marker:
 
        VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_PROOF_V1_GREEN
+
+
+## Demo 003 outside tester smoke coverage <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_OUTSIDE_TESTER_SMOKE_DOC_V1 -->
+
+The outside tester smoke path now checks the Demo 003 verified folder card and folder routes.
+
+Public smoke surface:
+
+       /public-node/outside-tester-smoke.json
+
+Standalone script:
+
+       /public-node/standalone-outside-tester-smoke.sh
+
+Demo 003 routes checked by the outside tester script:
+
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json
+
+Expected proof marker:
+
+       VOID_PUBLIC_NODE_DEMO003_OUTSIDE_TESTER_SMOKE_PROOF_V1_GREEN

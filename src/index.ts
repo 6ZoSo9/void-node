@@ -45231,6 +45231,10 @@ APP.get("/public-node/tester-smoke.json", (_req:any, res:any) => { // VOID_PUBLI
       "/public-node/tester-checklist.json",
       "/public-node/client-work-pack.json",
       "/public-node/ai-readiness.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       "/proofs"
     ],
     expected_result: "Each public route returns successfully and prints ok.",
@@ -45603,8 +45607,21 @@ APP.get("/public-node/outside-tester-smoke.json", (_req:any, res:any) => { // VO
       "/public-node/tester-handoff.json",
       "/public-node/public-exposure-smoke-pack.json",
       "/public-node/route-index.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       "/proofs"
     ],
+    demo003_folder_checks: {
+      marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_DEMO003_FOLDER_CHECKS_V1",
+      public_node_card_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1",
+      manifest_route_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+      file_route_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
+      offline_verified_required: true,
+      network_fetch_during_import_required: false,
+      trusted_as_network_truth_required: false
+    },
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45634,6 +45651,10 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-tester-request-copy-pack.json",
     "/public-node/local-data-drop/manifest.json",
     "/public-node/local-data-drop.json",
+    "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+    "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+    "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+    "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
     "/public-node/local-data-drop/proof/:sha256.json",
     "/public-node/local-data-drop/by-sha256/:sha256",
     "/public-node/local-data-drop/:objectId",
@@ -45669,6 +45690,10 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
       local_data_drop_weighted: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
+      demo003_folder_manifest: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      demo003_folder_index_html: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      demo003_folder_readme_txt: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      demo003_folder_metadata_json: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       data_weight_record: effectiveBaseUrl + "/public-node/data-weight-record.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
@@ -45689,6 +45714,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_tester_request_copy_pack_present: true,
       local_data_drop_present: true,
       local_data_drop_weighted_present: true,
+      demo003_folder_routes_present: true,
       data_weight_record_present: true,
       route_index_present: true,
       route_manifest_present: true,
@@ -46002,6 +46028,10 @@ fetch "/public-node/external-tester-copy-pack.json" "external-tester-copy-pack.j
 fetch "/public-node/tester-result-receipt.json" "tester-result-receipt.json"
 fetch "/public-node/tester-result-intake.json" "tester-result-intake.json"
 fetch "/proofs" "proofs.html"
+fetch "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json" "demo003-folder-manifest.json"
+fetch "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html" "demo003-index.html"
+fetch "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt" "demo003-README.txt"
+fetch "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json" "demo003-metadata.json"
 
 grep -Fq "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1" "$OUT/agent-discovery.json"
 grep -Fq "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1" "$OUT/route-manifest.json"
@@ -46009,6 +46039,14 @@ grep -Fq "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1" "$OUT/self-check-snapshot.jso
 grep -Fq "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1" "$OUT/external-tester-copy-pack.json"
 grep -Fq "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1" "$OUT/tester-result-receipt.json"
 grep -Fq "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1" "$OUT/tester-result-intake.json"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1" "$OUT/public-node.html"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1" "$OUT/demo003-folder-manifest.json"
+grep -Fq '"offline_verified":true' "$OUT/demo003-folder-manifest.json"
+grep -Fq '"network_fetch_during_import":false' "$OUT/demo003-folder-manifest.json"
+grep -Fq '"trusted_as_network_truth":false' "$OUT/demo003-folder-manifest.json"
+grep -Fq "VOID Demo 003" "$OUT/demo003-index.html"
+grep -Fq "VOID Public Node Local Data Drop Demo 003" "$OUT/demo003-README.txt"
+grep -Fq "VOID Demo 003 Folder Fixture" "$OUT/demo003-metadata.json"
 
 cat > "$OUT/tester-receipt.json" <<JSON
 {
@@ -46017,6 +46055,8 @@ cat > "$OUT/tester-receipt.json" <<JSON
   "tested_base_url": "$PUBLIC_NODE_BASE",
   "observed_green_marker": "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
   "standalone_smoke_marker": "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1",
+  "demo003_folder_checked": true,
+  "demo003_folder_manifest": "$PUBLIC_NODE_BASE/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
   "result": "green",
   "trusted_as_network_truth": false
 }
@@ -46026,6 +46066,8 @@ echo "receipt=$OUT/tester-receipt.json"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "standalone_smoke_marker=VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1"
+echo "demo003_folder_checked=true"
+echo "demo003_folder_manifest=$PUBLIC_NODE_BASE/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"
 echo "trusted_as_network_truth=false"
 echo "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 `;
