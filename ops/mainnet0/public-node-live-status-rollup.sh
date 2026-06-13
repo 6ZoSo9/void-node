@@ -637,4 +637,20 @@ grep -Fq "/public-node/first-external-tester-wc-candidate.json" "$PACKET_STATUS_
 
 echo "first_external_tester_wc_candidate_discovery_green=true"
 
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcCandidateCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcCandidateLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcCandidateEarnedReadinessLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC Candidate: First External Tester" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Candidate status:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "pending_operator_review" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review required before award:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger mutated now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit delta now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC→VOID swap:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "first_external_tester_wc_candidate_green=true" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_wc_candidate_card_ui_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

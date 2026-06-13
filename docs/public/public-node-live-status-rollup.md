@@ -256,3 +256,11 @@ Expected rollup lines:
     first_external_tester_wc_candidate_wc_credit_delta_now=0
     first_external_tester_wc_candidate_wc_to_void_swap=false
     first_external_tester_wc_candidate_discovery_green=true
+
+## First external tester WC candidate card guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_CARD_DOC_V1 -->
+
+The live status rollup checks that `/public-node` visibly surfaces the first external tester WC candidate card.
+
+Expected rollup line:
+
+    first_external_tester_wc_candidate_card_ui_green=true
