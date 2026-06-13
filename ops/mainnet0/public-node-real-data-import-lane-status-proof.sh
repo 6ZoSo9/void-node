@@ -23,6 +23,8 @@ curl -fsS "$LOCAL_BASE/public-node/external-base-url.json" > "$OUT/external-base
 curl -fsS "$LOCAL_BASE/public-node/local-data-drop/weighted.json" > "$OUT/weighted.json"
 curl -fsS "$LOCAL_BASE/public-node/local-data-drop/manifest.json" > "$OUT/manifest.json"
 curl -fsS "$LOCAL_BASE/public-node" > "$OUT/public-node.html"
+curl -fsS "$LOCAL_BASE/public-node/real-data-import-lane-status.json" > "$OUT/real-data-status-route.json"
+curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$OUT/route-index.json"
 
 grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1" "$OUT/public-node.html"
 grep -Fq "publicNodeRealDataImportLaneCard" "$OUT/public-node.html"
@@ -39,6 +41,8 @@ out = Path(sys.argv[1])
 external = json.loads((out / "external-base-url.json").read_text())
 weighted = json.loads((out / "weighted.json").read_text())
 manifest = json.loads((out / "manifest.json").read_text())
+status_route = json.loads((out / "real-data-status-route.json").read_text())
+route_index = json.loads((out / "route-index.json").read_text())
 
 base = external.get("effective_base_url", "").rstrip("/")
 assert base and base != "http://127.0.0.1:4100"
@@ -84,6 +88,24 @@ assert policy.get("operator_local_import_only") is True
 assert policy.get("public_read_only") is True
 assert policy.get("trusted_as_network_truth") is False
 
+assert status_route.get("marker") == "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
+assert status_route.get("real_data_lane_green") is True
+assert status_route.get("object_count") >= 5
+assert status_route.get("verified_real_objects") == 2
+assert status_route.get("policy", {}).get("public_upload") is False
+assert status_route.get("policy", {}).get("operator_local_import_only") is True
+assert status_route.get("policy", {}).get("public_read_only") is True
+assert status_route.get("policy", {}).get("trusted_as_network_truth") is False
+
+status_by_id = {o["object_id"]: o for o in status_route.get("expected_objects", [])}
+for oid in expected:
+    assert status_by_id[oid]["verified"] is True
+
+routes = {r["path"]: r for r in route_index.get("routes", [])}
+assert routes["/public-node/real-data-import-lane-status.json"]["marker"] == "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
+
+print("real_data_status_route_green=true")
+print("real_data_status_route_index_green=true")
 print("real_data_status_checks=green")
 print(f"effective_base_url={base}")
 print(f"weighted_object_count={weighted.get('object_count')}")
