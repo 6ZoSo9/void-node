@@ -22,6 +22,14 @@ echo "doc_status_marker_green=true"
 curl -fsS "$LOCAL_BASE/public-node/external-base-url.json" > "$OUT/external-base-url.json"
 curl -fsS "$LOCAL_BASE/public-node/local-data-drop/weighted.json" > "$OUT/weighted.json"
 curl -fsS "$LOCAL_BASE/public-node/local-data-drop/manifest.json" > "$OUT/manifest.json"
+curl -fsS "$LOCAL_BASE/public-node" > "$OUT/public-node.html"
+
+grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1" "$OUT/public-node.html"
+grep -Fq "publicNodeRealDataImportLaneCard" "$OUT/public-node.html"
+grep -Fq "/public-node/local-data-drop/weighted.json" "$OUT/public-node.html"
+grep -Fq "/public-node/local-data-drop/manifest.json" "$OUT/public-node.html"
+grep -Fq "public_upload=false" "$OUT/public-node.html"
+echo "real_data_ui_card_green=true"
 
 python3 - "$OUT" <<'PYVERIFY'
 import json, sys
