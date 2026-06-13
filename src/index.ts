@@ -45185,6 +45185,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/local-data-drop/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", use: "operator-local public data manifest root" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
       { path: "/public-node/local-data-drop/weighted.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
+      { path: "/public-node/real-data-import-lane-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", use: "machine-readable real data import lane status" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", use: "Demo 003 verified folder manifest" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
@@ -46451,6 +46452,116 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
       public_read_only: true,
       mutation_from_public: false,
       trusted_as_network_truth: false
+    }
+  });
+});
+
+APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
+
+  fs.mkdirSync(dropDir, { recursive: true });
+  fs.mkdirSync(receiptDir, { recursive: true });
+
+  const expected:any = {
+    "void-real-user-note-v1.txt": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
+    "void-real-user-note-v2.txt": "f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95"
+  };
+
+  const safeNames = fs.readdirSync(dropDir)
+    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+
+  const records = safeNames.map((name:any) => {
+    const objectId = String(name);
+    const filePath = path.join(dropDir, objectId);
+    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+
+    const st = fs.statSync(filePath);
+    const buf = fs.readFileSync(filePath);
+    const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+
+    const receiptPath = path.join(receiptDir, objectId + ".json");
+    let receipt = null;
+    if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+      try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
+    }
+
+    const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+
+    return {
+      object_id: objectId,
+      sha256,
+      bytes: st.size,
+      expected_real_data_object: expected[objectId] === sha256,
+      verification_state: receiptValid ? "verified" : "unverified_local",
+      storage_tier: receiptValid ? "hot" : "warm",
+      ai_visibility: receiptValid ? "high" : "medium",
+      promotion_eligible: receiptValid,
+      object_href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(objectId),
+      content_address_href: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
+      proof_href: effectiveBaseUrl + "/public-node/local-data-drop/proof/" + sha256 + ".json"
+    };
+  }).filter(Boolean).sort((a:any, b:any) => String(a.object_id).localeCompare(String(b.object_id)));
+
+  const byId:any = {};
+  for (const r of records) byId[r.object_id] = r;
+
+  const expectedObjects = Object.keys(expected).map((objectId) => {
+    const r = byId[objectId];
+    return {
+      object_id: objectId,
+      expected_sha256: expected[objectId],
+      present: !!r,
+      sha256: r ? r.sha256 : null,
+      verified: !!(r && r.sha256 === expected[objectId] && r.verification_state === "verified"),
+      storage_tier: r ? r.storage_tier : null,
+      ai_visibility: r ? r.ai_visibility : null,
+      promotion_eligible: r ? r.promotion_eligible : false,
+      object_href: r ? r.object_href : null,
+      content_address_href: r ? r.content_address_href : null,
+      proof_href: r ? r.proof_href : null
+    };
+  });
+
+  const verifiedRealObjects = expectedObjects.filter((o:any) => o.verified).length;
+  const objectCount = records.length;
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1",
+    route: "/public-node/real-data-import-lane-status.json",
+    purpose: "machine_readable_real_data_import_lane_status",
+    status: verifiedRealObjects === Object.keys(expected).length && objectCount >= 5 ? "real_data_lane_green" : "real_data_lane_not_green",
+    real_data_lane_green: verifiedRealObjects === Object.keys(expected).length && objectCount >= 5,
+    object_count: objectCount,
+    expected_real_data_object_count: Object.keys(expected).length,
+    verified_real_objects: verifiedRealObjects,
+    expected_objects: expectedObjects,
+    links: {
+      public_node: effectiveBaseUrl + "/public-node",
+      weighted_records: effectiveBaseUrl + "/public-node/local-data-drop/weighted.json",
+      manifest: effectiveBaseUrl + "/public-node/local-data-drop/manifest.json",
+      status_doc: "docs/public/public-node-real-data-import-lane-status.md",
+      status_proof_command: "ops/mainnet0/public-node-real-data-import-lane-status-proof.sh"
+    },
+    policy: {
+      public_upload: false,
+      operator_local_import_only: true,
+      public_read_only: true,
+      mutation_from_public: false,
+      trusted_as_network_truth: false,
+      money_movement: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
     }
   });
 });
