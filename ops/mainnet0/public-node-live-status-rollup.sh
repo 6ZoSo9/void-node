@@ -561,4 +561,18 @@ grep -Fq "/public-node/first-external-tester-earned-readiness.json" "$PACKET_STA
 
 echo "first_external_tester_earned_readiness_discovery_green=true"
 
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_EARNED_READINESS_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterEarnedReadinessCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterEarnedReadinessLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterEarnedReadinessProofStatusLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Earned Readiness: First External Tester" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Eligible evidence:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger mutated now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit delta now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC→VOID swap:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "first_external_tester_earned_readiness_green=true" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_earned_readiness_card_ui_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

@@ -233,3 +233,11 @@ Expected rollup lines:
     first_external_tester_earned_readiness_wc_credit_delta_now=0
     first_external_tester_earned_readiness_wc_to_void_swap=false
     first_external_tester_earned_readiness_discovery_green=true
+
+## First external tester earned readiness card guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_EARNED_READINESS_CARD_DOC_V1 -->
+
+The live status rollup checks that `/public-node` visibly surfaces the first external tester earned-readiness card.
+
+Expected rollup line:
+
+    first_external_tester_earned_readiness_card_ui_green=true
