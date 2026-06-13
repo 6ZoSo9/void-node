@@ -47081,6 +47081,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeRealDataImportLaneV1ProofLink" href="/public-node/local-data-drop/proof/ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b.json">v1 proof</a>
       <a class="btn" id="publicNodeRealDataImportLaneV2ProofLink" href="/public-node/local-data-drop/proof/f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95.json">v2 proof</a>
     </p>
+    <p class="good" id="publicNodeRealDataTesterLaneRollupLine"><!-- VOID_PUBLIC_NODE_REAL_DATA_TESTER_LANE_ROLLUP_UI_V1 -->Live rollup guard: <code>real_data_tester_lane_summary_link_green=true</code></p>
     <p class="muted">Proof command: <code>ops/mainnet0/public-node-real-data-import-lane-status-proof.sh</code></p>
     <p class="muted">Boundary: <code>public_upload=false</code> · <code>operator_local_import_only=true</code> · <code>public_read_only=true</code> · <code>trusted_as_network_truth=false</code></p>
     <script>

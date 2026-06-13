@@ -14,6 +14,8 @@ echo "local_base=$LOCAL_BASE"
 echo "out=$OUT"
 
 grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_V1" docs/public/public-node-real-data-import-lane-status.md
+grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_TESTER_LANE_ROLLUP_DOC_V1" docs/public/public-node-real-data-import-lane-status.md
+grep -Fq "real_data_tester_lane_summary_link_green=true" docs/public/public-node-real-data-import-lane-status.md
 grep -Fq "object_count=5" docs/public/public-node-real-data-import-lane-status.md
 grep -Fq "void-real-user-note-v1.txt" docs/public/public-node-real-data-import-lane-status.md
 grep -Fq "void-real-user-note-v2.txt" docs/public/public-node-real-data-import-lane-status.md
@@ -32,10 +34,13 @@ curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$OUT/route-manifest.j
 
 grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1" "$OUT/public-node.html"
 grep -Fq "publicNodeRealDataImportLaneCard" "$OUT/public-node.html"
+grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_TESTER_LANE_ROLLUP_UI_V1" "$OUT/public-node.html"
+grep -Fq "real_data_tester_lane_summary_link_green=true" "$OUT/public-node.html"
 grep -Fq "/public-node/local-data-drop/weighted.json" "$OUT/public-node.html"
 grep -Fq "/public-node/local-data-drop/manifest.json" "$OUT/public-node.html"
 grep -Fq "public_upload=false" "$OUT/public-node.html"
 echo "real_data_ui_card_green=true"
+echo "real_data_tester_lane_rollup_ui_green=true"
 
 python3 - "$OUT" <<'PYVERIFY'
 import json, sys

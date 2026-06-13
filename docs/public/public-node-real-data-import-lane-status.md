@@ -82,4 +82,10 @@ real_data_client_work_pack_discovery_green=true
 real_data_well_known_discovery_green=true
 real_data_self_check_discovery_green=true
 real_data_route_manifest_discovery_green=true
+## Public-node UI rollup line <!-- VOID_PUBLIC_NODE_REAL_DATA_TESTER_LANE_ROLLUP_DOC_V1 -->
 
+The `/public-node` real-data import lane card now exposes the live rollup guard:
+
+    real_data_tester_lane_summary_link_green=true
+
+This gives human testers a visible signal that the tester-lane summary still links to the real-data lane status route and marker.
