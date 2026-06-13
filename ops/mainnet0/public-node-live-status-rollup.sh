@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
+OUT="${OUT:-/tmp/public-node-live-status-rollup-$(date -u +%Y%m%d-%H%M%S)}"
+
+mkdir -p "$OUT"
+
+echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1"
+echo "checked_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "head=$(git rev-parse --short HEAD)"
+echo "tag=$(git tag --points-at HEAD | head -1)"
+echo "local_base=$LOCAL_BASE"
+echo "out=$OUT"
+
+test "$(systemctl --user is-active void-node-live.service)" = "active"
+echo "service_active=true"
+
+curl -fsS "$LOCAL_BASE/public-node/external-base-url.json" > "$OUT/external-base-url.json"
+curl -fsS "$LOCAL_BASE/public-node/first-tester-request-copy-pack.json" > "$OUT/first-tester-request-copy-pack.json"
+curl -fsS "$LOCAL_BASE/public-node/tester-result-intake.json" > "$OUT/tester-result-intake.json"
+
+python3 - "$OUT" <<'PY'
+import json, sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+external = json.loads((out / "external-base-url.json").read_text())
+pack = json.loads((out / "first-tester-request-copy-pack.json").read_text())
+intake = json.loads((out / "tester-result-intake.json").read_text())
+
+assert external.get("marker") == "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1"
+assert pack.get("marker") == "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1"
+assert intake.get("marker") == "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1"
+
+base = external.get("effective_base_url")
+assert base and base != "http://127.0.0.1:4100"
+assert pack.get("effective_base_url") == base
+assert pack.get("tester_links", {}).get("tester_share_page", "").startswith(base)
+assert pack.get("expected_green_marker") == "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+assert pack.get("expected_receipt_file") == "tester-receipt.json"
+
+intake_obj = intake.get("intake", {})
+assert intake_obj.get("mode") == "operator_local_file_import_only"
+assert intake_obj.get("public_post_endpoint") is False
+
+print("json_rollup_checks=green")
+print(f"effective_base_url={base}")
+print(f"tester_share_page={pack['tester_links']['tester_share_page']}")
+print(f"intake_status={intake.get('status')}")
+print(f"latest_imported={intake_obj.get('latest_imported')}")
+
+sample = {
+  "marker": "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1",
+  "tester_label": "rollup-dryrun-sample",
+  "tested_base_url": base,
+  "observed_green_marker": "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
+  "standalone_smoke_marker": "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1",
+  "demo003_folder_checked": True,
+  "demo003_folder_manifest": base + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+  "result": "green",
+  "trusted_as_network_truth": False
+}
+(out / "rollup-sample-receipt.json").write_text(json.dumps(sample, indent=2) + "\n")
+(out / "effective-base.txt").write_text(base + "\n")
+PY
+
+for p in \
+  /version \
+  /public-node \
+  /public-node/tester-share \
+  /public-node/tester-lane-summary.json \
+  /.well-known/void-public-node.json \
+  /public-node/route-manifest.json \
+  /public-node/self-check-snapshot.json \
+  /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json \
+  /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html \
+  /proofs
+do
+  printf "%-95s" "$p"
+  curl -fsS --max-time 8 -o /dev/null "$LOCAL_BASE$p"
+  echo " OK"
+done
+
+ops/mainnet0/public-node-first-tester-ask-export.sh > "$OUT/ask-export.log"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_ASK_EXPORT_V1_GREEN" "$OUT/ask-export.log"
+echo "ask_export_green=true"
+
+ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-before.log"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-before.log"
+echo "receipt_watch_green=true"
+
+if grep -Fq "receipt_state=waiting_for_external_receipt" "$OUT/receipt-watch-before.log"; then
+  echo "receipt_state=waiting_for_external_receipt"
+else
+  grep -F "receipt_state=" "$OUT/receipt-watch-before.log" || true
+fi
+
+EFFECTIVE_BASE="$(cat "$OUT/effective-base.txt")"
+EXPECTED_BASE="$EFFECTIVE_BASE" ops/mainnet0/public-node-tester-receipt-safe-import.sh "$OUT/rollup-sample-receipt.json" > "$OUT/safe-import-dryrun.log"
+grep -Fq "VOID_PUBLIC_NODE_TESTER_RECEIPT_SAFE_IMPORT_V1_PREFLIGHT_GREEN" "$OUT/safe-import-dryrun.log"
+grep -Fq "import_skipped=true" "$OUT/safe-import-dryrun.log"
+echo "safe_import_dryrun_green=true"
+echo "safe_import_dryrun_import_skipped=true"
+
+ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-after-dryrun.log"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-after-dryrun.log"
+
+if grep -Fq "receipt_state=waiting_for_external_receipt" "$OUT/receipt-watch-after-dryrun.log"; then
+  echo "dryrun_preserved_waiting_state=true"
+else
+  echo "dryrun_preserved_waiting_state=false"
+  cat "$OUT/receipt-watch-after-dryrun.log"
+  exit 1
+fi
+
+echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
