@@ -653,4 +653,76 @@ grep -Fq "first_external_tester_wc_candidate_green=true" "$PACKET_STATUS_UI_HTML
 
 echo "first_external_tester_wc_candidate_card_ui_green=true"
 
+WC_REVIEW_CHECKLIST_JSON="$OUT/first-external-tester-wc-review-checklist.json"
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-wc-review-checklist.json" > "$WC_REVIEW_CHECKLIST_JSON"
+
+python3 - "$WC_REVIEW_CHECKLIST_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+j = json.loads(Path(sys.argv[1]).read_text())
+
+assert j.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1"
+assert j.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_ROUTE_V1"
+assert j.get("candidate_id") == "first-external-tester-n153b-demo003-standalone-smoke-v1"
+assert j.get("review_state") == "pending_operator_review"
+assert j.get("checklist_status") == "open"
+assert j.get("review_required_before_award") is True
+assert j.get("award_decision") == "not_decided"
+
+g = j.get("approval_gates", {})
+assert g.get("candidate_packet_present") is True
+assert g.get("earned_readiness_present") is True
+assert g.get("imported_closeout_proof_present") is True
+assert g.get("receipt_state_external_imported") is True
+assert g.get("useful_work_claim_present") is True
+assert g.get("verifiable_claim_present") is True
+assert g.get("external_observation_claim_present") is True
+assert g.get("operator_local_import_confirmed") is True
+assert g.get("manual_operator_acceptance_required") is True
+assert g.get("ledger_write_allowed_now") is False
+assert g.get("confirm_no_existing_award") is True
+assert g.get("confirm_no_money_movement") is True
+assert g.get("confirm_no_wallet_send") is True
+assert g.get("confirm_no_wc_to_void_swap") is True
+
+b = j.get("accounting_boundary", {})
+assert b.get("award_created_now") is False
+assert b.get("wc_ledger_mutated_now") is False
+assert b.get("wc_credit_delta_now") == 0
+assert b.get("proposed_wc_credit_delta") is None
+assert b.get("payout_created_now") is False
+assert b.get("redeemable_now") is False
+assert b.get("wc_to_void_swap") is False
+assert b.get("money_movement") is False
+assert b.get("wallet_send") is False
+
+safety = j.get("safety", {})
+assert safety.get("wc_ledger_write") is False
+assert safety.get("wc_credit_award") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+print("first_external_tester_wc_review_checklist_green=true")
+print("first_external_tester_wc_review_checklist_state=pending_operator_review")
+print("first_external_tester_wc_review_checklist_status=open")
+print("first_external_tester_wc_review_checklist_review_required_before_award=true")
+print("first_external_tester_wc_review_checklist_award_decision=not_decided")
+print("first_external_tester_wc_review_checklist_ledger_write_allowed_now=false")
+print("first_external_tester_wc_review_checklist_award_created_now=false")
+print("first_external_tester_wc_review_checklist_wc_ledger_mutated_now=false")
+print("first_external_tester_wc_review_checklist_wc_credit_delta_now=0")
+print("first_external_tester_wc_review_checklist_wc_to_void_swap=false")
+PYJSON
+
+grep -Fq "/public-node/first-external-tester-wc-review-checklist.json" "$PACKET_STATUS_ROUTE_INDEX_JSON"
+grep -Fq "/public-node/first-external-tester-wc-review-checklist.json" "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+grep -Fq "/public-node/first-external-tester-wc-review-checklist.json" "$PACKET_STATUS_SELF_CHECK_JSON"
+
+echo "first_external_tester_wc_review_checklist_discovery_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
