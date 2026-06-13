@@ -200,4 +200,21 @@ print("external_tester_receipt_closeout_operator_local_import_only=true")
 print("external_tester_receipt_closeout_trusted_as_network_truth=false")
 NODEPY
 
+ASK_EXPORT_OUT="$OUT/first-external-receipt-ask-export"
+LOCAL_BASE="$LOCAL_BASE" OUT="$ASK_EXPORT_OUT" ops/mainnet0/public-node-first-external-receipt-ask-export.sh > "$OUT/first-external-receipt-ask-export.log"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_ASK_EXPORT_V1_GREEN" "$OUT/first-external-receipt-ask-export.log"
+grep -Fq "first_external_receipt_ask_ready" "$OUT/first-external-receipt-ask-export.log"
+grep -Fq "closeout_status=$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$OUT/first-external-receipt-ask-export.log"
+grep -Fq "$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$ASK_EXPORT_OUT/first-external-receipt-ask.txt"
+
+if grep -Fq "$LOCAL_BASE/public-node/external-tester-receipt-closeout-status.json" "$ASK_EXPORT_OUT/first-external-receipt-ask.txt"; then
+  echo "first_external_receipt_ask_closeout_url_localhost=true"
+  exit 1
+fi
+
+echo "first_external_receipt_ask_public_closeout_url_green=true"
+echo "first_external_receipt_ask_closeout_url_public=true"
+echo "first_external_receipt_ask_closeout_url_localhost=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

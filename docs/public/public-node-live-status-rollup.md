@@ -99,3 +99,17 @@ Expected rollup lines while waiting for the first outside tester receipt:
     external_tester_receipt_closeout_trusted_as_network_truth=false
 
 This keeps the closeout route tied to the live public-node health proof instead of leaving it as an orphan surface.
+
+## First external receipt ask public closeout URL guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_RECEIPT_ASK_PUBLIC_CLOSEOUT_URL_DOC_V1 -->
+
+The live status rollup runs:
+
+    ops/mainnet0/public-node-first-external-receipt-ask-export.sh
+
+It verifies the generated ask export uses the public/effective closeout URL:
+
+    first_external_receipt_ask_public_closeout_url_green=true
+    first_external_receipt_ask_closeout_url_public=true
+    first_external_receipt_ask_closeout_url_localhost=false
+
+This prevents outside-tester ask text from regressing to an operator-local `127.0.0.1` closeout URL.
