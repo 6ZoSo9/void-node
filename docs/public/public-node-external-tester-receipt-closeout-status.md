@@ -49,3 +49,28 @@ The safe import guard remains operator-local:
 
     ops/mainnet0/public-node-tester-receipt-safe-import.sh
 
+## Public Node UI card <!-- VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_UI_DOC_V1 -->
+
+The human `/public-node` page includes a visible card with marker:
+
+    VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_UI_V1
+
+Card id:
+
+    publicNodeExternalTesterReceiptCloseoutStatusCard
+
+The card surfaces:
+
+    First outside tester receipt: waiting
+    Safe import guard: ready
+    Public upload: disabled
+    Operator-local import only: true
+    Network truth: false
+
+The card links to:
+
+    /public-node/external-tester-receipt-closeout-status.json
+
+The live rollup guard is:
+
+    external_tester_receipt_closeout_status_green=true

@@ -47163,6 +47163,20 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeRealDataImportLaneV2ProofLink" href="/public-node/local-data-drop/proof/f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95.json">v2 proof</a>
     </p>
     <p class="good" id="publicNodeRealDataTesterLaneRollupLine"><!-- VOID_PUBLIC_NODE_REAL_DATA_TESTER_LANE_ROLLUP_UI_V1 -->Live rollup guard: <code>real_data_tester_lane_summary_link_green=true</code></p>
+
+    <div class="card" id="publicNodeExternalTesterReceiptCloseoutStatusCard"><!-- VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_UI_V1 -->
+      <h2>First outside tester receipt closeout</h2>
+      <p class="muted">The public tester lane is ready and waiting for the first external tester receipt.</p>
+      <ul>
+        <li>First outside tester receipt: <strong>waiting</strong></li>
+        <li>Safe import guard: <strong>ready</strong></li>
+        <li>Public upload: <strong>disabled</strong></li>
+        <li>Operator-local import only: <strong>true</strong></li>
+        <li>Network truth: <strong>false</strong></li>
+      </ul>
+      <p><a href="/public-node/external-tester-receipt-closeout-status.json">Open receipt closeout status JSON</a></p>
+      <p class="muted">Live rollup guard: <code>external_tester_receipt_closeout_status_green=true</code></p>
+    </div>
     <p class="muted">Proof command: <code>ops/mainnet0/public-node-real-data-import-lane-status-proof.sh</code></p>
     <p class="muted">Boundary: <code>public_upload=false</code> · <code>operator_local_import_only=true</code> · <code>public_read_only=true</code> · <code>trusted_as_network_truth=false</code></p>
     <script>
