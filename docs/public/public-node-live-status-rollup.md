@@ -161,3 +161,15 @@ Expected rollup lines:
     first_external_receipt_packet_status_operator_local_export_only=true
     first_external_receipt_packet_status_public_upload=false
     first_external_receipt_packet_status_trusted_as_network_truth=false
+
+## First external receipt packet status UI guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_UI_DOC_V1 -->
+
+The live status rollup checks the public node HTML page for the first external receipt packet status card.
+
+Expected rollup lines:
+
+    first_external_receipt_packet_status_ui_green=true
+    first_external_receipt_packet_status_ui_link_green=true
+    first_external_receipt_packet_status_ui_public_archive_download=false
+    first_external_receipt_packet_status_ui_operator_local_export_only=true
+    first_external_receipt_packet_status_ui_trusted_as_network_truth=false

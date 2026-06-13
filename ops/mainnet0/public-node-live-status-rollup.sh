@@ -376,4 +376,22 @@ echo "first_external_receipt_packet_status_operator_local_export_only=true"
 echo "first_external_receipt_packet_status_public_upload=false"
 echo "first_external_receipt_packet_status_trusted_as_network_truth=false"
 
+PACKET_STATUS_UI_HTML="$OUT/first-external-receipt-packet-status-ui.html"
+curl -fsS "$LOCAL_BASE/public-node" > "$PACKET_STATUS_UI_HTML"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalReceiptPacketStatusCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalReceiptPacketStatusLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Open packet status JSON" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-receipt-packet-status.json" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Public archive download:</span> <code>false</code>" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Operator-local export only:</span> <code>true</code>" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Trusted as network truth:</span> <code>false</code>" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_receipt_packet_status_ui_green=true"
+echo "first_external_receipt_packet_status_ui_link_green=true"
+echo "first_external_receipt_packet_status_ui_public_archive_download=false"
+echo "first_external_receipt_packet_status_ui_operator_local_export_only=true"
+echo "first_external_receipt_packet_status_ui_trusted_as_network_truth=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
