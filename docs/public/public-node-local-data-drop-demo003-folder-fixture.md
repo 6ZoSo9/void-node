@@ -164,3 +164,18 @@ Visible surfaces:
 The standalone smoke script remains the executable tester path and still emits:
 
        VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
+
+
+## Demo 003 tester receipt intake visibility <!-- VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_DOC_V1 -->
+
+The public tester result intake status now computes whether the latest operator-imported tester receipt included Demo 003 folder verification.
+
+Route:
+
+       /public-node/tester-result-intake.json
+
+Computed marker:
+
+       VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_V1
+
+The receipt remains operator-local import only. There is no public POST endpoint, and the imported tester receipt is not treated as network truth.

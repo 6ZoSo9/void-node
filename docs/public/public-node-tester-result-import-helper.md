@@ -28,3 +28,17 @@ Local operator helper for importing an outside tester receipt into the public-no
 This helper is operator-local only.
 
 It does not expose a public POST endpoint, call private APIs, mutate chain state, move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat outside tester receipts as network truth.
+
+
+## Demo 003 receipt field <!-- VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_HELPER_DOC_V1 -->
+
+Standalone outside tester receipts may include:
+
+       "demo003_folder_checked": true
+       "demo003_folder_manifest": "<base>/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"
+
+The public intake route summarizes those fields under:
+
+       demo003_receipt_intake
+
+The import remains operator-local file import only and does not create network truth.

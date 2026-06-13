@@ -45361,6 +45361,10 @@ APP.get("/public-node/quickstart.json", (_req:any, res:any) => { // VOID_PUBLIC_
       "/public-node/route-index.json",
       "/public-node/external-base-url.json",
       "/public-node/public-exposure-smoke-pack.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       "/proofs"
     ],
     policy: {
@@ -45434,6 +45438,9 @@ APP.get("/public-node/tester-result-receipt.json", (_req:any, res:any) => { // V
       browser_loaded_public_node: null,
       smoke_command_ok_routes: [],
       smoke_command_failed_routes: [],
+      demo003_folder_checked: null,
+      demo003_folder_manifest: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      observed_green_marker: "",
       copied_error_output: "",
       notes: ""
     },
@@ -45445,6 +45452,10 @@ APP.get("/public-node/tester-result-receipt.json", (_req:any, res:any) => { // V
       "/public-node/route-index.json",
       "/public-node/external-base-url.json",
       "/public-node/public-exposure-smoke-pack.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       "/proofs"
     ],
     report_back_format: [
@@ -45452,6 +45463,8 @@ APP.get("/public-node/tester-result-receipt.json", (_req:any, res:any) => { // V
       "browser_loaded_public_node=yes/no",
       "ok_routes=",
       "failed_routes=",
+      "demo003_folder_checked=true/false",
+      "demo003_folder_manifest=" + effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
       "error_output=",
       "notes="
     ],
@@ -45979,6 +45992,26 @@ APP.get("/public-node/tester-result-intake.json", (_req:any, res:any) => { // VO
     latestImported = false;
   }
 
+  const demo003ManifestPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json";
+  const demo003IndexPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html";
+  const demo003ReadmePath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt";
+  const demo003MetadataPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json";
+  const latestAny:any = latest && typeof latest === "object" ? latest : {};
+  const okRoutes = Array.isArray(latestAny.smoke_command_ok_routes) ? latestAny.smoke_command_ok_routes.map((x:any) => String(x)) : [];
+  const demo003FolderChecked = !!(latestImported && (
+    latestAny.demo003_folder_checked === true ||
+    okRoutes.includes(demo003ManifestPath) ||
+    okRoutes.includes(effectiveBaseUrl + demo003ManifestPath)
+  ));
+  const observedGreen = !!(latestImported && (
+    latestAny.observed_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN" ||
+    latestAny.result === "green" ||
+    String(latestAny.smoke_result || "").includes("VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN")
+  ));
+  const demo003ManifestObserved = typeof latestAny.demo003_folder_manifest === "string" && latestAny.demo003_folder_manifest.length
+    ? latestAny.demo003_folder_manifest
+    : (demo003FolderChecked ? effectiveBaseUrl + demo003ManifestPath : null);
+
   res.json({
     marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1",
     purpose: "public_node_tester_result_intake_status",
@@ -45991,12 +46024,30 @@ APP.get("/public-node/tester-result-intake.json", (_req:any, res:any) => { // VO
       latest_imported: latestImported,
       latest_result: latest
     },
+    demo003_receipt_intake: {
+      marker: "VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_V1",
+      latest_receipt_present: latestImported,
+      demo003_folder_checked: demo003FolderChecked,
+      receipt_includes_expected_green_marker: observedGreen,
+      demo003_folder_manifest: demo003ManifestObserved,
+      expected_demo003_folder_manifest: effectiveBaseUrl + demo003ManifestPath,
+      expected_demo003_folder_index: effectiveBaseUrl + demo003IndexPath,
+      expected_demo003_folder_readme: effectiveBaseUrl + demo003ReadmePath,
+      expected_demo003_folder_metadata: effectiveBaseUrl + demo003MetadataPath,
+      public_post_endpoint: false,
+      operator_local_import_only: true,
+      trusted_as_network_truth: false
+    },
     expected_receipt_marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1",
     expected_smoke_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
     links: {
       public_node: effectiveBaseUrl + "/public-node",
       external_tester_copy_pack: effectiveBaseUrl + "/public-node/external-tester-copy-pack.json",
       result_receipt_schema: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      demo003_folder_manifest: effectiveBaseUrl + demo003ManifestPath,
+      demo003_folder_index: effectiveBaseUrl + demo003IndexPath,
+      demo003_folder_readme: effectiveBaseUrl + demo003ReadmePath,
+      demo003_folder_metadata: effectiveBaseUrl + demo003MetadataPath,
       proofs: effectiveBaseUrl + "/proofs"
     },
     policy: {

@@ -607,3 +607,18 @@ This keeps the demo public-read-only and preserves `trusted_as_network_truth=fal
 The public tester-share page and tester bundle now explicitly show Demo 003 verified folder/site links so human testers can see what the outside smoke proves.
 
 The executable smoke still checks public read-only routes only and preserves `trusted_as_network_truth=false`.
+
+
+## Demo 003 tester receipt intake visibility <!-- VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_POINTER_V1 -->
+
+The public tester result intake status now computes whether the latest operator-imported tester receipt included Demo 003 folder verification.
+
+Route:
+
+       /public-node/tester-result-intake.json
+
+Computed marker:
+
+       VOID_PUBLIC_NODE_DEMO003_TESTER_RECEIPT_INTAKE_V1
+
+The receipt remains operator-local import only. There is no public POST endpoint, and the imported tester receipt is not treated as network truth.
