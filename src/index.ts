@@ -47295,6 +47295,22 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </script>
   </section>
 
+  <section class="card" id="publicNodeFirstExternalTesterClosedToplineCard"><!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_CLOSED_TOPLINE_UI_V1 -->
+    <b>First External Tester Closed</b>
+    <p class="good">N153B standalone smoke went green, the tester receipt was imported operator-locally, and the imported closeout proof is now public and live-rollup guarded.</p>
+    <ul>
+      <li><span class="good">Receipt state:</span> <code>external_receipt_imported</code></li>
+      <li><span class="good">Latest tester:</span> <code>standalone-outside-tester</code></li>
+      <li><span class="good">Proof marker:</span> <code>VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_V1_GREEN</code></li>
+      <li><span class="good">Live rollup guard:</span> <code>first_external_receipt_imported_closeout_proof_status_green=true</code></li>
+      <li><span class="warn">Trusted as network truth:</span> <code>false</code></li>
+    </ul>
+    <p>
+      <a class="btn" id="publicNodeFirstExternalTesterClosedToplineStatusLink" href="/public-node/first-external-receipt-imported-closeout-proof-status.json">Open closeout proof status</a>
+      <a class="btn" id="publicNodeFirstExternalTesterClosedToplineIntakeLink" href="/public-node/tester-result-intake.json">Open tester intake</a>
+    </p>
+  </section>
+
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
     <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
