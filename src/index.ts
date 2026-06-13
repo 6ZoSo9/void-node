@@ -45182,6 +45182,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
       { path: "/public-node/external-tester-receipt-closeout-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_V1", use: "first outside tester receipt closeout status" },
+      { path: "/public-node/first-external-receipt-packet-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1", use: "first outside tester receipt packet export status" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45682,6 +45683,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/external-tester-copy-pack.json",
     "/public-node/tester-result-intake.json",
     "/public-node/external-tester-receipt-closeout-status.json",
+    "/public-node/first-external-receipt-packet-status.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45723,6 +45725,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       external_tester_copy_pack: effectiveBaseUrl + "/public-node/external-tester-copy-pack.json",
       tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
       external_tester_receipt_closeout_status: effectiveBaseUrl + "/public-node/external-tester-receipt-closeout-status.json",
+      first_external_receipt_packet_status: effectiveBaseUrl + "/public-node/first-external-receipt-packet-status.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45791,6 +45794,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/external-tester-copy-pack.json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", purpose: "copy/paste pack for outside testers", safety_class: "public_read_only" },
     { path: "/public-node/tester-result-intake.json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", purpose: "operator-local external tester result intake status", safety_class: "public_read_only_local_file_status" },
     { path: "/public-node/external-tester-receipt-closeout-status.json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_V1", purpose: "first outside tester receipt closeout status", safety_class: "public_read_only_closeout_status" },
+    { path: "/public-node/first-external-receipt-packet-status.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1", purpose: "first outside tester receipt packet export status", safety_class: "public_read_only_operator_export_status" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -46327,6 +46331,80 @@ APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NOD
 });
 
 
+
+
+APP.get("/public-node/first-external-receipt-packet-status.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const testerSharePage = effectiveBaseUrl + "/public-node/tester-share";
+  const testerLaneSummary = effectiveBaseUrl + "/public-node/tester-lane-summary.json";
+  const closeoutStatus = effectiveBaseUrl + "/public-node/external-tester-receipt-closeout-status.json";
+  const realDataImportLaneStatus = effectiveBaseUrl + "/public-node/real-data-import-lane-status.json";
+  const routeManifest = effectiveBaseUrl + "/public-node/route-manifest.json";
+  const selfCheckSnapshot = effectiveBaseUrl + "/public-node/self-check-snapshot.json";
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_ROUTE_V1",
+    purpose: "public_node_first_external_receipt_packet_status",
+    status: "first_external_receipt_packet_operator_export_ready",
+    effective_base_url: effectiveBaseUrl,
+    packet_status: {
+      packet_export_ready: true,
+      packet_archive_ready: true,
+      packet_archive_sha256_ready: true,
+      public_archive_download: false,
+      operator_local_export_only: true,
+      public_upload: false,
+      expected_receipt_file: "tester-receipt.json",
+      expected_receipt_marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1",
+      expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
+      trusted_as_network_truth: false
+    },
+    operator_scripts: {
+      ask_export: "ops/mainnet0/public-node-first-external-receipt-ask-export.sh",
+      packet_export: "ops/mainnet0/public-node-first-external-receipt-packet-export.sh",
+      packet_archive: "ops/mainnet0/public-node-first-external-receipt-packet-archive.sh",
+      receipt_watch: "ops/mainnet0/public-node-first-external-receipt-watch.sh",
+      safe_import: "ops/mainnet0/public-node-tester-receipt-safe-import.sh"
+    },
+    docs: {
+      ask_export: "docs/public/public-node-first-external-receipt-ask-export.md",
+      packet_export: "docs/public/public-node-first-external-receipt-packet-export.md",
+      packet_archive: "docs/public/public-node-first-external-receipt-packet-archive.md",
+      closeout_status: "docs/public/public-node-external-tester-receipt-closeout-status.md"
+    },
+    links: {
+      tester_share_page: testerSharePage,
+      tester_lane_summary: testerLaneSummary,
+      external_tester_receipt_closeout_status: closeoutStatus,
+      real_data_import_lane_status: realDataImportLaneStatus,
+      route_manifest: routeManifest,
+      self_check_snapshot: selfCheckSnapshot
+    },
+    policy: {
+      public_routes_only: true,
+      public_archive_download: false,
+      public_upload: false,
+      public_post_endpoint: false,
+      operator_local_export_only: true,
+      operator_local_import_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      trusted_as_network_truth: false
+    },
+    safety: {
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
 
 APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1
   const defaultBaseUrl = "http://127.0.0.1:4100";
