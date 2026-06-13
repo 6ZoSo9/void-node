@@ -66,3 +66,19 @@ real_data_well_known_discovery_green=true
 real_data_self_check_discovery_green=true
 real_data_route_manifest_discovery_green=true
 
+## Real data tester-lane link rollup <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_REAL_DATA_TESTER_LANE_LINK_DOC_V1 -->
+
+The live status rollup now verifies that `/public-node/tester-lane-summary.json` exposes the real-data lane status link and marker.
+
+Expected rollup line:
+
+    real_data_tester_lane_summary_link_green=true
+
+The rollup checks:
+
+- `tester_lane.real_data_status_ready=true`
+- `links.real_data_import_lane_status` exists
+- the link ends with `/public-node/real-data-import-lane-status.json`
+- `route_markers.real_data_import_lane_status=VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1`
+
+This catches stale live runtime cases where the source/proof has been updated but the long-running public service has not restarted yet.
