@@ -217,4 +217,40 @@ echo "first_external_receipt_ask_public_closeout_url_green=true"
 echo "first_external_receipt_ask_closeout_url_public=true"
 echo "first_external_receipt_ask_closeout_url_localhost=false"
 
+PACKET_EXPORT_OUT="$OUT/first-external-receipt-packet-export"
+LOCAL_BASE="$LOCAL_BASE" OUT="$PACKET_EXPORT_OUT" ops/mainnet0/public-node-first-external-receipt-packet-export.sh > "$OUT/first-external-receipt-packet-export.log"
+
+PACKET_DIR="$PACKET_EXPORT_OUT/first-external-receipt-packet"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_EXPORT_V1_GREEN" "$OUT/first-external-receipt-packet-export.log"
+grep -Fq "first_external_receipt_packet_ready" "$OUT/first-external-receipt-packet-export.log"
+grep -Fq "closeout_status=$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$OUT/first-external-receipt-packet-export.log"
+grep -Fq "real_data_import_lane_status=$EFFECTIVE_BASE/public-node/real-data-import-lane-status.json" "$OUT/first-external-receipt-packet-export.log"
+
+for f in \
+  README.txt \
+  first-external-receipt-ask.txt \
+  first-external-receipt-ask.json \
+  closeout-status.json \
+  tester-lane-summary.json \
+  real-data-import-lane-status.json \
+  packet-manifest.json
+do
+  test -s "$PACKET_DIR/$f"
+done
+
+grep -Fq "$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$PACKET_DIR/README.txt"
+grep -Fq "$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$PACKET_DIR/packet-manifest.json"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_EXPORT_V1" "$PACKET_DIR/packet-manifest.json"
+
+if grep -R "$LOCAL_BASE/public-node/external-tester-receipt-closeout-status.json" "$PACKET_DIR" >/dev/null; then
+  echo "first_external_receipt_packet_closeout_url_localhost=true"
+  exit 1
+fi
+
+echo "first_external_receipt_packet_export_green=true"
+echo "first_external_receipt_packet_public_closeout_url_green=true"
+echo "first_external_receipt_packet_closeout_url_public=true"
+echo "first_external_receipt_packet_closeout_url_localhost=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

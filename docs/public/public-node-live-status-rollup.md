@@ -113,3 +113,18 @@ It verifies the generated ask export uses the public/effective closeout URL:
     first_external_receipt_ask_closeout_url_localhost=false
 
 This prevents outside-tester ask text from regressing to an operator-local `127.0.0.1` closeout URL.
+
+## First external receipt packet export guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_RECEIPT_PACKET_EXPORT_DOC_V1 -->
+
+The live status rollup runs:
+
+    ops/mainnet0/public-node-first-external-receipt-packet-export.sh
+
+It verifies the packet folder exists, contains the expected files, uses the public/effective closeout URL, and does not contain an operator-local localhost closeout URL.
+
+Expected rollup lines:
+
+    first_external_receipt_packet_export_green=true
+    first_external_receipt_packet_public_closeout_url_green=true
+    first_external_receipt_packet_closeout_url_public=true
+    first_external_receipt_packet_closeout_url_localhost=false
