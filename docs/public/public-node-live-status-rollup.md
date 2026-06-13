@@ -82,3 +82,20 @@ The rollup checks:
 - `route_markers.real_data_import_lane_status=VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1`
 
 This catches stale live runtime cases where the source/proof has been updated but the long-running public service has not restarted yet.
+
+## External tester receipt closeout guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_DOC_V1 -->
+
+The live status rollup now verifies:
+
+    /public-node/external-tester-receipt-closeout-status.json
+
+Expected rollup lines while waiting for the first outside tester receipt:
+
+    external_tester_receipt_closeout_status_green=true
+    external_tester_receipt_closeout_waiting=true
+    external_tester_receipt_closeout_latest_imported=false
+    external_tester_receipt_closeout_public_upload=false
+    external_tester_receipt_closeout_operator_local_import_only=true
+    external_tester_receipt_closeout_trusted_as_network_truth=false
+
+This keeps the closeout route tied to the live public-node health proof instead of leaving it as an orphan surface.

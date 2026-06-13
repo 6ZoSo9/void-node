@@ -148,4 +148,56 @@ ok(summary.links.real_data_import_lane_status.endsWith("/public-node/real-data-i
 ok(summary.route_markers && summary.route_markers.real_data_import_lane_status === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "tester lane real data marker");
 NODE
 echo "real_data_tester_lane_summary_link_green=true"
+curl -fsS "$LOCAL_BASE/public-node/external-tester-receipt-closeout-status.json" > "$OUT/external-tester-receipt-closeout-status.json"
+
+python3 - "$OUT/external-tester-receipt-closeout-status.json" "$OUT/tester-result-intake.json" <<'NODEPY'
+import json
+import sys
+
+closeout = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
+intake = json.loads(open(sys.argv[2], "r", encoding="utf-8").read())
+
+assert closeout.get("marker") == "VOID_PUBLIC_NODE_EXTERNAL_TESTER_RECEIPT_CLOSEOUT_STATUS_V1"
+assert closeout.get("purpose") == "public_node_external_tester_receipt_closeout_status"
+assert closeout.get("links", {}).get("tester_result_intake", "").endswith("/public-node/tester-result-intake.json")
+assert closeout.get("links", {}).get("real_data_import_lane_status", "").endswith("/public-node/real-data-import-lane-status.json")
+
+closeout_obj = closeout.get("closeout", {})
+policy = closeout.get("policy", {})
+intake_obj = intake.get("intake", {})
+
+latest_imported = bool(closeout_obj.get("latest_imported"))
+waiting = bool(closeout_obj.get("waiting_for_external_receipt"))
+intake_latest_imported = bool(intake_obj.get("latest_imported"))
+
+assert closeout_obj.get("tester_lane_ready") is True
+assert closeout_obj.get("receipt_required") is True
+assert closeout_obj.get("safe_import_guard_ready") is True
+assert closeout_obj.get("expected_receipt_file") == "tester-receipt.json"
+assert closeout_obj.get("expected_receipt_marker") == "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
+assert closeout_obj.get("expected_green_marker") == "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+assert latest_imported == intake_latest_imported
+assert waiting == (not latest_imported)
+
+assert policy.get("public_routes_only") is True
+assert policy.get("private_api") is False
+assert policy.get("public_post_endpoint") is False
+assert policy.get("operator_local_import_only") is True
+assert policy.get("mutation") is False
+assert policy.get("read_only") is True
+assert policy.get("money_movement") is False
+assert policy.get("wallet_send") is False
+assert policy.get("wc_to_void_swap") is False
+assert policy.get("buy_void_fulfillment") is False
+assert policy.get("validator_mutation") is False
+assert policy.get("trusted_as_network_truth") is False
+
+print("external_tester_receipt_closeout_status_green=true")
+print(f"external_tester_receipt_closeout_waiting={str(waiting).lower()}")
+print(f"external_tester_receipt_closeout_latest_imported={str(latest_imported).lower()}")
+print("external_tester_receipt_closeout_public_upload=false")
+print("external_tester_receipt_closeout_operator_local_import_only=true")
+print("external_tester_receipt_closeout_trusted_as_network_truth=false")
+NODEPY
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
