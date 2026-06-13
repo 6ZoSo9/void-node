@@ -45642,6 +45642,7 @@ APP.get("/public-node/outside-tester-smoke.json", (_req:any, res:any) => { // VO
       "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
       "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
+      "/public-node/real-data-import-lane-status.json",
       "/proofs"
     ],
     demo003_folder_checks: {

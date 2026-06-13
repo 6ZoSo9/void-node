@@ -12,7 +12,7 @@ One-command smoke script for outside testers.
 
 ## What it checks
 
-The script fetches the public node page, share link, tester bundle, tester loop status, result receipt, quickstart, tester handoff, public exposure smoke pack, route index, and public proofs.
+The script fetches the public node page, share link, tester bundle, tester loop status, result receipt, quickstart, tester handoff, public exposure smoke pack, route index, the real-data import lane status route, and public proofs.
 
 ## Expected success
 
@@ -25,3 +25,15 @@ The script prints `ok` for every route and ends with:
 This script checks public routes only.
 
 It does not touch private APIs, wallet sends, WC to VOID swaps, Buy VOID fulfillment, validator mutation, money movement, or proof mutation.
+
+## Real-data status route smoke
+
+The smoke includes:
+
+    /public-node/real-data-import-lane-status.json
+
+Expected marker:
+
+    VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
+
+The smoke validates that the route is public read-only, operator-local import only, has no public upload endpoint, and is not trusted as network truth.

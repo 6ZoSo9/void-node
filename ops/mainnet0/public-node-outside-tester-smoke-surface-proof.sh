@@ -19,6 +19,7 @@ grep -Fq "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_UI_V1" src/index.ts
 grep -Fq "/public-node/outside-tester-smoke.json" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_DOC_V1" docs/public/public-node-outside-tester-smoke-surface.md
 grep -Fq "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN" ops/mainnet0/public-node-outside-tester-smoke.sh
+grep -Fq "/public-node/real-data-import-lane-status.json" ops/mainnet0/public-node-outside-tester-smoke.sh
 echo "[ok] source/docs/smoke markers"
 
 npm run build
@@ -77,6 +78,7 @@ ok(surface.expected_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_G
 ok(Array.isArray(surface.checked_routes), "checked routes array");
 ok(surface.checked_routes.includes("/public-node/outside-tester-smoke.json") === false, "surface route not self-required");
 ok(surface.checked_routes.includes("/public-node/tester-loop-status.json"), "loop route checked");
+ok(surface.checked_routes.includes("/public-node/real-data-import-lane-status.json"), "real data status route checked");
 ok(surface.checked_routes.includes("/proofs"), "proofs checked");
 
 ok(surface.policy.public_routes_only === true, "public routes only");
@@ -105,6 +107,7 @@ echo "doc=docs/public/public-node-outside-tester-smoke-surface.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+echo "real_data_status_route_smoke_surface_green=true"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
