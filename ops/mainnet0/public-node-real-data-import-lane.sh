@@ -169,15 +169,85 @@ print(f"source_file_count={source_count}")
 print(f"after_object_count={after_count}")
 PYCHECK
 
-ops/mainnet0/public-node-local-data-drop-verify-manifest.sh "$LOCAL_BASE" > "$OUT/verify-manifest.log"
-grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" "$OUT/verify-manifest.log"
-echo "manifest_verify_green=true"
+curl -fsS "$LOCAL_BASE/public-node/external-base-url.json" > "$OUT/after-external-base-url.json"
 
-while IFS= read -r SHA; do
-  [ -n "$SHA" ] || continue
-  ops/mainnet0/public-node-local-data-drop-verify-object.sh "$LOCAL_BASE" "$SHA" > "$OUT/verify-object-$SHA.log"
-  grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/verify-object-$SHA.log"
+python3 - "$OUT" <<'PYCANON'
+import json, sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+external = json.loads((out / "after-external-base-url.json").read_text())
+weighted = json.loads((out / "after-weighted.json").read_text())
+manifest = json.loads((out / "after-manifest.json").read_text())
+planned = json.loads((out / "planned-imports.json").read_text())
+
+base = external.get("effective_base_url", "").rstrip("/")
+assert base and base != "http://127.0.0.1:4100"
+
+manifest_by_id = {o["object_id"]: o for o in manifest.get("objects", [])}
+weighted_by_id = {r["object_id"]: r for r in weighted.get("weighted_records", [])}
+
+lines = []
+for item in planned:
+    oid = item["object_id"]
+    sha = item["sha256"]
+    m = manifest_by_id.get(oid)
+    w = weighted_by_id.get(oid)
+    assert m, f"missing manifest object: {oid}"
+    assert w, f"missing weighted object: {oid}"
+
+    assert m.get("object_href") == f"{base}/public-node/local-data-drop/{oid}"
+    assert m.get("content_address_href") == f"{base}/public-node/local-data-drop/by-sha256/{sha}"
+    assert m.get("proof_href") == f"{base}/public-node/local-data-drop/proof/{sha}.json"
+
+    assert w.get("object_href") == f"{base}/public-node/local-data-drop/{oid}"
+    assert w.get("content_address_href") == f"{base}/public-node/local-data-drop/by-sha256/{sha}"
+    assert w.get("proof_href") == f"{base}/public-node/local-data-drop/proof/{sha}.json"
+
+    lines.append(f"{oid}\t{sha}\t{item['bytes']}")
+
+(out / "planned-fetch.tsv").write_text("\n".join(lines) + "\n")
+print("canonical_href_checks=green")
+print(f"effective_base_url={base}")
+PYCANON
+
+while IFS=$'\t' read -r OBJECT_ID SHA BYTES; do
+  [ -n "$OBJECT_ID" ] || continue
+
+  curl -fsS "$LOCAL_BASE/public-node/local-data-drop/proof/$SHA.json" > "$OUT/proof-$SHA.json"
+  curl -fsS "$LOCAL_BASE/public-node/local-data-drop/by-sha256/$SHA" > "$OUT/object-by-sha-$SHA.bin"
+  curl -fsS "$LOCAL_BASE/public-node/local-data-drop/$OBJECT_ID" > "$OUT/object-by-id-$SHA.bin"
+
+  FETCHED_BY_SHA="$(sha256sum "$OUT/object-by-sha-$SHA.bin" | awk '{print $1}')"
+  FETCHED_BY_ID="$(sha256sum "$OUT/object-by-id-$SHA.bin" | awk '{print $1}')"
+
+  test "$FETCHED_BY_SHA" = "$SHA"
+  test "$FETCHED_BY_ID" = "$SHA"
+
+  python3 - "$OUT/proof-$SHA.json" "$OBJECT_ID" "$SHA" <<'PYPROOF'
+import json, sys
+from pathlib import Path
+
+proof = json.loads(Path(sys.argv[1]).read_text())
+object_id = sys.argv[2]
+sha = sys.argv[3]
+
+assert proof.get("marker") == "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1"
+assert proof.get("object_id") == object_id
+assert proof.get("sha256") == sha
+assert proof.get("receipt_sha256") == sha
+assert proof.get("receipt_valid_for_current_object") is True
+assert proof.get("public_upload") is False
+assert proof.get("operator_local_import_only") is True
+assert proof.get("public_read_only") is True
+assert proof.get("trusted_as_network_truth") is False
+print("local_object_fetch_checks=green")
+PYPROOF
+
+  echo "verified_imported_object_id=$OBJECT_ID"
   echo "verified_imported_sha256=$SHA"
-done < "$OUT/planned-sha256.txt"
+done < "$OUT/planned-fetch.tsv"
 
+echo "manifest_verify_green=local_fetch_plus_canonical_href"
+echo "object_verifier_chain_green=local_fetch_plus_canonical_href"
 echo "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_V1_GREEN"
