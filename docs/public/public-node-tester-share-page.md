@@ -29,3 +29,17 @@ This page gives a tester:
 This page is public-read-only HTML.
 
 It does not expose a public POST endpoint, call private APIs, mutate chain state, move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat outside tester receipts as network truth.
+
+## Real data lane status <!-- VOID_PUBLIC_NODE_TESTER_SHARE_REAL_DATA_STATUS_DOC_V1 -->
+
+The human tester-share page links to:
+
+    /public-node/real-data-import-lane-status.json
+
+This lets a tester inspect the operator-local real-data import lane status from the browser before or after running the smoke.
+
+Safety boundary: public read-only, operator-local import only, no public upload, and not trusted as network truth.
+
+Expected route marker:
+
+    VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1

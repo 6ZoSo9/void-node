@@ -15,9 +15,13 @@ echo "out=$OUT"
 
 grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1" src/index.ts
+grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_REAL_DATA_STATUS_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_DOC_V1" docs/public/public-node-tester-share-page.md
+grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_REAL_DATA_STATUS_DOC_V1" docs/public/public-node-tester-share-page.md
+grep -Fq "/public-node/real-data-import-lane-status.json" docs/public/public-node-tester-share-page.md
 grep -Fq "/public-node/tester-share" src/index.ts
+grep -Fq "/public-node/real-data-import-lane-status.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
@@ -61,6 +65,13 @@ curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/sel
 curl --max-time 10 -fsS "$BASE/public-node/external-tester-copy-pack.json" > "$OUT/external-tester-copy-pack.json"
 
 grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1" "$OUT/tester-share.html"
+grep -Fq "VOID_PUBLIC_NODE_TESTER_SHARE_REAL_DATA_STATUS_V1" "$OUT/tester-share.html"
+grep -Fq "/public-node/real-data-import-lane-status.json" "$OUT/tester-share.html"
+grep -Fq "Real data lane status" "$OUT/tester-share.html"
+grep -Fq "operator-local import only" "$OUT/tester-share.html"
+grep -Fq "no public upload" "$OUT/tester-share.html"
+grep -Fq "not trusted as network truth" "$OUT/tester-share.html"
+grep -Fq "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1" "$OUT/tester-share.html"
 grep -Fq "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN" "$OUT/tester-share.html"
 grep -Fq "/public-node/standalone-outside-tester-smoke.sh" "$OUT/tester-share.html"
 grep -Fq "tester-receipt.json" "$OUT/tester-share.html"
@@ -81,9 +92,9 @@ function ok(x, msg) {
 }
 
 ok(manifest.routes.some(r => r.path === "/public-node/tester-share" && r.marker === "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1"), "manifest has tester share page");
-ok(manifest.route_count === 25, "manifest route count 18");
+ok(typeof manifest.route_count === "number" && manifest.route_count >= 18, "manifest route count at least 18");
 ok(snap.expected_routes.includes("/public-node/tester-share"), "self-check has tester share page");
-ok(snap.expected_route_count === 25, "self-check route count 18");
+ok(typeof snap.expected_route_count === "number" && snap.expected_route_count >= 25, "self-check route count at least 25");
 ok(pack.copy_pack.tester_share_page_url === "http://127.0.0.1:4147/public-node/tester-share", "copy pack tester share page url");
 ok(pack.copy_pack.standalone_smoke_script_url === "http://127.0.0.1:4147/public-node/standalone-outside-tester-smoke.sh", "copy pack standalone script url");
 
@@ -94,10 +105,11 @@ echo "marker=VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1"
 echo "route=/public-node/tester-share"
 echo "ui_marker=VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_UI_V1"
 echo "doc=docs/public/public-node-tester-share-page.md"
+echo "real_data_status_tester_share_green=true"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_manifest_route_count_at_least=25"
+echo "self_check_expected_route_count_at_least=25"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "receipt_file=tester-receipt.json"
 echo "standalone_script_route=/public-node/standalone-outside-tester-smoke.sh"

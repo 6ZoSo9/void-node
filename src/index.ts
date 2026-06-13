@@ -46232,6 +46232,14 @@ APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NOD
       <h2>Safety boundary</h2>
       <p>This test checks public read-only routes only. It does not move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat the receipt as consensus/network truth.</p>
     </div>
+    <section class="card" id="testerShareRealDataStatusCard"><!-- VOID_PUBLIC_NODE_TESTER_SHARE_REAL_DATA_STATUS_V1 -->
+      <h2>Real data lane status</h2>
+      <p>Inspect the operator-local real-data import lane that the smoke now checks.</p>
+      <p><a href="${effectiveBaseUrl}/public-node/real-data-import-lane-status.json">Open real-data status JSON</a></p>
+      <p class="muted">Boundary: public read-only, operator-local import only, no public upload, not trusted as network truth.</p>
+      <p class="muted">Expected marker: <code>VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1</code></p>
+    </section>
+
   </main>
 </body>
 </html>`);
