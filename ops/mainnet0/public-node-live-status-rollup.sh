@@ -131,4 +131,21 @@ else
   exit 1
 fi
 
+
+curl -fsS "$LOCAL_BASE/public-node/tester-lane-summary.json" > "$OUT/tester-lane-summary-real-data-link.json"
+node - "$OUT/tester-lane-summary-real-data-link.json" <<'NODE'
+const fs = require("fs");
+const summary = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+function ok(x, msg) {
+  if (!x) {
+    console.error("[fail]", msg);
+    process.exit(1);
+  }
+}
+ok(summary.tester_lane && summary.tester_lane.real_data_status_ready === true, "tester lane real data status ready");
+ok(summary.links && typeof summary.links.real_data_import_lane_status === "string", "tester lane real data status link");
+ok(summary.links.real_data_import_lane_status.endsWith("/public-node/real-data-import-lane-status.json"), "tester lane real data status route");
+ok(summary.route_markers && summary.route_markers.real_data_import_lane_status === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "tester lane real data marker");
+NODE
+echo "real_data_tester_lane_summary_link_green=true"
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
