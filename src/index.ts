@@ -45185,6 +45185,10 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/local-data-drop/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", use: "operator-local public data manifest root" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
       { path: "/public-node/local-data-drop/weighted.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
+      { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", use: "Demo 003 verified folder manifest" },
+      { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
+      { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
+      { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
       { path: "/public-node/local-data-drop/proof/:sha256.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", use: "operator-local public data object proof by sha256" },
       { path: "/public-node/local-data-drop/by-sha256/:sha256", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", use: "operator-local public data content-address fetch" },
       { path: "/public-node/local-data-drop/:objectId", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", use: "operator-local public data object fetch" },
@@ -45725,6 +45729,10 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", purpose: "operator-local public data manifest root", safety_class: "public_read_only_local_file_manifest" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
     { path: "/public-node/local-data-drop/weighted.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", purpose: "weighted view of operator-local public data drop objects", safety_class: "public_read_only_local_file_weighted_view" },
+    { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", purpose: "Demo 003 verified folder manifest", safety_class: "public_read_only_local_folder_manifest" },
+    { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", purpose: "Demo 003 verified folder index file", safety_class: "public_read_only_local_folder_file" },
+    { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", purpose: "Demo 003 verified folder README file", safety_class: "public_read_only_local_folder_file" },
+    { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", purpose: "Demo 003 verified folder metadata file", safety_class: "public_read_only_local_folder_file" },
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
@@ -46395,6 +46403,106 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
       trusted_as_network_truth: false
     }
   });
+});
+
+APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
+  const manifestPath = path.join(latest, "manifest.json");
+  const intakePath = path.join(latest, "intake.json");
+
+  if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
+    return res.status(404).json({
+      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+      status: "demo003_folder_fixture_missing",
+      object_set_id: "demo003-folder-fixture-v1",
+      policy: {
+        public_upload: false,
+        operator_local_import_only: true,
+        public_read_only: true,
+        trusted_as_network_truth: false
+      }
+    });
+  }
+
+  let manifest:any = null;
+  let intake:any = null;
+  try { manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch (_e) { manifest = null; }
+  try {
+    if (fs.existsSync(intakePath) && fs.statSync(intakePath).isFile()) {
+      intake = JSON.parse(fs.readFileSync(intakePath, "utf8"));
+    }
+  } catch (_e) { intake = null; }
+
+  return res.json({
+    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+    status: "demo003_folder_fixture_served",
+    object_set_id: "demo003-folder-fixture-v1",
+    manifest,
+    intake_marker: intake && intake.marker || null,
+    offline_verified: !!(intake && intake.offline_verified === true),
+    network_fetch_during_import: !!(intake && intake.network_fetch_during_import === true),
+    trusted_as_network_truth: !!(intake && intake.trusted_as_network_truth === true),
+    files: {
+      index_html: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      readme_txt: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      metadata_json: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
+    },
+    policy: {
+      public_upload: false,
+      operator_local_import_only: true,
+      public_read_only: true,
+      mutation_from_public: false,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false,
+      trusted_as_network_truth: false
+    }
+  });
+});
+
+APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fileName", (req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
+  const fileName = String(req.params.fileName || "");
+  const allowed:any = {
+    "index.html": "text/html; charset=utf-8",
+    "README.txt": "text/plain; charset=utf-8",
+    "metadata.json": "application/json; charset=utf-8"
+  };
+
+  if (!Object.prototype.hasOwnProperty.call(allowed, fileName)) {
+    return res.status(404).json({
+      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
+      status: "demo003_folder_file_not_allowed",
+      object_set_id: "demo003-folder-fixture-v1",
+      file_name: fileName,
+      public_read_only: true
+    });
+  }
+
+  const filesDir = path.join(latest, "files");
+  const filePath = path.join(filesDir, fileName);
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    return res.status(404).json({
+      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
+      status: "demo003_folder_file_missing",
+      object_set_id: "demo003-folder-fixture-v1",
+      file_name: fileName,
+      public_read_only: true
+    });
+  }
+
+  res.setHeader("Content-Type", allowed[fileName]);
+  res.setHeader("Cache-Control", "no-store");
+  return res.send(fs.readFileSync(filePath));
 });
 
 

@@ -74,3 +74,24 @@ Preserved trust flags:
        trusted_as_network_truth=false
 
 Policy: this is still operator-local evidence. It proves a verified folder payload can enter local runtime storage without becoming automatic network truth.
+
+
+## Demo 003 public folder serving <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_DOC_V1 -->
+
+Demo 003 folder evidence can be served through read-only public routes after operator-local intake:
+
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json
+
+Proof:
+
+       DATA_DIR=data_a \
+         ops/mainnet0/public-node-local-data-drop-demo003-public-folder-serving-proof.sh
+
+Expected marker:
+
+       VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_PROOF_V1_GREEN
+
+Policy: public folder serving is read-only. The folder was operator-imported, offline verified, and still carries trusted_as_network_truth=false.

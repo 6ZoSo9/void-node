@@ -574,3 +574,15 @@ Demo 003 now includes operator-local folder intake:
        ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh
 
 This moves the folder-style local data-drop path from fixture creation/offline verification into local runtime evidence storage while preserving trusted_as_network_truth=false.
+
+
+## Demo 003 public folder serving <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_POINTER_V1 -->
+
+Demo 003 now exposes the verified folder fixture through read-only public routes:
+
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt
+       /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json
+
+This is the first tiny folder/site-style local data-drop serving path. It remains operator-local, read-only, offline verified, and not automatic network truth.
