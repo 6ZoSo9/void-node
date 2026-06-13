@@ -43,8 +43,24 @@ links = closeout.get("links", {})
 
 assert closeout_obj.get("tester_lane_ready") is True
 assert closeout_obj.get("receipt_required") is True
-assert closeout_obj.get("waiting_for_external_receipt") is True
-assert closeout_obj.get("latest_imported") is False
+
+latest_imported = bool(closeout_obj.get("latest_imported"))
+waiting_for_external_receipt = bool(closeout_obj.get("waiting_for_external_receipt"))
+assert waiting_for_external_receipt == (not latest_imported)
+
+if latest_imported:
+    receipt_state = "external_receipt_imported"
+    latest_result = closeout_obj.get("latest_result")
+    assert isinstance(latest_result, dict), "latest_result missing after import"
+    assert latest_result.get("marker") == "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
+    assert latest_result.get("intake_marker") == "VOID_PUBLIC_NODE_TESTER_RESULT_IMPORT_HELPER_V1"
+    assert latest_result.get("observed_green_marker") == "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+    assert latest_result.get("result") == "green"
+    assert latest_result.get("imported_by_operator") is True
+    assert latest_result.get("trusted_as_network_truth") is False
+else:
+    receipt_state = "waiting_for_external_receipt"
+
 assert closeout_obj.get("safe_import_guard_ready") is True
 assert policy.get("public_post_endpoint") is False
 assert policy.get("operator_local_import_only") is True
@@ -68,6 +84,9 @@ ask = {
     "marker": "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_ASK_EXPORT_V1",
     "purpose": "public_node_first_external_receipt_ask_export",
     "status": "first_external_receipt_ask_ready",
+    "receipt_state": receipt_state,
+    "latest_imported": latest_imported,
+    "waiting_for_external_receipt": waiting_for_external_receipt,
     "local_base": local_base,
     "tester_share_page": tester_share,
     "tester_lane_summary": tester_lane_summary,
@@ -103,6 +122,12 @@ Machine-readable tester lane summary:
 Receipt closeout status:
 {closeout_status}
 
+Current receipt state:
+{receipt_state}
+
+Latest receipt imported:
+{latest_imported}
+
 Real-data lane status:
 {real_data_status}
 
@@ -128,6 +153,9 @@ Safety boundary:
 
 print("marker=VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_ASK_EXPORT_V1")
 print("status=first_external_receipt_ask_ready")
+print(f"receipt_state={receipt_state}")
+print(f"latest_imported={str(latest_imported).lower()}")
+print(f"waiting_for_external_receipt={str(waiting_for_external_receipt).lower()}")
 print(f"tester_share_page={tester_share}")
 print(f"closeout_status={closeout_status}")
 print(f"real_data_import_lane_status={real_data_status}")

@@ -173,3 +173,28 @@ Expected rollup lines:
     first_external_receipt_packet_status_ui_public_archive_download=false
     first_external_receipt_packet_status_ui_operator_local_export_only=true
     first_external_receipt_packet_status_ui_trusted_as_network_truth=false
+
+## Receipt dry-run state preservation guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_RECEIPT_DRYRUN_STATE_DOC_V1 -->
+
+The live status rollup runs the safe receipt import in dry-run mode and verifies the receipt state is preserved.
+
+Valid preserved states:
+
+    waiting_for_external_receipt
+    external_receipt_imported
+
+Expected rollup lines after a real external receipt has been imported:
+
+    receipt_state_before_dryrun=external_receipt_imported
+    receipt_state_after_dryrun=external_receipt_imported
+    dryrun_preserved_receipt_state=true
+    dryrun_preserved_waiting_state=false
+    dryrun_preserved_imported_state=true
+
+Expected rollup lines before a real external receipt is imported:
+
+    receipt_state_before_dryrun=waiting_for_external_receipt
+    receipt_state_after_dryrun=waiting_for_external_receipt
+    dryrun_preserved_receipt_state=true
+    dryrun_preserved_waiting_state=true
+    dryrun_preserved_imported_state=false

@@ -91,11 +91,24 @@ ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-b
 grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-before.log"
 echo "receipt_watch_green=true"
 
-if grep -Fq "receipt_state=waiting_for_external_receipt" "$OUT/receipt-watch-before.log"; then
-  echo "receipt_state=waiting_for_external_receipt"
-else
-  grep -F "receipt_state=" "$OUT/receipt-watch-before.log" || true
+RECEIPT_STATE_BEFORE_DRYRUN="$(grep -m1 '^receipt_state=' "$OUT/receipt-watch-before.log" | cut -d= -f2-)"
+if [ -z "$RECEIPT_STATE_BEFORE_DRYRUN" ]; then
+  echo "ERROR: receipt_state missing before dryrun"
+  cat "$OUT/receipt-watch-before.log"
+  exit 1
 fi
+
+case "$RECEIPT_STATE_BEFORE_DRYRUN" in
+  waiting_for_external_receipt|external_receipt_imported) ;;
+  *)
+    echo "ERROR: unexpected receipt state before dryrun: $RECEIPT_STATE_BEFORE_DRYRUN"
+    cat "$OUT/receipt-watch-before.log"
+    exit 1
+    ;;
+esac
+
+echo "receipt_state=$RECEIPT_STATE_BEFORE_DRYRUN"
+echo "receipt_state_before_dryrun=$RECEIPT_STATE_BEFORE_DRYRUN"
 
 EFFECTIVE_BASE="$(cat "$OUT/effective-base.txt")"
 EXPECTED_BASE="$EFFECTIVE_BASE" ops/mainnet0/public-node-tester-receipt-safe-import.sh "$OUT/rollup-sample-receipt.json" > "$OUT/safe-import-dryrun.log"
@@ -123,12 +136,43 @@ done
 ops/mainnet0/public-node-first-external-receipt-watch.sh > "$OUT/receipt-watch-after-dryrun.log"
 grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_WATCH_V1_GREEN" "$OUT/receipt-watch-after-dryrun.log"
 
-if grep -Fq "receipt_state=waiting_for_external_receipt" "$OUT/receipt-watch-after-dryrun.log"; then
+RECEIPT_STATE_AFTER_DRYRUN="$(grep -m1 '^receipt_state=' "$OUT/receipt-watch-after-dryrun.log" | cut -d= -f2-)"
+if [ -z "$RECEIPT_STATE_AFTER_DRYRUN" ]; then
+  echo "ERROR: receipt_state missing after dryrun"
+  cat "$OUT/receipt-watch-after-dryrun.log"
+  exit 1
+fi
+
+case "$RECEIPT_STATE_AFTER_DRYRUN" in
+  waiting_for_external_receipt|external_receipt_imported) ;;
+  *)
+    echo "ERROR: unexpected receipt state after dryrun: $RECEIPT_STATE_AFTER_DRYRUN"
+    cat "$OUT/receipt-watch-after-dryrun.log"
+    exit 1
+    ;;
+esac
+
+echo "receipt_state_after_dryrun=$RECEIPT_STATE_AFTER_DRYRUN"
+
+if [ "$RECEIPT_STATE_BEFORE_DRYRUN" = "$RECEIPT_STATE_AFTER_DRYRUN" ]; then
+  echo "dryrun_preserved_receipt_state=true"
+else
+  echo "dryrun_preserved_receipt_state=false"
+  cat "$OUT/receipt-watch-before.log"
+  cat "$OUT/receipt-watch-after-dryrun.log"
+  exit 1
+fi
+
+if [ "$RECEIPT_STATE_AFTER_DRYRUN" = "waiting_for_external_receipt" ]; then
   echo "dryrun_preserved_waiting_state=true"
 else
   echo "dryrun_preserved_waiting_state=false"
-  cat "$OUT/receipt-watch-after-dryrun.log"
-  exit 1
+fi
+
+if [ "$RECEIPT_STATE_AFTER_DRYRUN" = "external_receipt_imported" ]; then
+  echo "dryrun_preserved_imported_state=true"
+else
+  echo "dryrun_preserved_imported_state=false"
 fi
 
 

@@ -54,3 +54,17 @@ The exported `closeout_status` must use the public/effective base URL from:
     /public-node/external-tester-receipt-closeout-status.json
 
 It must not export an operator-local `127.0.0.1` closeout URL for outside testers when the node advertises a public effective base URL.
+
+## Imported-state support <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_ASK_EXPORT_IMPORTED_STATE_DOC_V1 -->
+
+The ask export supports both receipt states:
+
+    waiting_for_external_receipt
+    external_receipt_imported
+
+After a real external tester receipt has been imported, the export remains useful as an audit/re-export packet. It must keep the same public closeout URL and safety boundary while reporting:
+
+    receipt_state=external_receipt_imported
+    latest_imported=true
+    waiting_for_external_receipt=false
+    trusted_as_network_truth=false
