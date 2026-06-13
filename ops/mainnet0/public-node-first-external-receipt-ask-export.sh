@@ -53,7 +53,8 @@ assert policy.get("trusted_as_network_truth") is False
 tester_links = pack.get("tester_links", {})
 tester_share = tester_links.get("tester_share_page") or links.get("tester_share_page")
 tester_lane_summary = tester_links.get("tester_lane_summary") or links.get("tester_lane_summary")
-closeout_status = local_base + "/public-node/external-tester-receipt-closeout-status.json"
+closeout_effective_base = str(closeout.get("effective_base_url") or local_base).rstrip("/")
+closeout_status = closeout_effective_base + "/public-node/external-tester-receipt-closeout-status.json"
 real_data_status = tester_links.get("real_data_import_lane_status") or links.get("real_data_import_lane_status")
 smoke_command = pack.get("smoke_command")
 

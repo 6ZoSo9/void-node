@@ -46,3 +46,11 @@ Safety boundary:
     buy_void_fulfillment=false
     validator_mutation=false
     trusted_as_network_truth=false
+
+## Public closeout URL guard <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_ASK_EXPORT_PUBLIC_CLOSEOUT_URL_DOC_V1 -->
+
+The exported `closeout_status` must use the public/effective base URL from:
+
+    /public-node/external-tester-receipt-closeout-status.json
+
+It must not export an operator-local `127.0.0.1` closeout URL for outside testers when the node advertises a public effective base URL.
