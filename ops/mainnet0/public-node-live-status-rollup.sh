@@ -253,4 +253,53 @@ echo "first_external_receipt_packet_public_closeout_url_green=true"
 echo "first_external_receipt_packet_closeout_url_public=true"
 echo "first_external_receipt_packet_closeout_url_localhost=false"
 
+ARCHIVE_EXPORT_OUT="$OUT/first-external-receipt-packet-archive"
+LOCAL_BASE="$LOCAL_BASE" OUT="$ARCHIVE_EXPORT_OUT" ops/mainnet0/public-node-first-external-receipt-packet-archive.sh > "$OUT/first-external-receipt-packet-archive.log"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_ARCHIVE_V1_GREEN" "$OUT/first-external-receipt-packet-archive.log"
+grep -Fq "first_external_receipt_packet_archive_ready" "$OUT/first-external-receipt-packet-archive.log"
+grep -Fq "closeout_status=$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$OUT/first-external-receipt-packet-archive.log"
+grep -Fq "expected_receipt_file=tester-receipt.json" "$OUT/first-external-receipt-packet-archive.log"
+
+test -s "$ARCHIVE_EXPORT_OUT/first-external-receipt-packet.tar.gz"
+test -s "$ARCHIVE_EXPORT_OUT/first-external-receipt-packet.tar.gz.sha256"
+
+(
+  cd "$ARCHIVE_EXPORT_OUT"
+  sha256sum -c first-external-receipt-packet.tar.gz.sha256
+) > "$OUT/first-external-receipt-packet-archive-sha256.log"
+
+ARCHIVE_UNPACK="$OUT/first-external-receipt-packet-archive-unpack"
+rm -rf "$ARCHIVE_UNPACK"
+mkdir -p "$ARCHIVE_UNPACK"
+tar -xzf "$ARCHIVE_EXPORT_OUT/first-external-receipt-packet.tar.gz" -C "$ARCHIVE_UNPACK"
+
+ARCHIVE_PACKET_DIR="$ARCHIVE_UNPACK/first-external-receipt-packet"
+
+for f in \
+  README.txt \
+  first-external-receipt-ask.txt \
+  first-external-receipt-ask.json \
+  closeout-status.json \
+  tester-lane-summary.json \
+  real-data-import-lane-status.json \
+  packet-manifest.json
+do
+  test -s "$ARCHIVE_PACKET_DIR/$f"
+done
+
+grep -Fq "$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$ARCHIVE_PACKET_DIR/README.txt"
+grep -Fq "$EFFECTIVE_BASE/public-node/external-tester-receipt-closeout-status.json" "$ARCHIVE_PACKET_DIR/packet-manifest.json"
+
+if grep -R "$LOCAL_BASE/public-node/external-tester-receipt-closeout-status.json" "$ARCHIVE_PACKET_DIR" >/dev/null; then
+  echo "first_external_receipt_packet_archive_closeout_url_localhost=true"
+  exit 1
+fi
+
+echo "first_external_receipt_packet_archive_green=true"
+echo "first_external_receipt_packet_archive_sha256_green=true"
+echo "first_external_receipt_packet_archive_public_closeout_url_green=true"
+echo "first_external_receipt_packet_archive_closeout_url_public=true"
+echo "first_external_receipt_packet_archive_closeout_url_localhost=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

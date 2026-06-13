@@ -128,3 +128,19 @@ Expected rollup lines:
     first_external_receipt_packet_public_closeout_url_green=true
     first_external_receipt_packet_closeout_url_public=true
     first_external_receipt_packet_closeout_url_localhost=false
+
+## First external receipt packet archive guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_RECEIPT_PACKET_ARCHIVE_DOC_V1 -->
+
+The live status rollup runs:
+
+    ops/mainnet0/public-node-first-external-receipt-packet-archive.sh
+
+It verifies the archive exists, the `.sha256` check passes, the archive unpacks, the packet files are present, the public/effective closeout URL is present, and the operator-local localhost closeout URL is absent.
+
+Expected rollup lines:
+
+    first_external_receipt_packet_archive_green=true
+    first_external_receipt_packet_archive_sha256_green=true
+    first_external_receipt_packet_archive_public_closeout_url_green=true
+    first_external_receipt_packet_archive_closeout_url_public=true
+    first_external_receipt_packet_archive_closeout_url_localhost=false
