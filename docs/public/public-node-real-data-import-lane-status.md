@@ -66,3 +66,20 @@ Proof model:
 Safety boundary:
 
 This lane has no public upload endpoint. It is operator-local import only and public-read-only fetch. It does not move funds, execute swaps, fulfill Buy VOID, mutate validators, or treat imported data as network truth.
+
+Discovery proof coverage:
+
+The canonical status proof also validates that the real-data status route is discoverable from every public agent/client surface:
+
+- client work pack exposes `/public-node/real-data-import-lane-status.json`
+- well-known agent discovery exposes `real_data_import_lane_status`
+- self-check snapshot includes the route, link, and check
+- route manifest includes marker `VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1`
+
+Expected discovery proof lines:
+
+real_data_client_work_pack_discovery_green=true
+real_data_well_known_discovery_green=true
+real_data_self_check_discovery_green=true
+real_data_route_manifest_discovery_green=true
+

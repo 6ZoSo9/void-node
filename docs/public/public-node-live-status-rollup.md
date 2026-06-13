@@ -47,3 +47,20 @@ Machine-readable status route:
 Safety boundary:
 
 The rollup does not import a receipt, does not mutate validators, does not move funds, does not fulfill Buy VOID, and does not trust tester receipts as network truth.
+
+Canonical real-data discovery coverage:
+
+The live rollup calls the canonical real-data status proof, which now validates the real-data status route across:
+
+- `/public-node/client-work-pack.json`
+- `/.well-known/void-public-node.json`
+- `/public-node/self-check-snapshot.json`
+- `/public-node/route-manifest.json`
+
+Expected proof lines:
+
+real_data_client_work_pack_discovery_green=true
+real_data_well_known_discovery_green=true
+real_data_self_check_discovery_green=true
+real_data_route_manifest_discovery_green=true
+
