@@ -47,3 +47,14 @@ The top-level README points operators to:
     /public-node/first-tester-request-copy-pack.json
 
 This route provides ready-to-post first-tester copy for Reddit, X/Twitter, short DMs, and GitHub blurbs.
+## Real data status link <!-- VOID_PUBLIC_NODE_FIRST_TESTER_REAL_DATA_STATUS_DOC_V1 -->
+
+The first tester request copy pack includes the real-data lane status URL:
+
+    /public-node/real-data-import-lane-status.json
+
+Expected marker:
+
+    VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
+
+Tester copy should mention that the smoke now verifies the Demo 003 folder/site path and lets testers inspect the operator-local real-data lane status.

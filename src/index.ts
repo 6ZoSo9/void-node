@@ -46265,7 +46265,8 @@ APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOI
       import_helper_available: true,
       agent_discovery_ready: true,
       route_manifest_ready: true,
-      self_check_snapshot_ready: true
+      self_check_snapshot_ready: true,
+      real_data_status_ready: true
     },
     links: {
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
@@ -46276,8 +46277,12 @@ APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOI
       agent_discovery: effectiveBaseUrl + "/.well-known/void-public-node.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
       self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
+      real_data_import_lane_status: effectiveBaseUrl + "/public-node/real-data-import-lane-status.json",
       public_node: effectiveBaseUrl + "/public-node",
       proofs: effectiveBaseUrl + "/proofs"
+    },
+    route_markers: {
+      real_data_import_lane_status: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
     },
     local_operator_helper: {
       script: "ops/mainnet0/public-node-import-tester-result.sh",
@@ -46314,6 +46319,7 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
   const testerShareUrl = effectiveBaseUrl + "/public-node/tester-share";
   const testerLaneSummaryUrl = effectiveBaseUrl + "/public-node/tester-lane-summary.json";
   const smokeScriptUrl = effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh";
+  const realDataStatusUrl = effectiveBaseUrl + "/public-node/real-data-import-lane-status.json";
   const smokeCommand = "curl -fsSL " + smokeScriptUrl + " -o /tmp/void-public-node-smoke.sh && PUBLIC_NODE_BASE=" + effectiveBaseUrl + " bash /tmp/void-public-node-smoke.sh";
 
   res.json({
@@ -46337,9 +46343,11 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
       demo003_folder_index: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
       self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
+      real_data_import_lane_status: realDataStatusUrl,
       proofs: effectiveBaseUrl + "/proofs"
     },
     smoke_command: smokeCommand,
+    real_data_import_lane_status_marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1",
     expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
     expected_receipt_file: "tester-receipt.json",
     copy: {
@@ -46356,11 +46364,14 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
         "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
         "",
         "Machine-readable lane summary:",
-        testerLaneSummaryUrl
+        testerLaneSummaryUrl,
+        "",
+        "Real-data lane status:",
+        realDataStatusUrl
       ].join("\\n"),
-      x_post: "VOID Network public node tester lane is live. Open the tester page, run one curl/bash command, verify the Demo 003 folder/site path, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and send back tester-receipt.json. " + testerShareUrl,
-      short_dm: "Want to be an early outside tester for VOID Network? Open this page, run the one curl/bash command, verify the tiny Demo 003 folder/site path, and send me the tester-receipt.json file it creates: " + testerShareUrl,
-      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify Demo 003 folder/site routes plus VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
+      x_post: "VOID Network public node tester lane is live. Open the tester page, run one curl/bash command, verify the Demo 003 folder/site path and real-data lane status, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and send back tester-receipt.json. " + testerShareUrl,
+      short_dm: "Want to be an early outside tester for VOID Network? Open this page, run the one curl/bash command, verify the tiny Demo 003 folder/site path and real-data lane status, and send me the tester-receipt.json file it creates: " + testerShareUrl,
+      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify Demo 003 folder/site routes, inspect /public-node/real-data-import-lane-status.json, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
     },
     safety_boundary: {
       public_routes_only: true,

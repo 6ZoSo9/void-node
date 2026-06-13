@@ -48,3 +48,14 @@ The top-level README points outside testers to:
 
     /public-node/tester-share
     /public-node/tester-lane-summary.json
+## Real data status link <!-- VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_REAL_DATA_STATUS_DOC_V1 -->
+
+The tester lane summary exposes:
+
+    /public-node/real-data-import-lane-status.json
+
+Expected marker:
+
+    VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
+
+This keeps the machine-readable lane summary aligned with the human tester-share page and outside tester smoke.

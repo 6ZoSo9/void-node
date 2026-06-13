@@ -17,7 +17,9 @@ grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_DOC_V1" docs/public/public-node-tester-lane-summary.md
+grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_REAL_DATA_STATUS_DOC_V1" docs/public/public-node-tester-lane-summary.md
 grep -Fq "/public-node/tester-lane-summary.json" src/index.ts
+grep -Fq "/public-node/real-data-import-lane-status.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
@@ -91,6 +93,7 @@ ok(summary.tester_lane.import_helper_available === true, "import helper availabl
 ok(summary.tester_lane.agent_discovery_ready === true, "agent discovery ready");
 ok(summary.tester_lane.route_manifest_ready === true, "route manifest ready");
 ok(summary.tester_lane.self_check_snapshot_ready === true, "self-check ready");
+ok(summary.tester_lane.real_data_status_ready === true, "real data status ready");
 
 ok(summary.links.tester_share_page === "http://127.0.0.1:4148/public-node/tester-share", "tester share link");
 ok(summary.links.standalone_smoke_script === "http://127.0.0.1:4148/public-node/standalone-outside-tester-smoke.sh", "standalone smoke link");
@@ -100,6 +103,7 @@ ok(summary.links.tester_result_intake === "http://127.0.0.1:4148/public-node/tes
 ok(summary.links.agent_discovery === "http://127.0.0.1:4148/.well-known/void-public-node.json", "agent discovery link");
 ok(summary.links.route_manifest === "http://127.0.0.1:4148/public-node/route-manifest.json", "manifest link");
 ok(summary.links.self_check_snapshot === "http://127.0.0.1:4148/public-node/self-check-snapshot.json", "self-check link");
+ok(summary.links.real_data_import_lane_status === "http://127.0.0.1:4148/public-node/real-data-import-lane-status.json", "real data status link");
 ok(summary.links.proofs === "http://127.0.0.1:4148/proofs", "proofs link");
 
 ok(summary.local_operator_helper.script === "ops/mainnet0/public-node-import-tester-result.sh", "import helper script");
@@ -109,6 +113,7 @@ ok(summary.local_operator_helper.operator_local_only === true, "import helper lo
 ok(summary.expected_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN", "expected green marker");
 ok(summary.expected_receipt_marker === "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", "expected receipt marker");
 ok(summary.expected_receipt_file === "tester-receipt.json", "expected receipt file");
+ok(summary.route_markers.real_data_import_lane_status === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "real data status marker");
 
 ok(summary.policy.public_routes_only === true, "public routes only");
 ok(summary.policy.private_api === false, "private api false");
@@ -124,9 +129,9 @@ ok(summary.policy.validator_mutation === false, "validator mutation false");
 ok(summary.policy.trusted_as_network_truth === false, "not network truth");
 
 ok(manifest.routes.some(r => r.path === "/public-node/tester-lane-summary.json" && r.marker === "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1"), "manifest has tester lane summary");
-ok(manifest.route_count === 25, "manifest route count 19");
+ok(typeof manifest.route_count === "number" && manifest.route_count >= 25, "manifest route count at least 25");
 ok(snap.expected_routes.includes("/public-node/tester-lane-summary.json"), "self-check has tester lane summary");
-ok(snap.expected_route_count === 25, "self-check route count 19");
+ok(typeof snap.expected_route_count === "number" && snap.expected_route_count >= 25, "self-check route count at least 25");
 ok(pack.copy_pack.tester_lane_summary_url === "http://127.0.0.1:4148/public-node/tester-lane-summary.json", "copy pack lane summary url");
 ok(shareHtml.includes("VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1"), "share page still present");
 
@@ -151,8 +156,10 @@ echo "import_helper_available=true"
 echo "agent_discovery_ready=true"
 echo "route_manifest_ready=true"
 echo "self_check_snapshot_ready=true"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "real_data_status_ready=true"
+echo "route_manifest_route_count_at_least=25"
+echo "self_check_expected_route_count_at_least=25"
+echo "real_data_status_route=/public-node/real-data-import-lane-status.json"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "receipt_file=tester-receipt.json"

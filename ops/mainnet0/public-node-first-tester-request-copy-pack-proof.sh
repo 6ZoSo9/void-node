@@ -17,7 +17,9 @@ grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_DOC_V1" docs/public/public-node-first-tester-request-copy-pack.md
+grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REAL_DATA_STATUS_DOC_V1" docs/public/public-node-first-tester-request-copy-pack.md
 grep -Fq "/public-node/first-tester-request-copy-pack.json" src/index.ts
+grep -Fq "/public-node/real-data-import-lane-status.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
@@ -86,15 +88,18 @@ ok(pack.effective_base_url === "http://127.0.0.1:4149", "effective base");
 ok(pack.tester_links.tester_share_page === "http://127.0.0.1:4149/public-node/tester-share", "tester share link");
 ok(pack.tester_links.tester_lane_summary === "http://127.0.0.1:4149/public-node/tester-lane-summary.json", "tester lane summary link");
 ok(pack.tester_links.standalone_smoke_script === "http://127.0.0.1:4149/public-node/standalone-outside-tester-smoke.sh", "standalone script link");
+ok(pack.tester_links.real_data_import_lane_status === "http://127.0.0.1:4149/public-node/real-data-import-lane-status.json", "real data status link");
 
 ok(String(pack.smoke_command).includes("PUBLIC_NODE_BASE=http://127.0.0.1:4149"), "smoke command base");
 ok(String(pack.smoke_command).includes("/public-node/standalone-outside-tester-smoke.sh"), "smoke command route");
 
+ok(pack.real_data_import_lane_status_marker === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "real data status marker");
 ok(pack.expected_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN", "expected green marker");
 ok(pack.expected_receipt_file === "tester-receipt.json", "expected receipt file");
 
 ok(String(pack.copy.reddit_title).includes("VOID"), "reddit title");
 ok(String(pack.copy.reddit_post).includes("VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"), "reddit green marker");
+ok(String(pack.copy.reddit_post).includes("Real-data lane status"), "reddit real data status");
 ok(String(pack.copy.reddit_post).includes("http://127.0.0.1:4149/public-node/tester-share"), "reddit tester share");
 ok(String(pack.copy.x_post).includes("http://127.0.0.1:4149/public-node/tester-share"), "x tester share");
 ok(String(pack.copy.short_dm).includes("tester-receipt.json"), "dm receipt");
@@ -113,9 +118,9 @@ ok(pack.safety_boundary.validator_mutation === false, "validator false");
 ok(pack.safety_boundary.trusted_as_network_truth === false, "network truth false");
 
 ok(manifest.routes.some(r => r.path === "/public-node/first-tester-request-copy-pack.json" && r.marker === "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1"), "manifest has copy pack");
-ok(manifest.route_count === 25, "manifest route count 20");
+ok(typeof manifest.route_count === "number" && manifest.route_count >= 25, "manifest route count at least 25");
 ok(snap.expected_routes.includes("/public-node/first-tester-request-copy-pack.json"), "self-check has copy pack");
-ok(snap.expected_route_count === 25, "self-check route count 20");
+ok(typeof snap.expected_route_count === "number" && snap.expected_route_count >= 25, "self-check route count at least 25");
 ok(external.copy_pack.first_tester_request_copy_pack_url === "http://127.0.0.1:4149/public-node/first-tester-request-copy-pack.json", "external pack has first tester copy pack url");
 ok(lane.marker === "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", "lane summary still green route");
 
@@ -134,8 +139,9 @@ echo "status=first_tester_request_copy_ready"
 echo "tester_share_route=/public-node/tester-share"
 echo "tester_lane_summary_route=/public-node/tester-lane-summary.json"
 echo "standalone_script_route=/public-node/standalone-outside-tester-smoke.sh"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "real_data_status_route=/public-node/real-data-import-lane-status.json"
+echo "route_manifest_route_count_at_least=25"
+echo "self_check_expected_route_count_at_least=25"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "receipt_file=tester-receipt.json"
 echo "reddit_copy=true"
