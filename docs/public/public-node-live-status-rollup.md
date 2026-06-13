@@ -198,3 +198,16 @@ Expected rollup lines before a real external receipt is imported:
     dryrun_preserved_receipt_state=true
     dryrun_preserved_waiting_state=true
     dryrun_preserved_imported_state=false
+
+## First external receipt imported closeout proof status guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_IMPORTED_CLOSEOUT_PROOF_STATUS_DOC_V1 -->
+
+The live status rollup checks the public imported-closeout proof status route.
+
+Expected rollup lines:
+
+    first_external_receipt_imported_closeout_proof_status_green=true
+    first_external_receipt_imported_closeout_proof_status_receipt_state=external_receipt_imported
+    first_external_receipt_imported_closeout_proof_status_latest_imported=true
+    first_external_receipt_imported_closeout_proof_status_trusted_as_network_truth=false
+    first_external_receipt_imported_closeout_proof_status_discovery_green=true
+    first_external_receipt_imported_closeout_proof_status_ui_green=true

@@ -438,4 +438,56 @@ echo "first_external_receipt_packet_status_ui_public_archive_download=false"
 echo "first_external_receipt_packet_status_ui_operator_local_export_only=true"
 echo "first_external_receipt_packet_status_ui_trusted_as_network_truth=false"
 
+IMPORTED_CLOSEOUT_PROOF_STATUS_JSON="$OUT/first-external-receipt-imported-closeout-proof-status.json"
+curl -fsS "$LOCAL_BASE/public-node/first-external-receipt-imported-closeout-proof-status.json" > "$IMPORTED_CLOSEOUT_PROOF_STATUS_JSON"
+
+python3 - "$IMPORTED_CLOSEOUT_PROOF_STATUS_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+j = json.loads(Path(sys.argv[1]).read_text())
+
+assert j.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_V1"
+assert j.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_ROUTE_V1"
+assert j.get("status") == "first_external_receipt_imported_closeout_proof_green"
+assert j.get("proof", {}).get("proof_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_V1_GREEN"
+
+closeout = j.get("imported_closeout", {})
+assert closeout.get("receipt_state") == "external_receipt_imported"
+assert closeout.get("waiting_for_external_receipt") is False
+assert closeout.get("latest_imported") is True
+assert closeout.get("latest_result_tester") == "standalone-outside-tester"
+assert closeout.get("latest_result_status") == "green"
+assert closeout.get("operator_local_import_only") is True
+assert closeout.get("trusted_as_network_truth") is False
+
+policy = j.get("policy", {})
+assert policy.get("public_upload") is False
+assert policy.get("public_post_endpoint") is False
+assert policy.get("operator_local_import_only") is True
+assert policy.get("trusted_as_network_truth") is False
+
+safety = j.get("safety", {})
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+print("first_external_receipt_imported_closeout_proof_status_green=true")
+print("first_external_receipt_imported_closeout_proof_status_receipt_state=external_receipt_imported")
+print("first_external_receipt_imported_closeout_proof_status_latest_imported=true")
+print("first_external_receipt_imported_closeout_proof_status_trusted_as_network_truth=false")
+PYJSON
+
+grep -Fq "/public-node/first-external-receipt-imported-closeout-proof-status.json" "$PACKET_STATUS_ROUTE_INDEX_JSON"
+grep -Fq "/public-node/first-external-receipt-imported-closeout-proof-status.json" "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+grep -Fq "/public-node/first-external-receipt-imported-closeout-proof-status.json" "$PACKET_STATUS_SELF_CHECK_JSON"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_IMPORTED_CLOSEOUT_PROOF_STATUS_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalReceiptImportedCloseoutProofStatusLink" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_receipt_imported_closeout_proof_status_discovery_green=true"
+echo "first_external_receipt_imported_closeout_proof_status_ui_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
