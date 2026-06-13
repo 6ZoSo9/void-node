@@ -18,6 +18,7 @@ grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_DOC_V1" docs/public/public-node-tester-lane-summary.md
 grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_REAL_DATA_STATUS_DOC_V1" docs/public/public-node-tester-lane-summary.md
+grep -Fq "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_REAL_DATA_ROLLUP_LINE_DOC_V1" docs/public/public-node-tester-lane-summary.md
 grep -Fq "/public-node/tester-lane-summary.json" src/index.ts
 grep -Fq "/public-node/real-data-import-lane-status.json" src/index.ts
 
@@ -114,6 +115,7 @@ ok(summary.expected_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_G
 ok(summary.expected_receipt_marker === "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", "expected receipt marker");
 ok(summary.expected_receipt_file === "tester-receipt.json", "expected receipt file");
 ok(summary.route_markers.real_data_import_lane_status === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "real data status marker");
+ok(summary.expected_rollup_lines && summary.expected_rollup_lines.real_data_tester_lane_summary_link_green === true, "expected rollup line");
 
 ok(summary.policy.public_routes_only === true, "public routes only");
 ok(summary.policy.private_api === false, "private api false");
@@ -160,6 +162,7 @@ echo "real_data_status_ready=true"
 echo "route_manifest_route_count_at_least=25"
 echo "self_check_expected_route_count_at_least=25"
 echo "real_data_status_route=/public-node/real-data-import-lane-status.json"
+echo "expected_rollup_line=real_data_tester_lane_summary_link_green=true"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "receipt_file=tester-receipt.json"

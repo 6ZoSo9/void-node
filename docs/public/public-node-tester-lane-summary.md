@@ -59,3 +59,10 @@ Expected marker:
     VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
 
 This keeps the machine-readable lane summary aligned with the human tester-share page and outside tester smoke.
+## Real data rollup line <!-- VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_REAL_DATA_ROLLUP_LINE_DOC_V1 -->
+
+The tester lane summary exposes the expected live rollup guard:
+
+    real_data_tester_lane_summary_link_green=true
+
+This tells operators and testers that the live rollup verifies the tester-lane summary still contains the real-data status link and marker.

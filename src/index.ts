@@ -46284,6 +46284,9 @@ APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOI
     route_markers: {
       real_data_import_lane_status: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
     },
+    expected_rollup_lines: {
+      real_data_tester_lane_summary_link_green: true
+    },
     local_operator_helper: {
       script: "ops/mainnet0/public-node-import-tester-result.sh",
       doc: "docs/public/public-node-tester-result-import-helper.md",
@@ -46348,6 +46351,9 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
     },
     smoke_command: smokeCommand,
     real_data_import_lane_status_marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1",
+    expected_rollup_lines: {
+      real_data_tester_lane_summary_link_green: true
+    },
     expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
     expected_receipt_file: "tester-receipt.json",
     copy: {
@@ -46367,11 +46373,14 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
         testerLaneSummaryUrl,
         "",
         "Real-data lane status:",
-        realDataStatusUrl
+        realDataStatusUrl,
+        "",
+        "Expected live rollup line:",
+        "real_data_tester_lane_summary_link_green=true"
       ].join("\\n"),
       x_post: "VOID Network public node tester lane is live. Open the tester page, run one curl/bash command, verify the Demo 003 folder/site path and real-data lane status, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and send back tester-receipt.json. " + testerShareUrl,
       short_dm: "Want to be an early outside tester for VOID Network? Open this page, run the one curl/bash command, verify the tiny Demo 003 folder/site path and real-data lane status, and send me the tester-receipt.json file it creates: " + testerShareUrl,
-      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify Demo 003 folder/site routes, inspect /public-node/real-data-import-lane-status.json, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
+      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify Demo 003 folder/site routes, inspect /public-node/real-data-import-lane-status.json, confirm real_data_tester_lane_summary_link_green=true in live rollup, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
     },
     safety_boundary: {
       public_routes_only: true,

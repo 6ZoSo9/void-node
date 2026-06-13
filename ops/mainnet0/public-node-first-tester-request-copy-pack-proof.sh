@@ -18,6 +18,7 @@ grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_DOC_V1" docs/public/public-node-first-tester-request-copy-pack.md
 grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REAL_DATA_STATUS_DOC_V1" docs/public/public-node-first-tester-request-copy-pack.md
+grep -Fq "VOID_PUBLIC_NODE_FIRST_TESTER_REAL_DATA_ROLLUP_LINE_DOC_V1" docs/public/public-node-first-tester-request-copy-pack.md
 grep -Fq "/public-node/first-tester-request-copy-pack.json" src/index.ts
 grep -Fq "/public-node/real-data-import-lane-status.json" src/index.ts
 
@@ -94,12 +95,14 @@ ok(String(pack.smoke_command).includes("PUBLIC_NODE_BASE=http://127.0.0.1:4149")
 ok(String(pack.smoke_command).includes("/public-node/standalone-outside-tester-smoke.sh"), "smoke command route");
 
 ok(pack.real_data_import_lane_status_marker === "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", "real data status marker");
+ok(pack.expected_rollup_lines && pack.expected_rollup_lines.real_data_tester_lane_summary_link_green === true, "expected real data rollup line");
 ok(pack.expected_green_marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN", "expected green marker");
 ok(pack.expected_receipt_file === "tester-receipt.json", "expected receipt file");
 
 ok(String(pack.copy.reddit_title).includes("VOID"), "reddit title");
 ok(String(pack.copy.reddit_post).includes("VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"), "reddit green marker");
 ok(String(pack.copy.reddit_post).includes("Real-data lane status"), "reddit real data status");
+ok(String(pack.copy.reddit_post).includes("real_data_tester_lane_summary_link_green=true"), "reddit rollup line");
 ok(String(pack.copy.reddit_post).includes("http://127.0.0.1:4149/public-node/tester-share"), "reddit tester share");
 ok(String(pack.copy.x_post).includes("http://127.0.0.1:4149/public-node/tester-share"), "x tester share");
 ok(String(pack.copy.short_dm).includes("tester-receipt.json"), "dm receipt");
@@ -140,6 +143,7 @@ echo "tester_share_route=/public-node/tester-share"
 echo "tester_lane_summary_route=/public-node/tester-lane-summary.json"
 echo "standalone_script_route=/public-node/standalone-outside-tester-smoke.sh"
 echo "real_data_status_route=/public-node/real-data-import-lane-status.json"
+echo "expected_rollup_line=real_data_tester_lane_summary_link_green=true"
 echo "route_manifest_route_count_at_least=25"
 echo "self_check_expected_route_count_at_least=25"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"

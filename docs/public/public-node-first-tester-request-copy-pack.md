@@ -58,3 +58,10 @@ Expected marker:
     VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1
 
 Tester copy should mention that the smoke now verifies the Demo 003 folder/site path and lets testers inspect the operator-local real-data lane status.
+## Real data rollup line <!-- VOID_PUBLIC_NODE_FIRST_TESTER_REAL_DATA_ROLLUP_LINE_DOC_V1 -->
+
+The first tester request copy pack exposes the expected live rollup guard:
+
+    real_data_tester_lane_summary_link_green=true
+
+This makes the tester request copy point to both the public smoke marker and the live rollup line proving the real-data tester-lane link is present.
