@@ -47594,6 +47594,33 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Live rollup guard: <code>first_external_tester_wc_candidate_green=true</code></p>
   </section>
 
+      <section id="publicNodeFirstExternalTesterWcReviewChecklistCard" class="card">
+        <p class="eyebrow">Work Credit Review Gate</p>
+        <h2>WC Review Checklist: First External Tester</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_UI_V1 -->
+          The first external tester work candidate now has an explicit operator review checklist.
+          This card keeps the award boundary visible: review is still pending, no Work Credit award exists,
+          no ledger write happened, no payout was created, and no WC→VOID swap is enabled.
+        </p>
+        <ul>
+          <li>Review state: <code>pending_operator_review</code></li>
+          <li>Checklist status: <code>open</code></li>
+          <li>Review required before award: <code>true</code></li>
+          <li>Award decision: <code>not_decided</code></li>
+          <li>Ledger write allowed now: <code>false</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC ledger mutated now: <code>false</code></li>
+          <li>WC credit delta now: <code>0</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Live rollup guard: <code>first_external_tester_wc_review_checklist_green=true</code></p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcReviewChecklistLink" href="/public-node/first-external-tester-wc-review-checklist.json">Open review checklist</a>
+          <a id="publicNodeFirstExternalTesterWcReviewChecklistCandidateLink" href="/public-node/first-external-tester-wc-candidate.json">Open WC candidate</a>
+        </p>
+      </section>
+
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
     <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
