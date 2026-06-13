@@ -45085,11 +45085,12 @@ APP.get("/public-node/share-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_
       "/public-node/ai-readiness.json",
       "/public-node/fresh-proof-seed.json",
       "/public-node/requester-work-policy.json",
+      "/public-node/real-data-import-lane-status.json",
       "/proofs"
     ],
     share_text: {
-      short: "VOID public node is online. Open /public-node, fetch /public-node/client-work-pack.json, and verify proofs client-side.",
-      tester: "Start at /public-node. Use public routes only. Clients should verify proofs, cache locally, rank locally, and retry failed public links."
+      short: "VOID public node is online. Open /public-node, fetch /public-node/client-work-pack.json and /public-node/real-data-import-lane-status.json, and verify proofs client-side.",
+      tester: "Start at /public-node. Use public routes only. Fetch /public-node/real-data-import-lane-status.json to inspect the operator-local real-data lane. Clients should verify proofs, cache locally, rank locally, and retry failed public links."
     },
     policy: {
       public_routes_only: true,
@@ -45117,6 +45118,7 @@ APP.get("/public-node/tester-checklist.json", (_req:any, res:any) => { // VOID_P
       "Fetch /public-node/share-pack.json",
       "Fetch /public-node/client-work-pack.json",
       "Fetch /public-node/ai-readiness.json",
+      "Fetch /public-node/real-data-import-lane-status.json",
       "Open /proofs",
       "Verify proofs client-side",
       "Cache, rank, retry, and filter locally"
@@ -45129,6 +45131,7 @@ APP.get("/public-node/tester-checklist.json", (_req:any, res:any) => { // VOID_P
       "/public-node/ai-readiness.json",
       "/public-node/fresh-proof-seed.json",
       "/public-node/requester-work-policy.json",
+      "/public-node/real-data-import-lane-status.json",
       "/proofs"
     ],
     do_not_touch: [
@@ -45952,6 +45955,7 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       demo003_folder_index_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       demo003_folder_readme_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
       demo003_folder_metadata_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
+      real_data_import_lane_status_url: effectiveBaseUrl + "/public-node/real-data-import-lane-status.json",
       proofs_url: effectiveBaseUrl + "/proofs",
       smoke_command: smokeCommand,
       standalone_smoke_command: "curl -fsSL " + effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh -o /tmp/void-public-node-smoke.sh && PUBLIC_NODE_BASE=" + effectiveBaseUrl + " bash /tmp/void-public-node-smoke.sh",
@@ -45962,6 +45966,7 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       "Open the well_known_discovery_url to confirm agent discovery.",
       "Open the route_manifest_url to confirm the public route list.",
       "Open the Demo 003 folder manifest or index URL to see the verified tiny folder/site path.",
+      "Open the real_data_import_lane_status_url to inspect the operator-local real-data lane status.",
       "Run the smoke_command from a checked-out void-node repo or the standalone_smoke_command from any machine with curl/bash.",
       "Paste the expected green marker and receipt details back to the node operator."
     ],
