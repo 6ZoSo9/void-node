@@ -38,6 +38,14 @@ Live import:
 
 CONFIRM_LIVE_IMPORT=true ops/mainnet0/public-node-real-data-import-lane.sh /path/to/source-folder
 
+Standalone status proof:
+
+ops/mainnet0/public-node-real-data-import-lane-status-proof.sh
+
+Expected green marker:
+
+VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_PROOF_V1_GREEN
+
 Proof model:
 
 - plan checks source files and object-id collisions before mutation
