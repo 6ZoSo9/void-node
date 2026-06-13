@@ -57,8 +57,10 @@ The live rollup calls the canonical real-data status proof, which now validates 
 - `/public-node/self-check-snapshot.json`
 - `/public-node/route-manifest.json`
 
-Expected proof lines:
+Expected rollup/proof lines:
 
+real_data_status_route_green=true
+real_data_status_route_index_green=true
 real_data_client_work_pack_discovery_green=true
 real_data_well_known_discovery_green=true
 real_data_self_check_discovery_green=true
