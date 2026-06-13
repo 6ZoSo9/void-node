@@ -47255,6 +47255,21 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <p><a href="/public-node/external-tester-receipt-closeout-status.json">Open receipt closeout status JSON</a></p>
       <p class="muted">Live rollup guard: <code>external_tester_receipt_closeout_status_green=true</code></p>
     </div>
+    <div class="card" id="publicNodeFirstExternalReceiptPacketStatusCard"><!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_RECEIPT_PACKET_STATUS_UI_V1 -->
+      <h2>First external receipt packet status</h2>
+      <p class="muted">Machine-readable status for the first outside tester receipt packet. The packet and archive are operator-local exports, not public downloads.</p>
+      <ul>
+        <li><span class="good">Packet export:</span> <code>ready</code></li>
+        <li><span class="good">Archive + sha256:</span> <code>ready</code></li>
+        <li><span class="warn">Public archive download:</span> <code>false</code></li>
+        <li><span class="warn">Public upload:</span> <code>false</code></li>
+        <li><span class="good">Operator-local export only:</span> <code>true</code></li>
+        <li><span class="warn">Trusted as network truth:</span> <code>false</code></li>
+      </ul>
+      <p><a id="publicNodeFirstExternalReceiptPacketStatusLink" href="/public-node/first-external-receipt-packet-status.json">Open packet status JSON</a></p>
+      <p class="muted">Expected receipt file: <code>tester-receipt.json</code>. Expected green marker: <code>VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN</code>.</p>
+    </div>
+
     <p class="muted">Proof command: <code>ops/mainnet0/public-node-real-data-import-lane-status-proof.sh</code></p>
     <p class="muted">Boundary: <code>public_upload=false</code> · <code>operator_local_import_only=true</code> · <code>public_read_only=true</code> · <code>trusted_as_network_truth=false</code></p>
     <script>
