@@ -748,4 +748,87 @@ grep -Fq "/public-node/first-external-tester-wc-candidate.json" "$PACKET_STATUS_
 
 echo "first_external_tester_wc_review_checklist_card_ui_green=true"
 
+WC_AWARD_POLICY_JSON="$OUT/first-external-tester-wc-award-policy.json"
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-wc-award-policy.json" > "$WC_AWARD_POLICY_JSON"
+
+python3 - "$WC_AWARD_POLICY_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+j = json.loads(Path(sys.argv[1]).read_text())
+
+assert j.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1"
+assert j.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_ROUTE_V1"
+assert j.get("policy_state") == "draft_public_read_only"
+assert j.get("policy_version") == "first-external-tester-wc-award-policy-v1"
+assert j.get("candidate_id") == "first-external-tester-n153b-demo003-standalone-smoke-v1"
+
+required = j.get("required_review_record_before_any_award", {})
+assert required.get("review_record_marker_required") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_V1"
+assert required.get("candidate_id_required") is True
+assert required.get("reviewer_required") is True
+assert required.get("reviewed_at_utc_required") is True
+assert required.get("review_outcome_required") is True
+assert required.get("evidence_routes_required") is True
+assert required.get("award_policy_version_required") is True
+assert required.get("decision_reason_required") is True
+assert required.get("operator_signature_or_local_attestation_required") is True
+assert required.get("explicit_ledger_write_intent_required") is True
+assert required.get("explicit_no_wallet_send_confirmation_required") is True
+assert required.get("explicit_no_wc_to_void_swap_confirmation_required") is True
+
+accepted = j.get("accepted_award_requirements", {})
+assert accepted.get("candidate_status_must_be") == "pending_operator_review"
+assert accepted.get("review_outcome_must_be") == "accepted_for_future_award"
+assert accepted.get("proposed_wc_credit_delta_required") is True
+assert accepted.get("proposed_wc_credit_delta_must_be_positive_integer") is True
+assert accepted.get("manual_operator_acceptance_required") is True
+assert accepted.get("separate_review_record_required_before_ledger_write") is True
+assert accepted.get("ledger_write_allowed_by_this_policy_route_now") is False
+
+state = j.get("current_state", {})
+assert state.get("review_record_created_now") is False
+assert state.get("review_outcome_now") == "not_decided"
+assert state.get("award_decision_now") == "not_decided"
+assert state.get("award_created_now") is False
+assert state.get("wc_ledger_mutated_now") is False
+assert state.get("wc_credit_delta_now") == 0
+assert state.get("proposed_wc_credit_delta_now") is None
+assert state.get("payout_created_now") is False
+assert state.get("redeemable_now") is False
+assert state.get("wc_to_void_swap") is False
+assert state.get("money_movement") is False
+assert state.get("wallet_send") is False
+
+safety = j.get("safety", {})
+assert safety.get("wc_review_record_write") is False
+assert safety.get("wc_ledger_write") is False
+assert safety.get("wc_credit_award") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+print("first_external_tester_wc_award_policy_green=true")
+print("first_external_tester_wc_award_policy_state=draft_public_read_only")
+print("first_external_tester_wc_award_policy_review_record_created_now=false")
+print("first_external_tester_wc_award_policy_review_outcome_now=not_decided")
+print("first_external_tester_wc_award_policy_award_decision_now=not_decided")
+print("first_external_tester_wc_award_policy_award_created_now=false")
+print("first_external_tester_wc_award_policy_wc_ledger_mutated_now=false")
+print("first_external_tester_wc_award_policy_wc_credit_delta_now=0")
+print("first_external_tester_wc_award_policy_wc_review_record_write=false")
+print("first_external_tester_wc_award_policy_wc_ledger_write=false")
+print("first_external_tester_wc_award_policy_wc_credit_award=false")
+print("first_external_tester_wc_award_policy_wc_to_void_swap=false")
+PYJSON
+
+grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STATUS_ROUTE_INDEX_JSON"
+grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STATUS_ROUTE_MANIFEST_JSON"
+grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STATUS_SELF_CHECK_JSON"
+
+echo "first_external_tester_wc_award_policy_discovery_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

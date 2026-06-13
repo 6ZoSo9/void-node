@@ -290,3 +290,19 @@ The live status rollup checks that `/public-node` visibly surfaces the first ext
 Expected rollup line:
 
     first_external_tester_wc_review_checklist_card_ui_green=true
+
+## First external tester WC award policy guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_DOC_V1 -->
+
+The live status rollup checks the first external tester WC award policy stub.
+
+Expected rollup lines:
+
+    first_external_tester_wc_award_policy_green=true
+    first_external_tester_wc_award_policy_state=draft_public_read_only
+    first_external_tester_wc_award_policy_review_record_created_now=false
+    first_external_tester_wc_award_policy_award_created_now=false
+    first_external_tester_wc_award_policy_wc_review_record_write=false
+    first_external_tester_wc_award_policy_wc_ledger_write=false
+    first_external_tester_wc_award_policy_wc_credit_award=false
+    first_external_tester_wc_award_policy_wc_to_void_swap=false
+    first_external_tester_wc_award_policy_discovery_green=true
