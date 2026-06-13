@@ -45474,7 +45474,11 @@ APP.get("/public-node/tester-bundle.json", (_req:any, res:any) => { // VOID_PUBL
   const defaultBaseUrl = "http://127.0.0.1:4100";
   const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
   const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
-  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/tester-bundle.json /public-node/quickstart.json /public-node/tester-handoff.json /public-node/tester-result-receipt.json /public-node/public-exposure-smoke-pack.json /public-node/route-index.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  const demo003ManifestPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json";
+  const demo003IndexPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html";
+  const demo003ReadmePath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt";
+  const demo003MetadataPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json";
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/tester-bundle.json /public-node/quickstart.json /public-node/tester-handoff.json /public-node/tester-result-receipt.json /public-node/public-exposure-smoke-pack.json /public-node/route-index.json /public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt /public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
   res.json({
     marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1",
     purpose: "public_node_single_tester_bundle",
@@ -45487,8 +45491,20 @@ APP.get("/public-node/tester-bundle.json", (_req:any, res:any) => { // VOID_PUBL
     smoke_pack: effectiveBaseUrl + "/public-node/public-exposure-smoke-pack.json",
     route_index: effectiveBaseUrl + "/public-node/route-index.json",
     proofs: effectiveBaseUrl + "/proofs",
+    demo003_verified_folder: {
+      marker: "VOID_PUBLIC_NODE_DEMO003_TESTER_SHARE_BUNDLE_V1",
+      description: "Tiny website-style verified folder served through public read-only local data-drop routes.",
+      manifest: effectiveBaseUrl + demo003ManifestPath,
+      index_html: effectiveBaseUrl + demo003IndexPath,
+      readme_txt: effectiveBaseUrl + demo003ReadmePath,
+      metadata_json: effectiveBaseUrl + demo003MetadataPath,
+      outside_smoke_checks_this: true,
+      offline_verified_required: true,
+      network_fetch_during_import_required: false,
+      trusted_as_network_truth_required: false
+    },
     smoke_command: smokeCommand,
-    expected_success: "Smoke command prints ok for every public route.",
+    expected_success: "Smoke command prints ok for every public route, including the Demo 003 verified folder/site routes.",
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45517,7 +45533,7 @@ APP.get("/public-node/share-link.json", (_req:any, res:any) => { // VOID_PUBLIC_
     effective_base_url: effectiveBaseUrl,
     public_node_url: publicNodeUrl,
     tester_bundle_url: testerBundleUrl,
-    copy_paste_invite: "Want to test a VOID public node? Open " + publicNodeUrl + " and use the tester bundle at " + testerBundleUrl + ". It is public-route/read-only smoke testing only: no wallet sends, no swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.",
+    copy_paste_invite: "Want to test a VOID public node? Open " + publicNodeUrl + " and use the tester bundle at " + testerBundleUrl + ". The smoke now checks the Demo 003 verified folder/site path too. It is public-route/read-only smoke testing only: no wallet sends, no swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.",
     short_invite: "Test this VOID public node: " + publicNodeUrl,
     report_back: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
     policy: {
@@ -45908,6 +45924,10 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       first_tester_request_copy_pack_url: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
       tester_bundle_url: effectiveBaseUrl + "/public-node/tester-bundle.json",
       tester_result_receipt_url: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      demo003_folder_manifest_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      demo003_folder_index_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      demo003_folder_readme_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      demo003_folder_metadata_url: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json",
       proofs_url: effectiveBaseUrl + "/proofs",
       smoke_command: smokeCommand,
       standalone_smoke_command: "curl -fsSL " + effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh -o /tmp/void-public-node-smoke.sh && PUBLIC_NODE_BASE=" + effectiveBaseUrl + " bash /tmp/void-public-node-smoke.sh",
@@ -45917,7 +45937,8 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       "Open the public_node_url in a browser.",
       "Open the well_known_discovery_url to confirm agent discovery.",
       "Open the route_manifest_url to confirm the public route list.",
-      "Run the smoke_command from a checked-out void-node repo.",
+      "Open the Demo 003 folder manifest or index URL to see the verified tiny folder/site path.",
+      "Run the smoke_command from a checked-out void-node repo or the standalone_smoke_command from any machine with curl/bash.",
       "Paste the expected green marker and receipt details back to the node operator."
     ],
     policy: {
@@ -46119,6 +46140,16 @@ APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NOD
       <p>Send that receipt file back to the node operator. It is an external test receipt, not network truth.</p>
     </div>
 
+    <div class="card" id="publicNodeTesterShareDemo003Card"><!-- VOID_PUBLIC_NODE_DEMO003_TESTER_SHARE_BUNDLE_V1 -->
+      <h2>Demo 003 verified folder/site</h2>
+      <p class="muted">The smoke command now checks this tiny website-style folder payload too. It is operator-local, offline verified, public read-only, and not trusted as automatic network truth.</p>
+      <p><a href="${effectiveBaseUrl}/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json">Demo 003 folder manifest</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html">Open Demo 003 index.html</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt">Open Demo 003 README.txt</a></p>
+      <p><a href="${effectiveBaseUrl}/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json">Open Demo 003 metadata.json</a></p>
+      <p class="muted"><code>offline_verified=true</code> · <code>network_fetch_during_import=false</code> · <code>trusted_as_network_truth=false</code></p>
+    </div>
+
     <div class="card">
       <h2>Useful links</h2>
       <p><a href="${effectiveBaseUrl}/public-node">Public node</a></p>
@@ -46227,6 +46258,8 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
       tester_lane_summary: testerLaneSummaryUrl,
       standalone_smoke_script: smokeScriptUrl,
       public_node: effectiveBaseUrl + "/public-node",
+      demo003_folder_manifest: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      demo003_folder_index: effectiveBaseUrl + "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
       self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
       proofs: effectiveBaseUrl + "/proofs"
@@ -46239,7 +46272,7 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
       reddit_post: [
         "VOID Network now has a public outside-tester lane live on the node surface.",
         "",
-        "I am looking for a few people willing to open the tester page, run one curl/bash command, and send back the generated tester-receipt.json file.",
+        "I am looking for a few people willing to open the tester page, run one curl/bash command, and send back the generated tester-receipt.json file. The smoke now also checks a tiny verified folder/site path served by the node.",
         "",
         "Tester page:",
         testerShareUrl,
@@ -46250,9 +46283,9 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
         "Machine-readable lane summary:",
         testerLaneSummaryUrl
       ].join("\\n"),
-      x_post: "VOID Network public node tester lane is live. Open the tester page, run one curl/bash command, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and send back tester-receipt.json. " + testerShareUrl,
-      short_dm: "Want to be an early outside tester for VOID Network? Open this page, run the one curl/bash command, and send me the tester-receipt.json file it creates: " + testerShareUrl,
-      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
+      x_post: "VOID Network public node tester lane is live. Open the tester page, run one curl/bash command, verify the Demo 003 folder/site path, get VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and send back tester-receipt.json. " + testerShareUrl,
+      short_dm: "Want to be an early outside tester for VOID Network? Open this page, run the one curl/bash command, verify the tiny Demo 003 folder/site path, and send me the tester-receipt.json file it creates: " + testerShareUrl,
+      github_blurb: "Outside tester lane: open /public-node/tester-share, run the standalone smoke command, verify Demo 003 folder/site routes plus VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN, and return tester-receipt.json."
     },
     safety_boundary: {
       public_routes_only: true,

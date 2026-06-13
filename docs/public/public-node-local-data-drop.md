@@ -600,3 +600,10 @@ This exposes the tiny website-style local data-drop demo to human testers while 
 The outside tester smoke lane now includes Demo 003 verified folder coverage. A tester running the standalone public smoke script checks the visible `/public-node` Demo 003 card plus the folder manifest, `index.html`, `README.txt`, and `metadata.json`.
 
 This keeps the demo public-read-only and preserves `trusted_as_network_truth=false`.
+
+
+## Demo 003 tester-share and tester-bundle pointer <!-- VOID_PUBLIC_NODE_DEMO003_TESTER_SHARE_BUNDLE_POINTER_V1 -->
+
+The public tester-share page and tester bundle now explicitly show Demo 003 verified folder/site links so human testers can see what the outside smoke proves.
+
+The executable smoke still checks public read-only routes only and preserves `trusted_as_network_truth=false`.

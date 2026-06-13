@@ -143,3 +143,24 @@ Demo 003 routes checked by the outside tester script:
 Expected proof marker:
 
        VOID_PUBLIC_NODE_DEMO003_OUTSIDE_TESTER_SMOKE_PROOF_V1_GREEN
+
+
+## Demo 003 tester-share and tester-bundle visibility <!-- VOID_PUBLIC_NODE_DEMO003_TESTER_SHARE_BUNDLE_DOC_V1 -->
+
+The outside tester human page and tester bundle now surface Demo 003 verified folder/site routes directly.
+
+Marker:
+
+       VOID_PUBLIC_NODE_DEMO003_TESTER_SHARE_BUNDLE_V1
+
+Visible surfaces:
+
+       /public-node/tester-share
+       /public-node/tester-bundle.json
+       /public-node/share-link.json
+       /public-node/external-tester-copy-pack.json
+       /public-node/first-tester-request-copy-pack.json
+
+The standalone smoke script remains the executable tester path and still emits:
+
+       VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
