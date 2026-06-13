@@ -282,3 +282,11 @@ Expected rollup lines:
     first_external_tester_wc_review_checklist_wc_credit_delta_now=0
     first_external_tester_wc_review_checklist_wc_to_void_swap=false
     first_external_tester_wc_review_checklist_discovery_green=true
+
+## First external tester WC review checklist card guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_CARD_DOC_V1 -->
+
+The live status rollup checks that `/public-node` visibly surfaces the first external tester WC review checklist card.
+
+Expected rollup line:
+
+    first_external_tester_wc_review_checklist_card_ui_green=true
