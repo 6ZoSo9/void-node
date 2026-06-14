@@ -45,3 +45,12 @@ Denied:
 `operator_ledger_write_runbook_live_refusal_guard_v1`
 
 That next gate should be a refusal guard first, not a write path.
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_scratch_receipt_live_status_rollup_green=true`
+
+This means the scratch receipt proof is present, proof-backed, tmp-only, and still performs no live WC ledger write.
+
