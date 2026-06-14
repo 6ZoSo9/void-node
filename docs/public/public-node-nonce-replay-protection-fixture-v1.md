@@ -105,3 +105,10 @@ Both must remain green before any future executable capability implementation ca
 Nonce Replay Protection Fixture v1 proves only that VOID has a public, machine-readable design fixture for future nonce and replay protection.
 
 It does not prove production cryptographic replay enforcement, public earning readiness, public write readiness, or production launch readiness.
+
+## Live rollup guard
+
+Nonce Replay Protection Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`nonce_replay_fixture_live_status_rollup_green=true`
+

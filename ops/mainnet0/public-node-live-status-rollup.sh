@@ -1770,4 +1770,15 @@ grep -Fq "capability_envelope_mutation_probes_checked=8" "$OUT/capability-envelo
 grep -Fq "capability_envelope_fail_closed_count=8" "$OUT/capability-envelope-v1-proof.log"
 echo "capability_envelope_live_status_rollup_green=true"
 
+
+echo "=== Nonce Replay Protection Fixture v1 rollup guard ==="
+bash ops/mainnet0/public-node-nonce-replay-protection-fixture-v1-proof.sh > "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_PROOF_V1_GREEN" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "nonce_replay_fixture_green=true" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "nonce_replay_fixture_design_only=true" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "nonce_replay_fixture_mutation_unlocked=false" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "nonce_replay_fixture_mutation_probes_checked=8" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+grep -Fq "nonce_replay_fixture_fail_closed_count=8" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
+echo "nonce_replay_fixture_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
