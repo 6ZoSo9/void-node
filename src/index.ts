@@ -45500,6 +45500,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
+      { path: "/public-node/controlled-earning-simulation-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", use: "simulation-only earning eligibility fixture; no WC ledger write or award" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46201,6 +46202,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/runtime-gate-lock.json", marker: "VOID_RUNTIME_GATE_LOCK_V1", purpose: "public read-only runtime gate lock and mutation death contract", safety_class: "public_read_only_runtime_gate_lock_no_mutation" },
     { path: "/public-node/capability-envelope-v1.json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", purpose: "design-only signed capability envelope fixture for future gated requests", safety_class: "public_read_only_capability_envelope_design_only_no_mutation" },
     { path: "/public-node/nonce-replay-protection-fixture-v1.json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", purpose: "design-only nonce and replay protection fixture for future signed capability envelopes", safety_class: "public_read_only_nonce_replay_fixture_design_only_no_mutation" },
+    { path: "/public-node/controlled-earning-simulation-fixture-v1.json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", purpose: "simulation-only earning eligibility fixture for future guarded WC review", safety_class: "public_read_only_controlled_earning_simulation_only_no_ledger_write" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46238,6 +46240,168 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/controlled-earning-simulation-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1",
+    controlled_earning_simulation_version: "v1",
+    status: "simulation_fixture_only",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    simulation_only: true,
+    executable: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    public_submission_open: false,
+    wc_review_record_write: false,
+    wc_decision_record_write: false,
+    wc_award_record_write: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    depends_on: [
+      "VOID_RUNTIME_GATE_LOCK_V1",
+      "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1",
+      "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1"
+    ],
+    next_gate: "resource_isolation_policy_fixture_v1",
+    principle: "Controlled earning simulation may model eligibility, rejection, review, and award intent states, but v1 cannot create a review record, decision record, award record, WC ledger entry, WC credit delta, VOID swap, or money movement.",
+    earning_decision_schema: {
+      record_type: "void.controlled_earning_simulation.v1",
+      required_fields: [
+        "simulation_id",
+        "evidence_id",
+        "worker_subject",
+        "capability",
+        "nonce_state",
+        "evidence_hash",
+        "utility_score",
+        "verifiability_score",
+        "abuse_risk_score",
+        "duplicate_state",
+        "operator_review_state",
+        "simulated_decision",
+        "simulated_wc_delta",
+        "ledger_write_allowed",
+        "award_created_now",
+        "wc_ledger_mutated_now"
+      ],
+      allowed_operator_review_states: [
+        "not_started",
+        "pending_operator_review",
+        "approved_in_simulation_only",
+        "rejected_in_simulation_only"
+      ],
+      allowed_simulated_decisions: [
+        "eligible_pending_operator_review",
+        "rejected_replay",
+        "rejected_expired",
+        "rejected_duplicate",
+        "rejected_low_utility",
+        "rejected_suspicious_payload",
+        "approved_simulation_only_no_award"
+      ],
+      positive_wc_delta_requires_operator_review: true,
+      ledger_write_requires_future_explicit_operator_confirmation: true,
+      duplicate_check_required: true,
+      nonce_replay_check_required: true,
+      source_hash_required: true
+    },
+    simulation_cases: [
+      {
+        id: "eligible_pending_operator_review",
+        simulated_decision: "eligible_pending_operator_review",
+        operator_review_state: "pending_operator_review",
+        simulated_wc_delta: 0,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false,
+        mutation_allowed: false,
+        executable: false,
+        simulated: true
+      },
+      {
+        id: "rejected_replay",
+        simulated_decision: "rejected_replay",
+        operator_review_state: "rejected_in_simulation_only",
+        simulated_wc_delta: 0,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false,
+        mutation_allowed: false,
+        executable: false,
+        simulated: true
+      },
+      {
+        id: "rejected_expired",
+        simulated_decision: "rejected_expired",
+        operator_review_state: "rejected_in_simulation_only",
+        simulated_wc_delta: 0,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false,
+        mutation_allowed: false,
+        executable: false,
+        simulated: true
+      },
+      {
+        id: "rejected_duplicate",
+        simulated_decision: "rejected_duplicate",
+        operator_review_state: "rejected_in_simulation_only",
+        simulated_wc_delta: 0,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false,
+        mutation_allowed: false,
+        executable: false,
+        simulated: true
+      },
+      {
+        id: "approved_simulation_only_no_award",
+        simulated_decision: "approved_simulation_only_no_award",
+        operator_review_state: "approved_in_simulation_only",
+        simulated_wc_delta: 0,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false,
+        mutation_allowed: false,
+        executable: false,
+        simulated: true
+      }
+    ],
+    denied_now: [
+      "public_mutation",
+      "public_earning",
+      "wc_review_record_write",
+      "wc_decision_record_write",
+      "wc_award_record_write",
+      "wc_ledger_write",
+      "wc_credit_award",
+      "positive_wc_credit_delta",
+      "wc_to_void_swap",
+      "validator_mutation",
+      "money_movement",
+      "automatic_ledger_write"
+    ],
+    proof: "ops/mainnet0/public-node-controlled-earning-simulation-fixture-v1-proof.sh",
+    safety_claim: "Controlled Earning Simulation Fixture v1 models future WC eligibility and rejection states only. It does not write ledgers, award WC, swap VOID, or unlock public earning."
+  });
+});
 
 APP.get("/public-node/nonce-replay-protection-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_ROUTE_V1
   res.json({
@@ -49577,6 +49741,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Design-only nonce, expiry, body-hash, and replay rejection fixture for future signed capability envelopes. This does not unlock public mutation or WC earning.</p>
           <p><code>/public-node/nonce-replay-protection-fixture-v1.json</code></p>
           <p><code>ops/mainnet0/public-node-nonce-replay-protection-fixture-v1-proof.sh</code></p>
+        </div>
+
+        <div class="card" id="publicNodeControlledEarningSimulationFixtureCard"><!-- VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_UI_V1 -->
+          <h2>Controlled Earning Simulation Fixture v1</h2>
+          <p>Simulation-only WC eligibility and rejection model. This does not create review records, award records, ledger entries, WC credits, VOID swaps, or money movement.</p>
+          <p><code>/public-node/controlled-earning-simulation-fixture-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-controlled-earning-simulation-fixture-v1-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
