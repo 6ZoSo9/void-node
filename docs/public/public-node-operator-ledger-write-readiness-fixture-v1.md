@@ -132,3 +132,9 @@ Operator Ledger Write Readiness Fixture v1 depends on:
 Operator Ledger Write Readiness Fixture v1 proves only that VOID has a public, machine-readable readiness model for future manual Work Credit ledger writes.
 
 It does not prove ledger write readiness, credit award readiness, token distribution readiness, WC-to-VOID swap readiness, public earning readiness, or production launch readiness.
+
+## Live rollup guard
+
+Operator Ledger Write Readiness Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`operator_ledger_write_readiness_live_status_rollup_green=true`
