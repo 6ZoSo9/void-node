@@ -72,3 +72,12 @@ A future real runbook must include:
 `operator_ledger_write_runbook_scratch_fixture_v1`
 
 That next gate should still be scratch-only. We should not open the real ledger write path until the scratch fixture proves all denial and confirmation boundaries.
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_design_live_status_rollup_green=true`
+
+This means the runbook design surface is present, proof-backed, public read-only, and still non-executable.
+
