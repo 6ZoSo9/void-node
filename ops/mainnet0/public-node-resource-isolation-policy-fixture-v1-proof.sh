@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_DOC_V1" docs/public/public-node-resource-isolation-policy-fixture-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_UI_V1" src/index.ts
 
 bash ops/mainnet0/public-node-controlled-earning-simulation-fixture-v1-proof.sh > "$OUT/controlled-earning-proof.log"
