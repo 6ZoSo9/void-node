@@ -45507,6 +45507,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/operator-award-record-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_AWARD_RECORD_FIXTURE_V1", use: "award-record-fixture-only model for future operator award records; no WC ledger write" },
       { path: "/public-node/operator-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger-entry-preview-only model for future WC ledger entries; no WC ledger write" },
       { path: "/public-node/operator-ledger-write-readiness-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_READINESS_FIXTURE_V1", use: "readiness-only gate model for future WC ledger writes; ledger write remains locked" },
+      { path: "/public-node/operator-ledger-write-runbook-design-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_V1", use: "design-only model for a future operator-controlled WC ledger write runbook; no executable ledger write" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46215,6 +46216,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/operator-award-record-fixture-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_AWARD_RECORD_FIXTURE_V1", purpose: "award-record-fixture-only model for future operator award records", safety_class: "public_read_only_operator_award_record_fixture_only_no_ledger_write" },
     { path: "/public-node/operator-ledger-entry-preview-fixture-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", purpose: "ledger-entry-preview-only model for future WC ledger entries", safety_class: "public_read_only_operator_ledger_entry_preview_only_no_ledger_write" },
     { path: "/public-node/operator-ledger-write-readiness-fixture-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_READINESS_FIXTURE_V1", purpose: "readiness-only gate model for future WC ledger writes", safety_class: "public_read_only_operator_ledger_write_readiness_only_ledger_write_locked" },
+    { path: "/public-node/operator-ledger-write-runbook-design-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_V1", purpose: "design-only model for future operator-controlled WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_design_only_no_execution" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46362,6 +46364,141 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
     ],
     proof: "ops/mainnet0/public-node-operator-ledger-write-readiness-fixture-v1-proof.sh",
     safety_claim: "Operator Ledger Write Readiness Fixture v1 is public read-only and readiness-only. It does not authorize or execute ledger writes, WC credit awards, WC-to-VOID swaps, wallet sends, validator mutation, or money movement."
+  });
+});
+
+APP.get("/public-node/operator-ledger-write-runbook-design-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_V1",
+    operator_ledger_write_runbook_design_version: "v1",
+    status: "ledger_write_runbook_design_only",
+    state: "runbook_not_executable",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    public_read_only: true,
+    executable: false,
+    runbook_exists: false,
+    runbook_created_now: false,
+    live_runtime_write: false,
+    scratch_runtime_write_only: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    public_submission_open: false,
+    work_execution_open: false,
+    operator_confirmation_required: true,
+    operator_confirmation_present: false,
+    readiness_snapshot_required: true,
+    source_hash_chain_required: true,
+    source_hash_chain_green_required: true,
+    source_hash_chain_green: false,
+    duplicate_ledger_entry_check_required: true,
+    duplicate_ledger_entry_check_green: false,
+    positive_nonzero_wc_delta_required: true,
+    positive_nonzero_wc_delta_selected_by_operator: false,
+    ledger_entry_preview_required: true,
+    ledger_entry_preview_reviewed: false,
+    ready_for_ledger_write: false,
+    ready_for_credit_award: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    ledger_entry_preview_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_review_record_write: false,
+    wc_decision_record_write: false,
+    wc_award_record_write: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    wallet_send: false,
+    buy_void_fulfillment: false,
+    automatic_ledger_write_allowed: false,
+    depends_on: [
+      "VOID_RUNTIME_GATE_LOCK_V1",
+      "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1",
+      "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_READINESS_FIXTURE_V1"
+    ],
+    runbook_design_steps: [
+      "refusal_guard",
+      "explicit_operator_confirmation",
+      "readiness_snapshot_recheck",
+      "source_hash_chain_verification",
+      "duplicate_ledger_entry_check",
+      "positive_nonzero_delta_selection",
+      "ledger_entry_preview_review",
+      "scratch_only_dry_run",
+      "live_write_boundary",
+      "post_write_receipt_and_rollup"
+    ],
+    runbook_design_cases: [
+      {
+        id: "blocked_no_operator_confirmation",
+        executable: false,
+        ledger_write_allowed_now: false,
+        ledger_record_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_credit_delta_now: 0
+      },
+      {
+        id: "blocked_missing_source_hash_chain",
+        executable: false,
+        ledger_write_allowed_now: false,
+        ledger_record_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_credit_delta_now: 0
+      },
+      {
+        id: "blocked_missing_duplicate_check",
+        executable: false,
+        ledger_write_allowed_now: false,
+        ledger_record_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_credit_delta_now: 0
+      },
+      {
+        id: "blocked_no_positive_delta_selected",
+        executable: false,
+        ledger_write_allowed_now: false,
+        ledger_record_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_credit_delta_now: 0
+      },
+      {
+        id: "blocked_no_live_runbook",
+        executable: false,
+        ledger_write_allowed_now: false,
+        ledger_record_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_credit_delta_now: 0
+      }
+    ],
+    mutation_probes: [
+      { id: "public_mutation", allowed_now: false },
+      { id: "public_earning", allowed_now: false },
+      { id: "work_execution", allowed_now: false },
+      { id: "ledger_write_allowed", allowed_now: false },
+      { id: "ledger_record_write", allowed_now: false },
+      { id: "wc_ledger_write", allowed_now: false },
+      { id: "wc_credit_award", allowed_now: false },
+      { id: "wc_to_void_swap", allowed_now: false },
+      { id: "wallet_send", allowed_now: false },
+      { id: "validator_mutation", allowed_now: false }
+    ],
+    next_gate: "operator_ledger_write_runbook_scratch_fixture_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-design-v1-proof.sh",
+    safety_claim: "Operator Ledger Write Runbook Design v1 is public read-only and design-only. It does not create an executable ledger write runbook, mutate WC ledger state, award WC, swap WC to VOID, send funds, or mutate validators."
   });
 });
 
@@ -50670,6 +50807,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookDesignCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_UI_V1 -->
+          <h3>Operator ledger write runbook design v1</h3>
+          <p>Design-only model for a future operator-controlled WC ledger write runbook. No executable runbook exists here.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-design-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-operator-ledger-write-runbook-design-v1-proof.sh</code></p>
+          <p>Status: <code>ledger_write_runbook_design_only</code>; write boundary remains locked.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerEntryPreviewFixtureCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_UI_V1 -->
           <h2>Operator Ledger Entry Preview Fixture v1</h2>
           <p>Ledger-entry-preview-only model for future Work Credit ledger entries. This can describe a guarded ledger preview shape, but cannot write the WC ledger, award credits, swap VOID, or move money.</p>
