@@ -116,3 +116,10 @@ Operator Award Intent Packet Fixture v1 depends on:
 Operator Award Intent Packet Fixture v1 proves only that VOID has a public, machine-readable intent packet model for future manual Work Credit award review.
 
 It does not prove public earning readiness, award readiness, ledger readiness, token distribution readiness, WC-to-VOID swap readiness, or production launch readiness.
+
+## Live rollup guard
+
+Operator Award Intent Packet Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`operator_award_intent_packet_live_status_rollup_green=true`
+
