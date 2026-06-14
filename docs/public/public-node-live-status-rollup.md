@@ -543,3 +543,36 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_decision_record_runbook_wc_to_void_swap=false
 
 This guard proves the decision-record runbook remains explicit-confirmation-only and decision-record-only. It does not create a Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Operator Award Intent Packet Runbook Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the operator award intent packet runbook proof.
+
+Rollup mode uses a scratch DATA_DIR inside the rollup output directory. This proves the award-intent flow without repeatedly mutating the real live runtime during normal status checks.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_award_intent_packet_runbook_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_refusal_guard_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_source_draft_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_source_review_record_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_source_decision_record_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_explicit_confirmation_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_scratch_data_dir_green=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_local_award_intent_packet_written=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_real_live_runtime_write=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_award_intent_packet_created_now=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_decision_record_created_now=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_award_created_now=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_award_write_allowed_now=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_wc_credit_delta_now=0
+- first_external_tester_wc_operator_award_intent_packet_runbook_proposed_wc_delta_only=true
+- first_external_tester_wc_operator_award_intent_packet_runbook_wc_ledger_write=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_wc_credit_award=false
+- first_external_tester_wc_operator_award_intent_packet_runbook_wc_to_void_swap=false
+
+This guard proves the award intent packet runbook remains explicit-confirmation-only and award-intent-only. It does not create a Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.

@@ -1415,4 +1415,53 @@ echo "first_external_tester_wc_operator_decision_record_runbook_wc_ledger_write=
 echo "first_external_tester_wc_operator_decision_record_runbook_wc_credit_award=false"
 echo "first_external_tester_wc_operator_decision_record_runbook_wc_to_void_swap=false"
 
+
+OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG="$OUT/first-external-tester-wc-operator-award-intent-packet-runbook-proof.log"
+OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_SCRATCH_DATA="$OUT/first-external-tester-wc-operator-award-intent-packet-runbook-runtime"
+
+LOCAL_BASE="$LOCAL_BASE" \
+DATA_DIR="$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_SCRATCH_DATA" \
+ops/mainnet0/public-node-first-external-tester-wc-operator-award-intent-packet-runbook-proof.sh > "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_PROOF_V1_GREEN" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_runbook_refuses_without_confirmation_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_runbook_source_draft_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_runbook_source_review_record_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_runbook_source_decision_record_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "operator_award_intent_packet_runbook_proof_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_runbook_explicit_confirmation_green=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "local_award_intent_packet_written=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_intent_packet_created_now=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "decision_record_created_now=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_created_now=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "award_write_allowed_now=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "wc_ledger_mutated_now=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "wc_credit_delta_now=0" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "wc_ledger_write=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "wc_credit_award=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "wc_to_void_swap=false" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+grep -Fq "proposed_wc_delta_only=true" "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_LOG"
+
+test -f "$OPERATOR_AWARD_INTENT_PACKET_RUNBOOK_SCRATCH_DATA/public-node/first-external-tester-wc-award-intent-packets/latest-award-intent-packet.json"
+
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_refusal_guard_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_source_draft_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_source_review_record_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_source_decision_record_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_explicit_confirmation_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_scratch_data_dir_green=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_local_award_intent_packet_written=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_real_live_runtime_write=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_award_intent_packet_created_now=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_decision_record_created_now=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_award_created_now=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_award_write_allowed_now=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_wc_ledger_mutated_now=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_wc_credit_delta_now=0"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_proposed_wc_delta_only=true"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_wc_ledger_write=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_wc_credit_award=false"
+echo "first_external_tester_wc_operator_award_intent_packet_runbook_wc_to_void_swap=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
