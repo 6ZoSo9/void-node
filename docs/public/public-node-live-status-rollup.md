@@ -713,3 +713,28 @@ Expected live rollup lines:
 - first_external_tester_wc_ledger_write_readiness_wc_ledger_write=false
 - first_external_tester_wc_ledger_write_readiness_wc_credit_award=false
 - first_external_tester_wc_ledger_write_readiness_wc_to_void_swap=false
+
+## First External Tester WC Source Hash Chain Design Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_ROLLUP_GUARD_DOC_V1
+
+The live rollup now runs the first external tester WC source hash chain design proof.
+
+Required green outputs:
+
+- first_external_tester_wc_source_hash_chain_design_green=true
+- first_external_tester_wc_source_hash_chain_design_only=true
+- first_external_tester_wc_source_hash_chain_green=false
+- first_external_tester_wc_source_hash_chain_ready_for_ledger_write=false
+- first_external_tester_wc_source_hash_chain_wc_ledger_write=false
+- first_external_tester_wc_source_hash_chain_wc_credit_award=false
+- first_external_tester_wc_source_hash_chain_wc_to_void_swap=false
+
+Boundary:
+
+- This is design-only.
+- It does not promote `source_hash_chain_green`.
+- It does not make ledger write readiness true.
+- It does not write the WC ledger.
+- It does not award WC.
+- It does not perform WC-to-VOID swap.

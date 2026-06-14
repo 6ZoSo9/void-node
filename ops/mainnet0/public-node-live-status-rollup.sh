@@ -1670,6 +1670,29 @@ echo "first_external_tester_wc_ledger_write_readiness_operator_award_record_appr
 echo "first_external_tester_wc_ledger_write_readiness_operator_ledger_entry_preview_reviewed=false"
 echo "first_external_tester_wc_ledger_write_readiness_positive_nonzero_wc_delta_selected_by_operator=false"
 echo "first_external_tester_wc_ledger_write_readiness_duplicate_ledger_entry_check_green=false"
+
+SOURCE_HASH_CHAIN_DESIGN_LOG="$OUT/first-external-tester-wc-source-hash-chain-design-proof.log"
+
+LOCAL_BASE="$LOCAL_BASE" \
+ops/mainnet0/public-node-first-external-tester-wc-source-hash-chain-design-proof.sh > "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_PROOF_V1_GREEN" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "source_hash_chain_design_green=true" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "source_hash_chain_design_only=true" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "source_hash_chain_green=false" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "ready_for_ledger_write=false" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "wc_ledger_write=false" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "wc_credit_award=false" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+grep -Fq "wc_to_void_swap=false" "$SOURCE_HASH_CHAIN_DESIGN_LOG"
+
+echo "first_external_tester_wc_source_hash_chain_design_green=true"
+echo "first_external_tester_wc_source_hash_chain_design_only=true"
+echo "first_external_tester_wc_source_hash_chain_green=false"
+echo "first_external_tester_wc_source_hash_chain_ready_for_ledger_write=false"
+echo "first_external_tester_wc_source_hash_chain_wc_ledger_write=false"
+echo "first_external_tester_wc_source_hash_chain_wc_credit_award=false"
+echo "first_external_tester_wc_source_hash_chain_wc_to_void_swap=false"
+
 echo "first_external_tester_wc_ledger_write_readiness_source_hash_chain_green=false"
 echo "first_external_tester_wc_ledger_write_readiness_explicit_operator_ledger_write_confirmation_present=false"
 echo "first_external_tester_wc_ledger_write_readiness_ledger_write_runbook_exists=false"

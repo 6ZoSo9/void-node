@@ -45359,6 +45359,32 @@ APP.get("/public-node/first-external-tester-wc-duplicate-ledger-entry-check-desi
   });
 });
 
+
+APP.get("/public-node/first-external-tester-wc-source-hash-chain-design.json", (_req, res) => {
+  res.json({
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_ROUTE_V1",
+    state: "design_only_no_source_hash_chain_promoted",
+    design_only: true,
+    source_hash_chain_green: false,
+    source_hash_chain_promoted_to_approved: false,
+    source_hash_chain_created_now: false,
+    source_hash_chain_verified_now: false,
+    readiness_bit_flipped_now: false,
+    ready_for_ledger_write: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    wc_to_void_swap: false,
+    no_mutation: {
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45394,6 +45420,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
+      { path: "/public-node/first-external-tester-wc-source-hash-chain-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1", use: "design-only source hash chain requirements before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
@@ -45907,6 +45934,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-ledger-write-boundary.json",
     "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
     "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+    "/public-node/first-external-tester-wc-source-hash-chain-design.json",
     "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
@@ -45914,6 +45942,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-tester-request-copy-pack.json",
     "/public-node/local-data-drop/manifest.json",
     "/public-node/local-data-drop.json",
+    "/public-node/local-data-drop/weighted.json",
     "/public-node/real-data-import-lane-status.json",
     "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
     "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
@@ -45961,6 +45990,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
       first_external_tester_wc_ledger_write_readiness_status: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
       first_external_tester_wc_duplicate_ledger_entry_check_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+      first_external_tester_wc_source_hash_chain_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-source-hash-chain-design.json",
       first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
@@ -46050,6 +46080,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
     { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
+      { path: "/public-node/first-external-tester-wc-source-hash-chain-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1", use: "design-only source hash chain requirements before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1", purpose: "read-only operator decision packet template for first external tester Work Credit review" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
@@ -48472,6 +48503,25 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
 
 
 
+
+
+      <section id="publicNodeFirstExternalTesterWcSourceHashChainDesignCard" class="card">
+        <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_UI_V1 -->
+        <h2>First external tester WC source hash chain design</h2>
+        <p>
+          Design-only guard for the source hash chain required before any first external tester WC ledger write can exist.
+          This does not approve the chain, does not flip readiness, and does not create credits.
+        </p>
+        <ul>
+          <li><strong>Design state:</strong> source hash chain requirements documented and public.</li>
+          <li><strong>Readiness state:</strong> still blocked until a real checker proves the chain.</li>
+          <li><strong>Mutation state:</strong> no ledger write, no WC award, no WC-to-VOID swap.</li>
+        </ul>
+        <p>
+          <a id="publicNodeFirstExternalTesterWcSourceHashChainDesignLink" href="/public-node/first-external-tester-wc-source-hash-chain-design.json">Open source-hash-chain design</a>
+          <a id="publicNodeFirstExternalTesterWcSourceHashChainReadinessLink" href="/public-node/first-external-tester-wc-ledger-write-readiness-status.json">Open ledger write readiness</a>
+        </p>
+      </section>
 
       <section id="publicNodeFirstExternalTesterWcOperatorDecisionPacketCard" class="card">
         <p class="eyebrow">Work Credit Operator Review</p>
