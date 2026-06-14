@@ -1812,4 +1812,22 @@ grep -Fq "resource_isolation_policy_fixture_mutation_probes_checked=8" "$OUT/res
 grep -Fq "resource_isolation_policy_fixture_fail_closed_count=8" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
 echo "resource_isolation_policy_live_status_rollup_green=true"
 
+
+echo "=== Operator Controlled Earning Dry Run Fixture v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-controlled-earning-dry-run-fixture-v1-proof.sh > "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_PROOF_V1_GREEN" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_green=true" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_dry_run_only=true" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_work_execution_open=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_mutation_unlocked=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_operator_confirmation_present=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_dry_run_record_created_now=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_wc_ledger_write=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_wc_credit_award=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_wc_credit_delta_now=0" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_wc_to_void_swap=false" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_mutation_probes_checked=8" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+grep -Fq "operator_controlled_earning_dry_run_fixture_fail_closed_count=8" "$OUT/operator-controlled-earning-dry-run-fixture-v1-proof.log"
+echo "operator_controlled_earning_dry_run_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

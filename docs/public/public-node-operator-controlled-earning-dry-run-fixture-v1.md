@@ -119,3 +119,10 @@ Operator Controlled Earning Dry Run Fixture v1 depends on:
 Operator Controlled Earning Dry Run Fixture v1 proves only that VOID has a public, machine-readable dry-run model for future manual Work Credit earning review.
 
 It does not prove public earning readiness, public execution readiness, production ledger readiness, token distribution readiness, WC-to-VOID swap readiness, or production launch readiness.
+
+## Live rollup guard
+
+Operator Controlled Earning Dry Run Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`operator_controlled_earning_dry_run_live_status_rollup_green=true`
+
