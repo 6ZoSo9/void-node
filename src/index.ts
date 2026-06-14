@@ -47729,6 +47729,35 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
         </p>
       </section>
 
+      <section id="publicNodeFirstExternalTesterWcAwardPolicyCard" class="card">
+        <p class="eyebrow">Work Credit Award Policy</p>
+        <h2>WC Award Policy: First External Tester</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_UI_V1 -->
+          The first external tester award policy is public and read-only.
+          It defines the future review-record requirements before any Work Credit ledger mutation can exist.
+          No review record exists yet, no award exists, no WC ledger write happened, and no WC→VOID swap is enabled.
+        </p>
+        <ul>
+          <li>Policy state: <code>draft_public_read_only</code></li>
+          <li>Review record created now: <code>false</code></li>
+          <li>Review outcome now: <code>not_decided</code></li>
+          <li>Award decision now: <code>not_decided</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC ledger mutated now: <code>false</code></li>
+          <li>WC credit delta now: <code>0</code></li>
+          <li>WC review record write: <code>false</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Live rollup guard: <code>first_external_tester_wc_award_policy_green=true</code></p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcAwardPolicyLink" href="/public-node/first-external-tester-wc-award-policy.json">Open award policy</a>
+          <a id="publicNodeFirstExternalTesterWcAwardPolicyReviewChecklistLink" href="/public-node/first-external-tester-wc-review-checklist.json">Open review checklist</a>
+        </p>
+      </section>
+
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
     <p class="muted">This node can import operator-local real data, weight it, prove it, and serve it through public read-only routes. No public upload endpoint is exposed.</p>
