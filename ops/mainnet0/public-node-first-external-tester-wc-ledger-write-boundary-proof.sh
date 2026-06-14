@@ -80,9 +80,17 @@ route_blob = json.dumps(route_index, sort_keys=True)
 self_blob = json.dumps(self_check, sort_keys=True)
 manifest_blob = json.dumps(route_manifest, sort_keys=True)
 
-assert route in route_blob
-assert route in self_blob
-assert route in manifest_blob
+route_index_contains_ledger_write_boundary = route in route_blob
+self_check_contains_ledger_write_boundary = route in self_blob
+route_manifest_contains_ledger_write_boundary = route in manifest_blob
+
+print(f"route_index_contains_ledger_write_boundary={str(route_index_contains_ledger_write_boundary).lower()}")
+print(f"self_check_contains_ledger_write_boundary={str(self_check_contains_ledger_write_boundary).lower()}")
+print(f"route_manifest_contains_ledger_write_boundary={str(route_manifest_contains_ledger_write_boundary).lower()}")
+
+assert route_index_contains_ledger_write_boundary
+assert self_check_contains_ledger_write_boundary
+assert route_manifest_contains_ledger_write_boundary
 
 print("ledger_write_boundary_json_green=true")
 print("ledger_write_boundary_discovery_green=true")
