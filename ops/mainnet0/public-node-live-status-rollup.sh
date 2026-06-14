@@ -1738,4 +1738,16 @@ echo "first_external_tester_wc_ledger_write_readiness_wallet_send=false"
 echo "first_external_tester_wc_ledger_write_readiness_buy_void_fulfillment=false"
 echo "first_external_tester_wc_ledger_write_readiness_validator_mutation=false"
 
+curl -fsS "$LOCAL_BASE/public-node/risk-register.json" > "$OUT/risk-register.json"
+jq -e '.marker=="VOID_PUBLIC_NODE_RISK_REGISTER_V1"' "$OUT/risk-register.json" >/dev/null
+jq -e '.risk_register_version=="v1"' "$OUT/risk-register.json" >/dev/null
+jq -e '.risk_count==8' "$OUT/risk-register.json" >/dev/null
+jq -e '.policy.public_mutation==false' "$OUT/risk-register.json" >/dev/null
+jq -e '.policy.wc_credit_award==false' "$OUT/risk-register.json" >/dev/null
+jq -e '.policy.wc_to_void_swap==false' "$OUT/risk-register.json" >/dev/null
+echo "risk_register_live_status_rollup_green=true"
+echo "risk_register_live_status_rollup_public_mutation=false"
+echo "risk_register_live_status_rollup_wc_credit_award=false"
+echo "risk_register_live_status_rollup_wc_to_void_swap=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
