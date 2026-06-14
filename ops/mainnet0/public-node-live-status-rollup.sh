@@ -1284,4 +1284,45 @@ echo "first_external_tester_wc_operator_decision_draft_runtime_write_public_uplo
 echo "first_external_tester_wc_operator_decision_draft_runtime_write_trusted_as_network_truth=false"
 echo "first_external_tester_wc_operator_decision_draft_runtime_write_live_runtime_write=false"
 
+
+OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG="$OUT/first-external-tester-wc-operator-decision-draft-live-runbook-proof.log"
+OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_SCRATCH_DATA="$OUT/first-external-tester-wc-operator-decision-draft-live-runbook-runtime"
+
+LOCAL_BASE="$LOCAL_BASE" \
+DATA_DIR="$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_SCRATCH_DATA" \
+ops/mainnet0/public-node-first-external-tester-wc-operator-decision-draft-live-runbook-proof.sh > "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_PROOF_V1_GREEN" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "live_runbook_refuses_without_confirmation_green=true" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "operator_decision_draft_live_runbook_proof_green=true" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "live_runbook_explicit_confirmation_green=true" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "live_runtime_draft_written=true" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "operator_decision_created_now=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "review_record_created_now=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "decision_record_created_now=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "award_created_now=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "wc_ledger_mutated_now=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "wc_credit_delta_now=0" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "wc_ledger_write=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "wc_credit_award=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+grep -Fq "wc_to_void_swap=false" "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_LOG"
+
+test -f "$OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_SCRATCH_DATA/public-node/first-external-tester-wc-operator-decision-drafts/latest-draft.json"
+
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_green=true"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_refusal_guard_green=true"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_explicit_confirmation_green=true"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_scratch_data_dir_green=true"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_runtime_draft_written=true"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_real_live_runtime_write=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_operator_decision_created_now=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_review_record_created_now=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_decision_record_created_now=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_award_created_now=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_wc_ledger_mutated_now=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_wc_credit_delta_now=0"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_wc_ledger_write=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_wc_credit_award=false"
+echo "first_external_tester_wc_operator_decision_draft_live_runbook_wc_to_void_swap=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

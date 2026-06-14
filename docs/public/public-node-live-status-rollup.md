@@ -452,3 +452,32 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_decision_draft_runtime_write_live_runtime_write=false
 
 This guard proves runtime draft writing is opt-in, scratch-only in proof mode, and still does not create an operator decision, review record, decision record, Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Operator Decision Draft Live Runbook Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_DRAFT_LIVE_RUNBOOK_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the operator decision draft live runbook proof.
+
+Rollup mode uses a scratch DATA_DIR inside the rollup output directory. This proves the runbook flow without repeatedly mutating the real live runtime during normal status checks.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_decision_draft_live_runbook_green=true
+- first_external_tester_wc_operator_decision_draft_live_runbook_refusal_guard_green=true
+- first_external_tester_wc_operator_decision_draft_live_runbook_explicit_confirmation_green=true
+- first_external_tester_wc_operator_decision_draft_live_runbook_scratch_data_dir_green=true
+- first_external_tester_wc_operator_decision_draft_live_runbook_runtime_draft_written=true
+- first_external_tester_wc_operator_decision_draft_live_runbook_real_live_runtime_write=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_operator_decision_created_now=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_review_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_decision_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_award_created_now=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_wc_credit_delta_now=0
+- first_external_tester_wc_operator_decision_draft_live_runbook_wc_ledger_write=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_wc_credit_award=false
+- first_external_tester_wc_operator_decision_draft_live_runbook_wc_to_void_swap=false
+
+This guard proves the runbook remains explicit-confirmation-only and draft-only. It does not create an operator decision, review record, decision record, Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
