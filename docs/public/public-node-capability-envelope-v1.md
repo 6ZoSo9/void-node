@@ -85,3 +85,10 @@ Runtime Gate Lock v1 must remain green before any future capability implementati
 Capability Envelope v1 proves only that VOID has a public, machine-readable design fixture for a future signed request envelope.
 
 It does not prove cryptographic identity, replay protection, signature validation, public earning readiness, public write readiness, or production launch readiness.
+
+## Live rollup guard
+
+Capability Envelope v1 is included in the public-node live status rollup when the rollup emits:
+
+`capability_envelope_live_status_rollup_green=true`
+

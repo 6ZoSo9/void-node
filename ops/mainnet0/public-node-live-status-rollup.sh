@@ -1759,4 +1759,15 @@ grep -Fq "mutation_probes_checked=44" "$OUT/runtime-gate-lock-proof.log"
 grep -Fq "fail_closed_count=44" "$OUT/runtime-gate-lock-proof.log"
 echo "runtime_gate_lock_live_status_rollup_green=true"
 
+
+echo "=== Capability Envelope v1 rollup guard ==="
+bash ops/mainnet0/public-node-capability-envelope-v1-proof.sh > "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_PROOF_V1_GREEN" "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "capability_envelope_green=true" "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "capability_envelope_design_only=true" "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "capability_envelope_mutation_unlocked=false" "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "capability_envelope_mutation_probes_checked=8" "$OUT/capability-envelope-v1-proof.log"
+grep -Fq "capability_envelope_fail_closed_count=8" "$OUT/capability-envelope-v1-proof.log"
+echo "capability_envelope_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
