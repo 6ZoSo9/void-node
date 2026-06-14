@@ -127,7 +127,7 @@ artifact = {
 }
 with open(path, "w", encoding="utf-8") as f:
     json.dump(artifact, f, indent=2, sort_keys=True)
-    f.write("\\n")
+    f.write("\n")
 PY
 
 chain_sha="$(sha256sum "$CHAIN" | awk '{print $1}')"
