@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_DOC_V1" docs/public/public-node-operator-ledger-entry-preview-fixture-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_ENTRY_PREVIEW_FIXTURE_UI_V1" src/index.ts
 
 bash ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh > "$OUT/operator-award-record-proof.log"
