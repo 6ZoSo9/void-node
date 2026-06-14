@@ -421,3 +421,34 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_decision_draft_write_runtime_default=false
 
 This guard proves the draft generator remains local-only and dry-run by default. It does not create an operator decision, review record, decision record, Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Operator Decision Draft Runtime Write Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_DRAFT_RUNTIME_WRITE_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the operator decision draft runtime-write opt-in proof.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_decision_draft_runtime_write_green=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_opt_in_required=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_default_false_green=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_scratch_runtime_write_green=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_latest_draft_green=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_archive_draft_green=true
+- first_external_tester_wc_operator_decision_draft_runtime_write_operator_decision_created_now=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_review_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_decision_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_award_created_now=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_wc_credit_delta_now=0
+- first_external_tester_wc_operator_decision_draft_runtime_write_wc_ledger_write=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_wc_credit_award=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_wc_to_void_swap=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_automatic_ledger_write_allowed=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_public_upload=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_trusted_as_network_truth=false
+- first_external_tester_wc_operator_decision_draft_runtime_write_live_runtime_write=false
+
+This guard proves runtime draft writing is opt-in, scratch-only in proof mode, and still does not create an operator decision, review record, decision record, Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
