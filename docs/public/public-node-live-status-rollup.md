@@ -306,3 +306,11 @@ Expected rollup lines:
     first_external_tester_wc_award_policy_wc_credit_award=false
     first_external_tester_wc_award_policy_wc_to_void_swap=false
     first_external_tester_wc_award_policy_discovery_green=true
+
+## First external tester WC award policy card guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_CARD_DOC_V1 -->
+
+The live status rollup checks that `/public-node` visibly surfaces the first external tester WC award policy card.
+
+Expected rollup line:
+
+    first_external_tester_wc_award_policy_card_ui_green=true

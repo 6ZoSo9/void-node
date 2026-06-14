@@ -831,4 +831,28 @@ grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STAT
 
 echo "first_external_tester_wc_award_policy_discovery_green=true"
 
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcAwardPolicyCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcAwardPolicyLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcAwardPolicyReviewChecklistLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC Award Policy: First External Tester" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Policy state:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "draft_public_read_only" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review record created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review outcome now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "not_decided" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award decision now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger mutated now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit delta now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC review record write:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger write:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit award:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC→VOID swap:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "first_external_tester_wc_award_policy_green=true" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-review-checklist.json" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_wc_award_policy_card_ui_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
