@@ -45190,6 +45190,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-award-policy.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1", use: "read-only award policy stub for future first external tester Work Credit review decisions" },
       { path: "/public-node/first-external-tester-wc-lane-closeout.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", use: "first external tester Work Credit lane closeout summary" },
       { path: "/public-node/first-external-tester-wc-review-record-stub.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", use: "template-only operator review record stub for first external tester WC lane" },
+      { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", use: "allowed decision states boundary for first external tester WC review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45698,6 +45699,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-award-policy.json",
     "/public-node/first-external-tester-wc-lane-closeout.json",
     "/public-node/first-external-tester-wc-review-record-stub.json",
+    "/public-node/first-external-tester-wc-review-decision-boundary.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45747,6 +45749,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_award_policy: effectiveBaseUrl + "/public-node/first-external-tester-wc-award-policy.json",
       first_external_tester_wc_lane_closeout: effectiveBaseUrl + "/public-node/first-external-tester-wc-lane-closeout.json",
       first_external_tester_wc_review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
+      first_external_tester_wc_review_decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45780,6 +45783,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_award_policy_present: true,
       first_external_tester_wc_lane_closeout_present: true,
       first_external_tester_wc_review_record_stub_present: true,
+      first_external_tester_wc_review_decision_boundary_present: true,
       standalone_outside_tester_smoke_script_present: true,
       tester_share_page_present: true,
       tester_lane_summary_present: true,
@@ -45830,6 +45834,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-award-policy.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1", purpose: "read-only award policy stub for future first external tester Work Credit review decisions", safety_class: "public_read_only_award_policy_no_ledger_mutation" },
     { path: "/public-node/first-external-tester-wc-lane-closeout.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", purpose: "first external tester Work Credit lane closeout summary", safety_class: "public_read_only_wc_lane_closeout_no_award" },
     { path: "/public-node/first-external-tester-wc-review-record-stub.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", purpose: "template-only operator review record stub for first external tester WC lane", safety_class: "public_read_only_review_record_template_no_ledger_mutation" },
+    { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", purpose: "allowed decision states boundary for first external tester WC review", safety_class: "public_read_only_decision_boundary_no_review_record_no_ledger_mutation" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -46986,6 +46991,103 @@ APP.get("/public-node/first-external-tester-wc-review-record-stub.json", (_req:a
   });
 });
 
+
+APP.get("/public-node/first-external-tester-wc-review-decision-boundary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_ROUTE_V1",
+    purpose: "public_node_first_external_tester_wc_review_decision_boundary",
+    boundary_state: "allowed_states_only_no_decision_record_created",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    allowed_decision_states: ["accepted", "rejected", "deferred"],
+    current_decision_state: "not_decided",
+    decision_record_created_now: false,
+    review_record_created_now: false,
+    review_outcome_now: "not_decided",
+    award_decision_now: "not_decided",
+    award_created_now: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_delta_now: 0,
+    wc_decision_record_write: false,
+    wc_review_record_write: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    payout_created_now: false,
+    redeemable_now: false,
+    wc_to_void_swap: false,
+    money_movement: false,
+    wallet_send: false,
+    decision_rules: {
+      accepted: {
+        meaning: "operator accepted candidate evidence for possible future award processing",
+        automatic_award_allowed: false,
+        automatic_ledger_write_allowed: false,
+        requires_manual_operator_acceptance: true,
+        requires_separate_review_record: true
+      },
+      rejected: {
+        meaning: "operator rejected candidate evidence; no award path opens",
+        automatic_award_allowed: false,
+        automatic_ledger_write_allowed: false,
+        requires_manual_operator_acceptance: true,
+        requires_separate_review_record: true
+      },
+      deferred: {
+        meaning: "operator deferred candidate evidence for more review; no award path opens",
+        automatic_award_allowed: false,
+        automatic_ledger_write_allowed: false,
+        requires_manual_operator_acceptance: true,
+        requires_separate_review_record: true
+      }
+    },
+    required_before_any_accepted_decision: {
+      review_record_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_V1",
+      candidate_id_required: true,
+      reviewer_required: true,
+      reviewed_at_utc_required: true,
+      decision_reason_required: true,
+      evidence_routes_required: true,
+      award_policy_version_required: true,
+      operator_signature_or_local_attestation_required: true,
+      explicit_ledger_write_intent_required: true,
+      explicit_no_wallet_send_confirmation_required: true
+    },
+    links: {
+      review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
+      lane_closeout: effectiveBaseUrl + "/public-node/first-external-tester-wc-lane-closeout.json",
+      review_checklist: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-checklist.json",
+      award_policy: effectiveBaseUrl + "/public-node/first-external-tester-wc-award-policy.json"
+    },
+    safety: {
+      public_status_only: true,
+      read_only: true,
+      mutation: false,
+      private_api: false,
+      public_upload: false,
+      public_post_endpoint: false,
+      trusted_as_network_truth: false,
+      decision_record_created_now: false,
+      review_record_created_now: false,
+      wc_decision_record_write: false,
+      wc_review_record_write: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      payout_created_now: false,
+      redeemable_now: false,
+      wc_to_void_swap: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1
   const defaultBaseUrl = "http://127.0.0.1:4100";
   const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
@@ -47977,6 +48079,35 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
         <p class="actions">
           <a id="publicNodeFirstExternalTesterWcReviewRecordStubLink" href="/public-node/first-external-tester-wc-review-record-stub.json">Open review record stub</a>
           <a id="publicNodeFirstExternalTesterWcReviewRecordStubCloseoutLink" href="/public-node/first-external-tester-wc-lane-closeout.json">Open WC lane closeout</a>
+        </p>
+      </section>
+
+      <section id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryCard" class="card">
+        <p class="eyebrow">Work Credit Decision Boundary</p>
+        <h2>Review Decision Boundary</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_UI_V1 -->
+          The only future manual review states are accepted, rejected, or deferred.
+          This page does not create a decision record, does not create a review record,
+          does not award Work Credits, and does not open a WC ledger write.
+        </p>
+        <ul>
+          <li>Boundary state: <code>allowed_states_only_no_decision_record_created</code></li>
+          <li>Allowed states: <code>accepted</code>, <code>rejected</code>, <code>deferred</code></li>
+          <li>Current decision state: <code>not_decided</code></li>
+          <li>Decision record created now: <code>false</code></li>
+          <li>Review record created now: <code>false</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC decision record write: <code>false</code></li>
+          <li>WC review record write: <code>false</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Manual gate: <code>automatic_ledger_write_allowed=false</code></p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryLink" href="/public-node/first-external-tester-wc-review-decision-boundary.json">Open decision boundary</a>
+          <a id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryStubLink" href="/public-node/first-external-tester-wc-review-record-stub.json">Open review record stub</a>
         </p>
       </section>
 
