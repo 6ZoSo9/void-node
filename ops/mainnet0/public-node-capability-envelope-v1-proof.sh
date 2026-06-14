@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_DOC_V1" docs/public/public-node-capability-envelope-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_UI_V1" src/index.ts
 
 CAP="$OUT/capability-envelope-v1.json"
