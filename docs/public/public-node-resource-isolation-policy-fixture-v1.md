@@ -116,3 +116,10 @@ Resource Isolation Policy Fixture v1 depends on:
 Resource Isolation Policy Fixture v1 proves only that VOID has a public, machine-readable design fixture for future bounded work execution.
 
 It does not prove public earning readiness, public execution readiness, production sandbox readiness, ledger readiness, token distribution readiness, or production launch readiness.
+
+## Live rollup guard
+
+Resource Isolation Policy Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`resource_isolation_policy_live_status_rollup_green=true`
+

@@ -1796,4 +1796,20 @@ grep -Fq "controlled_earning_simulation_fixture_mutation_probes_checked=8" "$OUT
 grep -Fq "controlled_earning_simulation_fixture_fail_closed_count=8" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
 echo "controlled_earning_simulation_live_status_rollup_green=true"
 
+
+echo "=== Resource Isolation Policy Fixture v1 rollup guard ==="
+bash ops/mainnet0/public-node-resource-isolation-policy-fixture-v1-proof.sh > "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_PROOF_V1_GREEN" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_green=true" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_design_only=true" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_work_execution_open=false" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_mutation_unlocked=false" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_wc_ledger_write=false" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_wc_credit_award=false" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_wc_credit_delta_now=0" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_wc_to_void_swap=false" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_mutation_probes_checked=8" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+grep -Fq "resource_isolation_policy_fixture_fail_closed_count=8" "$OUT/resource-isolation-policy-fixture-v1-proof.log"
+echo "resource_isolation_policy_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
