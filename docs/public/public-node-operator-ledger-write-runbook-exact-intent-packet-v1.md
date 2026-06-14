@@ -56,3 +56,11 @@ A future live write must not pass unless later gates prove:
 ## Next gate
 
 `operator_ledger_write_runbook_exact_confirmation_phrase_v1`
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_exact_intent_packet_live_status_rollup_green=true`
+
+This means the exact intent packet gate is present, proof-backed, tmp-only, intent-absent, unlock-absent, and still performs no live WC ledger write.
