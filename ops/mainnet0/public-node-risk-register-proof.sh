@@ -9,6 +9,7 @@ trap 'rm -f "$TMP"' EXIT
 echo "VOID_PUBLIC_NODE_RISK_REGISTER_PROOF_V1"
 
 grep -Fq "VOID_PUBLIC_NODE_RISK_REGISTER_DOC_V1" docs/public/public-node-risk-register.md
+grep -Fq "VOID_PUBLIC_NODE_RISK_REGISTER_UI_V1" src/index.ts
 
 curl -fsS -o "$TMP" "$ROUTE"
 jq empty "$TMP" >/dev/null

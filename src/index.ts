@@ -49328,6 +49328,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>/public-node/data-weight-record.json</code></p>
         </div>
 
+        <div class="card" id="publicNodeRiskRegisterCard"><!-- VOID_PUBLIC_NODE_RISK_REGISTER_UI_V1 -->
+          <h2>Risk Register</h2>
+          <p>Public read-only anti-hype truth surface listing known Mainnet-0 risks before public mutation, public earning, WC-to-VOID swap behavior, or validator mutation are opened.</p>
+          <p><code>/public-node/risk-register.json</code></p>
+          <p><code>docs/public/public-node-risk-register.md</code></p>
+        </div>
+
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
           <h2>Weighted Local Data Drop</h2>
           <p>Live weighted view of actual operator-local data drop objects using Data Weight Record fields. Empty-safe when no local objects are present.</p>
