@@ -610,3 +610,39 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_award_record_runbook_wc_to_void_swap=false
 
 This guard proves the award record runbook remains explicit-confirmation-only and award-record-only. It does not create a Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Operator Ledger Entry Preview Runbook Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_LEDGER_ENTRY_PREVIEW_RUNBOOK_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the operator ledger entry preview runbook proof.
+
+Rollup mode uses a scratch DATA_DIR inside the rollup output directory. This proves the ledger-entry-preview flow without repeatedly mutating the real live runtime during normal status checks.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_refusal_guard_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_source_draft_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_source_review_record_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_source_decision_record_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_source_award_intent_packet_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_source_award_record_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_explicit_confirmation_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_scratch_data_dir_green=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_local_ledger_entry_preview_written=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_real_live_runtime_write=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_ledger_entry_preview_created_now=true
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_award_record_created_now=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_award_created_now=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_award_write_allowed_now=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_ledger_record_created_now=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_credit_delta_now=0
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_preview_wc_delta=0
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_ledger_write=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_credit_award=false
+- first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_to_void_swap=false
+
+This guard proves the ledger entry preview runbook remains explicit-confirmation-only and ledger-preview-only. It does not create a Work Credit ledger record, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
