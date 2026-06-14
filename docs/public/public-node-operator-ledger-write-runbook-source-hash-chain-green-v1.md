@@ -54,3 +54,11 @@ Denied:
 ## Next gate
 
 `operator_ledger_write_runbook_duplicate_ledger_entry_check_green_v1`
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_source_hash_chain_green_live_status_rollup_green=true`
+
+This means the source hash chain green gate is present, proof-backed, tmp-only, length-8, and still performs no live WC ledger write.
