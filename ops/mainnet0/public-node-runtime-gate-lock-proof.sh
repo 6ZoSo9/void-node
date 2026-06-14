@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_RUNTIME_GATE_LOCK_PROOF_V1"
 
+grep -Fq "VOID_RUNTIME_GATE_LOCK_DOC_V1" docs/public/public-node-runtime-gate-lock.md
+
 ok_status() {
   case "$1" in
     401|403|404|405) return 0 ;;
