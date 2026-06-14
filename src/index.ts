@@ -45499,6 +45499,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
+      { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46199,6 +46200,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/risk-register.json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", purpose: "public node anti-hype risk register", safety_class: "public_read_only_risk_register_no_mutation" },
     { path: "/public-node/runtime-gate-lock.json", marker: "VOID_RUNTIME_GATE_LOCK_V1", purpose: "public read-only runtime gate lock and mutation death contract", safety_class: "public_read_only_runtime_gate_lock_no_mutation" },
     { path: "/public-node/capability-envelope-v1.json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", purpose: "design-only signed capability envelope fixture for future gated requests", safety_class: "public_read_only_capability_envelope_design_only_no_mutation" },
+    { path: "/public-node/nonce-replay-protection-fixture-v1.json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", purpose: "design-only nonce and replay protection fixture for future signed capability envelopes", safety_class: "public_read_only_nonce_replay_fixture_design_only_no_mutation" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46236,6 +46238,114 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/nonce-replay-protection-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1",
+    nonce_replay_fixture_version: "v1",
+    status: "design_fixture_only",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    executable: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    wc_credit_award_open: false,
+    wc_to_void_swap_open: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    depends_on: [
+      "VOID_RUNTIME_GATE_LOCK_V1",
+      "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1"
+    ],
+    next_gate: "controlled_earning_simulation_fixture_v1",
+    principle: "Every future signed capability envelope must bind to a unique nonce, expiry window, body hash, issuer, subject, audience, and scope. This v1 fixture defines the replay boundary only; it does not execute writes.",
+    nonce_record_schema: {
+      record_type: "void.nonce_replay_record.v1",
+      required_fields: [
+        "nonce_id",
+        "envelope_id",
+        "capability",
+        "issuer",
+        "subject",
+        "audience",
+        "scope_hash",
+        "body_sha256",
+        "issued_at",
+        "expires_at",
+        "first_seen_at",
+        "consumed_at",
+        "state",
+        "replay_count",
+        "decision"
+      ],
+      nonce_id_format: "sha256(envelope_id|issuer|subject|audience|scope_hash|body_sha256|issued_at|expires_at)",
+      envelope_id_format: "sha256(canonical_capability_envelope)",
+      replay_key_fields: ["nonce_id", "envelope_id", "issuer", "subject", "audience", "scope_hash", "body_sha256"],
+      expiry_required: true,
+      single_use_required: true,
+      body_hash_required: true,
+      audience_binding_required: true,
+      issuer_binding_required: true,
+      scope_binding_required: true
+    },
+    allowed_states: [
+      "fresh_unseen",
+      "accepted_once_future",
+      "replayed_rejected",
+      "expired_rejected",
+      "scope_mismatch_rejected",
+      "body_hash_mismatch_rejected",
+      "issuer_mismatch_rejected",
+      "audience_mismatch_rejected"
+    ],
+    denied_now: [
+      "public_mutation",
+      "wc_credit_award",
+      "wc_to_void_swap",
+      "validator_mutation",
+      "money_movement",
+      "admin_operation",
+      "automatic_ledger_write"
+    ],
+    examples: [
+      {
+        id: "fresh_unseen_future_envelope",
+        state: "fresh_unseen",
+        decision: "would_require_signature_and_operator_gate_future",
+        mutation_allowed: false,
+        executable: false,
+        replay_count: 0
+      },
+      {
+        id: "replayed_envelope_rejected",
+        state: "replayed_rejected",
+        decision: "reject_replay",
+        mutation_allowed: false,
+        executable: false,
+        replay_count: 1
+      },
+      {
+        id: "expired_envelope_rejected",
+        state: "expired_rejected",
+        decision: "reject_expired",
+        mutation_allowed: false,
+        executable: false,
+        replay_count: 0
+      },
+      {
+        id: "body_hash_mismatch_rejected",
+        state: "body_hash_mismatch_rejected",
+        decision: "reject_body_hash_mismatch",
+        mutation_allowed: false,
+        executable: false,
+        replay_count: 0
+      }
+    ],
+    proof: "ops/mainnet0/public-node-nonce-replay-protection-fixture-v1-proof.sh",
+    safety_claim: "Nonce Replay Protection Fixture v1 defines future replay rejection structure only. It does not unlock public mutation or public earning."
+  });
+});
 
 APP.get("/public-node/capability-envelope-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_ROUTE_V1
   res.json({
@@ -49460,6 +49570,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Design-only signed request envelope fixture for future gated actions. This does not unlock public mutation, WC awards, validator mutation, or money movement.</p>
           <p><code>/public-node/capability-envelope-v1.json</code></p>
           <p><code>ops/mainnet0/public-node-capability-envelope-v1-proof.sh</code></p>
+        </div>
+
+        <div class="card" id="publicNodeNonceReplayProtectionFixtureCard"><!-- VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_UI_V1 -->
+          <h2>Nonce Replay Protection Fixture v1</h2>
+          <p>Design-only nonce, expiry, body-hash, and replay rejection fixture for future signed capability envelopes. This does not unlock public mutation or WC earning.</p>
+          <p><code>/public-node/nonce-replay-protection-fixture-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-nonce-replay-protection-fixture-v1-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
