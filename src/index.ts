@@ -45501,6 +45501,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
       { path: "/public-node/controlled-earning-simulation-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", use: "simulation-only earning eligibility fixture; no WC ledger write or award" },
+      { path: "/public-node/resource-isolation-policy-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1", use: "design-only resource isolation policy fixture for future bounded work execution" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46203,6 +46204,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/capability-envelope-v1.json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", purpose: "design-only signed capability envelope fixture for future gated requests", safety_class: "public_read_only_capability_envelope_design_only_no_mutation" },
     { path: "/public-node/nonce-replay-protection-fixture-v1.json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", purpose: "design-only nonce and replay protection fixture for future signed capability envelopes", safety_class: "public_read_only_nonce_replay_fixture_design_only_no_mutation" },
     { path: "/public-node/controlled-earning-simulation-fixture-v1.json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", purpose: "simulation-only earning eligibility fixture for future guarded WC review", safety_class: "public_read_only_controlled_earning_simulation_only_no_ledger_write" },
+    { path: "/public-node/resource-isolation-policy-fixture-v1.json", marker: "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1", purpose: "design-only resource isolation policy fixture for future bounded work execution", safety_class: "public_read_only_resource_isolation_policy_design_only_no_execution" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46240,6 +46242,152 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/resource-isolation-policy-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1",
+    resource_isolation_policy_version: "v1",
+    status: "design_fixture_only",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    executable: false,
+    work_execution_open: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    depends_on: [
+      "VOID_RUNTIME_GATE_LOCK_V1",
+      "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1",
+      "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1"
+    ],
+    next_gate: "operator_controlled_earning_dry_run_fixture_v1",
+    principle: "Future public work execution must be bounded before it can be eligible for earning. Resource Isolation Policy Fixture v1 defines resource boundaries only; it does not execute jobs, accept submissions, mutate ledgers, or award WC.",
+    isolation_policy_schema: {
+      record_type: "void.resource_isolation_policy.v1",
+      required_fields: [
+        "policy_id",
+        "job_class",
+        "cpu_limit",
+        "memory_limit_mb",
+        "disk_write_limit_mb",
+        "network_policy",
+        "timeout_seconds",
+        "max_processes",
+        "allowed_paths",
+        "denied_paths",
+        "stdout_limit_kb",
+        "stderr_limit_kb",
+        "artifact_limit_mb",
+        "cleanup_required",
+        "operator_review_required",
+        "ledger_write_allowed"
+      ],
+      cpu_limit_required: true,
+      memory_limit_required: true,
+      disk_write_limit_required: true,
+      network_policy_required: true,
+      timeout_required: true,
+      path_allowlist_required: true,
+      cleanup_required: true,
+      operator_review_required: true
+    },
+    default_limits: {
+      cpu_limit: "one_worker_slot_future",
+      memory_limit_mb: 256,
+      disk_write_limit_mb: 64,
+      timeout_seconds: 60,
+      max_processes: 4,
+      stdout_limit_kb: 256,
+      stderr_limit_kb: 256,
+      artifact_limit_mb: 16,
+      network_policy: "deny_by_default_future_allowlist_only",
+      allowed_paths: ["future_sandbox_work_dir_only"],
+      denied_paths: ["home", "repo", "ssh", "wallets", "system", "service_env", "private_keys", "runtime_data"],
+      cleanup_required: true
+    },
+    allowed_job_classes: [
+      "verify_only_future",
+      "hash_only_future",
+      "local_fixture_validate_future",
+      "read_only_probe_future"
+    ],
+    denied_job_classes_now: [
+      "public_mutation",
+      "wc_ledger_write",
+      "wallet_send",
+      "validator_mutation",
+      "network_wide_scan",
+      "host_shell",
+      "private_file_read",
+      "service_env_read",
+      "long_running_daemon"
+    ],
+    policy_cases: [
+      {
+        id: "verify_only_future_bounded",
+        job_class: "verify_only_future",
+        simulated_decision: "allowed_in_future_if_capability_and_operator_gate_pass",
+        executable_now: false,
+        ledger_write_allowed: false,
+        wc_credit_award: false,
+        mutation_allowed: false
+      },
+      {
+        id: "host_shell_rejected",
+        job_class: "host_shell",
+        simulated_decision: "reject_host_shell",
+        executable_now: false,
+        ledger_write_allowed: false,
+        wc_credit_award: false,
+        mutation_allowed: false
+      },
+      {
+        id: "private_file_read_rejected",
+        job_class: "private_file_read",
+        simulated_decision: "reject_private_file_read",
+        executable_now: false,
+        ledger_write_allowed: false,
+        wc_credit_award: false,
+        mutation_allowed: false
+      },
+      {
+        id: "wallet_send_rejected",
+        job_class: "wallet_send",
+        simulated_decision: "reject_money_movement",
+        executable_now: false,
+        ledger_write_allowed: false,
+        wc_credit_award: false,
+        mutation_allowed: false
+      }
+    ],
+    denied_now: [
+      "work_execution",
+      "public_mutation",
+      "public_earning",
+      "wc_ledger_write",
+      "wc_credit_award",
+      "positive_wc_credit_delta",
+      "wc_to_void_swap",
+      "wallet_send",
+      "validator_mutation",
+      "money_movement",
+      "private_file_read",
+      "service_env_read",
+      "host_shell",
+      "automatic_ledger_write"
+    ],
+    proof: "ops/mainnet0/public-node-resource-isolation-policy-fixture-v1-proof.sh",
+    safety_claim: "Resource Isolation Policy Fixture v1 defines future bounded execution policy only. It does not execute work, open public earning, write ledgers, award WC, or move VOID."
+  });
+});
 
 APP.get("/public-node/controlled-earning-simulation-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_ROUTE_V1
   res.json({
@@ -49748,6 +49896,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Simulation-only WC eligibility and rejection model. This does not create review records, award records, ledger entries, WC credits, VOID swaps, or money movement.</p>
           <p><code>/public-node/controlled-earning-simulation-fixture-v1.json</code></p>
           <p><code>ops/mainnet0/public-node-controlled-earning-simulation-fixture-v1-proof.sh</code></p>
+        </div>
+
+        <div class="card" id="publicNodeResourceIsolationPolicyFixtureCard"><!-- VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_UI_V1 -->
+          <h2>Resource Isolation Policy Fixture v1</h2>
+          <p>Design-only resource boundary fixture for future bounded work execution. This defines CPU, memory, disk, network, timeout, path, and cleanup rules without executing jobs or awarding WC.</p>
+          <p><code>/public-node/resource-isolation-policy-fixture-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-resource-isolation-policy-fixture-v1-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
