@@ -62,3 +62,10 @@ Runtime Gate Lock v1 proves public mutation is currently closed on the tested pu
 It does not prove Sybil resistance, DDoS resistance, cryptographic identity, replay protection, resource isolation, public earning readiness, or production launch readiness.
 
 Those belong to later gates.
+
+## Live rollup guard
+
+Runtime Gate Lock v1 is included in the public-node live status rollup when the rollup emits:
+
+`runtime_gate_lock_live_status_rollup_green=true`
+

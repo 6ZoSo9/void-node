@@ -1750,4 +1750,13 @@ echo "risk_register_live_status_rollup_public_mutation=false"
 echo "risk_register_live_status_rollup_wc_credit_award=false"
 echo "risk_register_live_status_rollup_wc_to_void_swap=false"
 
+
+echo "=== Runtime Gate Lock v1 rollup guard ==="
+bash ops/mainnet0/public-node-runtime-gate-lock-proof.sh > "$OUT/runtime-gate-lock-proof.log"
+grep -Fq "VOID_RUNTIME_GATE_LOCK_V1_GREEN" "$OUT/runtime-gate-lock-proof.log"
+grep -Fq "runtime_gate_lock_green=true" "$OUT/runtime-gate-lock-proof.log"
+grep -Fq "mutation_probes_checked=44" "$OUT/runtime-gate-lock-proof.log"
+grep -Fq "fail_closed_count=44" "$OUT/runtime-gate-lock-proof.log"
+echo "runtime_gate_lock_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
