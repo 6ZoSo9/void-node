@@ -46,9 +46,9 @@ assert(route.preview_only === true, "preview_only not true");
 assert(route.fixture_preview_green === true, "fixture_preview_green not true");
 assert(route.hash_algorithm === "sha256", "hash algorithm not sha256");
 assert(Array.isArray(route.hash_chain_preview), "missing hash_chain_preview");
-assert(route.hash_chain_preview.length === 4, "preview chain length not 4");
+assert(route.hash_chain_preview.length === 8, "preview chain length not 8");
 assert(route.required_chain_length === 8, "required chain length not 8");
-assert(route.preview_chain_length === 4, "preview chain length field not 4");
+assert(route.preview_chain_length === 8, "preview chain length field not 8");
 
 for (let i = 0; i < route.hash_chain_preview.length; i++) {
   const item = route.hash_chain_preview[i];
@@ -80,7 +80,7 @@ NODE
 echo "source_hash_chain_fixture_green=true"
 echo "source_hash_chain_fixture_only=true"
 echo "source_hash_chain_fixture_preview_only=true"
-echo "source_hash_chain_fixture_preview_length=4"
+echo "source_hash_chain_fixture_preview_length=8"
 echo "source_hash_chain_fixture_required_length=8"
 echo "source_hash_chain_green=false"
 echo "ready_for_ledger_write=false"

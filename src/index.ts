@@ -45368,42 +45368,74 @@ APP.get("/public-node/first-external-tester-wc-source-hash-chain-fixture.json", 
     fixture_only: true,
     preview_only: true,
     hash_algorithm: "sha256",
-    hash_chain_preview: [
-      {
-        order: 1,
-        stage: "tester_receipt",
-        source_id: "first-external-tester-receipt-preview",
-        source_hash: "b0d0a8c8e7437c2762f5a3f49c71ccf60a4e33408ef415e65cb66dd17f05a001",
-        previous_source_hash: null,
-        link_hash: "d327dff4fba772eb0c6208595aacbd994251115807c6681f8278933b2ef4fb16"
-      },
-      {
-        order: 2,
-        stage: "imported_closeout_proof",
-        source_id: "first-external-tester-imported-closeout-proof-preview",
-        source_hash: "47064fec496391596e103953e9ca48ac932c246dca0c1223d95c54d0a6f72f6e",
-        previous_source_hash: "b0d0a8c8e7437c2762f5a3f49c71ccf60a4e33408ef415e65cb66dd17f05a001",
-        link_hash: "a26c604916ad0ac97f98ed142c4f07e3c245ed87af59b5a6e120356f7e08cfc2"
-      },
-      {
-        order: 3,
-        stage: "operator_review_record",
-        source_id: "first-external-tester-operator-review-record-preview",
-        source_hash: "52e0528ed22cef04b1e85e9a08c89b1c8696f601b73a4d6cd2a57f606cd21bd6",
-        previous_source_hash: "47064fec496391596e103953e9ca48ac932c246dca0c1223d95c54d0a6f72f6e",
-        link_hash: "9bb8da38f0c0249dbf0153d77c94e2e5eb32424b9913677239978951489d560f"
-      },
-      {
-        order: 4,
-        stage: "operator_decision_record",
-        source_id: "first-external-tester-operator-decision-record-preview",
-        source_hash: "2a5c7214cc6745775abe3bff59c089da17f73972d7d60d61e9512f45180303c0",
-        previous_source_hash: "52e0528ed22cef04b1e85e9a08c89b1c8696f601b73a4d6cd2a57f606cd21bd6",
-        link_hash: "ffdb6c06956d9901e777a53583774d7083eece76a5fa0e40c8f9bed9437ae9ee"
-      }
+    hash_chain_preview:     [
+          {
+                "order": 1,
+                "stage": "tester_receipt",
+                "source_id": "first-external-tester-receipt-preview",
+                "source_hash": "bd8351c22db4d26c941d730d97bcc712d3c199a659083666c786b4fddf7ac7ef",
+                "previous_source_hash": null,
+                "link_hash": "597c0d404dc97df0456dbd1b425ae0104dad27ab54e23b79be18a62051d5b27d"
+          },
+          {
+                "order": 2,
+                "stage": "imported_closeout_proof",
+                "source_id": "first-external-tester-imported-closeout-proof-preview",
+                "source_hash": "62a71afd055d4d7b708e605b360ee4b45a97b3d31ed0d10e33b8dc907680e4ad",
+                "previous_source_hash": "bd8351c22db4d26c941d730d97bcc712d3c199a659083666c786b4fddf7ac7ef",
+                "link_hash": "177a4fb48f458162f10de1b53ba0da941a8d4e9ab8d6576e46930d7e3807a243"
+          },
+          {
+                "order": 3,
+                "stage": "operator_review_record",
+                "source_id": "first-external-tester-operator-review-record-preview",
+                "source_hash": "24a2516cbda1625856a2908745a3c170b8942c06320ea9febfd3d5f8c3139725",
+                "previous_source_hash": "62a71afd055d4d7b708e605b360ee4b45a97b3d31ed0d10e33b8dc907680e4ad",
+                "link_hash": "b154036ab342968653cc7d86cec1887af251e4e04afde51d632c4980002a4f02"
+          },
+          {
+                "order": 4,
+                "stage": "operator_decision_record",
+                "source_id": "first-external-tester-operator-decision-record-preview",
+                "source_hash": "b0326bde558e0a01cf3e20ff868abc30d3baa301a1723c2e19c0bcbd154f7689",
+                "previous_source_hash": "24a2516cbda1625856a2908745a3c170b8942c06320ea9febfd3d5f8c3139725",
+                "link_hash": "6bae3ce0376393c52ca1ceea6614d118117d28cb978d1181e079bfa7839fa939"
+          },
+          {
+                "order": 5,
+                "stage": "operator_award_intent_packet",
+                "source_id": "first-external-tester-operator-award-intent-packet-preview",
+                "source_hash": "1ffc2c0d2d0bc43c6f215521387e6c19f20b26192f302a9afeec5da9a3ecdb0f",
+                "previous_source_hash": "b0326bde558e0a01cf3e20ff868abc30d3baa301a1723c2e19c0bcbd154f7689",
+                "link_hash": "1ac3f824682da75f769afd9af3b2e58cc761e4aa2fb7a7e8a80162f9e764a880"
+          },
+          {
+                "order": 6,
+                "stage": "operator_award_record",
+                "source_id": "first-external-tester-operator-award-record-preview",
+                "source_hash": "b3fe1487dd8491257dd408f24294bc71dfd6647fe6de73f8ae35c5b2b137dea7",
+                "previous_source_hash": "1ffc2c0d2d0bc43c6f215521387e6c19f20b26192f302a9afeec5da9a3ecdb0f",
+                "link_hash": "fc8784bc9f30d9e9453478b907d325abca75581b8d6a25da5e44e5754b7fc351"
+          },
+          {
+                "order": 7,
+                "stage": "ledger_entry_preview",
+                "source_id": "first-external-tester-ledger-entry-preview",
+                "source_hash": "4b688865715c047c6272e69154c917a0d5259e5d99b88e085c3c94240159cd23",
+                "previous_source_hash": "b3fe1487dd8491257dd408f24294bc71dfd6647fe6de73f8ae35c5b2b137dea7",
+                "link_hash": "5e27ebe5790bc84324b90ccfe79bd10430a6ad323c32cdd315109879f9a95d13"
+          },
+          {
+                "order": 8,
+                "stage": "future_operator_ledger_write_record_placeholder",
+                "source_id": "first-external-tester-future-operator-ledger-write-record-placeholder-preview",
+                "source_hash": "67d794e9d8936cdc1d4d55d15b291b005e82215878335cee080b3358768f9d23",
+                "previous_source_hash": "4b688865715c047c6272e69154c917a0d5259e5d99b88e085c3c94240159cd23",
+                "link_hash": "ae239119916090f1004d252e23fceffa0437a746d9c1865f8919f4da89a7109c"
+          }
     ],
     required_chain_length: 8,
-    preview_chain_length: 4,
+    preview_chain_length: 8,
     fixture_preview_green: true,
     source_hash_chain_green: false,
     source_hash_chain_promoted_to_approved: false,

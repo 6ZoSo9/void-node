@@ -44,3 +44,22 @@ It does not perform WC-to-VOID swap.
 - wc_ledger_write=false
 - wc_credit_award=false
 - wc_to_void_swap=false
+
+## Full 8-step preview upgrade
+
+Marker: `VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FULL8_FIXTURE_DOC_V1`
+
+The fixture now previews the full required 8-stage source hash chain shape.
+
+Current preview state:
+
+- preview_chain_length=8
+- required_chain_length=8
+- last_stage=future_operator_ledger_write_record_placeholder
+- source_hash_chain_green=false
+- ready_for_ledger_write=false
+- wc_ledger_write=false
+- wc_credit_award=false
+- wc_to_void_swap=false
+
+This remains fixture-only and preview-only. It does not approve the chain, does not promote `source_hash_chain_green`, does not make ledger write readiness true, and does not write or award Work Credits.
