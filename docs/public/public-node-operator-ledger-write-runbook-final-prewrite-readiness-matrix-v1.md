@@ -54,3 +54,11 @@ Denied:
 ## Next gate
 
 `operator_ledger_write_runbook_source_hash_chain_green_v1`
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_final_prewrite_readiness_matrix_live_status_rollup_green=true`
+
+This means the final prewrite readiness matrix is present, proof-backed, tmp-only, blocked-not-ready, and still performs no live WC ledger write.
