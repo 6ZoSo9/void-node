@@ -855,4 +855,127 @@ grep -Fq "/public-node/first-external-tester-wc-review-checklist.json" "$PACKET_
 
 echo "first_external_tester_wc_award_policy_card_ui_green=true"
 
+WC_LANE_CLOSEOUT_JSON="$OUT/first-external-tester-wc-lane-closeout.json"
+WC_LANE_CLOSEOUT_ROUTE_INDEX_JSON="$OUT/first-external-tester-wc-lane-closeout-route-index.json"
+WC_LANE_CLOSEOUT_SELF_CHECK_JSON="$OUT/first-external-tester-wc-lane-closeout-self-check.json"
+WC_LANE_CLOSEOUT_ROUTE_MANIFEST_JSON="$OUT/first-external-tester-wc-lane-closeout-route-manifest.json"
+
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-wc-lane-closeout.json" > "$WC_LANE_CLOSEOUT_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$WC_LANE_CLOSEOUT_ROUTE_INDEX_JSON"
+curl -fsS "$LOCAL_BASE/public-node/self-check-snapshot.json" > "$WC_LANE_CLOSEOUT_SELF_CHECK_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$WC_LANE_CLOSEOUT_ROUTE_MANIFEST_JSON"
+
+python3 - "$WC_LANE_CLOSEOUT_JSON" "$WC_LANE_CLOSEOUT_ROUTE_INDEX_JSON" "$WC_LANE_CLOSEOUT_SELF_CHECK_JSON" "$WC_LANE_CLOSEOUT_ROUTE_MANIFEST_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+closeout = json.loads(Path(sys.argv[1]).read_text())
+route_index = json.loads(Path(sys.argv[2]).read_text())
+self_check = json.loads(Path(sys.argv[3]).read_text())
+route_manifest = json.loads(Path(sys.argv[4]).read_text())
+
+path = "/public-node/first-external-tester-wc-lane-closeout.json"
+
+assert closeout.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1"
+assert closeout.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_ROUTE_V1"
+assert closeout.get("closeout_state") == "work_credit_lane_closed_read_only"
+assert closeout.get("candidate_id") == "first-external-tester-n153b-demo003-standalone-smoke-v1"
+
+chain = closeout.get("chain_summary", {})
+assert chain.get("external_receipt_imported") is True
+assert chain.get("earned_readiness_green") is True
+assert chain.get("earned_readiness_card_ui_green") is True
+assert chain.get("wc_candidate_green") is True
+assert chain.get("wc_candidate_card_ui_green") is True
+assert chain.get("wc_review_checklist_green") is True
+assert chain.get("wc_review_checklist_card_ui_green") is True
+assert chain.get("wc_award_policy_green") is True
+assert chain.get("wc_award_policy_card_ui_green") is True
+
+boundary = closeout.get("closeout_boundary", {})
+assert boundary.get("review_record_created_now") is False
+assert boundary.get("review_outcome_now") == "not_decided"
+assert boundary.get("award_decision_now") == "not_decided"
+assert boundary.get("award_created_now") is False
+assert boundary.get("wc_ledger_mutated_now") is False
+assert boundary.get("wc_credit_delta_now") == 0
+assert boundary.get("proposed_wc_credit_delta_now") is None
+assert boundary.get("wc_review_record_write") is False
+assert boundary.get("wc_ledger_write") is False
+assert boundary.get("wc_credit_award") is False
+assert boundary.get("payout_created_now") is False
+assert boundary.get("redeemable_now") is False
+assert boundary.get("wc_to_void_swap") is False
+assert boundary.get("money_movement") is False
+assert boundary.get("wallet_send") is False
+
+nxt = closeout.get("next_allowed_step", {})
+assert nxt.get("name") == "operator_review_record_v1"
+assert nxt.get("route_created_now") is False
+assert nxt.get("requires_manual_operator_acceptance") is True
+assert nxt.get("must_reference_award_policy_version") == "first-external-tester-wc-award-policy-v1"
+assert nxt.get("must_not_mutate_ledger_automatically") is True
+
+policy = closeout.get("policy_boundary", {})
+assert policy.get("public_status_only") is True
+assert policy.get("read_only") is True
+assert policy.get("mutation") is False
+assert policy.get("private_api") is False
+assert policy.get("public_upload") is False
+assert policy.get("public_post_endpoint") is False
+assert policy.get("trusted_as_network_truth") is False
+
+safety = closeout.get("safety", {})
+assert safety.get("wc_review_record_write") is False
+assert safety.get("wc_ledger_write") is False
+assert safety.get("wc_credit_award") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+route_index_text = Path(sys.argv[2]).read_text()
+self_check_text = Path(sys.argv[3]).read_text()
+route_manifest_text = Path(sys.argv[4]).read_text()
+
+assert path in route_index_text
+assert "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1" in route_index_text
+assert path in self_check_text
+assert "first_external_tester_wc_lane_closeout" in self_check_text
+assert "first_external_tester_wc_lane_closeout_present" in self_check_text
+assert path in route_manifest_text
+assert "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1" in route_manifest_text
+PYJSON
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcLaneCloseoutCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcLaneCloseoutLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcLaneCloseoutAwardPolicyLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "First External Tester WC Lane Closeout" "$PACKET_STATUS_UI_HTML"
+grep -Fq "work_credit_lane_closed_read_only" "$PACKET_STATUS_UI_HTML"
+grep -Fq "External receipt imported:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Earned readiness:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC candidate:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review checklist:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award policy:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review record created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger write:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit award:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC→VOID swap:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-lane-closeout.json" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-award-policy.json" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_wc_lane_closeout_green=true"
+echo "first_external_tester_wc_lane_closeout_state=work_credit_lane_closed_read_only"
+echo "first_external_tester_wc_lane_closeout_review_record_created_now=false"
+echo "first_external_tester_wc_lane_closeout_award_created_now=false"
+echo "first_external_tester_wc_lane_closeout_wc_ledger_write=false"
+echo "first_external_tester_wc_lane_closeout_wc_credit_award=false"
+echo "first_external_tester_wc_lane_closeout_wc_to_void_swap=false"
+echo "first_external_tester_wc_lane_closeout_card_ui_green=true"
+echo "first_external_tester_wc_lane_closeout_discovery_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
