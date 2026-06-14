@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_OPERATOR_AWARD_RECORD_FIXTURE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_AWARD_RECORD_FIXTURE_DOC_V1" docs/public/public-node-operator-award-record-fixture-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_OPERATOR_AWARD_RECORD_FIXTURE_UI_V1" src/index.ts
 
 bash ops/mainnet0/public-node-operator-award-intent-packet-fixture-v1-proof.sh > "$OUT/operator-award-intent-packet-proof.log"
