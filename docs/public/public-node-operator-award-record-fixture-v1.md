@@ -119,3 +119,10 @@ Operator Award Record Fixture v1 depends on:
 Operator Award Record Fixture v1 proves only that VOID has a public, machine-readable award record model for future manual Work Credit award review.
 
 It does not prove public earning readiness, award readiness, ledger readiness, token distribution readiness, WC-to-VOID swap readiness, or production launch readiness.
+
+## Live rollup guard
+
+Operator Award Record Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`operator_award_record_live_status_rollup_green=true`
+
