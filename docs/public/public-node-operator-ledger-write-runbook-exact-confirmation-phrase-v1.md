@@ -57,3 +57,11 @@ A future live write must not pass unless later gates prove:
 ## Next gate
 
 `operator_ledger_write_runbook_live_unlock_boundary_v1`
+
+## Live rollup guard
+
+The public node live status rollup must emit:
+
+`operator_ledger_write_runbook_exact_confirmation_phrase_live_status_rollup_green=true`
+
+This means the exact confirmation phrase gate is present, proof-backed, tmp-only, phrase-absent, unlock-absent, and still performs no live WC ledger write.
