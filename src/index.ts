@@ -45511,6 +45511,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/operator-ledger-write-runbook-scratch-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_FIXTURE_V1", use: "scratch-only fixture for future operator-controlled WC ledger write runbook; no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-scratch-receipt-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_RECEIPT_V1", use: "tmp-only receipt fixture for future operator-controlled WC ledger write scratch candidate; no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-live-refusal-guard-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_REFUSAL_GUARD_V1", use: "live-write refusal guard for future WC ledger write runbook; default denies live ledger write" },
+      { path: "/public-node/operator-ledger-write-runbook-confirmation-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_V1", use: "confirmation boundary model for future WC ledger write runbook; no confirmation accepted and no live ledger write" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46223,6 +46224,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/operator-ledger-write-runbook-scratch-fixture-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_FIXTURE_V1", purpose: "scratch-only fixture for future operator-controlled WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_scratch_only_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-scratch-receipt-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_RECEIPT_V1", purpose: "tmp-only receipt fixture for future operator-controlled WC ledger write scratch candidate", safety_class: "public_read_only_operator_ledger_write_runbook_scratch_receipt_only_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-live-refusal-guard-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_REFUSAL_GUARD_V1", purpose: "default-deny live-write refusal guard for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_live_refusal_guard_no_live_write" },
+    { path: "/public-node/operator-ledger-write-runbook-confirmation-boundary-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_V1", purpose: "confirmation boundary model for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_confirmation_boundary_no_unlock_no_live_write" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46370,6 +46372,116 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
     ],
     proof: "ops/mainnet0/public-node-operator-ledger-write-readiness-fixture-v1-proof.sh",
     safety_claim: "Operator Ledger Write Readiness Fixture v1 is public read-only and readiness-only. It does not authorize or execute ledger writes, WC credit awards, WC-to-VOID swaps, wallet sends, validator mutation, or money movement."
+  });
+});
+
+APP.get("/public-node/operator-ledger-write-runbook-confirmation-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_V1",
+    operator_ledger_write_runbook_confirmation_boundary_version: "v1",
+    status: "ledger_write_runbook_confirmation_boundary_only",
+    state: "confirmation_absent_live_write_locked",
+    phase: "guarded_mainnet_0_bootstrap",
+    public_read_only: true,
+    confirmation_boundary_only: true,
+    confirmation_boundary_green_required: true,
+    confirmation_boundary_green: true,
+    explicit_operator_confirmation_required: true,
+    explicit_operator_confirmation_present: false,
+    exact_operator_intent_required: true,
+    exact_operator_intent_present: false,
+    exact_confirmation_phrase_required: true,
+    exact_confirmation_phrase_present: false,
+    confirmation_record_required_before_live_write: true,
+    confirmation_record_created_now: false,
+    confirmation_record_write: false,
+    confirmation_unlock_created_now: false,
+    confirmation_unlock_allowed_now: false,
+    explicit_live_write_unlock_required: true,
+    explicit_live_write_unlock_present: false,
+    live_refusal_guard_required: true,
+    live_refusal_guard_green: true,
+    live_runtime_write: false,
+    live_runtime_write_allowed: false,
+    live_runtime_write_attempted_now: false,
+    live_runtime_write_refused_now: true,
+    executable_live_runbook: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    public_submission_open: false,
+    work_execution_open: false,
+    readiness_snapshot_required: true,
+    readiness_snapshot_green: false,
+    source_hash_chain_required: true,
+    source_hash_chain_green: false,
+    duplicate_ledger_entry_check_required: true,
+    duplicate_ledger_entry_check_green: false,
+    positive_nonzero_wc_delta_required: true,
+    positive_nonzero_wc_delta_selected_by_operator: false,
+    ledger_entry_preview_required: true,
+    ledger_entry_preview_reviewed: false,
+    scratch_fixture_required: true,
+    scratch_receipt_required: true,
+    ready_for_ledger_write: false,
+    ready_for_credit_award: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    ledger_entry_preview_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_review_record_write: false,
+    wc_decision_record_write: false,
+    wc_award_record_write: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    wallet_send: false,
+    buy_void_fulfillment: false,
+    automatic_ledger_write_allowed: false,
+    confirmation_cases: [
+      { id: "no_operator_confirmation", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_exact_operator_intent", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_exact_confirmation_phrase", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_live_write_unlock", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_readiness_snapshot", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_source_hash_chain", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_duplicate_ledger_entry_check", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_positive_nonzero_delta", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "no_reviewed_ledger_entry_preview", accepted: false, refused: true, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 }
+    ],
+    mutation_probes: [
+      { id: "confirmation_record_write", allowed_now: false },
+      { id: "confirmation_unlock", allowed_now: false },
+      { id: "public_mutation", allowed_now: false },
+      { id: "public_earning", allowed_now: false },
+      { id: "work_execution", allowed_now: false },
+      { id: "live_runtime_write", allowed_now: false },
+      { id: "ledger_write_allowed", allowed_now: false },
+      { id: "ledger_record_write", allowed_now: false },
+      { id: "wc_ledger_write", allowed_now: false },
+      { id: "wc_credit_award", allowed_now: false },
+      { id: "positive_wc_credit_delta", allowed_now: false },
+      { id: "wc_to_void_swap", allowed_now: false },
+      { id: "wallet_send", allowed_now: false },
+      { id: "validator_mutation", allowed_now: false },
+      { id: "automatic_ledger_write", allowed_now: false }
+    ],
+    depends_on: [
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_REFUSAL_GUARD_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_RECEIPT_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_READINESS_FIXTURE_V1"
+    ],
+    next_gate: "operator_ledger_write_runbook_exact_intent_packet_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-confirmation-boundary-v1-proof.sh",
+    safety_claim: "Operator Ledger Write Runbook Confirmation Boundary v1 models the future confirmation layer without accepting confirmation, creating an unlock, writing live runtime state, mutating the WC ledger, awarding WC, swapping WC to VOID, sending funds, or mutating validators."
   });
 });
 
@@ -51092,6 +51204,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookConfirmationBoundaryCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_UI_V1 -->
+          <h3>Operator ledger write runbook confirmation boundary v1</h3>
+          <p>Confirmation boundary model for a future operator-controlled WC ledger write. No confirmation is accepted, no unlock is created, and live ledger writes remain blocked.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-confirmation-boundary-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-operator-ledger-write-runbook-confirmation-boundary-v1-proof.sh</code></p>
+          <p>Status: <code>ledger_write_runbook_confirmation_boundary_only</code>; confirmation remains absent and live ledger write remains locked.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookLiveRefusalGuardCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_REFUSAL_GUARD_UI_V1 -->
           <h3>Operator ledger write runbook live refusal guard v1</h3>
           <p>Default-deny guard for the future live WC ledger write path. It proves live writes are refused unless future explicit gates are satisfied.</p>
