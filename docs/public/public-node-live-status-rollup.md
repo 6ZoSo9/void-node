@@ -330,3 +330,20 @@ Expected rollup lines:
     first_external_tester_wc_lane_closeout_wc_to_void_swap=false
     first_external_tester_wc_lane_closeout_card_ui_green=true
     first_external_tester_wc_lane_closeout_discovery_green=true
+
+## First external tester WC review record stub guard <!-- VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_DOC_V1 -->
+
+The live status rollup checks the first external tester Work Credit review record stub route and visible `/public-node` card.
+
+Expected rollup lines:
+
+    first_external_tester_wc_review_record_stub_green=true
+    first_external_tester_wc_review_record_stub_state=template_only_no_review_record_created
+    first_external_tester_wc_review_record_stub_review_record_created_now=false
+    first_external_tester_wc_review_record_stub_award_created_now=false
+    first_external_tester_wc_review_record_stub_wc_ledger_write=false
+    first_external_tester_wc_review_record_stub_wc_credit_award=false
+    first_external_tester_wc_review_record_stub_wc_to_void_swap=false
+    first_external_tester_wc_review_record_stub_automatic_ledger_write_allowed=false
+    first_external_tester_wc_review_record_stub_card_ui_green=true
+    first_external_tester_wc_review_record_stub_discovery_green=true

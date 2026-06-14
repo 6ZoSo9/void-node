@@ -978,4 +978,117 @@ echo "first_external_tester_wc_lane_closeout_wc_to_void_swap=false"
 echo "first_external_tester_wc_lane_closeout_card_ui_green=true"
 echo "first_external_tester_wc_lane_closeout_discovery_green=true"
 
+WC_REVIEW_RECORD_STUB_JSON="$OUT/first-external-tester-wc-review-record-stub.json"
+WC_REVIEW_RECORD_STUB_ROUTE_INDEX_JSON="$OUT/first-external-tester-wc-review-record-stub-route-index.json"
+WC_REVIEW_RECORD_STUB_SELF_CHECK_JSON="$OUT/first-external-tester-wc-review-record-stub-self-check.json"
+WC_REVIEW_RECORD_STUB_ROUTE_MANIFEST_JSON="$OUT/first-external-tester-wc-review-record-stub-route-manifest.json"
+
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-wc-review-record-stub.json" > "$WC_REVIEW_RECORD_STUB_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$WC_REVIEW_RECORD_STUB_ROUTE_INDEX_JSON"
+curl -fsS "$LOCAL_BASE/public-node/self-check-snapshot.json" > "$WC_REVIEW_RECORD_STUB_SELF_CHECK_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$WC_REVIEW_RECORD_STUB_ROUTE_MANIFEST_JSON"
+
+python3 - "$WC_REVIEW_RECORD_STUB_JSON" "$WC_REVIEW_RECORD_STUB_ROUTE_INDEX_JSON" "$WC_REVIEW_RECORD_STUB_SELF_CHECK_JSON" "$WC_REVIEW_RECORD_STUB_ROUTE_MANIFEST_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+stub = json.loads(Path(sys.argv[1]).read_text())
+route_index_text = Path(sys.argv[2]).read_text()
+self_check_text = Path(sys.argv[3]).read_text()
+route_manifest_text = Path(sys.argv[4]).read_text()
+
+path = "/public-node/first-external-tester-wc-review-record-stub.json"
+
+assert stub.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1"
+assert stub.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_ROUTE_V1"
+assert stub.get("stub_state") == "template_only_no_review_record_created"
+assert stub.get("candidate_id") == "first-external-tester-n153b-demo003-standalone-smoke-v1"
+assert stub.get("review_record_marker_required") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_V1"
+assert stub.get("award_policy_version") == "first-external-tester-wc-award-policy-v1"
+
+assert stub.get("review_record_created_now") is False
+assert stub.get("review_outcome_now") == "not_decided"
+assert stub.get("award_decision_now") == "not_decided"
+assert stub.get("award_created_now") is False
+assert stub.get("wc_ledger_mutated_now") is False
+assert stub.get("wc_credit_delta_now") == 0
+assert stub.get("wc_review_record_write") is False
+assert stub.get("wc_ledger_write") is False
+assert stub.get("wc_credit_award") is False
+assert stub.get("wc_to_void_swap") is False
+assert stub.get("template_only") is True
+
+fields = stub.get("template_fields", {})
+assert fields.get("candidate_id_required") is True
+assert fields.get("reviewer_required") is True
+assert fields.get("reviewed_at_utc_required") is True
+assert fields.get("review_outcome_required") is True
+assert fields.get("allowed_review_outcomes") == ["accepted", "rejected", "deferred"]
+assert fields.get("evidence_routes_required") is True
+assert fields.get("award_policy_version_required") is True
+assert fields.get("decision_reason_required") is True
+assert fields.get("operator_signature_or_local_attestation_required") is True
+assert fields.get("explicit_ledger_write_intent_required") is True
+assert fields.get("explicit_no_wallet_send_confirmation_required") is True
+
+req = stub.get("acceptance_requirements", {})
+assert req.get("manual_operator_acceptance_required") is True
+assert req.get("automatic_award_allowed") is False
+assert req.get("automatic_ledger_write_allowed") is False
+
+safety = stub.get("safety", {})
+assert safety.get("review_record_created_now") is False
+assert safety.get("wc_review_record_write") is False
+assert safety.get("wc_ledger_write") is False
+assert safety.get("wc_credit_award") is False
+assert safety.get("payout_created_now") is False
+assert safety.get("redeemable_now") is False
+assert safety.get("wc_to_void_swap") is False
+assert safety.get("money_movement") is False
+assert safety.get("wallet_send") is False
+assert safety.get("buy_void_fulfillment") is False
+assert safety.get("validator_mutation") is False
+
+assert path in route_index_text
+assert "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1" in route_index_text
+assert path in self_check_text
+assert "first_external_tester_wc_review_record_stub" in self_check_text
+assert "first_external_tester_wc_review_record_stub_present" in self_check_text
+assert path in route_manifest_text
+assert "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1" in route_manifest_text
+PYJSON
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_UI_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcReviewRecordStubCard" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcReviewRecordStubLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcReviewRecordStubCloseoutLink" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Operator Review Record Stub" "$PACKET_STATUS_UI_HTML"
+grep -Fq "template_only_no_review_record_created" "$PACKET_STATUS_UI_HTML"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_V1" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review record created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Review outcome now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award decision now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "Award created now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger mutated now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit delta now:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC review record write:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC ledger write:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC credit award:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "WC→VOID swap:" "$PACKET_STATUS_UI_HTML"
+grep -Fq "automatic_ledger_write_allowed=false" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-review-record-stub.json" "$PACKET_STATUS_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-lane-closeout.json" "$PACKET_STATUS_UI_HTML"
+
+echo "first_external_tester_wc_review_record_stub_green=true"
+echo "first_external_tester_wc_review_record_stub_state=template_only_no_review_record_created"
+echo "first_external_tester_wc_review_record_stub_review_record_created_now=false"
+echo "first_external_tester_wc_review_record_stub_award_created_now=false"
+echo "first_external_tester_wc_review_record_stub_wc_ledger_write=false"
+echo "first_external_tester_wc_review_record_stub_wc_credit_award=false"
+echo "first_external_tester_wc_review_record_stub_wc_to_void_swap=false"
+echo "first_external_tester_wc_review_record_stub_automatic_ledger_write_allowed=false"
+echo "first_external_tester_wc_review_record_stub_card_ui_green=true"
+echo "first_external_tester_wc_review_record_stub_discovery_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
