@@ -45217,6 +45217,76 @@ APP.get("/public-node/first-external-tester-wc-ledger-write-boundary.json", (_re
   });
 });
 
+
+APP.get("/public-node/first-external-tester-wc-ledger-write-readiness-status.json", (_req, res) => {
+  res.json({
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_ROUTE_V1",
+    route: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
+    lane: "first_external_tester_wc",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    readiness_state: "blocked_not_ready_for_ledger_write",
+    ready_for_ledger_write: false,
+    ready_for_credit_award: false,
+    current_review_state: "pending_operator_review",
+    current_decision_state: "not_approved",
+    current_award_intent_state: "deferred",
+    current_award_record_state: "deferred",
+    current_ledger_preview_state: "deferred",
+    current_ledger_write_state: "not_allowed",
+    required_approvals: {
+      operator_review_record_approved: false,
+      operator_decision_record_approved: false,
+      operator_award_intent_packet_approved: false,
+      operator_award_record_approved: false,
+      operator_ledger_entry_preview_reviewed: false
+    },
+    required_checks: {
+      positive_nonzero_wc_delta_selected_by_operator: false,
+      duplicate_ledger_entry_check_green: false,
+      source_hash_chain_green: false,
+      explicit_operator_ledger_write_confirmation_present: false,
+      ledger_write_runbook_exists: false,
+      ledger_write_runbook_proof_green: false
+    },
+    current_blockers: [
+      "operator_review_record_not_approved",
+      "operator_decision_record_not_approved",
+      "operator_award_intent_packet_not_approved",
+      "operator_award_record_not_approved",
+      "operator_ledger_entry_preview_not_reviewed",
+      "positive_nonzero_wc_delta_not_selected",
+      "duplicate_ledger_entry_check_not_run",
+      "source_hash_chain_not_promoted_to_approved",
+      "explicit_operator_ledger_write_confirmation_missing",
+      "ledger_write_runbook_absent",
+      "ledger_write_runbook_proof_absent"
+    ],
+    protected_boundary: {
+      ledger_write_readiness_status_only: true,
+      ledger_write_allowed_now: false,
+      ledger_record_created_now: false,
+      ledger_entry_preview_created_now: false,
+      award_record_created_now: false,
+      award_created_now: false,
+      award_write_allowed_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      automatic_ledger_write_allowed: false,
+      public_upload: false,
+      trusted_as_network_truth: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    },
+    next_safe_step_after_readiness_status: "operator_approval_state_fixture_or_duplicate_check_design_only"
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45250,6 +45320,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-review-record-stub.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", use: "template-only operator review record stub for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", use: "allowed decision states boundary for first external tester WC review" },
       { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
+      { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
@@ -45761,6 +45832,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-review-record-stub.json",
     "/public-node/first-external-tester-wc-review-decision-boundary.json",
     "/public-node/first-external-tester-wc-ledger-write-boundary.json",
+    "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
     "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
@@ -45813,6 +45885,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
       first_external_tester_wc_review_decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
       first_external_tester_wc_ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
+      first_external_tester_wc_ledger_write_readiness_status: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
       first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
@@ -45900,6 +45973,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-review-record-stub.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", purpose: "template-only operator review record stub for first external tester WC lane", safety_class: "public_read_only_review_record_template_no_ledger_mutation" },
     { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", purpose: "allowed decision states boundary for first external tester WC review", safety_class: "public_read_only_decision_boundary_no_review_record_no_ledger_mutation" },
     { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
+    { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1", purpose: "read-only operator decision packet template for first external tester Work Credit review" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
@@ -48262,6 +48336,37 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <a id="publicNodeFirstExternalTesterWcLedgerWriteBoundaryPreviewLink" href="/public-node/first-external-tester-wc-review-decision-boundary.json">Open decision boundary</a>
         </p>
       </section>
+      <section id="publicNodeFirstExternalTesterWcLedgerWriteReadinessStatusCard" class="card">
+        <p class="eyebrow">Work Credit Ledger Readiness</p>
+        <h2>Ledger Write Readiness Status</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_UI_V1 -->
+          The first external tester Work Credit lane is still blocked before any real ledger write.
+          This card shows the remaining approval/check blockers and keeps the write boundary fail-closed.
+        </p>
+        <ul>
+          <li>Readiness state: <code>blocked_not_ready_for_ledger_write</code></li>
+          <li>Ready for ledger write: <code>false</code></li>
+          <li>Ready for credit award: <code>false</code></li>
+          <li>Current review state: <code>pending_operator_review</code></li>
+          <li>Current decision state: <code>not_approved</code></li>
+          <li>Current award intent state: <code>deferred</code></li>
+          <li>Current award record state: <code>deferred</code></li>
+          <li>Current ledger preview state: <code>deferred</code></li>
+          <li>Current ledger write state: <code>not_allowed</code></li>
+          <li>Ledger write runbook exists: <code>false</code></li>
+          <li>Ledger record created now: <code>false</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Still blocked by approvals, reviewed preview, positive WC delta, duplicate check, source hash promotion, explicit confirmation, and absent ledger write runbook.</p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcLedgerWriteReadinessStatusLink" href="/public-node/first-external-tester-wc-ledger-write-readiness-status.json">Open readiness status</a>
+          <a id="publicNodeFirstExternalTesterWcLedgerWriteReadinessBoundaryLink" href="/public-node/first-external-tester-wc-ledger-write-boundary.json">Open ledger write boundary</a>
+        </p>
+      </section>
+
 
 
       <section id="publicNodeFirstExternalTesterWcOperatorDecisionPacketCard" class="card">
