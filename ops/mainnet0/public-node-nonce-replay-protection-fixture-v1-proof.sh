@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_DOC_V1" docs/public/public-node-nonce-replay-protection-fixture-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_UI_V1" src/index.ts
 
 NONCE="$OUT/nonce-replay-protection-fixture-v1.json"
