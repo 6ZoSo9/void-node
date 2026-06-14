@@ -45188,6 +45188,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-candidate.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_V1", use: "first external tester Work Credit candidate packet for operator review" },
       { path: "/public-node/first-external-tester-wc-review-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1", use: "operator review checklist for first external tester Work Credit candidate" },
       { path: "/public-node/first-external-tester-wc-award-policy.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1", use: "read-only award policy stub for future first external tester Work Credit review decisions" },
+      { path: "/public-node/first-external-tester-wc-lane-closeout.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", use: "first external tester Work Credit lane closeout summary" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45694,6 +45695,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-candidate.json",
     "/public-node/first-external-tester-wc-review-checklist.json",
     "/public-node/first-external-tester-wc-award-policy.json",
+    "/public-node/first-external-tester-wc-lane-closeout.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45741,6 +45743,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_candidate: effectiveBaseUrl + "/public-node/first-external-tester-wc-candidate.json",
       first_external_tester_wc_review_checklist: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-checklist.json",
       first_external_tester_wc_award_policy: effectiveBaseUrl + "/public-node/first-external-tester-wc-award-policy.json",
+      first_external_tester_wc_lane_closeout: effectiveBaseUrl + "/public-node/first-external-tester-wc-lane-closeout.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45772,6 +45775,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_candidate_present: true,
       first_external_tester_wc_review_checklist_present: true,
       first_external_tester_wc_award_policy_present: true,
+      first_external_tester_wc_lane_closeout_present: true,
       standalone_outside_tester_smoke_script_present: true,
       tester_share_page_present: true,
       tester_lane_summary_present: true,
@@ -45820,6 +45824,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-candidate.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_V1", purpose: "first external tester Work Credit candidate packet for operator review", safety_class: "public_read_only_wc_candidate_no_award" },
     { path: "/public-node/first-external-tester-wc-review-checklist.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1", purpose: "operator review checklist for first external tester Work Credit candidate", safety_class: "public_read_only_review_checklist_no_award" },
     { path: "/public-node/first-external-tester-wc-award-policy.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1", purpose: "read-only award policy stub for future first external tester Work Credit review decisions", safety_class: "public_read_only_award_policy_no_ledger_mutation" },
+    { path: "/public-node/first-external-tester-wc-lane-closeout.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", purpose: "first external tester Work Credit lane closeout summary", safety_class: "public_read_only_wc_lane_closeout_no_award" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -46823,6 +46828,83 @@ APP.get("/public-node/first-external-tester-wc-award-policy.json", (_req:any, re
   });
 });
 
+APP.get("/public-node/first-external-tester-wc-lane-closeout.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_ROUTE_V1",
+    purpose: "public_node_first_external_tester_wc_lane_closeout",
+    closeout_state: "work_credit_lane_closed_read_only",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    chain_summary: {
+      external_receipt_imported: true,
+      earned_readiness_green: true,
+      earned_readiness_card_ui_green: true,
+      wc_candidate_green: true,
+      wc_candidate_card_ui_green: true,
+      wc_review_checklist_green: true,
+      wc_review_checklist_card_ui_green: true,
+      wc_award_policy_green: true,
+      wc_award_policy_card_ui_green: true
+    },
+    closeout_boundary: {
+      review_record_created_now: false,
+      review_outcome_now: "not_decided",
+      award_decision_now: "not_decided",
+      award_created_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      proposed_wc_credit_delta_now: null,
+      wc_review_record_write: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      payout_created_now: false,
+      redeemable_now: false,
+      wc_to_void_swap: false,
+      money_movement: false,
+      wallet_send: false
+    },
+    next_allowed_step: {
+      name: "operator_review_record_v1",
+      route_created_now: false,
+      requires_manual_operator_acceptance: true,
+      must_reference_award_policy_version: "first-external-tester-wc-award-policy-v1",
+      must_not_mutate_ledger_automatically: true
+    },
+    links: {
+      receipt_closeout: effectiveBaseUrl + "/public-node/first-external-receipt-imported-closeout-proof-status.json",
+      earned_readiness: effectiveBaseUrl + "/public-node/first-external-tester-earned-readiness.json",
+      wc_candidate: effectiveBaseUrl + "/public-node/first-external-tester-wc-candidate.json",
+      review_checklist: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-checklist.json",
+      award_policy: effectiveBaseUrl + "/public-node/first-external-tester-wc-award-policy.json",
+      live_rollup_manifest: effectiveBaseUrl + "/public-node/route-manifest.json"
+    },
+    policy_boundary: {
+      public_status_only: true,
+      read_only: true,
+      mutation: false,
+      private_api: false,
+      public_upload: false,
+      public_post_endpoint: false,
+      trusted_as_network_truth: false
+    },
+    safety: {
+      wc_review_record_write: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1
   const defaultBaseUrl = "http://127.0.0.1:4100";
   const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
@@ -47755,6 +47837,35 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
         <p class="actions">
           <a id="publicNodeFirstExternalTesterWcAwardPolicyLink" href="/public-node/first-external-tester-wc-award-policy.json">Open award policy</a>
           <a id="publicNodeFirstExternalTesterWcAwardPolicyReviewChecklistLink" href="/public-node/first-external-tester-wc-review-checklist.json">Open review checklist</a>
+        </p>
+      </section>
+
+      <section id="publicNodeFirstExternalTesterWcLaneCloseoutCard" class="card">
+        <p class="eyebrow">Work Credit Lane Closeout</p>
+        <h2>First External Tester WC Lane Closeout</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_UI_V1 -->
+          The first external tester Work Credit lane is closed as public read-only evidence:
+          receipt imported, earned readiness visible, WC candidate visible, review checklist visible,
+          and award policy visible. No review record, no award, no ledger write, and no WC→VOID swap exists yet.
+        </p>
+        <ul>
+          <li>Closeout state: <code>work_credit_lane_closed_read_only</code></li>
+          <li>External receipt imported: <code>true</code></li>
+          <li>Earned readiness: <code>true</code></li>
+          <li>WC candidate: <code>true</code></li>
+          <li>Review checklist: <code>true</code></li>
+          <li>Award policy: <code>true</code></li>
+          <li>Review record created now: <code>false</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Live rollup guard: <code>first_external_tester_wc_award_policy_card_ui_green=true</code></p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcLaneCloseoutLink" href="/public-node/first-external-tester-wc-lane-closeout.json">Open WC lane closeout</a>
+          <a id="publicNodeFirstExternalTesterWcLaneCloseoutAwardPolicyLink" href="/public-node/first-external-tester-wc-award-policy.json">Open award policy</a>
         </p>
       </section>
 
