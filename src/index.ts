@@ -45496,6 +45496,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/outside-tester-smoke.json", kind: "json", marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", use: "outside tester smoke command surface" },
       { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
+      { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46193,6 +46194,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
+    { path: "/public-node/risk-register.json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", purpose: "public node anti-hype risk register", safety_class: "public_read_only_risk_register_no_mutation" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46229,6 +46231,38 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
   });
 });
 
+
+
+APP.get("/public-node/risk-register.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_RISK_REGISTER_ROUTE_V1
+  const risks = [
+    { id: "guarded_bootstrap_centralization", title: "Guarded bootstrap centralization", status: "known", gate_state: "operator_only", public_mutation_open: false, claim_state: "acknowledged_only", mitigation: "Mainnet-0 is intentionally guarded until proof-backed abuse controls exist.", last_reviewed: "2026-06-14" },
+    { id: "sybil_ddos_public_participation", title: "Sybil and DDoS risk before public earning", status: "not_open", gate_state: "closed", public_mutation_open: false, claim_state: "must_not_be_claimed_solved", mitigation: "Public earning remains closed until identity, replay protection, rate limits, duplicate ledger checks, and WC source-hash-chain proofs are enforced.", last_reviewed: "2026-06-14" },
+    { id: "sparse_node_density", title: "Sparse node density", status: "known", gate_state: "read_only", public_mutation_open: false, claim_state: "acknowledged_only", mitigation: "Current claims are limited to local/cross-box proofing and guarded tester lanes. VOID does not yet claim mature global redundancy.", last_reviewed: "2026-06-14" },
+    { id: "datanet_core_isolation", title: "DataNet workload isolation from core runtime", status: "future_work", gate_state: "closed", public_mutation_open: false, claim_state: "future_work", mitigation: "DataNet storage and serving must remain tiered, quota-limited, and isolated from consensus and core runtime hot paths before public hosting opens.", last_reviewed: "2026-06-14" },
+    { id: "upgrade_transparency", title: "Protocol upgrade transparency", status: "future_work", gate_state: "operator_only", public_mutation_open: false, claim_state: "future_work", mitigation: "External operators still need readable upgrade classification and rollback policy before broader public operations.", last_reviewed: "2026-06-14" },
+    { id: "wc_economic_integrity", title: "Work Credit economic integrity", status: "not_open", gate_state: "closed", public_mutation_open: false, claim_state: "must_not_be_claimed_solved", mitigation: "Work Credit earning and WC-to-VOID conversion remain closed until ledger write, duplicate-entry, source-hash-chain, and operator review controls are proof-backed.", last_reviewed: "2026-06-14" },
+    { id: "datanet_content_liability", title: "DataNet content and node liability", status: "future_work", gate_state: "closed", public_mutation_open: false, claim_state: "future_work", mitigation: "Public DataNet ingest remains closed until content boundaries, operator-local import policy, and node liability controls are documented and proof-backed.", last_reviewed: "2026-06-14" },
+    { id: "client_resource_exhaustion", title: "Client and node resource exhaustion", status: "known", gate_state: "read_only", public_mutation_open: false, claim_state: "acknowledged_only", mitigation: "Requester/client-side compute is preferred for heavier filtering and scoring. Public mutation and public earning remain closed while runtime bounds are hardened.", last_reviewed: "2026-06-14" }
+  ];
+
+  res.json({
+    marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1",
+    risk_register_version: "v1",
+    phase: "guarded_mainnet_0_bootstrap",
+    claim: "VOID exposes known risks as a read-only truth surface before opening public mutation or earning.",
+    risk_count: risks.length,
+    risks,
+    policy: {
+      public_read_only: true,
+      public_mutation: false,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      wc_credit_award: false,
+      validator_mutation: false
+    }
+  });
+});
 
 
 APP.get("/public-node/data-weight-record.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_ROUTE_V1
