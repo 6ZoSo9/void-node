@@ -393,3 +393,31 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_decision_packet_discovery_green=true
 
 This guard is read-only. It does not create an operator decision, review record, award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Operator Decision Draft Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_DRAFT_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the local-only operator decision draft generator.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_decision_draft_green=true
+- first_external_tester_wc_operator_decision_draft_only=true
+- first_external_tester_wc_operator_decision_draft_runtime_draft_written=false
+- first_external_tester_wc_operator_decision_draft_operator_decision_created_now=false
+- first_external_tester_wc_operator_decision_draft_review_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_decision_record_created_now=false
+- first_external_tester_wc_operator_decision_draft_award_created_now=false
+- first_external_tester_wc_operator_decision_draft_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_decision_draft_wc_credit_delta_now=0
+- first_external_tester_wc_operator_decision_draft_wc_ledger_write=false
+- first_external_tester_wc_operator_decision_draft_wc_credit_award=false
+- first_external_tester_wc_operator_decision_draft_wc_to_void_swap=false
+- first_external_tester_wc_operator_decision_draft_automatic_ledger_write_allowed=false
+- first_external_tester_wc_operator_decision_draft_public_upload=false
+- first_external_tester_wc_operator_decision_draft_trusted_as_network_truth=false
+- first_external_tester_wc_operator_decision_draft_write_runtime_default=false
+
+This guard proves the draft generator remains local-only and dry-run by default. It does not create an operator decision, review record, decision record, Work Credit award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
