@@ -45159,6 +45159,64 @@ APP.get("/public-node/tester-checklist.json", (_req:any, res:any) => { // VOID_P
 });
 
 
+
+APP.get("/public-node/first-external-tester-wc-ledger-write-boundary.json", (_req, res) => {
+  res.json({
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_ROUTE_V1",
+    route: "/public-node/first-external-tester-wc-ledger-write-boundary.json",
+    lane: "first_external_tester_wc",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    boundary_state: "pre_ledger_write_boundary_no_ledger_record_created",
+    current_ledger_write_state: "not_allowed",
+    current_review_state: "pending_operator_review",
+    current_award_state: "not_awarded",
+    current_ledger_preview_state: "deferred",
+    allowed_future_ledger_write_states: ["not_allowed", "ready_for_explicit_operator_ledger_write", "written_by_explicit_operator_runbook"],
+    required_before_ledger_write: [
+      "operator_review_record_approved",
+      "operator_decision_record_approved",
+      "operator_award_intent_packet_approved",
+      "operator_award_record_approved",
+      "operator_ledger_entry_preview_reviewed",
+      "positive_nonzero_wc_delta_selected_by_operator",
+      "duplicate_ledger_entry_check_green",
+      "explicit_operator_ledger_write_confirmation",
+      "ledger_write_runbook_proof_green"
+    ],
+    current_blockers: [
+      "review_outcome_not_approved",
+      "decision_outcome_not_approved",
+      "award_intent_state_deferred",
+      "award_record_state_deferred",
+      "ledger_preview_state_deferred",
+      "preview_wc_delta_zero",
+      "ledger_write_runbook_not_created"
+    ],
+    protected_boundary: {
+      ledger_write_allowed_now: false,
+      ledger_record_created_now: false,
+      ledger_entry_preview_created_now: false,
+      award_record_created_now: false,
+      award_created_now: false,
+      award_write_allowed_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      automatic_ledger_write_allowed: false,
+      public_upload: false,
+      trusted_as_network_truth: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    },
+    next_safe_step_after_boundary: "operator_ledger_write_runbook_design_only_or_explicit_guarded_runbook"
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45191,6 +45249,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-lane-closeout.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", use: "first external tester Work Credit lane closeout summary" },
       { path: "/public-node/first-external-tester-wc-review-record-stub.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", use: "template-only operator review record stub for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", use: "allowed decision states boundary for first external tester WC review" },
+      { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
@@ -45701,6 +45760,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-lane-closeout.json",
     "/public-node/first-external-tester-wc-review-record-stub.json",
     "/public-node/first-external-tester-wc-review-decision-boundary.json",
+    "/public-node/first-external-tester-wc-ledger-write-boundary.json",
     "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
@@ -45752,6 +45812,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_lane_closeout: effectiveBaseUrl + "/public-node/first-external-tester-wc-lane-closeout.json",
       first_external_tester_wc_review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
       first_external_tester_wc_review_decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
+      first_external_tester_wc_ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
       first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
@@ -48172,6 +48233,35 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <a id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryStubLink" href="/public-node/first-external-tester-wc-review-record-stub.json">Open review record stub</a>
         </p>
       </section>
+      <section id="publicNodeFirstExternalTesterWcLedgerWriteBoundaryCard" class="card">
+        <p class="eyebrow">Work Credit Ledger Boundary</p>
+        <h2>Ledger Write Boundary</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_UI_V1 -->
+          This is the public read-only boundary before any real Work Credit ledger write can exist.
+          The lane has a proven preview path, but the ledger write itself is still not allowed.
+        </p>
+        <ul>
+          <li>Boundary state: <code>pre_ledger_write_boundary_no_ledger_record_created</code></li>
+          <li>Current ledger write state: <code>not_allowed</code></li>
+          <li>Ledger write allowed now: <code>false</code></li>
+          <li>Ledger record created now: <code>false</code></li>
+          <li>Ledger preview created now: <code>false</code></li>
+          <li>Award record created now: <code>false</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC ledger mutated now: <code>false</code></li>
+          <li>WC credit delta now: <code>0</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Required before ledger write: approved review, approved decision, approved award record, reviewed preview, positive WC delta, duplicate check, and explicit operator confirmation.</p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcLedgerWriteBoundaryLink" href="/public-node/first-external-tester-wc-ledger-write-boundary.json">Open ledger write boundary</a>
+          <a id="publicNodeFirstExternalTesterWcLedgerWriteBoundaryPreviewLink" href="/public-node/first-external-tester-wc-review-decision-boundary.json">Open decision boundary</a>
+        </p>
+      </section>
+
 
       <section id="publicNodeFirstExternalTesterWcOperatorDecisionPacketCard" class="card">
         <p class="eyebrow">Work Credit Operator Review</p>
