@@ -45516,6 +45516,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/operator-ledger-write-runbook-exact-confirmation-phrase-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_CONFIRMATION_PHRASE_V1", use: "exact confirmation phrase model for future WC ledger write runbook; no phrase accepted and no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-live-unlock-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_UNLOCK_BOUNDARY_V1", use: "live unlock boundary model for future WC ledger write runbook; unlock absent and no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-final-prewrite-readiness-matrix-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_PREWRITE_READINESS_MATRIX_V1", use: "final prewrite readiness matrix for future WC ledger write runbook; blocked and no live ledger write" },
+      { path: "/public-node/operator-ledger-write-runbook-source-hash-chain-green-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SOURCE_HASH_CHAIN_GREEN_V1", use: "source hash chain green gate for future WC ledger write runbook; no live ledger write" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46233,6 +46234,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/operator-ledger-write-runbook-exact-confirmation-phrase-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_CONFIRMATION_PHRASE_V1", purpose: "exact confirmation phrase model for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_exact_confirmation_phrase_no_unlock_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-live-unlock-boundary-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_UNLOCK_BOUNDARY_V1", purpose: "live unlock boundary model for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_live_unlock_boundary_no_unlock_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-final-prewrite-readiness-matrix-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_PREWRITE_READINESS_MATRIX_V1", purpose: "final prewrite readiness matrix for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_final_prewrite_matrix_blocked_no_live_write" },
+    { path: "/public-node/operator-ledger-write-runbook-source-hash-chain-green-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SOURCE_HASH_CHAIN_GREEN_V1", purpose: "source hash chain green gate for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_source_hash_chain_green_no_live_write" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46380,6 +46382,143 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
     ],
     proof: "ops/mainnet0/public-node-operator-ledger-write-readiness-fixture-v1-proof.sh",
     safety_claim: "Operator Ledger Write Readiness Fixture v1 is public read-only and readiness-only. It does not authorize or execute ledger writes, WC credit awards, WC-to-VOID swaps, wallet sends, validator mutation, or money movement."
+  });
+});
+
+APP.get("/public-node/operator-ledger-write-runbook-source-hash-chain-green-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SOURCE_HASH_CHAIN_GREEN_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SOURCE_HASH_CHAIN_GREEN_V1",
+    operator_ledger_write_runbook_source_hash_chain_green_version: "v1",
+    status: "ledger_write_runbook_source_hash_chain_green_only",
+    state: "source_hash_chain_green_no_live_write",
+    phase: "guarded_mainnet_0_bootstrap",
+    public_read_only: true,
+    source_hash_chain_green_only: true,
+    source_hash_chain_required: true,
+    source_hash_chain_green: true,
+    source_hash_chain_created_now: false,
+    source_hash_chain_artifact_created_by_route: false,
+    source_hash_chain_path_policy: "proof_tmp_only",
+    source_hash_chain_required_length: 8,
+    source_hash_chain_length: 8,
+    source_hash_chain_root_present: true,
+    source_hash_chain_root_created_now: false,
+    source_hash_chain_verified_by_proof: true,
+    source_hash_chain_items: [
+      { id: "operator_review_record_source", required: true, present: true, hashed: true },
+      { id: "operator_decision_record_source", required: true, present: true, hashed: true },
+      { id: "operator_award_intent_packet_source", required: true, present: true, hashed: true },
+      { id: "operator_award_record_source", required: true, present: true, hashed: true },
+      { id: "operator_ledger_entry_preview_source", required: true, present: true, hashed: true },
+      { id: "operator_ledger_write_readiness_source", required: true, present: true, hashed: true },
+      { id: "operator_ledger_write_runbook_design_source", required: true, present: true, hashed: true },
+      { id: "operator_ledger_write_runbook_guard_stack_source", required: true, present: true, hashed: true }
+    ],
+    final_prewrite_readiness_matrix_required: true,
+    final_prewrite_readiness_matrix_green: true,
+    live_unlock_boundary_required: true,
+    live_unlock_boundary_green: true,
+    explicit_live_write_unlock_present: false,
+    live_write_unlock_created_now: false,
+    live_write_unlock_accepted_now: false,
+    unlock_record_created_now: false,
+    exact_confirmation_phrase_required: true,
+    exact_confirmation_phrase_green: true,
+    exact_confirmation_phrase_present: false,
+    exact_confirmation_phrase_accepted_now: false,
+    exact_intent_packet_required: true,
+    exact_intent_packet_green: true,
+    exact_operator_intent_required: true,
+    exact_operator_intent_present: false,
+    exact_operator_intent_accepted_now: false,
+    explicit_operator_confirmation_required: true,
+    explicit_operator_confirmation_present: false,
+    confirmation_boundary_required: true,
+    confirmation_boundary_green: true,
+    live_refusal_guard_required: true,
+    live_refusal_guard_green: true,
+    duplicate_ledger_entry_check_required: true,
+    duplicate_ledger_entry_check_green: false,
+    positive_nonzero_wc_delta_required: true,
+    positive_nonzero_wc_delta_selected_by_operator: false,
+    ledger_entry_preview_required: true,
+    ledger_entry_preview_reviewed: false,
+    final_operator_apply_required: true,
+    final_operator_apply_present: false,
+    final_operator_apply_allowed_now: false,
+    all_required_gates_green: false,
+    live_runtime_write: false,
+    live_runtime_write_allowed: false,
+    live_runtime_write_attempted_now: false,
+    live_runtime_write_refused_now: true,
+    executable_live_runbook: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    public_submission_open: false,
+    work_execution_open: false,
+    ready_for_ledger_write: false,
+    ready_for_credit_award: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    ledger_entry_preview_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_review_record_write: false,
+    wc_decision_record_write: false,
+    wc_award_record_write: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    wallet_send: false,
+    buy_void_fulfillment: false,
+    automatic_ledger_write_allowed: false,
+    hash_chain_cases: [
+      { id: "source_hash_chain_green", green: true, ready_for_ledger_write: false, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "duplicate_check_still_missing", green: false, ready_for_ledger_write: false, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "positive_delta_still_missing", green: false, ready_for_ledger_write: false, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "preview_review_still_missing", green: false, ready_for_ledger_write: false, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 },
+      { id: "final_operator_apply_still_missing", green: false, ready_for_ledger_write: false, live_runtime_write: false, wc_ledger_write: false, wc_credit_delta_now: 0 }
+    ],
+    mutation_probes: [
+      { id: "source_hash_chain_runtime_write", allowed_now: false },
+      { id: "final_operator_apply", allowed_now: false },
+      { id: "live_write_unlock_write", allowed_now: false },
+      { id: "unlock_record_write", allowed_now: false },
+      { id: "public_mutation", allowed_now: false },
+      { id: "public_earning", allowed_now: false },
+      { id: "work_execution", allowed_now: false },
+      { id: "live_runtime_write", allowed_now: false },
+      { id: "ledger_write_allowed", allowed_now: false },
+      { id: "ledger_record_write", allowed_now: false },
+      { id: "wc_ledger_write", allowed_now: false },
+      { id: "wc_credit_award", allowed_now: false },
+      { id: "positive_wc_credit_delta", allowed_now: false },
+      { id: "wc_to_void_swap", allowed_now: false },
+      { id: "wallet_send", allowed_now: false },
+      { id: "validator_mutation", allowed_now: false },
+      { id: "automatic_ledger_write", allowed_now: false }
+    ],
+    depends_on: [
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_PREWRITE_READINESS_MATRIX_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_UNLOCK_BOUNDARY_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_CONFIRMATION_PHRASE_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_INTENT_PACKET_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_CONFIRMATION_BOUNDARY_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_REFUSAL_GUARD_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_RECEIPT_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SCRATCH_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DESIGN_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_READINESS_FIXTURE_V1"
+    ],
+    next_gate: "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-source-hash-chain-green-v1-proof.sh",
+    safety_claim: "Operator Ledger Write Runbook Source Hash Chain Green v1 proves a source hash chain can be generated as a tmp-only proof artifact while live ledger write, WC credit award, WC-to-VOID swap, wallet send, and validator mutation remain blocked."
   });
 });
 
@@ -51750,6 +51889,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookSourceHashChainGreenCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SOURCE_HASH_CHAIN_GREEN_UI_V1 -->
+          <h3>Operator ledger write runbook source hash chain green v1</h3>
+          <p>Source hash chain gate for a future operator-controlled WC ledger write. The source chain is proof-backed and tmp-only; live ledger writes remain blocked.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-source-hash-chain-green-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-operator-ledger-write-runbook-source-hash-chain-green-v1-proof.sh</code></p>
+          <p>Status: <code>ledger_write_runbook_source_hash_chain_green_only</code>; source hash chain green, remaining blockers still false.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookFinalPrewriteReadinessMatrixCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_PREWRITE_READINESS_MATRIX_UI_V1 -->
           <h3>Operator ledger write runbook final prewrite readiness matrix v1</h3>
           <p>Final prewrite readiness matrix for a future operator-controlled WC ledger write. Required gates are visible, but the matrix remains blocked and no live ledger write is allowed.</p>
