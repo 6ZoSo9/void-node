@@ -45191,6 +45191,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-lane-closeout.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", use: "first external tester Work Credit lane closeout summary" },
       { path: "/public-node/first-external-tester-wc-review-record-stub.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", use: "template-only operator review record stub for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", use: "allowed decision states boundary for first external tester WC review" },
+      { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
@@ -45700,6 +45701,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-lane-closeout.json",
     "/public-node/first-external-tester-wc-review-record-stub.json",
     "/public-node/first-external-tester-wc-review-decision-boundary.json",
+    "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
@@ -45750,6 +45752,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_lane_closeout: effectiveBaseUrl + "/public-node/first-external-tester-wc-lane-closeout.json",
       first_external_tester_wc_review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
       first_external_tester_wc_review_decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
+      first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
@@ -45835,6 +45838,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-lane-closeout.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LANE_CLOSEOUT_V1", purpose: "first external tester Work Credit lane closeout summary", safety_class: "public_read_only_wc_lane_closeout_no_award" },
     { path: "/public-node/first-external-tester-wc-review-record-stub.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1", purpose: "template-only operator review record stub for first external tester WC lane", safety_class: "public_read_only_review_record_template_no_ledger_mutation" },
     { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", purpose: "allowed decision states boundary for first external tester WC review", safety_class: "public_read_only_decision_boundary_no_review_record_no_ledger_mutation" },
+    { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1", purpose: "read-only operator decision packet template for first external tester Work Credit review" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
@@ -47088,6 +47092,64 @@ APP.get("/public-node/first-external-tester-wc-review-decision-boundary.json", (
   });
 });
 
+
+APP.get("/public-node/first-external-tester-wc-operator-decision-packet.json", (_req, res) => {
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1",
+    packet_state: "template_only_no_operator_decision_created",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    candidate_status: "pending_operator_review",
+    allowed_decision_states: ["accepted", "rejected", "deferred"],
+    current_decision_state: "not_decided",
+    required_before_real_award: [
+      "operator_identity",
+      "candidate_id",
+      "evidence_links",
+      "decision_state",
+      "decision_reason",
+      "reviewed_at_utc",
+      "operator_signature_or_local_approval",
+      "wc_delta_if_accepted",
+      "ledger_write_separate_step"
+    ],
+    packet_template: {
+      operator_identity: null,
+      candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+      evidence_links: [
+        "/public-node/first-external-tester-wc-candidate.json",
+        "/public-node/first-external-tester-wc-review-checklist.json",
+        "/public-node/first-external-tester-wc-award-policy.json",
+        "/public-node/first-external-tester-wc-review-record-stub.json",
+        "/public-node/first-external-tester-wc-review-decision-boundary.json"
+      ],
+      decision_state: "not_decided",
+      decision_reason: null,
+      reviewed_at_utc: null,
+      operator_signature_or_local_approval: null,
+      wc_delta_if_accepted: null,
+      ledger_write_separate_step: true
+    },
+    safety_boundary: {
+      operator_decision_created_now: false,
+      review_record_created_now: false,
+      award_created_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      wc_decision_record_write: false,
+      wc_review_record_write: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      automatic_ledger_write_allowed: false,
+      public_upload: false,
+      trusted_as_network_truth: false
+    },
+    next_step: "operator may use this packet as a local review template; this route itself does not decide, award, mutate, redeem, or swap"
+  });
+});
+
 APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1
   const defaultBaseUrl = "http://127.0.0.1:4100";
   const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
@@ -48110,6 +48172,35 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <a id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryStubLink" href="/public-node/first-external-tester-wc-review-record-stub.json">Open review record stub</a>
         </p>
       </section>
+
+      <section id="publicNodeFirstExternalTesterWcOperatorDecisionPacketCard" class="card">
+        <p class="eyebrow">Work Credit Operator Review</p>
+        <h2>First External Tester Operator Decision Packet</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_UI_V1 -->
+          This is a public read-only operator decision packet template.
+          It does not create a decision, review record, award, Work Credit ledger write, or WC→VOID swap.
+        </p>
+        <ul>
+          <li>Packet state: <code>template_only_no_operator_decision_created</code></li>
+          <li>Allowed future decisions: <code>accepted</code>, <code>rejected</code>, <code>deferred</code></li>
+          <li>Current decision: <code>not_decided</code></li>
+          <li>Operator decision created now: <code>false</code></li>
+          <li>Review record created now: <code>false</code></li>
+          <li>Award created now: <code>false</code></li>
+          <li>WC ledger mutated now: <code>false</code></li>
+          <li>WC credit delta now: <code>0</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Boundary: <code>template_only_no_operator_decision_created</code></p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcOperatorDecisionPacketLink" href="/public-node/first-external-tester-wc-operator-decision-packet.json">Open operator decision packet</a>
+          <a id="publicNodeFirstExternalTesterWcReviewDecisionBoundaryFromOperatorPacketLink" href="/public-node/first-external-tester-wc-review-decision-boundary.json">Open decision boundary</a>
+        </p>
+      </section>
+
 
   <section class="card" id="publicNodeRealDataImportLaneCard"><!-- VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_UI_V1 -->
     <b>Real Data Import Lane</b>
