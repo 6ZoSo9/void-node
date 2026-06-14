@@ -45360,6 +45360,66 @@ APP.get("/public-node/first-external-tester-wc-duplicate-ledger-entry-check-desi
 });
 
 
+APP.get("/public-node/first-external-tester-wc-source-hash-chain-fixture.json", (_req, res) => {
+  res.json({
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_ROUTE_V1",
+    state: "fixture_preview_only_no_source_hash_chain_promoted",
+    fixture_only: true,
+    preview_only: true,
+    hash_algorithm: "sha256",
+    hash_chain_preview: [
+      {
+        order: 1,
+        stage: "tester_receipt",
+        source_id: "first-external-tester-receipt-preview",
+        source_hash: "b0d0a8c8e7437c2762f5a3f49c71ccf60a4e33408ef415e65cb66dd17f05a001",
+        previous_source_hash: null,
+        link_hash: "d327dff4fba772eb0c6208595aacbd994251115807c6681f8278933b2ef4fb16"
+      },
+      {
+        order: 2,
+        stage: "imported_closeout_proof",
+        source_id: "first-external-tester-imported-closeout-proof-preview",
+        source_hash: "47064fec496391596e103953e9ca48ac932c246dca0c1223d95c54d0a6f72f6e",
+        previous_source_hash: "b0d0a8c8e7437c2762f5a3f49c71ccf60a4e33408ef415e65cb66dd17f05a001",
+        link_hash: "a26c604916ad0ac97f98ed142c4f07e3c245ed87af59b5a6e120356f7e08cfc2"
+      },
+      {
+        order: 3,
+        stage: "operator_review_record",
+        source_id: "first-external-tester-operator-review-record-preview",
+        source_hash: "52e0528ed22cef04b1e85e9a08c89b1c8696f601b73a4d6cd2a57f606cd21bd6",
+        previous_source_hash: "47064fec496391596e103953e9ca48ac932c246dca0c1223d95c54d0a6f72f6e",
+        link_hash: "9bb8da38f0c0249dbf0153d77c94e2e5eb32424b9913677239978951489d560f"
+      },
+      {
+        order: 4,
+        stage: "operator_decision_record",
+        source_id: "first-external-tester-operator-decision-record-preview",
+        source_hash: "2a5c7214cc6745775abe3bff59c089da17f73972d7d60d61e9512f45180303c0",
+        previous_source_hash: "52e0528ed22cef04b1e85e9a08c89b1c8696f601b73a4d6cd2a57f606cd21bd6",
+        link_hash: "ffdb6c06956d9901e777a53583774d7083eece76a5fa0e40c8f9bed9437ae9ee"
+      }
+    ],
+    required_chain_length: 8,
+    preview_chain_length: 4,
+    fixture_preview_green: true,
+    source_hash_chain_green: false,
+    source_hash_chain_promoted_to_approved: false,
+    ready_for_ledger_write: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    wc_to_void_swap: false,
+    no_mutation: {
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node/first-external-tester-wc-source-hash-chain-design.json", (_req, res) => {
   res.json({
     marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1",
@@ -45420,6 +45480,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
+      { path: "/public-node/first-external-tester-wc-source-hash-chain-fixture.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_V1", use: "preview-only source hash chain fixture before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-source-hash-chain-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1", use: "design-only source hash chain requirements before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
@@ -45934,6 +45995,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-ledger-write-boundary.json",
     "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
     "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+    "/public-node/first-external-tester-wc-source-hash-chain-fixture.json",
     "/public-node/first-external-tester-wc-source-hash-chain-design.json",
     "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
@@ -45990,6 +46052,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
       first_external_tester_wc_ledger_write_readiness_status: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
       first_external_tester_wc_duplicate_ledger_entry_check_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+      first_external_tester_wc_source_hash_chain_fixture: effectiveBaseUrl + "/public-node/first-external-tester-wc-source-hash-chain-fixture.json",
       first_external_tester_wc_source_hash_chain_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-source-hash-chain-design.json",
       first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
@@ -46080,6 +46143,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
     { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
+      { path: "/public-node/first-external-tester-wc-source-hash-chain-fixture.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_V1", use: "preview-only source hash chain fixture before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-source-hash-chain-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1", use: "design-only source hash chain requirements before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1", purpose: "read-only operator decision packet template for first external tester Work Credit review" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
@@ -48504,6 +48568,31 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
 
 
 
+
+      <section id="publicNodeFirstExternalTesterWcSourceHashChainFixtureCard" class="card">
+        <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_UI_V1 -->
+        <h2>First external tester WC source hash chain fixture</h2>
+        <p>
+          Preview-only source hash chain fixture for the first external tester WC lane.
+          This shows the staged source hash chain shape without approving it, flipping readiness,
+          writing the WC ledger, awarding WC, or performing WC-to-VOID swap.
+        </p>
+        <ul>
+          <li>fixture_preview_green=true</li>
+          <li>fixture_only=true</li>
+          <li>preview_only=true</li>
+          <li>source_hash_chain_green=false</li>
+          <li>ready_for_ledger_write=false</li>
+          <li>wc_ledger_write=false</li>
+          <li>wc_credit_award=false</li>
+          <li>wc_to_void_swap=false</li>
+        </ul>
+        <p>
+          <a id="publicNodeFirstExternalTesterWcSourceHashChainFixtureLink" href="/public-node/first-external-tester-wc-source-hash-chain-fixture.json">Open source-hash-chain fixture</a>
+          ·
+          <a id="publicNodeFirstExternalTesterWcSourceHashChainFixtureDesignLink" href="/public-node/first-external-tester-wc-source-hash-chain-design.json">Open design boundary</a>
+        </p>
+      </section>
 
       <section id="publicNodeFirstExternalTesterWcSourceHashChainDesignCard" class="card">
         <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_UI_V1 -->

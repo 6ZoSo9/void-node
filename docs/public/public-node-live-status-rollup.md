@@ -738,3 +738,32 @@ Boundary:
 - It does not write the WC ledger.
 - It does not award WC.
 - It does not perform WC-to-VOID swap.
+
+## First External Tester WC Source Hash Chain Fixture Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_ROLLUP_GUARD_DOC_V1
+
+The live rollup now runs the first external tester WC source hash chain fixture proof.
+
+Required green outputs:
+
+- first_external_tester_wc_source_hash_chain_fixture_green=true
+- first_external_tester_wc_source_hash_chain_fixture_only=true
+- first_external_tester_wc_source_hash_chain_fixture_preview_only=true
+- first_external_tester_wc_source_hash_chain_fixture_preview_length=4
+- first_external_tester_wc_source_hash_chain_fixture_required_length=8
+- first_external_tester_wc_source_hash_chain_fixture_source_hash_chain_green=false
+- first_external_tester_wc_source_hash_chain_fixture_ready_for_ledger_write=false
+- first_external_tester_wc_source_hash_chain_fixture_wc_ledger_write=false
+- first_external_tester_wc_source_hash_chain_fixture_wc_credit_award=false
+- first_external_tester_wc_source_hash_chain_fixture_wc_to_void_swap=false
+
+Boundary:
+
+- This is fixture-only.
+- This is preview-only.
+- It does not promote `source_hash_chain_green`.
+- It does not make ledger write readiness true.
+- It does not write the WC ledger.
+- It does not award WC.
+- It does not perform WC-to-VOID swap.
