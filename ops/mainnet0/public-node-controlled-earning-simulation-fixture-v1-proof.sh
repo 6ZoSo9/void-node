@@ -7,6 +7,8 @@ mkdir -p "$OUT"
 
 echo "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_PROOF_V1"
 
+grep -Fq "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_DOC_V1" docs/public/public-node-controlled-earning-simulation-fixture-v1.md
+
 grep -Fq "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_UI_V1" src/index.ts
 
 bash ops/mainnet0/public-node-nonce-replay-protection-fixture-v1-proof.sh > "$OUT/nonce-replay-proof.log"
