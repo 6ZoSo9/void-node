@@ -1781,4 +1781,19 @@ grep -Fq "nonce_replay_fixture_mutation_probes_checked=8" "$OUT/nonce-replay-pro
 grep -Fq "nonce_replay_fixture_fail_closed_count=8" "$OUT/nonce-replay-protection-fixture-v1-proof.log"
 echo "nonce_replay_fixture_live_status_rollup_green=true"
 
+
+echo "=== Controlled Earning Simulation Fixture v1 rollup guard ==="
+bash ops/mainnet0/public-node-controlled-earning-simulation-fixture-v1-proof.sh > "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_PROOF_V1_GREEN" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_green=true" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_simulation_only=true" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_mutation_unlocked=false" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_wc_ledger_write=false" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_wc_credit_award=false" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_wc_credit_delta_now=0" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_wc_to_void_swap=false" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_mutation_probes_checked=8" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+grep -Fq "controlled_earning_simulation_fixture_fail_closed_count=8" "$OUT/controlled-earning-simulation-fixture-v1-proof.log"
+echo "controlled_earning_simulation_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

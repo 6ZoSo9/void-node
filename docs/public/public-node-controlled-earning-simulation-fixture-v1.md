@@ -119,3 +119,10 @@ Controlled Earning Simulation Fixture v1 depends on:
 Controlled Earning Simulation Fixture v1 proves only that VOID has a public, machine-readable simulation model for future Work Credit eligibility.
 
 It does not prove public earning readiness, public write readiness, production ledger readiness, token distribution readiness, WC-to-VOID swap readiness, or production launch readiness.
+
+## Live rollup guard
+
+Controlled Earning Simulation Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`controlled_earning_simulation_live_status_rollup_green=true`
+
