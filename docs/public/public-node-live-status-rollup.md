@@ -347,3 +347,24 @@ Expected rollup lines:
     first_external_tester_wc_review_record_stub_automatic_ledger_write_allowed=false
     first_external_tester_wc_review_record_stub_card_ui_green=true
     first_external_tester_wc_review_record_stub_discovery_green=true
+
+## First External Tester WC Review Decision Boundary Rollup Guard
+
+Marker: `VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_ROLLUP_GUARD_V1`
+
+The live status rollup now guards `/public-node/first-external-tester-wc-review-decision-boundary.json` and its public-node UI card.
+
+The guard asserts:
+
+- boundary state is `allowed_states_only_no_decision_record_created`
+- allowed decision states are `accepted`, `rejected`, and `deferred`
+- current decision state is `not_decided`
+- no decision record was created
+- no review record was created
+- no award was created
+- no WC decision/review record write is allowed
+- no WC ledger write is allowed
+- no WC credit award is allowed
+- no WC→VOID swap is allowed
+- automatic ledger write is absent-or-false and never true
+- route-index, self-check, route-manifest, and UI discovery stay green

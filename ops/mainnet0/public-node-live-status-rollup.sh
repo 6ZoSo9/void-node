@@ -1091,4 +1091,86 @@ echo "first_external_tester_wc_review_record_stub_automatic_ledger_write_allowed
 echo "first_external_tester_wc_review_record_stub_card_ui_green=true"
 echo "first_external_tester_wc_review_record_stub_discovery_green=true"
 
+
+WC_REVIEW_DECISION_BOUNDARY_JSON="$OUT/first-external-tester-wc-review-decision-boundary.json"
+WC_REVIEW_DECISION_BOUNDARY_ROUTE_INDEX_JSON="$OUT/first-external-tester-wc-review-decision-boundary-route-index.json"
+WC_REVIEW_DECISION_BOUNDARY_SELF_CHECK_JSON="$OUT/first-external-tester-wc-review-decision-boundary-self-check.json"
+WC_REVIEW_DECISION_BOUNDARY_ROUTE_MANIFEST_JSON="$OUT/first-external-tester-wc-review-decision-boundary-route-manifest.json"
+WC_REVIEW_DECISION_BOUNDARY_UI_HTML="$OUT/first-external-tester-wc-review-decision-boundary-public-node.html"
+
+curl -fsS "$LOCAL_BASE/public-node/first-external-tester-wc-review-decision-boundary.json" > "$WC_REVIEW_DECISION_BOUNDARY_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-index.json" > "$WC_REVIEW_DECISION_BOUNDARY_ROUTE_INDEX_JSON"
+curl -fsS "$LOCAL_BASE/public-node/self-check-snapshot.json" > "$WC_REVIEW_DECISION_BOUNDARY_SELF_CHECK_JSON"
+curl -fsS "$LOCAL_BASE/public-node/route-manifest.json" > "$WC_REVIEW_DECISION_BOUNDARY_ROUTE_MANIFEST_JSON"
+curl -fsS "$LOCAL_BASE/public-node" > "$WC_REVIEW_DECISION_BOUNDARY_UI_HTML"
+
+python3 - "$WC_REVIEW_DECISION_BOUNDARY_JSON" "$WC_REVIEW_DECISION_BOUNDARY_ROUTE_INDEX_JSON" "$WC_REVIEW_DECISION_BOUNDARY_SELF_CHECK_JSON" "$WC_REVIEW_DECISION_BOUNDARY_ROUTE_MANIFEST_JSON" <<'PYJSON'
+import json
+import sys
+from pathlib import Path
+
+boundary = json.loads(Path(sys.argv[1]).read_text())
+route_index = json.loads(Path(sys.argv[2]).read_text())
+self_check = json.loads(Path(sys.argv[3]).read_text())
+route_manifest = json.loads(Path(sys.argv[4]).read_text())
+
+path = "/public-node/first-external-tester-wc-review-decision-boundary.json"
+
+assert boundary.get("marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1"
+assert boundary.get("route_marker") == "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_ROUTE_V1"
+assert boundary.get("boundary_state") == "allowed_states_only_no_decision_record_created"
+assert boundary.get("allowed_decision_states") == ["accepted", "rejected", "deferred"]
+assert boundary.get("current_decision_state") == "not_decided"
+
+guard = boundary.get("decision_boundary", boundary)
+
+for key in [
+    "decision_record_created_now",
+    "review_record_created_now",
+    "award_created_now",
+    "wc_decision_record_write",
+    "wc_review_record_write",
+    "wc_ledger_write",
+    "wc_credit_award",
+    "wc_to_void_swap",
+]:
+    assert guard.get(key) is False, (key, guard.get(key))
+
+automatic_ledger_write_allowed = guard.get("automatic_ledger_write_allowed")
+assert automatic_ledger_write_allowed in (None, False), (
+    "automatic_ledger_write_allowed",
+    automatic_ledger_write_allowed,
+)
+
+blob = "\n".join([
+    json.dumps(route_index, sort_keys=True),
+    json.dumps(self_check, sort_keys=True),
+    json.dumps(route_manifest, sort_keys=True),
+])
+
+assert path in blob
+assert "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1" in blob
+PYJSON
+
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_UI_V1" "$WC_REVIEW_DECISION_BOUNDARY_UI_HTML"
+grep -Fq "publicNodeFirstExternalTesterWcReviewDecisionBoundaryCard" "$WC_REVIEW_DECISION_BOUNDARY_UI_HTML"
+grep -Fq "Review Decision Boundary" "$WC_REVIEW_DECISION_BOUNDARY_UI_HTML"
+grep -Fq "/public-node/first-external-tester-wc-review-decision-boundary.json" "$WC_REVIEW_DECISION_BOUNDARY_UI_HTML"
+
+echo "first_external_tester_wc_review_decision_boundary_green=true"
+echo "first_external_tester_wc_review_decision_boundary_state=allowed_states_only_no_decision_record_created"
+echo "first_external_tester_wc_review_decision_boundary_current_decision_state=not_decided"
+echo "first_external_tester_wc_review_decision_boundary_decision_record_created_now=false"
+echo "first_external_tester_wc_review_decision_boundary_review_record_created_now=false"
+echo "first_external_tester_wc_review_decision_boundary_award_created_now=false"
+echo "first_external_tester_wc_review_decision_boundary_wc_decision_record_write=false"
+echo "first_external_tester_wc_review_decision_boundary_wc_review_record_write=false"
+echo "first_external_tester_wc_review_decision_boundary_wc_ledger_write=false"
+echo "first_external_tester_wc_review_decision_boundary_wc_credit_award=false"
+echo "first_external_tester_wc_review_decision_boundary_wc_to_void_swap=false"
+echo "first_external_tester_wc_review_decision_boundary_automatic_ledger_write_allowed_not_true=true"
+echo "first_external_tester_wc_review_decision_boundary_card_ui_green=true"
+echo "first_external_tester_wc_review_decision_boundary_discovery_green=true"
+
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
