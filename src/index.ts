@@ -45497,6 +45497,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
+      { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46195,6 +46196,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/risk-register.json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", purpose: "public node anti-hype risk register", safety_class: "public_read_only_risk_register_no_mutation" },
+    { path: "/public-node/runtime-gate-lock.json", marker: "VOID_RUNTIME_GATE_LOCK_V1", purpose: "public read-only runtime gate lock and mutation death contract", safety_class: "public_read_only_runtime_gate_lock_no_mutation" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46232,6 +46234,29 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/runtime-gate-lock.json", (_req:any, res:any) => { // VOID_RUNTIME_GATE_LOCK_ROUTE_V1
+  res.json({
+    marker: "VOID_RUNTIME_GATE_LOCK_V1",
+    status: "green",
+    phase: "guarded_mainnet_0_bootstrap",
+    last_check_marker: "VOID_RUNTIME_GATE_LOCK_V1_GREEN",
+    principle: "Public read is allowed. Public mutation is presumed hostile and dead unless a future signed capability explicitly unlocks it.",
+    public_read_allowed: true,
+    public_mutation_open: false,
+    public_earning_open: false,
+    wc_credit_award_open: false,
+    wc_to_void_swap_open: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    allowed_fail_closed_statuses: [401, 403, 404, 405],
+    mutation_methods_denied: ["POST", "PUT", "PATCH", "DELETE"],
+    proof: "ops/mainnet0/public-node-runtime-gate-lock-proof.sh",
+    private_evidence: "operator_local_only",
+    public_error_detail_policy: "no_payloads_no_internal_secrets_no_exploit_details",
+    next_gate: "capability_envelope_v1"
+  });
+});
 
 APP.get("/public-node/risk-register.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_RISK_REGISTER_ROUTE_V1
   const risks = [
@@ -49333,6 +49358,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Public read-only anti-hype truth surface listing known Mainnet-0 risks before public mutation, public earning, WC-to-VOID swap behavior, or validator mutation are opened.</p>
           <p><code>/public-node/risk-register.json</code></p>
           <p><code>docs/public/public-node-risk-register.md</code></p>
+        </div>
+
+        <div class="card" id="publicNodeRuntimeGateLockCard"><!-- VOID_RUNTIME_GATE_LOCK_UI_V1 -->
+          <h2>Runtime Gate Lock</h2>
+          <p>Public read-only mutation death contract. Public GET routes may resolve, but unauthenticated POST, PUT, PATCH, and DELETE probes must fail closed.</p>
+          <p><code>/public-node/runtime-gate-lock.json</code></p>
+          <p><code>ops/mainnet0/public-node-runtime-gate-lock-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
