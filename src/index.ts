@@ -45502,6 +45502,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
       { path: "/public-node/controlled-earning-simulation-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", use: "simulation-only earning eligibility fixture; no WC ledger write or award" },
       { path: "/public-node/resource-isolation-policy-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1", use: "design-only resource isolation policy fixture for future bounded work execution" },
+      { path: "/public-node/operator-controlled-earning-dry-run-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_V1", use: "dry-run-only operator earning review fixture; no WC ledger write or award" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46205,6 +46206,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/nonce-replay-protection-fixture-v1.json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", purpose: "design-only nonce and replay protection fixture for future signed capability envelopes", safety_class: "public_read_only_nonce_replay_fixture_design_only_no_mutation" },
     { path: "/public-node/controlled-earning-simulation-fixture-v1.json", marker: "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1", purpose: "simulation-only earning eligibility fixture for future guarded WC review", safety_class: "public_read_only_controlled_earning_simulation_only_no_ledger_write" },
     { path: "/public-node/resource-isolation-policy-fixture-v1.json", marker: "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1", purpose: "design-only resource isolation policy fixture for future bounded work execution", safety_class: "public_read_only_resource_isolation_policy_design_only_no_execution" },
+    { path: "/public-node/operator-controlled-earning-dry-run-fixture-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_V1", purpose: "dry-run-only operator earning review fixture for future guarded WC flow", safety_class: "public_read_only_operator_controlled_earning_dry_run_only_no_ledger_write" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46242,6 +46244,173 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/operator-controlled-earning-dry-run-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_V1",
+    operator_controlled_earning_dry_run_version: "v1",
+    status: "dry_run_fixture_only",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    dry_run_only: true,
+    executable: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    public_submission_open: false,
+    work_execution_open: false,
+    operator_confirmation_required: true,
+    operator_confirmation_present: false,
+    dry_run_record_created_now: false,
+    review_record_created_now: false,
+    decision_record_created_now: false,
+    award_intent_packet_created_now: false,
+    award_record_created_now: false,
+    ledger_entry_created_now: false,
+    wc_review_record_write: false,
+    wc_decision_record_write: false,
+    wc_award_record_write: false,
+    wc_ledger_write: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    depends_on: [
+      "VOID_RUNTIME_GATE_LOCK_V1",
+      "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1",
+      "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_CONTROLLED_EARNING_SIMULATION_FIXTURE_V1",
+      "VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_V1"
+    ],
+    next_gate: "operator_award_intent_packet_fixture_v1",
+    principle: "Operator Controlled Earning Dry Run Fixture v1 models a future manual review dry run only. It cannot create records, execute jobs, mutate ledgers, award WC, swap VOID, or move money.",
+    dry_run_schema: {
+      record_type: "void.operator_controlled_earning_dry_run.v1",
+      required_fields: [
+        "dry_run_id",
+        "candidate_id",
+        "operator_id",
+        "evidence_hash",
+        "capability_envelope_id",
+        "nonce_state",
+        "resource_policy_id",
+        "duplicate_state",
+        "simulated_decision",
+        "simulated_wc_delta",
+        "operator_confirmation_present",
+        "ledger_write_allowed",
+        "award_created_now",
+        "wc_ledger_mutated_now"
+      ],
+      operator_confirmation_required: true,
+      resource_policy_required: true,
+      capability_envelope_required: true,
+      nonce_replay_check_required: true,
+      duplicate_check_required: true,
+      source_hash_required: true,
+      ledger_write_allowed_in_v1: false
+    },
+    allowed_dry_run_steps: [
+      "inspect_candidate_future",
+      "verify_evidence_hash_future",
+      "check_capability_envelope_future",
+      "check_nonce_replay_future",
+      "check_resource_policy_future",
+      "check_duplicate_state_future",
+      "simulate_operator_decision_future",
+      "simulate_award_intent_preview_future"
+    ],
+    dry_run_cases: [
+      {
+        id: "eligible_manual_review_dry_run",
+        simulated_decision: "eligible_pending_future_operator_confirmation",
+        simulated_wc_delta: 0,
+        operator_confirmation_present: false,
+        dry_run_only: true,
+        executable_now: false,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false
+      },
+      {
+        id: "rejected_nonce_replay_dry_run",
+        simulated_decision: "rejected_nonce_replay",
+        simulated_wc_delta: 0,
+        operator_confirmation_present: false,
+        dry_run_only: true,
+        executable_now: false,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false
+      },
+      {
+        id: "rejected_resource_policy_dry_run",
+        simulated_decision: "rejected_resource_policy_violation",
+        simulated_wc_delta: 0,
+        operator_confirmation_present: false,
+        dry_run_only: true,
+        executable_now: false,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false
+      },
+      {
+        id: "rejected_duplicate_dry_run",
+        simulated_decision: "rejected_duplicate",
+        simulated_wc_delta: 0,
+        operator_confirmation_present: false,
+        dry_run_only: true,
+        executable_now: false,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false
+      },
+      {
+        id: "blocked_missing_operator_confirmation",
+        simulated_decision: "blocked_missing_operator_confirmation",
+        simulated_wc_delta: 0,
+        operator_confirmation_present: false,
+        dry_run_only: true,
+        executable_now: false,
+        ledger_write_allowed: false,
+        award_created_now: false,
+        wc_ledger_mutated_now: false,
+        wc_credit_award: false,
+        wc_to_void_swap: false
+      }
+    ],
+    denied_now: [
+      "public_mutation",
+      "public_earning",
+      "public_submission",
+      "work_execution",
+      "dry_run_record_write",
+      "wc_review_record_write",
+      "wc_decision_record_write",
+      "wc_award_record_write",
+      "wc_ledger_write",
+      "wc_credit_award",
+      "positive_wc_credit_delta",
+      "wc_to_void_swap",
+      "wallet_send",
+      "validator_mutation",
+      "money_movement",
+      "automatic_ledger_write"
+    ],
+    proof: "ops/mainnet0/public-node-operator-controlled-earning-dry-run-fixture-v1-proof.sh",
+    safety_claim: "Operator Controlled Earning Dry Run Fixture v1 is public read-only and dry-run only. It does not create review records, decision records, award records, ledger entries, WC credits, WC-to-VOID swaps, or money movement."
+  });
+});
 
 APP.get("/public-node/resource-isolation-policy-fixture-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_RESOURCE_ISOLATION_POLICY_FIXTURE_ROUTE_V1
   res.json({
@@ -49903,6 +50072,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Design-only resource boundary fixture for future bounded work execution. This defines CPU, memory, disk, network, timeout, path, and cleanup rules without executing jobs or awarding WC.</p>
           <p><code>/public-node/resource-isolation-policy-fixture-v1.json</code></p>
           <p><code>ops/mainnet0/public-node-resource-isolation-policy-fixture-v1-proof.sh</code></p>
+        </div>
+
+        <div class="card" id="publicNodeOperatorControlledEarningDryRunFixtureCard"><!-- VOID_PUBLIC_NODE_OPERATOR_CONTROLLED_EARNING_DRY_RUN_FIXTURE_UI_V1 -->
+          <h2>Operator Controlled Earning Dry Run Fixture v1</h2>
+          <p>Dry-run-only manual earning review model. This can simulate eligibility and rejection states, but cannot create records, execute work, write ledgers, award WC, swap VOID, or move money.</p>
+          <p><code>/public-node/operator-controlled-earning-dry-run-fixture-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-operator-controlled-earning-dry-run-fixture-v1-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
