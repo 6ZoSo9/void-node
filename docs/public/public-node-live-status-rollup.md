@@ -368,3 +368,28 @@ The guard asserts:
 - no WC→VOID swap is allowed
 - automatic ledger write is absent-or-false and never true
 - route-index, self-check, route-manifest, and UI discovery stay green
+
+
+## First External Tester WC Operator Decision Packet Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the first external tester Work Credit operator decision packet.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_operator_decision_packet_green=true
+- first_external_tester_wc_operator_decision_packet_packet_state=template_only_no_operator_decision_created
+- first_external_tester_wc_operator_decision_packet_operator_decision_created_now=false
+- first_external_tester_wc_operator_decision_packet_review_record_created_now=false
+- first_external_tester_wc_operator_decision_packet_award_created_now=false
+- first_external_tester_wc_operator_decision_packet_wc_ledger_mutated_now=false
+- first_external_tester_wc_operator_decision_packet_wc_credit_delta_now=0
+- first_external_tester_wc_operator_decision_packet_wc_ledger_write=false
+- first_external_tester_wc_operator_decision_packet_wc_credit_award=false
+- first_external_tester_wc_operator_decision_packet_wc_to_void_swap=false
+- first_external_tester_wc_operator_decision_packet_automatic_ledger_write_allowed=false
+- first_external_tester_wc_operator_decision_packet_card_ui_green=true
+- first_external_tester_wc_operator_decision_packet_discovery_green=true
+
+This guard is read-only. It does not create an operator decision, review record, award, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.

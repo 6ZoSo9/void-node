@@ -1173,4 +1173,31 @@ echo "first_external_tester_wc_review_decision_boundary_card_ui_green=true"
 echo "first_external_tester_wc_review_decision_boundary_discovery_green=true"
 
 
+
+LOCAL_BASE="$LOCAL_BASE" ops/mainnet0/public-node-first-external-tester-wc-operator-decision-packet-proof.sh > "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_PROOF_V1_GREEN" "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+
+for line in \
+  "packet_state=template_only_no_operator_decision_created" \
+  "operator_decision_created_now=false" \
+  "review_record_created_now=false" \
+  "award_created_now=false" \
+  "wc_ledger_mutated_now=false" \
+  "wc_credit_delta_now=0" \
+  "wc_ledger_write=false" \
+  "wc_credit_award=false" \
+  "wc_to_void_swap=false" \
+  "automatic_ledger_write_allowed=false"; do
+  grep -Fq "$line" "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+  echo "first_external_tester_wc_operator_decision_packet_$line"
+done
+
+grep -Fq "route=/public-node/first-external-tester-wc-operator-decision-packet.json" "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+grep -Fq "ui_marker=VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_UI_V1" "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+grep -Fq "card_id=publicNodeFirstExternalTesterWcOperatorDecisionPacketCard" "$OUT/first-external-tester-wc-operator-decision-packet-proof.log"
+
+echo "first_external_tester_wc_operator_decision_packet_card_ui_green=true"
+echo "first_external_tester_wc_operator_decision_packet_discovery_green=true"
+echo "first_external_tester_wc_operator_decision_packet_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
