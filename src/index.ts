@@ -45498,6 +45498,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
+      { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46197,6 +46198,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/risk-register.json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", purpose: "public node anti-hype risk register", safety_class: "public_read_only_risk_register_no_mutation" },
     { path: "/public-node/runtime-gate-lock.json", marker: "VOID_RUNTIME_GATE_LOCK_V1", purpose: "public read-only runtime gate lock and mutation death contract", safety_class: "public_read_only_runtime_gate_lock_no_mutation" },
+    { path: "/public-node/capability-envelope-v1.json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", purpose: "design-only signed capability envelope fixture for future gated requests", safety_class: "public_read_only_capability_envelope_design_only_no_mutation" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46234,6 +46236,92 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
 });
 
 
+
+APP.get("/public-node/capability-envelope-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1",
+    capability_envelope_version: "v1",
+    status: "design_fixture_only",
+    phase: "guarded_mainnet_0_bootstrap",
+    design_only: true,
+    executable: false,
+    mutation_unlocked: false,
+    public_mutation_open: false,
+    public_earning_open: false,
+    wc_credit_award_open: false,
+    wc_to_void_swap_open: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    depends_on: ["VOID_RUNTIME_GATE_LOCK_V1"],
+    next_gate: "nonce_replay_protection_fixture_v1",
+    principle: "A capability envelope may describe future signed authority, but v1 does not grant authority and cannot execute mutation.",
+    envelope_schema: {
+      envelope_type: "void.capability_envelope.v1",
+      required_fields: [
+        "version",
+        "chain_id",
+        "capability",
+        "subject",
+        "issuer",
+        "audience",
+        "scope",
+        "nonce",
+        "issued_at",
+        "expires_at",
+        "body_sha256",
+        "signature"
+      ],
+      version: "1",
+      chain_id: 2050,
+      signature_scheme: "future_eip712_or_node_identity_signature",
+      nonce_required: true,
+      replay_protection_required: true,
+      expiry_required: true,
+      body_hash_required: true
+    },
+    allowed_capability_names: [
+      "public_read",
+      "tester_receipt_submit_future",
+      "wc_review_submit_future",
+      "datanet_ingest_future",
+      "validator_candidate_future"
+    ],
+    denied_now: [
+      "public_mutation",
+      "wc_credit_award",
+      "wc_to_void_swap",
+      "validator_mutation",
+      "money_movement",
+      "admin_operation"
+    ],
+    examples: [
+      {
+        id: "public_read_example",
+        capability: "public_read",
+        mutation_allowed: false,
+        executable: false,
+        note: "Read-only example. No signature is required for current public GET routes."
+      },
+      {
+        id: "future_tester_receipt_submit_example",
+        capability: "tester_receipt_submit_future",
+        mutation_allowed: false,
+        executable: false,
+        note: "Future signed receipt envelope shape only. Current public upload remains closed."
+      },
+      {
+        id: "future_wc_review_submit_example",
+        capability: "wc_review_submit_future",
+        mutation_allowed: false,
+        executable: false,
+        note: "Future operator-reviewed WC envelope shape only. Current WC credit award remains closed."
+      }
+    ],
+    proof: "ops/mainnet0/public-node-capability-envelope-v1-proof.sh",
+    public_error_detail_policy: "no_private_keys_no_payload_secrets_no_signature_material",
+    safety_claim: "Capability Envelope v1 defines a future signed request shape only. It does not unlock public mutation."
+  });
+});
 
 APP.get("/public-node/runtime-gate-lock.json", (_req:any, res:any) => { // VOID_RUNTIME_GATE_LOCK_ROUTE_V1
   res.json({
@@ -49365,6 +49453,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Public read-only mutation death contract. Public GET routes may resolve, but unauthenticated POST, PUT, PATCH, and DELETE probes must fail closed.</p>
           <p><code>/public-node/runtime-gate-lock.json</code></p>
           <p><code>ops/mainnet0/public-node-runtime-gate-lock-proof.sh</code></p>
+        </div>
+
+        <div class="card" id="publicNodeCapabilityEnvelopeCard"><!-- VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_UI_V1 -->
+          <h2>Capability Envelope v1</h2>
+          <p>Design-only signed request envelope fixture for future gated actions. This does not unlock public mutation, WC awards, validator mutation, or money movement.</p>
+          <p><code>/public-node/capability-envelope-v1.json</code></p>
+          <p><code>ops/mainnet0/public-node-capability-envelope-v1-proof.sh</code></p>
         </div>
 
         <div class="card" id="publicNodeLocalDataDropWeightedCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_UI_V1 -->
