@@ -646,3 +646,36 @@ Expected live rollup lines:
 - first_external_tester_wc_operator_ledger_entry_preview_runbook_wc_to_void_swap=false
 
 This guard proves the ledger entry preview runbook remains explicit-confirmation-only and ledger-preview-only. It does not create a Work Credit ledger record, Work Credit ledger write, Work Credit credit award, WC to VOID swap, token movement, wallet send, buy fulfillment, or validator mutation.
+
+
+## First External Tester WC Ledger Write Runbook Design Rollup Guard
+
+Marker: VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_RUNBOOK_DESIGN_ROLLUP_GUARD_DOC_V1
+
+The live status rollup now guards the ledger write runbook design proof.
+
+This is design-only. It confirms the future real ledger write runbook is still absent and that the public ledger write boundary remains locked.
+
+Expected live rollup lines:
+
+- first_external_tester_wc_ledger_write_runbook_design_green=true
+- first_external_tester_wc_ledger_write_runbook_design_only=true
+- first_external_tester_wc_ledger_write_runbook_absent=true
+- first_external_tester_wc_ledger_write_runbook_created_now=false
+- first_external_tester_wc_ledger_write_boundary_still_locked_green=true
+- first_external_tester_wc_ledger_write_allowed_now=false
+- first_external_tester_wc_ledger_record_created_now=false
+- first_external_tester_wc_ledger_entry_preview_created_now=false
+- first_external_tester_wc_award_record_created_now=false
+- first_external_tester_wc_award_created_now=false
+- first_external_tester_wc_award_write_allowed_now=false
+- first_external_tester_wc_ledger_write_runbook_wc_ledger_mutated_now=false
+- first_external_tester_wc_ledger_write_runbook_wc_credit_delta_now=0
+- first_external_tester_wc_ledger_write_runbook_wc_ledger_write=false
+- first_external_tester_wc_ledger_write_runbook_wc_credit_award=false
+- first_external_tester_wc_ledger_write_runbook_wc_to_void_swap=false
+- first_external_tester_wc_ledger_write_runbook_automatic_ledger_write_allowed=false
+- first_external_tester_wc_ledger_write_runbook_money_movement=false
+- first_external_tester_wc_ledger_write_runbook_wallet_send=false
+- first_external_tester_wc_ledger_write_runbook_buy_void_fulfillment=false
+- first_external_tester_wc_ledger_write_runbook_validator_mutation=false
