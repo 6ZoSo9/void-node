@@ -2234,4 +2234,22 @@ grep -Fq "operator_ledger_write_runbook_source_hash_chain_green_fail_closed_coun
 grep -Fq "operator_ledger_write_runbook_source_hash_chain_green_next_gate=operator_ledger_write_runbook_duplicate_ledger_entry_check_green_v1" "$OUT/operator-ledger-write-runbook-source-hash-chain-green-v1-proof.log"
 echo "operator_ledger_write_runbook_source_hash_chain_green_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Duplicate Ledger Entry Check Green v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.sh > "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DUPLICATE_LEDGER_ENTRY_CHECK_GREEN_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green=true" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_only=true" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_duplicate_found=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_duplicate_count=0" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_source_hash_chain_green=true" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_positive_nonzero_wc_delta_selected_by_operator=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_ledger_entry_preview_reviewed=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_next_gate=operator_ledger_write_runbook_positive_nonzero_wc_delta_selected_v1" "$OUT/operator-ledger-write-runbook-duplicate-ledger-entry-check-green-v1-proof.log"
+echo "operator_ledger_write_runbook_duplicate_ledger_entry_check_green_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
