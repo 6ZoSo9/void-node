@@ -124,3 +124,10 @@ Operator Ledger Entry Preview Fixture v1 depends on:
 Operator Ledger Entry Preview Fixture v1 proves only that VOID has a public, machine-readable ledger entry preview model for future manual Work Credit ledger review.
 
 It does not prove public earning readiness, ledger write readiness, credit award readiness, token distribution readiness, WC-to-VOID swap readiness, or production launch readiness.
+
+## Live rollup guard
+
+Operator Ledger Entry Preview Fixture v1 is included in the public-node live status rollup when the rollup emits:
+
+`operator_ledger_entry_preview_live_status_rollup_green=true`
+
