@@ -45287,6 +45287,78 @@ APP.get("/public-node/first-external-tester-wc-ledger-write-readiness-status.jso
   });
 });
 
+
+APP.get("/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", (_req, res) => {
+  res.json({
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_ROUTE_V1",
+    route: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+    lane: "first_external_tester_wc",
+    candidate_id: "first-external-tester-n153b-demo003-standalone-smoke-v1",
+    design_state: "duplicate_ledger_entry_check_design_only",
+    duplicate_ledger_entry_check_ready: false,
+    duplicate_ledger_entry_check_run_now: false,
+    duplicate_ledger_entry_detected_now: false,
+    duplicate_ledger_entry_check_result_now: "not_run_design_only",
+    duplicate_ledger_entry_check_required_before_ledger_write: true,
+    future_duplicate_dimensions: [
+      "candidate_id",
+      "lane_id",
+      "source_award_record_sha256",
+      "source_ledger_entry_preview_sha256",
+      "operator_id",
+      "wc_delta",
+      "ledger_record_type",
+      "created_for_boundary_version"
+    ],
+    future_required_sources: {
+      readiness_status: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
+      ledger_write_boundary: "/public-node/first-external-tester-wc-ledger-write-boundary.json",
+      ledger_write_runbook_design: "docs/public/public-node-first-external-tester-wc-ledger-write-runbook-design.md"
+    },
+    future_fail_closed_outputs_on_duplicate: {
+      duplicate_ledger_entry_check_green: false,
+      duplicate_ledger_entry_detected: true,
+      ledger_record_created_now: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false
+    },
+    future_fail_closed_outputs_when_not_run: {
+      duplicate_ledger_entry_check_green: false,
+      duplicate_ledger_entry_check_run_now: false,
+      ledger_record_created_now: false,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false
+    },
+    protected_boundary: {
+      duplicate_ledger_entry_check_design_only: true,
+      duplicate_ledger_entry_check_run_now: false,
+      duplicate_ledger_entry_detected_now: false,
+      ledger_write_allowed_now: false,
+      ledger_record_created_now: false,
+      ledger_entry_preview_created_now: false,
+      award_record_created_now: false,
+      award_created_now: false,
+      award_write_allowed_now: false,
+      wc_ledger_mutated_now: false,
+      wc_credit_delta_now: 0,
+      wc_ledger_write: false,
+      wc_credit_award: false,
+      wc_to_void_swap: false,
+      automatic_ledger_write_allowed: false,
+      public_upload: false,
+      trusted_as_network_truth: false,
+      money_movement: false,
+      wallet_send: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    },
+    next_safe_step_after_duplicate_check_design: "source_hash_chain_design_only_or_operator_approval_state_fixture"
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45321,6 +45393,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", use: "allowed decision states boundary for first external tester WC review" },
       { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
       { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
+      { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
@@ -45833,6 +45906,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/first-external-tester-wc-review-decision-boundary.json",
     "/public-node/first-external-tester-wc-ledger-write-boundary.json",
     "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
+    "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
     "/public-node/first-external-tester-wc-operator-decision-packet.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
@@ -45886,6 +45960,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       first_external_tester_wc_review_decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
       first_external_tester_wc_ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
       first_external_tester_wc_ledger_write_readiness_status: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json",
+      first_external_tester_wc_duplicate_ledger_entry_check_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
       first_external_tester_wc_operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
@@ -45974,6 +46049,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/first-external-tester-wc-review-decision-boundary.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1", purpose: "allowed decision states boundary for first external tester WC review", safety_class: "public_read_only_decision_boundary_no_review_record_no_ledger_mutation" },
     { path: "/public-node/first-external-tester-wc-ledger-write-boundary.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_BOUNDARY_V1", use: "pre-ledger write boundary for first external tester WC lane" },
     { path: "/public-node/first-external-tester-wc-ledger-write-readiness-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_WRITE_READINESS_STATUS_V1", use: "readiness status and blockers before first external tester WC ledger write" },
+    { path: "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_V1", use: "design-only duplicate ledger entry check requirements before first external tester WC ledger write" },
     { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_ROUTE_V1", purpose: "read-only operator decision packet template for first external tester Work Credit review" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
@@ -48366,6 +48442,34 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <a id="publicNodeFirstExternalTesterWcLedgerWriteReadinessBoundaryLink" href="/public-node/first-external-tester-wc-ledger-write-boundary.json">Open ledger write boundary</a>
         </p>
       </section>
+      <section id="publicNodeFirstExternalTesterWcDuplicateLedgerEntryCheckDesignCard" class="card">
+        <p class="eyebrow">Work Credit Ledger Safety</p>
+        <h2>Duplicate Ledger Entry Check Design</h2>
+        <p>
+          <!-- VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_LEDGER_ENTRY_CHECK_DESIGN_UI_V1 -->
+          A future real Work Credit ledger write must fail closed unless a duplicate-entry check proves the candidate,
+          source hashes, operator, delta, lane, and ledger record type have not already been written.
+        </p>
+        <ul>
+          <li>Design state: <code>duplicate_ledger_entry_check_design_only</code></li>
+          <li>Duplicate check ready: <code>false</code></li>
+          <li>Duplicate check run now: <code>false</code></li>
+          <li>Duplicate detected now: <code>false</code></li>
+          <li>Current result: <code>not_run_design_only</code></li>
+          <li>Required before ledger write: <code>true</code></li>
+          <li>Ledger write allowed now: <code>false</code></li>
+          <li>Ledger record created now: <code>false</code></li>
+          <li>WC ledger write: <code>false</code></li>
+          <li>WC credit award: <code>false</code></li>
+          <li>WC→VOID swap: <code>false</code></li>
+        </ul>
+        <p class="proof-line">Design-only blocker: duplicate check requirements are visible, but no check runs and no ledger state changes.</p>
+        <p class="actions">
+          <a id="publicNodeFirstExternalTesterWcDuplicateLedgerEntryCheckDesignLink" href="/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json">Open duplicate-check design</a>
+          <a id="publicNodeFirstExternalTesterWcDuplicateLedgerEntryCheckReadinessLink" href="/public-node/first-external-tester-wc-ledger-write-readiness-status.json">Open ledger write readiness</a>
+        </p>
+      </section>
+
 
 
 
