@@ -2285,4 +2285,17 @@ grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_wc_credit_
 grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_next_gate=operator_ledger_write_runbook_final_operator_apply_present_v1" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
 echo "operator_ledger_write_runbook_ledger_entry_preview_reviewed_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Final Operator Apply Present v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-final-operator-apply-present-v1-proof.sh > "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_APPLY_PRESENT_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present=true" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_ledger_entry_preview_reviewed=true" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_all_required_gates_green=false" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_next_gate=operator_ledger_write_runbook_all_required_gates_green_v1" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
+echo "operator_ledger_write_runbook_final_operator_apply_present_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
