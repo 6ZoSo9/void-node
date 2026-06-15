@@ -2455,4 +2455,18 @@ grep -Fq "operator_ledger_write_runbook_dry_mutation_plan_wc_credit_delta_now=0"
 grep -Fq "operator_ledger_write_runbook_dry_mutation_plan_next_gate=operator_ledger_write_runbook_pre_mutation_backup_v1" "$OUT/operator-ledger-write-runbook-dry-mutation-plan-v1-proof.log"
 echo "operator_ledger_write_runbook_dry_mutation_plan_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Pre-Mutation Backup v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-pre-mutation-backup-v1-proof.sh > "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRE_MUTATION_BACKUP_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_reviewed=true" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_required=true" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_execution_deferred=true" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_created_now=false" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_pre_mutation_backup_next_gate=operator_ledger_write_runbook_pre_mutation_backup_execute_v1" "$OUT/operator-ledger-write-runbook-pre-mutation-backup-v1-proof.log"
+echo "operator_ledger_write_runbook_pre_mutation_backup_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
