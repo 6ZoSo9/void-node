@@ -2312,4 +2312,17 @@ grep -Fq "operator_ledger_write_runbook_all_required_gates_green_wc_credit_delta
 grep -Fq "operator_ledger_write_runbook_all_required_gates_green_next_gate=operator_ledger_write_runbook_ready_for_ledger_write_v1" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
 echo "operator_ledger_write_runbook_all_required_gates_green_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Ready For Ledger Write v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.sh > "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_READY_FOR_LEDGER_WRITE_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write=true" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_delta=1" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_delta_unit=WC" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_next_gate=operator_ledger_write_runbook_ledger_write_allowed_boundary_v1" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
+echo "operator_ledger_write_runbook_ready_for_ledger_write_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
