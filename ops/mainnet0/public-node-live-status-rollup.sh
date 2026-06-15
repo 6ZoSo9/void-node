@@ -2376,4 +2376,17 @@ grep -Fq "operator_ledger_write_runbook_manual_live_write_execute_wc_ledger_writ
 grep -Fq "operator_ledger_write_runbook_manual_live_write_execute_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-manual-live-write-execute-v1-proof.log"
 echo "operator_ledger_write_runbook_manual_live_write_execute_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Exact Operator Execute Command v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.sh > "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_OPERATOR_EXECUTE_COMMAND_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_packet_reviewed=true" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_present_now=true" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_requested_now=false" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_exact_operator_execute_command_next_gate=operator_ledger_write_runbook_operator_requested_write_v1" "$OUT/operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.log"
+echo "operator_ledger_write_runbook_exact_operator_execute_command_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
