@@ -2495,4 +2495,19 @@ grep -Fq "operator_ledger_write_runbook_duplicate_guard_recheck_wc_credit_delta_
 grep -Fq "operator_ledger_write_runbook_duplicate_guard_recheck_next_gate=operator_ledger_write_runbook_final_mutation_command_hold_v1" "$OUT/operator-ledger-write-runbook-duplicate-guard-recheck-v1-proof.log"
 echo "operator_ledger_write_runbook_duplicate_guard_recheck_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Final Mutation Command Hold v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.sh > "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_MUTATION_COMMAND_HOLD_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_command_withheld=true" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_command_printed_now=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_command_executed_now=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_execution_allowed_now=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_duplicate_found=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_next_gate=operator_ledger_write_runbook_final_live_mutation_execute_packet_v1" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
+echo "operator_ledger_write_runbook_final_mutation_command_hold_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
