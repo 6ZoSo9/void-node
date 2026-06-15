@@ -2351,4 +2351,17 @@ grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance
 grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_next_gate=operator_ledger_write_runbook_final_live_write_preflight_v1" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
 echo "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Final Live Write Preflight v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-final-live-write-preflight-v1-proof.sh > "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_LIVE_WRITE_PREFLIGHT_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_reviewed=true" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_manual_terminal_execution_required=true" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_final_live_write_unlock=false" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_write_preflight_next_gate=operator_ledger_write_runbook_manual_live_write_execute_v1" "$OUT/operator-ledger-write-runbook-final-live-write-preflight-v1-proof.log"
+echo "operator_ledger_write_runbook_final_live_write_preflight_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
