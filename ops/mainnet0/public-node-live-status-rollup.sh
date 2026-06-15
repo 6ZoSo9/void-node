@@ -2401,4 +2401,17 @@ grep -Fq "operator_ledger_write_runbook_operator_requested_write_wc_credit_delta
 grep -Fq "operator_ledger_write_runbook_operator_requested_write_next_gate=operator_ledger_write_runbook_live_write_unlock_v1" "$OUT/operator-ledger-write-runbook-operator-requested-write-v1-proof.log"
 echo "operator_ledger_write_runbook_operator_requested_write_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Live Write Unlock v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-live-write-unlock-v1-proof.sh > "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_WRITE_UNLOCK_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_reviewed=true" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_requested_now=true" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_unlocked_for_final_apply=true" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_live_write_unlock_next_gate=operator_ledger_write_runbook_final_apply_v1" "$OUT/operator-ledger-write-runbook-live-write-unlock-v1-proof.log"
+echo "operator_ledger_write_runbook_live_write_unlock_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
