@@ -2637,4 +2637,19 @@ grep -Fq "datanet_challenge_ui_wc_credit_award=false" "$OUT/public-node-datanet-
 
 echo "datanet_challenge_ui_card_live_status_rollup_green=true"
 
+
+echo "=== DataNet Challenge Tester Copy Pack v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-datanet-challenge-tester-copy-pack-v1-proof.sh \
+  > "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+
+grep -Fq "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_PROOF_V1_GREEN" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+grep -Fq "datanet_challenge_tester_copy_pack_route_green=true" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+grep -Fq "datanet_challenge_tester_copy_pack_smoke_command_green=true" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+grep -Fq "datanet_challenge_tester_copy_pack_route_index_green=true" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+grep -Fq "datanet_challenge_tester_copy_pack_path_from_dataset_id=false" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+grep -Fq "datanet_challenge_tester_copy_pack_wc_credit_award=false" "$OUT/public-node-datanet-challenge-tester-copy-pack-v1-proof.log"
+
+echo "datanet_challenge_tester_copy_pack_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
