@@ -2621,4 +2621,20 @@ grep -Fq "datanet_challenge_wc_credit_award=false" "$OUT/public-node-datanet-cha
 
 echo "datanet_challenge_live_status_rollup_green=true"
 
+
+echo "=== DataNet Challenge UI Card v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-datanet-challenge-ui-card-proof.sh \
+  > "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+
+grep -Fq "VOID_DATANET_CHALLENGE_UI_PROOF_V1_GREEN" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_ui_card_present=true" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_ui_link_present=true" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_manifest_link_present=true" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_route_index_discovery_green=true" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_ui_path_from_dataset_id=false" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+grep -Fq "datanet_challenge_ui_wc_credit_award=false" "$OUT/public-node-datanet-challenge-ui-card-proof.log"
+
+echo "datanet_challenge_ui_card_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
