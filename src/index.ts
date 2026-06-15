@@ -46405,6 +46405,60 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-operator-terminal-execute-review-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_TERMINAL_EXECUTE_REVIEW_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_TERMINAL_EXECUTE_REVIEW_V1",
+    status: "operator_terminal_execute_review_checkpoint",
+    state: "terminal_execute_review_recorded_no_live_ledger_write",
+    public_read_only: true,
+    operator_terminal_execute_review_boundary: true,
+    operator_terminal_execute_review_recorded: true,
+    terminal_review_required_before_any_private_execute: true,
+    terminal_execute_allowed_now: false,
+    terminal_execute_performed_now: false,
+    private_operator_command_held_outside_public_route: true,
+    private_operator_command_publicly_withheld: true,
+    private_operator_command_revealed_publicly: false,
+    private_operator_command_printed_now: false,
+    private_operator_command_executed_now: false,
+    command_execution_allowed_now: false,
+    automatic_execute_allowed: false,
+    command_channel_public_safe: true,
+    public_route_contains_secret: false,
+    public_route_contains_private_command: false,
+    final_operator_private_execute_green_required: true,
+    private_live_mutation_command_hold_green_required: true,
+    private_live_mutation_command_request_green_required: true,
+    final_live_mutation_execute_packet_green_required: true,
+    final_mutation_command_hold_green_required: true,
+    pre_mutation_backup_execute_green_required: true,
+    duplicate_guard_recheck_green_required: true,
+    duplicate_found_by_expected_clean_scan: false,
+    duplicate_blocked_by_expected_clean_scan: false,
+    planned_wc_delta: 1,
+    planned_wc_delta_unit: "WC",
+    planned_entry_kind: "wc_delta",
+    planned_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    next_gate: "operator_ledger_write_runbook_operator_private_terminal_command_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-operator-terminal-execute-review-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-final-operator-private-execute-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_PRIVATE_EXECUTE_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_PRIVATE_EXECUTE_V1",
@@ -53093,6 +53147,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookOperatorTerminalExecuteReviewCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_TERMINAL_EXECUTE_REVIEW_UI_V1 -->
+          <h3>Operator ledger write runbook operator terminal execute review v1</h3>
+          <p>The terminal execute review boundary is recorded. This checkpoint does not reveal, print, execute, or allow execution of the private operator command.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-operator-terminal-execute-review-v1.json</code></p>
+          <p>Status: <code>terminal_execute_review_recorded_no_live_ledger_write</code>; terminal execute allowed now: <code>false</code>; terminal execute performed now: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookFinalOperatorPrivateExecuteCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_PRIVATE_EXECUTE_UI_V1 -->
           <h3>Operator ledger write runbook final operator private execute v1</h3>
           <p>The private execute readiness boundary is recorded. The private operator command remains held outside the public route; this checkpoint does not reveal, print, execute, or allow execution.</p>
