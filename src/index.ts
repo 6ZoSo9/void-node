@@ -45521,6 +45521,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/operator-ledger-write-runbook-positive-nonzero-wc-delta-selected-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_POSITIVE_NONZERO_WC_DELTA_SELECTED_V1", use: "positive nonzero WC delta selected gate for future WC ledger write runbook; no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LEDGER_ENTRY_PREVIEW_REVIEWED_V1", use: "ledger entry preview reviewed gate for future WC ledger write runbook; no live ledger write" },
       { path: "/public-node/operator-ledger-write-runbook-final-operator-apply-present-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_APPLY_PRESENT_V1", use: "final operator apply present gate for future WC ledger write runbook; no live ledger write" },
+      { path: "/public-node/operator-ledger-write-runbook-all-required-gates-green-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_V1", use: "all required prewrite gates green for future WC ledger write runbook; no live ledger write" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
       { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
@@ -46243,6 +46244,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/operator-ledger-write-runbook-positive-nonzero-wc-delta-selected-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_POSITIVE_NONZERO_WC_DELTA_SELECTED_V1", purpose: "positive nonzero WC delta selected gate for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_positive_nonzero_wc_delta_selected_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LEDGER_ENTRY_PREVIEW_REVIEWED_V1", purpose: "ledger entry preview reviewed gate for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_ledger_entry_preview_reviewed_no_live_write" },
     { path: "/public-node/operator-ledger-write-runbook-final-operator-apply-present-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_APPLY_PRESENT_V1", purpose: "final operator apply present gate for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_final_operator_apply_present_no_live_write" },
+    { path: "/public-node/operator-ledger-write-runbook-all-required-gates-green-v1.json", marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_V1", purpose: "all required prewrite gates green for future WC ledger write runbook", safety_class: "public_read_only_operator_ledger_write_runbook_all_required_gates_green_no_live_write" },
     { path: "/public-node/data-weight-record.json", marker: "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1", purpose: "public data weight record schema and sample fixtures", safety_class: "public_read_only_data_weight_schema" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46390,6 +46392,47 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
     ],
     proof: "ops/mainnet0/public-node-operator-ledger-write-readiness-fixture-v1-proof.sh",
     safety_claim: "Operator Ledger Write Readiness Fixture v1 is public read-only and readiness-only. It does not authorize or execute ledger writes, WC credit awards, WC-to-VOID swaps, wallet sends, validator mutation, or money movement."
+  });
+});
+
+APP.get("/public-node/operator-ledger-write-runbook-all-required-gates-green-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_V1",
+    status: "ledger_write_runbook_all_required_gates_green_only",
+    state: "all_required_gates_green_no_live_write",
+    public_read_only: true,
+    all_required_gates_green_only: true,
+    all_required_gates_green: true,
+    source_hash_chain_green: true,
+    duplicate_ledger_entry_check_green: true,
+    positive_nonzero_wc_delta_selected_by_operator: true,
+    ledger_entry_preview_reviewed: true,
+    final_operator_apply_present: true,
+    selected_wc_delta: 1,
+    selected_wc_delta_unit: "WC",
+    previewed_entry_kind: "wc_delta",
+    previewed_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    previewed_wc_delta: 1,
+    previewed_wc_delta_unit: "WC",
+    ready_for_ledger_write: false,
+    ready_for_credit_award: false,
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    next_gate: "operator_ledger_write_runbook_ready_for_ledger_write_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-all-required-gates-green-v1-proof.sh"
   });
 });
 
@@ -52161,6 +52204,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookAllRequiredGatesGreenCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_UI_V1 -->
+          <h3>Operator ledger write runbook all required gates green v1</h3>
+          <p>All required prewrite gates are green. This still does not write the WC ledger or award credits.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-all-required-gates-green-v1.json</code></p>
+          <p>Status: <code>ledger_write_runbook_all_required_gates_green_only</code>; ledger write allowed: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookFinalOperatorApplyPresentCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_OPERATOR_APPLY_PRESENT_UI_V1 -->
           <h3>Operator ledger write runbook final operator apply present v1</h3>
           <p>Final operator apply presence gate. The apply marker exists, but this route still performs no live ledger write and awards no WC.</p>
