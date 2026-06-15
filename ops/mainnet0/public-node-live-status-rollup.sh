@@ -2741,4 +2741,30 @@ grep -Fq "skeptic_wc_accounting_public_route_can_execute_private_ledger_write=fa
 
 echo "skeptic_work_credits_accounting_boundary_live_status_rollup_green=true"
 
+echo "=== Skeptic Process Isolation Boundary v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-process-isolation-boundary-v1-proof.sh \
+  > "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_PROOF_V1_GREEN" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_boundary_route_green=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_boundary_route_index_green=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_boundary_card_ui_green=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_boundary_doc_green=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_complete=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_routes_read_only=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_read_only_means_dos_proof=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_read_only_means_process_isolated=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_route_crash_can_affect_availability=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_socket_exhaustion_can_affect_availability=true" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_authorized_mutation_path_exists=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_core_ledger_mutation=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_wallet_key_mutation=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_validator_mutation=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_public_wc_award=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_verified_rate_limit=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+grep -Fq "skeptic_process_isolation_verified_reverse_proxy_ddos=false" "$OUT/public-node-skeptic-process-isolation-boundary-v1-proof.log"
+
+echo "skeptic_process_isolation_boundary_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

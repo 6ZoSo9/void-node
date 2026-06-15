@@ -45830,6 +45830,94 @@ APP.get("/public-node/skeptic/work-credits-accounting-boundary-v1.json", (_req:a
   });
 });
 
+APP.get("/public-node/skeptic/process-isolation-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_V1",
+    route: "/public-node/skeptic/process-isolation-boundary-v1.json",
+    parent: "/public-node/skeptic-audit-readiness.json",
+    sibling_sybil_ddos: "/public-node/skeptic/sybil-ddos-threat-model.json",
+    sibling_datanet_poisoning: "/public-node/skeptic/datanet-poisoning-boundary-v1.json",
+    sibling_work_credits_accounting: "/public-node/skeptic/work-credits-accounting-boundary-v1.json",
+    schema_version: 1,
+    headline: "VOID Public/Private Process Isolation Boundary v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    disclosure_type: "process_isolation_and_availability_boundary_disclosure_only",
+    availability_truths: {
+      public_private_process_isolation_complete: false,
+      public_routes_read_only: true,
+      read_only_means_dos_proof: false,
+      read_only_means_process_isolated: false,
+      public_route_crash_can_affect_local_node_availability: true,
+      socket_exhaustion_can_affect_local_node_availability: true,
+      heavy_public_request_load_can_affect_local_node_availability: true,
+      public_route_authorized_mutation_path_exists: false,
+      public_route_can_mutate_core_ledger: false,
+      public_route_can_mutate_wallet_or_keys: false,
+      public_route_can_mutate_validator_set: false,
+      public_route_can_award_work_credits: false
+    },
+    current_runtime_boundary: {
+      public_node_surface_and_local_node_share_runtime_process: true,
+      public_surface_has_separate_failure_domain: false,
+      public_surface_has_verified_reverse_proxy_ddos_shield: false,
+      public_surface_has_verified_rate_limit: false,
+      public_surface_has_verified_request_queue_isolation: false,
+      public_surface_has_verified_cpu_memory_cgroup_isolation: false,
+      public_surface_has_verified_worker_process_pool: false,
+      systemd_user_service_runtime_quarantine_present: true,
+      route_level_mutation_disabled: true,
+      live_runtime_private_command_exposure: false
+    },
+    attack_classes: [
+      "public_route_crash",
+      "socket_exhaustion",
+      "slow_client_connection_pressure",
+      "large_request_pressure",
+      "high_frequency_request_pressure",
+      "expensive_route_composition",
+      "log_or_disk_pressure",
+      "shared_process_failure_cascade",
+      "operator_availability_confusion"
+    ],
+    not_claimed_in_v1: [
+      "production_grade_process_isolation",
+      "verified_dos_protection",
+      "verified_rate_limiting",
+      "verified_reverse_proxy_shielding",
+      "verified_worker_pool_isolation",
+      "verified_cpu_memory_cgroup_limits",
+      "zero_availability_impact_from_public_routes",
+      "third_party_audited_runtime_boundary"
+    ],
+    current_guardrails: [
+      "public_read_only_routes",
+      "route_marker_proofs",
+      "live_status_rollup_guards",
+      "runtime_quarantine_drop_in",
+      "no_public_core_ledger_mutation",
+      "no_public_wallet_or_key_mutation",
+      "no_public_validator_mutation",
+      "no_public_work_credit_award",
+      "no_public_private_command_exposure"
+    ],
+    future_hardening_path: [
+      "split_public_surface_into_separate_process",
+      "reverse_proxy_with_request_limits",
+      "per_route_timeout_and_size_caps",
+      "worker_or_queue_isolation_for_expensive_routes",
+      "systemd_cgroup_limits_for_public_surface",
+      "separate_public_node_health_from_core_node_health",
+      "external_availability_smoke_from_non_lan_network",
+      "documented_incident_runbook_for_public_surface_overload"
+    ],
+    proof_notice: "This boundary verifies disclosure alignment only. It does not claim production-grade isolation, DoS resistance, verified rate limiting, or zero availability impact from public routes."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45854,6 +45942,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/skeptic/sybil-ddos-threat-model.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_V1", use: "Sybil and DDoS threat model disclosure; no mitigation-complete claim" },
       { path: "/public-node/skeptic/datanet-poisoning-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_V1", use: "DataNet poisoning boundary disclosure; hash verified does not mean true or safe content" },
       { path: "/public-node/skeptic/work-credits-accounting-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_V1", use: "Work Credits accounting boundary disclosure; WC is not consensus, finality, validator power, or automatic money movement" },
+      { path: "/public-node/skeptic/process-isolation-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_V1", use: "Process isolation and availability boundary disclosure; read-only does not mean DoS-proof or isolated" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -53191,6 +53280,31 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeSkepticWorkCreditsAccountingBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
     </p>
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-work-credits-accounting-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-work-credits-accounting-boundary-v1-proof.sh</code></p>
+    <p><a class="btn" id="publicNodeSkepticProcessIsolationBoundaryLink" href="/public-node/skeptic/process-isolation-boundary-v1.json">Process isolation boundary</a></p>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticProcessIsolationBoundaryCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_UI_V1 -->
+    <div class="muted">Skeptic child index</div>
+    <h2>Process Isolation & Availability Boundary (V1)</h2>
+    <p>This disclosure separates read-only safety from availability isolation. Read-only routes are not automatically DoS-proof.</p>
+    <ul>
+      <li><span class="warn">Public/private process isolation complete:</span> <code>false</code></li>
+      <li><span class="good">Public routes read-only:</span> <code>true</code></li>
+      <li><span class="warn">Read-only means DoS-proof:</span> <code>false</code></li>
+      <li><span class="warn">Read-only means process-isolated:</span> <code>false</code></li>
+      <li><span class="warn">Public route crash can affect local availability:</span> <code>true</code></li>
+      <li><span class="warn">Socket exhaustion can affect local availability:</span> <code>true</code></li>
+      <li><span class="good">Public route authorized mutation path exists:</span> <code>false</code></li>
+      <li><span class="good">Public private-command exposure:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Boundary:</b> public route overload is an availability risk, not an authorized mutation path.</p>
+    <p class="muted"><b>Not claimed:</b> production-grade isolation, verified DDoS resistance, verified rate limiting, reverse-proxy shielding, worker-pool isolation, or zero availability impact.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticProcessIsolationBoundaryRawLink" href="/public-node/skeptic/process-isolation-boundary-v1.json">Open process isolation JSON</a>
+      <a class="btn" id="publicNodeSkepticProcessIsolationBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-process-isolation-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-process-isolation-boundary-v1-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
