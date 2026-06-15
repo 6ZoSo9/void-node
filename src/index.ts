@@ -46405,6 +46405,48 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-exact-operator-execute-command-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_OPERATOR_EXECUTE_COMMAND_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_OPERATOR_EXECUTE_COMMAND_V1",
+    status: "exact_operator_execute_command_packet_reviewed_only",
+    state: "exact_operator_execute_command_packet_no_live_write",
+    public_read_only: true,
+    exact_operator_execute_command_packet_only: true,
+    exact_operator_execute_command_packet_reviewed: true,
+    manual_live_write_execute_packet_reviewed: true,
+    final_live_write_preflight_reviewed: true,
+    explicit_operator_ledger_write_allowance_reviewed: true,
+    selected_wc_delta: 1,
+    selected_wc_delta_unit: "WC",
+    previewed_entry_kind: "wc_delta",
+    previewed_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    previewed_wc_delta: 1,
+    previewed_wc_delta_unit: "WC",
+    exact_operator_execute_command_present_now: true,
+    requested_now: false,
+    ready_for_credit_award: false,
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    operator_command_recorded_for_next_gate: true,
+    operator_must_request_write_after_this_gate: true,
+    next_gate: "operator_ledger_write_runbook_operator_requested_write_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-exact-operator-execute-command-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-manual-live-write-execute-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_MANUAL_LIVE_WRITE_EXECUTE_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_MANUAL_LIVE_WRITE_EXECUTE_V1",
@@ -52435,6 +52477,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookExactOperatorExecuteCommandCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXACT_OPERATOR_EXECUTE_COMMAND_UI_V1 -->
+          <h3>Operator ledger write runbook exact operator execute command v1</h3>
+          <p>The exact operator execute command packet is present and reviewed. This still does not request, perform, or award a live WC ledger write.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-exact-operator-execute-command-v1.json</code></p>
+          <p>Status: <code>exact_operator_execute_command_packet_reviewed_only</code>; exact command present now: <code>true</code>; requested now: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookManualLiveWriteExecuteCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_MANUAL_LIVE_WRITE_EXECUTE_UI_V1 -->
           <h3>Operator ledger write runbook manual live write execute packet v1</h3>
           <p>The manual execute packet is reviewed. This public route cannot execute writes; exact terminal operator command is still absent.</p>
