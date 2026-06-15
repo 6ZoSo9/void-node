@@ -2298,4 +2298,18 @@ grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_wc_credit_d
 grep -Fq "operator_ledger_write_runbook_final_operator_apply_present_next_gate=operator_ledger_write_runbook_all_required_gates_green_v1" "$OUT/operator-ledger-write-runbook-final-operator-apply-present-v1-proof.log"
 echo "operator_ledger_write_runbook_final_operator_apply_present_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook All Required Gates Green v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-all-required-gates-green-v1-proof.sh > "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_ALL_REQUIRED_GATES_GREEN_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green=true" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_delta=1" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_delta_unit=WC" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_ready_for_ledger_write=false" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_all_required_gates_green_next_gate=operator_ledger_write_runbook_ready_for_ledger_write_v1" "$OUT/operator-ledger-write-runbook-all-required-gates-green-v1-proof.log"
+echo "operator_ledger_write_runbook_all_required_gates_green_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
