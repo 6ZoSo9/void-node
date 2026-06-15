@@ -46405,6 +46405,51 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-live-write-unlock-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_WRITE_UNLOCK_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_WRITE_UNLOCK_V1",
+    status: "live_write_unlock_reviewed_only",
+    state: "live_write_unlock_no_live_write",
+    public_read_only: true,
+    live_write_unlock_only: true,
+    live_write_unlock_reviewed: true,
+    operator_requested_write_reviewed: true,
+    requested_now: true,
+    exact_operator_execute_command_packet_reviewed: true,
+    exact_operator_execute_command_present_now: true,
+    manual_live_write_execute_packet_reviewed: true,
+    final_live_write_preflight_reviewed: true,
+    explicit_operator_ledger_write_allowance_reviewed: true,
+    selected_wc_delta: 1,
+    selected_wc_delta_unit: "WC",
+    previewed_entry_kind: "wc_delta",
+    previewed_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    previewed_wc_delta: 1,
+    previewed_wc_delta_unit: "WC",
+    live_write_unlocked_for_final_apply: true,
+    ready_for_credit_award: false,
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    operator_live_write_unlock_recorded_for_next_gate: true,
+    operator_must_perform_final_apply_after_this_gate: true,
+    next_gate: "operator_ledger_write_runbook_final_apply_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-live-write-unlock-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-operator-requested-write-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_REQUESTED_WRITE_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_REQUESTED_WRITE_V1",
@@ -52520,6 +52565,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookLiveWriteUnlockCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LIVE_WRITE_UNLOCK_UI_V1 -->
+          <h3>Operator ledger write runbook live write unlock v1</h3>
+          <p>The live write unlock checkpoint is recorded for final apply review. This still does not perform, mutate, or award a live WC ledger write.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-live-write-unlock-v1.json</code></p>
+          <p>Status: <code>live_write_unlock_reviewed_only</code>; requested now: <code>true</code>; live runtime write: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookOperatorRequestedWriteCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_OPERATOR_REQUESTED_WRITE_UI_V1 -->
           <h3>Operator ledger write runbook operator requested write v1</h3>
           <p>The operator write request checkpoint is recorded. This still does not perform, mutate, or award a live WC ledger write.</p>
