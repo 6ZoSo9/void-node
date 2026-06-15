@@ -52737,6 +52737,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeDatanetChallengeOpenLink" href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Open challenge</a>
       <a class="btn" id="publicNodeDatanetChallengeManifestLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json">Open Demo 003 manifest</a>
       <a class="btn" id="publicNodeDatanetChallengeRouteIndexLink" href="/public-node/route-index.json">Route index</a>
+      <a class="btn" id="publicNodeDatanetChallengeTesterCopyPackLink" href="/public-node/datanet/challenge-tester-copy-pack-v1.json">Tester copy pack</a>
     </div>
     <p class="muted">Safety: public_read_only=true · path_from_dataset_id=false · mutation=false · ledger_write=false · wc_credit_award=false</p>
   </section>

@@ -17,6 +17,7 @@ grep -Fq "VOID_DATANET_CHALLENGE_UI_V1" src/index.ts
 grep -Fq "publicNodeDatanetChallengeCard" src/index.ts
 grep -Fq "publicNodeDatanetChallengeOpenLink" src/index.ts
 grep -Fq "publicNodeDatanetChallengeManifestLink" src/index.ts
+grep -Fq "publicNodeDatanetChallengeTesterCopyPackLink" src/index.ts
 grep -Fq "path_from_dataset_id=false" src/index.ts
 grep -Fq "wc_credit_award=false" src/index.ts
 grep -Fq "VOID_DATANET_CHALLENGE_UI_DOC_V1" docs/public/public-node-datanet-challenge-v1.md
@@ -24,11 +25,14 @@ grep -Fq "VOID_DATANET_CHALLENGE_UI_DOC_V1" docs/public/public-node-datanet-chal
 curl -fsS --max-time 8 "$BASE/public-node" > "$OUT/public-node.html"
 curl -fsS --max-time 8 "$BASE/public-node/datanet/challenge/demo003-folder-fixture-v1" > "$OUT/challenge.json"
 curl -fsS --max-time 8 "$BASE/public-node/route-index.json" > "$OUT/route-index.json"
+curl -fsS --max-time 8 "$BASE/public-node/datanet/challenge-tester-copy-pack-v1.json" > "$OUT/copy-pack.json"
 
 grep -Fq "VOID_DATANET_CHALLENGE_UI_V1" "$OUT/public-node.html"
 grep -Fq "publicNodeDatanetChallengeCard" "$OUT/public-node.html"
 grep -Fq "/public-node/datanet/challenge/demo003-folder-fixture-v1" "$OUT/public-node.html"
 grep -Fq "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json" "$OUT/public-node.html"
+grep -Fq "publicNodeDatanetChallengeTesterCopyPackLink" "$OUT/public-node.html"
+grep -Fq "/public-node/datanet/challenge-tester-copy-pack-v1.json" "$OUT/public-node.html"
 grep -Fq "path_from_dataset_id=false" "$OUT/public-node.html"
 grep -Fq "wc_credit_award=false" "$OUT/public-node.html"
 
@@ -42,10 +46,18 @@ grep -Fq '"wc_credit_award":false' "$OUT/challenge.json"
 
 grep -Fq "/public-node/datanet/challenge/:dataset_id" "$OUT/route-index.json"
 grep -Fq "VOID_DATANET_CHALLENGE_V1" "$OUT/route-index.json"
+grep -Fq "/public-node/datanet/challenge-tester-copy-pack-v1.json" "$OUT/route-index.json"
+grep -Fq "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1" "$OUT/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1"' "$OUT/copy-pack.json"
+grep -Fq '"public_read_only":true' "$OUT/copy-pack.json"
+grep -Fq '"path_from_dataset_id":false' "$OUT/copy-pack.json"
+grep -Fq '"wc_credit_award":false' "$OUT/copy-pack.json"
 
 echo "datanet_challenge_ui_card_present=true"
 echo "datanet_challenge_ui_link_present=true"
 echo "datanet_challenge_manifest_link_present=true"
+echo "datanet_challenge_tester_copy_pack_link_present=true"
 echo "datanet_challenge_route_index_discovery_green=true"
 echo "datanet_challenge_ui_path_from_dataset_id=false"
 echo "datanet_challenge_ui_wc_credit_award=false"
