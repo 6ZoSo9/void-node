@@ -46405,6 +46405,59 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-separate-live-mutation-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SEPARATE_LIVE_MUTATION_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SEPARATE_LIVE_MUTATION_V1",
+    status: "separate_live_mutation_boundary_reviewed_only",
+    state: "separate_live_mutation_boundary_no_live_write",
+    public_read_only: true,
+    separate_live_mutation_boundary_only: true,
+    separate_live_mutation_reviewed: true,
+    mutation_path_identified: true,
+    final_apply_reviewed: true,
+    final_apply_review_passed: true,
+    live_write_unlock_reviewed: true,
+    live_write_unlocked_for_final_apply: true,
+    operator_requested_write_reviewed: true,
+    requested_now: true,
+    exact_operator_execute_command_packet_reviewed: true,
+    exact_operator_execute_command_present_now: true,
+    selected_wc_delta: 1,
+    selected_wc_delta_unit: "WC",
+    previewed_entry_kind: "wc_delta",
+    previewed_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    previewed_wc_delta: 1,
+    previewed_wc_delta_unit: "WC",
+    mutation_path_candidate_primary: "src/http/datanet_routes.ts wc append path",
+    mutation_path_candidate_secondary: "src/index.ts wc ledger append helpers",
+    mutation_requires_new_explicit_operator_command: true,
+    mutation_requires_runtime_write_enable: true,
+    mutation_requires_duplicate_guard_recheck: true,
+    mutation_requires_pre_mutation_backup: true,
+    mutation_requires_post_mutation_receipt: true,
+    ready_for_credit_award: false,
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    separate_live_mutation_recorded_for_next_gate: true,
+    operator_must_run_dry_mutation_plan_after_this_gate: true,
+    next_gate: "operator_ledger_write_runbook_dry_mutation_plan_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-separate-live-mutation-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-final-apply-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_APPLY_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_APPLY_V1",
@@ -52615,6 +52668,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookSeparateLiveMutationCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SEPARATE_LIVE_MUTATION_UI_V1 -->
+          <h3>Operator ledger write runbook separate live mutation v1</h3>
+          <p>The separate live mutation danger boundary is reviewed. This identifies mutation paths but still does not perform, mutate, or award a live WC ledger write.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-separate-live-mutation-v1.json</code></p>
+          <p>Status: <code>separate_live_mutation_boundary_reviewed_only</code>; mutation path identified: <code>true</code>; live runtime write: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookFinalApplyCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_APPLY_UI_V1 -->
           <h3>Operator ledger write runbook final apply v1</h3>
           <p>The final apply review checkpoint is recorded. This still does not perform, mutate, or award a live WC ledger write.</p>
