@@ -2339,4 +2339,16 @@ grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_operator_m
 grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_next_gate=operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_v1" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
 echo "operator_ledger_write_runbook_ledger_write_allowed_boundary_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Explicit Operator Ledger Write Allowance v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.sh > "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_EXPLICIT_OPERATOR_LEDGER_WRITE_ALLOWANCE_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_reviewed=true" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_next_gate=operator_ledger_write_runbook_final_live_write_preflight_v1" "$OUT/operator-ledger-write-runbook-explicit-operator-ledger-write-allowance-v1-proof.log"
+echo "operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
