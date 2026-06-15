@@ -2692,4 +2692,27 @@ grep -Fq "skeptic_sybil_ddos_wc_block_finality_power=false" "$OUT/public-node-sk
 
 echo "skeptic_sybil_ddos_threat_model_live_status_rollup_green=true"
 
+echo "=== Skeptic DataNet Poisoning Boundary v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-datanet-poisoning-boundary-v1-proof.sh \
+  > "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_PROOF_V1_GREEN" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_boundary_route_green=true" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_boundary_route_index_green=true" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_boundary_card_ui_green=true" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_boundary_doc_green=true" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_sha256_verifies_bytes_not_truth=true" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_valid_manifest_means_safe_content=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_served_by_public_node_means_trusted=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_public_upload_enabled=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_dataset_id_builds_filesystem_path=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_automatic_trust_promotion=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_automatic_ai_visibility_promotion=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_automatic_wc_award_from_dataset=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_automatic_ledger_write_from_dataset=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+grep -Fq "skeptic_datanet_poisoning_automatic_validator_influence_from_dataset=false" "$OUT/public-node-skeptic-datanet-poisoning-boundary-v1-proof.log"
+
+echo "skeptic_datanet_poisoning_boundary_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

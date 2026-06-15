@@ -45646,6 +45646,99 @@ APP.get("/public-node/skeptic/sybil-ddos-threat-model.json", (_req:any, res:any)
   });
 });
 
+APP.get("/public-node/skeptic/datanet-poisoning-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_V1",
+    route: "/public-node/skeptic/datanet-poisoning-boundary-v1.json",
+    parent: "/public-node/skeptic-audit-readiness.json",
+    sibling_threat_model: "/public-node/skeptic/sybil-ddos-threat-model.json",
+    schema_version: 1,
+    headline: "VOID DataNet Poisoning Boundary v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    disclosure_type: "datanet_poisoning_boundary_disclosure_only",
+    core_truths: {
+      sha256_verifies_bytes_not_truth: true,
+      content_root_verifies_manifest_shape_not_semantic_truth: true,
+      valid_manifest_does_not_mean_safe_content: true,
+      served_by_public_node_does_not_mean_trusted: true,
+      public_route_does_not_mean_public_upload: true,
+      datanet_object_does_not_mean_promoted_knowledge: true,
+      ai_visibility_is_separate_from_storage_presence: true,
+      work_credit_eligibility_is_separate_from_data_truth: true
+    },
+    attack_classes: [
+      "malicious_dataset_payload",
+      "false_metadata_claims",
+      "stale_data_replay",
+      "duplicate_data_spam",
+      "suspicious_content_injection",
+      "path_traversal_attempts",
+      "manifest_shape_poisoning",
+      "receipt_spoofing_pressure",
+      "ai_prompt_injection_payloads",
+      "operator_review_pollution"
+    ],
+    current_boundaries: {
+      public_upload_enabled: false,
+      operator_local_import_only: true,
+      public_routes_read_only: true,
+      public_route_mutation_allowed: false,
+      dataset_id_builds_filesystem_path: false,
+      filesystem_path_built_from_dataset_id: false,
+      automatic_trust_promotion_enabled: false,
+      automatic_ai_visibility_promotion_enabled: false,
+      automatic_work_credit_award_from_dataset: false,
+      automatic_ledger_write_from_dataset: false,
+      automatic_validator_influence_from_dataset: false
+    },
+    data_weight_boundary: {
+      source_weight_required_before_promotion: true,
+      verification_state_required_before_promotion: true,
+      suspicion_state_required_before_promotion: true,
+      duplicate_state_required_before_promotion: true,
+      freshness_state_required_before_promotion: true,
+      quarantine_state_supported: true,
+      tombstone_state_supported: true,
+      hidden_by_default_visibility_supported: true,
+      trust_score_is_not_same_as_hash_integrity: true
+    },
+    quarantine_policy_v1: {
+      suspicious_data_default_action: "quarantine_or_hidden_by_default",
+      duplicate_data_default_action: "dedupe_or_demote",
+      stale_data_default_action: "demote_until_reviewed",
+      traversal_attempt_default_action: "reject",
+      malformed_manifest_default_action: "reject",
+      poisoning_evidence_preserved_as_metadata: true,
+      raw_payload_truth_claim: false
+    },
+    not_claimed_in_v1: [
+      "automatic_content_truth_detection",
+      "malware_scanning_complete",
+      "prompt_injection_scanning_complete",
+      "public_upload_acceptance",
+      "automatic_trust_promotion",
+      "automatic_work_credit_award_from_dataset_truth",
+      "production_grade_dataset_moderation"
+    ],
+    current_guardrails: [
+      "sha256_content_addressing",
+      "manifest_root_verification",
+      "dataset_id_whitelist_challenge_route",
+      "no_filesystem_path_building_from_dataset_id",
+      "public_read_only_routes",
+      "operator_local_import_only",
+      "data_weight_record_fields",
+      "quarantine_and_tombstone_states",
+      "manual_operator_review_before_trust_promotion"
+    ],
+    proof_notice: "This boundary verifies disclosure alignment only. It does not claim that DataNet content is true, safe, clean, or production-moderated."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45668,6 +45761,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
       { path: "/public-node/skeptic-audit-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_V1", use: "public surface skeptic and audit readiness index; disclosure only; no security guarantee" },
       { path: "/public-node/skeptic/sybil-ddos-threat-model.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_V1", use: "Sybil and DDoS threat model disclosure; no mitigation-complete claim" },
+      { path: "/public-node/skeptic/datanet-poisoning-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_V1", use: "DataNet poisoning boundary disclosure; hash verified does not mean true or safe content" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -52954,6 +53048,31 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeSkepticSybilDdosThreatModelParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
     </p>
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-sybil-ddos-threat-model.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-sybil-ddos-threat-model-proof.sh</code></p>
+    <p><a class="btn" id="publicNodeSkepticDatanetPoisoningBoundaryLink" href="/public-node/skeptic/datanet-poisoning-boundary-v1.json">DataNet poisoning boundary</a></p>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticDatanetPoisoningBoundaryCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_UI_V1 -->
+    <div class="muted">Skeptic child index</div>
+    <h2>DataNet Poisoning Boundary (V1)</h2>
+    <p>This disclosure separates byte integrity from truth, safety, trust, AI visibility, and Work Credit eligibility.</p>
+    <ul>
+      <li><span class="warn">SHA-256 verifies bytes, not truth:</span> <code>true</code></li>
+      <li><span class="warn">Valid manifest means safe content:</span> <code>false</code></li>
+      <li><span class="warn">Served by public node means trusted:</span> <code>false</code></li>
+      <li><span class="warn">Automatic trust promotion:</span> <code>false</code></li>
+      <li><span class="warn">Automatic AI visibility promotion:</span> <code>false</code></li>
+      <li><span class="warn">Automatic WC award from dataset:</span> <code>false</code></li>
+      <li><span class="good">Public upload enabled:</span> <code>false</code></li>
+      <li><span class="good">Dataset ID builds filesystem path:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Recognized attacks:</b> malicious payloads, false metadata, stale replay, duplicate spam, suspicious content injection, traversal attempts, prompt-injection payloads, and operator review pollution.</p>
+    <p class="muted"><b>Boundary:</b> data can be stored/served/proven without being promoted as trusted knowledge. Promotion requires weight, review, and quarantine/tombstone handling.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticDatanetPoisoningBoundaryRawLink" href="/public-node/skeptic/datanet-poisoning-boundary-v1.json">Open poisoning boundary JSON</a>
+      <a class="btn" id="publicNodeSkepticDatanetPoisoningBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-datanet-poisoning-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-datanet-poisoning-boundary-v1-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
