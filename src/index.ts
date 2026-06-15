@@ -45555,6 +45555,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/local-data-drop/weighted.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1", use: "weighted view of operator-local public data drop objects" },
       { path: "/public-node/real-data-import-lane-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", use: "machine-readable real data import lane status" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", use: "Demo 003 verified folder manifest" },
+      { path: "/public-node/datanet/challenge/:dataset_id", kind: "json", marker: "VOID_DATANET_CHALLENGE_V1", use: "read-only DataNet challenge packet by whitelisted dataset id; bounded manifest route references only; no filesystem path from dataset_id" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -51433,6 +51434,122 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
 
 
 
+
+
+
+APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
+  const crypto = require("node:crypto");
+
+  function stableStringify(x:any): string {
+    if (x === null || typeof x !== "object") return JSON.stringify(x);
+    if (Array.isArray(x)) return "[" + x.map(stableStringify).join(",") + "]";
+    return "{" + Object.keys(x).sort().map((k) => JSON.stringify(k) + ":" + stableStringify(x[k])).join(",") + "}";
+  }
+
+  function sha256Hex(x:any): string {
+    return crypto.createHash("sha256").update(String(x)).digest("hex");
+  }
+
+  const rawDatasetId = String(req.params.dataset_id || "");
+
+  const malformed =
+    rawDatasetId.length < 3 ||
+    rawDatasetId.length > 96 ||
+    rawDatasetId.includes("/") ||
+    rawDatasetId.includes("\\") ||
+    rawDatasetId.includes("..") ||
+    rawDatasetId.includes("%2f") ||
+    rawDatasetId.includes("%2F") ||
+    rawDatasetId.includes("%5c") ||
+    rawDatasetId.includes("%5C") ||
+    !/^[a-z0-9][a-z0-9._-]*[a-z0-9]$/i.test(rawDatasetId);
+
+  if (malformed) {
+    return res.status(400).json({
+      marker: "VOID_DATANET_CHALLENGE_V1",
+      ok: false,
+      error: "malformed_dataset_id",
+      dataset_id: rawDatasetId,
+      public_read_only: true,
+      bounded_read: true,
+      path_from_dataset_id: false,
+      filesystem_path_built_from_dataset_id: false,
+      mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const registry:any = {
+    "demo003-folder-fixture-v1": {
+      dataset_id: "demo003-folder-fixture-v1",
+      kind: "operator_local_verified_folder_fixture",
+      manifest_route: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json",
+      file_routes: [
+        "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+        "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+        "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
+      ],
+      source_doc: "docs/public/public-node-local-data-drop-demo003-folder-fixture.md",
+      existing_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+      offline_verified: true,
+      trusted_as_network_truth: false
+    }
+  };
+
+  const entry = registry[rawDatasetId] || null;
+
+  if (!entry) {
+    return res.status(404).json({
+      marker: "VOID_DATANET_CHALLENGE_V1",
+      ok: false,
+      error: "dataset_not_found",
+      dataset_id: rawDatasetId,
+      public_read_only: true,
+      bounded_read: true,
+      path_from_dataset_id: false,
+      filesystem_path_built_from_dataset_id: false,
+      mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const challengeCore = {
+    marker: "VOID_DATANET_CHALLENGE_V1",
+    version: 1,
+    dataset_id: entry.dataset_id,
+    challenge_type: "read_only_manifest_route_challenge",
+    sha256_algorithm: "sha256",
+    bounded_read_existing_public_manifest_route: entry.manifest_route,
+    bounded_read_existing_public_file_routes: entry.file_routes,
+    registry_source: "static_whitelist_registry_inside_public_route",
+    registry_lookup_at_request_time: true,
+    path_from_dataset_id: false,
+    filesystem_path_built_from_dataset_id: false,
+    public_read_only: true,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    offline_verified: entry.offline_verified,
+    trusted_as_network_truth: entry.trusted_as_network_truth,
+    source_doc: entry.source_doc,
+    expected_existing_marker: entry.existing_marker
+  };
+
+  const canonical = stableStringify(challengeCore);
+
+  res.json({
+    ...challengeCore,
+    canonical_json_sha256: sha256Hex(canonical),
+    challenge_status: "ready",
+    ok: true
+  });
+});
 
 
 APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_ROUTE_V1
