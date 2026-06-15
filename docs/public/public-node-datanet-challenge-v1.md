@@ -42,3 +42,28 @@ Meaning:
        It does not turn dataset_id into a filesystem path.
        It references existing public manifest/file routes and gives clients a stable SHA-256 challenge packet.
        It does not promote local evidence into network truth and does not award Work Credits.
+
+## Public-node UI card <!-- VOID_DATANET_CHALLENGE_UI_DOC_V1 -->
+
+The public node page surfaces the DataNet Challenge v1 route as a visible read-only card.
+
+Card marker:
+
+       VOID_DATANET_CHALLENGE_UI_V1
+
+Card id:
+
+       publicNodeDatanetChallengeCard
+
+Primary link:
+
+       /public-node/datanet/challenge/demo003-folder-fixture-v1
+
+Safety flags:
+
+       public_read_only=true
+       path_from_dataset_id=false
+       filesystem_path_built_from_dataset_id=false
+       mutation=false
+       ledger_write=false
+       wc_credit_award=false

@@ -52657,6 +52657,19 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     </script>
   </section>
 
+  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
+    <div class="muted">DataNet Challenge</div>
+    <h2>Read-only challenge packet</h2>
+    <p>Whitelisted challenge route for verified DataNet/local-data fixtures. Dataset IDs are registry lookups only; they are never converted into filesystem paths.</p>
+    <p><code>/public-node/datanet/challenge/demo003-folder-fixture-v1</code></p>
+    <div class="row">
+      <a class="btn" id="publicNodeDatanetChallengeOpenLink" href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Open challenge</a>
+      <a class="btn" id="publicNodeDatanetChallengeManifestLink" href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json">Open Demo 003 manifest</a>
+      <a class="btn" id="publicNodeDatanetChallengeRouteIndexLink" href="/public-node/route-index.json">Route index</a>
+    </div>
+    <p class="muted">Safety: public_read_only=true · path_from_dataset_id=false · mutation=false · ledger_write=false · wc_credit_award=false</p>
+  </section>
+
   <section class="card" id="publicNodeLocalDataDropDemo003FolderCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_V1 -->
     <b>Demo 003: verified folder serving</b>
     <p class="muted">This node is serving an operator-local, offline-verified multi-file folder through public read-only routes. It is a tiny website-style folder payload, not a public upload endpoint.</p>
