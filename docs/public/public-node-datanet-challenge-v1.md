@@ -67,3 +67,31 @@ Safety flags:
        mutation=false
        ledger_write=false
        wc_credit_award=false
+
+## Tester copy pack <!-- VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_DOC_V1 -->
+
+The public node exposes a copy/paste tester pack for the DataNet Challenge route.
+
+Route:
+
+       /public-node/datanet/challenge-tester-copy-pack-v1.json
+
+Marker:
+
+       VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1
+
+Expected smoke marker:
+
+       VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_SMOKE_V1_GREEN
+
+Policy:
+
+       public_routes_only=true
+       public_read_only=true
+       bounded_read=true
+       path_from_dataset_id=false
+       filesystem_path_built_from_dataset_id=false
+       mutation=false
+       live_runtime_write=false
+       ledger_write=false
+       wc_credit_award=false

@@ -45556,6 +45556,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/real-data-import-lane-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1", use: "machine-readable real data import lane status" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", use: "Demo 003 verified folder manifest" },
       { path: "/public-node/datanet/challenge/:dataset_id", kind: "json", marker: "VOID_DATANET_CHALLENGE_V1", use: "read-only DataNet challenge packet by whitelisted dataset id; bounded manifest route references only; no filesystem path from dataset_id" },
+      { path: "/public-node/datanet/challenge-tester-copy-pack-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1", use: "copy/paste outside tester pack for DataNet Challenge v1; read-only; no WC award" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -50102,6 +50103,76 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       private_api: false,
       mutation: false,
       read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+
+APP.get("/public-node/datanet/challenge-tester-copy-pack-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const datasetId = "demo003-folder-fixture-v1";
+  const challengePath = "/public-node/datanet/challenge/" + datasetId;
+  const manifestPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json";
+  const routeIndexPath = "/public-node/route-index.json";
+
+  const smokeCommand =
+    'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; ' +
+    'curl -fsS "$PUBLIC_NODE_BASE' + challengePath + '" | tee /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"marker":"VOID_DATANET_CHALLENGE_V1"\' /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"ok":true\' /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"dataset_id":"' + datasetId + '"\' /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"path_from_dataset_id":false\' /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"filesystem_path_built_from_dataset_id":false\' /tmp/void-datanet-challenge.json; ' +
+    'grep -F \'"wc_credit_award":false\' /tmp/void-datanet-challenge.json; ' +
+    'curl -fsS "$PUBLIC_NODE_BASE' + manifestPath + '" >/tmp/void-datanet-challenge-manifest.json; ' +
+    'grep -F "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER" /tmp/void-datanet-challenge-manifest.json; ' +
+    'curl -fsS "$PUBLIC_NODE_BASE' + routeIndexPath + '" >/tmp/void-datanet-challenge-route-index.json; ' +
+    'grep -F "/public-node/datanet/challenge/:dataset_id" /tmp/void-datanet-challenge-route-index.json; ' +
+    'echo "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_SMOKE_V1_GREEN"';
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1",
+    purpose: "outside_tester_copy_pack_for_datanet_challenge_v1",
+    headline: "VOID DataNet Challenge tester copy pack",
+    dataset_id: datasetId,
+    effective_base_url: effectiveBaseUrl,
+    challenge_url: effectiveBaseUrl + challengePath,
+    challenge_path: challengePath,
+    manifest_url: effectiveBaseUrl + manifestPath,
+    manifest_path: manifestPath,
+    route_index_url: effectiveBaseUrl + routeIndexPath,
+    route_index_path: routeIndexPath,
+    smoke_command: smokeCommand,
+    expected_green_marker: "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_SMOKE_V1_GREEN",
+    expected_challenge_marker: "VOID_DATANET_CHALLENGE_V1",
+    checks: [
+      "challenge route returns ok=true",
+      "challenge marker is VOID_DATANET_CHALLENGE_V1",
+      "dataset_id is demo003-folder-fixture-v1",
+      "path_from_dataset_id=false",
+      "filesystem_path_built_from_dataset_id=false",
+      "wc_credit_award=false",
+      "Demo 003 manifest remains reachable",
+      "route index discovers the challenge route"
+    ],
+    policy: {
+      public_routes_only: true,
+      public_read_only: true,
+      bounded_read: true,
+      path_from_dataset_id: false,
+      filesystem_path_built_from_dataset_id: false,
+      mutation: false,
+      live_runtime_write: false,
+      ledger_write: false,
+      wc_credit_award: false,
       money_movement: false,
       wallet_send: false,
       wc_to_void_swap: false,
