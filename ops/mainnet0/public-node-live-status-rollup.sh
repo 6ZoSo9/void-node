@@ -2510,4 +2510,23 @@ grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_wc_credit_de
 grep -Fq "operator_ledger_write_runbook_final_mutation_command_hold_next_gate=operator_ledger_write_runbook_final_live_mutation_execute_packet_v1" "$OUT/operator-ledger-write-runbook-final-mutation-command-hold-v1-proof.log"
 echo "operator_ledger_write_runbook_final_mutation_command_hold_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Final Live Mutation Execute Packet v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.sh > "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_LIVE_MUTATION_EXECUTE_PACKET_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_metadata_only=true" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_present=true" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_public_safe=true" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_contains_live_command=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_contains_private_command=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_command_printed_now=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_command_executed_now=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_execution_allowed_now=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_duplicate_found=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_final_live_mutation_execute_packet_next_gate=operator_ledger_write_runbook_private_live_mutation_command_request_v1" "$OUT/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1-proof.log"
+echo "operator_ledger_write_runbook_final_live_mutation_execute_packet_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
