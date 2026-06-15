@@ -46405,6 +46405,54 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-private-live-mutation-command-request-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRIVATE_LIVE_MUTATION_COMMAND_REQUEST_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRIVATE_LIVE_MUTATION_COMMAND_REQUEST_V1",
+    status: "private_live_mutation_command_request_checkpoint",
+    state: "private_command_request_recorded_no_live_ledger_write",
+    public_read_only: true,
+    private_command_request_boundary: true,
+    private_command_request_recorded: true,
+    private_operator_command_required_later: true,
+    private_operator_command_publicly_withheld: true,
+    private_operator_command_revealed_publicly: false,
+    private_operator_command_printed_now: false,
+    private_operator_command_executed_now: false,
+    command_execution_allowed_now: false,
+    command_channel_public_safe: true,
+    public_route_contains_secret: false,
+    public_route_contains_private_command: false,
+    final_live_mutation_execute_packet_green_required: true,
+    final_mutation_command_hold_green_required: true,
+    pre_mutation_backup_execute_green_required: true,
+    duplicate_guard_recheck_green_required: true,
+    duplicate_found_by_expected_clean_scan: false,
+    duplicate_blocked_by_expected_clean_scan: false,
+    planned_wc_delta: 1,
+    planned_wc_delta_unit: "WC",
+    planned_entry_kind: "wc_delta",
+    planned_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    private_live_mutation_command_request_recorded_for_next_gate: true,
+    next_gate: "operator_ledger_write_runbook_private_live_mutation_command_hold_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-private-live-mutation-command-request-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-final-live-mutation-execute-packet-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_LIVE_MUTATION_EXECUTE_PACKET_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_LIVE_MUTATION_EXECUTE_PACKET_V1",
@@ -52941,6 +52989,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookPrivateLiveMutationCommandRequestCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRIVATE_LIVE_MUTATION_COMMAND_REQUEST_UI_V1 -->
+          <h3>Operator ledger write runbook private live mutation command request v1</h3>
+          <p>The private live mutation command request boundary is recorded. The public route does not reveal, print, or execute the private command.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-private-live-mutation-command-request-v1.json</code></p>
+          <p>Status: <code>private_command_request_recorded_no_live_ledger_write</code>; private command revealed publicly: <code>false</code>; command executed now: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookFinalLiveMutationExecutePacketCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_FINAL_LIVE_MUTATION_EXECUTE_PACKET_UI_V1 -->
           <h3>Operator ledger write runbook final live mutation execute packet v1</h3>
           <p>The execute packet is recorded as public-safe metadata only. It does not print the private command, execute it, or mutate the WC ledger.</p>
