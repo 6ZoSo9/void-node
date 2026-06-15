@@ -2428,4 +2428,17 @@ grep -Fq "operator_ledger_write_runbook_final_apply_wc_credit_delta_now=0" "$OUT
 grep -Fq "operator_ledger_write_runbook_final_apply_next_gate=operator_ledger_write_runbook_separate_live_mutation_v1" "$OUT/operator-ledger-write-runbook-final-apply-v1-proof.log"
 echo "operator_ledger_write_runbook_final_apply_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Separate Live Mutation v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-separate-live-mutation-v1-proof.sh > "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_SEPARATE_LIVE_MUTATION_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_reviewed=true" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_path_identified=true" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_requested_now=true" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_live_runtime_write=false" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_separate_live_mutation_next_gate=operator_ledger_write_runbook_dry_mutation_plan_v1" "$OUT/operator-ledger-write-runbook-separate-live-mutation-v1-proof.log"
+echo "operator_ledger_write_runbook_separate_live_mutation_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
