@@ -45477,6 +45477,95 @@ APP.get("/public-node/first-external-tester-wc-source-hash-chain-design.json", (
 });
 
 
+APP.get("/public-node/skeptic-audit-readiness.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_V1",
+    route: "/public-node/skeptic-audit-readiness.json",
+    schema_version: 1,
+    headline: "VOID Public Surface Skeptic & Audit Index v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    unauthenticated_access_allowed: true,
+    public_surface: {
+      mode: "read_only",
+      core_mutation_allowed: false,
+      wallet_mutation_allowed: false,
+      validator_mutation_allowed: false,
+      wc_award_allowed: false,
+      ledger_write_allowed: false,
+      private_api_access_allowed: false,
+      unauthenticated_surface_abuse_risk_disclosed: true,
+      unauthenticated_surface_throttling_profile: "not_claimed_in_v1"
+    },
+    endpoint_runtime_profile: {
+      serves_hardcoded_json: true,
+      state_source: "static_v1_disclosure_payload",
+      per_request_database_query: false,
+      per_request_filesystem_scan: false,
+      per_request_shell_execution: false,
+      per_request_ledger_write: false,
+      per_request_wallet_operation: false,
+      per_request_validator_operation: false,
+      public_route_expected_disk_state_write_path: false
+    },
+    availability_risk_disclosure: {
+      read_only_does_not_mean_dos_proof: true,
+      public_and_private_process_isolation_complete: false,
+      public_route_crash_could_affect_local_node_process: true,
+      process_crash_risk_type: "availability_not_authorized_state_mutation",
+      rate_limit_enforced_at_route: false,
+      rate_limit_policy_status: "not_claimed_in_v1"
+    },
+    native_economic_truth: {
+      consensus_security_asset: "VOID",
+      work_credits_role: "useful_work_accounting_and_reward_eligibility_scaffolding",
+      work_credits_are_consensus_asset: false,
+      work_credits_can_influence_block_finality: false,
+      work_credits_can_directly_mutate_validator_set: false,
+      work_credits_indirect_influence_scope: "manual_operator_review_only",
+      work_credits_automatic_governance_power: false
+    },
+    node_density_truth: {
+      operator_heavy_seed_stage: true,
+      automated_public_validator_admission_enabled: false,
+      active_independent_public_validator_count_claimed: 0,
+      decentralization_maturity_claim: "not_mature"
+    },
+    known_risk_vectors: [
+      "low_node_density",
+      "sybil_pressure",
+      "ddos_resource_exhaustion",
+      "receipt_replay_attempts",
+      "spoofed_receipt_submission_pressure",
+      "dataset_poisoning",
+      "path_traversal_attempts",
+      "operator_heavy_seed_stage",
+      "overclaiming_work_credit_meaning"
+    ],
+    implemented_guardrails: [
+      "public_read_only_routes",
+      "dataset_id_whitelist_challenge_route",
+      "no_filesystem_path_building_from_dataset_id",
+      "no_public_wallet_mutation",
+      "no_public_validator_mutation",
+      "no_public_wc_award",
+      "proof_script_marker_checks",
+      "live_status_rollup_guards"
+    ],
+    next_child_docs: [
+      "sybil_ddos_threat_model_v1",
+      "datanet_poisoning_boundary_v1",
+      "work_credits_accounting_boundary_v1",
+      "node_density_transparency_v1",
+      "guarded_zone_protocol_boundary_v1"
+    ],
+    proof_notice: "Green proof marker verifies disclosure alignment only. It does not assert overall network security."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45497,6 +45586,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
+      { path: "/public-node/skeptic-audit-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_V1", use: "public surface skeptic and audit readiness index; disclosure only; no security guarantee" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -52726,6 +52816,39 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           });
       })();
     </script>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticAuditReadinessCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_UI_V1 -->
+    <div class="muted">Security disclosure</div>
+    <h2>Public Surface Skeptic &amp; Audit Index (V1)</h2>
+    <p><b>Context:</b> Mainnet-0 / seed-stage / operator-heavy</p>
+    <ul>
+      <li><span class="warn">Decentralization maturity:</span> <code>not_mature</code></li>
+      <li><span class="warn">Production-grade claim:</span> <code>false</code></li>
+      <li><span class="warn">Third-party audit complete:</span> <code>false</code></li>
+      <li><span class="good">Public access:</span> <code>read_only / unauthenticated</code></li>
+      <li><span class="good">Core / ledger mutations from public routes:</span> <code>disabled</code></li>
+      <li><span class="good">Wallet / key mutations from public routes:</span> <code>disabled</code></li>
+      <li><span class="good">Validator admission mutations from public routes:</span> <code>disabled</code></li>
+      <li><span class="good">Programmatic WC award modifications from public routes:</span> <code>disabled</code></li>
+    </ul>
+    <p class="muted"><b>WARNING:</b> Public/private process isolation is not complete. Public route crash, flood, or socket exhaustion may affect local node availability.</p>
+    <p class="muted"><b>LIMITATION:</b> Read-only does not mean DoS-proof. Rate limiting/throttling is not claimed in V1.</p>
+    <p class="muted"><b>BOUNDARY:</b> This is an availability risk disclosure, not an authorized public mutation path.</p>
+    <ul>
+      <li><span class="good">Consensus/security asset:</span> <code>VOID</code></li>
+      <li><span class="good">Work Credits role:</span> <code>useful-work accounting / reward eligibility scaffold</code></li>
+      <li><span class="good">WC block finality power:</span> <code>none</code></li>
+      <li><span class="good">Automated public validator admission:</span> <code>disabled</code></li>
+      <li><span class="warn">WC influence scope:</span> <code>manual operator review only</code></li>
+    </ul>
+    <p class="muted"><b>Proof notice:</b> Green proof marker verifies disclosure alignment only. It does not assert overall network security.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticAuditReadinessRawLink" href="/public-node/skeptic-audit-readiness.json">Open raw JSON</a>
+      <a class="btn" id="publicNodeSkepticAuditReadinessRouteIndexLink" href="/public-node/route-index.json">Route index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-audit-readiness.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-audit-readiness-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->

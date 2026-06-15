@@ -2652,4 +2652,23 @@ grep -Fq "datanet_challenge_tester_copy_pack_wc_credit_award=false" "$OUT/public
 
 echo "datanet_challenge_tester_copy_pack_live_status_rollup_green=true"
 
+echo "=== Skeptic / Audit Readiness Index v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-audit-readiness-proof.sh \
+  > "$OUT/public-node-skeptic-audit-readiness-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_PROOF_V1_GREEN" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_route_green=true" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_route_index_green=true" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_card_ui_green=true" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_doc_green=true" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_production_grade_claim=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_third_party_audit_complete=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_public_mutation=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_wc_consensus_asset=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_block_finality_power=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+grep -Fq "skeptic_audit_readiness_automated_validator_admission=false" "$OUT/public-node-skeptic-audit-readiness-proof.log"
+
+echo "skeptic_audit_readiness_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
