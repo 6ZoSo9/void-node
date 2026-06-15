@@ -2269,4 +2269,20 @@ grep -Fq "operator_ledger_write_runbook_positive_nonzero_wc_delta_selected_wc_cr
 grep -Fq "operator_ledger_write_runbook_positive_nonzero_wc_delta_selected_next_gate=operator_ledger_write_runbook_ledger_entry_preview_reviewed_v1" "$OUT/operator-ledger-write-runbook-positive-nonzero-wc-delta-selected-v1-proof.log"
 echo "operator_ledger_write_runbook_positive_nonzero_wc_delta_selected_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Ledger Entry Preview Reviewed v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.sh > "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LEDGER_ENTRY_PREVIEW_REVIEWED_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed=true" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_only=true" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_delta=1" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_delta_unit=WC" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_positive_nonzero_wc_delta_selected=true" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_final_operator_apply_present=false" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_entry_preview_reviewed_next_gate=operator_ledger_write_runbook_final_operator_apply_present_v1" "$OUT/operator-ledger-write-runbook-ledger-entry-preview-reviewed-v1-proof.log"
+echo "operator_ledger_write_runbook_ledger_entry_preview_reviewed_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
