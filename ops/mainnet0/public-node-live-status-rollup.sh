@@ -2715,4 +2715,30 @@ grep -Fq "skeptic_datanet_poisoning_automatic_validator_influence_from_dataset=f
 
 echo "skeptic_datanet_poisoning_boundary_live_status_rollup_green=true"
 
+echo "=== Skeptic Work Credits Accounting Boundary v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-work-credits-accounting-boundary-v1-proof.sh \
+  > "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_PROOF_V1_GREEN" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_work_credits_accounting_boundary_route_green=true" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_work_credits_accounting_boundary_route_index_green=true" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_work_credits_accounting_boundary_card_ui_green=true" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_work_credits_accounting_boundary_doc_green=true" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_consensus_security_asset=VOID" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_work_credits_are_consensus_asset=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_work_credits_are_native_currency=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_work_credits_can_influence_block_finality=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_work_credits_can_directly_mutate_validator_set=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_wc_award_allowed=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_wc_ledger_write_allowed=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_wc_to_void_swap_allowed=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_money_movement_allowed=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_validator_mutation_allowed=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_evidence_can_create_automatic_award=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_manual_operator_review_only=true" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+grep -Fq "skeptic_wc_accounting_public_route_can_execute_private_ledger_write=false" "$OUT/public-node-skeptic-work-credits-accounting-boundary-v1-proof.log"
+
+echo "skeptic_work_credits_accounting_boundary_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

@@ -45739,6 +45739,97 @@ APP.get("/public-node/skeptic/datanet-poisoning-boundary-v1.json", (_req:any, re
   });
 });
 
+APP.get("/public-node/skeptic/work-credits-accounting-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_V1",
+    route: "/public-node/skeptic/work-credits-accounting-boundary-v1.json",
+    parent: "/public-node/skeptic-audit-readiness.json",
+    sibling_sybil_ddos: "/public-node/skeptic/sybil-ddos-threat-model.json",
+    sibling_datanet_poisoning: "/public-node/skeptic/datanet-poisoning-boundary-v1.json",
+    schema_version: 1,
+    headline: "VOID Work Credits Accounting Boundary v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    disclosure_type: "work_credits_accounting_boundary_disclosure_only",
+    native_economic_truth: {
+      consensus_security_asset: "VOID",
+      work_credits_role: "useful_work_accounting_and_reward_eligibility_scaffolding",
+      work_credits_are_consensus_asset: false,
+      work_credits_are_native_currency: false,
+      work_credits_are_staking_asset: false,
+      work_credits_can_influence_block_finality: false,
+      work_credits_can_directly_mutate_validator_set: false,
+      work_credits_automatic_governance_power: false,
+      work_credits_indirect_influence_scope: "manual_operator_review_only"
+    },
+    public_route_boundary: {
+      public_routes_read_only: true,
+      public_route_mutation_allowed: false,
+      public_wc_award_allowed: false,
+      public_wc_ledger_write_allowed: false,
+      public_wc_to_void_swap_allowed: false,
+      public_money_movement_allowed: false,
+      public_wallet_send_allowed: false,
+      public_validator_mutation_allowed: false,
+      public_buy_void_fulfillment_allowed: false,
+      public_review_record_write_allowed: false
+    },
+    accounting_state_boundary: {
+      public_evidence_can_be_referenced: true,
+      public_evidence_can_create_automatic_award: false,
+      candidate_state_requires_operator_review: true,
+      review_record_requires_operator_action: true,
+      award_intent_requires_operator_action: true,
+      award_record_requires_operator_action: true,
+      ledger_entry_requires_operator_action: true,
+      duplicate_ledger_entry_check_required_before_write: true,
+      positive_nonzero_wc_delta_required_before_write: true,
+      source_hash_chain_required_before_write: true,
+      exact_operator_confirmation_required_before_write: true,
+      default_state: "blocked_not_ready_for_ledger_write"
+    },
+    not_claimed_in_v1: [
+      "automatic_wc_awards",
+      "public_wc_minting",
+      "wc_as_consensus_asset",
+      "wc_block_finality_power",
+      "wc_automatic_validator_admission",
+      "wc_automatic_governance",
+      "wc_to_void_public_swap",
+      "public_money_movement",
+      "production_grade_reward_oracle"
+    ],
+    current_guardrails: [
+      "public_read_only_routes",
+      "no_public_wc_award",
+      "no_public_wc_ledger_write",
+      "no_public_wc_to_void_swap",
+      "no_public_money_movement",
+      "no_public_wallet_send",
+      "no_public_validator_mutation",
+      "manual_operator_review_required",
+      "source_hash_chain_required_before_future_ledger_write",
+      "duplicate_ledger_entry_check_required_before_future_ledger_write",
+      "proof_script_marker_checks",
+      "live_status_rollup_guards"
+    ],
+    allowed_future_path: {
+      public_receipts_can_support_operator_review: true,
+      operator_may_later_create_review_record: true,
+      operator_may_later_create_award_intent_packet: true,
+      operator_may_later_create_award_record: true,
+      operator_may_later_create_ledger_entry_preview: true,
+      operator_may_later_execute_private_ledger_write_after_gates: true,
+      public_route_can_execute_private_ledger_write: false,
+      public_route_can_reveal_private_command: false
+    },
+    proof_notice: "This boundary verifies disclosure alignment only. It does not create Work Credits, move VOID, write the WC ledger, admit validators, or claim WC consensus power."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45762,6 +45853,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/skeptic-audit-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_V1", use: "public surface skeptic and audit readiness index; disclosure only; no security guarantee" },
       { path: "/public-node/skeptic/sybil-ddos-threat-model.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_V1", use: "Sybil and DDoS threat model disclosure; no mitigation-complete claim" },
       { path: "/public-node/skeptic/datanet-poisoning-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_V1", use: "DataNet poisoning boundary disclosure; hash verified does not mean true or safe content" },
+      { path: "/public-node/skeptic/work-credits-accounting-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_V1", use: "Work Credits accounting boundary disclosure; WC is not consensus, finality, validator power, or automatic money movement" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -53073,6 +53165,32 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeSkepticDatanetPoisoningBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
     </p>
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-datanet-poisoning-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-datanet-poisoning-boundary-v1-proof.sh</code></p>
+    <p><a class="btn" id="publicNodeSkepticWorkCreditsAccountingBoundaryLink" href="/public-node/skeptic/work-credits-accounting-boundary-v1.json">Work Credits accounting boundary</a></p>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticWorkCreditsAccountingBoundaryCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_UI_V1 -->
+    <div class="muted">Skeptic child index</div>
+    <h2>Work Credits Accounting Boundary (V1)</h2>
+    <p>This disclosure separates Work Credits from native VOID consensus/security, validator power, finality, and money movement.</p>
+    <ul>
+      <li><span class="good">Consensus/security asset:</span> <code>VOID</code></li>
+      <li><span class="warn">Work Credits are consensus asset:</span> <code>false</code></li>
+      <li><span class="warn">Work Credits are native currency:</span> <code>false</code></li>
+      <li><span class="warn">WC block finality power:</span> <code>false</code></li>
+      <li><span class="warn">WC automatic validator admission:</span> <code>false</code></li>
+      <li><span class="warn">Public WC award allowed:</span> <code>false</code></li>
+      <li><span class="warn">Public WC ledger write allowed:</span> <code>false</code></li>
+      <li><span class="warn">Public WC to VOID swap allowed:</span> <code>false</code></li>
+      <li><span class="warn">Public money movement allowed:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Boundary:</b> public evidence may support manual operator review only. It does not automatically create awards, ledger entries, VOID movement, validator changes, or consensus power.</p>
+    <p class="muted"><b>Required before any future private ledger write:</b> operator review, source hash chain, duplicate check, positive nonzero WC delta, and exact operator confirmation.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticWorkCreditsAccountingBoundaryRawLink" href="/public-node/skeptic/work-credits-accounting-boundary-v1.json">Open WC boundary JSON</a>
+      <a class="btn" id="publicNodeSkepticWorkCreditsAccountingBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-work-credits-accounting-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-work-credits-accounting-boundary-v1-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
