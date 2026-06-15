@@ -46405,6 +46405,54 @@ APP.get("/public-node/operator-ledger-write-readiness-fixture-v1.json", (_req:an
   });
 });
 
+APP.get("/public-node/operator-ledger-write-runbook-pre-mutation-backup-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRE_MUTATION_BACKUP_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRE_MUTATION_BACKUP_V1",
+    status: "pre_mutation_backup_boundary_reviewed_only",
+    state: "pre_mutation_backup_readiness_no_backup_write_no_live_write",
+    public_read_only: true,
+    pre_mutation_backup_boundary_only: true,
+    pre_mutation_backup_reviewed: true,
+    backup_required: true,
+    backup_plan_reviewed: true,
+    backup_execution_deferred: true,
+    backup_created_now: false,
+    backup_file_created_now: false,
+    ledger_snapshot_created_now: false,
+    dry_mutation_plan_reviewed: true,
+    dry_run_only: true,
+    planned_wc_delta: 1,
+    planned_wc_delta_unit: "WC",
+    planned_entry_kind: "wc_delta",
+    planned_subject: "first_external_tester_operator_ledger_write_readiness_fixture",
+    actual_write_path_selected: false,
+    write_path_selected: "none_yet",
+    duplicate_guard_recheck_required: true,
+    runtime_write_enable_required: true,
+    explicit_operator_live_mutation_command_required: true,
+    post_mutation_receipt_required: true,
+    ready_for_credit_award: false,
+    live_runtime_write: false,
+    ledger_write_allowed_now: false,
+    ledger_record_created_now: false,
+    ledger_entry_created_now: false,
+    award_record_created_now: false,
+    award_created_now: false,
+    wc_ledger_write: false,
+    wc_ledger_mutated_now: false,
+    wc_credit_award: false,
+    wc_credit_delta_now: 0,
+    wc_to_void_swap: false,
+    wallet_send: false,
+    validator_mutation_open: false,
+    money_movement_open: false,
+    automatic_ledger_write_allowed: false,
+    pre_mutation_backup_recorded_for_next_gate: true,
+    next_gate: "operator_ledger_write_runbook_pre_mutation_backup_execute_v1",
+    proof: "ops/mainnet0/public-node-operator-ledger-write-runbook-pre-mutation-backup-v1-proof.sh"
+  });
+});
+
 APP.get("/public-node/operator-ledger-write-runbook-dry-mutation-plan-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DRY_MUTATION_PLAN_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DRY_MUTATION_PLAN_V1",
@@ -52722,6 +52770,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p><code>ops/mainnet0/public-node-operator-award-record-fixture-v1-proof.sh</code></p>
         </div>
 
+        <div class="card" id="publicNodeOperatorLedgerWriteRunbookPreMutationBackupCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_PRE_MUTATION_BACKUP_UI_V1 -->
+          <h3>Operator ledger write runbook pre-mutation backup v1</h3>
+          <p>The pre-mutation backup boundary is reviewed. This does not create a backup file yet and does not perform, mutate, or award a live WC ledger entry.</p>
+          <p><code>/public-node/operator-ledger-write-runbook-pre-mutation-backup-v1.json</code></p>
+          <p>Status: <code>pre_mutation_backup_boundary_reviewed_only</code>; backup required: <code>true</code>; backup created now: <code>false</code>; live runtime write: <code>false</code>; WC delta now: <code>0</code>.</p>
+        </div>
         <div class="card" id="publicNodeOperatorLedgerWriteRunbookDryMutationPlanCard"><!-- VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_DRY_MUTATION_PLAN_UI_V1 -->
           <h3>Operator ledger write runbook dry mutation plan v1</h3>
           <p>The dry mutation plan is recorded. This plans the future WC ledger write but still does not perform, mutate, or award a live WC ledger entry.</p>
