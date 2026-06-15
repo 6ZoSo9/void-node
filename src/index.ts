@@ -45918,6 +45918,93 @@ APP.get("/public-node/skeptic/process-isolation-boundary-v1.json", (_req:any, re
   });
 });
 
+APP.get("/public-node/skeptic/external-reachability-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_V1",
+    route: "/public-node/skeptic/external-reachability-boundary-v1.json",
+    parent: "/public-node/skeptic-audit-readiness.json",
+    sibling_sybil_ddos: "/public-node/skeptic/sybil-ddos-threat-model.json",
+    sibling_datanet_poisoning: "/public-node/skeptic/datanet-poisoning-boundary-v1.json",
+    sibling_work_credits_accounting: "/public-node/skeptic/work-credits-accounting-boundary-v1.json",
+    sibling_process_isolation: "/public-node/skeptic/process-isolation-boundary-v1.json",
+    schema_version: 1,
+    headline: "VOID Public Node External Reachability Boundary v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    disclosure_type: "external_reachability_boundary_disclosure_only",
+    reachability_truths: {
+      local_loopback_ok_means_internet_reachable: false,
+      configured_public_base_url_means_uptime_guarantee: false,
+      public_base_url_configured: true,
+      cellular_manual_smoke_is_production_sla: false,
+      lan_hairpin_timeout_alone_means_external_failure: false,
+      lan_hairpin_success_alone_means_external_success: false,
+      external_tester_smoke_required_for_public_claim: true,
+      public_route_reachable_means_public_mutation_allowed: false,
+      public_route_reachable_means_validator_admission_allowed: false,
+      public_route_reachable_means_wc_award_allowed: false,
+      public_route_reachable_means_ledger_write_allowed: false
+    },
+    current_reachability_boundary: {
+      loopback_probe_supported: true,
+      lan_probe_supported: true,
+      public_base_url_probe_supported: true,
+      cellular_or_non_lan_probe_preferred_for_public_check: true,
+      nat_hairpin_can_be_misleading: true,
+      router_port_forward_dependency_present: true,
+      isp_public_ip_dependency_present: true,
+      dns_domain_dependency_claimed: false,
+      reverse_proxy_dependency_claimed: false,
+      uptime_sla_claimed: false,
+      public_dos_resistance_claimed: false
+    },
+    observed_mainnet0_notes: [
+      "loopback checks are necessary but not sufficient",
+      "LAN hairpin behavior may differ from real outside-client behavior",
+      "manual cellular or non-LAN tester checks are stronger public reachability evidence than same-LAN public-IP probes",
+      "public reachability does not expand mutation authority",
+      "public reachability can fail due to router, ISP, firewall, NAT, service, or host load"
+    ],
+    not_claimed_in_v1: [
+      "production_uptime_sla",
+      "multi_region_availability",
+      "automatic_failover",
+      "verified_dynamic_dns",
+      "verified_reverse_proxy_tls_edge",
+      "verified_public_ddos_resistance",
+      "verified_global_reachability",
+      "continuous_external_monitoring",
+      "public_reachability_as_validator_readiness"
+    ],
+    current_guardrails: [
+      "loopback_route_smokes",
+      "public_base_url_status_route",
+      "tester_share_page",
+      "route_manifest_discovery",
+      "self_check_snapshot",
+      "external_tester_receipt_lane",
+      "manual_non_lan_smoke_preferred",
+      "public_read_only_routes",
+      "no_public_mutation_authority",
+      "live_status_rollup_guards"
+    ],
+    future_hardening_path: [
+      "separate_external_reachability_monitor",
+      "non_lan_scheduled_smoke",
+      "public_base_url_dns_or_domain_binding",
+      "reverse_proxy_tls_front_door",
+      "route_timeout_and_rate_limit_layer",
+      "public_node_health_page_separate_from_core_health",
+      "document_nat_hairpin_interpretation",
+      "operator_incident_runbook_for_public_route_timeout"
+    ],
+    proof_notice: "This boundary verifies disclosure alignment only. It does not claim production uptime, global reachability, DDoS resistance, automatic failover, or validator readiness."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45943,6 +46030,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/skeptic/datanet-poisoning-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_DATANET_POISONING_BOUNDARY_V1", use: "DataNet poisoning boundary disclosure; hash verified does not mean true or safe content" },
       { path: "/public-node/skeptic/work-credits-accounting-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_WORK_CREDITS_ACCOUNTING_BOUNDARY_V1", use: "Work Credits accounting boundary disclosure; WC is not consensus, finality, validator power, or automatic money movement" },
       { path: "/public-node/skeptic/process-isolation-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_V1", use: "Process isolation and availability boundary disclosure; read-only does not mean DoS-proof or isolated" },
+      { path: "/public-node/skeptic/external-reachability-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_V1", use: "External reachability boundary disclosure; public base URL does not mean uptime, SLA, or mutation authority" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -53305,6 +53393,31 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeSkepticProcessIsolationBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
     </p>
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-process-isolation-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-process-isolation-boundary-v1-proof.sh</code></p>
+    <p><a class="btn" id="publicNodeSkepticExternalReachabilityBoundaryLink" href="/public-node/skeptic/external-reachability-boundary-v1.json">External reachability boundary</a></p>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticExternalReachabilityBoundaryCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_UI_V1 -->
+    <div class="muted">Skeptic child index</div>
+    <h2>External Reachability Boundary (V1)</h2>
+    <p>This disclosure separates public reachability evidence from uptime, SLA, DDoS resistance, validator readiness, and mutation authority.</p>
+    <ul>
+      <li><span class="warn">Loopback OK means internet reachable:</span> <code>false</code></li>
+      <li><span class="warn">Configured public base URL means uptime guarantee:</span> <code>false</code></li>
+      <li><span class="good">Public base URL configured:</span> <code>true</code></li>
+      <li><span class="warn">Cellular/manual smoke is production SLA:</span> <code>false</code></li>
+      <li><span class="warn">LAN hairpin timeout alone means external failure:</span> <code>false</code></li>
+      <li><span class="good">External tester smoke required for public claim:</span> <code>true</code></li>
+      <li><span class="good">Public reachability grants mutation authority:</span> <code>false</code></li>
+      <li><span class="good">Public reachability grants WC award or ledger write:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Boundary:</b> public reachability can fail due to router, ISP, firewall, NAT, service, or host load. Public reachability does not expand authority.</p>
+    <p class="muted"><b>Not claimed:</b> production uptime SLA, global reachability, automatic failover, verified dynamic DNS, reverse proxy TLS edge, DDoS resistance, or validator readiness.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticExternalReachabilityBoundaryRawLink" href="/public-node/skeptic/external-reachability-boundary-v1.json">Open reachability JSON</a>
+      <a class="btn" id="publicNodeSkepticExternalReachabilityBoundaryParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-external-reachability-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->

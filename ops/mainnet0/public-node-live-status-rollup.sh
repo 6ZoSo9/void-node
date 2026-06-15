@@ -2767,4 +2767,28 @@ grep -Fq "skeptic_process_isolation_verified_reverse_proxy_ddos=false" "$OUT/pub
 
 echo "skeptic_process_isolation_boundary_live_status_rollup_green=true"
 
+echo "=== Skeptic External Reachability Boundary v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh \
+  > "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_EXTERNAL_REACHABILITY_BOUNDARY_PROOF_V1_GREEN" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_boundary_route_green=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_boundary_route_index_green=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_boundary_card_ui_green=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_boundary_doc_green=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_loopback_ok_means_internet_reachable=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_base_url_means_uptime_guarantee=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_base_url_configured=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_cellular_manual_smoke_is_production_sla=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_lan_hairpin_timeout_alone_means_external_failure=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_external_tester_smoke_required_for_public_claim=true" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_mutation_from_reachability=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_wc_award_from_reachability=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_ledger_write_from_reachability=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_uptime_sla_claimed=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+grep -Fq "skeptic_external_reachability_public_dos_resistance_claimed=false" "$OUT/public-node-skeptic-external-reachability-boundary-v1-proof.log"
+
+echo "skeptic_external_reachability_boundary_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
