@@ -2325,4 +2325,18 @@ grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_wc_credit_delta_n
 grep -Fq "operator_ledger_write_runbook_ready_for_ledger_write_next_gate=operator_ledger_write_runbook_ledger_write_allowed_boundary_v1" "$OUT/operator-ledger-write-runbook-ready-for-ledger-write-v1-proof.log"
 echo "operator_ledger_write_runbook_ready_for_ledger_write_live_status_rollup_green=true"
 
+
+echo "=== Operator Ledger Write Runbook Ledger Write Allowed Boundary v1 rollup guard ==="
+bash ops/mainnet0/public-node-operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.sh > "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "VOID_PUBLIC_NODE_OPERATOR_LEDGER_WRITE_RUNBOOK_LEDGER_WRITE_ALLOWED_BOUNDARY_PROOF_V1_GREEN" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_reviewed=true" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_delta=1" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_delta_unit=WC" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_ledger_write_allowed_now=false" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_wc_ledger_write=false" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_wc_credit_delta_now=0" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_operator_must_confirm_write_after_this_gate=true" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+grep -Fq "operator_ledger_write_runbook_ledger_write_allowed_boundary_next_gate=operator_ledger_write_runbook_explicit_operator_ledger_write_allowance_v1" "$OUT/operator-ledger-write-runbook-ledger-write-allowed-boundary-v1-proof.log"
+echo "operator_ledger_write_runbook_ledger_write_allowed_boundary_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
