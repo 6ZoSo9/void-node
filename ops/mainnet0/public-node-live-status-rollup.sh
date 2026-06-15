@@ -2605,4 +2605,20 @@ grep -Fq "operator_ledger_write_runbook_operator_terminal_execute_review_wc_cred
 grep -Fq "operator_ledger_write_runbook_operator_terminal_execute_review_next_gate=operator_ledger_write_runbook_operator_private_terminal_command_v1" "$OUT/operator-ledger-write-runbook-operator-terminal-execute-review-v1-proof.log"
 echo "operator_ledger_write_runbook_operator_terminal_execute_review_live_status_rollup_green=true"
 
+
+echo "=== DataNet Challenge v1 rollup guard ==="
+BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-datanet-challenge-v1-proof.sh \
+  > "$OUT/public-node-datanet-challenge-v1-proof.log"
+
+grep -Fq "VOID_DATANET_CHALLENGE_V1_GREEN" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_success_fixture_green=true" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_missing_fixture_rejected=true" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_malformed_dataset_rejected=true" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_post_rejected=true" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_path_from_dataset_id=false" "$OUT/public-node-datanet-challenge-v1-proof.log"
+grep -Fq "datanet_challenge_wc_credit_award=false" "$OUT/public-node-datanet-challenge-v1-proof.log"
+
+echo "datanet_challenge_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
