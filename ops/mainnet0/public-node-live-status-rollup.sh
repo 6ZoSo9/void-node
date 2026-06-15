@@ -2671,4 +2671,25 @@ grep -Fq "skeptic_audit_readiness_automated_validator_admission=false" "$OUT/pub
 
 echo "skeptic_audit_readiness_live_status_rollup_green=true"
 
+echo "=== Skeptic Sybil / DDoS Threat Model v1 rollup guard ==="
+PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-skeptic-sybil-ddos-threat-model-proof.sh \
+  > "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+
+grep -Fq "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_PROOF_V1_GREEN" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_threat_model_route_green=true" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_threat_model_route_index_green=true" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_threat_model_card_ui_green=true" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_threat_model_doc_green=true" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_mitigation_complete=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_sybil_resistance_mature=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_rate_limit_claimed=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_reverse_proxy_ddos_claimed=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_public_private_process_isolation_complete=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_public_mutation=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_auto_validator_or_wc_award=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+grep -Fq "skeptic_sybil_ddos_wc_block_finality_power=false" "$OUT/public-node-skeptic-sybil-ddos-threat-model-proof.log"
+
+echo "skeptic_sybil_ddos_threat_model_live_status_rollup_green=true"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

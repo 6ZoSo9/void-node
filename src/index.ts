@@ -45566,6 +45566,86 @@ APP.get("/public-node/skeptic-audit-readiness.json", (_req:any, res:any) => { //
   });
 });
 
+APP.get("/public-node/skeptic/sybil-ddos-threat-model.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_ROUTE_V1
+  res.setHeader("X-Void-Marker", "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_ROUTE_V1");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_V1",
+    route: "/public-node/skeptic/sybil-ddos-threat-model.json",
+    parent: "/public-node/skeptic-audit-readiness.json",
+    schema_version: 1,
+    headline: "VOID Public Node Sybil / DDoS Threat Model v1",
+    stage: "mainnet0_seed_stage",
+    production_grade_claim: false,
+    third_party_audit_complete: false,
+    disclosure_type: "threat_model_disclosure_only",
+    threat_model_status: {
+      disclosure_only: true,
+      mitigation_complete: false,
+      sybil_resistance_mature: false,
+      route_level_rate_limit_claimed: false,
+      reverse_proxy_ddos_protection_claimed: false,
+      public_private_process_isolation_complete: false
+    },
+    attack_classes: [
+      "sybil_peer_identity_pressure",
+      "public_route_flooding",
+      "socket_exhaustion",
+      "slow_client_connection_pressure",
+      "repeated_receipt_submission_pressure",
+      "route_index_scraping",
+      "dataset_challenge_probe_pressure",
+      "operator_review_pollution"
+    ],
+    current_boundaries: {
+      public_routes_read_only: true,
+      public_route_mutation_allowed: false,
+      core_ledger_mutation_allowed: false,
+      wallet_mutation_allowed: false,
+      validator_admission_mutation_allowed: false,
+      wc_award_mutation_allowed: false,
+      ledger_write_allowed: false,
+      private_api_access_allowed: false,
+      read_only_does_not_mean_dos_proof: true,
+      public_route_crash_could_affect_local_node_availability: true,
+      process_crash_risk_type: "availability_not_authorized_state_mutation"
+    },
+    not_claimed_in_v1: [
+      "automatic_sybil_resistance",
+      "route_level_rate_limiting",
+      "reverse_proxy_ddos_protection",
+      "separate_public_private_process_isolation",
+      "automated_public_peer_admission",
+      "automated_validator_admission_from_public_inputs",
+      "wc_based_consensus_security"
+    ],
+    operator_review_boundary: {
+      public_inputs_can_enter_manual_review_queue: true,
+      manual_review_required_before_trust_promotion: true,
+      automatic_validator_or_wc_award_from_public_input: false,
+      work_credits_indirect_influence_scope: "manual_operator_review_only",
+      work_credits_can_influence_block_finality: false
+    },
+    current_guardrails: [
+      "public_read_only_routes",
+      "no_public_wallet_mutation",
+      "no_public_validator_mutation",
+      "no_public_wc_award",
+      "no_public_ledger_write",
+      "manual_operator_review_required_before_trust_promotion",
+      "proof_script_marker_checks",
+      "live_status_rollup_guards"
+    ],
+    next_work: [
+      "define_bounded_public_request_profile_v1",
+      "define_peer_identity_candidate_rules_v1",
+      "define_abuse_log_shape_v1",
+      "define_process_isolation_upgrade_path_v1"
+    ],
+    proof_notice: "This threat model documents current risks and boundaries. It does not claim Sybil resistance, DDoS resistance, or production security."
+  });
+});
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -45587,6 +45667,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/public-node/risk-register.json", kind: "json", marker: "VOID_PUBLIC_NODE_RISK_REGISTER_V1", use: "public node anti-hype risk register" },
       { path: "/public-node/skeptic-audit-readiness.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_V1", use: "public surface skeptic and audit readiness index; disclosure only; no security guarantee" },
+      { path: "/public-node/skeptic/sybil-ddos-threat-model.json", kind: "json", marker: "VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_V1", use: "Sybil and DDoS threat model disclosure; no mitigation-complete claim" },
       { path: "/public-node/runtime-gate-lock.json", kind: "json", marker: "VOID_RUNTIME_GATE_LOCK_V1", use: "public read-only mutation death gate contract" },
       { path: "/public-node/capability-envelope-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_CAPABILITY_ENVELOPE_V1", use: "design-only signed capability envelope fixture; does not unlock mutation" },
       { path: "/public-node/nonce-replay-protection-fixture-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_NONCE_REPLAY_PROTECTION_FIXTURE_V1", use: "design-only nonce and replay protection fixture; does not unlock mutation" },
@@ -52849,6 +52930,30 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeSkepticAuditReadinessRouteIndexLink" href="/public-node/route-index.json">Route index</a>
     </p>
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-audit-readiness.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-audit-readiness-proof.sh</code></p>
+    <p><a class="btn" id="publicNodeSkepticSybilDdosThreatModelLink" href="/public-node/skeptic/sybil-ddos-threat-model.json">Sybil / DDoS threat model</a></p>
+  </section>
+
+
+  <section class="card" id="publicNodeSkepticSybilDdosThreatModelCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_SYBIL_DDOS_THREAT_MODEL_UI_V1 -->
+    <div class="muted">Skeptic child index</div>
+    <h2>Sybil / DDoS Threat Model (V1)</h2>
+    <p>This is a blunt threat model disclosure for the public-node surface. It does not claim Sybil resistance, DDoS resistance, or production security.</p>
+    <ul>
+      <li><span class="warn">Mitigation complete:</span> <code>false</code></li>
+      <li><span class="warn">Sybil resistance mature:</span> <code>false</code></li>
+      <li><span class="warn">Route-level rate limiting claimed:</span> <code>false</code></li>
+      <li><span class="warn">Reverse-proxy DDoS protection claimed:</span> <code>false</code></li>
+      <li><span class="warn">Public/private process isolation complete:</span> <code>false</code></li>
+      <li><span class="good">Public route mutation allowed:</span> <code>false</code></li>
+      <li><span class="good">Automatic validator or WC award from public input:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Risk:</b> public route flooding, socket exhaustion, repeated receipt submissions, route scraping, and operator review pollution are explicitly recognized in V1.</p>
+    <p class="muted"><b>Boundary:</b> public inputs may enter manual review only; they do not automatically mutate validators, ledgers, wallets, or Work Credit awards.</p>
+    <p>
+      <a class="btn" id="publicNodeSkepticSybilDdosThreatModelRawLink" href="/public-node/skeptic/sybil-ddos-threat-model.json">Open Sybil / DDoS JSON</a>
+      <a class="btn" id="publicNodeSkepticSybilDdosThreatModelParentLink" href="/public-node/skeptic-audit-readiness.json">Parent audit index</a>
+    </p>
+    <p class="muted">Docs: <code>docs/public/public-node-skeptic-sybil-ddos-threat-model.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-sybil-ddos-threat-model-proof.sh</code></p>
   </section>
 
   <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
