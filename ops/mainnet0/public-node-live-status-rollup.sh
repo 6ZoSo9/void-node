@@ -3499,4 +3499,31 @@ echo "datanet_published_dataset_registry_wc_credit_award=false"
 
 rm -rf "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP"
 
+
+echo "=== DataNet Published Dataset Read Route v1 rollup guard ==="
+DATANET_PUBLISHED_DATASET_READ_ROUTE_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-published-dataset-read-route-live-rollup-$$"
+mkdir -p "$DATANET_PUBLISHED_DATASET_READ_ROUTE_ROLLUP_TMP"
+
+grep -Fq '/public-node/datanet/published/:dataset_id/manifest-v1.json' <(curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json")
+grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_DOC_V1' docs/public/public-node-datanet-published-dataset-read-route-v1.md
+grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-published-dataset-read-route-v1-proof.sh | grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_PROOF_V1_GREEN'
+
+echo "datanet_published_dataset_read_route_live_status_rollup_green=true"
+echo "datanet_published_dataset_read_route_fixture_dataset_present=true"
+echo "datanet_published_dataset_read_route_public_safe_manifest_returned=true"
+echo "datanet_published_dataset_read_route_objects_returned=true"
+echo "datanet_published_dataset_read_route_dataset_selected_through_registry=true"
+echo "datanet_published_dataset_read_route_raw_request_dataset_id_used_to_build_filesystem_path=false"
+echo "datanet_published_dataset_read_route_malformed_dataset_id_rejected=true"
+echo "datanet_published_dataset_read_route_missing_dataset_returns_404=true"
+echo "datanet_published_dataset_read_route_absolute_source_path_disclosed=false"
+echo "datanet_published_dataset_read_route_operator_home_path_disclosed=false"
+echo "datanet_published_dataset_read_route_local_storage_root_disclosed=false"
+echo "datanet_published_dataset_read_route_public_mutation=false"
+echo "datanet_published_dataset_read_route_ledger_write=false"
+echo "datanet_published_dataset_read_route_wc_credit_award=false"
+
+rm -rf "$DATANET_PUBLISHED_DATASET_READ_ROUTE_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

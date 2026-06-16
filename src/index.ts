@@ -46105,6 +46105,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/public-surface-mutation-method-audit-v1.json", kind: "json", marker: "VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_V1", use: "Mainnet-0 DataNet public surface mutation method audit manifest; scans public DataNet routes for rejected POST/PUT/PATCH/DELETE methods" },
       { path: "/public-node/datanet/operator-local-publish-pack-v1.json", kind: "json", marker: "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1", use: "Mainnet-0 DataNet operator-local publish pack; terminal-only local source hashing; public-safe manifest generation; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published-dataset-registry-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1", use: "Mainnet-0 DataNet published dataset registry; lists public-safe operator-published manifest metadata; no request-path filesystem construction; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -53040,6 +53041,165 @@ APP.get("/public-node/datanet/published-dataset-registry-v1.json", (_req:any, re
   res.json(datanetPublishedDatasetRegistryV1());
 });
 
+
+function datanetPublishedDatasetReadRouteV1(rawDatasetId:any) {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const safeDatasetId = /^[a-z0-9][a-z0-9._-]{2,63}$/;
+  const datasetId = String(rawDatasetId || "");
+
+  if (!safeDatasetId.test(datasetId)) {
+    return {
+      http_status: 400,
+      body: {
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        ok: false,
+        error: "invalid_dataset_id",
+        safety: {
+          raw_request_dataset_id_used_to_build_filesystem_path: false,
+          public_mutation: false,
+          ledger_write: false,
+          wc_credit_award: false
+        }
+      }
+    };
+  }
+
+  const registry = datanetPublishedDatasetRegistryV1();
+  const datasets = Array.isArray(registry.datasets) ? registry.datasets : [];
+  const selected = datasets.find((item:any) => item && item.dataset_id === datasetId);
+
+  if (!selected) {
+    return {
+      http_status: 404,
+      body: {
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        ok: false,
+        error: "dataset_not_found",
+        dataset_id: datasetId,
+        safety: {
+          dataset_selected_through_registry: false,
+          raw_request_dataset_id_used_to_build_filesystem_path: false,
+          public_mutation: false,
+          ledger_write: false,
+          wc_credit_award: false
+        }
+      }
+    };
+  }
+
+  const rootRelative = ".void/datanet/operator-published-v1";
+  const root = path.resolve(process.cwd(), rootRelative);
+  const manifestFile = path.resolve(root, selected.dataset_id, "manifest.json");
+
+  if (!manifestFile.startsWith(root + path.sep)) {
+    return {
+      http_status: 500,
+      body: {
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        ok: false,
+        error: "registry_path_boundary_failed",
+        safety: {
+          dataset_selected_through_registry: true,
+          raw_request_dataset_id_used_to_build_filesystem_path: false,
+          public_mutation: false,
+          ledger_write: false,
+          wc_credit_award: false
+        }
+      }
+    };
+  }
+
+  if (!fs.existsSync(manifestFile)) {
+    return {
+      http_status: 404,
+      body: {
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        ok: false,
+        error: "manifest_not_found",
+        dataset_id: selected.dataset_id,
+        safety: {
+          dataset_selected_through_registry: true,
+          raw_request_dataset_id_used_to_build_filesystem_path: false,
+          public_mutation: false,
+          ledger_write: false,
+          wc_credit_award: false
+        }
+      }
+    };
+  }
+
+  const raw = fs.readFileSync(manifestFile, "utf8");
+  const manifest = JSON.parse(raw);
+  const manifestSha256 = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
+
+  if (manifest.marker !== "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_MANIFEST_V1") {
+    return {
+      http_status: 500,
+      body: {
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        ok: false,
+        error: "invalid_manifest_marker",
+        safety: {
+          dataset_selected_through_registry: true,
+          raw_request_dataset_id_used_to_build_filesystem_path: false,
+          public_mutation: false,
+          ledger_write: false,
+          wc_credit_award: false
+        }
+      }
+    };
+  }
+
+  return {
+    http_status: 200,
+    body: {
+      marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+      version: 1,
+      ok: true,
+      dataset_id: selected.dataset_id,
+      selected_from_registry: true,
+      manifest_marker: manifest.marker,
+      manifest_sha256: manifestSha256,
+      source_type: manifest.source_type,
+      hash_algorithm: manifest.hash_algorithm,
+      object_count: manifest.object_count,
+      total_bytes: manifest.total_bytes,
+      content_root_sha256: manifest.content_root_sha256,
+      objects: Array.isArray(manifest.objects) ? manifest.objects.map((item:any) => ({
+        path: item.path,
+        bytes: item.bytes,
+        sha256: item.sha256,
+        object_name: item.object_name
+      })) : [],
+      safety: {
+        public_safe_manifest: true,
+        dataset_selected_through_registry: true,
+        raw_request_dataset_id_used_to_build_filesystem_path: false,
+        absolute_source_path_disclosed: false,
+        operator_home_path_disclosed: false,
+        local_storage_root_disclosed: false,
+        storage_root_disclosed: false,
+        public_read_only: true,
+        public_mutation: false,
+        public_post_upload: false,
+        public_shell_execution: false,
+        ledger_write: false,
+        wc_credit_award: false
+      },
+      next_step: "Add object fetch/verify by content hash from the selected published manifest, without exposing local storage paths."
+    }
+  };
+}
+
+APP.get("/public-node/datanet/published/:dataset_id/manifest-v1.json", (req:any, res:any) => { // VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_HANDLER_V1
+  const result = datanetPublishedDatasetReadRouteV1(req.params.dataset_id);
+  res.status(result.http_status).json(result.body);
+});
+
+
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
   const crypto = require("node:crypto");
 
@@ -54418,7 +54578,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-external-reachability-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh</code></p>
   </section>
 
-  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1 VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_UI_V1 VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_UI_V1 VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_UI_V1 VOID_DATANET_PUBLISHED_DATASET_REGISTRY_UI_V1 -->
+  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1 VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_UI_V1 VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_UI_V1 VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_UI_V1 VOID_DATANET_PUBLISHED_DATASET_REGISTRY_UI_V1 VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_UI_V1 -->
     <div class="muted">DataNet Challenge</div>
     <h2>Read-only challenge packet</h2>
     <p>Whitelisted challenge route for verified DataNet/local-data fixtures. Dataset IDs are registry lookups only; they are never converted into filesystem paths.</p>
