@@ -46091,6 +46091,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1", use: "Demo 003 verified folder manifest" },
       { path: "/public-node/datanet/challenge/:dataset_id", kind: "json", marker: "VOID_DATANET_CHALLENGE_V1", use: "read-only DataNet challenge packet by whitelisted dataset id; bounded manifest route references only; no filesystem path from dataset_id" },
       { path: "/public-node/datanet/challenge-tester-copy-pack-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1", use: "copy/paste outside tester pack for DataNet Challenge v1; read-only; no WC award" },
+      { path: "/public-node/datanet/challenge-offline-verify-pack-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_V1", use: "copy/paste offline verifier pack for DataNet Challenge v1; read-only; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52040,6 +52041,83 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
 
 
 
+
+
+
+APP.get("/public-node/datanet/challenge-offline-verify-pack-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+
+  const datasetId = "demo003-folder-fixture-v1";
+  const challengePath = "/public-node/datanet/challenge/" + datasetId;
+  const manifestPath = "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json";
+  const routeIndexPath = "/public-node/route-index.json";
+
+  const offlineVerifyCommand = [
+    'set -euo pipefail',
+    'PUBLIC_NODE_BASE="${PUBLIC_NODE_BASE:-' + effectiveBaseUrl + '}"',
+    'OUT="${OUT:-/tmp/void-datanet-challenge-offline-verify-pack-v1}"',
+    'mkdir -p "$OUT"',
+    'curl -fsS "$PUBLIC_NODE_BASE' + challengePath + '" -o "$OUT/challenge.json"',
+    'curl -fsS "$PUBLIC_NODE_BASE' + manifestPath + '" -o "$OUT/manifest.json"',
+    'curl -fsS "$PUBLIC_NODE_BASE' + routeIndexPath + '" -o "$OUT/route-index.json"',
+    'grep -F \'"marker":"VOID_DATANET_CHALLENGE_V1"\' "$OUT/challenge.json"',
+    'grep -F \'"ok":true\' "$OUT/challenge.json"',
+    'grep -F \'"dataset_id":"' + datasetId + '"\' "$OUT/challenge.json"',
+    'grep -F \'"path_from_dataset_id":false\' "$OUT/challenge.json"',
+    'grep -F \'"filesystem_path_built_from_dataset_id":false\' "$OUT/challenge.json"',
+    'grep -F \'"ledger_write":false\' "$OUT/challenge.json"',
+    'grep -F \'"wc_credit_award":false\' "$OUT/challenge.json"',
+    'grep -F "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER" "$OUT/manifest.json"',
+    'grep -F "/public-node/datanet/challenge/:dataset_id" "$OUT/route-index.json"',
+    'echo "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN"'
+  ].join('; ');
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_V1",
+    version: 1,
+    ok: true,
+    purpose: "copy_paste_offline_verifier_pack_for_datanet_challenge_v1",
+    headline: "VOID DataNet Challenge offline verify pack",
+    dataset_id: datasetId,
+    effective_base_url: effectiveBaseUrl,
+    challenge_url: effectiveBaseUrl + challengePath,
+    challenge_path: challengePath,
+    manifest_url: effectiveBaseUrl + manifestPath,
+    manifest_path: manifestPath,
+    route_index_url: effectiveBaseUrl + routeIndexPath,
+    route_index_path: routeIndexPath,
+    offline_verify_command: offlineVerifyCommand,
+    expected_green_marker: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN",
+    expected_challenge_marker: "VOID_DATANET_CHALLENGE_V1",
+    public_read_only: true,
+    bounded_read_existing_public_routes_only: true,
+    registry_lookup_only: true,
+    path_from_dataset_id: false,
+    filesystem_path_built_from_dataset_id: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    checks: [
+      "fetch challenge packet",
+      "fetch Demo 003 folder manifest",
+      "fetch public route index",
+      "verify challenge marker",
+      "verify ok=true",
+      "verify dataset_id",
+      "verify path_from_dataset_id=false",
+      "verify filesystem_path_built_from_dataset_id=false",
+      "verify ledger_write=false",
+      "verify wc_credit_award=false",
+      "verify route index contains challenge route"
+    ]
+  });
+});
 
 
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
