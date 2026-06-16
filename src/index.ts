@@ -46097,6 +46097,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_IMPORTED_TESTER_RECEIPT_FIXTURE_V1", use: "operator-local imported tester receipt fixture for DataNet Challenge v1; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-operator-review-record-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_V1", use: "operator review record fixture for imported DataNet Challenge tester receipt; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-wc-candidate-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_WC_CANDIDATE_FIXTURE_V1", use: "Work Credit candidate fixture for reviewed DataNet Challenge tester receipt; candidate only; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1", use: "positive nonzero WC delta selection fixture for DataNet Challenge candidate; fixture only; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-award-intent-packet-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_V1", use: "award intent packet fixture for selected DataNet Challenge WC delta; intent only; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52371,6 +52373,100 @@ APP.get("/public-node/datanet/challenge-wc-candidate-fixture-v1.json", (_req:any
     validator_mutation: false,
     trusted_as_network_truth: false,
     next_step: "future positive nonzero WC delta selection fixture can reference this candidate without writing the WC ledger"
+  });
+});
+
+
+
+
+APP.get("/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1",
+    version: 1,
+    ok: true,
+    purpose: "positive_nonzero_wc_delta_selection_fixture_for_datanet_challenge_candidate_v1",
+    headline: "VOID DataNet Challenge positive WC delta selection fixture",
+    dataset_id: datasetId,
+    fixture_state: "positive_wc_delta_selection_fixture_only",
+    wc_candidate_fixture_path: "/public-node/datanet/challenge-wc-candidate-fixture-v1.json",
+    wc_candidate_marker: "VOID_DATANET_CHALLENGE_WC_CANDIDATE_FIXTURE_V1",
+    candidate_status_seen: "candidate_only_not_awarded",
+    useful_work_claim: "outside_tester_completed_datanet_challenge_offline_verify_pack",
+    selected_positive_wc_delta_fixture: true,
+    proposed_wc_delta_fixture: 100,
+    proposed_wc_delta_units: "WC",
+    proposed_wc_delta_reason: "Fixture-only delta for one completed DataNet Challenge offline verification receipt.",
+    proposed_wc_delta_final: false,
+    wc_delta_now: 0,
+    wc_award_decision_now: "not_decided",
+    wc_award_decision_final: false,
+    award_record_created_now: false,
+    ledger_entry_created_now: false,
+    duplicate_ledger_check_performed_now: false,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    public_submit_route_enabled: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "future award intent packet fixture can reference this selected delta without writing the WC ledger"
+  });
+});
+
+
+
+
+APP.get("/public-node/datanet/challenge-award-intent-packet-fixture-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_V1",
+    version: 1,
+    ok: true,
+    purpose: "award_intent_packet_fixture_for_selected_datanet_challenge_wc_delta_v1",
+    headline: "VOID DataNet Challenge award intent packet fixture",
+    dataset_id: datasetId,
+    fixture_state: "award_intent_packet_fixture_only",
+    award_intent_packet_present: true,
+    award_intent_packet_state: "intent_only_not_final_not_awarded",
+    award_intent_packet_id: "datanet-challenge-demo003-fixture-tester-001-award-intent-v1",
+    positive_wc_delta_selection_fixture_path: "/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json",
+    positive_wc_delta_selection_marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1",
+    wc_candidate_fixture_path: "/public-node/datanet/challenge-wc-candidate-fixture-v1.json",
+    wc_candidate_marker: "VOID_DATANET_CHALLENGE_WC_CANDIDATE_FIXTURE_V1",
+    selected_positive_wc_delta_fixture: true,
+    proposed_wc_delta_fixture: 100,
+    proposed_wc_delta_units: "WC",
+    proposed_wc_delta_final: false,
+    award_intent_reason: "Fixture-only operator intent packet for one completed DataNet Challenge offline verification receipt.",
+    award_intent_created_now: false,
+    award_intent_signed_now: false,
+    award_intent_operator_approved_now: false,
+    wc_award_decision_now: "not_decided",
+    wc_award_decision_final: false,
+    wc_delta_now: 0,
+    award_record_created_now: false,
+    ledger_entry_created_now: false,
+    duplicate_ledger_check_performed_now: false,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    public_submit_route_enabled: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "future award record fixture can reference this intent packet without writing the WC ledger"
   });
 });
 
