@@ -46099,8 +46099,10 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge-wc-candidate-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_WC_CANDIDATE_FIXTURE_V1", use: "Work Credit candidate fixture for reviewed DataNet Challenge tester receipt; candidate only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1", use: "positive nonzero WC delta selection fixture for DataNet Challenge candidate; fixture only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-award-intent-packet-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_V1", use: "award intent packet fixture for selected DataNet Challenge WC delta; intent only; no WC award; no ledger write" },
+      { path: "/public-node/datanet/data-plane-settlement-plane-boundary-v1.json", kind: "json", marker: "VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1", use: "Mainnet-0 Data Plane / Settlement Plane boundary; lean ledger scaling thesis; no public mutation; no public shell execution; no production consensus claim" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52589,6 +52591,119 @@ APP.get("/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v
   });
 });
 
+
+
+
+APP.get("/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+  const awardRecordPreviewId = "datanet-challenge-demo003-fixture-tester-001-award-record-preview-v1";
+  const ledgerEntryPreviewId = "datanet-challenge-demo003-fixture-tester-001-ledger-entry-preview-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1",
+    version: 1,
+    ok: true,
+    purpose: "ledger_entry_preview_fixture_for_datanet_challenge_wc_award_path_v1",
+    headline: "VOID DataNet Challenge ledger entry preview fixture",
+    dataset_id: datasetId,
+    fixture_state: "ledger_entry_preview_fixture_only",
+    ledger_entry_preview_present: true,
+    ledger_entry_preview_id: ledgerEntryPreviewId,
+    ledger_entry_preview_state: "preview_only_not_created_not_written",
+    duplicate_ledger_guard_recheck_fixture_path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json",
+    duplicate_ledger_guard_recheck_marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1",
+    duplicate_ledger_guard_recheck_seen: true,
+    duplicate_ledger_entry_found: false,
+    award_record_preview_fixture_path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json",
+    award_record_preview_marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1",
+    award_record_preview_id: awardRecordPreviewId,
+    award_record_preview_state_seen: "preview_only_not_created_not_awarded",
+    selected_positive_wc_delta_fixture: true,
+    proposed_wc_delta_fixture: 100,
+    proposed_wc_delta_units: "WC",
+    proposed_wc_delta_final: false,
+    ledger_entry_preview_delta: 100,
+    ledger_entry_preview_delta_units: "WC",
+    ledger_entry_preview: {
+      ledger_entry_id: ledgerEntryPreviewId,
+      ledger_entry_type: "datanet_challenge_wc_award_preview",
+      source_award_record_preview_id: awardRecordPreviewId,
+      source_duplicate_guard_state: "no_duplicate_found_fixture",
+      dataset_id: datasetId,
+      participant_fixture_id: "datanet-challenge-demo003-fixture-tester-001",
+      delta: 100,
+      delta_units: "WC",
+      direction: "credit",
+      reason: "Preview-only WC ledger entry for one completed DataNet Challenge verification receipt.",
+      final_ledger_entry: false,
+      write_required_later: true
+    },
+    wc_award_decision_now: "not_decided",
+    wc_award_decision_final: false,
+    wc_delta_now: 0,
+    award_record_created_now: false,
+    ledger_entry_created_now: false,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    public_submit_route_enabled: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "future final operator apply boundary can reference this ledger entry preview without public mutation"
+  });
+});
+
+
+
+
+const DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1 = Object.freeze({
+  marker: "VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1",
+  version: 1,
+  ok: true,
+  meta: {
+    network_phase: "Mainnet-0",
+    design_intent: "Explicitly isolate settlement/coordination from heavy data plane layers to preserve a lean ledger core."
+  },
+  scaling_thesis: {
+    summary: "VOID scales DataNet by keeping the ledger lean and moving heavy data objects into horizontally scalable DataNet storage/retrieval paths.",
+    ledger_should_store: "roots_receipts_challenges_accounting_identity_permissions",
+    data_plane_should_store: "objects_manifests_retrieval_mirroring_offline_verification"
+  },
+  invariants: {
+    raw_datanet_payload_written_to_ledger: false,
+    public_route_can_mutate_ledger: false,
+    public_route_can_execute_shell: false
+  },
+  plane_responsibilities: {
+    ledger_plane_role: "roots_receipts_challenges_accounting_identity",
+    data_plane_role: "objects_manifests_retrieval_mirroring_offline_verification"
+  },
+  claims_and_boundaries: {
+    current_mainnet0_financial_execution_claim: false,
+    production_consensus_claim: false,
+    future_hardening_required: true
+  },
+  public_safety: {
+    public_read_only: true,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    shell_execution: false,
+    raw_payload_disclosure: false,
+    private_path_disclosure: false
+  }
+});
+
+APP.get("/public-node/datanet/data-plane-settlement-plane-boundary-v1.json", (_req:any, res:any) => { // VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_ROUTE_V1
+  res.json(DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1);
+});
+
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
   const crypto = require("node:crypto");
 
@@ -53967,7 +54082,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-external-reachability-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh</code></p>
   </section>
 
-  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 -->
+  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 -->
     <div class="muted">DataNet Challenge</div>
     <h2>Read-only challenge packet</h2>
     <p>Whitelisted challenge route for verified DataNet/local-data fixtures. Dataset IDs are registry lookups only; they are never converted into filesystem paths.</p>

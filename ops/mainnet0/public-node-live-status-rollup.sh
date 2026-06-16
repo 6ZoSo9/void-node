@@ -3114,4 +3114,107 @@ echo "datanet_challenge_duplicate_ledger_guard_recheck_fixture_wc_credit_award=f
 
 rm -rf "$DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_ROLLUP_TMP"
 
+
+echo "=== DataNet Challenge Ledger Entry Preview Fixture v1 rollup guard ==="
+DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-challenge-ledger-entry-preview-live-rollup-$$"
+mkdir -p "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json" > "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ok":true' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"dataset_id":"demo003-folder-fixture-v1"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"fixture_state":"ledger_entry_preview_fixture_only"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_preview_present":true' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_preview_state":"preview_only_not_created_not_written"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"duplicate_ledger_guard_recheck_marker":"VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"duplicate_ledger_guard_recheck_seen":true' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"duplicate_ledger_entry_found":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"award_record_preview_marker":"VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"award_record_preview_state_seen":"preview_only_not_created_not_awarded"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"selected_positive_wc_delta_fixture":true' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"proposed_wc_delta_fixture":100' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"proposed_wc_delta_final":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_preview_delta":100' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_preview_delta_units":"WC"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_type":"datanet_challenge_wc_award_preview"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"source_duplicate_guard_state":"no_duplicate_found_fixture"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"delta":100' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"delta_units":"WC"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"direction":"credit"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"final_ledger_entry":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"wc_award_decision_now":"not_decided"' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"wc_award_decision_final":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"wc_delta_now":0' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"award_record_created_now":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_entry_created_now":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/ledger-entry-preview-fixture.json"
+grep -Fq '/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json' "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP/route-index.json"
+
+echo "datanet_challenge_ledger_entry_preview_fixture_live_status_rollup_green=true"
+echo "datanet_challenge_ledger_entry_preview_fixture_present=true"
+echo "datanet_challenge_ledger_entry_preview_fixture_state=preview_only_not_created_not_written"
+echo "datanet_challenge_ledger_entry_preview_fixture_duplicate_found=false"
+echo "datanet_challenge_ledger_entry_preview_fixture_preview_delta=100"
+echo "datanet_challenge_ledger_entry_preview_fixture_wc_delta_now=0"
+echo "datanet_challenge_ledger_entry_preview_fixture_award_record_created_now=false"
+echo "datanet_challenge_ledger_entry_preview_fixture_ledger_entry_created_now=false"
+echo "datanet_challenge_ledger_entry_preview_fixture_ledger_write=false"
+echo "datanet_challenge_ledger_entry_preview_fixture_wc_credit_award=false"
+
+rm -rf "$DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_ROLLUP_TMP"
+
+
+echo "=== Data Plane / Settlement Plane Boundary v1 rollup guard ==="
+DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-data-plane-settlement-boundary-live-rollup-$$"
+mkdir -p "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/data-plane-settlement-plane-boundary-v1.json" > "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP/boundary.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP/boundary.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1"],
+  ["ok", res.ok === true],
+  ["raw_datanet_payload_written_to_ledger", res.invariants?.raw_datanet_payload_written_to_ledger === false],
+  ["public_route_can_mutate_ledger", res.invariants?.public_route_can_mutate_ledger === false],
+  ["public_route_can_execute_shell", res.invariants?.public_route_can_execute_shell === false],
+  ["current_mainnet0_financial_execution_claim", res.claims_and_boundaries?.current_mainnet0_financial_execution_claim === false],
+  ["production_consensus_claim", res.claims_and_boundaries?.production_consensus_claim === false],
+  ["future_hardening_required", res.claims_and_boundaries?.future_hardening_required === true],
+  ["public_read_only", res.public_safety?.public_read_only === true],
+  ["ledger_write", res.public_safety?.ledger_write === false],
+  ["wc_credit_award", res.public_safety?.wc_credit_award === false],
+  ["shell_execution", res.public_safety?.shell_execution === false],
+  ["raw_payload_disclosure", res.public_safety?.raw_payload_disclosure === false],
+  ["private_path_disclosure", res.public_safety?.private_path_disclosure === false],
+];
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+if (failed.length) {
+  console.error("boundary rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+grep -Fq '/public-node/datanet/data-plane-settlement-plane-boundary-v1.json' "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_DOC_V1' docs/public/public-node-datanet-data-plane-settlement-plane-boundary-v1.md
+grep -Fq 'VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-data-plane-settlement-plane-boundary-v1-proof.sh | grep -Fq 'VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_PROOF_V1_GREEN'
+
+echo "datanet_data_plane_settlement_plane_boundary_live_status_rollup_green=true"
+echo "datanet_data_plane_settlement_plane_boundary_raw_payload_written_to_ledger=false"
+echo "datanet_data_plane_settlement_plane_boundary_public_route_can_mutate_ledger=false"
+echo "datanet_data_plane_settlement_plane_boundary_public_route_can_execute_shell=false"
+echo "datanet_data_plane_settlement_plane_boundary_current_mainnet0_financial_execution_claim=false"
+echo "datanet_data_plane_settlement_plane_boundary_production_consensus_claim=false"
+echo "datanet_data_plane_settlement_plane_boundary_future_hardening_required=true"
+
+rm -rf "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
