@@ -3387,4 +3387,60 @@ echo "datanet_public_surface_mutation_method_audit_shell_execution=false"
 
 rm -rf "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP"
 
+
+echo "=== DataNet Operator Local Publish Pack v1 rollup guard ==="
+DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-operator-local-publish-pack-live-rollup-$$"
+mkdir -p "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/operator-local-publish-pack-v1.json" > "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP/pack.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP/pack.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1"],
+  ["ok", res.ok === true],
+  ["script_path", res.operator_script?.path === "ops/mainnet0/datanet-operator-local-publish-v1.sh"],
+  ["operator_terminal_only", res.operator_script?.mode === "operator_terminal_only"],
+  ["accepts_public_http_mutation", res.operator_script?.accepts_public_http_mutation === false],
+  ["manifest_marker", res.output_manifest?.marker === "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_MANIFEST_V1"],
+  ["includes_absolute_source_path", res.output_manifest?.includes_absolute_source_path === false],
+  ["includes_operator_home_path", res.output_manifest?.includes_operator_home_path === false],
+  ["includes_local_storage_root", res.output_manifest?.includes_local_storage_root === false],
+  ["terminal_only", res.safety?.terminal_only === true],
+  ["public_post_upload", res.safety?.public_post_upload === false],
+  ["public_mutation", res.safety?.public_mutation === false],
+  ["source_path_disclosed", res.safety?.source_path_disclosed === false],
+  ["local_storage_root_disclosed", res.safety?.local_storage_root_disclosed === false],
+  ["ledger_write", res.safety?.ledger_write === false],
+  ["wc_credit_award", res.safety?.wc_credit_award === false],
+];
+const failed = checks.filter((pair) => pair[1] === false).map((pair) => pair[0]);
+if (failed.length > 0) {
+  console.error("operator local publish pack rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+test -x ops/mainnet0/datanet-operator-local-publish-v1.sh
+grep -Fq '/public-node/datanet/operator-local-publish-pack-v1.json' "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_DOC_V1' docs/public/public-node-datanet-operator-local-publish-pack-v1.md
+grep -Fq 'VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-operator-local-publish-pack-v1-proof.sh | grep -Fq 'VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_PROOF_V1_GREEN'
+
+echo "datanet_operator_local_publish_pack_live_status_rollup_green=true"
+echo "datanet_operator_local_publish_pack_script_present=true"
+echo "datanet_operator_local_publish_pack_generated_manifest_green=true"
+echo "datanet_operator_local_publish_pack_public_safe_manifest_written=true"
+echo "datanet_operator_local_publish_pack_absolute_paths_in_manifest=false"
+echo "datanet_operator_local_publish_pack_operator_home_path_in_manifest=false"
+echo "datanet_operator_local_publish_pack_local_storage_root_in_manifest=false"
+echo "datanet_operator_local_publish_pack_public_mutation=false"
+echo "datanet_operator_local_publish_pack_ledger_write=false"
+echo "datanet_operator_local_publish_pack_wc_credit_award=false"
+
+rm -rf "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

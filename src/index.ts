@@ -46103,6 +46103,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/local-storage-path-isolation-boundary-v1.json", kind: "json", marker: "VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1", use: "Mainnet-0 DataNet local storage path isolation boundary; public identifiers only; no local path disclosure; no public mutation" },
       { path: "/public-node/datanet/public-surface-path-leak-audit-v1.json", kind: "json", marker: "VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_V1", use: "Mainnet-0 DataNet public surface path leak audit manifest; scans public DataNet routes for private path and command leak patterns" },
       { path: "/public-node/datanet/public-surface-mutation-method-audit-v1.json", kind: "json", marker: "VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_V1", use: "Mainnet-0 DataNet public surface mutation method audit manifest; scans public DataNet routes for rejected POST/PUT/PATCH/DELETE methods" },
+      { path: "/public-node/datanet/operator-local-publish-pack-v1.json", kind: "json", marker: "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1", use: "Mainnet-0 DataNet operator-local publish pack; terminal-only local source hashing; public-safe manifest generation; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -52893,6 +52894,53 @@ APP.get("/public-node/datanet/public-surface-mutation-method-audit-v1.json", (_r
   res.json(DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_V1);
 });
 
+
+
+
+const DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1 = Object.freeze({
+  marker: "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1",
+  version: 1,
+  ok: true,
+  meta: {
+    network_phase: "Mainnet-0",
+    design_intent: "Enable an operator-terminal-only local DataNet publish step that hashes a local file or folder and emits a public-safe dataset manifest."
+  },
+  operator_script: {
+    path: "ops/mainnet0/datanet-operator-local-publish-v1.sh",
+    mode: "operator_terminal_only",
+    accepts_public_http_mutation: false,
+    example: "ops/mainnet0/datanet-operator-local-publish-v1.sh --dataset-id zoso-test-dataset-v1 --source ./some-folder"
+  },
+  output_manifest: {
+    marker: "VOID_DATANET_OPERATOR_LOCAL_PUBLISH_MANIFEST_V1",
+    includes_dataset_id: true,
+    includes_object_hashes: true,
+    includes_content_root_sha256: true,
+    includes_manifest_sha256: true,
+    includes_absolute_source_path: false,
+    includes_operator_home_path: false,
+    includes_local_storage_root: false
+  },
+  safety: {
+    terminal_only: true,
+    public_post_upload: false,
+    public_mutation: false,
+    public_shell_execution: false,
+    source_path_disclosed: false,
+    local_storage_root_disclosed: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    wc_to_void_swap: false,
+    wallet_send: false
+  },
+  next_step: "Add a published dataset registry route that can read public-safe manifests by dataset ID without constructing filesystem paths from request input."
+});
+
+APP.get("/public-node/datanet/operator-local-publish-pack-v1.json", (_req:any, res:any) => { // VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROUTE_V1
+  res.json(DATANET_OPERATOR_LOCAL_PUBLISH_PACK_V1);
+});
+
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
   const crypto = require("node:crypto");
 
@@ -54271,7 +54319,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-external-reachability-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh</code></p>
   </section>
 
-  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1 VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_UI_V1 VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_UI_V1 -->
+  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1 VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_UI_V1 VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_UI_V1 VOID_DATANET_OPERATOR_LOCAL_PUBLISH_PACK_UI_V1 -->
     <div class="muted">DataNet Challenge</div>
     <h2>Read-only challenge packet</h2>
     <p>Whitelisted challenge route for verified DataNet/local-data fixtures. Dataset IDs are registry lookups only; they are never converted into filesystem paths.</p>
