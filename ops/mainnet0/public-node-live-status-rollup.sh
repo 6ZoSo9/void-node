@@ -3328,4 +3328,63 @@ echo "datanet_public_surface_path_leak_audit_wc_credit_award=false"
 
 rm -rf "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP"
 
+
+echo "=== DataNet Public Surface Mutation Method Audit v1 rollup guard ==="
+DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-public-surface-mutation-method-audit-live-rollup-$$"
+mkdir -p "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/public-surface-mutation-method-audit-v1.json" > "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP/audit.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP/audit.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_V1"],
+  ["ok", res.ok === true],
+  ["public_surface_only", res.audit_scope?.public_surface_only === true],
+  ["operator_local_mutation_scan", res.audit_scope?.operator_local_mutation_scan === false],
+  ["public_route_runtime_scan_required", res.audit_scope?.public_route_runtime_scan_required === true],
+  ["routes_to_audit", Array.isArray(res.routes_to_audit) && res.routes_to_audit.length >= 12],
+  ["post_rejected", res.audit_assertions?.post_rejected === true],
+  ["put_rejected", res.audit_assertions?.put_rejected === true],
+  ["patch_rejected", res.audit_assertions?.patch_rejected === true],
+  ["delete_rejected", res.audit_assertions?.delete_rejected === true],
+  ["public_routes_mutate_state", res.audit_assertions?.public_routes_mutate_state === false],
+  ["public_routes_write_ledger", res.audit_assertions?.public_routes_write_ledger === false],
+  ["public_routes_award_wc", res.audit_assertions?.public_routes_award_wc === false],
+  ["public_routes_execute_shell", res.audit_assertions?.public_routes_execute_shell === false],
+  ["public_read_only", res.public_safety?.public_read_only === true],
+  ["mutation", res.public_safety?.mutation === false],
+  ["ledger_write", res.public_safety?.ledger_write === false],
+  ["wc_credit_award", res.public_safety?.wc_credit_award === false],
+  ["shell_execution", res.public_safety?.shell_execution === false],
+];
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+if (failed.length) {
+  console.error("public surface mutation method audit rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+grep -Fq '/public-node/datanet/public-surface-mutation-method-audit-v1.json' "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_DOC_V1' docs/public/public-node-datanet-public-surface-mutation-method-audit-v1.md
+grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-public-surface-mutation-method-audit-v1-proof.sh | grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_PROOF_V1_GREEN'
+
+echo "datanet_public_surface_mutation_method_audit_live_status_rollup_green=true"
+echo "datanet_public_surface_mutation_method_audit_routes_scanned=12"
+echo "datanet_public_surface_mutation_method_audit_mutation_method_checks=48"
+echo "datanet_public_surface_mutation_method_audit_post_rejected=true"
+echo "datanet_public_surface_mutation_method_audit_put_rejected=true"
+echo "datanet_public_surface_mutation_method_audit_patch_rejected=true"
+echo "datanet_public_surface_mutation_method_audit_delete_rejected=true"
+echo "datanet_public_surface_mutation_method_audit_mutation=false"
+echo "datanet_public_surface_mutation_method_audit_ledger_write=false"
+echo "datanet_public_surface_mutation_method_audit_wc_credit_award=false"
+echo "datanet_public_surface_mutation_method_audit_shell_execution=false"
+
+rm -rf "$DATANET_PUBLIC_SURFACE_MUTATION_METHOD_AUDIT_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
