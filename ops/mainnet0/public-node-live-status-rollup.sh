@@ -2866,4 +2866,36 @@ echo "datanet_challenge_imported_tester_receipt_fixture_wc_credit_award=false"
 
 rm -rf "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP"
 
+
+echo "=== DataNet Challenge Operator Review Record Fixture v1 rollup guard ==="
+DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-challenge-operator-review-record-live-rollup-$$"
+mkdir -p "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-operator-review-record-fixture-v1.json" > "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_V1"' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"ok":true' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"dataset_id":"demo003-folder-fixture-v1"' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"fixture_state":"review_record_fixture_only"' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"review_decision_state":"accepted_for_future_wc_review"' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"review_decision_final":false' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"wc_award_decision_now":"not_decided"' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"wc_delta_now":0' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"operator_local_intake_only":true' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"public_submit_route_enabled":false' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/operator-review-record-fixture.json"
+grep -Fq '/public-node/datanet/challenge-operator-review-record-fixture-v1.json' "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP/route-index.json"
+
+echo "datanet_challenge_operator_review_record_fixture_live_status_rollup_green=true"
+echo "datanet_challenge_operator_review_record_fixture_decision_state=accepted_for_future_wc_review"
+echo "datanet_challenge_operator_review_record_fixture_wc_delta_now=0"
+echo "datanet_challenge_operator_review_record_fixture_public_submit_route_enabled=false"
+echo "datanet_challenge_operator_review_record_fixture_ledger_write=false"
+echo "datanet_challenge_operator_review_record_fixture_wc_credit_award=false"
+
+rm -rf "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

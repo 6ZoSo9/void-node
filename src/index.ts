@@ -46095,6 +46095,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge-tester-result-receipt-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1", use: "copy/paste DataNet Challenge tester result receipt template; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-receipt-intake-status-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_V1", use: "operator-local DataNet Challenge tester receipt intake status; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_IMPORTED_TESTER_RECEIPT_FIXTURE_V1", use: "operator-local imported tester receipt fixture for DataNet Challenge v1; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-operator-review-record-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_V1", use: "operator review record fixture for imported DataNet Challenge tester receipt; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52263,6 +52264,63 @@ APP.get("/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json"
       receipt_intake_status: "/public-node/datanet/challenge-receipt-intake-status-v1.json"
     },
     next_step: "operator review record fixture can evaluate this imported receipt without writing the WC ledger"
+  });
+});
+
+
+
+
+APP.get("/public-node/datanet/challenge-operator-review-record-fixture-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_V1",
+    version: 1,
+    ok: true,
+    purpose: "operator_review_record_fixture_for_imported_datanet_challenge_tester_receipt_v1",
+    headline: "VOID DataNet Challenge operator review record fixture",
+    dataset_id: datasetId,
+    fixture_state: "review_record_fixture_only",
+    review_record_present: true,
+    live_review_write_now: false,
+    imported_receipt_fixture_path: "/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json",
+    reviewed_receipt_marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_RETURN_V1",
+    reviewed_receipt_fixture_marker: "VOID_DATANET_CHALLENGE_IMPORTED_TESTER_RECEIPT_FIXTURE_V1",
+    reviewer: "operator-fixture",
+    review_timestamp_utc: "2026-06-16T00:00:00Z",
+    review_decision_state: "accepted_for_future_wc_review",
+    review_decision_final: false,
+    review_notes: "Fixture only: imported tester receipt has expected markers and safety flags. No WC award is made here.",
+    evidence: {
+      challenge_marker_seen: "VOID_DATANET_CHALLENGE_V1",
+      offline_pack_marker_seen: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_V1",
+      green_marker_seen: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN",
+      ledger_write_false_seen: true,
+      wc_credit_award_false_seen: true,
+      public_submit_route_enabled_seen: false,
+      operator_local_intake_only_seen: true
+    },
+    allowed_review_states: [
+      "pending_operator_review",
+      "accepted_for_future_wc_review",
+      "rejected_incomplete_evidence",
+      "rejected_duplicate_receipt",
+      "rejected_policy_boundary"
+    ],
+    wc_award_decision_now: "not_decided",
+    wc_delta_now: 0,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    public_submit_route_enabled: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "future WC candidate fixture can reference this review record without writing the WC ledger"
   });
 });
 
