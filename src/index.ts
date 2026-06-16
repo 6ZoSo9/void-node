@@ -46100,6 +46100,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1", use: "positive nonzero WC delta selection fixture for DataNet Challenge candidate; fixture only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-award-intent-packet-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_V1", use: "award intent packet fixture for selected DataNet Challenge WC delta; intent only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52531,6 +52532,60 @@ APP.get("/public-node/datanet/challenge-award-record-preview-fixture-v1.json", (
     validator_mutation: false,
     trusted_as_network_truth: false,
     next_step: "future duplicate ledger guard recheck can reference this award record preview without writing the WC ledger"
+  });
+});
+
+
+
+
+APP.get("/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+  const awardRecordPreviewId = "datanet-challenge-demo003-fixture-tester-001-award-record-preview-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1",
+    version: 1,
+    ok: true,
+    purpose: "duplicate_ledger_guard_recheck_fixture_for_datanet_challenge_award_record_preview_v1",
+    headline: "VOID DataNet Challenge duplicate ledger guard recheck fixture",
+    dataset_id: datasetId,
+    fixture_state: "duplicate_ledger_guard_recheck_fixture_only",
+    duplicate_ledger_check_performed_now: true,
+    duplicate_ledger_check_scope: "fixture_only_read_only_award_record_preview_id",
+    duplicate_ledger_entry_found: false,
+    duplicate_policy_state: "no_duplicate_found_fixture",
+    award_record_preview_fixture_path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json",
+    award_record_preview_marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1",
+    award_record_preview_id: awardRecordPreviewId,
+    award_record_preview_state_seen: "preview_only_not_created_not_awarded",
+    selected_positive_wc_delta_fixture: true,
+    proposed_wc_delta_fixture: 100,
+    proposed_wc_delta_units: "WC",
+    proposed_wc_delta_final: false,
+    duplicate_guard_recheck_result: {
+      checked_award_record_preview_id: awardRecordPreviewId,
+      duplicate_key: "datanet-challenge-demo003-fixture-tester-001",
+      duplicate_found: false,
+      existing_ledger_entry_id: null,
+      safe_to_continue_to_future_ledger_entry_preview: true
+    },
+    wc_award_decision_now: "not_decided",
+    wc_award_decision_final: false,
+    wc_delta_now: 0,
+    award_record_created_now: false,
+    ledger_entry_created_now: false,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    public_submit_route_enabled: false,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "future ledger entry preview fixture can reference this duplicate guard recheck without writing the WC ledger"
   });
 });
 
