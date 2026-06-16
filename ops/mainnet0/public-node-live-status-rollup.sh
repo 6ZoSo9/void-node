@@ -3217,4 +3217,59 @@ echo "datanet_data_plane_settlement_plane_boundary_future_hardening_required=tru
 
 rm -rf "$DATANET_DATA_PLANE_SETTLEMENT_BOUNDARY_ROLLUP_TMP"
 
+
+echo "=== DataNet Local Storage Path Isolation Boundary v1 rollup guard ==="
+DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-local-storage-path-isolation-live-rollup-$$"
+mkdir -p "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/local-storage-path-isolation-boundary-v1.json" > "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP/boundary.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP/boundary.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1"],
+  ["ok", res.ok === true],
+  ["dataset_ids_are_public_identifiers", res.public_identifier_policy?.dataset_ids_are_public_identifiers === true],
+  ["dataset_ids_are_filesystem_paths", res.public_identifier_policy?.dataset_ids_are_filesystem_paths === false],
+  ["request_dataset_id_used_to_build_filesystem_path", res.public_identifier_policy?.request_dataset_id_used_to_build_filesystem_path === false],
+  ["public_routes_may_emit_operator_local_storage_root", res.public_identifier_policy?.public_routes_may_emit_operator_local_storage_root === false],
+  ["public_routes_may_emit_absolute_filesystem_path", res.public_identifier_policy?.public_routes_may_emit_absolute_filesystem_path === false],
+  ["local_storage_root_publicly_disclosed", res.isolation_invariants?.local_storage_root_publicly_disclosed === false],
+  ["absolute_filesystem_path_publicly_disclosed", res.isolation_invariants?.absolute_filesystem_path_publicly_disclosed === false],
+  ["private_home_path_publicly_disclosed", res.isolation_invariants?.private_home_path_publicly_disclosed === false],
+  ["operator_env_publicly_disclosed", res.isolation_invariants?.operator_env_publicly_disclosed === false],
+  ["shell_command_publicly_disclosed", res.isolation_invariants?.shell_command_publicly_disclosed === false],
+  ["public_read_only", res.public_safety?.public_read_only === true],
+  ["ledger_write", res.public_safety?.ledger_write === false],
+  ["wc_credit_award", res.public_safety?.wc_credit_award === false],
+  ["shell_execution", res.public_safety?.shell_execution === false],
+  ["private_path_disclosure", res.public_safety?.private_path_disclosure === false],
+  ["storage_root_disclosure", res.public_safety?.storage_root_disclosure === false],
+];
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+if (failed.length) {
+  console.error("local storage path isolation rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+grep -Fq '/public-node/datanet/local-storage-path-isolation-boundary-v1.json' "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_DOC_V1' docs/public/public-node-datanet-local-storage-path-isolation-boundary-v1.md
+grep -Fq 'VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-local-storage-path-isolation-boundary-v1-proof.sh | grep -Fq 'VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_PROOF_V1_GREEN'
+
+echo "datanet_local_storage_path_isolation_boundary_live_status_rollup_green=true"
+echo "datanet_local_storage_path_isolation_boundary_dataset_ids_are_filesystem_paths=false"
+echo "datanet_local_storage_path_isolation_boundary_request_dataset_id_used_to_build_filesystem_path=false"
+echo "datanet_local_storage_path_isolation_boundary_local_storage_root_publicly_disclosed=false"
+echo "datanet_local_storage_path_isolation_boundary_absolute_filesystem_path_publicly_disclosed=false"
+echo "datanet_local_storage_path_isolation_boundary_private_home_path_publicly_disclosed=false"
+echo "datanet_local_storage_path_isolation_boundary_ledger_write=false"
+echo "datanet_local_storage_path_isolation_boundary_wc_credit_award=false"
+
+rm -rf "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

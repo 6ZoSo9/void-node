@@ -46100,6 +46100,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge-positive-wc-delta-selection-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_POSITIVE_WC_DELTA_SELECTION_FIXTURE_V1", use: "positive nonzero WC delta selection fixture for DataNet Challenge candidate; fixture only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-award-intent-packet-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_INTENT_PACKET_FIXTURE_V1", use: "award intent packet fixture for selected DataNet Challenge WC delta; intent only; no WC award; no ledger write" },
       { path: "/public-node/datanet/data-plane-settlement-plane-boundary-v1.json", kind: "json", marker: "VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1", use: "Mainnet-0 Data Plane / Settlement Plane boundary; lean ledger scaling thesis; no public mutation; no public shell execution; no production consensus claim" },
+      { path: "/public-node/datanet/local-storage-path-isolation-boundary-v1.json", kind: "json", marker: "VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1", use: "Mainnet-0 DataNet local storage path isolation boundary; public identifiers only; no local path disclosure; no public mutation" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -52704,6 +52705,75 @@ APP.get("/public-node/datanet/data-plane-settlement-plane-boundary-v1.json", (_r
   res.json(DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_V1);
 });
 
+
+
+
+const DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1 = Object.freeze({
+  marker: "VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1",
+  version: 1,
+  ok: true,
+  meta: {
+    network_phase: "Mainnet-0",
+    design_intent: "Keep operator-local DataNet storage roots and filesystem paths out of public proof surfaces."
+  },
+  public_identifier_policy: {
+    dataset_ids_are_public_identifiers: true,
+    dataset_ids_are_filesystem_paths: false,
+    request_dataset_id_used_to_build_filesystem_path: false,
+    public_routes_may_emit_dataset_id: true,
+    public_routes_may_emit_content_hashes: true,
+    public_routes_may_emit_manifest_paths: true,
+    public_routes_may_emit_operator_local_storage_root: false,
+    public_routes_may_emit_absolute_filesystem_path: false
+  },
+  isolation_invariants: {
+    local_storage_root_publicly_disclosed: false,
+    absolute_filesystem_path_publicly_disclosed: false,
+    private_home_path_publicly_disclosed: false,
+    operator_env_publicly_disclosed: false,
+    shell_command_publicly_disclosed: false,
+    raw_datanet_payload_publicly_disclosed_by_boundary: false
+  },
+  safe_public_surfaces: {
+    dataset_id: "demo003-folder-fixture-v1",
+    allowed_public_reference_types: [
+      "dataset_id",
+      "route_path",
+      "content_hash",
+      "object_hash",
+      "manifest_hash",
+      "object_count",
+      "proof_marker",
+      "challenge_marker",
+      "offline_verify_marker"
+    ],
+    forbidden_public_reference_types: [
+      "absolute_filesystem_path",
+      "operator_home_path",
+      "storage_root",
+      "environment_variable",
+      "shell_command",
+      "private_key",
+      "secret"
+    ]
+  },
+  public_safety: {
+    public_read_only: true,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    shell_execution: false,
+    private_path_disclosure: false,
+    storage_root_disclosure: false
+  },
+  next_step: "Public challenge receipts should reference public identifiers and content hashes, not operator-local filesystem paths."
+});
+
+APP.get("/public-node/datanet/local-storage-path-isolation-boundary-v1.json", (_req:any, res:any) => { // VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_ROUTE_V1
+  res.json(DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_V1);
+});
+
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
   const crypto = require("node:crypto");
 
@@ -54082,7 +54152,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Docs: <code>docs/public/public-node-skeptic-external-reachability-boundary-v1.md</code> · Proof: <code>ops/mainnet0/public-node-skeptic-external-reachability-boundary-v1-proof.sh</code></p>
   </section>
 
-  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 -->
+  <section class="card" id="publicNodeDatanetChallengeCard"><!-- VOID_DATANET_CHALLENGE_UI_V1 VOID_DATANET_DATA_PLANE_SETTLEMENT_PLANE_BOUNDARY_UI_V1 VOID_DATANET_LOCAL_STORAGE_PATH_ISOLATION_BOUNDARY_UI_V1 -->
     <div class="muted">DataNet Challenge</div>
     <h2>Read-only challenge packet</h2>
     <p>Whitelisted challenge route for verified DataNet/local-data fixtures. Dataset IDs are registry lookups only; they are never converted into filesystem paths.</p>
