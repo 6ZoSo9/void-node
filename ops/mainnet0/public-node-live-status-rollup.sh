@@ -2805,4 +2805,36 @@ grep -Fq "skeptic_external_reachability_public_dos_resistance_claimed=false" "$O
 
 echo "skeptic_external_reachability_boundary_live_status_rollup_green=true"
 
+
+echo "=== DataNet Challenge Receipt Intake v1 rollup guard ==="
+DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-challenge-receipt-intake-live-rollup-$$"
+mkdir -p "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-tester-result-receipt-v1.json" > "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-receipt-intake-status-v1.json" > "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1"' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_V1"' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq '"operator_local_intake_only":true' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '"operator_local_intake_only":true' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq '"public_submit_route_enabled":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/receipt-intake-status.json"
+grep -Fq 'VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_RETURN_V1' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/tester-result-receipt.json"
+grep -Fq '/public-node/datanet/challenge-tester-result-receipt-v1.json' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/route-index.json"
+grep -Fq '/public-node/datanet/challenge-receipt-intake-status-v1.json' "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP/route-index.json"
+
+echo "datanet_challenge_receipt_intake_live_status_rollup_green=true"
+echo "datanet_challenge_receipt_intake_operator_local_only=true"
+echo "datanet_challenge_receipt_intake_public_submit_route_enabled=false"
+echo "datanet_challenge_receipt_intake_ledger_write=false"
+echo "datanet_challenge_receipt_intake_wc_credit_award=false"
+
+rm -rf "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"

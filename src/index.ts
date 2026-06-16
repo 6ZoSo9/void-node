@@ -46092,6 +46092,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/challenge/:dataset_id", kind: "json", marker: "VOID_DATANET_CHALLENGE_V1", use: "read-only DataNet challenge packet by whitelisted dataset id; bounded manifest route references only; no filesystem path from dataset_id" },
       { path: "/public-node/datanet/challenge-tester-copy-pack-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_TESTER_COPY_PACK_V1", use: "copy/paste outside tester pack for DataNet Challenge v1; read-only; no WC award" },
       { path: "/public-node/datanet/challenge-offline-verify-pack-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_V1", use: "copy/paste offline verifier pack for DataNet Challenge v1; read-only; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-tester-result-receipt-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1", use: "copy/paste DataNet Challenge tester result receipt template; no WC award; no ledger write" },
+      { path: "/public-node/datanet/challenge-receipt-intake-status-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_V1", use: "operator-local DataNet Challenge tester receipt intake status; no WC award; no ledger write" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html", kind: "html", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder index file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt", kind: "text", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder README file" },
       { path: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1", use: "Demo 003 verified folder metadata file" },
@@ -52119,6 +52121,98 @@ APP.get("/public-node/datanet/challenge-offline-verify-pack-v1.json", (_req:any,
   });
 });
 
+
+
+
+
+APP.get("/public-node/datanet/challenge-tester-result-receipt-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+  const challengePath = "/public-node/datanet/challenge/" + datasetId;
+  const offlinePackPath = "/public-node/datanet/challenge-offline-verify-pack-v1.json";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1",
+    version: 1,
+    ok: true,
+    purpose: "copy_paste_tester_result_receipt_template_for_datanet_challenge_v1",
+    headline: "VOID DataNet Challenge tester result receipt",
+    dataset_id: datasetId,
+    challenge_path: challengePath,
+    offline_verify_pack_path: offlinePackPath,
+    expected_green_marker: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN",
+    receipt_state: "template_only",
+    accepted_by_network_now: false,
+    imported_by_operator_now: false,
+    public_read_only: true,
+    operator_local_intake_only: true,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    required_return_fields: [
+      "tester_label",
+      "tester_timestamp_utc",
+      "public_node_base_used",
+      "dataset_id",
+      "challenge_marker_seen",
+      "offline_pack_marker_seen",
+      "green_marker_seen",
+      "ledger_write_false_seen",
+      "wc_credit_award_false_seen",
+      "notes"
+    ],
+    receipt_template: {
+      marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_RETURN_V1",
+      tester_label: "outside-tester-label-here",
+      tester_timestamp_utc: "YYYY-MM-DDTHH:MM:SSZ",
+      public_node_base_used: "https://example-public-node-or-localhost",
+      dataset_id: datasetId,
+      challenge_marker_seen: "VOID_DATANET_CHALLENGE_V1",
+      offline_pack_marker_seen: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_V1",
+      green_marker_seen: "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN",
+      ledger_write_false_seen: true,
+      wc_credit_award_false_seen: true,
+      notes: "Paste tester notes here. Do not include secrets."
+    }
+  });
+});
+
+
+APP.get("/public-node/datanet/challenge-receipt-intake-status-v1.json", (_req:any, res:any) => { // VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_ROUTE_V1
+  const datasetId = "demo003-folder-fixture-v1";
+
+  res.json({
+    marker: "VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_V1",
+    version: 1,
+    ok: true,
+    purpose: "operator_local_receipt_intake_status_for_datanet_challenge_v1",
+    headline: "VOID DataNet Challenge receipt intake status",
+    dataset_id: datasetId,
+    receipt_intake_status: "ready_for_operator_local_import",
+    receipt_imported_now: false,
+    receipt_count_now: 0,
+    accepted_public_submission_now: false,
+    public_submit_route_enabled: false,
+    operator_local_intake_only: true,
+    required_receipt_marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_RETURN_V1",
+    tester_receipt_template_path: "/public-node/datanet/challenge-tester-result-receipt-v1.json",
+    offline_verify_pack_path: "/public-node/datanet/challenge-offline-verify-pack-v1.json",
+    public_read_only: true,
+    mutation: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    money_movement: false,
+    wallet_send: false,
+    validator_mutation: false,
+    trusted_as_network_truth: false,
+    next_step: "operator may manually import a returned tester receipt into a local fixture in a later checkpoint"
+  });
+});
 
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
   const crypto = require("node:crypto");
