@@ -2898,4 +2898,41 @@ echo "datanet_challenge_operator_review_record_fixture_wc_credit_award=false"
 
 rm -rf "$DATANET_CHALLENGE_OPERATOR_REVIEW_ROLLUP_TMP"
 
+
+echo "=== DataNet Challenge WC Candidate Fixture v1 rollup guard ==="
+DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-challenge-wc-candidate-live-rollup-$$"
+mkdir -p "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-wc-candidate-fixture-v1.json" > "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_WC_CANDIDATE_FIXTURE_V1"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"ok":true' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"dataset_id":"demo003-folder-fixture-v1"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"fixture_state":"wc_candidate_fixture_only"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"candidate_status":"candidate_only_not_awarded"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"review_record_marker":"VOID_DATANET_CHALLENGE_OPERATOR_REVIEW_RECORD_FIXTURE_V1"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"review_decision_state":"accepted_for_future_wc_review"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"wc_award_decision_now":"not_decided"' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"wc_award_decision_final":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"wc_delta_now":0' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"award_record_created_now":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"ledger_entry_created_now":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"operator_local_intake_only":true' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"public_submit_route_enabled":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/wc-candidate-fixture.json"
+grep -Fq '/public-node/datanet/challenge-wc-candidate-fixture-v1.json' "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP/route-index.json"
+
+echo "datanet_challenge_wc_candidate_fixture_live_status_rollup_green=true"
+echo "datanet_challenge_wc_candidate_fixture_status=candidate_only_not_awarded"
+echo "datanet_challenge_wc_candidate_fixture_wc_delta_now=0"
+echo "datanet_challenge_wc_candidate_fixture_award_record_created_now=false"
+echo "datanet_challenge_wc_candidate_fixture_ledger_entry_created_now=false"
+echo "datanet_challenge_wc_candidate_fixture_ledger_write=false"
+echo "datanet_challenge_wc_candidate_fixture_wc_credit_award=false"
+
+rm -rf "$DATANET_CHALLENGE_WC_CANDIDATE_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
