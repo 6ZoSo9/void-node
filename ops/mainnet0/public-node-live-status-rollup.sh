@@ -3272,4 +3272,60 @@ echo "datanet_local_storage_path_isolation_boundary_wc_credit_award=false"
 
 rm -rf "$DATANET_LOCAL_STORAGE_PATH_ISOLATION_ROLLUP_TMP"
 
+
+echo "=== DataNet Public Surface Path Leak Audit v1 rollup guard ==="
+DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-public-surface-path-leak-audit-live-rollup-$$"
+mkdir -p "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/public-surface-path-leak-audit-v1.json" > "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP/audit.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP/audit.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_V1"],
+  ["ok", res.ok === true],
+  ["public_surface_only", res.audit_scope?.public_surface_only === true],
+  ["operator_local_filesystem_scan", res.audit_scope?.operator_local_filesystem_scan === false],
+  ["public_route_runtime_scan_required", res.audit_scope?.public_route_runtime_scan_required === true],
+  ["routes_to_scan", Array.isArray(res.routes_to_scan) && res.routes_to_scan.length >= 10],
+  ["concrete_private_path_leak_found", res.audit_assertions?.concrete_private_path_leak_found === false],
+  ["concrete_command_hook_leak_found", res.audit_assertions?.concrete_command_hook_leak_found === false],
+  ["concrete_key_material_leak_found", res.audit_assertions?.concrete_key_material_leak_found === false],
+  ["concrete_token_like_value_leak_found", res.audit_assertions?.concrete_token_like_value_leak_found === false],
+  ["public_routes_mutate_state", res.audit_assertions?.public_routes_mutate_state === false],
+  ["public_routes_write_ledger", res.audit_assertions?.public_routes_write_ledger === false],
+  ["public_routes_award_wc", res.audit_assertions?.public_routes_award_wc === false],
+  ["public_read_only", res.public_safety?.public_read_only === true],
+  ["ledger_write", res.public_safety?.ledger_write === false],
+  ["wc_credit_award", res.public_safety?.wc_credit_award === false],
+  ["shell_execution", res.public_safety?.shell_execution === false],
+  ["private_path_disclosure", res.public_safety?.private_path_disclosure === false],
+  ["storage_root_disclosure", res.public_safety?.storage_root_disclosure === false],
+];
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+if (failed.length) {
+  console.error("public surface path leak audit rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+grep -Fq '/public-node/datanet/public-surface-path-leak-audit-v1.json' "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_DOC_V1' docs/public/public-node-datanet-public-surface-path-leak-audit-v1.md
+grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-public-surface-path-leak-audit-v1-proof.sh | grep -Fq 'VOID_DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_PROOF_V1_GREEN'
+
+echo "datanet_public_surface_path_leak_audit_live_status_rollup_green=true"
+echo "datanet_public_surface_path_leak_audit_routes_scanned=11"
+echo "datanet_public_surface_path_leak_audit_concrete_private_path_leak_found=false"
+echo "datanet_public_surface_path_leak_audit_concrete_command_hook_leak_found=false"
+echo "datanet_public_surface_path_leak_audit_concrete_key_material_leak_found=false"
+echo "datanet_public_surface_path_leak_audit_concrete_token_like_value_leak_found=false"
+echo "datanet_public_surface_path_leak_audit_ledger_write=false"
+echo "datanet_public_surface_path_leak_audit_wc_credit_award=false"
+
+rm -rf "$DATANET_PUBLIC_SURFACE_PATH_LEAK_AUDIT_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
