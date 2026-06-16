@@ -2652,6 +2652,20 @@ grep -Fq "datanet_challenge_tester_copy_pack_wc_credit_award=false" "$OUT/public
 
 echo "datanet_challenge_tester_copy_pack_live_status_rollup_green=true"
 
+
+echo "=== DataNet Challenge Offline Verify Pack v1 rollup guard ==="
+BASE="${BASE:-http://127.0.0.1:4100}" \
+  bash ops/mainnet0/public-node-datanet-challenge-offline-verify-pack-v1-proof.sh \
+  > "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+
+grep -Fq "VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_PROOF_V1_GREEN" "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+grep -Fq "datanet_challenge_offline_verify_pack_route_green=true" "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+grep -Fq "datanet_challenge_offline_verify_pack_embedded_command_green=true" "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+grep -Fq "datanet_challenge_offline_verify_pack_ledger_write=false" "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+grep -Fq "datanet_challenge_offline_verify_pack_wc_credit_award=false" "$OUT/public-node-datanet-challenge-offline-verify-pack-v1-proof.log"
+
+echo "datanet_challenge_offline_verify_pack_live_status_rollup_green=true"
+
 echo "=== Skeptic / Audit Readiness Index v1 rollup guard ==="
 PUBLIC_NODE_BASE="${BASE:-http://127.0.0.1:4100}" \
   bash ops/mainnet0/public-node-skeptic-audit-readiness-proof.sh \
