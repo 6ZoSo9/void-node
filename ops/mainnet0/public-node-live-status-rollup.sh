@@ -3443,4 +3443,60 @@ echo "datanet_operator_local_publish_pack_wc_credit_award=false"
 
 rm -rf "$DATANET_OPERATOR_LOCAL_PUBLISH_PACK_ROLLUP_TMP"
 
+
+echo "=== DataNet Published Dataset Registry v1 rollup guard ==="
+DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-published-dataset-registry-live-rollup-$$"
+mkdir -p "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/published-dataset-registry-v1.json" > "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP/registry.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP/route-index.json"
+
+node - "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP/registry.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const res = JSON.parse(fs.readFileSync(file, "utf8"));
+const checks = [
+  ["marker", res.marker === "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1"],
+  ["ok", res.ok === true],
+  ["operator_published_manifests", res.registry_scope?.operator_published_manifests === true],
+  ["public_safe_metadata_only", res.registry_scope?.public_safe_metadata_only === true],
+  ["fixed_operator_publish_root", res.registry_scope?.fixed_operator_publish_root === true],
+  ["request_dataset_id_used_to_build_filesystem_path", res.registry_scope?.request_dataset_id_used_to_build_filesystem_path === false],
+  ["route_accepts_dataset_id_parameter", res.registry_scope?.route_accepts_dataset_id_parameter === false],
+  ["public_read_only", res.public_safety?.public_read_only === true],
+  ["public_mutation", res.public_safety?.public_mutation === false],
+  ["public_post_upload", res.public_safety?.public_post_upload === false],
+  ["source_path_disclosed", res.public_safety?.source_path_disclosed === false],
+  ["absolute_source_path_disclosed", res.public_safety?.absolute_source_path_disclosed === false],
+  ["operator_home_path_disclosed", res.public_safety?.operator_home_path_disclosed === false],
+  ["local_storage_root_disclosed", res.public_safety?.local_storage_root_disclosed === false],
+  ["ledger_write", res.public_safety?.ledger_write === false],
+  ["wc_credit_award", res.public_safety?.wc_credit_award === false],
+];
+const failed = checks.filter((pair) => pair[1] === false).map((pair) => pair[0]);
+if (failed.length > 0) {
+  console.error("published dataset registry rollup invariant failed:", failed.join(", "));
+  process.exit(1);
+}
+NODE
+
+grep -Fq '/public-node/datanet/published-dataset-registry-v1.json' "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP/route-index.json"
+grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_REGISTRY_DOC_V1' docs/public/public-node-datanet-published-dataset-registry-v1.md
+grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_REGISTRY_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-published-dataset-registry-v1-proof.sh | grep -Fq 'VOID_DATANET_PUBLISHED_DATASET_REGISTRY_PROOF_V1_GREEN'
+
+echo "datanet_published_dataset_registry_live_status_rollup_green=true"
+echo "datanet_published_dataset_registry_fixture_dataset_present=true"
+echo "datanet_published_dataset_registry_public_safe_metadata_only=true"
+echo "datanet_published_dataset_registry_request_dataset_id_used_to_build_filesystem_path=false"
+echo "datanet_published_dataset_registry_route_accepts_dataset_id_parameter=false"
+echo "datanet_published_dataset_registry_absolute_source_path_disclosed=false"
+echo "datanet_published_dataset_registry_operator_home_path_disclosed=false"
+echo "datanet_published_dataset_registry_local_storage_root_disclosed=false"
+echo "datanet_published_dataset_registry_public_mutation=false"
+echo "datanet_published_dataset_registry_ledger_write=false"
+echo "datanet_published_dataset_registry_wc_credit_award=false"
+
+rm -rf "$DATANET_PUBLISHED_DATASET_REGISTRY_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
