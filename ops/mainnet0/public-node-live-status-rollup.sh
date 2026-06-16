@@ -2837,4 +2837,33 @@ echo "datanet_challenge_receipt_intake_wc_credit_award=false"
 
 rm -rf "$DATANET_CHALLENGE_RECEIPT_INTAKE_ROLLUP_TMP"
 
+
+echo "=== DataNet Challenge Imported Tester Receipt Fixture v1 rollup guard ==="
+DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP="${TMPDIR:-/tmp}/void-datanet-challenge-imported-receipt-live-rollup-$$"
+mkdir -p "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP"
+
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json" > "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json" > "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/route-index.json"
+
+grep -Fq '"marker":"VOID_DATANET_CHALLENGE_IMPORTED_TESTER_RECEIPT_FIXTURE_V1"' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"ok":true' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"dataset_id":"demo003-folder-fixture-v1"' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"fixture_state":"operator_local_fixture_only"' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"receipt_marker":"VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_RETURN_V1"' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"green_marker_seen":"VOID_DATANET_CHALLENGE_OFFLINE_VERIFY_PACK_SMOKE_V1_GREEN"' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"operator_local_intake_only":true' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"public_submit_route_enabled":false' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"ledger_write":false' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"wc_credit_award":false' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '"mutation":false' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/imported-receipt-fixture.json"
+grep -Fq '/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json' "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP/route-index.json"
+
+echo "datanet_challenge_imported_tester_receipt_fixture_live_status_rollup_green=true"
+echo "datanet_challenge_imported_tester_receipt_fixture_operator_local_only=true"
+echo "datanet_challenge_imported_tester_receipt_fixture_public_submit_route_enabled=false"
+echo "datanet_challenge_imported_tester_receipt_fixture_ledger_write=false"
+echo "datanet_challenge_imported_tester_receipt_fixture_wc_credit_award=false"
+
+rm -rf "$DATANET_CHALLENGE_IMPORTED_RECEIPT_ROLLUP_TMP"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
