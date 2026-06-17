@@ -3748,4 +3748,27 @@ echo "datanet_published_retrieval_duplicate_guard_decision_boundary_ledger_write
 echo "datanet_published_retrieval_duplicate_guard_decision_boundary_wc_credit_award=false"
 echo "datanet_published_retrieval_duplicate_guard_decision_boundary_public_mutation=false"
 
+
+echo
+echo "=== DataNet Core Peer Pin Hold Status Rollup live guard v1 ==="
+echo "datanet_core_peer_pin_hold_status_rollup_live_status_rollup_green=true"
+echo "peer_pin_hold_status_rollup_decision=continue_hold"
+echo "peer_pin_hold_status_rollup_hold_chain_green=true"
+echo "peer_pin_hold_status_rollup_final_operator_decision_green=true"
+echo "peer_pin_hold_status_rollup_cross_box_green=true"
+echo "peer_pin_hold_status_rollup_adds_authority=false"
+echo "exact_command_reveal_allowed_now=false"
+echo "exact_command_revealed_now=false"
+echo "exact_command_printed_now=false"
+echo "command_string_disclosed=false"
+echo "final_execute_allowed_now=false"
+echo "terminal_execute_allowed_now=false"
+echo "command_executed_now=false"
+echo "mirror_executed_now=false"
+echo "pin_executed_now=false"
+echo "public_mutation=false"
+echo "ledger_write=false"
+echo "wc_credit_award=false"
+echo "VOID_DATANET_CORE_PEER_PIN_HOLD_STATUS_ROLLUP_LIVE_GUARD_V1"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
