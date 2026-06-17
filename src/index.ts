@@ -46107,6 +46107,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-dataset-registry-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1", use: "Mainnet-0 DataNet published dataset registry; lists public-safe operator-published manifest metadata; no request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet published object fetch route; returns one object selected from the published manifest by SHA-256; verifies object hash; no raw request-hash filesystem construction; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-peer-pin-request-policy-v1.json", kind: "json", marker: "VOID_DATANET_CORE_PEER_PIN_REQUEST_POLICY_V1", use: "Mainnet-0 DataNet core peer pin request policy/schema; request packet only; operator review required; no public POST; no automatic mirror; no mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-peer-availability-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_V1", use: "Mainnet-0 DataNet core peer availability index; advertises public-safe locally published and mirrored DataNet availability; no private paths; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/registry-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_V1", use: "Mainnet-0 DataNet core mirror serve registry; lists public-safe local mirror receipts from fixed mirror roots; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1", use: "Mainnet-0 DataNet core mirror receipt serve route; returns public-safe mirror receipt selected through mirror registry; no public mutation; no ledger/WC write" },
@@ -54588,6 +54589,64 @@ function datanetCorePeerAvailabilityIndexMirrorsV1(): any[] {
     return [];
   }
 }
+
+
+
+
+APP.get("/public-node/datanet/core-peer-pin-request-policy-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_PEER_PIN_REQUEST_POLICY_ROUTE_V1
+  res.json({
+    marker: "VOID_DATANET_CORE_PEER_PIN_REQUEST_POLICY_V1",
+    version: 1,
+    ok: true,
+    request_lane: {
+      request_packet_supported: true,
+      public_post_supported: false,
+      automatic_mirror_supported: false,
+      automatic_pin_supported: false,
+      operator_review_required: true,
+      request_intake_mode: "out_of_band_operator_review_only"
+    },
+    accepted_request_marker: "VOID_DATANET_CORE_PEER_PIN_REQUEST_V1",
+    accepted_selection_sources: [
+      "VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_V1.operator_published",
+      "VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_V1.mirrored"
+    ],
+    required_request_fields: [
+      "marker",
+      "version",
+      "request_id",
+      "requester_node_label",
+      "requested_action",
+      "selected_type",
+      "dataset_id",
+      "manifest_sha256",
+      "content_root_sha256",
+      "object_count",
+      "total_bytes",
+      "operator_review_required",
+      "public_safety"
+    ],
+    safety_requirements: {
+      selected_from_peer_availability_index: true,
+      peer_content_verification_recommended_before_operator_approval: true,
+      public_safe_request_packet_only: true,
+      public_read_only: true,
+      public_post_upload: false,
+      public_shell_execution: false,
+      automatic_mirror: false,
+      automatic_pin: false,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false,
+      local_path_disclosed: false,
+      absolute_path_disclosed: false,
+      operator_home_path_disclosed: false,
+      local_storage_root_disclosed: false
+    },
+    next_step: "Generate a public-safe pin request packet from a peer availability index, then require operator review before any mirror/pin action."
+  });
+});
+
 
 APP.get("/public-node/datanet/core-peer-availability-index-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_ROUTE_HANDLER_V1
   const published = datanetCorePeerAvailabilityIndexPublishedV1();
