@@ -3526,4 +3526,27 @@ echo "datanet_published_dataset_read_route_wc_credit_award=false"
 
 rm -rf "$DATANET_PUBLISHED_DATASET_READ_ROUTE_ROLLUP_TMP"
 
+
+echo "=== DataNet Published Object Fetch v1 rollup guard ==="
+grep -Fq '/public-node/datanet/published/:dataset_id/object/:sha256' <(curl -fsS "${BASE:-http://127.0.0.1:4100}/public-node/route-index.json")
+grep -Fq 'VOID_DATANET_PUBLISHED_OBJECT_FETCH_DOC_V1' docs/public/public-node-datanet-published-object-fetch-v1.md
+grep -Fq 'VOID_DATANET_PUBLISHED_OBJECT_FETCH_UI_V1' src/index.ts
+BASE="${BASE:-http://127.0.0.1:4100}" ops/mainnet0/public-node-datanet-published-object-fetch-v1-proof.sh | grep -Fq 'VOID_DATANET_PUBLISHED_OBJECT_FETCH_PROOF_V1_GREEN'
+
+echo "datanet_published_object_fetch_live_status_rollup_green=true"
+echo "datanet_published_object_fetch_fixture_dataset_present=true"
+echo "datanet_published_object_fetch_object_selected_from_manifest=true"
+echo "datanet_published_object_fetch_object_sha256_verified=true"
+echo "datanet_published_object_fetch_bytes_match_source=true"
+echo "datanet_published_object_fetch_raw_request_dataset_id_used_to_build_filesystem_path=false"
+echo "datanet_published_object_fetch_raw_request_sha256_used_to_build_filesystem_path=false"
+echo "datanet_published_object_fetch_malformed_sha_rejected=true"
+echo "datanet_published_object_fetch_missing_object_returns_404=true"
+echo "datanet_published_object_fetch_absolute_source_path_disclosed=false"
+echo "datanet_published_object_fetch_operator_home_path_disclosed=false"
+echo "datanet_published_object_fetch_local_storage_root_disclosed=false"
+echo "datanet_published_object_fetch_public_mutation=false"
+echo "datanet_published_object_fetch_ledger_write=false"
+echo "datanet_published_object_fetch_wc_credit_award=false"
+
 echo "VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_V1_GREEN"
