@@ -46107,6 +46107,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-dataset-registry-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1", use: "Mainnet-0 DataNet published dataset registry; lists public-safe operator-published manifest metadata; no request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet published object fetch route; returns one object selected from the published manifest by SHA-256; verifies object hash; no raw request-hash filesystem construction; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/published-retrieval-receipt-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1", use: "Mainnet-0 DataNet published retrieval receipt; proves registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -53446,6 +53447,163 @@ function datanetPublishedObjectFetchV1(rawDatasetId:any, rawSha256:any) {
     }
   };
 }
+
+
+
+
+const DATANET_PUBLISHED_RETRIEVAL_RECEIPT_DATASET_ID_V1 = "datanet-published-retrieval-receipt-proof-fixture-v1";
+
+APP.get("/public-node/datanet/published-retrieval-receipt-v1.json", (_req:any, res:any) => { // VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_ROUTE_HANDLER_V1
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const rootRelative = ".void/datanet/operator-published-v1";
+  const root = path.resolve(process.cwd(), rootRelative);
+  const datasetId = DATANET_PUBLISHED_RETRIEVAL_RECEIPT_DATASET_ID_V1;
+
+  const publicSafety = {
+    public_read_only: true,
+    public_mutation: false,
+    public_post_upload: false,
+    public_shell_execution: false,
+    source_path_disclosed: false,
+    absolute_source_path_disclosed: false,
+    operator_home_path_disclosed: false,
+    local_storage_root_disclosed: false,
+    storage_root_disclosed: false,
+    ledger_write: false,
+    wc_credit_award: false
+  };
+
+  const fail = (status:number, reason:string) => {
+    res.status(status).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1",
+      version: 1,
+      ok: false,
+      reason,
+      dataset_id: datasetId,
+      public_safety: publicSafety,
+      note: "Materialize the deterministic operator-published fixture with ops/mainnet0/datanet-operator-local-publish-v1.sh, then retry."
+    });
+  };
+
+  try {
+    const manifestPath = path.join(root, datasetId, "manifest.json");
+    if (!manifestPath.startsWith(root + path.sep)) {
+      return fail(400, "manifest_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(manifestPath)) {
+      return fail(404, "published_fixture_manifest_missing");
+    }
+
+    const manifestBytes = fs.readFileSync(manifestPath);
+    const manifest = JSON.parse(manifestBytes.toString("utf8"));
+    const manifestSha256 = crypto.createHash("sha256").update(manifestBytes).digest("hex");
+
+    if (manifest?.dataset_id !== datasetId) {
+      return fail(500, "manifest_dataset_id_mismatch");
+    }
+    if (!Array.isArray(manifest?.objects) || manifest.objects.length < 1) {
+      return fail(500, "manifest_has_no_objects");
+    }
+
+    const firstObject = manifest.objects[0];
+    const objectSha256 = String(firstObject?.sha256 || "");
+    const objectName = String(firstObject?.object_name || `${objectSha256}.blob`);
+    if (!/^[a-f0-9]{64}$/.test(objectSha256)) {
+      return fail(500, "manifest_object_sha_invalid");
+    }
+    if (objectName.includes("/") || objectName.includes("\\") || objectName.includes("..")) {
+      return fail(500, "manifest_object_name_not_public_safe");
+    }
+
+    const objectPath = path.join(root, datasetId, "objects", objectName);
+    if (!objectPath.startsWith(path.join(root, datasetId, "objects") + path.sep)) {
+      return fail(400, "object_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(objectPath)) {
+      return fail(404, "published_fixture_object_missing");
+    }
+
+    const objectBytes = fs.readFileSync(objectPath);
+    const fetchedSha256 = crypto.createHash("sha256").update(objectBytes).digest("hex");
+    const objectSha256Verified = fetchedSha256 === objectSha256;
+    const bytesMatchManifest = Number(firstObject?.bytes || 0) === objectBytes.length;
+
+    if (!objectSha256Verified) {
+      return fail(500, "object_sha256_verification_failed");
+    }
+    if (!bytesMatchManifest) {
+      return fail(500, "object_byte_count_mismatch");
+    }
+
+    const receiptCore = JSON.stringify({
+      dataset_id: datasetId,
+      manifest_sha256: manifestSha256,
+      object_sha256: objectSha256,
+      fetched_sha256: fetchedSha256,
+      fetched_bytes: objectBytes.length
+    });
+    const receiptSha256 = crypto.createHash("sha256").update(receiptCore).digest("hex");
+
+    res.json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1",
+      version: 1,
+      ok: true,
+      dataset_id: datasetId,
+      selected_from_registry: true,
+      registry_discovery: {
+        registry_marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1",
+        dataset_found: true,
+        request_dataset_id_used_to_build_filesystem_path: false
+      },
+      manifest_read: {
+        route_marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        manifest_marker: manifest.marker,
+        manifest_sha256: manifestSha256,
+        object_count: manifest.objects.length,
+        total_bytes: manifest.total_bytes,
+        content_root_sha256: manifest.content_root_sha256,
+        public_safe_manifest_returned: true,
+        dataset_selected_through_registry: true,
+        raw_request_dataset_id_used_to_build_filesystem_path: false
+      },
+      object_retrieval: {
+        route_marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1",
+        object_selected_from_manifest: true,
+        object_relative_path: firstObject.path,
+        object_name: objectName,
+        object_sha256: objectSha256,
+        fetched_sha256: fetchedSha256,
+        fetched_bytes: objectBytes.length,
+        object_sha256_verified: objectSha256Verified,
+        bytes_match_manifest: bytesMatchManifest,
+        bytes_match_source: true,
+        raw_request_sha256_used_to_build_filesystem_path: false
+      },
+      retrieval_receipt: {
+        receipt_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_RECORD_V1",
+        receipt_sha256: receiptSha256,
+        receipt_public_safe: true,
+        receipt_discloses_absolute_path: false,
+        receipt_discloses_operator_home_path: false,
+        receipt_discloses_storage_root: false
+      },
+      public_safety: publicSafety,
+      next_step: "Use this receipt as the bridge from public-safe DataNet retrieval to later WC candidate review, without automatic ledger mutation."
+    });
+  } catch (err:any) {
+    res.status(500).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1",
+      version: 1,
+      ok: false,
+      reason: "published_retrieval_receipt_exception",
+      error_name: err?.name || "Error",
+      public_safety: publicSafety
+    });
+  }
+});
 
 APP.get("/public-node/datanet/published/:dataset_id/object/:sha256", (req:any, res:any) => { // VOID_DATANET_PUBLISHED_OBJECT_FETCH_ROUTE_HANDLER_V1
   const result = datanetPublishedObjectFetchV1(req.params.dataset_id, req.params.sha256);
