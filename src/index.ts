@@ -46108,6 +46108,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet published object fetch route; returns one object selected from the published manifest by SHA-256; verifies object hash; no raw request-hash filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-receipt-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1", use: "Mainnet-0 DataNet published retrieval receipt; proves registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -53452,6 +53453,173 @@ function datanetPublishedObjectFetchV1(rawDatasetId:any, rawSha256:any) {
 
 
 const DATANET_PUBLISHED_RETRIEVAL_RECEIPT_DATASET_ID_V1 = "datanet-published-retrieval-receipt-proof-fixture-v1";
+
+
+
+
+APP.get("/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", (_req:any, res:any) => { // VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_ROUTE_HANDLER_V1
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const datasetId = "datanet-published-retrieval-receipt-proof-fixture-v1";
+  const rootRelative = ".void/datanet/operator-published-v1";
+  const root = path.resolve(process.cwd(), rootRelative);
+
+  const publicSafety = {
+    public_read_only: true,
+    public_mutation: false,
+    public_post_upload: false,
+    public_shell_execution: false,
+    live_runtime_write: false,
+    ledger_write: false,
+    wc_credit_award: false,
+    award_record_created_now: false,
+    source_path_disclosed: false,
+    absolute_source_path_disclosed: false,
+    operator_home_path_disclosed: false,
+    local_storage_root_disclosed: false,
+    storage_root_disclosed: false
+  };
+
+  const fail = (status:number, reason:string) => {
+    res.status(status).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1",
+      version: 1,
+      ok: false,
+      reason,
+      dataset_id: datasetId,
+      candidate_state: "not_ready",
+      public_safety: publicSafety
+    });
+  };
+
+  try {
+    const manifestPath = path.join(root, datasetId, "manifest.json");
+    if (!manifestPath.startsWith(root + path.sep)) {
+      return fail(400, "manifest_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(manifestPath)) {
+      return fail(404, "published_fixture_manifest_missing");
+    }
+
+    const manifestBytes = fs.readFileSync(manifestPath);
+    const manifest = JSON.parse(manifestBytes.toString("utf8"));
+    const manifestSha256 = crypto.createHash("sha256").update(manifestBytes).digest("hex");
+
+    if (manifest?.dataset_id !== datasetId) {
+      return fail(500, "manifest_dataset_id_mismatch");
+    }
+    if (!Array.isArray(manifest?.objects) || manifest.objects.length < 1) {
+      return fail(500, "manifest_has_no_objects");
+    }
+
+    const firstObject = manifest.objects[0];
+    const objectSha256 = String(firstObject?.sha256 || "");
+    const objectName = String(firstObject?.object_name || `${objectSha256}.blob`);
+
+    if (!/^[a-f0-9]{64}$/.test(objectSha256)) {
+      return fail(500, "manifest_object_sha_invalid");
+    }
+    if (objectName.includes("/") || objectName.includes("\\") || objectName.includes("..")) {
+      return fail(500, "manifest_object_name_not_public_safe");
+    }
+
+    const objectsRoot = path.join(root, datasetId, "objects");
+    const objectPath = path.join(objectsRoot, objectName);
+    if (!objectPath.startsWith(objectsRoot + path.sep)) {
+      return fail(400, "object_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(objectPath)) {
+      return fail(404, "published_fixture_object_missing");
+    }
+
+    const objectBytes = fs.readFileSync(objectPath);
+    const fetchedSha256 = crypto.createHash("sha256").update(objectBytes).digest("hex");
+    const objectSha256Verified = fetchedSha256 === objectSha256;
+    const bytesMatchManifest = Number(firstObject?.bytes || 0) === objectBytes.length;
+
+    if (!objectSha256Verified) {
+      return fail(500, "object_sha256_verification_failed");
+    }
+    if (!bytesMatchManifest) {
+      return fail(500, "object_byte_count_mismatch");
+    }
+
+    const receiptCore = JSON.stringify({
+      dataset_id: datasetId,
+      manifest_sha256: manifestSha256,
+      object_sha256: objectSha256,
+      fetched_sha256: fetchedSha256,
+      fetched_bytes: objectBytes.length
+    });
+    const receiptSha256 = crypto.createHash("sha256").update(receiptCore).digest("hex");
+
+    const candidateCore = JSON.stringify({
+      dataset_id: datasetId,
+      receipt_sha256: receiptSha256,
+      candidate_type: "published_dataset_retrieval",
+      review_state: "candidate_only",
+      automatic_award: false,
+      wc_delta_now: 0
+    });
+    const candidateSha256 = crypto.createHash("sha256").update(candidateCore).digest("hex");
+
+    res.json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1",
+      version: 1,
+      ok: true,
+      dataset_id: datasetId,
+      receipt_input: {
+        receipt_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_RECORD_V1",
+        receipt_sha256: receiptSha256,
+        retrieval_receipt_valid: true,
+        manifest_sha256: manifestSha256,
+        object_sha256: objectSha256,
+        object_sha256_verified: true,
+        bytes_match_manifest: true,
+        bytes_match_source: true,
+        receipt_public_safe: true
+      },
+      wc_candidate_boundary: {
+        candidate_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_RECORD_V1",
+        candidate_sha256: candidateSha256,
+        candidate_type: "published_dataset_retrieval",
+        useful_work_candidate: true,
+        verifiable_work: true,
+        review_state: "candidate_only",
+        operator_review_required: true,
+        duplicate_guard_required: true,
+        settlement_plane_required: true,
+        automatic_award: false,
+        award_intent_created_now: false,
+        award_record_created_now: false,
+        wc_delta_now: 0,
+        ledger_write_now: false,
+        wc_credit_award_now: false
+      },
+      decision_boundary: {
+        public_route_can_classify_candidate: true,
+        public_route_can_award_wc: false,
+        public_route_can_write_ledger: false,
+        public_route_can_create_award_intent: false,
+        public_route_can_bypass_operator_review: false,
+        public_route_can_bypass_duplicate_guard: false
+      },
+      public_safety: publicSafety,
+      next_step: "Feed this candidate boundary into an operator-review packet before any settlement-plane or WC award intent work."
+    });
+  } catch (err:any) {
+    res.status(500).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1",
+      version: 1,
+      ok: false,
+      reason: "published_retrieval_wc_candidate_boundary_exception",
+      error_name: err?.name || "Error",
+      public_safety: publicSafety
+    });
+  }
+});
 
 APP.get("/public-node/datanet/published-retrieval-receipt-v1.json", (_req:any, res:any) => { // VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_ROUTE_HANDLER_V1
   const fs = require("node:fs");
