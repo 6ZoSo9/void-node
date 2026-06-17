@@ -46111,6 +46111,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1", use: "Mainnet-0 DataNet published retrieval operator review packet; converts WC candidate into explicit operator-review-required packet; no approval; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval operator approval decision boundary; approval is explicit/separate and not recorded by public route; no award intent; no ledger/WC write" },
+      { path: "/public-node/datanet/published-retrieval-duplicate-guard-decision-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval duplicate guard decision boundary; performs read-only duplicate guard decision; no approval; no award intent; no ledger/WC write" },
       { path: "/public-node/datanet/challenge-award-record-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_AWARD_RECORD_PREVIEW_FIXTURE_V1", use: "award record preview fixture for DataNet Challenge award intent; preview only; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-duplicate-ledger-guard-recheck-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_DUPLICATE_LEDGER_GUARD_RECHECK_FIXTURE_V1", use: "duplicate ledger guard recheck fixture for DataNet Challenge award record preview; no duplicate found; no WC award; no ledger write" },
       { path: "/public-node/datanet/challenge-ledger-entry-preview-fixture-v1.json", kind: "json", marker: "VOID_DATANET_CHALLENGE_LEDGER_ENTRY_PREVIEW_FIXTURE_V1", use: "ledger entry preview fixture for DataNet Challenge WC award path; preview only; no WC award; no ledger write" },
@@ -53464,6 +53465,218 @@ const DATANET_PUBLISHED_RETRIEVAL_RECEIPT_DATASET_ID_V1 = "datanet-published-ret
 
 
 
+
+
+
+
+APP.get("/public-node/datanet/published-retrieval-duplicate-guard-decision-boundary-v1.json", (_req:any, res:any) => { // VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_ROUTE_HANDLER_V1
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const datasetId = "datanet-published-retrieval-receipt-proof-fixture-v1";
+  const rootRelative = ".void/datanet/operator-published-v1";
+  const root = path.resolve(process.cwd(), rootRelative);
+
+  const publicSafety = {
+    public_read_only: true,
+    public_mutation: false,
+    public_post_upload: false,
+    public_shell_execution: false,
+    live_runtime_write: false,
+    ledger_read_only_check: true,
+    ledger_write: false,
+    wc_credit_award: false,
+    award_intent_created_now: false,
+    award_record_created_now: false,
+    wc_delta_now: 0,
+    source_path_disclosed: false,
+    absolute_source_path_disclosed: false,
+    operator_home_path_disclosed: false,
+    local_storage_root_disclosed: false,
+    storage_root_disclosed: false
+  };
+
+  const fail = (status:number, reason:string) => {
+    res.status(status).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_V1",
+      version: 1,
+      ok: false,
+      reason,
+      dataset_id: datasetId,
+      duplicate_guard_state: "not_ready",
+      public_safety: publicSafety
+    });
+  };
+
+  try {
+    const manifestPath = path.join(root, datasetId, "manifest.json");
+    if (!manifestPath.startsWith(root + path.sep)) {
+      return fail(400, "manifest_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(manifestPath)) {
+      return fail(404, "published_fixture_manifest_missing");
+    }
+
+    const manifestBytes = fs.readFileSync(manifestPath);
+    const manifest = JSON.parse(manifestBytes.toString("utf8"));
+    const manifestSha256 = crypto.createHash("sha256").update(manifestBytes).digest("hex");
+
+    if (manifest?.dataset_id !== datasetId) {
+      return fail(500, "manifest_dataset_id_mismatch");
+    }
+    if (!Array.isArray(manifest?.objects) || manifest.objects.length < 1) {
+      return fail(500, "manifest_has_no_objects");
+    }
+
+    const firstObject = manifest.objects[0];
+    const objectSha256 = String(firstObject?.sha256 || "");
+    const objectName = String(firstObject?.object_name || `${objectSha256}.blob`);
+
+    if (!/^[a-f0-9]{64}$/.test(objectSha256)) {
+      return fail(500, "manifest_object_sha_invalid");
+    }
+    if (objectName.includes("/") || objectName.includes("\\") || objectName.includes("..")) {
+      return fail(500, "manifest_object_name_not_public_safe");
+    }
+
+    const objectsRoot = path.join(root, datasetId, "objects");
+    const objectPath = path.join(objectsRoot, objectName);
+    if (!objectPath.startsWith(objectsRoot + path.sep)) {
+      return fail(400, "object_path_failed_fixed_root_guard");
+    }
+    if (!fs.existsSync(objectPath)) {
+      return fail(404, "published_fixture_object_missing");
+    }
+
+    const objectBytes = fs.readFileSync(objectPath);
+    const fetchedSha256 = crypto.createHash("sha256").update(objectBytes).digest("hex");
+    const objectSha256Verified = fetchedSha256 === objectSha256;
+    const bytesMatchManifest = Number(firstObject?.bytes || 0) === objectBytes.length;
+
+    if (!objectSha256Verified) {
+      return fail(500, "object_sha256_verification_failed");
+    }
+    if (!bytesMatchManifest) {
+      return fail(500, "object_byte_count_mismatch");
+    }
+
+    const receiptCore = JSON.stringify({
+      dataset_id: datasetId,
+      manifest_sha256: manifestSha256,
+      object_sha256: objectSha256,
+      fetched_sha256: fetchedSha256,
+      fetched_bytes: objectBytes.length
+    });
+    const receiptSha256 = crypto.createHash("sha256").update(receiptCore).digest("hex");
+
+    const candidateCore = JSON.stringify({
+      dataset_id: datasetId,
+      receipt_sha256: receiptSha256,
+      candidate_type: "published_dataset_retrieval",
+      review_state: "candidate_only",
+      automatic_award: false,
+      wc_delta_now: 0
+    });
+    const candidateSha256 = crypto.createHash("sha256").update(candidateCore).digest("hex");
+
+    const reviewPacketCore = JSON.stringify({
+      dataset_id: datasetId,
+      receipt_sha256: receiptSha256,
+      candidate_sha256: candidateSha256,
+      review_state: "operator_review_required",
+      operator_approval_recorded_now: false,
+      duplicate_guard_performed_now: false,
+      settlement_plane_performed_now: false,
+      automatic_award: false,
+      wc_delta_now: 0
+    });
+    const reviewPacketSha256 = crypto.createHash("sha256").update(reviewPacketCore).digest("hex");
+
+    const duplicateKeyCore = JSON.stringify({
+      dataset_id: datasetId,
+      receipt_sha256: receiptSha256,
+      candidate_sha256: candidateSha256,
+      guard_scope: "published_retrieval_wc_candidate",
+      version: 1
+    });
+    const duplicate_guard_key_sha256 = crypto.createHash("sha256").update(duplicateKeyCore).digest("hex");
+
+    const knownDuplicateKeys:string[] = [];
+    const duplicateFound = knownDuplicateKeys.includes(duplicate_guard_key_sha256);
+
+    const duplicateDecisionCore = JSON.stringify({
+      dataset_id: datasetId,
+      review_packet_sha256: reviewPacketSha256,
+      duplicate_guard_key_sha256,
+      duplicate_guard_performed_now: true,
+      duplicate_found: duplicateFound,
+      automatic_award: false,
+      wc_delta_now: 0
+    });
+    const duplicateDecisionSha256 = crypto.createHash("sha256").update(duplicateDecisionCore).digest("hex");
+
+    res.json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_V1",
+      version: 1,
+      ok: true,
+      dataset_id: datasetId,
+      review_packet_input: {
+        packet_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_RECORD_V1",
+        packet_sha256: reviewPacketSha256,
+        candidate_sha256: candidateSha256,
+        receipt_sha256: receiptSha256,
+        candidate_valid: true,
+        operator_review_required: true,
+        operator_approval_recorded_now: false
+      },
+      duplicate_guard_decision_boundary: {
+        decision_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_RECORD_V1",
+        decision_sha256: duplicateDecisionSha256,
+        duplicate_guard_key_sha256,
+        duplicate_guard_required: true,
+        duplicate_guard_performed_now: true,
+        duplicate_found: duplicateFound,
+        duplicate_record_written_now: false,
+        duplicate_check_scope: "published_retrieval_wc_candidate",
+        duplicate_check_source: "read_only_public_safe_fixture_set",
+        known_duplicate_keys_count: knownDuplicateKeys.length,
+        operator_approval_recorded_now: false,
+        operator_rejection_recorded_now: false,
+        settlement_plane_required_before_award: true,
+        settlement_plane_performed_now: false,
+        automatic_award: false,
+        award_intent_created_now: false,
+        award_record_created_now: false,
+        wc_delta_now: 0,
+        ledger_write_now: false,
+        wc_credit_award_now: false
+      },
+      decision_boundary: {
+        public_route_can_perform_read_only_duplicate_guard: true,
+        public_route_can_record_duplicate_ledger_entry: false,
+        public_route_can_approve_candidate: false,
+        public_route_can_reject_candidate: false,
+        public_route_can_award_wc: false,
+        public_route_can_write_ledger: false,
+        public_route_can_create_award_intent: false,
+        public_route_can_bypass_operator_review: false,
+        public_route_can_bypass_settlement_plane: false
+      },
+      public_safety: publicSafety,
+      next_step: "Add settlement-plane decision boundary after duplicate guard remains green and before any award-intent lane."
+    });
+  } catch (err:any) {
+    res.status(500).json({
+      marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_V1",
+      version: 1,
+      ok: false,
+      reason: "published_retrieval_duplicate_guard_decision_boundary_exception",
+      error_name: err?.name || "Error",
+      public_safety: publicSafety
+    });
+  }
+});
 
 APP.get("/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json", (_req:any, res:any) => { // VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_ROUTE_HANDLER_V1
   const fs = require("node:fs");
