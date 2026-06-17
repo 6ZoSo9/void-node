@@ -46107,6 +46107,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-dataset-registry-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1", use: "Mainnet-0 DataNet published dataset registry; lists public-safe operator-published manifest metadata; no request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet published object fetch route; returns one object selected from the published manifest by SHA-256; verifies object hash; no raw request-hash filesystem construction; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-peer-availability-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_V1", use: "Mainnet-0 DataNet core peer availability index; advertises public-safe locally published and mirrored DataNet availability; no private paths; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/registry-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_V1", use: "Mainnet-0 DataNet core mirror serve registry; lists public-safe local mirror receipts from fixed mirror roots; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1", use: "Mainnet-0 DataNet core mirror receipt serve route; returns public-safe mirror receipt selected through mirror registry; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet core mirror object fetch route; serves mirrored object selected from public-safe mirror receipt by SHA-256; verifies hash/bytes; no public mutation; no ledger/WC write" },
@@ -54511,6 +54512,127 @@ function datanetCoreMirrorServeListEntriesV1(): any[] { // VOID_DATANET_CORE_MIR
   entries.sort((a:any, b:any) => String(a.mirror_node_label + "/" + a.dataset_id).localeCompare(String(b.mirror_node_label + "/" + b.dataset_id)));
   return entries;
 }
+
+
+
+
+function datanetCorePeerAvailabilityIndexPublishedV1(): any[] { // VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_ROUTE_V1
+  try {
+    const registry = datanetPublishedDatasetRegistryV1();
+    const datasets = Array.isArray(registry && registry.datasets) ? registry.datasets : [];
+
+    return datasets.map((dataset:any) => ({
+      availability_type: "operator_published",
+      dataset_id: dataset.dataset_id,
+      manifest_marker: dataset.manifest_marker,
+      source_type: dataset.source_type,
+      hash_algorithm: dataset.hash_algorithm,
+      object_count: dataset.object_count,
+      total_bytes: dataset.total_bytes,
+      manifest_sha256: dataset.manifest_sha256,
+      content_root_sha256: dataset.content_root_sha256,
+      can_serve_manifest: true,
+      can_serve_objects_by_sha256: true,
+      selected_from_registry: true,
+      public_safety: {
+        public_safe_metadata_only: true,
+        public_read_only: true,
+        local_path_disclosed: false,
+        absolute_path_disclosed: false,
+        operator_home_path_disclosed: false,
+        local_storage_root_disclosed: false,
+        public_mutation: false,
+        ledger_write: false,
+        wc_credit_award: false
+      }
+    }));
+  } catch (_err) {
+    return [];
+  }
+}
+
+function datanetCorePeerAvailabilityIndexMirrorsV1(): any[] {
+  try {
+    const mirrors = datanetCoreMirrorServeListEntriesV1();
+
+    return mirrors.map(({ _private, ...mirror }: any) => ({
+      availability_type: "mirrored",
+      mirror_node_label: mirror.mirror_node_label,
+      dataset_id: mirror.dataset_id,
+      receipt_marker: mirror.receipt_marker,
+      receipt_sha256: mirror.receipt_sha256,
+      loop_receipt_sha256: mirror.loop_receipt_sha256,
+      object_count: mirror.object_count,
+      total_bytes: mirror.total_bytes,
+      manifest_sha256: mirror.manifest_sha256,
+      content_root_sha256: mirror.content_root_sha256,
+      can_serve_receipt: true,
+      can_serve_objects_by_sha256: true,
+      all_objects_fetched: mirror.all_objects_fetched,
+      all_object_sha256_verified: mirror.all_object_sha256_verified,
+      all_object_bytes_match_manifest: mirror.all_object_bytes_match_manifest,
+      selected_from_fixed_mirror_root: true,
+      public_safety: {
+        public_safe_receipt: true,
+        public_read_only: true,
+        local_path_disclosed: false,
+        absolute_path_disclosed: false,
+        operator_home_path_disclosed: false,
+        local_storage_root_disclosed: false,
+        public_mutation: false,
+        ledger_write: false,
+        wc_credit_award: false
+      }
+    }));
+  } catch (_err) {
+    return [];
+  }
+}
+
+APP.get("/public-node/datanet/core-peer-availability-index-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_ROUTE_HANDLER_V1
+  const published = datanetCorePeerAvailabilityIndexPublishedV1();
+  const mirrored = datanetCorePeerAvailabilityIndexMirrorsV1();
+
+  const publishedBytes = published.reduce((sum:number, item:any) => sum + Number(item.total_bytes || 0), 0);
+  const mirroredBytes = mirrored.reduce((sum:number, item:any) => sum + Number(item.total_bytes || 0), 0);
+
+  res.json({
+    marker: "VOID_DATANET_CORE_PEER_AVAILABILITY_INDEX_V1",
+    version: 1,
+    ok: true,
+    peer_availability_scope: {
+      local_node_public_safe_view: true,
+      includes_operator_published_datasets: true,
+      includes_local_mirrored_datasets: true,
+      route_accepts_dataset_id_parameter: false,
+      route_accepts_path_parameter: false,
+      no_private_filesystem_paths: true
+    },
+    counts: {
+      operator_published_dataset_count: published.length,
+      mirrored_dataset_count: mirrored.length,
+      total_available_dataset_entries: published.length + mirrored.length,
+      operator_published_total_bytes: publishedBytes,
+      mirrored_total_bytes: mirroredBytes
+    },
+    operator_published: published,
+    mirrored,
+    public_safety: {
+      public_read_only: true,
+      public_mutation: false,
+      public_post_upload: false,
+      public_shell_execution: false,
+      local_path_disclosed: false,
+      absolute_path_disclosed: false,
+      operator_home_path_disclosed: false,
+      local_storage_root_disclosed: false,
+      ledger_write: false,
+      wc_credit_award: false
+    },
+    next_step: "Use this index for peer discovery: fetch a peer availability index, choose a dataset entry, then verify manifest/object/receipt routes."
+  });
+});
+
 
 APP.get("/public-node/datanet/core-mirror/registry-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_ROUTE_V1
   const entries = datanetCoreMirrorServeListEntriesV1().map(({ _private, ...publicEntry }: any) => publicEntry);
