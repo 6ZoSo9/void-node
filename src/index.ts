@@ -46107,6 +46107,9 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-dataset-registry-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_REGISTRY_V1", use: "Mainnet-0 DataNet published dataset registry; lists public-safe operator-published manifest metadata; no request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/manifest-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1", use: "Mainnet-0 DataNet published dataset read route; returns a public-safe manifest selected through registry entry; no raw request-path filesystem construction; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_PUBLISHED_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet published object fetch route; returns one object selected from the published manifest by SHA-256; verifies object hash; no raw request-hash filesystem construction; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-mirror/registry-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_V1", use: "Mainnet-0 DataNet core mirror serve registry; lists public-safe local mirror receipts from fixed mirror roots; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1", use: "Mainnet-0 DataNet core mirror receipt serve route; returns public-safe mirror receipt selected through mirror registry; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet core mirror object fetch route; serves mirrored object selected from public-safe mirror receipt by SHA-256; verifies hash/bytes; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-receipt-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1", use: "Mainnet-0 DataNet published retrieval receipt; proves registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1", use: "Mainnet-0 DataNet published retrieval operator review packet; converts WC candidate into explicit operator-review-required packet; no approval; no automatic award; no ledger/WC write" },
@@ -54398,6 +54401,303 @@ APP.get("/public-node/datanet/published/:dataset_id/object/:sha256", (req:any, r
   res.status(result.http_status).json(result.body);
 });
 
+
+
+
+
+
+const DATANET_CORE_MIRROR_SERVE_ROOTS_V1 = [
+  ".void/datanet/core-mirror-v1",
+  ".void/datanet/core-mirror-v1-crossbox"
+];
+
+function datanetCoreMirrorServeSafeIdV1(value:any): boolean {
+  return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,96}$/.test(value) && !value.includes("..") && !value.includes("/") && !value.includes("\\");
+}
+
+function datanetCoreMirrorServeSafeShaV1(value:any): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function datanetCoreMirrorServeReceiptPublicSafeV1(receipt:any): boolean {
+  const safety = receipt && receipt.public_safety ? receipt.public_safety : {};
+  return receipt &&
+    receipt.marker === "VOID_DATANET_CORE_MIRROR_LOOP_RECEIPT_V1" &&
+    receipt.ok === true &&
+    safety.mirror_receipt_public_safe === true &&
+    safety.local_mirror_path_disclosed === false &&
+    safety.absolute_path_disclosed === false &&
+    safety.operator_home_path_disclosed === false &&
+    safety.local_storage_root_disclosed === false &&
+    safety.public_mutation === false &&
+    safety.ledger_write === false &&
+    safety.wc_credit_award === false;
+}
+
+function datanetCoreMirrorServeListEntriesV1(): any[] { // VOID_DATANET_CORE_MIRROR_SERVE_ROUTE_HANDLER_V1
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const cwd = process.cwd();
+  const entries:any[] = [];
+
+  for (const rootRelative of DATANET_CORE_MIRROR_SERVE_ROOTS_V1) {
+    const root = path.join(cwd, rootRelative);
+    if (!fs.existsSync(root)) continue;
+
+    for (const mirrorNodeLabel of fs.readdirSync(root)) {
+      if (!datanetCoreMirrorServeSafeIdV1(mirrorNodeLabel)) continue;
+      const nodeDir = path.join(root, mirrorNodeLabel);
+      if (!fs.statSync(nodeDir).isDirectory()) continue;
+
+      for (const datasetId of fs.readdirSync(nodeDir)) {
+        if (!datanetCoreMirrorServeSafeIdV1(datasetId)) continue;
+
+        const datasetDir = path.join(nodeDir, datasetId);
+        if (!fs.statSync(datasetDir).isDirectory()) continue;
+
+        const receiptPath = path.join(datasetDir, "receipts", "core-mirror-loop-receipt.json");
+        if (!fs.existsSync(receiptPath)) continue;
+
+        try {
+          const raw = fs.readFileSync(receiptPath);
+          const receipt = JSON.parse(raw.toString("utf8"));
+
+          if (!datanetCoreMirrorServeReceiptPublicSafeV1(receipt)) continue;
+          if (receipt.dataset_id !== datasetId) continue;
+          if (receipt.mirror_node_label !== mirrorNodeLabel) continue;
+
+          const receiptSha256 = crypto.createHash("sha256").update(raw).digest("hex");
+
+          entries.push({
+            mirror_node_label: mirrorNodeLabel,
+            dataset_id: datasetId,
+            receipt_marker: receipt.marker,
+            receipt_sha256: receiptSha256,
+            loop_receipt_sha256: receipt.retrieval_receipt && receipt.retrieval_receipt.receipt_sha256,
+            manifest_sha256: receipt.manifest_read && receipt.manifest_read.manifest_sha256,
+            content_root_sha256: receipt.manifest_read && receipt.manifest_read.content_root_sha256,
+            object_count: receipt.object_mirror && receipt.object_mirror.object_count,
+            total_bytes: receipt.object_mirror && receipt.object_mirror.total_bytes,
+            all_objects_fetched: receipt.object_mirror && receipt.object_mirror.all_objects_fetched,
+            all_object_sha256_verified: receipt.object_mirror && receipt.object_mirror.all_object_sha256_verified,
+            all_object_bytes_match_manifest: receipt.object_mirror && receipt.object_mirror.all_object_bytes_match_manifest,
+            selected_from_fixed_mirror_root: true,
+            public_safety: {
+              public_safe_receipt: true,
+              local_mirror_path_disclosed: false,
+              absolute_path_disclosed: false,
+              operator_home_path_disclosed: false,
+              local_storage_root_disclosed: false,
+              public_mutation: false,
+              ledger_write: false,
+              wc_credit_award: false
+            },
+            _private: {
+              root,
+              datasetDir,
+              receiptPath,
+              receipt
+            }
+          });
+        } catch (_err) {
+          continue;
+        }
+      }
+    }
+  }
+
+  entries.sort((a:any, b:any) => String(a.mirror_node_label + "/" + a.dataset_id).localeCompare(String(b.mirror_node_label + "/" + b.dataset_id)));
+  return entries;
+}
+
+APP.get("/public-node/datanet/core-mirror/registry-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_ROUTE_V1
+  const entries = datanetCoreMirrorServeListEntriesV1().map(({ _private, ...publicEntry }: any) => publicEntry);
+
+  res.json({
+    marker: "VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_V1",
+    version: 1,
+    ok: true,
+    mirror_scope: {
+      fixed_local_mirror_roots: true,
+      route_accepts_dataset_id_parameter: false,
+      route_accepts_mirror_node_label_parameter: false,
+      public_safe_receipts_only: true
+    },
+    mirror_count: entries.length,
+    mirrors: entries,
+    public_safety: {
+      public_read_only: true,
+      public_mutation: false,
+      public_post_upload: false,
+      public_shell_execution: false,
+      local_mirror_path_disclosed: false,
+      absolute_path_disclosed: false,
+      operator_home_path_disclosed: false,
+      local_storage_root_disclosed: false,
+      ledger_write: false,
+      wc_credit_award: false
+    },
+    next_step: "Fetch a mirrored receipt/object from this node and verify object SHA-256/bytes against the mirror receipt."
+  });
+});
+
+APP.get("/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json", (req:any, res:any) => { // VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_ROUTE_V1
+  const mirrorNodeLabel = String(req.params.mirror_node_label || "");
+  const datasetId = String(req.params.dataset_id || "");
+
+  if (!datanetCoreMirrorServeSafeIdV1(mirrorNodeLabel) || !datanetCoreMirrorServeSafeIdV1(datasetId)) {
+    return res.status(400).json({
+      marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1",
+      ok: false,
+      error: "invalid_mirror_or_dataset_id",
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const found = datanetCoreMirrorServeListEntriesV1()
+    .find((entry:any) => entry.mirror_node_label === mirrorNodeLabel && entry.dataset_id === datasetId);
+
+  if (!found) {
+    return res.status(404).json({
+      marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1",
+      ok: false,
+      error: "mirror_receipt_not_found",
+      mirror_node_label: mirrorNodeLabel,
+      dataset_id: datasetId,
+      selected_from_mirror_registry: false,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  res.json({
+    marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1",
+    version: 1,
+    ok: true,
+    mirror_node_label: mirrorNodeLabel,
+    dataset_id: datasetId,
+    selected_from_mirror_registry: true,
+    receipt: found._private.receipt,
+    mirror_serve_safety: {
+      receipt_public_safe: true,
+      selected_from_fixed_mirror_root: true,
+      raw_request_dataset_id_used_to_build_filesystem_path: false,
+      raw_request_mirror_node_label_used_to_build_filesystem_path: false,
+      local_mirror_path_disclosed: false,
+      absolute_path_disclosed: false,
+      operator_home_path_disclosed: false,
+      local_storage_root_disclosed: false,
+      public_read_only: true,
+      public_mutation: false,
+      public_post_upload: false,
+      public_shell_execution: false,
+      ledger_write: false,
+      wc_credit_award: false
+    },
+    next_step: "Fetch mirrored objects by SHA-256 from this node and verify bytes/hash against this receipt."
+  });
+});
+
+APP.get("/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/object/:sha256", (req:any, res:any) => { // VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_ROUTE_V1
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const mirrorNodeLabel = String(req.params.mirror_node_label || "");
+  const datasetId = String(req.params.dataset_id || "");
+  const sha256 = String(req.params.sha256 || "");
+
+  if (!datanetCoreMirrorServeSafeIdV1(mirrorNodeLabel) || !datanetCoreMirrorServeSafeIdV1(datasetId) || !datanetCoreMirrorServeSafeShaV1(sha256)) {
+    return res.status(400).json({
+      marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1",
+      ok: false,
+      error: "invalid_mirror_dataset_or_sha",
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const found = datanetCoreMirrorServeListEntriesV1()
+    .find((entry:any) => entry.mirror_node_label === mirrorNodeLabel && entry.dataset_id === datasetId);
+
+  if (!found) {
+    return res.status(404).json({
+      marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1",
+      ok: false,
+      error: "mirror_receipt_not_found",
+      selected_from_mirror_registry: false,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const receipt = found._private.receipt;
+  const objects = receipt && receipt.object_mirror && Array.isArray(receipt.object_mirror.objects) ? receipt.object_mirror.objects : [];
+  const object = objects.find((obj:any) => obj && obj.sha256 === sha256);
+
+  if (!object) {
+    return res.status(404).json({
+      marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1",
+      ok: false,
+      error: "object_not_found_in_mirror_receipt",
+      selected_from_mirror_registry: true,
+      object_selected_from_mirror_receipt: false,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const objectPath = path.join(found._private.datasetDir, "objects", sha256 + ".blob");
+  if (!fs.existsSync(objectPath)) {
+    return res.status(404).json({
+      marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1",
+      ok: false,
+      error: "mirrored_object_missing",
+      selected_from_mirror_registry: true,
+      object_selected_from_mirror_receipt: true,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  const bytes = fs.readFileSync(objectPath);
+  const actualSha = crypto.createHash("sha256").update(bytes).digest("hex");
+
+  if (actualSha !== sha256 || bytes.length !== Number(object.bytes)) {
+    return res.status(500).json({
+      marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1",
+      ok: false,
+      error: "mirrored_object_integrity_mismatch",
+      selected_from_mirror_registry: true,
+      object_selected_from_mirror_receipt: true,
+      object_sha256_verified: false,
+      public_mutation: false,
+      ledger_write: false,
+      wc_credit_award: false
+    });
+  }
+
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("X-VOID-Marker", "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1");
+  res.setHeader("X-VOID-Dataset-Id", datasetId);
+  res.setHeader("X-VOID-Mirror-Node-Label", mirrorNodeLabel);
+  res.setHeader("X-VOID-Object-Sha256", sha256);
+  res.setHeader("X-VOID-Object-Sha256-Verified", "true");
+  res.setHeader("X-VOID-Object-Selected-From-Mirror-Receipt", "true");
+  res.setHeader("X-VOID-Public-Mutation", "false");
+  res.setHeader("X-VOID-Ledger-Write", "false");
+  res.setHeader("X-VOID-WC-Credit-Award", "false");
+  res.send(bytes);
+});
 
 
 APP.get("/public-node/datanet/challenge/:dataset_id", (req:any, res:any) => { // VOID_DATANET_CHALLENGE_ROUTE_V1
