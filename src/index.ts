@@ -46079,6 +46079,7 @@ a:hover{text-decoration:underline}
     <h2>2. Inspect Receipts</h2>
     <p>Receipts prove retrieval, manifest discovery, object fetch, SHA verification, and byte match.</p>
     <p><a href="/public-node/datanet/published-retrieval-receipt-v1.json">Published retrieval receipt →</a></p>
+    <p><a href="/public-node/datanet/core-contribution-receipt-index-v1.json">DataNet core contribution receipt index →</a></p>
     <p><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry →</a></p>
   </div>
 
@@ -47070,6 +47071,172 @@ APP.get("/public-node/operator-ledger-summary-v1.json", (_req:any, res:any) => {
 });
 
 
+
+APP.get("/public-node/datanet/core-contribution-receipt-index-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_ROUTE_V1
+  const effectiveBaseUrl = String(process.env.VOID_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  res.json({
+    ok: true,
+    marker: "VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_V1",
+    route_marker: "VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_ROUTE_V1",
+    schema: "void_datanet_core_contribution_receipt_index_v1",
+    purpose: "public read-only index of DataNet contribution receipt surfaces, separated from Work Credit accounting and award decisions",
+    record_type: "datanet_core_contribution_receipt_index",
+    lane: "datanet_core",
+    separation_boundary: {
+      receipt_evidence_plane: true,
+      work_credit_accounting_plane: false,
+      award_decision_plane: false,
+      settlement_plane: false,
+      wallet_plane: false,
+      validator_plane: false,
+      route_performs_scoring: false,
+      route_creates_award: false,
+      route_writes_ledger: false
+    },
+    receipt_index: {
+      contribution_receipt_surface_count: 7,
+      receipt_candidate_boundary_count: 4,
+      operator_review_boundary_count: 2,
+      published_retrieval_receipt_count: 1,
+      challenge_receipt_surface_count: 4,
+      mirror_receipt_surface_count: 2
+    },
+    contribution_receipt_surfaces: [
+      {
+        id: "published-retrieval-receipt-v1",
+        kind: "verified_retrieval_receipt",
+        path: "/public-node/datanet/published-retrieval-receipt-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1",
+        description: "public receipt proving registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "challenge-tester-result-receipt-v1",
+        kind: "tester_result_receipt_template",
+        path: "/public-node/datanet/challenge-tester-result-receipt-v1.json",
+        marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1",
+        description: "copy/paste tester result receipt template for DataNet Challenge verification",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "challenge-receipt-intake-status-v1",
+        kind: "operator_local_receipt_intake_status",
+        path: "/public-node/datanet/challenge-receipt-intake-status-v1.json",
+        marker: "VOID_DATANET_CHALLENGE_RECEIPT_INTAKE_STATUS_V1",
+        description: "operator-local intake status for DataNet Challenge tester receipts",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "challenge-imported-tester-receipt-fixture-v1",
+        kind: "imported_tester_receipt_fixture",
+        path: "/public-node/datanet/challenge-imported-tester-receipt-fixture-v1.json",
+        marker: "VOID_DATANET_CHALLENGE_IMPORTED_TESTER_RECEIPT_FIXTURE_V1",
+        description: "operator-local imported tester receipt fixture for DataNet Challenge v1",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "core-mirror-registry-v1",
+        kind: "mirror_receipt_registry",
+        path: "/public-node/datanet/core-mirror/registry-v1.json",
+        marker: "VOID_DATANET_CORE_MIRROR_SERVE_REGISTRY_V1",
+        description: "public-safe local mirror receipt registry selected from fixed mirror roots",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "core-mirror-receipt-v1",
+        kind: "mirror_receipt_route",
+        path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json",
+        marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1",
+        description: "public-safe mirror receipt selected through mirror registry",
+        wc_accounting: false,
+        ledger_write: false
+      },
+      {
+        id: "published-dataset-read-route-v1",
+        kind: "dataset_manifest_read_receipt_source",
+        path: "/public-node/datanet/published/:dataset_id/manifest-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_DATASET_READ_ROUTE_V1",
+        description: "read-only published dataset manifest selected through registry entry",
+        wc_accounting: false,
+        ledger_write: false
+      }
+    ],
+    review_boundaries_separate_from_receipts: [
+      {
+        id: "published-retrieval-wc-candidate-boundary-v1",
+        path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1",
+        role: "review_candidate_boundary_only",
+        automatic_award: false,
+        ledger_write: false
+      },
+      {
+        id: "published-retrieval-operator-review-packet-v1",
+        path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1",
+        role: "operator_review_required_packet_only",
+        automatic_award: false,
+        ledger_write: false
+      },
+      {
+        id: "published-retrieval-operator-approval-decision-boundary-v1",
+        path: "/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_V1",
+        role: "approval_decision_boundary_only",
+        approval_recorded_by_this_route: false,
+        ledger_write: false
+      },
+      {
+        id: "published-retrieval-duplicate-guard-decision-boundary-v1",
+        path: "/public-node/datanet/published-retrieval-duplicate-guard-decision-boundary-v1.json",
+        marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_DUPLICATE_GUARD_DECISION_BOUNDARY_V1",
+        role: "read_only_duplicate_guard_decision_boundary",
+        approval_recorded_by_this_route: false,
+        ledger_write: false
+      }
+    ],
+    current_wc_context: {
+      operator_wc_ledger_summary_available: true,
+      operator_wc_ledger_summary_path: "/public-node/operator-ledger-summary-v1.json",
+      wc_ledger_entry_count_observed_before_this_route: 1,
+      total_wc_issued_observed_before_this_route: 100,
+      this_route_changes_wc_ledger: false
+    },
+    boundaries: {
+      public_route: true,
+      read_only: true,
+      public_mutation: false,
+      local_filesystem_write: false,
+      ledger_write: false,
+      wc_award_now: false,
+      wc_balance_change_now: false,
+      money_movement_now: false,
+      wallet_send_now: false,
+      void_transfer_now: false,
+      wc_to_void_swap_now: false,
+      validator_mutation_now: false,
+      public_shell_execution: false,
+      exposes_private_ledger_path: false,
+      exposes_operator_home_path: false,
+      exposes_shell_command: false
+    },
+    links: {
+      datanet_landing: effectiveBaseUrl + "/public-node/datanet",
+      operator_wc_ledger_summary: effectiveBaseUrl + "/public-node/operator-ledger-summary-v1.json",
+      published_retrieval_receipt: effectiveBaseUrl + "/public-node/datanet/published-retrieval-receipt-v1.json",
+      challenge_tester_result_receipt: effectiveBaseUrl + "/public-node/datanet/challenge-tester-result-receipt-v1.json",
+      challenge_receipt_intake_status: effectiveBaseUrl + "/public-node/datanet/challenge-receipt-intake-status-v1.json",
+      core_mirror_registry: effectiveBaseUrl + "/public-node/datanet/core-mirror/registry-v1.json"
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -47191,6 +47358,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/receipt-v1.json", kind: "json", marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1", use: "Mainnet-0 DataNet core mirror receipt serve route; returns public-safe mirror receipt selected through mirror registry; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-mirror/:mirror_node_label/:dataset_id/object/:sha256", kind: "bytes", marker: "VOID_DATANET_CORE_MIRROR_OBJECT_FETCH_V1", use: "Mainnet-0 DataNet core mirror object fetch route; serves mirrored object selected from public-safe mirror receipt by SHA-256; verifies hash/bytes; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-receipt-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1", use: "Mainnet-0 DataNet published retrieval receipt; proves registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output; no public mutation; no ledger/WC write" },
+      { path: "/public-node/datanet/core-contribution-receipt-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_V1", use: "public read-only index of DataNet contribution receipt surfaces separated from WC accounting, awards, settlement, wallets, and validator mutation" },
       { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1", use: "Mainnet-0 DataNet published retrieval operator review packet; converts WC candidate into explicit operator-review-required packet; no approval; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval operator approval decision boundary; approval is explicit/separate and not recorded by public route; no award intent; no ledger/WC write" },
