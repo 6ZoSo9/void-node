@@ -16423,7 +16423,7 @@ small{color:#94a3b8}
   <h1>VOID Network is live</h1>
   <p>VOID is a node-hosted public trust surface for funding, verified contribution accounting, DataNet verification, and public proof.</p>
   <p>
-    <a class="btn" href="/buy-void">Fund VOID</a>
+    <a class="btn" href="/public-node/funding">Fund VOID</a>
     <a class="btn" href="/public-node/wc">Earn WC</a>
     <a class="btn secondary" href="/public-node/datanet">Verify DataNet</a>
     <a class="btn secondary" href="/public-node">Inspect Public Proof</a>
@@ -16441,7 +16441,8 @@ small{color:#94a3b8}
     <h2>Fund VOID</h2>
     <p>Support VOID development through the guarded <b>USDC → VOID</b> funding path.</p>
     <p class="warn">Manual review required. No automatic token delivery. No investment return promised.</p>
-    <p><a href="/buy-void">Open Buy VOID →</a></p>
+    <p><a href="/public-node/funding">Open funding path →</a></p>
+    <p><a href="/buy-void">Open guarded Buy VOID →</a></p>
     <p><a href="/funding">Read funding status →</a></p>
   </div>
 
@@ -46196,6 +46197,94 @@ a:hover{text-decoration:underline}
 });
 
 
+
+APP.get("/public-node/funding", (_req:any, res:any) => { // VOID_FUNDING_PATH_TIGHTEN_ROUTE_V1
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID Funding</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:1040px;margin:0 auto;padding:38px 18px}
+.hero{border:1px solid #263244;background:linear-gradient(135deg,#0d1321,#111827);border-radius:18px;padding:24px;margin:16px 0}
+.card{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+a{color:#93c5fd;text-decoration:none}
+a:hover{text-decoration:underline}
+.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none}
+.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+.ok{color:#86efac}.warn{color:#fbbf24}code{background:#111827;padding:2px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><!-- VOID_FUNDING_PATH_TIGHTEN_V1 -->
+  <h1>VOID Funding</h1>
+  <p>Funding supports VOID development through a guarded USDC → VOID request path.</p>
+  <p class="warn"><b>Manual review required. No automatic token delivery. No investment return, yield, or profit is promised.</b></p>
+  <p>
+    <a class="btn" href="/buy-void">Open guarded Buy VOID request</a>
+    <a class="btn secondary" href="/funding">Read funding status</a>
+    <a class="btn secondary" href="/public-node/wc">Earn WC</a>
+    <a class="btn secondary" href="/public-node/datanet">Verify DataNet</a>
+  </p>
+  <span class="badge">manual review</span>
+  <span class="badge">no automatic token delivery</span>
+  <span class="badge">no investment return claim</span>
+  <span class="badge">no public fulfillment</span>
+  <span class="badge">no wallet send by this page</span>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>1. Read the funding status</h2>
+    <p>The funding status page describes the guarded public funding path and current funding surface.</p>
+    <p><a href="/funding">Open funding status →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Create a guarded request</h2>
+    <p>The Buy VOID page is a request flow. A request is not payment confirmation, fulfillment, delivery, or an investment contract.</p>
+    <p><a href="/buy-void">Open Buy VOID →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>3. Operator review is separate</h2>
+    <p>Any payment verification, queue review, and VOID delivery record must be explicit and separate. Public pages do not auto-deliver tokens.</p>
+    <ul>
+      <li class="ok">automatic fulfillment: false</li>
+      <li class="ok">buy_void_fulfillment now: false</li>
+      <li class="ok">wallet send now: false</li>
+      <li class="ok">money movement now: false</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>4. VOID is not a return promise</h2>
+    <p>VOID funding is for supporting development and participating in the network path. This page does not promise profit, yield, appreciation, or investment return.</p>
+    <ul>
+      <li class="ok">investment return claim: false</li>
+      <li class="ok">yield claim: false</li>
+      <li class="ok">profit promise: false</li>
+      <li class="ok">automatic token delivery: false</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>How this fits the public triad</h2>
+  <p>Funding, Work Credits, and DataNet are connected but separate: funding supports VOID, WC tracks verified useful contribution, and DataNet provides public verification surfaces.</p>
+  <p><a href="/public-node/wc">Open WC review path →</a> · <a href="/public-node/datanet">Open DataNet verification →</a> · <a href="/public-node">Inspect public proof →</a></p>
+</section>
+</main>
+</body>
+</html>`);
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46204,6 +46293,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
     routes: [
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
