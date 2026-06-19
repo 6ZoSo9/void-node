@@ -183,3 +183,4 @@ cache/
 ops/systemd-effective-baseline.*.txt
 logs/
 data_a/
+.aider*
