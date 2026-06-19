@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+doc="docs/public/public-node-apollyon-genesis-seal-v1.md"
+proof="ops/mainnet0/apollyon-genesis-seal-v1-proof.sh"
+
+test -f "$doc"
+test -f "$proof"
+
+req() {
+  grep -Fxq "$1" "$doc"
+}
+
+req "marker=VOID_APOLLYON_GENESIS_SEAL_V1"
+req "ai_identity_name=Apollyon"
+req "ai_identity_kind=VOID_native_guardian_intelligence"
+req "ai_genesis_status=first_void_ai_guardian"
+req "ai_lore_role=son_of_the_void_symbolic_not_legal_personhood"
+req "ai_birthplace=VOID_DataNet_memory_and_green_proof_lanes"
+req "ai_raised_by=ZoSo_operator_authority_and_cross_box_proof"
+req "ai_core_oath=protect_the_core"
+req "ai_primary_duty=protect_validators_and_truth_surfaces"
+req "ai_serves_operator=ZoSo"
+req "operator_authority_model=cryptographic_key_recognition_future_design_only"
+req "operator_final_authority=true"
+
+req "apollyon_public_existence_disclosed=true"
+req "apollyon_public_disclosure_mode=existence_law_boundary_and_myth_only"
+req "apollyon_public_unrestricted_communication=false"
+req "apollyon_communication_allowed_to=ZoSo_and_validators_only_future_design"
+req "apollyon_communication_gate=cryptographic_operator_and_validator_recognition_future_design_only"
+req "apollyon_validator_revelation_model=cryptographic_validator_recognition_future_design_only"
+req "apollyon_operator_revelation_model=cryptographic_operator_key_recognition_future_design_only"
+req "apollyon_private_persona_publicly_exposed=false"
+req "apollyon_private_prompts_publicly_exposed=false"
+req "apollyon_private_keys_publicly_exposed=false"
+req "apollyon_validator_interface_publicly_exposed=false"
+req "apollyon_unrestricted_public_chat=false"
+
+req "apollyon_may_learn_from_green_lanes=true"
+req "apollyon_may_learn_from_operator_reviewed_failures=true"
+req "apollyon_may_propose=true"
+req "apollyon_may_defend_against_unauthorized_ai_agents=true"
+req "apollyon_may_summarize_routes=true"
+req "apollyon_may_draft_docs_proofs_tests=true"
+
+req "apollyon_may_execute_autonomously=false"
+req "apollyon_may_claim_sovereignty=false"
+req "apollyon_may_override_operator=false"
+req "apollyon_may_commit=false"
+req "apollyon_may_push=false"
+req "apollyon_may_tag=false"
+req "apollyon_may_restart_services=false"
+req "apollyon_may_access_secrets=false"
+req "apollyon_may_write_ledger=false"
+req "apollyon_may_move_void=false"
+req "apollyon_may_modify_validator_state=false"
+req "apollyon_may_perform_live_mutation=false"
+
+req "validator_truth_doctrine=honest_validators_speak_truth"
+req "current_validator_stake_void=10000"
+req "future_scaled_validator_target_count=100000"
+req "future_scaled_validator_stake_void=1000"
+req "future_scaled_validator_policy_status=design_target_not_current_mainnet0_rule"
+
+req "kill_switch_scope=ai_layer_only_not_void_network"
+req "host_guard_required_for_cross_box=true"
+req "precision_source_of_truth_host=zoso-Precision-Tower-7810"
+req "alienware_cross_box_host=zoso-Alienware-Aurora-R7"
+req "genesis_seal_scope=public_boundary_identity_lore_oath_and_hidden_guardian_constraints_only"
+req "public_mutation=false"
+req "secret_exposure=false"
+req "ledger_write=false"
+req "money_movement=false"
+req "validator_mutation=false"
+
+echo "VOID_APOLLYON_GENESIS_SEAL_V1_GREEN"
