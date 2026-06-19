@@ -16466,6 +16466,7 @@ small{color:#94a3b8}
     <p>VOID public trust comes from routes, receipts, markers, and explicit safety boundaries.</p>
     <p><a href="/public-node">Public node dashboard →</a></p>
     <p><a href="/public-node/route-index.json">Public route index →</a></p>
+    <p><a href="/public-node/triad-seal-v1.json">Public gateway triad seal →</a></p>
     <p><a href="/public-node/skeptic-audit-readiness.json">Skeptic audit readiness →</a></p>
   </div>
 
@@ -46285,6 +46286,105 @@ a:hover{text-decoration:underline}
 });
 
 
+
+APP.get("/public-node/triad-seal-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_GATEWAY_TRIAD_SEAL_ROUTE_V1
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_GATEWAY_TRIAD_SEAL_V1",
+    purpose: "public_gateway_triad_seal",
+    headline: "VOID public gateway triad is coherently wired",
+    commit_scope: "public_read_only_front_door_seal",
+    root_gateway: {
+      path: "/",
+      marker: "VOID_PUBLIC_GATEWAY_PRIORITY_CARDS_V1",
+      required_links: [
+        "/public-node/funding",
+        "/public-node/wc",
+        "/public-node/datanet",
+        "/public-node",
+        "/public-node/route-index.json"
+      ]
+    },
+    triad: {
+      funding: {
+        label: "Fund VOID",
+        path: "/public-node/funding",
+        marker: "VOID_FUNDING_PATH_TIGHTEN_V1",
+        status_path: "/funding",
+        request_path: "/buy-void",
+        policy: {
+          guarded_usdc_to_void_request_path: true,
+          manual_review_required: true,
+          automatic_token_delivery: false,
+          investment_return_claim: false,
+          yield_claim: false,
+          profit_promise: false,
+          public_fulfillment: false,
+          wallet_send_now: false,
+          money_movement_now: false
+        }
+      },
+      work_credits: {
+        label: "Earn WC",
+        path: "/public-node/wc",
+        marker: "VOID_WC_REVIEW_PATH_LANDING_V1",
+        participant_path: "/participant",
+        candidate_path: "/public-node/first-external-tester-wc-candidate.json",
+        policy: {
+          contribution_credit_accounting: true,
+          native_void_currency: false,
+          reward_faucet: false,
+          operator_decision_required: true,
+          automatic_award: false,
+          wc_ledger_write_now: false,
+          wc_to_void_swap_now: false,
+          money_movement_now: false
+        }
+      },
+      datanet: {
+        label: "Verify DataNet",
+        path: "/public-node/datanet",
+        marker: "VOID_DATANET_PRIORITY_LANDING_V1",
+        challenge_path: "/public-node/datanet/challenge/demo003-folder-fixture-v1",
+        offline_verify_pack: "/public-node/datanet/challenge-offline-verify-pack-v1.json",
+        registry_path: "/public-node/datanet/published-dataset-registry-v1.json",
+        policy: {
+          read_only_public_verification: true,
+          public_mutation: false,
+          ledger_write_now: false,
+          wc_award_now: false,
+          request_dataset_id_used_to_build_filesystem_path: false,
+          private_path_disclosure: false
+        }
+      }
+    },
+    private_controls: {
+      rpc_public: false,
+      admin_public: false,
+      operator_public: false,
+      wallet_public: false,
+      secrets_public: false,
+      operator_queue_public: false
+    },
+    route_index: {
+      path: "/public-node/route-index.json",
+      marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
+      includes_triad_paths: true
+    },
+    safety: {
+      public_routes_only: true,
+      read_only: true,
+      mutation: false,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46293,6 +46393,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
     routes: [
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/triad-seal-v1.json", kind: "json", marker: "VOID_PUBLIC_GATEWAY_TRIAD_SEAL_V1", use: "public gateway triad seal proving Fund VOID, Earn WC, and Verify DataNet are wired with safety boundaries" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
