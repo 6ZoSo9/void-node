@@ -46172,6 +46172,7 @@ a:hover{text-decoration:underline}
     <p>Operator review is separate, explicit, and gated. Public routes do not approve, award, or mutate the ledger.</p>
     <p><a href="/public-node/first-external-tester-wc-review-checklist.json">WC review checklist →</a></p>
     <p><a href="/public-node/first-external-tester-wc-operator-decision-packet.json">Operator decision packet →</a></p>
+    <p><a href="/public-node/first-external-tester-wc-actual-review-decision-record-v1.json">Actual review decision record →</a></p>
   </div>
 
   <div class="card">
@@ -46385,6 +46386,84 @@ APP.get("/public-node/triad-seal-v1.json", (_req:any, res:any) => { // VOID_PUBL
 });
 
 
+
+APP.get("/public-node/first-external-tester-wc-actual-review-decision-record-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_ACTUAL_REVIEW_DECISION_RECORD_ROUTE_V1
+  const effectiveBaseUrl = String(process.env.VOID_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_ACTUAL_REVIEW_DECISION_RECORD_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_ACTUAL_REVIEW_DECISION_RECORD_ROUTE_V1",
+    schema: "void_public_node_first_external_tester_wc_actual_review_decision_record_v1",
+    purpose: "actual public operator review decision record for first external tester WC candidate",
+    record_type: "actual_review_decision_record",
+    record_id: "first-external-tester-wc-actual-review-decision-record-v1",
+    candidate_id: "first-external-tester-wc-candidate-v1",
+    candidate_route: "/public-node/first-external-tester-wc-candidate.json",
+    review_checklist_route: "/public-node/first-external-tester-wc-review-checklist.json",
+    award_policy_route: "/public-node/first-external-tester-wc-award-policy.json",
+    review_record_stub_route: "/public-node/first-external-tester-wc-review-record-stub.json",
+    decision_boundary_route: "/public-node/first-external-tester-wc-review-decision-boundary.json",
+    operator_decision_packet_route: "/public-node/first-external-tester-wc-operator-decision-packet.json",
+    decision: {
+      state: "accepted_for_wc_accounting_preflight",
+      allowed_state_from_boundary: true,
+      operator_review_required: true,
+      operator_review_performed_now: true,
+      evidence_sufficient_for_preflight: true,
+      useful_work_recognized: true,
+      proposed_wc_delta: 100,
+      wc_delta_unit: "WC",
+      reason: "First external tester evidence is sufficient to advance from candidate packet into WC accounting preflight.",
+      decision_is_award: false,
+      decision_is_ledger_write: false,
+      decision_is_money_movement: false
+    },
+    required_source_chain: [
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_CANDIDATE_V1",
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_CHECKLIST_V1",
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_AWARD_POLICY_V1",
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_RECORD_STUB_V1",
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_REVIEW_DECISION_BOUNDARY_V1",
+      "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1"
+    ],
+    next_required_before_ledger_write: [
+      "duplicate ledger entry check must remain green",
+      "source hash chain must remain green",
+      "ledger write readiness status must remain green",
+      "explicit operator ledger write allowance must be separate",
+      "final ledger mutation must be an operator-controlled action, not this public route"
+    ],
+    links: {
+      wc_landing: effectiveBaseUrl + "/public-node/wc",
+      candidate: effectiveBaseUrl + "/public-node/first-external-tester-wc-candidate.json",
+      review_checklist: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-checklist.json",
+      award_policy: effectiveBaseUrl + "/public-node/first-external-tester-wc-award-policy.json",
+      review_record_stub: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-record-stub.json",
+      decision_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-review-decision-boundary.json",
+      operator_decision_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-operator-decision-packet.json",
+      ledger_write_boundary: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-boundary.json",
+      ledger_write_readiness: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json"
+    },
+    safety: {
+      public_route: true,
+      read_only: true,
+      public_mutation: false,
+      review_decision_record_created_now: true,
+      award_record_created_now: false,
+      wc_award_now: false,
+      wc_ledger_write_now: false,
+      wc_balance_changed_now: false,
+      wc_to_void_swap_now: false,
+      void_transfer_now: false,
+      wallet_send_now: false,
+      money_movement_now: false,
+      buy_void_fulfillment_now: false,
+      validator_mutation_now: false
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46464,6 +46543,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-source-hash-chain-fixture.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_FIXTURE_V1", use: "preview-only source hash chain fixture before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-source-hash-chain-design.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_DESIGN_V1", use: "design-only source hash chain requirements before first external tester WC ledger write" },
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
+      { path: "/public-node/first-external-tester-wc-actual-review-decision-record-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_ACTUAL_REVIEW_DECISION_RECORD_V1", use: "actual public operator review decision record for first external tester WC candidate; accepted for WC accounting preflight only; no award or ledger write" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
