@@ -16419,49 +16419,59 @@ small{color:#94a3b8}
 </head>
 <body>
 <main>
-<section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 --><!-- VOID_PUBLIC_GATEWAY_V1 -->
+<section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 --><!-- VOID_PUBLIC_GATEWAY_V1 --><!-- VOID_PUBLIC_GATEWAY_PRIORITY_CARDS_V1 -->
   <h1>VOID Network is live</h1>
-  <p>VOID is a public-safe seed surface for the VOID Network: participant access, bootstrap discovery, readiness status, and guarded USDC → VOID funding at $0.50 per VOID.</p>
+  <p>VOID is a node-hosted public trust surface for funding, verified contribution accounting, DataNet verification, and public proof.</p>
   <p>
-    <a class="btn" href="/buy-void">Buy VOID</a>
-    <a class="btn" href="/funding">Funding</a>
-    <a class="btn" href="/participant">Participant / Earn WC</a>
-    <a class="btn secondary" href="/public-node">Public Node</a>
+    <a class="btn" href="/buy-void">Fund VOID</a>
+    <a class="btn" href="/participant">Earn WC</a>
+    <a class="btn secondary" href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Verify DataNet</a>
+    <a class="btn secondary" href="/public-node">Inspect Public Proof</a>
     <a class="btn secondary" href="/public-node/route-index.json">Route Index</a>
-    <a class="btn secondary" href="/__void/public-seed-adapter/status.json">Seed Status JSON</a>
   </p>
-  <span class="badge">public seed online</span>
-  <span class="badge">ready endpoint live</span>
+  <span class="badge">node-hosted public seed</span>
+  <span class="badge">funding is guarded</span>
+  <span class="badge">WC is verified work accounting</span>
+  <span class="badge">DataNet is read-only proof</span>
   <span class="badge">/rpc blocked</span>
-  <span class="badge">guarded funding only</span>
 </section>
 
 <section class="grid">
   <div class="card">
-    <h2>Start here</h2>
-    <p>Use the participant page to inspect VOID, wallet/onboarding surfaces, Work Credits, DataNet, and the guarded funding path.</p>
-    <p><a href="/participant">Go to participant page →</a></p>
+    <h2>Fund VOID</h2>
+    <p>Support VOID development through the guarded <b>USDC → VOID</b> funding path.</p>
+    <p class="warn">Manual review required. No automatic token delivery. No investment return promised.</p>
+    <p><a href="/buy-void">Open Buy VOID →</a></p>
+    <p><a href="/funding">Read funding status →</a></p>
   </div>
 
   <div class="card">
-    <h2>Funding</h2>
-    <p>Funding is the guarded <b>USDC → VOID</b> path. Manual review is required.</p>
-    <p class="warn">No automatic token delivery. No investment return promised.</p>
-    <p><a href="/funding">Open funding page →</a></p>
+    <h2>Earn WC</h2>
+    <p>Work Credits track verified useful contribution. WC is contribution-credit accounting, not a reward faucet and not native VOID.</p>
+    <p><a href="/participant">Open participant page →</a></p>
+    <p><a href="/public-node/first-external-tester-wc-candidate.json">Inspect WC candidate proof →</a></p>
   </div>
 
   <div class="card">
-    <h2>Public proof</h2>
-    <p>Inspect machine-readable public seed state.</p>
-    <p><a href="/public-node">Public node dashboard</a></p>
-    <p><a href="/public-node/route-index.json">Public route index</a></p>
-    <p><a href="/public-node/datanet/challenge/demo003-folder-fixture-v1">DataNet challenge</a></p>
-    <p><a href="/public-node/skeptic-audit-readiness.json">Skeptic audit readiness</a></p>
-    <p><a href="/__void/adapter.json">Adapter manifest</a></p>
-    <p><a href="/__void/ready.json">Readiness JSON</a></p>
-    <p><a href="/__void/public-bootstrap.json">Public bootstrap JSON</a></p>
-    <p><a href="/__void/buy-void/status.json">Buy VOID status JSON</a></p>
-    <p><a href="/__void/funding/status.json">Funding status JSON</a></p>
+    <h2>Verify DataNet</h2>
+    <p>Fetch a public DataNet challenge, inspect the offline verification pack, and verify published data through public-safe routes.</p>
+    <p><a href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Open DataNet challenge →</a></p>
+    <p><a href="/public-node/datanet/challenge-offline-verify-pack-v1.json">Offline verify pack →</a></p>
+    <p><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Inspect Public Proof</h2>
+    <p>VOID public trust comes from routes, receipts, markers, and explicit safety boundaries.</p>
+    <p><a href="/public-node">Public node dashboard →</a></p>
+    <p><a href="/public-node/route-index.json">Public route index →</a></p>
+    <p><a href="/public-node/skeptic-audit-readiness.json">Skeptic audit readiness →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Node-hosted domains</h2>
+    <p><code>voidchain.io</code> and <code>nullfeed.io</code> are VOID identity/DNS assets.</p>
+    <p>Domains are names. VOID nodes are the host.</p>
   </div>
 
   <div class="card">
@@ -16470,7 +16480,7 @@ small{color:#94a3b8}
       <li class="ok"><code>/rpc</code> is blocked.</li>
       <li class="ok">Wallet/key/admin/operator/secret routes are blocked.</li>
       <li class="ok">Private JSON-RPC is not public.</li>
-      <li class="ok">Public surface is allowlisted.</li>
+      <li class="ok">Public surface is allowlisted and read-only.</li>
     </ul>
   </div>
 </section>
@@ -16478,7 +16488,7 @@ small{color:#94a3b8}
 <section class="card">
   <h2>Current public seed URL</h2>
   <p><a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net">https://zoso-alienware-aurora-r7.taila47fd.ts.net</a></p>
-  <small>Custom domains are optional wrappers. The seed proves itself through public JSON routes.</small>
+  <small>voidchain.io and nullfeed.io are DNS identity assets. Domains are names; VOID nodes are the host. The seed proves itself through public JSON routes.</small>
 </section>
 </main>
 </body>
