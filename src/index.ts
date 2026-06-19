@@ -46081,6 +46081,7 @@ a:hover{text-decoration:underline}
     <p><a href="/public-node/datanet/published-retrieval-receipt-v1.json">Published retrieval receipt →</a></p>
     <p><a href="/public-node/datanet/core-contribution-receipt-index-v1.json">DataNet core contribution receipt index →</a></p>
     <p><a href="/public-node/datanet/core-receipt-schema-index-v1.json">DataNet core receipt schema index →</a></p>
+    <p><a href="/public-node/datanet/core-receipt-example-pack-v1.json">DataNet core receipt example pack →</a></p>
     <p><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry →</a></p>
   </div>
 
@@ -47484,6 +47485,139 @@ APP.get("/public-node/datanet/core-receipt-schema-index-v1.json", (_req:any, res
 });
 
 
+
+APP.get("/public-node/datanet/core-receipt-example-pack-v1.json", (_req:any, res:any) => { // VOID_DATANET_CORE_RECEIPT_EXAMPLE_PACK_ROUTE_V1
+  const effectiveBaseUrl = String(process.env.VOID_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  res.json({
+    ok: true,
+    marker: "VOID_DATANET_CORE_RECEIPT_EXAMPLE_PACK_V1",
+    route_marker: "VOID_DATANET_CORE_RECEIPT_EXAMPLE_PACK_ROUTE_V1",
+    schema: "void_datanet_core_receipt_example_pack_v1",
+    purpose: "public read-only example pack for DataNet receipt JSON shapes; examples only, no validation, scoring, award, settlement, wallet action, or ledger write",
+    record_type: "datanet_core_receipt_example_pack",
+    lane: "datanet_core",
+    parent_schema_index: {
+      path: "/public-node/datanet/core-receipt-schema-index-v1.json",
+      marker: "VOID_DATANET_CORE_RECEIPT_SCHEMA_INDEX_V1",
+      relationship: "example_pack_for_schema_reference"
+    },
+    examples_are: {
+      illustrative_only: true,
+      accepted_as_submission_now: false,
+      validated_by_route_now: false,
+      scored_by_route_now: false,
+      eligible_for_award_by_route_now: false,
+      writes_ledger_now: false
+    },
+    example_receipts: [
+      {
+        example_id: "example-published-retrieval-receipt-v1",
+        receipt_type: "published_retrieval_receipt",
+        schema_id: "datanet.published_retrieval_receipt.v1",
+        canonical_marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1",
+        sample: {
+          dataset_id: "demo003-folder-fixture-v1",
+          registry_entry_found: true,
+          manifest_read: true,
+          object_sha256: "example_sha256_hex_placeholder",
+          object_fetch_ok: true,
+          sha256_verified: true,
+          bytes_match_manifest: true,
+          public_safe_output: true
+        },
+        forbidden_effects_confirmed_false: [
+          "ledger_write",
+          "wc_award",
+          "wallet_send",
+          "void_transfer",
+          "public_shell_execution"
+        ]
+      },
+      {
+        example_id: "example-challenge-tester-result-receipt-v1",
+        receipt_type: "challenge_tester_result_receipt",
+        schema_id: "datanet.challenge_tester_result_receipt.v1",
+        canonical_marker: "VOID_DATANET_CHALLENGE_TESTER_RESULT_RECEIPT_V1",
+        sample: {
+          tester_label: "outside-tester-example",
+          base_url_tested: "https://example-public-node.invalid",
+          challenge_route_checked: "/public-node/datanet/challenge/demo003-folder-fixture-v1",
+          manifest_marker_seen: "VOID_DATANET_CHALLENGE_V1",
+          object_or_file_marker_seen: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
+          timestamp_or_run_note: "example-only-not-a-live-submission",
+          operator_review_required: true
+        },
+        forbidden_effects_confirmed_false: [
+          "automatic_award",
+          "ledger_write",
+          "wc_balance_change",
+          "money_movement",
+          "validator_mutation"
+        ]
+      },
+      {
+        example_id: "example-core-mirror-serve-receipt-v1",
+        receipt_type: "core_mirror_serve_receipt",
+        schema_id: "datanet.core_mirror_serve_receipt.v1",
+        canonical_marker: "VOID_DATANET_CORE_MIRROR_SERVE_RECEIPT_V1",
+        sample: {
+          mirror_node_label: "example-mirror-node",
+          dataset_id: "demo003-folder-fixture-v1",
+          manifest_or_receipt_hash: "example_receipt_hash_placeholder",
+          object_count: 3,
+          public_safe_receipt: true,
+          ledger_write_false: true
+        },
+        forbidden_effects_confirmed_false: [
+          "public_mutation",
+          "raw_request_path_filesystem_construction",
+          "private_path_disclosure",
+          "ledger_write",
+          "wallet_send"
+        ]
+      }
+    ],
+    current_wc_context: {
+      operator_wc_ledger_summary_available: true,
+      operator_wc_ledger_summary_path: "/public-node/operator-ledger-summary-v1.json",
+      wc_ledger_entry_count_observed_before_this_route: 1,
+      total_wc_issued_observed_before_this_route: 100,
+      this_route_changes_wc_ledger: false
+    },
+    boundaries: {
+      public_route: true,
+      read_only: true,
+      example_only: true,
+      public_mutation: false,
+      local_filesystem_write: false,
+      accepts_public_submit_now: false,
+      validates_receipts_now: false,
+      scores_receipts_now: false,
+      creates_review_record_now: false,
+      creates_award_record_now: false,
+      ledger_write: false,
+      wc_award_now: false,
+      wc_balance_change_now: false,
+      money_movement_now: false,
+      wallet_send_now: false,
+      void_transfer_now: false,
+      wc_to_void_swap_now: false,
+      validator_mutation_now: false,
+      public_shell_execution: false,
+      exposes_private_ledger_path: false,
+      exposes_operator_home_path: false,
+      exposes_shell_command: false
+    },
+    links: {
+      datanet_landing: effectiveBaseUrl + "/public-node/datanet",
+      parent_schema_index: effectiveBaseUrl + "/public-node/datanet/core-receipt-schema-index-v1.json",
+      parent_contribution_receipt_index: effectiveBaseUrl + "/public-node/datanet/core-contribution-receipt-index-v1.json",
+      operator_wc_ledger_summary: effectiveBaseUrl + "/public-node/operator-ledger-summary-v1.json"
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -47607,6 +47741,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/published-retrieval-receipt-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_RECEIPT_V1", use: "Mainnet-0 DataNet published retrieval receipt; proves registry discovery, manifest read, object fetch, SHA verification, byte match, and public-safe receipt output; no public mutation; no ledger/WC write" },
       { path: "/public-node/datanet/core-contribution-receipt-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_V1", use: "public read-only index of DataNet contribution receipt surfaces separated from WC accounting, awards, settlement, wallets, and validator mutation" },
       { path: "/public-node/datanet/core-receipt-schema-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_RECEIPT_SCHEMA_INDEX_V1", use: "public read-only schema/reference index for DataNet receipt types; defines evidence shapes without validating, scoring, awarding, settlement, wallet action, or ledger write" },
+      { path: "/public-node/datanet/core-receipt-example-pack-v1.json", kind: "json", marker: "VOID_DATANET_CORE_RECEIPT_EXAMPLE_PACK_V1", use: "public read-only example pack for DataNet receipt JSON shapes; examples only; no validation, scoring, award, settlement, wallet action, or ledger write" },
       { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1", use: "Mainnet-0 DataNet published retrieval operator review packet; converts WC candidate into explicit operator-review-required packet; no approval; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval operator approval decision boundary; approval is explicit/separate and not recorded by public route; no award intent; no ledger/WC write" },
