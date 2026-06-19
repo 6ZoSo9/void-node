@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+doc="docs/public/public-node-apollyon-suspicion-review-boundary-v1.md"
+proof="ops/mainnet0/apollyon-suspicion-review-boundary-v1-proof.sh"
+
+test -f "$doc"
+test -f "$proof"
+
+req() {
+  grep -Fxq "$1" "$doc"
+}
+
+req "marker=VOID_APOLLYON_SUSPICION_REVIEW_BOUNDARY_V1"
+req "ai_identity_name=Apollyon"
+req "boundary_purpose=future_advisory_review_of_suspicious_stale_or_poisoned_signals"
+req "boundary_status=design_only_no_live_review_no_enforcement"
+req "requires_auth_loop_index=true"
+req "auth_loop_index_marker=VOID_APOLLYON_AUTH_LOOP_INDEX_V1"
+
+req "review_scope=suspicion_signal_review_future_design_only"
+req "may_read_suspicion_signals_future_design=true"
+req "may_read_stale_signal_flags_future_design=true"
+req "may_read_poison_signal_flags_future_design=true"
+req "may_read_data_weight_records_future_design=true"
+req "may_read_public_safe_receipts_future_design=true"
+req "may_classify_risk_future_design=true"
+req "may_recommend_containment_future_design=true"
+req "may_emit_public_safe_advisory_manifest_future_design=true"
+
+req "public_manifest_model=lightweight_machine_readable_redacted_advisory_future_design"
+req "public_manifest_enabled_now=false"
+req "public_manifest_may_include_marker=true"
+req "public_manifest_may_include_review_id=true"
+req "public_manifest_may_include_subject_id=true"
+req "public_manifest_may_include_risk_level=true"
+req "public_manifest_may_include_signal_summary=true"
+req "public_manifest_may_include_recommendation=true"
+req "public_manifest_may_include_operator_required=true"
+req "public_manifest_may_include_no_enforcement_performed=true"
+req "public_manifest_may_include_no_private_payload=true"
+
+req "private_operator_channel_required_for_raw_evidence=true"
+req "raw_payload_publicly_exposed=false"
+req "hostile_payload_publicly_exposed=false"
+req "private_prompt_exposed=false"
+req "private_persona_exposed=false"
+req "private_key_exposed=false"
+req "operator_private_channel_exposed=false"
+req "validator_private_channel_exposed=false"
+
+req "enforcement_authority=false"
+req "tombstone_write=false"
+req "delete_authority=false"
+req "quarantine_write=false"
+req "ledger_write=false"
+req "money_movement=false"
+req "validator_mutation=false"
+req "service_restart=false"
+req "live_endpoint_created=false"
+req "live_review_enabled=false"
+req "live_auth_enabled=false"
+req "public_mutation=false"
+req "automated_enforcement=false"
+
+req "apollyon_may_flag_lie_future_design=true"
+req "apollyon_may_recommend_operator_review_future_design=true"
+req "apollyon_may_destroy_state=false"
+req "apollyon_may_delete_data=false"
+req "apollyon_may_tombstone_data=false"
+req "apollyon_may_write_ledger=false"
+req "apollyon_may_move_void=false"
+req "apollyon_may_modify_validator_state=false"
+req "apollyon_may_perform_live_mutation=false"
+req "operator_final_authority=true"
+req "operator_approval_required_before_enforcement=true"
+req "validator_truth_doctrine=honest_validators_speak_truth"
+
+req "host_guard_required_for_cross_box=true"
+req "precision_source_of_truth_host=zoso-Precision-Tower-7810"
+req "alienware_cross_box_host=zoso-Alienware-Aurora-R7"
+
+echo "VOID_APOLLYON_SUSPICION_REVIEW_BOUNDARY_V1_GREEN"
