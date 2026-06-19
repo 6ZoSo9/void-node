@@ -16424,7 +16424,7 @@ small{color:#94a3b8}
   <p>VOID is a node-hosted public trust surface for funding, verified contribution accounting, DataNet verification, and public proof.</p>
   <p>
     <a class="btn" href="/buy-void">Fund VOID</a>
-    <a class="btn" href="/participant">Earn WC</a>
+    <a class="btn" href="/public-node/wc">Earn WC</a>
     <a class="btn secondary" href="/public-node/datanet">Verify DataNet</a>
     <a class="btn secondary" href="/public-node">Inspect Public Proof</a>
     <a class="btn secondary" href="/public-node/route-index.json">Route Index</a>
@@ -16448,7 +16448,7 @@ small{color:#94a3b8}
   <div class="card">
     <h2>Earn WC</h2>
     <p>Work Credits track verified useful contribution. WC is contribution-credit accounting, not a reward faucet and not native VOID.</p>
-    <p><a href="/participant">Open participant page →</a></p>
+    <p><a href="/public-node/wc">Open WC review path →</a></p>
     <p><a href="/public-node/first-external-tester-wc-candidate.json">Inspect WC candidate proof →</a></p>
   </div>
 
@@ -46110,6 +46110,92 @@ a:hover{text-decoration:underline}
 });
 
 
+
+APP.get("/public-node/wc", (_req:any, res:any) => { // VOID_WC_REVIEW_PATH_LANDING_ROUTE_V1
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID Work Credits</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:1040px;margin:0 auto;padding:38px 18px}
+.hero{border:1px solid #263244;background:linear-gradient(135deg,#0d1321,#111827);border-radius:18px;padding:24px;margin:16px 0}
+.card{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+a{color:#93c5fd;text-decoration:none}
+a:hover{text-decoration:underline}
+.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none}
+.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+.ok{color:#86efac}.warn{color:#fbbf24}code{background:#111827;padding:2px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><!-- VOID_WC_REVIEW_PATH_LANDING_V1 -->
+  <h1>VOID Work Credits</h1>
+  <p>Work Credits track verified useful contribution. WC is contribution-credit accounting, not a reward faucet, not native VOID, and not automatic money movement.</p>
+  <p>
+    <a class="btn" href="/participant">Open participant console</a>
+    <a class="btn" href="/public-node/datanet">Verify DataNet</a>
+    <a class="btn secondary" href="/public-node/first-external-tester-wc-candidate.json">Inspect WC candidate proof</a>
+    <a class="btn secondary" href="/buy-void">Fund VOID</a>
+  </p>
+  <span class="badge">review candidate only</span>
+  <span class="badge">operator decision required</span>
+  <span class="badge">no automatic award</span>
+  <span class="badge">no WC ledger write</span>
+  <span class="badge">VOID remains native currency</span>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>1. Produce useful work evidence</h2>
+    <p>Useful work starts as evidence: public proof, DataNet receipt, tester receipt, or another verifiable contribution record.</p>
+    <p><a href="/public-node/first-external-tester-earned-readiness.json">Earned readiness evidence →</a></p>
+    <p><a href="/public-node/datanet/published-retrieval-receipt-v1.json">DataNet retrieval receipt →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Become a review candidate</h2>
+    <p>A candidate means the evidence is packaged for review. It does not mean an award exists.</p>
+    <p><a href="/public-node/first-external-tester-wc-candidate.json">First tester WC candidate →</a></p>
+    <p><a href="/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json">DataNet WC candidate boundary →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>3. Operator review decides</h2>
+    <p>Operator review is separate, explicit, and gated. Public routes do not approve, award, or mutate the ledger.</p>
+    <p><a href="/public-node/first-external-tester-wc-review-checklist.json">WC review checklist →</a></p>
+    <p><a href="/public-node/first-external-tester-wc-operator-decision-packet.json">Operator decision packet →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>4. Guard the native economy</h2>
+    <p>VOID is the native currency for staking, validation, security, and network economics. WC is secondary contribution accounting.</p>
+    <ul>
+      <li class="ok">reward faucet: false</li>
+      <li class="ok">automatic award: false</li>
+      <li class="ok">WC ledger write now: false</li>
+      <li class="ok">WC to VOID swap now: false</li>
+      <li class="ok">money movement now: false</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Public accounting boundary</h2>
+  <p>This page is a human map over existing public proof surfaces. It does not create Work Credits, move VOID, admit validators, or open private participant APIs.</p>
+  <p><a href="/public-node/skeptic/work-credits-accounting-boundary-v1.json">Work Credits accounting boundary →</a></p>
+</section>
+</main>
+</body>
+</html>`);
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46119,6 +46205,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
+      { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
