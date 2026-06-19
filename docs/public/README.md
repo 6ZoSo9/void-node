@@ -141,3 +141,33 @@ Safety boundary:
 
 Meaning: Demo 002 is ready as a public-node tester/handoff proof lane. It proves read-only local data-drop serving, receipt generation, local intake, shareable evidence packaging, and offline verification without promoting local receipts into automatic network truth.
 
+
+## DataNet Core public verification external reviewer <!-- VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_DOCS_INDEX_POINTER_V1 -->
+
+Current public-safe reviewer entry point:
+
+       docs/public/public-node-datanet-core-public-verification-external-reviewer-public-landing-page-v1.md
+
+Current evidence bundle:
+
+       docs/public/public-node-datanet-core-public-verification-external-reviewer-evidence-bundle-v1.md
+
+Status:
+
+- public reviewer safe
+- external reviewer readable
+- seed-stage/operator-heavy disclosed
+- reveal decision pending
+- final reveal approval not granted
+- no command reveal, print, or execute
+- no candidate identity
+- no candidate record write
+- no reviewer contact
+- no packet share
+- no public mutation
+- no ledger write
+- no Work Credit award
+
+Latest public landing page checkpoint:
+
+       3b7c799f / ckpt-datanet-core-public-verification-external-reviewer-public-landing-page-v1-cross-box-green-20260619-145151
