@@ -46174,6 +46174,7 @@ a:hover{text-decoration:underline}
     <p><a href="/public-node/first-external-tester-wc-operator-decision-packet.json">Operator decision packet →</a></p>
     <p><a href="/public-node/first-external-tester-wc-actual-review-decision-record-v1.json">Actual review decision record →</a></p>
     <p><a href="/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-decision-v1.json">Ledger entry preview from decision →</a></p>
+    <p><a href="/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json">Source-hash chain bound to preview →</a></p>
   </div>
 
   <div class="card">
@@ -46552,6 +46553,71 @@ APP.get("/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-
 });
 
 
+
+APP.get("/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_BOUND_TO_LEDGER_PREVIEW_ROUTE_V1
+  const effectiveBaseUrl = String(process.env.VOID_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_BOUND_TO_LEDGER_PREVIEW_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_BOUND_TO_LEDGER_PREVIEW_ROUTE_V1",
+    schema: "void_public_node_first_external_tester_wc_source_hash_chain_bound_to_ledger_preview_v1",
+    purpose: "deterministic source hash chain binding actual WC review decision to exact 100 WC ledger entry preview; no ledger write",
+    record_type: "wc_source_hash_chain_bound_to_ledger_preview",
+    binding_id: "first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1",
+    algorithm: "sha256",
+    canonicalization: "void-static-v1; root is sha256 of newline-joined record hashes",
+    source_preview: {
+      path: "/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-decision-v1.json",
+      marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_ENTRY_PREVIEW_FROM_ACTUAL_DECISION_V1",
+      required_delta: 100,
+      required_unit: "WC",
+      required_idempotency_key: "first-external-tester:wc:actual-review-decision-record-v1:delta-100"
+    },
+    source_hash_chain: {
+      records: [
+        { index: 1, name: "actual_review_decision_record", sha256: "9ba61848b174158204381bbf2c63bd9de636f172857812073ba8a48dcdca130a" },
+        { index: 2, name: "ledger_entry_preview_from_actual_decision", sha256: "630f9b5331984d13e7af0116f720c5639b9ef549d29326346084a3f6b9ad0741" },
+        { index: 3, name: "safety_lock", sha256: "803ca61ec1c15c34273bcf1c515705e72fb80edfebf8dd65d3ab9cf69a1d69fa" }
+      ],
+      root_sha256: "cf09951ac295ac31896629f394cfbbdecc69bba8e921414e4d2fb51a763198ba",
+      binds_exact_preview: true,
+      binds_exact_delta: true,
+      binds_exact_idempotency_key: true,
+      binds_no_ledger_write_safety: true
+    },
+    next_required_before_live_ledger_write: [
+      "duplicate ledger entry guard must be rechecked against live ledger state using this idempotency key",
+      "operator must explicitly authorize final ledger write separately",
+      "final apply must verify this source hash chain root before mutation",
+      "final apply must remain outside public unauthenticated routes"
+    ],
+    links: {
+      wc_landing: effectiveBaseUrl + "/public-node/wc",
+      actual_review_decision_record: effectiveBaseUrl + "/public-node/first-external-tester-wc-actual-review-decision-record-v1.json",
+      ledger_entry_preview: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-decision-v1.json",
+      duplicate_guard_design: effectiveBaseUrl + "/public-node/first-external-tester-wc-duplicate-ledger-entry-check-design.json",
+      ledger_write_readiness: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-write-readiness-status.json"
+    },
+    safety: {
+      public_route: true,
+      read_only: true,
+      source_hash_chain_bound_now: true,
+      public_mutation: false,
+      award_record_created_now: false,
+      wc_award_now: false,
+      wc_ledger_write_now: false,
+      wc_balance_changed_now: false,
+      wc_to_void_swap_now: false,
+      void_transfer_now: false,
+      wallet_send_now: false,
+      money_movement_now: false,
+      buy_void_fulfillment_now: false,
+      validator_mutation_now: false
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46633,6 +46699,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-operator-decision-packet.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_OPERATOR_DECISION_PACKET_V1", use: "read-only operator decision packet template for first external tester Work Credit review" },
       { path: "/public-node/first-external-tester-wc-actual-review-decision-record-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_ACTUAL_REVIEW_DECISION_RECORD_V1", use: "actual public operator review decision record for first external tester WC candidate; accepted for WC accounting preflight only; no award or ledger write" },
       { path: "/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-decision-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_LEDGER_ENTRY_PREVIEW_FROM_ACTUAL_DECISION_V1", use: "exact WC ledger entry preview derived from actual review decision record; preview only; no ledger write or balance change" },
+      { path: "/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_BOUND_TO_LEDGER_PREVIEW_V1", use: "deterministic source hash chain binding actual WC review decision to exact 100 WC ledger entry preview; no ledger write or balance change" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
