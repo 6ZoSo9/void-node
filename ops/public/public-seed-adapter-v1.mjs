@@ -23,6 +23,7 @@ const exactAllow = new Set([
 
 const prefixAllow = [
   "/participant",
+  "/public-node",
   "/download",
   "/site/voidchain",
   "/docs/public",
@@ -50,7 +51,7 @@ const server = http.createServer(async (req, res) => {
 
   // VOID_PUBLIC_EDGE_LANDING_ROOT_V1
   const __voidPublicEdgeLandingPath = new URL(req.url || "/", "http://void.local").pathname;
-  if (__voidPublicEdgeLandingPath === "/") {
+  if (false && __voidPublicEdgeLandingPath === "/") {
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "x-void-public-seed-adapter": "v1",
