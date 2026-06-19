@@ -310,7 +310,7 @@ const app = express();
 // === VOID public root redirect v1 ===
 // Public users often open http://127.0.0.1:4100/ first.
 // Keep the root route tiny and redirect to the participant UI.
-app.get("/", (_req:any, res:any) => {
+app.get("/legacy-root-redirect", (_req:any, res:any) => {
   res.redirect(302, "/participant");
 });
 
@@ -16419,12 +16419,15 @@ small{color:#94a3b8}
 </head>
 <body>
 <main>
-<section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 -->
+<section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 --><!-- VOID_PUBLIC_GATEWAY_V1 -->
   <h1>VOID Network is live</h1>
   <p>VOID is a public-safe seed surface for the VOID Network: participant access, bootstrap discovery, readiness status, and guarded USDC → VOID funding at $0.50 per VOID.</p>
   <p>
-    <a class="btn" href="/participant">Open Participant Page</a>
-    <a class="btn" href="/funding">Buy VOID / Fund Development</a>
+    <a class="btn" href="/buy-void">Buy VOID</a>
+    <a class="btn" href="/funding">Funding</a>
+    <a class="btn" href="/participant">Participant / Earn WC</a>
+    <a class="btn secondary" href="/public-node">Public Node</a>
+    <a class="btn secondary" href="/public-node/route-index.json">Route Index</a>
     <a class="btn secondary" href="/__void/public-seed-adapter/status.json">Seed Status JSON</a>
   </p>
   <span class="badge">public seed online</span>
@@ -16450,9 +16453,14 @@ small{color:#94a3b8}
   <div class="card">
     <h2>Public proof</h2>
     <p>Inspect machine-readable public seed state.</p>
+    <p><a href="/public-node">Public node dashboard</a></p>
+    <p><a href="/public-node/route-index.json">Public route index</a></p>
+    <p><a href="/public-node/datanet/challenge/demo003-folder-fixture-v1">DataNet challenge</a></p>
+    <p><a href="/public-node/skeptic-audit-readiness.json">Skeptic audit readiness</a></p>
     <p><a href="/__void/adapter.json">Adapter manifest</a></p>
     <p><a href="/__void/ready.json">Readiness JSON</a></p>
     <p><a href="/__void/public-bootstrap.json">Public bootstrap JSON</a></p>
+    <p><a href="/__void/buy-void/status.json">Buy VOID status JSON</a></p>
     <p><a href="/__void/funding/status.json">Funding status JSON</a></p>
   </div>
 
@@ -17404,7 +17412,8 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
   <h1>Buy VOID / Fund Development</h1>
   <p>VOID funding uses a guarded <b>USDC → VOID</b> request path. Sale pool: <b>10,000,000 VOID</b> at <b>$0.50 USDC per VOID</b>.</p>
   <p>
-    <a class="btn" href="/participant">Open Participant Page</a>
+    <a class="btn secondary" href="/">Home</a>
+    <a class="btn" href="/participant">Participant / Earn WC</a>
     <a class="btn secondary" href="/__void/buy-void/status.json">Buy VOID Status JSON</a>
   </p>
 </section>
@@ -17579,6 +17588,8 @@ code{background:#111827;padding:2px 5px;border-radius:5px}
 <div class="card">
 <h2>Public seed</h2>
 <p><a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net">https://zoso-alienware-aurora-r7.taila47fd.ts.net</a></p>
+<p><a href="/">Back Home</a></p>
+<p><a href="/buy-void">Open Buy VOID</a></p>
 <p><a href="/participant">Open participant page</a></p>
 <p><a href="/__void/funding/status.json">Funding status JSON</a></p>
 </div>
