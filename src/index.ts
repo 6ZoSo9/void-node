@@ -46082,6 +46082,7 @@ a:hover{text-decoration:underline}
     <p><a href="/public-node/datanet/core-contribution-receipt-index-v1.json">DataNet core contribution receipt index →</a></p>
     <p><a href="/public-node/datanet/core-receipt-schema-index-v1.json">DataNet core receipt schema index →</a></p>
     <p><a href="/public-node/datanet/core-receipt-example-pack-v1.json">DataNet core receipt example pack →</a></p>
+    <p><a href="/public-node/datanet/explorer-v1">DataNet Explorer v1 →</a></p>
     <p><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry →</a></p>
   </div>
 
@@ -47618,6 +47619,136 @@ APP.get("/public-node/datanet/core-receipt-example-pack-v1.json", (_req:any, res
 });
 
 
+
+APP.get("/public-node/datanet/explorer-v1", (_req:any, res:any) => { // VOID_DATANET_EXPLORER_ROUTE_V1
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>VOID DataNet Explorer v1</title>
+  <style>
+    body{margin:0;background:#05050a;color:#e8ecff;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    main{max-width:1120px;margin:0 auto;padding:32px 18px 64px}
+    a{color:#8ffcff;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .tag{color:#a78bfa}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+    .card{border:1px solid #27304f;background:#0b1020;border-radius:12px;padding:16px;box-shadow:0 0 32px rgba(80,120,255,.08)}
+    .card h2{font-size:16px;margin:0 0 10px;color:#b6f3ff}
+    .card p{line-height:1.45;color:#cfd6ff}
+    code,pre{background:#080b14;border:1px solid #202944;border-radius:8px;color:#dce7ff}
+    code{padding:2px 5px}
+    pre{padding:12px;overflow:auto;white-space:pre-wrap}
+    .status{display:inline-block;border:1px solid #33406a;border-radius:999px;padding:5px 9px;margin:4px 6px 4px 0;color:#bfffe8;background:#08140f}
+    .warn{color:#ffdca8}
+    .dim{color:#9aa7d9}
+    ul{padding-left:18px}
+    li{margin:6px 0}
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="/public-node/datanet">← DataNet landing</a> · <a href="/public-node">Public node</a> · <a href="/public-node/route-index.json">Route index</a></p>
+  <h1>VOID DataNet Explorer v1</h1>
+  <p class="tag">VOID_DATANET_EXPLORER_V1</p>
+  <p>This is the first single-page explorer for the live Mainnet-0 public DataNet surface. It turns the registry, challenge, manifests, object/file routes, receipts, schema index, and example pack into one navigable product page.</p>
+
+  <div>
+    <span class="status">read-only</span>
+    <span class="status">public routes only</span>
+    <span class="status">no wallet</span>
+    <span class="status">no WC award</span>
+    <span class="status">no ledger write</span>
+    <span class="status">no mutation</span>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Start here</h2>
+      <p>Open the registry and the known demo fixture. These are the public-safe DataNet entry points.</p>
+      <ul>
+        <li><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry</a></li>
+        <li><a href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json">Demo003 folder manifest</a></li>
+        <li><a href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Demo003 challenge packet</a></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Open files</h2>
+      <p>These are directly readable demo fixture files served by the public node.</p>
+      <ul>
+        <li><a href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html">index.html</a></li>
+        <li><a href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt">README.txt</a></li>
+        <li><a href="/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json">metadata.json</a></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Receipts and schemas</h2>
+      <p>Receipts describe evidence. They do not automatically award Work Credits or mutate anything.</p>
+      <ul>
+        <li><a href="/public-node/datanet/core-contribution-receipt-index-v1.json">Contribution receipt index</a></li>
+        <li><a href="/public-node/datanet/core-receipt-schema-index-v1.json">Receipt schema index</a></li>
+        <li><a href="/public-node/datanet/core-receipt-example-pack-v1.json">Receipt example pack</a></li>
+        <li><a href="/public-node/datanet/published-retrieval-receipt-v1.json">Published retrieval receipt</a></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Machine checks</h2>
+      <p>Copy/paste these checks from any machine with curl and Python 3.</p>
+      <pre>BASE="https://zoso-alienware-aurora-r7.taila47fd.ts.net"
+
+curl -fsS "$BASE/public-node/datanet/challenge/demo003-folder-fixture-v1" | python3 -m json.tool
+curl -fsS "$BASE/public-node/datanet/core-receipt-example-pack-v1.json" | python3 -m json.tool
+curl -fsS "$BASE/public-node/datanet/core-contribution-receipt-index-v1.json" | python3 -m json.tool</pre>
+    </section>
+
+    <section class="card">
+      <h2>What this proves</h2>
+      <ul>
+        <li>Public DataNet routes are reachable through the live public base URL.</li>
+        <li>Demo003 is discoverable from registry/challenge/manifest surfaces.</li>
+        <li>Receipt surfaces exist for verification and later operator review.</li>
+        <li>Explorer links are human-usable and agent-readable.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>What this does not do</h2>
+      <ul>
+        <li>No public POST, PUT, PATCH, or DELETE path is opened here.</li>
+        <li>No local filesystem write is performed by this explorer.</li>
+        <li>No Work Credit award, WC ledger write, VOID transfer, wallet send, swap, settlement, or validator mutation happens here.</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:18px">
+    <h2>Boundary record</h2>
+    <p class="warn">This page is product surface, not a mutation endpoint.</p>
+    <pre>marker=VOID_DATANET_EXPLORER_V1
+route_marker=VOID_DATANET_EXPLORER_ROUTE_V1
+public_route=true
+read_only=true
+public_mutation=false
+local_filesystem_write=false
+ledger_write=false
+wc_award_now=false
+money_movement_now=false
+wallet_send_now=false
+void_transfer_now=false
+wc_to_void_swap_now=false
+validator_mutation_now=false</pre>
+  </section>
+
+  <p class="dim">VOID Network · PROTECT THE CORE · Mainnet-0 public DataNet explorer surface</p>
+</main>
+</body>
+</html>`);
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -47742,6 +47873,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/datanet/core-contribution-receipt-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_CONTRIBUTION_RECEIPT_INDEX_V1", use: "public read-only index of DataNet contribution receipt surfaces separated from WC accounting, awards, settlement, wallets, and validator mutation" },
       { path: "/public-node/datanet/core-receipt-schema-index-v1.json", kind: "json", marker: "VOID_DATANET_CORE_RECEIPT_SCHEMA_INDEX_V1", use: "public read-only schema/reference index for DataNet receipt types; defines evidence shapes without validating, scoring, awarding, settlement, wallet action, or ledger write" },
       { path: "/public-node/datanet/core-receipt-example-pack-v1.json", kind: "json", marker: "VOID_DATANET_CORE_RECEIPT_EXAMPLE_PACK_V1", use: "public read-only example pack for DataNet receipt JSON shapes; examples only; no validation, scoring, award, settlement, wallet action, or ledger write" },
+      { path: "/public-node/datanet/explorer-v1", kind: "html", marker: "VOID_DATANET_EXPLORER_V1", use: "human DataNet explorer page linking registry, demo fixture, challenge, manifests, files, receipts, schema index, example pack, and copyable read-only checks" },
       { path: "/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_WC_CANDIDATE_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval WC candidate boundary; validates retrieval receipt as review candidate only; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-review-packet-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_REVIEW_PACKET_V1", use: "Mainnet-0 DataNet published retrieval operator review packet; converts WC candidate into explicit operator-review-required packet; no approval; no automatic award; no ledger/WC write" },
       { path: "/public-node/datanet/published-retrieval-operator-approval-decision-boundary-v1.json", kind: "json", marker: "VOID_DATANET_PUBLISHED_RETRIEVAL_OPERATOR_APPROVAL_DECISION_BOUNDARY_V1", use: "Mainnet-0 DataNet published retrieval operator approval decision boundary; approval is explicit/separate and not recorded by public route; no award intent; no ledger/WC write" },
