@@ -46177,6 +46177,7 @@ a:hover{text-decoration:underline}
     <p><a href="/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json">Source-hash chain bound to preview →</a></p>
     <p><a href="/public-node/first-external-tester-wc-duplicate-guard-recheck-bound-to-source-hash-v1.json">Duplicate guard recheck bound to source hash →</a></p>
     <p><a href="/public-node/first-external-tester-wc-final-operator-apply-authorization-packet-v1.json">Final operator apply authorization packet →</a></p>
+    <p><a href="/public-node/first-external-tester-wc-final-apply-command-hold-private-boundary-v1.json">Final apply command hold / private boundary →</a></p>
   </div>
 
   <div class="card">
@@ -46781,6 +46782,83 @@ APP.get("/public-node/first-external-tester-wc-final-operator-apply-authorizatio
 });
 
 
+
+APP.get("/public-node/first-external-tester-wc-final-apply-command-hold-private-boundary-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_APPLY_COMMAND_HOLD_PRIVATE_BOUNDARY_ROUTE_V1
+  const effectiveBaseUrl = String(process.env.VOID_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_APPLY_COMMAND_HOLD_PRIVATE_BOUNDARY_V1",
+    route_marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_APPLY_COMMAND_HOLD_PRIVATE_BOUNDARY_ROUTE_V1",
+    schema: "void_public_node_first_external_tester_wc_final_apply_command_hold_private_boundary_v1",
+    purpose: "public read-only boundary proving final WC ledger apply command is withheld, private, not printed, not routed, and not executed",
+    record_type: "wc_final_apply_command_hold_private_boundary",
+    boundary_id: "first-external-tester-wc-final-apply-command-hold-private-boundary-v1",
+    command_boundary: {
+      final_apply_command_exists_as_operator_private_action: true,
+      final_apply_command_publicly_disclosed: false,
+      final_apply_command_printed: false,
+      final_apply_command_returned_by_route: false,
+      final_apply_command_executed_now: false,
+      final_apply_command_callable_by_public_route: false,
+      public_route_contains_secret: false,
+      public_route_contains_private_command: false,
+      operator_terminal_action_required: true,
+      operator_must_execute_separately_if_approved: true
+    },
+    bound_authorization_packet: {
+      path: "/public-node/first-external-tester-wc-final-operator-apply-authorization-packet-v1.json",
+      marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_OPERATOR_APPLY_AUTHORIZATION_PACKET_V1",
+      required_authorization_state: "ready_for_operator_final_apply_review",
+      required_all_public_prewrite_gates_green: true,
+      required_operator_final_apply_required: true,
+      required_final_apply_authorized_by_this_route: false,
+      required_ledger_write_allowed_by_this_route: false
+    },
+    bound_entry: {
+      ledger: "work_credits",
+      subject_id: "first-external-tester",
+      proposed_delta: 100,
+      unit: "WC",
+      direction: "credit",
+      idempotency_key: "first-external-tester:wc:actual-review-decision-record-v1:delta-100",
+      source_hash_root: "cf09951ac295ac31896629f394cfbbdecc69bba8e921414e4d2fb51a763198ba"
+    },
+    private_apply_requirements: [
+      "operator must be on trusted local terminal",
+      "operator must verify repo head and source hash root",
+      "operator must recheck idempotency key immediately before mutation",
+      "operator must not use any public route to execute mutation",
+      "operator must record a post-apply receipt only after a real private apply"
+    ],
+    links: {
+      wc_landing: effectiveBaseUrl + "/public-node/wc",
+      authorization_packet: effectiveBaseUrl + "/public-node/first-external-tester-wc-final-operator-apply-authorization-packet-v1.json",
+      duplicate_guard_recheck: effectiveBaseUrl + "/public-node/first-external-tester-wc-duplicate-guard-recheck-bound-to-source-hash-v1.json",
+      source_hash_chain_bound_to_preview: effectiveBaseUrl + "/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json",
+      ledger_entry_preview: effectiveBaseUrl + "/public-node/first-external-tester-wc-ledger-entry-preview-from-actual-decision-v1.json"
+    },
+    safety: {
+      public_route: true,
+      read_only: true,
+      command_hold_boundary_created_now: true,
+      public_mutation: false,
+      private_command_disclosed_now: false,
+      final_apply_command_executed_now: false,
+      award_record_created_now: false,
+      wc_award_now: false,
+      wc_ledger_write_now: false,
+      wc_balance_changed_now: false,
+      wc_to_void_swap_now: false,
+      void_transfer_now: false,
+      wallet_send_now: false,
+      money_movement_now: false,
+      buy_void_fulfillment_now: false,
+      validator_mutation_now: false
+    }
+  });
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46865,6 +46943,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/first-external-tester-wc-source-hash-chain-bound-to-ledger-preview-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_SOURCE_HASH_CHAIN_BOUND_TO_LEDGER_PREVIEW_V1", use: "deterministic source hash chain binding actual WC review decision to exact 100 WC ledger entry preview; no ledger write or balance change" },
       { path: "/public-node/first-external-tester-wc-duplicate-guard-recheck-bound-to-source-hash-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_DUPLICATE_GUARD_RECHECK_BOUND_TO_SOURCE_HASH_V1", use: "read-only duplicate ledger guard recheck bound to source-hash root and idempotency key; no ledger write or balance change" },
       { path: "/public-node/first-external-tester-wc-final-operator-apply-authorization-packet-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_OPERATOR_APPLY_AUTHORIZATION_PACKET_V1", use: "public read-only final operator apply authorization packet for exact 100 WC path; no ledger write or balance change" },
+      { path: "/public-node/first-external-tester-wc-final-apply-command-hold-private-boundary-v1.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_EXTERNAL_TESTER_WC_FINAL_APPLY_COMMAND_HOLD_PRIVATE_BOUNDARY_V1", use: "public read-only boundary proving final apply command is private, withheld, not routed, and not executed; no ledger write or balance change" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
