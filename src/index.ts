@@ -16425,7 +16425,7 @@ small{color:#94a3b8}
   <p>
     <a class="btn" href="/buy-void">Fund VOID</a>
     <a class="btn" href="/participant">Earn WC</a>
-    <a class="btn secondary" href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Verify DataNet</a>
+    <a class="btn secondary" href="/public-node/datanet">Verify DataNet</a>
     <a class="btn secondary" href="/public-node">Inspect Public Proof</a>
     <a class="btn secondary" href="/public-node/route-index.json">Route Index</a>
   </p>
@@ -46026,6 +46026,90 @@ APP.get("/public-node/skeptic/external-reachability-boundary-v1.json", (_req:any
   });
 });
 
+
+APP.get("/public-node/datanet", (_req:any, res:any) => { // VOID_DATANET_PRIORITY_LANDING_ROUTE_V1
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID DataNet</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:1040px;margin:0 auto;padding:38px 18px}
+.hero{border:1px solid #263244;background:linear-gradient(135deg,#0d1321,#111827);border-radius:18px;padding:24px;margin:16px 0}
+.card{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+a{color:#93c5fd;text-decoration:none}
+a:hover{text-decoration:underline}
+.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none}
+.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+.ok{color:#86efac}.warn{color:#fbbf24}code{background:#111827;padding:2px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><!-- VOID_DATANET_PRIORITY_LANDING_V1 -->
+  <h1>VOID DataNet</h1>
+  <p>DataNet is VOID's public verification lane for content, datasets, retrieval receipts, and future contribution review.</p>
+  <p>
+    <a class="btn" href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Verify DataNet</a>
+    <a class="btn" href="/participant">Earn WC</a>
+    <a class="btn secondary" href="/buy-void">Fund VOID</a>
+    <a class="btn secondary" href="/public-node">Inspect Public Proof</a>
+  </p>
+  <span class="badge">read-only public proof</span>
+  <span class="badge">no public mutation</span>
+  <span class="badge">no WC ledger write</span>
+  <span class="badge">no automatic award</span>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>1. Verify Data</h2>
+    <p>Start with the public DataNet challenge. It exposes a bounded dataset packet selected through public-safe routes.</p>
+    <p><a href="/public-node/datanet/challenge/demo003-folder-fixture-v1">Open challenge →</a></p>
+    <p><a href="/public-node/datanet/challenge-offline-verify-pack-v1.json">Offline verify pack →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Inspect Receipts</h2>
+    <p>Receipts prove retrieval, manifest discovery, object fetch, SHA verification, and byte match.</p>
+    <p><a href="/public-node/datanet/published-retrieval-receipt-v1.json">Published retrieval receipt →</a></p>
+    <p><a href="/public-node/datanet/published-dataset-registry-v1.json">Published dataset registry →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>3. Candidate for WC Review</h2>
+    <p>Verified useful work may become a Work Credit review candidate. It is not automatic and it is not a faucet.</p>
+    <p><a href="/public-node/datanet/published-retrieval-wc-candidate-boundary-v1.json">WC candidate boundary →</a></p>
+    <p><a href="/public-node/datanet/published-retrieval-operator-review-packet-v1.json">Operator review packet →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>4. Guard the Core</h2>
+    <p>DataNet public routes are read-only. They do not write ledgers, award WC, move money, expose private paths, or run shell commands.</p>
+    <ul>
+      <li class="ok">public mutation: false</li>
+      <li class="ok">ledger write: false</li>
+      <li class="ok">WC award now: false</li>
+      <li class="ok">operator review required</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Funding stays visible</h2>
+  <p>VOID development still needs support. Funding is guarded, manually reviewed, and separate from DataNet verification or WC review.</p>
+  <p><a href="/buy-void">Fund VOID →</a> · <a href="/funding">Funding status →</a></p>
+</section>
+</main>
+</body>
+</html>`);
+});
+
+
 APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1
   res.json({
     marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
@@ -46034,6 +46118,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
     routes: [
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
