@@ -57877,6 +57877,29 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
   </section>
 
 
+  <section class="card" id="publicNodeFundingGatewayCard"><!-- VOID_FUNDING_GATEWAY_CARD_UI_V1 -->
+    <div class="muted">Funding path</div>
+    <h2>Fund VOID — guarded request lane</h2>
+    <p>VOID funding is now visible from the public node dashboard as a guarded request path, not an automatic sale, delivery, investment contract, yield product, or wallet-send route.</p>
+    <ul>
+      <li><span class="warn">Manual review required:</span> <code>true</code></li>
+      <li><span class="good">Automatic token delivery:</span> <code>false</code></li>
+      <li><span class="good">Wallet send from public page:</span> <code>false</code></li>
+      <li><span class="good">Money movement from public page:</span> <code>false</code></li>
+      <li><span class="good">Investment return promised:</span> <code>false</code></li>
+      <li><span class="good">Yield claim:</span> <code>false</code></li>
+    </ul>
+    <p class="muted"><b>Boundary:</b> This card routes humans to funding information and guarded request intake only. It does not expose operator queues, private payment verification, treasury controls, keys, wallets, or fulfillment tools.</p>
+    <p>
+      <a class="btn" id="publicNodeFundingGatewayOpenPathLink" href="/public-node/funding">Open funding path</a>
+      <a class="btn" id="publicNodeFundingGatewayBuyVoidLink" href="/buy-void">Guarded Buy VOID request</a>
+      <a class="btn" id="publicNodeFundingGatewayStatusLink" href="/funding">Funding status</a>
+      <a class="btn" id="publicNodeFundingGatewayTriadSealLink" href="/public-node/triad-seal-v1.json">Triad seal</a>
+    </p>
+    <p class="muted">Proof: <code>VOID_FUNDING_GATEWAY_CARD_UI_V1</code></p>
+  </section>
+
+
   <section class="card" id="publicNodeSkepticAuditReadinessCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_UI_V1 -->
     <div class="muted">Security disclosure</div>
     <h2>Public Surface Skeptic &amp; Audit Index (V1)</h2>
