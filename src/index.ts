@@ -16468,6 +16468,7 @@ small{color:#94a3b8}
     <p><a href="/public-node/route-index.json">Public route index →</a></p>
     <p><a href="/public-node/triad-seal-v1.json">Public gateway triad seal →</a></p>
     <p><a href="/public-node/skeptic-audit-readiness.json">Skeptic audit readiness →</a></p>
+    <p><a href="/public-node/reviewer-handoff-v1">Reviewer handoff →</a></p>
   </div>
 
   <div class="card">
@@ -46026,6 +46027,111 @@ APP.get("/public-node/skeptic/external-reachability-boundary-v1.json", (_req:any
     ],
     proof_notice: "This boundary verifies disclosure alignment only. It does not claim production uptime, global reachability, DDoS resistance, automatic failover, or validator readiness."
   });
+});
+
+
+
+APP.get("/public-node/reviewer-handoff-v1.json", (_req:any, res:any) => { // VOID_PUBLIC_REVIEWER_HANDOFF_RUNTIME_CARD_ROUTE_V1
+  res.json({
+    ok: true,
+    marker: "VOID_PUBLIC_REVIEWER_HANDOFF_RUNTIME_CARD_V1",
+    route: "/public-node/reviewer-handoff-v1.json",
+    html_route: "/public-node/reviewer-handoff-v1",
+    purpose: "human_reviewer_runtime_handoff_card",
+    source_doc: "docs/public/public-reviewer-handoff-note-v1.md",
+    sealed_base: {
+      public_reviewer_handoff_note_green: "VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1_GREEN",
+      reviewer_public_evidence_packet_green: "VOID_REVIEWER_PUBLIC_EVIDENCE_PACKET_V1_GREEN",
+      reviewer_public_evidence_packet_closeout_green: "VOID_REVIEWER_PUBLIC_EVIDENCE_PACKET_CLOSEOUT_SEAL_V1_GREEN",
+      public_surface_safety_index_green: "VOID_PUBLIC_SURFACE_SAFETY_INDEX_V1_GREEN",
+      public_mutation_boundary_green: "VOID_PUBLIC_MUTATION_METHOD_BOUNDARY_AUDIT_V1_GREEN",
+      funding_gateway_card_green: "VOID_FUNDING_GATEWAY_CARD_V1_GREEN"
+    },
+    reviewer_start_here: [
+      "/version",
+      "/public-node",
+      "/public-node/funding",
+      "/buy-void",
+      "/public-node/datanet/explorer-v1",
+      "/public-node/route-index.json",
+      "/public-node/skeptic-audit-readiness.json"
+    ],
+    reviewer_checks: [
+      "deployed_git_commit_matches_expected_head",
+      "public_evidence_routes_are_readable",
+      "funding_surface_is_read_only",
+      "datanet_evidence_is_read_only",
+      "no_public_mutation_handlers_under_public_node"
+    ],
+    safety: {
+      runtime_card_only: true,
+      read_only: true,
+      public_intake_open_now: false,
+      public_mutation_open_now: false,
+      funding_surface_read_only: true,
+      datanet_evidence_read_only: true,
+      wallet_send_closed: true,
+      money_movement_closed: true,
+      wc_award_mutation_closed: true,
+      validator_admission_mutation_closed: true,
+      datanet_public_ingest_mutation_closed: true
+    }
+  });
+});
+
+APP.get("/public-node/reviewer-handoff-v1", (_req:any, res:any) => { // VOID_PUBLIC_REVIEWER_HANDOFF_RUNTIME_CARD_HTML_ROUTE_V1
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>VOID Public Reviewer Handoff v1</title>
+  <style>
+    body{font-family:system-ui,Arial,sans-serif;background:#080811;color:#e8ecff;margin:0;padding:32px;line-height:1.45}
+    main{max-width:960px;margin:0 auto}
+    a{color:#8ee8ff}
+    .card{border:1px solid #30365f;border-radius:16px;padding:20px;margin:18px 0;background:#101225}
+    .badge{display:inline-block;border:1px solid #5661a8;border-radius:999px;padding:4px 10px;margin:4px;color:#cfd6ff}
+    code{background:#050713;border:1px solid #252a50;border-radius:6px;padding:2px 6px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>VOID Public Reviewer Handoff v1</h1>
+  <p><code>VOID_PUBLIC_REVIEWER_HANDOFF_RUNTIME_CARD_V1</code></p>
+  <p>This is a read-only reviewer starting point for inspecting VOID public evidence.</p>
+
+  <div class="card">
+    <h2>Start here</h2>
+    <p><a href="/version">/version</a></p>
+    <p><a href="/public-node">/public-node</a></p>
+    <p><a href="/public-node/funding">/public-node/funding</a></p>
+    <p><a href="/buy-void">/buy-void</a></p>
+    <p><a href="/public-node/datanet/explorer-v1">/public-node/datanet/explorer-v1</a></p>
+    <p><a href="/public-node/route-index.json">/public-node/route-index.json</a></p>
+    <p><a href="/public-node/skeptic-audit-readiness.json">/public-node/skeptic-audit-readiness.json</a></p>
+    <p><a href="/public-node/reviewer-handoff-v1.json">JSON card →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Sealed state</h2>
+    <span class="badge">read-only</span>
+    <span class="badge">public intake closed</span>
+    <span class="badge">public mutation closed</span>
+    <span class="badge">wallet send closed</span>
+    <span class="badge">WC award mutation closed</span>
+    <span class="badge">validator admission closed</span>
+    <span class="badge">DataNet public ingest closed</span>
+  </div>
+
+  <div class="card">
+    <h2>Reviewer checks</h2>
+    <p>Verify deployed commit, readable evidence routes, read-only funding/DataNet evidence, and zero public-node mutation handlers.</p>
+  </div>
+
+  <p><a href="/">Home</a> · <a href="/public-node">Public node</a> · <a href="/public-node/route-index.json">Route index</a></p>
+</main>
+</body>
+</html>`);
 });
 
 
