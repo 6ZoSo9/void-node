@@ -46039,6 +46039,15 @@ APP.get("/public-node/reviewer-handoff-v1.json", (_req:any, res:any) => { // VOI
     html_route: "/public-node/reviewer-handoff-v1",
     purpose: "human_reviewer_runtime_handoff_card",
     source_doc: "docs/public/public-reviewer-handoff-note-v1.md",
+    smoke_pack: {
+      marker: "VOID_PUBLIC_REVIEWER_SMOKE_PACK_RUNTIME_POINTER_V1",
+      proof_marker: "VOID_PUBLIC_REVIEWER_ONE_COMMAND_SMOKE_PACK_V1_GREEN",
+      closeout_marker: "VOID_PUBLIC_REVIEWER_ONE_COMMAND_SMOKE_PACK_CLOSEOUT_SEAL_V1_GREEN",
+      source_doc: "docs/public/public-reviewer-one-command-smoke-pack-v1.md",
+      reviewer_success_marker: "VOID_PUBLIC_REVIEWER_ONE_COMMAND_SMOKE_PACK_V1_REVIEWER_GREEN",
+      public_route_added: false,
+      route_count_expected: 159
+    },
     sealed_base: {
       public_reviewer_handoff_note_green: "VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1_GREEN",
       reviewer_public_evidence_packet_green: "VOID_REVIEWER_PUBLIC_EVIDENCE_PACKET_V1_GREEN",
@@ -46126,6 +46135,15 @@ APP.get("/public-node/reviewer-handoff-v1", (_req:any, res:any) => { // VOID_PUB
   <div class="card">
     <h2>Reviewer checks</h2>
     <p>Verify deployed commit, readable evidence routes, read-only funding/DataNet evidence, and zero public-node mutation handlers.</p>
+  </div>
+
+  <div class="card">
+    <h2>One-command smoke pack</h2>
+    <p><code>VOID_PUBLIC_REVIEWER_SMOKE_PACK_RUNTIME_POINTER_V1</code></p>
+    <p>The reviewer smoke pack is sealed docs/proof-only and gives a copy/paste public-surface check.</p>
+    <p><a href="/public-node/reviewer-handoff-v1.json">Inspect JSON pointer →</a></p>
+    <pre><code>BASE="https://zoso-alienware-aurora-r7.taila47fd.ts.net"; curl -fsS "$BASE/version" | grep -F '"ok":true'; curl -fsS "$BASE/public-node/reviewer-handoff-v1.json" | grep -F "VOID_PUBLIC_REVIEWER_HANDOFF_RUNTIME_CARD_V1"; echo "VOID_PUBLIC_REVIEWER_ONE_COMMAND_SMOKE_PACK_V1_REVIEWER_GREEN"</code></pre>
+    <p>Full source doc: <code>docs/public/public-reviewer-one-command-smoke-pack-v1.md</code></p>
   </div>
 
   <p><a href="/">Home</a> · <a href="/public-node">Public node</a> · <a href="/public-node/route-index.json">Route index</a></p>
