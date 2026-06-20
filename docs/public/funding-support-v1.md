@@ -70,3 +70,22 @@ Public entrypoints:
 Current public URL:
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
+
+## Funding engine focus
+
+The funding engine focus packet explains why VOID funding is tied to the core system loop:
+
+Funding -> Work Credits -> DataNet -> Validators -> Trust -> more funding and participation.
+
+Public packet:
+- docs/public/public-node-funding-engine-focus-packet-v1.md
+
+Marker:
+- VOID_FUNDING_ENGINE_FOCUS_PACKET_V1
+
+Safety:
+- funding does not skip work verification
+- funding does not automatically award Work Credits
+- funding does not open public mutation
+- funding does not create an investment-return promise
+- funding does not create automatic fulfillment
