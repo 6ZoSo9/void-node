@@ -89,3 +89,28 @@ Safety:
 - funding does not open public mutation
 - funding does not create an investment-return promise
 - funding does not create automatic fulfillment
+
+## Funding packet index
+
+Start here for the public funding packet ladder.
+
+Public packet index:
+- docs/public/public-node-funding-packet-index-v1.md
+
+Marker:
+- VOID_FUNDING_PACKET_INDEX_V1
+
+The index links:
+- Funding Support v1
+- Funding Engine Focus Packet v1
+- Funding Needs Matrix v1
+- Funding Supporter Action Packet v1
+
+Safety:
+- no funds moved by the index
+- no payment link created by the index
+- no return promise
+- no automatic fulfillment
+- no automatic Work Credit award
+- no validator admission promise
+- no public mutation access
