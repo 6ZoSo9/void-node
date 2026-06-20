@@ -46288,6 +46288,20 @@ a:hover{text-decoration:underline}
   </div>
 </section>
 
+<section class="card"><!-- VOID_FUNDING_RUNTIME_ROUTE_V1 -->
+  <h2>Funding packet ladder</h2>
+  <p>Start with the funding packet index for the public funding ladder: support, focus, needs, and supporter action packets.</p>
+  <p><code>docs/public/public-node-funding-packet-index-v1.md</code></p>
+  <p><code>VOID_FUNDING_PACKET_INDEX_V1</code></p>
+  <ul>
+    <li class="ok">no funds moved by this page</li>
+    <li class="ok">no payment link created by this page</li>
+    <li class="ok">no automatic Work Credit award</li>
+    <li class="ok">no validator admission promise</li>
+    <li class="ok">no public mutation access</li>
+  </ul>
+</section>
+
 <section class="card">
   <h2>How this fits the public triad</h2>
   <p>Funding, Work Credits, and DataNet are connected but separate: funding supports VOID, WC tracks verified useful contribution, and DataNet provides public verification surfaces.</p>

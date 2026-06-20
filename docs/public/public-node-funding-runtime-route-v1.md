@@ -1,0 +1,27 @@
+# VOID Funding Runtime Route v1
+
+marker=VOID_FUNDING_RUNTIME_ROUTE_V1
+route=/public-node/funding
+route_kind=html
+route_state=read_only
+route_base_marker=VOID_FUNDING_PATH_TIGHTEN_V1
+funding_packet_index_marker=VOID_FUNDING_PACKET_INDEX_V1
+funding_packet_index_doc=docs/public/public-node-funding-packet-index-v1.md
+
+runtime_change=existing_route_extended_no_duplicate_route
+runtime_route_added_now=false
+existing_route_mutated_now=true
+route_index_already_contains_funding_route=true
+service_restart_required_after_deploy=true
+
+page_adds_funding_packet_ladder=true
+page_exposes_packet_index_marker=true
+page_exposes_packet_index_doc_path=true
+
+no_funds_moved=true
+no_payment_link_created=true
+no_return_promise=true
+no_automatic_fulfillment=true
+no_automatic_wc_award=true
+no_validator_admission_promise=true
+no_public_mutation_access=true
