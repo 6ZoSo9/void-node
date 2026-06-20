@@ -49,8 +49,8 @@ It does not modify `src/index.ts`.
 - public_node_literal_mutation_handler_count=0
 - public_route_duplicate_count=0
 - literal_mutation_handler_count=118
-- public_literal_get_count=157
-- public_literal_get_unique_count=157
+- public_literal_get_count=159
+- public_literal_get_unique_count=159
 - public_literal_get_duplicate_count=0
 
 ## Closed authorities
@@ -109,3 +109,33 @@ VOID public surfaces are currently safe to inspect.
 They are not open for public intake, public mutation, public ledger writes, wallet sends, money movement, Work Credit awards, validator admission, or DataNet public ingest.
 
 The public surface is read-only by default.
+
+
+## Reviewer handoff runtime card refresh
+
+Marker: `VOID_PUBLIC_SURFACE_SAFETY_INDEX_REVIEWER_HANDOFF_RUNTIME_CARD_REFRESH_V1`
+
+This refresh records the public-route count after Public Reviewer Handoff Runtime Card v1.
+
+Routes accounted for:
+
+- `/public-node/reviewer-handoff-v1.json`
+- `/public-node/reviewer-handoff-v1`
+
+Updated public route audit values:
+
+- public_literal_get_count=159
+- public_literal_get_unique_count=159
+- public_literal_get_duplicate_count=0
+
+Safety state remains unchanged:
+
+- public_intake_open_now=false
+- public_mutation_open_now=false
+- public_node_literal_mutation_handler_count=0
+- ledger_write_closed=true
+- wallet_send_closed=true
+- money_movement_closed=true
+- wc_award_mutation_closed=true
+- validator_admission_mutation_closed=true
+- datanet_public_ingest_mutation_closed=true

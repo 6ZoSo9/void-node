@@ -16,6 +16,7 @@ closeout_proof="ops/mainnet0/public-intake-gate-closeout-seal-v1-proof.sh"
 funding_proof="ops/mainnet0/funding-gateway-card-v1-proof.sh"
 
 grep -F "VOID_PUBLIC_SURFACE_SAFETY_INDEX_DOC_V1" "$doc" >/dev/null
+grep -F "VOID_PUBLIC_SURFACE_SAFETY_INDEX_REVIEWER_HANDOFF_RUNTIME_CARD_REFRESH_V1" "$doc" >/dev/null
 grep -F "docs/proof-only index" "$doc" >/dev/null
 grep -F "does not open public intake" "$doc" >/dev/null
 grep -F "does not open public mutation" "$doc" >/dev/null
@@ -38,8 +39,8 @@ grep -F "public_node_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_node_literal_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_route_duplicate_count=0" "$doc" >/dev/null
 grep -F "literal_mutation_handler_count=118" "$doc" >/dev/null
-grep -F "public_literal_get_count=157" "$doc" >/dev/null
-grep -F "public_literal_get_unique_count=157" "$doc" >/dev/null
+grep -F "public_literal_get_count=159" "$doc" >/dev/null
+grep -F "public_literal_get_unique_count=159" "$doc" >/dev/null
 grep -F "public_literal_get_duplicate_count=0" "$doc" >/dev/null
 
 grep -F "ledger_write_closed=true" "$doc" >/dev/null
@@ -75,8 +76,8 @@ grep -F "VOID_RUNTIME_ROUTE_PATCH_SAFETY_PREFLIGHT_V1_GREEN" /tmp/void-public-sa
 
 bash "$route_audit" >/tmp/void-public-safety-index-route-audit.out
 grep -F "VOID_PUBLIC_SURFACE_ROUTE_REGISTRY_SAFETY_AUDIT_V1_GREEN" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_count=157" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_unique_count=157" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_count=159" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_unique_count=159" /tmp/void-public-safety-index-route-audit.out >/dev/null
 grep -F "public_literal_get_duplicate_count=0" /tmp/void-public-safety-index-route-audit.out >/dev/null
 
 bash "$guardrail_proof" >/tmp/void-public-safety-index-guardrail-proof.out
