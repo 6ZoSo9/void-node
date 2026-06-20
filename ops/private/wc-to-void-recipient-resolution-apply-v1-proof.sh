@@ -69,7 +69,10 @@ grep -F '"private_execute_command_release_allowed": false' /tmp/void-wc-to-void-
 grep -F '"money_movement_still_not_performed": true' /tmp/void-wc-to-void-recipient-resolution-apply-v1-current.json >/dev/null
 grep -F '"does_not_send_void": true' /tmp/void-wc-to-void-recipient-resolution-apply-v1-current.json >/dev/null
 
-bash ops/private/wc-to-void-recipient-resolution-v1-proof.sh >/tmp/void-wc-to-void-recipient-apply-resolution-proof.out
+env -u VOID_WC_TO_VOID_RECIPIENT_ADDRESS \
+  -u VOID_WC_TO_VOID_RECIPIENT_LABEL \
+  -u VOID_WC_TO_VOID_RECIPIENT_RESOLUTION_OUT \
+  bash ops/private/wc-to-void-recipient-resolution-v1-proof.sh >/tmp/void-wc-to-void-recipient-apply-resolution-proof.out
 grep -F 'VOID_WC_TO_VOID_RECIPIENT_RESOLUTION_V1_PROOF_GREEN' /tmp/void-wc-to-void-recipient-apply-resolution-proof.out >/dev/null
 
 bash ops/mainnet0/public-mutation-method-boundary-audit-v1.sh >/tmp/void-wc-to-void-recipient-apply-mutation.out
