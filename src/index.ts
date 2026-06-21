@@ -58033,18 +58033,21 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p>The first real WC → native VOID settlement has a public, redacted, read-only evidence pack for reviewers. It exposes transaction facts and proof boundaries without plaintext party addresses, keys, private ledger contents, wallet-send controls, RPC calls, or public mutation authority.</p>
     <ul>
       <li><span class="good">Public evidence pack:</span> <code>live</code></li>
+      <li><span class="good">Public closeout seal:</span> <code>live</code></li><!-- VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1 -->
       <li><span class="good">Plaintext addresses redacted:</span> <code>true</code></li>
       <li><span class="good">Private settlement ledger served publicly:</span> <code>false</code></li>
       <li><span class="good">Public mutation path:</span> <code>false</code></li>
       <li><span class="good">Public wallet send / RPC call:</span> <code>false</code></li>
     </ul>
     <p>
+      <a class="btn" id="publicNodeWcToVoidCloseoutSealHtmlLink" href="/public-node/wc-to-void/settlement-evidence-closeout-seal-v1">Open closeout seal</a>
+      <a class="btn" id="publicNodeWcToVoidCloseoutSealJsonLink" href="/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json">Closeout JSON</a>
       <a class="btn" id="publicNodeWcToVoidEvidencePackHtmlLink" href="/public-node/wc-to-void/settlement-evidence-pack-v1">Open evidence pack</a>
       <a class="btn" id="publicNodeWcToVoidEvidencePackJsonLink" href="/public-node/wc-to-void/settlement-evidence-pack-v1.json">Evidence JSON</a>
       <a class="btn" id="publicNodeWcToVoidRedactedReceiptJsonLink" href="/public-node/wc-to-void/redacted-settlement-receipt-v1.json">Redacted receipt JSON</a>
       <a class="btn" id="publicNodeWcToVoidDiscoveryRouteIndexLink" href="/public-node/route-index.json">Route index</a>
     </p>
-    <p class="muted">Proof: <code>VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1</code> · Boundary: <code>read_only=true</code> · <code>public_mutation=false</code></p>
+    <p class="muted">Proof: <code>VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1</code> · <code>VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1</code> · Boundary: <code>read_only=true</code> · <code>public_mutation=false</code></p>
   </section>
 
 
