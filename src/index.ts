@@ -16493,6 +16493,24 @@ small{color:#94a3b8}
   <p><a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net">https://zoso-alienware-aurora-r7.taila47fd.ts.net</a></p>
   <small>voidchain.io and nullfeed.io are DNS identity assets. Domains are names; VOID nodes are the host. The seed proves itself through public JSON routes.</small>
 </section>
+
+        <section class="card">
+          <h2>WC → VOID Settlement Complete</h2>
+          <p><strong>Marker:</strong> VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_DASHBOARD_CARD_V1</p>
+          <p>The first Work Credits to native VOID settlement evidence chain is sealed and live-indexed.</p>
+          <ul>
+            <li><strong>Status:</strong> sealed_live_index_ready</li>
+            <li><strong>Chain ID:</strong> 2050</li>
+            <li><strong>Tx:</strong> 0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717</li>
+            <li><strong>Value:</strong> 1.000000 VOID</li>
+          </ul>
+          <p>
+            <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1">Final public index</a>
+            · <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json">Final public index JSON</a>
+            · <a href="/public-node/wc-to-void/public-reviewer-verify-pack-v1">Reviewer verify pack</a>
+          </p>
+        </section>
+
 </main>
 </body>
 </html>`);
