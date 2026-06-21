@@ -17,6 +17,8 @@ grep -F 'b76db82f5a3a86e4fb2d3e5800327d1618108c24c721aed1222737f7ff99d9c9' "$scr
 grep -F '70f6d039f51576ee4cf0c5686bb639806323c545da233533693f83ea501c2eb6' "$script" >/dev/null
 grep -F 'private_key_seen_by_chat_or_repo' "$script" >/dev/null
 grep -F 'plaintext_recipient_address_written_to_repo' "$script" >/dev/null
+grep -F 'eth_getTransactionReceipt' "$script" >/dev/null
+grep -F 'eth_getTransactionByHash' "$script" >/dev/null
 
 if grep -E 'PRIVATE_KEY=|MNEMONIC=|seed phrase' "$script" >/dev/null; then
   echo "forbidden private key material reference found" >&2

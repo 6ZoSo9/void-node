@@ -32,12 +32,30 @@ if [ "$tx_hash" != "$expected_tx_hash" ]; then
   exit 4
 fi
 
-chain_id="$(cast chain-id --rpc-url "$rpc")"
 receipt_json="/tmp/void-wc-to-void-post-execution-settlement-record-v1-receipt.json"
 tx_json="/tmp/void-wc-to-void-post-execution-settlement-record-v1-tx.json"
 
-cast receipt "$tx_hash" --rpc-url "$rpc" --json > "$receipt_json"
-cast tx "$tx_hash" --rpc-url "$rpc" --json > "$tx_json"
+if command -v cast >/dev/null 2>&1; then
+  chain_id="$(cast chain-id --rpc-url "$rpc")"
+  cast receipt "$tx_hash" --rpc-url "$rpc" --json > "$receipt_json"
+  cast tx "$tx_hash" --rpc-url "$rpc" --json > "$tx_json"
+else
+  command -v curl >/dev/null 2>&1
+  chain_hex="$(curl -fsS -H 'content-type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+    "$rpc" | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"])')"
+  chain_id="$(python3 - "$chain_hex" <<'PY2'
+import sys
+print(int(sys.argv[1], 16))
+PY2
+)"
+  curl -fsS -H 'content-type: application/json' \
+    --data '{"jsonrpc":"2.0","id":2,"method":"eth_getTransactionReceipt","params":["'"$tx_hash"'"]}' \
+    "$rpc" | python3 -c 'import json,sys; r=json.load(sys.stdin)["result"]; assert r is not None; print(json.dumps(r))' > "$receipt_json"
+  curl -fsS -H 'content-type: application/json' \
+    --data '{"jsonrpc":"2.0","id":3,"method":"eth_getTransactionByHash","params":["'"$tx_hash"'"]}' \
+    "$rpc" | python3 -c 'import json,sys; r=json.load(sys.stdin)["result"]; assert r is not None; print(json.dumps(r))' > "$tx_json"
+fi
 
 python3 - "$receipt_json" "$tx_json" "$out" "$ledger" "$chain_id" \
   "$expected_tx_hash" "$expected_chain_id" "$expected_value_wei" "$expected_value_void" \
