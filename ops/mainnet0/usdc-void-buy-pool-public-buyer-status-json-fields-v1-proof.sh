@@ -37,9 +37,6 @@ from pathlib import Path
 s = Path("src/index.ts").read_text()
 
 marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1"
-m = s.find(marker)
-if m < 0:
-    raise SystemExit("buyer_status_json_marker_missing")
 
 json_path = "/public-node/buy-pool/usdc-void-v1.json"
 route_patterns = [
@@ -65,23 +62,20 @@ fixed_marker_pos = s.find(fixed_page_marker)
 if fixed_marker_pos < 0:
     raise SystemExit("fixed_price_buy_pool_public_page_marker_missing")
 
-# Valid source placement:
-# 1. fields are in the shared buy-pool public JSON object before the JSON route, or
-# 2. fields are inline inside the JSON route before the next route.
 next_route_after_json = s.find('.get("', route_start + 1)
 if next_route_after_json < 0:
     next_route_after_json = len(s)
 
-in_shared_public_object = fixed_marker_pos <= m < route_start
-in_inline_json_route = route_start <= m < next_route_after_json
+marker_positions = []
+pos = s.find(marker)
+while pos >= 0:
+    marker_positions.append(pos)
+    pos = s.find(marker, pos + 1)
 
-if not (in_shared_public_object or in_inline_json_route):
-    raise SystemExit(
-        "buyer_status_json_marker_bad_placement "
-        f"marker={m} fixed_marker={fixed_marker_pos} route_start={route_start} next_route={next_route_after_json}"
-    )
+if not marker_positions:
+    raise SystemExit("buyer_status_json_marker_missing")
 
-for token in [
+required_tokens = [
     "buyer_status_marker",
     "buyer_status",
     "buy_pool_quote_public_readable",
@@ -94,11 +88,33 @@ for token in [
     "private_buyer_payment_records_exposed",
     "wallet_keys_exposed",
     "send_commands_exposed",
-]:
-    t = s.find(token, max(0, m - 500), m + 1800)
-    if t < 0:
-        raise SystemExit(f"buyer_status_json_token_not_near_marker={token}")
+]
 
+valid = []
+for m in marker_positions:
+    in_shared_public_object = fixed_marker_pos <= m < route_start
+    in_inline_json_route = route_start <= m < next_route_after_json
+    if not (in_shared_public_object or in_inline_json_route):
+        continue
+
+    ok = True
+    for token in required_tokens:
+        t = s.find(token, max(0, m - 500), m + 1800)
+        if t < 0:
+            ok = False
+            break
+    if ok:
+        valid.append((m, in_shared_public_object, in_inline_json_route))
+
+if not valid:
+    raise SystemExit(
+        "buyer_status_json_no_valid_marker_placement "
+        f"marker_positions={marker_positions} fixed_marker={fixed_marker_pos} route_start={route_start} next_route={next_route_after_json}"
+    )
+
+m, in_shared_public_object, in_inline_json_route = valid[0]
+print(f"buyer_status_json_marker_occurrences={len(marker_positions)}")
+print(f"buyer_status_json_valid_marker={m}")
 print(f"buyer_status_json_marker_placement=shared_public_object:{in_shared_public_object},inline_json_route:{in_inline_json_route}")
 print("buyer_status_json_fields_public_route_source_green=true")
 PY
