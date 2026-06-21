@@ -78667,8 +78667,19 @@ if (!__voidTryMountUsdcVoidFixedPriceBuyPoolPublicPageV1()) {
 }
 
 // VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_RUNTIME_ROUTES_V1
-app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
-  res.type("html").send(`<!doctype html>
+const __voidUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1State = {
+  mounted: false,
+  attempts: 0,
+};
+
+function __voidMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1(appLike: any): boolean {
+  if (__voidUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1State.mounted) return true;
+  if (!appLike || typeof appLike.get !== "function") return false;
+
+  const runtimeApp = appLike;
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
+    res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -78715,10 +78726,10 @@ code{word-break:break-all;background:#020617;border:1px solid #263244;border-rad
 </main>
 </body>
 </html>`);
-});
+  });
 
-app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1", (_req:any, res:any) => {
-  res.type("html").send(`<!doctype html>
+  runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1", (_req:any, res:any) => {
+    res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -78757,5 +78768,28 @@ code{word-break:break-all;background:#020617;border:1px solid #263244;border-rad
 </main>
 </body>
 </html>`);
-});
+  });
 
+  __voidUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1State.mounted = true;
+  return true;
+}
+
+function __voidTryMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1(): void {
+  const g: any = globalThis as any;
+  const appLike = g.__void_http_app || g.APP || g.app;
+
+  if (__voidMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1(appLike)) {
+    console.log("[usdc-void-buy-pool.execution-hold-status.runtime-routes.v1] mounted");
+    return;
+  }
+
+  __voidUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1State.attempts += 1;
+
+  if (__voidUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1State.attempts <= 100) {
+    setTimeout(__voidTryMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1, 250);
+  } else {
+    console.log("[usdc-void-buy-pool.execution-hold-status.runtime-routes.v1] no app hook; routes not mounted");
+  }
+}
+
+__voidTryMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1();
