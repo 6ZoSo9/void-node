@@ -17455,6 +17455,12 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
   <p><a href="/__void/buy-void/sale-state.json">Sale state JSON</a></p>
 </section>
 
+
+<section class="card"><!-- VOID_BUY_POOL_LINK_BUY_VOID_V1 -->
+  <h2>Fixed-price buy pool proof page</h2>
+  <p>The current USDC → VOID public buy pool is exposed as a public proof page with the fixed price, pool size, self-custody rule, and exchange-send warning.</p>
+  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Fixed Price Buy Pool v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+</section>
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_REQUEST_FORM_V1 -->
   <h2>Start a Buy VOID request</h2>
   <p>This creates a guarded request record. It does not automatically fulfill VOID.</p>
@@ -17603,7 +17609,13 @@ code{background:#111827;padding:2px 5px;border-radius:5px}
 <body>
 <main>
 <h1>VOID Network Funding</h1>
-<p><b>VOID is publicly reachable now.</b> Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
+<p><b>VOID is publicly reachable now.</b> 
+<section class="card"><!-- VOID_BUY_POOL_LINK_FUNDING_V1 -->
+  <h2>USDC → VOID fixed-price buy pool</h2>
+  <p>The public fixed-price buy pool is the current money lane: 10,000,000 VOID at $0.50 USDC per VOID, self-custody wallet only, no exchange sends.</p>
+  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Fixed Price Buy Pool v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+</section>
+Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
 
 <div class="card">
 <h2>Current funding model</h2>
@@ -58086,6 +58098,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <p><strong>Marker:</strong> VOID_MONEY_ENGINE_ALIGNMENT_V1</p>
       <p>USDC/VOID pair + DataNet paid work + Work Credits settlement flywheel.</p>
       <p><a href="/public-node/money-engine-v1">Open Money Engine v1</a> · <a href="/public-node/money-engine-v1.json">JSON</a></p>
+      <p><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_LINK_INTEGRATION_V1 --><!-- VOID_BUY_POOL_LINK_PUBLIC_NODE_V1 --><strong>USDC → VOID Buy Pool:</strong> <a href="/public-node/buy-pool/usdc-void-v1">Open fixed-price buy pool</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
     </section>
 <section class="card">
           <h2>WC → VOID Settlement Complete</h2>
@@ -78197,6 +78210,8 @@ const VOID_MONEY_ENGINE_ALIGNMENT_V1 = {
     "public money engine dashboard rollup"
   ],
   public_links: [
+    // VOID_BUY_POOL_LINK_MONEY_ENGINE_V1
+    { label: "USDC/VOID Fixed Price Buy Pool", href: "/public-node/buy-pool/usdc-void-v1" },
     {
       label: "WC to VOID settlement final public index",
       href: "/public-node/wc-to-void/settlement-evidence-final-public-index-v1"
