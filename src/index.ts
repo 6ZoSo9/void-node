@@ -46395,6 +46395,8 @@ a:hover{text-decoration:underline}
   <p class="warn"><b>Manual review required. No automatic token delivery. No investment return, yield, or profit is promised.</b></p>
   <p>
     <a class="btn" href="/buy-void">Open guarded Buy VOID request</a>
+    <a class="btn" href="/public-node/buy-pool/usdc-void-v1"><!-- VOID_BUY_POOL_LINK_PUBLIC_NODE_FUNDING_DIRECT_V1 -->Open fixed-price USDC → VOID buy pool</a>
+    <a class="btn secondary" href="/public-node/buy-pool/usdc-void-v1.json">Buy pool JSON</a>
     <a class="btn secondary" href="/funding">Read funding status</a>
     <a class="btn secondary" href="/public-node/wc">Earn WC</a>
     <a class="btn secondary" href="/public-node/datanet">Verify DataNet</a>
