@@ -47899,6 +47899,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
+      { path: "/public-node/wc-to-void/settlement-evidence-pack-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1", use: "public read-only evidence pack for first WC to native VOID settlement; redacted; no public mutation; no wallet send; no RPC call" },
+      { path: "/public-node/wc-to-void/settlement-evidence-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1", use: "human reviewer page for first WC to native VOID settlement evidence pack; links receipt and boundary facts" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
@@ -58021,6 +58023,26 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <a class="btn" id="publicNodeFundingGatewayTriadSealLink" href="/public-node/triad-seal-v1.json">Triad seal</a>
     </p>
     <p class="muted">Proof: <code>VOID_FUNDING_GATEWAY_CARD_UI_V1</code></p>
+  </section>
+
+  <section class="card" id="publicNodeWcToVoidEvidencePackDiscoveryCard"><!-- VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1 -->
+    <div class="muted">WC → VOID settlement evidence</div>
+    <h2>First WC → VOID settlement evidence pack</h2>
+    <p>The first real WC → native VOID settlement has a public, redacted, read-only evidence pack for reviewers. It exposes transaction facts and proof boundaries without plaintext party addresses, keys, private ledger contents, wallet-send controls, RPC calls, or public mutation authority.</p>
+    <ul>
+      <li><span class="good">Public evidence pack:</span> <code>live</code></li>
+      <li><span class="good">Plaintext addresses redacted:</span> <code>true</code></li>
+      <li><span class="good">Private settlement ledger served publicly:</span> <code>false</code></li>
+      <li><span class="good">Public mutation path:</span> <code>false</code></li>
+      <li><span class="good">Public wallet send / RPC call:</span> <code>false</code></li>
+    </ul>
+    <p>
+      <a class="btn" id="publicNodeWcToVoidEvidencePackHtmlLink" href="/public-node/wc-to-void/settlement-evidence-pack-v1">Open evidence pack</a>
+      <a class="btn" id="publicNodeWcToVoidEvidencePackJsonLink" href="/public-node/wc-to-void/settlement-evidence-pack-v1.json">Evidence JSON</a>
+      <a class="btn" id="publicNodeWcToVoidRedactedReceiptJsonLink" href="/public-node/wc-to-void/redacted-settlement-receipt-v1.json">Redacted receipt JSON</a>
+      <a class="btn" id="publicNodeWcToVoidDiscoveryRouteIndexLink" href="/public-node/route-index.json">Route index</a>
+    </p>
+    <p class="muted">Proof: <code>VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1</code> · Boundary: <code>read_only=true</code> · <code>public_mutation=false</code></p>
   </section>
 
 
