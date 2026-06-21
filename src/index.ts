@@ -78631,6 +78631,21 @@ function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean
     <ul>${links}</ul>
     <p><a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
   </section>
+
+  <!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_CARD_V1 -->
+  <section class="card buyer-status-card" data-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_CARD_V1">
+    <h2>Buyer status</h2>
+    <p><strong>Public status:</strong> this buy-pool quote is public-readable, but operator execution remains manual, gated, and withheld until a separate operator action approves fulfillment.</p>
+    <ul>
+      <li>No automatic VOID delivery is promised by this page.</li>
+      <li>No public fulfillment endpoint is open.</li>
+      <li>No public wallet-send authority is granted.</li>
+      <li>No autonomous write authority is added.</li>
+      <li>Private operator packets, buyer payment records, wallet keys, and send commands remain non-public.</li>
+    </ul>
+    <p><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Read the operator execution hold status</a></p>
+  </section>
+
 </main>
 </body>
 </html>`);
