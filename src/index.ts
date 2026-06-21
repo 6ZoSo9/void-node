@@ -58080,6 +58080,24 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Proof: <code>VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1</code> · <code>VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1</code> · <code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1</code> · <code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_DASHBOARD_LINK_V1</code> · Boundary: <code>read_only=true</code> · <code>public_mutation=false</code></p>
   </section>
 
+        <section class="card">
+          <h2>WC → VOID Settlement Complete</h2>
+          <p><strong>Marker:</strong> VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_DASHBOARD_CARD_RUNTIME_V1</p>
+          <p>The first Work Credits to native VOID settlement evidence chain is sealed, cross-box verified, and live-indexed.</p>
+          <ul>
+            <li><strong>Status:</strong> sealed_live_index_ready</li>
+            <li><strong>Chain ID:</strong> 2050</li>
+            <li><strong>Tx:</strong> 0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717</li>
+            <li><strong>Value:</strong> 1.000000 VOID</li>
+          </ul>
+          <p>
+            <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1">Final public index</a>
+            · <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json">Final public index JSON</a>
+            · <a href="/public-node/wc-to-void/public-reviewer-verify-pack-v1">Reviewer verify pack</a>
+          </p>
+        </section>
+
+
 
   <section class="card" id="publicNodeSkepticAuditReadinessCard"><!-- VOID_PUBLIC_NODE_SKEPTIC_AUDIT_READINESS_UI_V1 -->
     <div class="muted">Security disclosure</div>
