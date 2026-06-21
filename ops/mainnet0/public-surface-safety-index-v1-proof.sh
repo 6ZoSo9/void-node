@@ -39,8 +39,8 @@ grep -F "public_node_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_node_literal_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_route_duplicate_count=0" "$doc" >/dev/null
 grep -F "literal_mutation_handler_count=118" "$doc" >/dev/null
-grep -F "public_literal_get_count=171" "$doc" >/dev/null
-grep -F "public_literal_get_unique_count=171" "$doc" >/dev/null
+grep -F "public_literal_get_count=173" "$doc" >/dev/null
+grep -F "public_literal_get_unique_count=173" "$doc" >/dev/null
 grep -F "public_literal_get_duplicate_count=0" "$doc" >/dev/null
 
 grep -F "ledger_write_closed=true" "$doc" >/dev/null
@@ -76,8 +76,8 @@ grep -F "VOID_RUNTIME_ROUTE_PATCH_SAFETY_PREFLIGHT_V1_GREEN" /tmp/void-public-sa
 
 bash "$route_audit" >/tmp/void-public-safety-index-route-audit.out
 grep -F "VOID_PUBLIC_SURFACE_ROUTE_REGISTRY_SAFETY_AUDIT_V1_GREEN" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_count=171" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_unique_count=171" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_count=173" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_unique_count=173" /tmp/void-public-safety-index-route-audit.out >/dev/null
 grep -F "public_literal_get_duplicate_count=0" /tmp/void-public-safety-index-route-audit.out >/dev/null
 
 bash "$guardrail_proof" >/tmp/void-public-safety-index-guardrail-proof.out
@@ -116,5 +116,11 @@ if grep -F 'APP.get("/public-node/funding-proof-pack-v1.json"' src/index.ts >/de
   echo "aborted funding proof pack route unexpectedly present" >&2
   exit 32
 fi
+
+
+# Money Engine Alignment v1: GET-only public money flywheel surface.
+grep -F "VOID_MONEY_ENGINE_ALIGNMENT_V1" src/index.ts >/dev/null
+grep -F "/public-node/money-engine-v1.json" src/index.ts >/dev/null
+grep -F "/public-node/money-engine-v1" src/index.ts >/dev/null
 
 echo "VOID_PUBLIC_SURFACE_SAFETY_INDEX_V1_GREEN"

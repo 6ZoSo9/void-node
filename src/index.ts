@@ -58080,7 +58080,14 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">Proof: <code>VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1</code> · <code>VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1</code> · <code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1</code> · <code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_DASHBOARD_LINK_V1</code> · Boundary: <code>read_only=true</code> · <code>public_mutation=false</code></p>
   </section>
 
-        <section class="card">
+        
+    <section>
+      <h2>VOID Money Engine</h2>
+      <p><strong>Marker:</strong> VOID_MONEY_ENGINE_ALIGNMENT_V1</p>
+      <p>USDC/VOID pair + DataNet paid work + Work Credits settlement flywheel.</p>
+      <p><a href="/public-node/money-engine-v1">Open Money Engine v1</a> · <a href="/public-node/money-engine-v1.json">JSON</a></p>
+    </section>
+<section class="card">
           <h2>WC → VOID Settlement Complete</h2>
           <p><strong>Marker:</strong> VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_DASHBOARD_CARD_RUNTIME_V1</p>
           <p>The first Work Credits to native VOID settlement evidence chain is sealed, cross-box verified, and live-indexed.</p>
@@ -78135,3 +78142,153 @@ const wcToVoidSettlementEvidenceFinalPublicIndexV1 = {
 
   mountWcToVoidSettlementEvidenceFinalPublicIndexRuntimeV1();
 })();
+
+
+// VOID_MONEY_ENGINE_ALIGNMENT_V1
+const VOID_MONEY_ENGINE_ALIGNMENT_V1 = {
+  marker: "VOID_MONEY_ENGINE_ALIGNMENT_V1",
+  status: "money_engine_alignment_ready",
+  scope: "USDC/VOID pair + DataNet paid work + Work Credits settlement flywheel",
+  plain_english:
+    "VOID's money path is the working flywheel: USDC/VOID liquidity gives the asset a market route, DataNet creates paid useful work, and Work Credits account for verified contribution that can settle into VOID.",
+  money_engine: [
+    {
+      lane: "USDC/VOID pair",
+      role: "market route, liquidity, pricing, and buy/sell access",
+      current_state: "next hardening lane",
+      next_build: "USDC/VOID pair readiness packet with addresses, pair state, liquidity boundary, and public verification checks"
+    },
+    {
+      lane: "DataNet",
+      role: "paid data, retrieval, verification, challenge, hosting, and agent-facing utility work",
+      current_state: "public challenge and retrieval surfaces exist; paid job intake is next",
+      next_build: "DataNet paid job intake/readiness lane with explicit scope, price unit, receipt, and no silent mutation"
+    },
+    {
+      lane: "Work Credits",
+      role: "contribution accounting for useful verified work",
+      current_state: "first WC to VOID settlement evidence chain is sealed and public-smoke green",
+      next_build: "repeatable WC settlement lane tied to DataNet paid work and operator-reviewed receipts"
+    }
+  ],
+  already_sealed: [
+    "WC to VOID settlement receipt exists",
+    "WC to VOID settlement final public evidence index is live",
+    "settlement complete dashboard card is live",
+    "external reviewer one-command verify pack is live",
+    "public/local smoke verifier is cross-box green",
+    "public-node mutation boundary remains closed"
+  ],
+  not_the_model: [
+    "not donation-first",
+    "not hype-first",
+    "not reward faucet",
+    "not autonomous earning",
+    "not silent AI writes",
+    "not public mutation access",
+    "not a guaranteed return claim"
+  ],
+  next_money_build_order: [
+    "USDC/VOID pair readiness surface",
+    "DataNet paid job intake surface",
+    "paid DataNet receipt fixture",
+    "WC award candidate from paid DataNet work",
+    "repeat WC to VOID settlement proof",
+    "public money engine dashboard rollup"
+  ],
+  public_links: [
+    {
+      label: "WC to VOID settlement final public index",
+      href: "/public-node/wc-to-void/settlement-evidence-final-public-index-v1"
+    },
+    {
+      label: "Reviewer one-command verify pack",
+      href: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1"
+    },
+    {
+      label: "Redacted settlement receipt",
+      href: "/public-node/wc-to-void/redacted-settlement-receipt-v1"
+    },
+    {
+      label: "Funding gateway",
+      href: "/public-node/funding"
+    },
+    {
+      label: "Buy VOID",
+      href: "/buy-void"
+    }
+  ],
+  settlement_tx_hash:
+    "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  public_safety: {
+    public_mutation_enabled: false,
+    wc_award_open: false,
+    autonomous_write_enabled: false,
+    secret_exposure_allowed: false
+  }
+} as const;
+
+app.get("/public-node/money-engine-v1.json", (_req, res) => {
+  res.json(VOID_MONEY_ENGINE_ALIGNMENT_V1);
+});
+
+app.get("/public-node/money-engine-v1", (_req, res) => {
+  const lanes = VOID_MONEY_ENGINE_ALIGNMENT_V1.money_engine
+    .map(
+      (item) => `<li><strong>${item.lane}</strong>: ${item.role}<br /><em>${item.current_state}</em><br />Next: ${item.next_build}</li>`
+    )
+    .join("");
+
+  const sealed = VOID_MONEY_ENGINE_ALIGNMENT_V1.already_sealed
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+
+  const notModel = VOID_MONEY_ENGINE_ALIGNMENT_V1.not_the_model
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+
+  const next = VOID_MONEY_ENGINE_ALIGNMENT_V1.next_money_build_order
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+
+  const links = VOID_MONEY_ENGINE_ALIGNMENT_V1.public_links
+    .map((item) => `<li><a href="${item.href}">${item.label}</a></li>`)
+    .join("");
+
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Money Engine v1</title>
+</head>
+<body>
+  <main>
+    <p><a href="/public-node">← Public Node</a></p>
+    <h1>VOID Money Engine v1</h1>
+    <p><strong>Marker:</strong> ${VOID_MONEY_ENGINE_ALIGNMENT_V1.marker}</p>
+    <p><strong>Status:</strong> ${VOID_MONEY_ENGINE_ALIGNMENT_V1.status}</p>
+    <p>${VOID_MONEY_ENGINE_ALIGNMENT_V1.plain_english}</p>
+
+    <h2>The money flywheel</h2>
+    <ol>${lanes}</ol>
+
+    <h2>Already sealed</h2>
+    <ul>${sealed}</ul>
+
+    <h2>Not the model</h2>
+    <ul>${notModel}</ul>
+
+    <h2>Next money build order</h2>
+    <ol>${next}</ol>
+
+    <h2>Public proof links</h2>
+    <ul>${links}</ul>
+
+    <h2>Settlement proof anchor</h2>
+    <p><code>${VOID_MONEY_ENGINE_ALIGNMENT_V1.settlement_tx_hash}</code></p>
+
+    <p><a href="/public-node/money-engine-v1.json">JSON</a></p>
+  </main>
+</body>
+</html>`);
+});
