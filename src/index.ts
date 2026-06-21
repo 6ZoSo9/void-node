@@ -78665,3 +78665,97 @@ if (!__voidTryMountUsdcVoidFixedPriceBuyPoolPublicPageV1()) {
     (timer as any).unref();
   }
 }
+
+// VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_RUNTIME_ROUTES_V1
+app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>USDC → VOID Buy Pool Operator Execution Hold Status v1</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:980px;margin:0 auto;padding:34px 18px}
+.hero,.card,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.hero{background:linear-gradient(135deg,#0d1321,#111827)}
+.warn{border-color:#92400e;background:#1f1305}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+a{color:#7dd3fc}
+code{word-break:break-all;background:#020617;border:1px solid #263244;border-radius:8px;padding:2px 6px}
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/public-node">← Public Node</a> · <a href="/public-node/route-index.json">Route Index JSON</a> · <a href="/public-node/buy-pool/usdc-void-v1">Buy Pool</a></p>
+  <section class="hero">
+    <h1>USDC → VOID Buy Pool Operator Execution Hold Status v1</h1>
+    <p><strong>Marker:</strong> <code>VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_PUBLIC_STATUS_V1</code></p>
+    <p>This public-safe status records that the buy-pool route is live while operator execution remains gated and withheld.</p>
+  </section>
+  <section class="card">
+    <h2>Current state</h2>
+    <span class="badge">buy-pool public-readable</span>
+    <span class="badge">operator execution gated</span>
+    <span class="badge">manual execution packet withheld</span>
+    <span class="badge">automatic delivery false</span>
+    <span class="badge">public fulfillment false</span>
+    <span class="badge">autonomous write false</span>
+  </section>
+  <section class="warn">
+    <h2>Boundary</h2>
+    <p>This page does not expose private operator queues, private receipt records, treasury controls, wallet keys, send commands, or any public fulfillment endpoint.</p>
+  </section>
+  <section class="card">
+    <h2>Reviewer links</h2>
+    <p><a href="/public-node/funding">Funding page</a></p>
+    <p><a href="/public-node/buy-pool/usdc-void-v1">USDC → VOID fixed-price buy pool</a></p>
+    <p><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1">Route-index entry note</a></p>
+  </section>
+</main>
+</body>
+</html>`);
+});
+
+app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1", (_req:any, res:any) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>USDC → VOID Buy Pool Operator Execution Hold Status Route Index Entry v1</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:980px;margin:0 auto;padding:34px 18px}
+.hero,.card,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.hero{background:linear-gradient(135deg,#0d1321,#111827)}
+.warn{border-color:#92400e;background:#1f1305}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+a{color:#7dd3fc}
+code{word-break:break-all;background:#020617;border:1px solid #263244;border-radius:8px;padding:2px 6px}
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/public-node">← Public Node</a> · <a href="/public-node/route-index.json">Route Index JSON</a></p>
+  <section class="hero">
+    <h1>USDC → VOID Buy Pool Operator Execution Hold Status Route Index Entry v1</h1>
+    <p><strong>Marker:</strong> <code>VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_ROUTE_INDEX_ENTRY_V1</code></p>
+    <p>This page explains the route-index discovery entry for the public-safe buy-pool operator execution hold status.</p>
+  </section>
+  <section class="card">
+    <h2>Discovery target</h2>
+    <p><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status page</a></p>
+    <p><a href="/public-node/buy-pool/usdc-void-v1">USDC → VOID fixed-price buy pool</a></p>
+    <p><a href="/public-node/buy-pool/usdc-void-v1.json">USDC → VOID fixed-price buy pool JSON</a></p>
+    <p><a href="/public-node/funding">Funding page</a></p>
+  </section>
+  <section class="warn">
+    <h2>Boundary</h2>
+    <p>This is discovery-only. It does not create a public execution endpoint, expose private operator material, trigger fulfillment, open automatic delivery, or grant autonomous write authority.</p>
+  </section>
+</main>
+</body>
+</html>`);
+});
+
