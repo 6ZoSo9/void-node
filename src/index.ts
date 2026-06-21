@@ -3456,59 +3456,6 @@ if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
 
     
 
-// VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1
-app.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", (_req, res) => {
-  res.json({
-    marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1",
-    route: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json",
-    status: "public_readiness_rollup_ready",
-    generated_by: "void-node",
-    public_read_only: true,
-    public_mutation_open: false,
-    funding_page: {
-      route: "/public-node/funding",
-      status: "linked",
-    },
-    buy_pool_html: {
-      route: "/public-node/buy-pool/usdc-void-v1",
-      status: "public_readable",
-      buyer_status_card_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_CARD_V1",
-    },
-    buy_pool_json: {
-      route: "/public-node/buy-pool/usdc-void-v1.json",
-      status: "public_readable",
-      buyer_status_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1",
-    },
-    operator_execution_hold_status: {
-      route: "/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1",
-      status: "manual_gated_withheld",
-      public_fulfillment_endpoint_open: false,
-      automatic_void_delivery: false,
-      public_wallet_send_authority: false,
-      autonomous_write_authority: false,
-    },
-    route_index_discovery: {
-      status_route_kind: "html",
-      route_index_entry_kind: "html",
-    },
-    private_boundary: {
-      private_operator_packet_material_exposed: false,
-      private_buyer_payment_records_exposed: false,
-      wallet_keys_exposed: false,
-      send_commands_exposed: false,
-      private_manual_execution_packet_marker_publicly_exposed: false,
-    },
-    safety: {
-      creates_quote: false,
-      accepts_payment: false,
-      opens_fulfillment_endpoint: false,
-      performs_wallet_send: false,
-      mutates_ledger: false,
-      grants_autonomous_write_authority: false,
-    },
-  });
-});
-
 app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
       console.log("[early-minimal-boot] http listening");
       console.log(`[early-minimal-boot] http :${HTTP_PORT}`);

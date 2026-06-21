@@ -53,18 +53,46 @@ grep -F "grants_autonomous_write_authority: false" "$src" >/dev/null
 
 python3 - <<'PY'
 from pathlib import Path
+import re
+
 s = Path("src/index.ts").read_text()
-route = 'app.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json"'
-start = s.find(route)
-if start < 0:
-    raise SystemExit("readiness_rollup_route_missing")
+route_path = "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json"
+
+registrations = re.findall(
+    r'([A-Za-z0-9_$.\]\[\(\)"\'?]+)\.get\(\s*["\']'
+    + re.escape(route_path)
+    + r'["\']',
+    s,
+)
+
+if registrations != ["runtimeApp"]:
+    raise SystemExit(f"readiness_rollup_route_registration_not_single_runtimeApp={registrations}")
+
+route_start = s.find('runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json"')
+if route_start < 0:
+    raise SystemExit("readiness_rollup_runtime_route_missing")
+
 marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1"
-m = s.find(marker, start)
+m = s.find(marker, route_start)
 if m < 0:
-    raise SystemExit("readiness_rollup_marker_not_inside_route")
-next_post = s.find('app.post("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json"', start)
-if next_post >= 0:
+    raise SystemExit("readiness_rollup_marker_not_inside_runtime_route")
+
+repair_marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_RUNTIME_MOUNT_REPAIR_V1"
+rm = s.find(repair_marker, route_start)
+if rm < 0:
+    raise SystemExit("readiness_rollup_runtime_repair_marker_not_inside_runtime_route")
+
+next_post = re.search(
+    r'\.post\(\s*["\']' + re.escape(route_path) + r'["\']',
+    s[route_start:],
+)
+if next_post:
     raise SystemExit("readiness_rollup_post_route_present")
+
+if 'app.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json"' in s:
+    raise SystemExit("non_live_app_get_readiness_rollup_route_still_present")
+
+print("readiness_rollup_route_registration=runtimeApp")
 print("readiness_rollup_route_source_green=true")
 PY
 
