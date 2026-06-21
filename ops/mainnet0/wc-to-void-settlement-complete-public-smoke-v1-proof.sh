@@ -13,7 +13,7 @@ grep -F "VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_PUBLIC_SMOKE_V1_GREEN" "$script" >/
 grep -F "VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_DASHBOARD_CARD_RUNTIME_V1" "$script" >/dev/null
 grep -F "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1" "$script" >/dev/null
 grep -F "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1" "$script" >/dev/null
-grep -F "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1" "$script" >/dev/null
+grep -F "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1" "$script" >/dev/null
 grep -F "$tx" "$script" >/dev/null
 grep -F "/public-node" "$script" >/dev/null
 grep -F "/public-node/route-index.json" "$script" >/dev/null
