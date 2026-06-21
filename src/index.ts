@@ -78439,6 +78439,32 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
     wallet_send_by_page: false,
     automatic_fulfillment_promised: false
   },
+  receipt_intake_readiness: {
+    marker: "VOID_BUY_POOL_RECEIPT_INTAKE_READINESS_V1",
+    title: "Receipt information to prepare",
+    status: "manual_receipt_preparation_only",
+    public_receipt_intake_endpoint_open: false,
+    public_receipt_mutation_enabled: false,
+    automatic_receipt_acceptance_enabled: false,
+    automatic_fulfillment_promised: false,
+    required_receipt_materials: [
+      "Base USDC transaction hash",
+      "Exact sending wallet address",
+      "USDC amount sent",
+      "Approximate send timestamp or block time",
+      "Receiver address used",
+      "Wallet proof may be requested from the sending wallet"
+    ],
+    delivery_wallet_rule: "The sending wallet is the receipt identity and default fulfillment identity unless a separate operator-approved record explicitly says otherwise.",
+    operator_review_rule: "Receipt review, attribution, and fulfillment remain manual operator actions.",
+    public_safety: {
+      page_is_instruction_only: true,
+      no_public_write: true,
+      no_wallet_send_by_page: true,
+      no_private_queue_exposed: true,
+      no_secret_exposure: true
+    }
+  },
   future_lanes: [
       "locked USDC/VOID liquidity pool for trading",
       "locked ETH/VOID liquidity pool",
@@ -78535,6 +78561,19 @@ function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean
       <li><strong>Manual review remains required.</strong> This page does not send wallets, fulfill VOID automatically, or create a public mutation.</li>
       <li><strong>No investment promise.</strong> No return, yield, profit, or automatic delivery is promised.</li>
     </ul>
+  </section>
+
+  <section class="card"><!-- VOID_BUY_POOL_RECEIPT_INTAKE_READINESS_V1 -->
+    <h2>Receipt information to prepare</h2>
+    <p>This is <strong>preparation only</strong>. There is no public receipt intake endpoint, no public receipt mutation, and no automatic fulfillment.</p>
+    <ul>
+      <li><strong>Base USDC transaction hash:</strong> keep the final tx hash from the send.</li>
+      <li><strong>Exact sending wallet:</strong> the sender wallet is the receipt identity and default fulfillment identity.</li>
+      <li><strong>USDC amount and timestamp:</strong> save the amount sent and the approximate send time or block time.</li>
+      <li><strong>Receiver address used:</strong> record the address you sent to and the chain used.</li>
+      <li><strong>Wallet proof:</strong> operator review may require proof from the same wallet that sent USDC.</li>
+    </ul>
+    <p class="warn"><b>Do not send from exchanges or pooled custody services.</b> They can hide the true sender wallet and break attribution.</p>
   </section>
 
   <section class="card">
