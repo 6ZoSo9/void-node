@@ -78418,7 +78418,28 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
       no_investment_return_promise: true,
       no_guaranteed_return: true
     },
-    future_lanes: [
+    buyer_self_custody_checklist: {
+    marker: "VOID_BUY_POOL_BUYER_SELF_CUSTODY_CHECKLIST_V1",
+    title: "Before you send USDC",
+    rules: [
+      "Send Base USDC only from a self-custody wallet you control.",
+      "Do not send from centralized exchanges, custodial wallets, bridges, payment processors, or any service that sends from a pooled address.",
+      "The sending wallet is the receipt identity and the fulfillment identity.",
+      "Save the transaction hash and the exact sending wallet address.",
+      "VOID delivery remains manually reviewed; no automatic fulfillment is promised.",
+      "No investment return, yield, or profit is promised."
+    ],
+    required_acknowledgements: [
+      "I am sending Base USDC from a self-custody wallet I control.",
+      "I understand exchange or pooled-custody sends may break attribution.",
+      "I understand the sender wallet is the receipt and delivery identity.",
+      "I understand fulfillment is manually reviewed and not automatic."
+    ],
+    public_mutation_enabled: false,
+    wallet_send_by_page: false,
+    automatic_fulfillment_promised: false
+  },
+  future_lanes: [
       "locked USDC/VOID liquidity pool for trading",
       "locked ETH/VOID liquidity pool",
       "additional locked liquidity pairs after the fixed-price pool lane is proven"
@@ -78503,6 +78524,17 @@ function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean
     <p><strong>Marker:</strong> ${esc(cfg.marker)}</p>
     <p><strong>Status:</strong> ${esc(cfg.status)}</p>
     <p>This page advertises the fixed-price public buy pool for VOID. It is a bounded sale allocation, not a donation page and not a trading LP.</p>
+  </section>
+
+  <section class="warn"><!-- VOID_BUY_POOL_BUYER_SELF_CUSTODY_CHECKLIST_V1 -->
+    <h2>Before you send USDC</h2>
+    <p><strong>Self-custody only:</strong> send Base USDC only from a wallet you control. Do not send from a centralized exchange, custodial wallet, bridge, payment processor, or any service that sends from a pooled address.</p>
+    <ul>
+      <li><strong>Sender wallet = receipt identity.</strong> The wallet that sends USDC is the wallet tied to the receipt and fulfillment record.</li>
+      <li><strong>Save your transaction hash.</strong> Keep the tx hash and the exact sending wallet address.</li>
+      <li><strong>Manual review remains required.</strong> This page does not send wallets, fulfill VOID automatically, or create a public mutation.</li>
+      <li><strong>No investment promise.</strong> No return, yield, profit, or automatic delivery is promised.</li>
+    </ul>
   </section>
 
   <section class="card">
