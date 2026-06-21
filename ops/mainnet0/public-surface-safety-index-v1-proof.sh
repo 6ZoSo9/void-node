@@ -39,8 +39,8 @@ grep -F "public_node_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_node_literal_mutation_handler_count=0" "$doc" >/dev/null
 grep -F "public_route_duplicate_count=0" "$doc" >/dev/null
 grep -F "literal_mutation_handler_count=118" "$doc" >/dev/null
-grep -F "public_literal_get_count=173" "$doc" >/dev/null
-grep -F "public_literal_get_unique_count=173" "$doc" >/dev/null
+grep -F "public_literal_get_count=175" "$doc" >/dev/null
+grep -F "public_literal_get_unique_count=175" "$doc" >/dev/null
 grep -F "public_literal_get_duplicate_count=0" "$doc" >/dev/null
 
 grep -F "ledger_write_closed=true" "$doc" >/dev/null
@@ -76,8 +76,8 @@ grep -F "VOID_RUNTIME_ROUTE_PATCH_SAFETY_PREFLIGHT_V1_GREEN" /tmp/void-public-sa
 
 bash "$route_audit" >/tmp/void-public-safety-index-route-audit.out
 grep -F "VOID_PUBLIC_SURFACE_ROUTE_REGISTRY_SAFETY_AUDIT_V1_GREEN" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_count=173" /tmp/void-public-safety-index-route-audit.out >/dev/null
-grep -F "public_literal_get_unique_count=173" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_count=175" /tmp/void-public-safety-index-route-audit.out >/dev/null
+grep -F "public_literal_get_unique_count=175" /tmp/void-public-safety-index-route-audit.out >/dev/null
 grep -F "public_literal_get_duplicate_count=0" /tmp/void-public-safety-index-route-audit.out >/dev/null
 
 bash "$guardrail_proof" >/tmp/void-public-safety-index-guardrail-proof.out

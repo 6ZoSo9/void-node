@@ -78333,3 +78333,245 @@ if (!__voidTryMountMoneyEngineAlignmentV1()) {
   }
 }
 
+
+
+// VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1
+let __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Mounted = false;
+
+function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
+  const receiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
+  const paymentReady = /^0x[a-fA-F0-9]{40}$/.test(receiveAddress);
+  const chain = String(process.env.VOID_BUY_CHAIN || "base").trim().toLowerCase();
+  const usdcSymbol = String(process.env.VOID_BUY_USDC_SYMBOL || "USDC").trim();
+  const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
+  const poolVoidTotal = Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000");
+  const maxRaiseUsdc = Number(process.env.VOID_BUY_MAX_RAISE_USDC || String(poolVoidTotal * priceUsdcPerVoid));
+  const rateVoidPerUsdc = priceUsdcPerVoid > 0 ? 1 / priceUsdcPerVoid : 0;
+  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
+
+  return {
+    schema: "void_usdc_void_fixed_price_buy_pool_public_page_v1",
+    marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1",
+    status: paymentReady && requestsEnabled ? "buy_pool_public_ready" : "buy_pool_public_config_pending",
+    public_page: "/public-node/buy-pool/usdc-void-v1",
+    public_json: "/public-node/buy-pool/usdc-void-v1.json",
+    existing_buy_page: "/buy-void",
+    asset_in: usdcSymbol,
+    asset_out: "VOID",
+    accepted_chain: chain,
+    accepted_network_plain_english: chain === "base" ? "Base network native USDC" : `${chain} native ${usdcSymbol}`,
+    price_usdc_per_void: priceUsdcPerVoid,
+    rate_void_per_usdc: rateVoidPerUsdc,
+    pool_void_total: poolVoidTotal,
+    max_raise_usdc: maxRaiseUsdc,
+    pool_close_rule: "pool_locks_and_closes_once_all_10_000_000_VOID_allocation_is_drained",
+    receive_address: paymentReady ? receiveAddress : "",
+    payment_ready: paymentReady,
+    requests_enabled: requestsEnabled,
+    self_custody_required: true,
+    sender_address_is_receipt_identity: true,
+    delivery_rule: "VOID delivery or crediting is based on the sending self-custody wallet address",
+    do_not_send_from: [
+      "centralized exchange accounts",
+      "Coinbase exchange send flow",
+      "Binance exchange send flow",
+      "Kraken exchange send flow",
+      "Robinhood exchange send flow",
+      "Crypto.com exchange send flow",
+      "any custodial pooled wallet the buyer does not control"
+    ],
+    exchange_send_warning: "Do not send USDC from an exchange or custodial account. Exchange hot-wallet sends can break attribution because the on-chain sender may not be the buyer wallet.",
+    buyer_instruction_short: "Send USDC only from a self-custody wallet you control. The sending wallet is the receipt identity.",
+    buyer_instruction_full: [
+      "Use a self-custody wallet you control.",
+      "Send only native USDC on the configured chain.",
+      "Do not send from a centralized exchange or custodial account.",
+      "Keep the transaction hash.",
+      "Use the same sending wallet as the wallet intended for VOID delivery or crediting.",
+      "If you send from an exchange, VOID may not be deliverable because the exchange address, not your personal wallet, can appear as the sender."
+    ],
+    safety: {
+      public_page_only: true,
+      get_only_routes: true,
+      no_public_mutation_added: true,
+      no_wallet_send: true,
+      no_auto_fulfillment: true,
+      no_silent_credit: true,
+      no_exchange_custody_support_claim: true,
+      no_investment_return_promise: true,
+      no_guaranteed_return: true
+    },
+    future_lanes: [
+      "locked USDC/VOID liquidity pool for trading",
+      "locked ETH/VOID liquidity pool",
+      "additional locked liquidity pairs after the fixed-price pool lane is proven"
+    ],
+    proof_links: [
+      { label: "Money Engine v1", href: "/public-node/money-engine-v1" },
+      { label: "Existing Buy VOID page", href: "/buy-void" },
+      { label: "WC to VOID settlement final index", href: "/public-node/wc-to-void/settlement-evidence-final-public-index-v1" },
+      { label: "Reviewer one-command verify pack", href: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1" }
+    ]
+  };
+}
+
+function __voidUsdcVoidBuyPoolHtmlEscapeV1(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean {
+  if (__voidUsdcVoidFixedPriceBuyPoolPublicPageV1Mounted) return true;
+  if (!appLike || typeof appLike.get !== "function") return false;
+
+  const app = appLike;
+
+  app.get("/public-node/buy-pool/usdc-void-v1.json", (_req: any, res: any) => {
+    res.json(__voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config());
+  });
+
+  app.get("/public-node/buy-pool/usdc-void-v1", (_req: any, res: any) => {
+    const cfg = __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config();
+    const esc = __voidUsdcVoidBuyPoolHtmlEscapeV1;
+
+    const instructions = cfg.buyer_instruction_full
+      .map((item) => `<li>${esc(item)}</li>`)
+      .join("");
+
+    const doNotSend = cfg.do_not_send_from
+      .map((item) => `<li>${esc(item)}</li>`)
+      .join("");
+
+    const future = cfg.future_lanes
+      .map((item) => `<li>${esc(item)}</li>`)
+      .join("");
+
+    const links = cfg.proof_links
+      .map((item) => `<li><a href="${esc(item.href)}">${esc(item.label)}</a></li>`)
+      .join("");
+
+    const receive = cfg.payment_ready
+      ? `<code>${esc(cfg.receive_address)}</code>`
+      : `<strong>Payment address pending public configuration.</strong>`;
+
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>USDC → VOID Fixed Price Buy Pool v1</title>
+  <style>
+    body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+    main{max-width:980px;margin:0 auto;padding:34px 18px}
+    .hero,.card,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+    .hero{background:linear-gradient(135deg,#0d1321,#111827)}
+    .warn{border-color:#92400e;background:#1f1305}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+    .stat{border:1px solid #263244;border-radius:14px;padding:14px;background:#090d1a}
+    .k{color:#93c5fd;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+    .v{font-size:24px;font-weight:800}
+    code{word-break:break-all;background:#020617;border:1px solid #263244;border-radius:8px;padding:2px 6px}
+    a{color:#7dd3fc}
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="/public-node">← Public Node</a> · <a href="/buy-void">Existing Buy VOID page</a></p>
+
+  <section class="hero">
+    <h1>USDC → VOID Fixed Price Buy Pool v1</h1>
+    <p><strong>Marker:</strong> ${esc(cfg.marker)}</p>
+    <p><strong>Status:</strong> ${esc(cfg.status)}</p>
+    <p>This page advertises the fixed-price public buy pool for VOID. It is a bounded sale allocation, not a donation page and not a trading LP.</p>
+  </section>
+
+  <section class="card">
+    <h2>Pool terms</h2>
+    <div class="grid">
+      <div class="stat"><div class="k">Allocation</div><div class="v">${Number(cfg.pool_void_total).toLocaleString()} VOID</div></div>
+      <div class="stat"><div class="k">Price</div><div class="v">$${esc(cfg.price_usdc_per_void)} USDC / VOID</div></div>
+      <div class="stat"><div class="k">Rate</div><div class="v">${esc(cfg.rate_void_per_usdc)} VOID / USDC</div></div>
+      <div class="stat"><div class="k">Max raise</div><div class="v">$${Number(cfg.max_raise_usdc).toLocaleString()} USDC</div></div>
+      <div class="stat"><div class="k">Network</div><div class="v">${esc(cfg.accepted_network_plain_english)}</div></div>
+      <div class="stat"><div class="k">Close rule</div><div class="v">Locks once drained</div></div>
+    </div>
+  </section>
+
+  <section class="warn">
+    <h2>Self-custody wallet only</h2>
+    <p><strong>Do not send from an exchange.</strong> Send ${esc(cfg.asset_in)} only from a self-custody wallet you control.</p>
+    <p>The sending wallet is the receipt identity. VOID delivery or crediting is based on that wallet address.</p>
+    <ul>${instructions}</ul>
+  </section>
+
+  <section class="card">
+    <h2>Receiving address</h2>
+    <p>${receive}</p>
+    <p><strong>Accepted asset:</strong> ${esc(cfg.asset_in)} on ${esc(cfg.accepted_network_plain_english)}.</p>
+  </section>
+
+  <section class="warn">
+    <h2>Do not send from</h2>
+    <ul>${doNotSend}</ul>
+    <p>${esc(cfg.exchange_send_warning)}</p>
+  </section>
+
+  <section class="card">
+    <h2>Safety boundary</h2>
+    <ul>
+      <li>GET-only public page.</li>
+      <li>No public wallet send route.</li>
+      <li>No automatic fulfillment route.</li>
+      <li>No silent credit mutation.</li>
+      <li>No guaranteed return or investment-return promise.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Future separate lanes</h2>
+    <ul>${future}</ul>
+  </section>
+
+  <section class="card">
+    <h2>Proof links</h2>
+    <ul>${links}</ul>
+    <p><a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+  </section>
+</main>
+</body>
+</html>`);
+  });
+
+  __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Mounted = true;
+  console.log("[usdc-void-buy-pool.v1] mounted public GET routes");
+  return true;
+}
+
+function __voidTryMountUsdcVoidFixedPriceBuyPoolPublicPageV1(): boolean {
+  const g = globalThis as any;
+  return __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(
+    g.__void_http_app || g.__void_app || g.app || g.__app
+  );
+}
+
+if (!__voidTryMountUsdcVoidFixedPriceBuyPoolPublicPageV1()) {
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    if (__voidTryMountUsdcVoidFixedPriceBuyPoolPublicPageV1()) {
+      clearInterval(timer);
+      return;
+    }
+
+    if (Date.now() - startedAt > 20000) {
+      clearInterval(timer);
+      console.log("[usdc-void-buy-pool.v1] no app hook after 20s; not mounted");
+    }
+  }, 250);
+
+  if (typeof (timer as any).unref === "function") {
+    (timer as any).unref();
+  }
+}

@@ -11,10 +11,10 @@ grep -F "VOID_MONEY_ENGINE_ALIGNMENT_V1" "$src" >/dev/null
 grep -F "/public-node/money-engine-v1.json" "$src" >/dev/null
 grep -F "/public-node/money-engine-v1" "$src" >/dev/null
 
-grep -F "public_literal_get_count=173" "$doc" >/dev/null
-grep -F "public_literal_get_unique_count=173" "$doc" >/dev/null
-grep -F "public_literal_get_count=173" "$proof" >/dev/null
-grep -F "public_literal_get_unique_count=173" "$proof" >/dev/null
+grep -F "public_literal_get_count=175" "$doc" >/dev/null
+grep -F "public_literal_get_unique_count=175" "$doc" >/dev/null
+grep -F "public_literal_get_count=175" "$proof" >/dev/null
+grep -F "public_literal_get_unique_count=175" "$proof" >/dev/null
 
 if grep -F "public_literal_get_count=171" "$doc" "$proof" >/dev/null; then
   echo "STOP: stale public_literal_get_count=171 remains."
