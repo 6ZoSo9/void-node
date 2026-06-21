@@ -17,14 +17,14 @@ curl -fsS "$base/public-node" > "$tmp/public-node.html"
 curl -fsS "$base/public-node/route-index.json" > "$tmp/route-index.json"
 curl -fsS "$base/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json" > "$tmp/final-index.json"
 curl -fsS "$base/public-node/wc-to-void/settlement-evidence-final-public-index-v1" > "$tmp/final-index.html"
-curl -fsS "$base/public-node/wc-to-void/public-reviewer-verify-pack-v1.json" > "$tmp/verify-pack.json"
+curl -fsS "$base/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json" > "$tmp/verify-pack.json"
 curl -fsS "$base/public-node/wc-to-void/redacted-settlement-receipt-v1.json" > "$tmp/receipt.json"
 
 grep -F "$dashboard_marker" "$tmp/public-node.html" >/dev/null
 grep -F "sealed_live_index_ready" "$tmp/public-node.html" >/dev/null
 grep -F "$tx" "$tmp/public-node.html" >/dev/null
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1" "$tmp/public-node.html" >/dev/null
-grep -F "/public-node/wc-to-void/public-reviewer-verify-pack-v1" "$tmp/public-node.html" >/dev/null
+grep -F "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1" "$tmp/public-node.html" >/dev/null
 
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json" "$tmp/route-index.json" >/dev/null
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1" "$tmp/route-index.json" >/dev/null

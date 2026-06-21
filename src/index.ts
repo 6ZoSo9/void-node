@@ -16507,7 +16507,7 @@ small{color:#94a3b8}
           <p>
             <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1">Final public index</a>
             · <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json">Final public index JSON</a>
-            · <a href="/public-node/wc-to-void/public-reviewer-verify-pack-v1">Reviewer verify pack</a>
+            · <a href="/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1">Reviewer verify pack</a>
           </p>
         </section>
 
@@ -58093,7 +58093,7 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>
             <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1">Final public index</a>
             · <a href="/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json">Final public index JSON</a>
-            · <a href="/public-node/wc-to-void/public-reviewer-verify-pack-v1">Reviewer verify pack</a>
+            · <a href="/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1">Reviewer verify pack</a>
           </p>
         </section>
 

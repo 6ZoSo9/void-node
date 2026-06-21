@@ -17,7 +17,7 @@ grep -F "sealed_live_index_ready" "$src" >/dev/null
 grep -F "$tx" "$src" >/dev/null
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1" "$src" >/dev/null
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json" "$src" >/dev/null
-grep -F "/public-node/wc-to-void/public-reviewer-verify-pack-v1" "$src" >/dev/null
+grep -F "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1" "$src" >/dev/null
 
 python3 - <<'PY'
 from pathlib import Path

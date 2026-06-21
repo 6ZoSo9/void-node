@@ -18,7 +18,7 @@ grep -F "$tx" "$script" >/dev/null
 grep -F "/public-node" "$script" >/dev/null
 grep -F "/public-node/route-index.json" "$script" >/dev/null
 grep -F "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json" "$script" >/dev/null
-grep -F "/public-node/wc-to-void/public-reviewer-verify-pack-v1.json" "$script" >/dev/null
+grep -F "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json" "$script" >/dev/null
 grep -F "/public-node/wc-to-void/redacted-settlement-receipt-v1.json" "$script" >/dev/null
 
 if grep -E "curl .* -X *(POST|PUT|PATCH|DELETE)|curl .*--request *(POST|PUT|PATCH|DELETE)" "$script" >/dev/null; then
