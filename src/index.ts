@@ -78228,34 +78228,43 @@ const VOID_MONEY_ENGINE_ALIGNMENT_V1 = {
   }
 } as const;
 
-app.get("/public-node/money-engine-v1.json", (_req, res) => {
-  res.json(VOID_MONEY_ENGINE_ALIGNMENT_V1);
-});
 
-app.get("/public-node/money-engine-v1", (_req, res) => {
-  const lanes = VOID_MONEY_ENGINE_ALIGNMENT_V1.money_engine
-    .map(
-      (item) => `<li><strong>${item.lane}</strong>: ${item.role}<br /><em>${item.current_state}</em><br />Next: ${item.next_build}</li>`
-    )
-    .join("");
+let __voidMoneyEngineAlignmentV1Mounted = false;
 
-  const sealed = VOID_MONEY_ENGINE_ALIGNMENT_V1.already_sealed
-    .map((item) => `<li>${item}</li>`)
-    .join("");
+function __voidMountMoneyEngineAlignmentV1(appLike: any): boolean {
+  if (__voidMoneyEngineAlignmentV1Mounted) return true;
+  if (!appLike || typeof appLike.get !== "function") return false;
 
-  const notModel = VOID_MONEY_ENGINE_ALIGNMENT_V1.not_the_model
-    .map((item) => `<li>${item}</li>`)
-    .join("");
+  const app = appLike;
 
-  const next = VOID_MONEY_ENGINE_ALIGNMENT_V1.next_money_build_order
-    .map((item) => `<li>${item}</li>`)
-    .join("");
+  app.get("/public-node/money-engine-v1.json", (_req: any, res: any) => {
+    res.json(VOID_MONEY_ENGINE_ALIGNMENT_V1);
+  });
 
-  const links = VOID_MONEY_ENGINE_ALIGNMENT_V1.public_links
-    .map((item) => `<li><a href="${item.href}">${item.label}</a></li>`)
-    .join("");
+  app.get("/public-node/money-engine-v1", (_req: any, res: any) => {
+    const lanes = VOID_MONEY_ENGINE_ALIGNMENT_V1.money_engine
+      .map(
+        (item) => `<li><strong>${item.lane}</strong>: ${item.role}<br /><em>${item.current_state}</em><br />Next: ${item.next_build}</li>`
+      )
+      .join("");
 
-  res.type("html").send(`<!doctype html>
+    const sealed = VOID_MONEY_ENGINE_ALIGNMENT_V1.already_sealed
+      .map((item) => `<li>${item}</li>`)
+      .join("");
+
+    const notModel = VOID_MONEY_ENGINE_ALIGNMENT_V1.not_the_model
+      .map((item) => `<li>${item}</li>`)
+      .join("");
+
+    const next = VOID_MONEY_ENGINE_ALIGNMENT_V1.next_money_build_order
+      .map((item) => `<li>${item}</li>`)
+      .join("");
+
+    const links = VOID_MONEY_ENGINE_ALIGNMENT_V1.public_links
+      .map((item) => `<li><a href="${item.href}">${item.label}</a></li>`)
+      .join("");
+
+    res.type("html").send(`<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -78291,4 +78300,36 @@ app.get("/public-node/money-engine-v1", (_req, res) => {
   </main>
 </body>
 </html>`);
-});
+  });
+
+  __voidMoneyEngineAlignmentV1Mounted = true;
+  console.log("[money-engine-alignment.v1] mounted public GET routes");
+  return true;
+}
+
+function __voidTryMountMoneyEngineAlignmentV1(): boolean {
+  const g = globalThis as any;
+  return __voidMountMoneyEngineAlignmentV1(
+    g.__void_http_app || g.__void_app || g.app || g.__app
+  );
+}
+
+if (!__voidTryMountMoneyEngineAlignmentV1()) {
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    if (__voidTryMountMoneyEngineAlignmentV1()) {
+      clearInterval(timer);
+      return;
+    }
+
+    if (Date.now() - startedAt > 20000) {
+      clearInterval(timer);
+      console.log("[money-engine-alignment.v1] no app hook after 20s; not mounted");
+    }
+  }, 250);
+
+  if (typeof (timer as any).unref === "function") {
+    (timer as any).unref();
+  }
+}
+
