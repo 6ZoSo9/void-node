@@ -77049,3 +77049,125 @@ if (
   }
 })();
 }
+
+
+/**
+ * VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1
+ *
+ * Read-only public runtime exposure for the first WC → VOID redacted settlement receipt.
+ * This route does not execute commands, does not broadcast transactions, does not call RPC,
+ * does not read private keys, and does not expose plaintext participant addresses.
+ */
+const wcToVoidRedactedSettlementReceiptV1 = {
+  "approved_settlement": {
+    "approval_record_sha256": "2bed1bf6314fb6ef6c6908e356bf2b0d929cd9510e23c52a70fedbbdeeeda721",
+    "preview_sha256": "f167b48114902fc39c90b8abc5447b376b71fbd719dc6bd23e5f335f465c77e8",
+    "settlement_key": "4f31fe4b41846562af9a4ae0a5f27be6e6add9b93762750b3eeae33faf7eaf9e",
+    "void": "1.000000",
+    "wc": "100"
+  },
+  "chain_id": "2050",
+  "closed_boundaries": {
+    "does_not_broadcast_tx": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_execute_command": true,
+    "does_not_read_private_key": true,
+    "does_not_send_void": true,
+    "read_only_public_receipt": true
+  },
+  "execution_packets": {
+    "manual_execute_packet_sha256": "88bc15e33afe845561733ed1fc1f9d71d362f6e5e28ea5bd7f6c095d6598dc40",
+    "terminal_execute_request_packet_sha256": "9f6f850a798cb8f0ea2b8ae3e7de5070bdd5ba676876c3a7277573dceeeba0e5"
+  },
+  "funding_route_alignment": {
+    "buy_void_is_canonical_funding_route": true,
+    "no_duplicate_funding_surface_added": true
+  },
+  "marker": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1",
+  "money_movement_performed": true,
+  "privacy": {
+    "plaintext_addresses_redacted": true,
+    "plaintext_from_address_written_to_public_receipt": false,
+    "plaintext_recipient_address_written_to_public_receipt": false,
+    "private_key_seen_by_chat_or_repo": false,
+    "seed_phrase_seen_by_chat_or_repo": false
+  },
+  "public_receipt": true,
+  "receipt_status_success": true,
+  "redacted_party_hashes": {
+    "from_address_sha256": "dffe1949d232f54161e6facdac629631725dcf4d144e0c3a3147319fcac8a5fb",
+    "recipient_declared_address_sha256": "b76db82f5a3a86e4fb2d3e5800327d1618108c24c721aed1222737f7ff99d9c9",
+    "recipient_onchain_normalized_address_sha256": "70f6d039f51576ee4cf0c5686bb639806323c545da233533693f83ea501c2eb6"
+  },
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "settlement_scope": "first_wc_to_void_settlement",
+  "source_records": {
+    "post_execution_record_marker": "VOID_WC_TO_VOID_POST_EXECUTION_SETTLEMENT_RECORD_V1",
+    "private_settlement_ledger_path": "ops/private/wc-to-void-settlements.jsonl",
+    "public_receipt_does_not_replace_private_ledger": true
+  },
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "value_wei": "1000000000000000000",
+  "wc_to_void_settlement_complete": true
+} as const;
+
+app.get("/public-node/wc-to-void/redacted-settlement-receipt-v1.json", (c) => {
+  return c.json(wcToVoidRedactedSettlementReceiptV1);
+});
+
+app.get("/public-node/wc-to-void/redacted-settlement-receipt-v1", (c) => {
+  const r = wcToVoidRedactedSettlementReceiptV1;
+  return c.html(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID WC → VOID Redacted Settlement Receipt v1</title>
+  <style>
+    body { background:#05060a; color:#e8f0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; margin:2rem; line-height:1.45; }
+    a { color:#8bd3ff; }
+    code, pre { background:#101522; padding:0.15rem 0.35rem; border-radius:0.35rem; }
+    .card { border:1px solid #25314d; border-radius:1rem; padding:1rem; margin:1rem 0; background:#0b1020; }
+    .green { color:#83f7b2; }
+    .warn { color:#ffd479; }
+  </style>
+</head>
+<body>
+  <h1>VOID WC → VOID Redacted Settlement Receipt v1</h1>
+  <p><code>VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1</code></p>
+
+  <div class="card">
+    <h2>Settlement result</h2>
+    <p>Transaction hash: <code>${r.tx_hash}</code></p>
+    <p>Chain ID: <code>${r.chain_id}</code></p>
+    <p>Value: <code>${r.value_void} VOID</code></p>
+    <p>Settlement record key: <code>${r.settlement_record_key}</code></p>
+    <p>Receipt status success: <code class="green">${String(r.receipt_status_success)}</code></p>
+    <p>Money movement performed: <code class="green">${String(r.money_movement_performed)}</code></p>
+    <p>WC → VOID settlement complete: <code class="green">${String(r.wc_to_void_settlement_complete)}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Privacy boundary</h2>
+    <p>Plaintext addresses redacted: <code class="green">${String(r.privacy.plaintext_addresses_redacted)}</code></p>
+    <p>Plaintext from address in public receipt: <code>${String(r.privacy.plaintext_from_address_written_to_public_receipt)}</code></p>
+    <p>Plaintext recipient address in public receipt: <code>${String(r.privacy.plaintext_recipient_address_written_to_public_receipt)}</code></p>
+    <p>Private key seen by chat or repo: <code>${String(r.privacy.private_key_seen_by_chat_or_repo)}</code></p>
+    <p>Seed phrase seen by chat or repo: <code>${String(r.privacy.seed_phrase_seen_by_chat_or_repo)}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Closed boundaries</h2>
+    <p>Read-only public receipt: <code class="green">${String(r.closed_boundaries.read_only_public_receipt)}</code></p>
+    <p>Does not execute command: <code>${String(r.closed_boundaries.does_not_execute_command)}</code></p>
+    <p>Does not broadcast tx: <code>${String(r.closed_boundaries.does_not_broadcast_tx)}</code></p>
+    <p>Does not send VOID: <code>${String(r.closed_boundaries.does_not_send_void)}</code></p>
+    <p>Does not call RPC: <code>${String(r.closed_boundaries.does_not_call_rpc)}</code></p>
+    <p>Does not create public mutation: <code>${String(r.closed_boundaries.does_not_create_public_mutation)}</code></p>
+  </div>
+
+  <p><a href="/public-node/wc-to-void/redacted-settlement-receipt-v1.json">View JSON receipt</a></p>
+</body>
+</html>`);
+});
