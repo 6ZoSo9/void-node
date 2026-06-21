@@ -1,0 +1,46 @@
+{
+  "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1",
+  "scope": "first_wc_to_void_settlement_public_evidence_pack",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "value_wei": "1000000000000000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "public_routes": {
+    "redacted_receipt_json": "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+    "redacted_receipt_html": "/public-node/wc-to-void/redacted-settlement-receipt-v1"
+  },
+  "source_artifacts": {
+    "redacted_receipt_doc": "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.md",
+    "redacted_receipt_json": "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json",
+    "runtime_scope_fix_proof": "ops/mainnet0/wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-proof.sh",
+    "runtime_proof": "ops/mainnet0/wc-to-void-redacted-settlement-receipt-runtime-v1-proof.sh",
+    "receipt_proof": "ops/mainnet0/wc-to-void-redacted-settlement-receipt-v1-proof.sh",
+    "post_execution_private_settlement_proof": "ops/private/wc-to-void-post-execution-settlement-record-v1-proof.sh"
+  },
+  "proof_markers": {
+    "evidence_pack": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1_PROOF_GREEN",
+    "redacted_receipt": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1_PROOF_GREEN",
+    "runtime_receipt": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1_PROOF_GREEN",
+    "runtime_scope_fix": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_SCOPE_FIX_V1_PROOF_GREEN",
+    "post_execution_settlement": "VOID_WC_TO_VOID_POST_EXECUTION_SETTLEMENT_RECORD_V1_PROOF_GREEN",
+    "public_mutation_boundary": "VOID_PUBLIC_MUTATION_METHOD_BOUNDARY_AUDIT_V1_GREEN"
+  },
+  "privacy_boundaries": {
+    "plaintext_addresses_redacted": true,
+    "plaintext_from_address_written_to_public_evidence_pack": false,
+    "plaintext_recipient_address_written_to_public_evidence_pack": false,
+    "private_key_seen_by_chat_or_repo": false,
+    "seed_phrase_seen_by_chat_or_repo": false,
+    "private_settlement_ledger_not_served_publicly": true
+  },
+  "closed_boundaries": {
+    "read_only_public_evidence_pack": true,
+    "does_not_execute_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_replace_private_ledger": true
+  }
+}
