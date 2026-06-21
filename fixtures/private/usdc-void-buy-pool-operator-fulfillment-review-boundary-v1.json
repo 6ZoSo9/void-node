@@ -1,0 +1,104 @@
+{
+  "record_type": "void_usdc_void_buy_pool_operator_fulfillment_review_boundary_v1",
+  "marker": "VOID_USDC_VOID_BUY_POOL_OPERATOR_FULFILLMENT_REVIEW_BOUNDARY_V1",
+  "schema_version": 1,
+  "status": "private_operator_fulfillment_review_boundary_only",
+  "fixture_only": true,
+  "contains_real_buyer_data": false,
+  "created_at_utc": "FIXTURE_TIMESTAMP_NOT_REAL",
+  "operator_id": "operator_redacted",
+  "source_decision_record": {
+    "decision_record_marker": "VOID_USDC_VOID_BUY_POOL_OPERATOR_RECEIPT_DECISION_RECORD_FIXTURE_V1",
+    "decision_record_reference": "REDACTED_DECISION_RECORD_REFERENCE_SAMPLE_NOT_REAL",
+    "decision_record_exists": true,
+    "decision_state": "approved_for_manual_fulfillment_review",
+    "decision_record_operator_approved": true
+  },
+  "required_preconditions": {
+    "decision_record_exists": true,
+    "decision_state_is_approved_for_manual_fulfillment_review": true,
+    "decision_record_operator_approved": true,
+    "duplicate_check_performed": true,
+    "duplicate_found": false,
+    "chain_check": "passed_base",
+    "asset_check": "passed_usdc",
+    "receiver_check": "passed_configured_receiver",
+    "sender_wallet_is_receipt_identity": true,
+    "candidate_void_amount_computed": true,
+    "pool_capacity_confirmed": true,
+    "redaction_policy_confirmed": true,
+    "manual_operator_review_required": true
+  },
+  "receipt_reference": {
+    "tx_hash": "REDACTED_TX_HASH_SAMPLE_NOT_REAL",
+    "chain": "base",
+    "asset": "USDC",
+    "sender_wallet": "REDACTED_SENDER_WALLET_SAMPLE_NOT_REAL",
+    "receiver_address": "REDACTED_RECEIVER_ADDRESS_SAMPLE_NOT_REAL",
+    "amount_usdc": "100.00",
+    "send_time_or_block": "REDACTED_BLOCK_OR_TIME_SAMPLE_NOT_REAL"
+  },
+  "fulfillment_review_boundary_state": "ready_for_separate_manual_fulfillment_record",
+  "allowed_fulfillment_review_boundary_states": [
+    "not_ready",
+    "needs_more_info",
+    "blocked_duplicate",
+    "blocked_capacity",
+    "blocked_sender_identity",
+    "blocked_delivery_wallet_mismatch",
+    "ready_for_separate_manual_fulfillment_record"
+  ],
+  "sender_delivery_wallet_boundary": {
+    "sender_wallet_is_receipt_identity": true,
+    "sender_wallet_is_default_fulfillment_identity": true,
+    "different_delivery_wallet_requested": false,
+    "different_delivery_wallet": null,
+    "different_delivery_wallet_requires_separate_operator_approval": true,
+    "wallet_proof_may_be_required": true,
+    "automatic_delivery_wallet_override_allowed": false
+  },
+  "calculation": {
+    "price_usdc_per_void": "0.50",
+    "rate_void_per_usdc": "2",
+    "candidate_void_amount": "200.00",
+    "calculation_is_fulfillment": false,
+    "calculation_is_delivery_promise": false
+  },
+  "pool_capacity_boundary": {
+    "pool_total_void": "10000000",
+    "max_raise_usdc": "5000000",
+    "allocation_available_at_review_time": "operator_must_confirm",
+    "pool_closed": false,
+    "pool_capacity_confirmed_for_fixture": true
+  },
+  "redaction_policy": {
+    "public_release_allowed": false,
+    "public_release_requires_redaction": true,
+    "do_not_publish_buyer_contact_details": true,
+    "do_not_publish_private_queue_state": true,
+    "do_not_publish_internal_notes": true,
+    "do_not_publish_secrets": true
+  },
+  "next_allowed_step": "separate_manual_fulfillment_record_only",
+  "operator_attestation": {
+    "operator_reviewed_boundary_manually": true,
+    "operator_approved_real_fulfillment_execution": false,
+    "operator_signature_required_before_real_use": true
+  },
+  "safety_flags": {
+    "private_operator_fulfillment_review_boundary_only": true,
+    "wallet_send_command_created": false,
+    "wallet_send_enabled": false,
+    "private_key_action_enabled": false,
+    "token_delivery_transaction_created": false,
+    "automatic_fulfillment_enabled": false,
+    "automatic_receipt_acceptance_enabled": false,
+    "public_receipt_intake_endpoint_open": false,
+    "public_receipt_mutation_enabled": false,
+    "public_queue_exposed": false,
+    "fulfillment_promised": false,
+    "investment_return_promised": false,
+    "route_added": false,
+    "src_index_modified": false
+  }
+}
