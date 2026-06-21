@@ -77113,13 +77113,17 @@ const wcToVoidRedactedSettlementReceiptV1 = {
   "wc_to_void_settlement_complete": true
 } as const;
 
-app.get("/public-node/wc-to-void/redacted-settlement-receipt-v1.json", (c) => {
-  return c.json(wcToVoidRedactedSettlementReceiptV1);
-});
+/**
+ * VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1
+ * Runtime mount is delayed until the live HTTP app exists.
+ * This avoids top-level app scope assumptions during module boot.
+ */
+(() => {
+  const G: any = globalThis as any;
+  const mountKey = "__void_wc_to_void_redacted_settlement_receipt_runtime_v1_mounted";
 
-app.get("/public-node/wc-to-void/redacted-settlement-receipt-v1", (c) => {
-  const r = wcToVoidRedactedSettlementReceiptV1;
-  return c.html(`<!doctype html>
+  function renderWcToVoidRedactedSettlementReceiptV1Html(r: any): string {
+    return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -77169,5 +77173,35 @@ app.get("/public-node/wc-to-void/redacted-settlement-receipt-v1", (c) => {
 
   <p><a href="/public-node/wc-to-void/redacted-settlement-receipt-v1.json">View JSON receipt</a></p>
 </body>
-</html>`);
-});
+</html>`;
+  }
+
+  function mountWcToVoidRedactedSettlementReceiptRuntimeV1(): void {
+    if (G[mountKey]) return;
+
+    const APP: any = G.__void_http_app || G.app || null;
+    if (!APP || typeof APP.get !== "function") {
+      setTimeout(mountWcToVoidRedactedSettlementReceiptRuntimeV1, 400);
+      return;
+    }
+
+    G[mountKey] = true;
+
+    APP.get("/public-node/wc-to-void/redacted-settlement-receipt-v1.json", (_req: any, res: any) => {
+      return res.json(wcToVoidRedactedSettlementReceiptV1);
+    });
+
+    APP.get("/public-node/wc-to-void/redacted-settlement-receipt-v1", (_req: any, res: any) => {
+      const html = renderWcToVoidRedactedSettlementReceiptV1Html(wcToVoidRedactedSettlementReceiptV1);
+      if (res && typeof res.type === "function" && typeof res.send === "function") {
+        return res.type("html").send(html);
+      }
+      if (res && typeof res.html === "function") {
+        return res.html(html);
+      }
+      return res.send(html);
+    });
+  }
+
+  mountWcToVoidRedactedSettlementReceiptRuntimeV1();
+})();
