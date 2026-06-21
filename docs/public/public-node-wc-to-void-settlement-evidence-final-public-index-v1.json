@@ -1,7 +1,7 @@
 {
   "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1",
   "scope": "first_wc_to_native_void_settlement_final_public_index",
-  "status": "sealed_index_ready",
+  "status": "sealed_live_index_ready",
   "chain_id": "2050",
   "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
   "value_void": "1.000000",
@@ -12,7 +12,9 @@
     "handoff_note_json": "/public-node/wc-to-void/public-reviewer-handoff-note-v1.json",
     "reviewer_verify_pack": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1",
     "reviewer_verify_pack_json": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json",
-    "expected_reviewer_success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN"
+    "expected_reviewer_success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN",
+    "final_public_index": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1",
+    "final_public_index_json": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json"
   },
   "sealed_public_chain": [
     {
@@ -69,6 +71,15 @@
       "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_DASHBOARD_LINK_V1",
       "public_route": "/public-node",
       "boundary": "dashboard_discovery_only_no_new_mutation"
+    },
+    {
+      "order": 8,
+      "name": "live final public settlement evidence index",
+      "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1",
+      "runtime_marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1",
+      "public_route": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1",
+      "public_json": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json",
+      "boundary": "live_read_only_final_index_no_mutation"
     }
   ],
   "sealed_heads": {
@@ -85,7 +96,8 @@
     "public_reviewer_verify_pack_dashboard_link": "dc5b62f0",
     "public_reviewer_handoff_note_static": "efdfc6a1",
     "public_reviewer_handoff_note_runtime": "09391e41",
-    "public_reviewer_handoff_note_dashboard_link": "0ceb8870"
+    "public_reviewer_handoff_note_dashboard_link": "0ceb8870",
+    "settlement_evidence_final_public_index_static": "58c626db"
   },
   "sealed_cross_box_tags": {
     "redacted_receipt": "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226",
@@ -101,12 +113,14 @@
     "public_reviewer_verify_pack_dashboard_link": "ckpt-wc-to-void-public-reviewer-verify-pack-dashboard-link-v1-cross-box-green-20260621-154659",
     "public_reviewer_handoff_note_static": "ckpt-wc-to-void-public-reviewer-handoff-note-v1-cross-box-green-20260621-155248",
     "public_reviewer_handoff_note_runtime": "ckpt-wc-to-void-public-reviewer-handoff-note-runtime-v1-cross-box-green-20260621-160059",
-    "public_reviewer_handoff_note_dashboard_link": "ckpt-wc-to-void-public-reviewer-handoff-note-dashboard-link-v1-cross-box-green-20260621-160736"
+    "public_reviewer_handoff_note_dashboard_link": "ckpt-wc-to-void-public-reviewer-handoff-note-dashboard-link-v1-cross-box-green-20260621-160736",
+    "settlement_evidence_final_public_index_static": "ckpt-wc-to-void-settlement-evidence-final-public-index-v1-cross-box-green-20260621-163609"
   },
   "closed_boundaries": {
-    "static_index_only": true,
-    "does_not_add_runtime_route": true,
-    "does_not_change_safety_count": true,
+    "static_index_content": true,
+    "live_read_only_runtime_exposure": true,
+    "runtime_route_is_get_only": true,
+    "safety_count_updated_to_include_routes": true,
     "does_not_call_rpc": true,
     "does_not_broadcast_tx": true,
     "does_not_send_void": true,
@@ -115,8 +129,8 @@
     "does_not_expose_plaintext_party_addresses": true
   },
   "public_surface_safety": {
-    "public_literal_get_count": 169,
-    "public_literal_get_unique_count": 169,
+    "public_literal_get_count": 171,
+    "public_literal_get_unique_count": 171,
     "public_node_literal_mutation_handler_count": 0
   }
 }

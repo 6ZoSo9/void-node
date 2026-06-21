@@ -47907,6 +47907,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1", use: "human reviewer page with copyable one-command verification script for the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/wc-to-void/public-reviewer-handoff-note-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1", use: "public read-only handoff note for outside reviewers verifying the first WC to native VOID settlement" },
       { path: "/public-node/wc-to-void/public-reviewer-handoff-note-v1", kind: "html", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_RUNTIME_V1", use: "human handoff page explaining exactly how to verify the first WC to native VOID settlement" },
+      { path: "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1", use: "final public JSON index for the first WC to native VOID settlement evidence chain" },
+      { path: "/public-node/wc-to-void/settlement-evidence-final-public-index-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1", use: "human final public index for the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
@@ -77856,4 +77858,244 @@ const wcToVoidPublicReviewerHandoffNoteV1 = {
   }
 
   mountWcToVoidPublicReviewerHandoffNoteRuntimeV1();
+})();
+
+/**
+ * VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1
+ * Delayed public read-only runtime mount for the final WC → VOID settlement evidence index.
+ */
+const wcToVoidSettlementEvidenceFinalPublicIndexV1 = {
+  "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1",
+  "scope": "first_wc_to_native_void_settlement_final_public_index",
+  "status": "sealed_live_index_ready",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "public_review_entrypoint": {
+    "public_node_dashboard": "/public-node",
+    "human_handoff_note": "/public-node/wc-to-void/public-reviewer-handoff-note-v1",
+    "handoff_note_json": "/public-node/wc-to-void/public-reviewer-handoff-note-v1.json",
+    "reviewer_verify_pack": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1",
+    "reviewer_verify_pack_json": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json",
+    "expected_reviewer_success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN",
+    "final_public_index": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1",
+    "final_public_index_json": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json"
+  },
+  "sealed_public_chain": [
+    {
+      "order": 1,
+      "name": "private post-execution settlement record proof",
+      "marker": "VOID_WC_TO_VOID_POST_EXECUTION_SETTLEMENT_RECORD_V1_PROOF_GREEN",
+      "public_route": null,
+      "boundary": "private_precision_only_no_plaintext_public_exposure"
+    },
+    {
+      "order": 2,
+      "name": "public redacted settlement receipt",
+      "marker": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1",
+      "public_route": "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+      "boundary": "redacted_public_receipt_no_plaintext_party_addresses"
+    },
+    {
+      "order": 3,
+      "name": "public settlement evidence pack",
+      "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1",
+      "public_route": "/public-node/wc-to-void/settlement-evidence-pack-v1",
+      "public_json": "/public-node/wc-to-void/settlement-evidence-pack-v1.json",
+      "boundary": "read_only_public_evidence_pack"
+    },
+    {
+      "order": 4,
+      "name": "public settlement evidence closeout seal",
+      "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1",
+      "public_route": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1",
+      "public_json": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json",
+      "boundary": "read_only_closeout_seal"
+    },
+    {
+      "order": 5,
+      "name": "public reviewer one-command verify pack",
+      "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1",
+      "public_route": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1",
+      "public_json": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json",
+      "success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN",
+      "boundary": "read_only_public_reviewer_command_no_rpc_no_broadcast_no_send"
+    },
+    {
+      "order": 6,
+      "name": "public reviewer handoff note",
+      "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1",
+      "runtime_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_RUNTIME_V1",
+      "public_route": "/public-node/wc-to-void/public-reviewer-handoff-note-v1",
+      "public_json": "/public-node/wc-to-void/public-reviewer-handoff-note-v1.json",
+      "boundary": "human_readable_reviewer_start_here_note"
+    },
+    {
+      "order": 7,
+      "name": "public dashboard handoff and verifier links",
+      "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_DASHBOARD_LINK_V1",
+      "public_route": "/public-node",
+      "boundary": "dashboard_discovery_only_no_new_mutation"
+    },
+    {
+      "order": 8,
+      "name": "live final public settlement evidence index",
+      "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1",
+      "runtime_marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1",
+      "public_route": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1",
+      "public_json": "/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json",
+      "boundary": "live_read_only_final_index_no_mutation"
+    }
+  ],
+  "sealed_heads": {
+    "redacted_receipt": "6f637649",
+    "redacted_receipt_runtime_scope_fix": "3cf694f7",
+    "settlement_evidence_pack_static": "52f342a1",
+    "settlement_evidence_pack_runtime": "f268105d",
+    "evidence_pack_discovery_link": "843f0680",
+    "closeout_seal_static": "a9d384b3",
+    "closeout_seal_runtime": "932fb7be",
+    "closeout_seal_dashboard_link": "058cc434",
+    "public_reviewer_one_command_verify_pack_static": "c9047823",
+    "public_reviewer_verify_pack_runtime": "b31fa78a",
+    "public_reviewer_verify_pack_dashboard_link": "dc5b62f0",
+    "public_reviewer_handoff_note_static": "efdfc6a1",
+    "public_reviewer_handoff_note_runtime": "09391e41",
+    "public_reviewer_handoff_note_dashboard_link": "0ceb8870",
+    "settlement_evidence_final_public_index_static": "58c626db"
+  },
+  "sealed_cross_box_tags": {
+    "redacted_receipt": "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226",
+    "redacted_receipt_runtime_scope_fix": "ckpt-wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-cross-box-green-20260621-123144",
+    "settlement_evidence_pack_static": "ckpt-wc-to-void-settlement-evidence-pack-static-v1-cross-box-green-20260621-124512",
+    "settlement_evidence_pack_runtime": "ckpt-wc-to-void-settlement-evidence-pack-runtime-v1-cross-box-green-20260621-125050",
+    "evidence_pack_discovery_link": "ckpt-wc-to-void-evidence-pack-discovery-link-v1-cross-box-green-20260621-125753",
+    "closeout_seal_static": "ckpt-wc-to-void-settlement-evidence-closeout-seal-static-v1-cross-box-green-20260621-130417",
+    "closeout_seal_runtime": "ckpt-wc-to-void-settlement-evidence-closeout-seal-runtime-v1-cross-box-green-20260621-131301",
+    "closeout_seal_dashboard_link": "ckpt-wc-to-void-closeout-seal-dashboard-link-v1-cross-box-green-20260621-132148",
+    "public_reviewer_one_command_verify_pack_static": "ckpt-wc-to-void-public-reviewer-one-command-verify-pack-v1-cross-box-green-20260621-153341",
+    "public_reviewer_verify_pack_runtime": "ckpt-wc-to-void-public-reviewer-verify-pack-runtime-v1-cross-box-green-20260621-154103",
+    "public_reviewer_verify_pack_dashboard_link": "ckpt-wc-to-void-public-reviewer-verify-pack-dashboard-link-v1-cross-box-green-20260621-154659",
+    "public_reviewer_handoff_note_static": "ckpt-wc-to-void-public-reviewer-handoff-note-v1-cross-box-green-20260621-155248",
+    "public_reviewer_handoff_note_runtime": "ckpt-wc-to-void-public-reviewer-handoff-note-runtime-v1-cross-box-green-20260621-160059",
+    "public_reviewer_handoff_note_dashboard_link": "ckpt-wc-to-void-public-reviewer-handoff-note-dashboard-link-v1-cross-box-green-20260621-160736",
+    "settlement_evidence_final_public_index_static": "ckpt-wc-to-void-settlement-evidence-final-public-index-v1-cross-box-green-20260621-163609"
+  },
+  "closed_boundaries": {
+    "static_index_content": true,
+    "live_read_only_runtime_exposure": true,
+    "runtime_route_is_get_only": true,
+    "safety_count_updated_to_include_routes": true,
+    "does_not_call_rpc": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_create_public_mutation": true,
+    "does_not_expose_private_ledger": true,
+    "does_not_expose_plaintext_party_addresses": true
+  },
+  "public_surface_safety": {
+    "public_literal_get_count": 171,
+    "public_literal_get_unique_count": 171,
+    "public_node_literal_mutation_handler_count": 0
+  }
+} as const;
+
+(() => {
+  const G: any = globalThis as any;
+  const mountKey = "__void_wc_to_void_settlement_evidence_final_public_index_runtime_v1_mounted";
+
+  function escapeWcToVoidFinalPublicIndexHtmlV1(value: unknown): string {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderWcToVoidSettlementEvidenceFinalPublicIndexV1Html(index: any): string {
+    const chain = Array.isArray(index.sealed_public_chain) ? index.sealed_public_chain : [];
+    const entry = index.public_review_entrypoint || {};
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID WC → VOID Settlement Evidence Final Public Index v1</title>
+  <style>
+    body { background:#05060a; color:#e8f0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; margin:2rem; line-height:1.45; }
+    a { color:#8bd3ff; }
+    code { background:#101522; border-radius:0.35rem; padding:0.15rem 0.35rem; }
+    .card { border:1px solid #25314d; border-radius:1rem; padding:1rem; margin:1rem 0; background:#0b1020; }
+    .green { color:#83f7b2; }
+    li { margin:0.35rem 0; }
+  </style>
+</head>
+<body>
+  <h1>VOID WC → VOID Settlement Evidence Final Public Index v1</h1>
+  <p><code>VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1</code></p>
+
+  <div class="card">
+    <h2>Status</h2>
+    <p>Index marker: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.marker)}</code></p>
+    <p>Status: <code class="green">${escapeWcToVoidFinalPublicIndexHtmlV1(index.status)}</code></p>
+    <p>Chain ID: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.chain_id)}</code></p>
+    <p>Transaction hash: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.tx_hash)}</code></p>
+    <p>Value: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.value_void)} VOID</code></p>
+    <p>Settlement record key: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.settlement_record_key)}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Reviewer entrypoint</h2>
+    <ul>
+      <li><a href="${escapeWcToVoidFinalPublicIndexHtmlV1(entry.public_node_dashboard || "/public-node")}">Public node dashboard</a></li>
+      <li><a href="${escapeWcToVoidFinalPublicIndexHtmlV1(entry.human_handoff_note || "/public-node/wc-to-void/public-reviewer-handoff-note-v1")}">Human handoff note</a></li>
+      <li><a href="${escapeWcToVoidFinalPublicIndexHtmlV1(entry.reviewer_verify_pack || "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1")}">Reviewer verify pack</a></li>
+      <li><a href="${escapeWcToVoidFinalPublicIndexHtmlV1(entry.reviewer_verify_pack_json || "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json")}">Reviewer verify pack JSON</a></li>
+    </ul>
+    <p>Expected reviewer success marker: <code class="green">${escapeWcToVoidFinalPublicIndexHtmlV1(entry.expected_reviewer_success_marker)}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Sealed public chain</h2>
+    <ol>
+      ${chain.map((item: any) => `<li><strong>${escapeWcToVoidFinalPublicIndexHtmlV1(item.name)}</strong> — marker <code>${escapeWcToVoidFinalPublicIndexHtmlV1(item.marker || item.runtime_marker || "")}</code>${item.public_route ? ` — <a href="${escapeWcToVoidFinalPublicIndexHtmlV1(item.public_route)}">HTML</a>` : ""}${item.public_json ? ` — <a href="${escapeWcToVoidFinalPublicIndexHtmlV1(item.public_json)}">JSON</a>` : ""}</li>`).join("")}
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Safety</h2>
+    <p>Public GET count: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.public_surface_safety.public_literal_get_count)}</code></p>
+    <p>Public unique GET count: <code>${escapeWcToVoidFinalPublicIndexHtmlV1(index.public_surface_safety.public_literal_get_unique_count)}</code></p>
+    <p>Public node mutation handlers: <code class="green">${escapeWcToVoidFinalPublicIndexHtmlV1(index.public_surface_safety.public_node_literal_mutation_handler_count)}</code></p>
+    <p>Boundary: <code>read_only=true</code> · <code>public_mutation=false</code> · <code>rpc=false</code> · <code>send_void=false</code></p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function mountWcToVoidSettlementEvidenceFinalPublicIndexRuntimeV1(): void {
+    if (G[mountKey]) return;
+
+    const APP: any = G.__void_http_app || G.app || null;
+    if (!APP || typeof APP.get !== "function") {
+      setTimeout(mountWcToVoidSettlementEvidenceFinalPublicIndexRuntimeV1, 400);
+      return;
+    }
+
+    G[mountKey] = true;
+
+    APP.get("/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json", (_req: any, res: any) => {
+      return res.json(wcToVoidSettlementEvidenceFinalPublicIndexV1);
+    });
+
+    APP.get("/public-node/wc-to-void/settlement-evidence-final-public-index-v1", (_req: any, res: any) => {
+      const html = renderWcToVoidSettlementEvidenceFinalPublicIndexV1Html(wcToVoidSettlementEvidenceFinalPublicIndexV1);
+      if (res && typeof res.type === "function" && typeof res.send === "function") return res.type("html").send(html);
+      if (res && typeof res.html === "function") return res.html(html);
+      return res.send(html);
+    });
+  }
+
+  mountWcToVoidSettlementEvidenceFinalPublicIndexRuntimeV1();
 })();

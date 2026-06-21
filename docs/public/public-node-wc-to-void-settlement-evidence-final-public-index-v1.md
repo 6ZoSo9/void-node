@@ -2,9 +2,9 @@
 
 Marker: `VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_V1`
 
-Status: `sealed_index_ready`
+Status: `sealed_live_index_ready`
 
-This is the final public index for the first WC → native VOID settlement proof trail.
+This is the final public index for the first WC → native VOID settlement proof trail. It is now exposed as read-only public JSON and HTML.
 
 ## Core settlement facts
 
@@ -18,6 +18,10 @@ This is the final public index for the first WC → native VOID settlement proof
 Start at:
 
 `/public-node`
+
+Or open the live final index directly:
+
+`/public-node/wc-to-void/settlement-evidence-final-public-index-v1`
 
 Then open:
 
@@ -40,6 +44,7 @@ A successful public reviewer run prints:
 5. Public reviewer one-command verify pack.
 6. Public reviewer handoff note.
 7. Public dashboard links to the handoff note and verifier.
+8. Live final public settlement evidence index.
 
 ## Public routes
 
@@ -53,13 +58,15 @@ A successful public reviewer run prints:
 - `/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json`
 - `/public-node/wc-to-void/public-reviewer-handoff-note-v1`
 - `/public-node/wc-to-void/public-reviewer-handoff-note-v1.json`
+- `/public-node/wc-to-void/settlement-evidence-final-public-index-v1`
+- `/public-node/wc-to-void/settlement-evidence-final-public-index-v1.json`
 
 ## Boundary
 
-This index is static and read-only.
+This index content is static and is exposed through read-only public runtime routes.
 
-It does not add runtime routes, change the safety count, call RPC, broadcast a transaction, send VOID, create public mutation paths, expose the private ledger, or expose plaintext party addresses.
+It does not call RPC, broadcast a transaction, send VOID, create public mutation paths, expose the private ledger, or expose plaintext party addresses.
 
-Public safety count remains `169`.
+Public safety count is updated to `171` to include the two read-only final index routes.
 
 Public node mutation handler count remains `0`.

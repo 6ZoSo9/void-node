@@ -49,8 +49,8 @@ It does not modify `src/index.ts`.
 - public_node_literal_mutation_handler_count=0
 - public_route_duplicate_count=0
 - literal_mutation_handler_count=118
-- public_literal_get_count=169
-- public_literal_get_unique_count=169
+- public_literal_get_count=171
+- public_literal_get_unique_count=171
 - public_literal_get_duplicate_count=0
 
 ## Closed authorities
@@ -124,8 +124,8 @@ Routes accounted for:
 
 Updated public route audit values:
 
-- public_literal_get_count=169
-- public_literal_get_unique_count=169
+- public_literal_get_count=171
+- public_literal_get_unique_count=171
 - public_literal_get_duplicate_count=0
 
 Safety state remains unchanged:
