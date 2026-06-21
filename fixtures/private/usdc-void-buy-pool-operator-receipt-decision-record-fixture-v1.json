@@ -1,0 +1,103 @@
+{
+  "record_type": "void_usdc_void_buy_pool_operator_receipt_decision_record_fixture_v1",
+  "marker": "VOID_USDC_VOID_BUY_POOL_OPERATOR_RECEIPT_DECISION_RECORD_FIXTURE_V1",
+  "schema_version": 1,
+  "status": "private_operator_decision_record_fixture_only",
+  "fixture_only": true,
+  "contains_real_buyer_data": false,
+  "created_at_utc": "FIXTURE_TIMESTAMP_NOT_REAL",
+  "operator_id": "operator_redacted",
+  "decision_state": "valid_receipt_candidate",
+  "allowed_decision_states": [
+    "needs_more_info",
+    "rejected_wrong_chain",
+    "rejected_wrong_asset",
+    "rejected_wrong_receiver",
+    "rejected_exchange_or_pooled_sender",
+    "rejected_duplicate_tx_hash",
+    "rejected_pool_closed",
+    "valid_receipt_candidate",
+    "approved_for_manual_fulfillment_review"
+  ],
+  "receipt_reference": {
+    "tx_hash": "REDACTED_TX_HASH_SAMPLE_NOT_REAL",
+    "chain": "base",
+    "asset": "USDC",
+    "sender_wallet": "REDACTED_SENDER_WALLET_SAMPLE_NOT_REAL",
+    "receiver_address": "REDACTED_RECEIVER_ADDRESS_SAMPLE_NOT_REAL",
+    "amount_usdc": "100.00",
+    "send_time_or_block": "REDACTED_BLOCK_OR_TIME_SAMPLE_NOT_REAL"
+  },
+  "review_inputs": {
+    "buyer_provided_tx_hash": true,
+    "buyer_provided_sender_wallet": true,
+    "buyer_provided_amount": true,
+    "buyer_provided_receiver_address": true,
+    "buyer_provided_send_time_or_block": true,
+    "wallet_proof_requested": false,
+    "wallet_proof_received": false,
+    "optional_delivery_wallet_requested": false,
+    "optional_delivery_wallet": null
+  },
+  "verification_results": {
+    "chain_check": "passed_base",
+    "asset_check": "passed_usdc",
+    "receiver_check": "passed_configured_receiver",
+    "sender_identity_check": "passed_sender_wallet_is_receipt_identity",
+    "exchange_or_pooled_sender_check": "passed_not_detected",
+    "amount_check": "passed",
+    "redaction_check": "passed_no_public_private_details"
+  },
+  "duplicate_check": {
+    "performed": true,
+    "duplicate_found": false,
+    "duplicate_record_reference": null
+  },
+  "calculation": {
+    "price_usdc_per_void": "0.50",
+    "rate_void_per_usdc": "2",
+    "candidate_void_amount": "200.00",
+    "calculation_is_fulfillment": false,
+    "calculation_is_delivery_promise": false
+  },
+  "pool_capacity_check": {
+    "pool_total_void": "10000000",
+    "max_raise_usdc": "5000000",
+    "allocation_available_at_review_time": "operator_must_confirm",
+    "pool_closed": false
+  },
+  "sender_identity_rule": {
+    "sender_wallet_is_receipt_identity": true,
+    "sender_wallet_is_default_fulfillment_identity": true,
+    "different_delivery_wallet_requires_separate_operator_approval": true
+  },
+  "redaction_policy": {
+    "public_release_allowed": false,
+    "public_release_requires_redaction": true,
+    "do_not_publish_buyer_contact_details": true,
+    "do_not_publish_private_queue_state": true,
+    "do_not_publish_internal_notes": true,
+    "do_not_publish_secrets": true
+  },
+  "next_allowed_step": "separate_operator_fulfillment_review_only",
+  "operator_attestation": {
+    "operator_reviewed_manually": true,
+    "operator_approved_this_decision_record": false,
+    "operator_signature_required_before_real_use": true
+  },
+  "safety_flags": {
+    "private_operator_decision_record_fixture_only": true,
+    "public_receipt_intake_endpoint_open": false,
+    "public_receipt_mutation_enabled": false,
+    "public_queue_exposed": false,
+    "automatic_receipt_acceptance_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_send_enabled": false,
+    "private_key_action_enabled": false,
+    "token_delivery_transaction_created": false,
+    "fulfillment_promised": false,
+    "investment_return_promised": false,
+    "route_added": false,
+    "src_index_modified": false
+  }
+}
