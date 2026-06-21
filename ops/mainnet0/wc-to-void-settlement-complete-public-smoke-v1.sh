@@ -7,7 +7,7 @@ tmp="$(mktemp -d)"
 tx="0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717"
 final_marker="VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1"
 dashboard_marker="VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_DASHBOARD_CARD_RUNTIME_V1"
-verify_pack_marker="VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1"
+verify_pack_marker="VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1"
 receipt_marker="VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1"
 
 echo "VOID_WC_TO_VOID_SETTLEMENT_COMPLETE_PUBLIC_SMOKE_V1_BEGIN"
@@ -60,7 +60,7 @@ assert contains_tx(verify_pack), "verify pack missing settlement tx"
 assert contains_tx(receipt), "receipt missing settlement tx"
 
 assert "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_FINAL_PUBLIC_INDEX_RUNTIME_V1" in json.dumps(final_index)
-assert "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1" in json.dumps(verify_pack)
+assert "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1" in json.dumps(verify_pack)
 assert "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1" in json.dumps(receipt)
 PY
 
