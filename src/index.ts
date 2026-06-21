@@ -47903,6 +47903,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/wc-to-void/settlement-evidence-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1", use: "human reviewer page for first WC to native VOID settlement evidence pack; links receipt and boundary facts" },
       { path: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1", use: "public read-only closeout seal for the first WC to native VOID settlement evidence chain; summarizes sealed heads, tags, routes, markers, and boundaries" },
       { path: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1", use: "human reviewer closeout page for the first WC to native VOID settlement evidence chain" },
+      { path: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1", use: "public read-only one-command verification pack for outside reviewers checking the first WC to native VOID settlement evidence chain" },
+      { path: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1", use: "human reviewer page with copyable one-command verification script for the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
@@ -77501,4 +77503,172 @@ const wcToVoidSettlementEvidenceCloseoutSealV1 = {
   }
 
   mountWcToVoidSettlementEvidenceCloseoutSealRuntimeV1();
+})();
+
+/**
+ * VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1
+ * Delayed public read-only runtime mount for the WC → VOID reviewer one-command verify pack.
+ */
+const wcToVoidPublicReviewerOneCommandVerifyPackV1 = {
+  "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1",
+  "scope": "first_wc_to_void_settlement_public_reviewer_verify_pack",
+  "status": "ready",
+  "base_url_default": "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "value_wei": "1000000000000000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "review_targets": {
+    "dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json",
+    "closeout_seal_json": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json",
+    "closeout_seal_html": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1",
+    "evidence_pack_json": "/public-node/wc-to-void/settlement-evidence-pack-v1.json",
+    "evidence_pack_html": "/public-node/wc-to-void/settlement-evidence-pack-v1",
+    "redacted_receipt_json": "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+    "redacted_receipt_html": "/public-node/wc-to-void/redacted-settlement-receipt-v1"
+  },
+  "required_public_markers": [
+    "VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1",
+    "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1",
+    "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1"
+  ],
+  "sealed_heads": {
+    "closeout_seal_dashboard_link_v1": "058cc434",
+    "closeout_seal_runtime_v1": "932fb7be",
+    "closeout_seal_static_v1": "a9d384b3",
+    "evidence_pack_discovery_link_v1": "843f0680",
+    "settlement_evidence_pack_runtime_v1": "f268105d",
+    "settlement_evidence_pack_static_v1": "52f342a1",
+    "redacted_receipt_runtime_scope_fix_v1": "3cf694f7",
+    "public_redacted_settlement_receipt_v1": "6f637649"
+  },
+  "sealed_tags": {
+    "closeout_seal_dashboard_link_cross_box": "ckpt-wc-to-void-closeout-seal-dashboard-link-v1-cross-box-green-20260621-132148",
+    "closeout_seal_runtime_cross_box": "ckpt-wc-to-void-settlement-evidence-closeout-seal-runtime-v1-cross-box-green-20260621-131301",
+    "closeout_seal_static_cross_box": "ckpt-wc-to-void-settlement-evidence-closeout-seal-static-v1-cross-box-green-20260621-130417",
+    "evidence_pack_discovery_link_cross_box": "ckpt-wc-to-void-evidence-pack-discovery-link-v1-cross-box-green-20260621-125753",
+    "evidence_pack_runtime_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-runtime-v1-cross-box-green-20260621-125050",
+    "evidence_pack_static_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-static-v1-cross-box-green-20260621-124512",
+    "redacted_receipt_runtime_scope_fix_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-cross-box-green-20260621-123144",
+    "redacted_receipt_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226"
+  },
+  "copy_paste_verify_command": "base=${VOID_PUBLIC_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}; tmp=$(mktemp -d); set -e; curl -fsS \"$base/public-node\" > \"$tmp/dashboard.html\"; curl -fsS \"$base/public-node/route-index.json\" > \"$tmp/route-index.json\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json\" > \"$tmp/closeout.json\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-closeout-seal-v1\" > \"$tmp/closeout.html\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-pack-v1.json\" > \"$tmp/evidence.json\"; curl -fsS \"$base/public-node/wc-to-void/redacted-settlement-receipt-v1.json\" > \"$tmp/receipt.json\"; grep -F VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1 \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1 \"$tmp/closeout.html\" >/dev/null; python3 - \"$tmp/closeout.json\" \"$tmp/evidence.json\" \"$tmp/receipt.json\" <<'PY'\nimport json, re, sys\ncloseout=json.load(open(sys.argv[1]))\nevidence=json.load(open(sys.argv[2]))\nreceipt=json.load(open(sys.argv[3]))\ntx='0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717'\nkey='710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1'\nassert closeout['marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1'\nassert closeout['runtime_marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1'\nassert closeout['tx_hash']==tx\nassert closeout['settlement_record_key']==key\nassert evidence['marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1'\nassert evidence['tx_hash']==tx\nassert receipt['marker']=='VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1'\nassert receipt['tx_hash']==tx\nassert closeout['privacy_boundaries']['plaintext_addresses_redacted'] is True\nassert closeout['privacy_boundaries']['private_settlement_ledger_not_served_publicly'] is True\nassert closeout['closed_boundaries']['does_not_create_public_mutation'] is True\nassert closeout['closed_boundaries']['does_not_send_void'] is True\nassert closeout['closed_boundaries']['does_not_call_rpc'] is True\nblob=json.dumps([closeout,evidence,receipt], sort_keys=True)\nassert re.search(r'0x[0-9a-fA-F]{40}(?![0-9a-fA-F])', blob) is None\nprint('VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN')\nPY",
+  "privacy_boundaries": {
+    "plaintext_addresses_redacted": true,
+    "private_key_seen_by_chat_or_repo": false,
+    "seed_phrase_seen_by_chat_or_repo": false,
+    "private_settlement_ledger_not_served_publicly": true
+  },
+  "closed_boundaries": {
+    "read_only_reviewer_pack": true,
+    "does_not_execute_settlement_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_replace_private_ledger": true
+  }
+} as const;
+
+(() => {
+  const G: any = globalThis as any;
+  const mountKey = "__void_wc_to_void_public_reviewer_verify_pack_runtime_v1_mounted";
+
+  function escapeWcToVoidReviewerPackHtmlV1(value: unknown): string {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderWcToVoidPublicReviewerVerifyPackV1Html(pack: any): string {
+    const cmd = escapeWcToVoidReviewerPackHtmlV1(pack.copy_paste_verify_command);
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID WC → VOID Public Reviewer Verify Pack v1</title>
+  <style>
+    body { background:#05060a; color:#e8f0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; margin:2rem; line-height:1.45; }
+    a { color:#8bd3ff; }
+    code, pre { background:#101522; border-radius:0.35rem; }
+    code { padding:0.15rem 0.35rem; }
+    pre { padding:1rem; overflow:auto; white-space:pre-wrap; word-break:break-word; border:1px solid #25314d; }
+    .card { border:1px solid #25314d; border-radius:1rem; padding:1rem; margin:1rem 0; background:#0b1020; }
+    .green { color:#83f7b2; }
+  </style>
+</head>
+<body>
+  <h1>VOID WC → VOID Public Reviewer Verify Pack v1</h1>
+  <p><code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1</code></p>
+
+  <div class="card">
+    <h2>Status</h2>
+    <p>Pack marker: <code>${pack.marker}</code></p>
+    <p>Status: <code class="green">${pack.status}</code></p>
+    <p>Chain ID: <code>${pack.chain_id}</code></p>
+    <p>Transaction hash: <code>${pack.tx_hash}</code></p>
+    <p>Value: <code>${pack.value_void} VOID</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Copy / paste reviewer command</h2>
+    <p>This command is read-only. It fetches the public dashboard, route index, closeout seal, evidence pack, and redacted receipt, then verifies markers and boundaries.</p>
+    <pre>${cmd}</pre>
+  </div>
+
+  <div class="card">
+    <h2>Reviewer links</h2>
+    <p><a href="/public-node">Public node dashboard</a></p>
+    <p><a href="/public-node/route-index.json">Route index JSON</a></p>
+    <p><a href="/public-node/wc-to-void/settlement-evidence-closeout-seal-v1">Closeout seal HTML</a></p>
+    <p><a href="/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json">Closeout seal JSON</a></p>
+    <p><a href="/public-node/wc-to-void/settlement-evidence-pack-v1.json">Evidence pack JSON</a></p>
+    <p><a href="/public-node/wc-to-void/redacted-settlement-receipt-v1.json">Redacted receipt JSON</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Boundaries</h2>
+    <p>Read-only reviewer pack: <code class="green">${String(pack.closed_boundaries.read_only_reviewer_pack)}</code></p>
+    <p>Does not execute settlement command: <code>${String(pack.closed_boundaries.does_not_execute_settlement_command)}</code></p>
+    <p>Does not broadcast tx: <code>${String(pack.closed_boundaries.does_not_broadcast_tx)}</code></p>
+    <p>Does not send VOID: <code>${String(pack.closed_boundaries.does_not_send_void)}</code></p>
+    <p>Does not call RPC: <code>${String(pack.closed_boundaries.does_not_call_rpc)}</code></p>
+    <p>Does not create public mutation: <code class="green">${String(pack.closed_boundaries.does_not_create_public_mutation)}</code></p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function mountWcToVoidPublicReviewerVerifyPackRuntimeV1(): void {
+    if (G[mountKey]) return;
+
+    const APP: any = G.__void_http_app || G.app || null;
+    if (!APP || typeof APP.get !== "function") {
+      setTimeout(mountWcToVoidPublicReviewerVerifyPackRuntimeV1, 400);
+      return;
+    }
+
+    G[mountKey] = true;
+
+    APP.get("/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json", (_req: any, res: any) => {
+      return res.json(wcToVoidPublicReviewerOneCommandVerifyPackV1);
+    });
+
+    APP.get("/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1", (_req: any, res: any) => {
+      const html = renderWcToVoidPublicReviewerVerifyPackV1Html(wcToVoidPublicReviewerOneCommandVerifyPackV1);
+      if (res && typeof res.type === "function" && typeof res.send === "function") return res.type("html").send(html);
+      if (res && typeof res.html === "function") return res.html(html);
+      return res.send(html);
+    });
+  }
+
+  mountWcToVoidPublicReviewerVerifyPackRuntimeV1();
 })();
