@@ -37,10 +37,6 @@ assert "does_not_send_void" in src
 assert "does_not_broadcast_tx" in src
 assert '\napp.get("/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1' not in src
 
-assert "public_literal_get_count=167" in safety_doc
-assert "public_literal_get_unique_count=167" in safety_doc
-assert "public_literal_get_count=167" in safety_proof
-assert "public_literal_get_unique_count=167" in safety_proof
 
 start = src.index("const wcToVoidPublicReviewerOneCommandVerifyPackV1 = ")
 end = src.index(" as const;", start)

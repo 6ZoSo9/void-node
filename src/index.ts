@@ -47905,6 +47905,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1", use: "human reviewer closeout page for the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1", use: "public read-only one-command verification pack for outside reviewers checking the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1", use: "human reviewer page with copyable one-command verification script for the first WC to native VOID settlement evidence chain" },
+      { path: "/public-node/wc-to-void/public-reviewer-handoff-note-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1", use: "public read-only handoff note for outside reviewers verifying the first WC to native VOID settlement" },
+      { path: "/public-node/wc-to-void/public-reviewer-handoff-note-v1", kind: "html", marker: "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_RUNTIME_V1", use: "human handoff page explaining exactly how to verify the first WC to native VOID settlement" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
@@ -77674,4 +77676,181 @@ const wcToVoidPublicReviewerOneCommandVerifyPackV1 = {
   }
 
   mountWcToVoidPublicReviewerVerifyPackRuntimeV1();
+})();
+
+/**
+ * VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_RUNTIME_V1
+ * Delayed public read-only runtime mount for the WC → VOID public reviewer handoff note.
+ */
+const wcToVoidPublicReviewerHandoffNoteV1 = {
+  "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1",
+  "scope": "first_wc_to_void_settlement_public_reviewer_handoff",
+  "status": "ready",
+  "audience": "outside_public_reviewer",
+  "base_url_default": "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "review_path": [
+    {
+      "step": 1,
+      "label": "Open the public node dashboard",
+      "path": "/public-node",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1"
+    },
+    {
+      "step": 2,
+      "label": "Open the public reviewer verify pack",
+      "path": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1"
+    },
+    {
+      "step": 3,
+      "label": "Open the reviewer verify pack JSON",
+      "path": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1"
+    },
+    {
+      "step": 4,
+      "label": "Copy and run the command from copy_paste_verify_command",
+      "expected_success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN"
+    }
+  ],
+  "green_means": [
+    "The public dashboard exposes the reviewer verify pack link.",
+    "The route index exposes the reviewer pack and settlement evidence routes.",
+    "The closeout seal, evidence pack, and redacted receipt are live.",
+    "The tx hash, chain id, VOID amount, and settlement record key match the sealed public evidence.",
+    "The reviewed public JSON payloads do not expose plaintext party addresses.",
+    "The reviewer flow is read-only and does not send VOID, broadcast a transaction, call RPC, or create a public mutation path."
+  ],
+  "closed_boundaries": {
+    "read_only_handoff_note": true,
+    "does_not_execute_settlement_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_expose_private_ledger": true,
+    "does_not_expose_plaintext_party_addresses": true
+  },
+  "sealed_heads": {
+    "public_reviewer_verify_pack_dashboard_link_v1": "dc5b62f0",
+    "public_reviewer_verify_pack_runtime_v1": "b31fa78a",
+    "public_reviewer_one_command_verify_pack_v1": "c9047823",
+    "closeout_seal_dashboard_link_v1": "058cc434"
+  },
+  "sealed_tags": {
+    "public_reviewer_verify_pack_dashboard_link_cross_box": "ckpt-wc-to-void-public-reviewer-verify-pack-dashboard-link-v1-cross-box-green-20260621-154659",
+    "public_reviewer_verify_pack_runtime_cross_box": "ckpt-wc-to-void-public-reviewer-verify-pack-runtime-v1-cross-box-green-20260621-154103",
+    "public_reviewer_one_command_verify_pack_cross_box": "ckpt-wc-to-void-public-reviewer-one-command-verify-pack-v1-cross-box-green-20260621-153341",
+    "closeout_seal_dashboard_link_cross_box": "ckpt-wc-to-void-closeout-seal-dashboard-link-v1-cross-box-green-20260621-132148"
+  }
+} as const;
+
+(() => {
+  const G: any = globalThis as any;
+  const mountKey = "__void_wc_to_void_public_reviewer_handoff_note_runtime_v1_mounted";
+
+  function escapeWcToVoidReviewerHandoffHtmlV1(value: unknown): string {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderWcToVoidPublicReviewerHandoffNoteV1Html(note: any): string {
+    const steps = Array.isArray(note.review_path) ? note.review_path : [];
+    const greenMeans = Array.isArray(note.green_means) ? note.green_means : [];
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID WC → VOID Public Reviewer Handoff Note v1</title>
+  <style>
+    body { background:#05060a; color:#e8f0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; margin:2rem; line-height:1.45; }
+    a { color:#8bd3ff; }
+    code { background:#101522; border-radius:0.35rem; padding:0.15rem 0.35rem; }
+    .card { border:1px solid #25314d; border-radius:1rem; padding:1rem; margin:1rem 0; background:#0b1020; }
+    .green { color:#83f7b2; }
+    li { margin:0.35rem 0; }
+  </style>
+</head>
+<body>
+  <h1>VOID WC → VOID Public Reviewer Handoff Note v1</h1>
+  <p><code>VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_RUNTIME_V1</code></p>
+
+  <div class="card">
+    <h2>Status</h2>
+    <p>Handoff marker: <code>${note.marker}</code></p>
+    <p>Status: <code class="green">${note.status}</code></p>
+    <p>Audience: <code>${note.audience}</code></p>
+    <p>Chain ID: <code>${note.chain_id}</code></p>
+    <p>Transaction hash: <code>${note.tx_hash}</code></p>
+    <p>Value: <code>${note.value_void} VOID</code></p>
+    <p>Settlement record key: <code>${note.settlement_record_key}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Reviewer path</h2>
+    <ol>
+      ${steps.map((step: any) => `<li><strong>${escapeWcToVoidReviewerHandoffHtmlV1(step.label || "review step")}</strong>${step.path ? ` — <a href="${escapeWcToVoidReviewerHandoffHtmlV1(step.path)}"><code>${escapeWcToVoidReviewerHandoffHtmlV1(step.path)}</code></a>` : ""}${step.expected_marker ? ` — expected marker <code>${escapeWcToVoidReviewerHandoffHtmlV1(step.expected_marker)}</code>` : ""}${step.expected_success_marker ? ` — success marker <code>${escapeWcToVoidReviewerHandoffHtmlV1(step.expected_success_marker)}</code>` : ""}</li>`).join("")}
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>What green means</h2>
+    <ul>
+      ${greenMeans.map((item: string) => `<li>${escapeWcToVoidReviewerHandoffHtmlV1(item)}</li>`).join("")}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Open verifier</h2>
+    <p><a href="/public-node">Public node dashboard</a></p>
+    <p><a href="/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1">Reviewer verify pack HTML</a></p>
+    <p><a href="/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json">Reviewer verify pack JSON</a></p>
+    <p><a href="/public-node/wc-to-void/settlement-evidence-closeout-seal-v1">Closeout seal</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Boundaries</h2>
+    <p>Read-only handoff note: <code class="green">${String(note.closed_boundaries.read_only_handoff_note)}</code></p>
+    <p>Does not execute settlement command: <code>${String(note.closed_boundaries.does_not_execute_settlement_command)}</code></p>
+    <p>Does not broadcast tx: <code>${String(note.closed_boundaries.does_not_broadcast_tx)}</code></p>
+    <p>Does not send VOID: <code>${String(note.closed_boundaries.does_not_send_void)}</code></p>
+    <p>Does not call RPC: <code>${String(note.closed_boundaries.does_not_call_rpc)}</code></p>
+    <p>Does not create public mutation: <code class="green">${String(note.closed_boundaries.does_not_create_public_mutation)}</code></p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function mountWcToVoidPublicReviewerHandoffNoteRuntimeV1(): void {
+    if (G[mountKey]) return;
+
+    const APP: any = G.__void_http_app || G.app || null;
+    if (!APP || typeof APP.get !== "function") {
+      setTimeout(mountWcToVoidPublicReviewerHandoffNoteRuntimeV1, 400);
+      return;
+    }
+
+    G[mountKey] = true;
+
+    APP.get("/public-node/wc-to-void/public-reviewer-handoff-note-v1.json", (_req: any, res: any) => {
+      return res.json(wcToVoidPublicReviewerHandoffNoteV1);
+    });
+
+    APP.get("/public-node/wc-to-void/public-reviewer-handoff-note-v1", (_req: any, res: any) => {
+      const html = renderWcToVoidPublicReviewerHandoffNoteV1Html(wcToVoidPublicReviewerHandoffNoteV1);
+      if (res && typeof res.type === "function" && typeof res.send === "function") return res.type("html").send(html);
+      if (res && typeof res.html === "function") return res.html(html);
+      return res.send(html);
+    });
+  }
+
+  mountWcToVoidPublicReviewerHandoffNoteRuntimeV1();
 })();
