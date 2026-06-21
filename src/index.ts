@@ -47901,6 +47901,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
       { path: "/public-node/wc-to-void/settlement-evidence-pack-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1", use: "public read-only evidence pack for first WC to native VOID settlement; redacted; no public mutation; no wallet send; no RPC call" },
       { path: "/public-node/wc-to-void/settlement-evidence-pack-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1", use: "human reviewer page for first WC to native VOID settlement evidence pack; links receipt and boundary facts" },
+      { path: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json", kind: "json", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1", use: "public read-only closeout seal for the first WC to native VOID settlement evidence chain; summarizes sealed heads, tags, routes, markers, and boundaries" },
+      { path: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1", kind: "html", marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1", use: "human reviewer closeout page for the first WC to native VOID settlement evidence chain" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
@@ -77349,4 +77351,151 @@ const wcToVoidSettlementEvidencePackV1 = {
   }
 
   mountWcToVoidSettlementEvidencePackRuntimeV1();
+})();
+
+/**
+ * VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1
+ * Delayed public read-only runtime mount for the settlement evidence closeout seal.
+ */
+const wcToVoidSettlementEvidenceCloseoutSealV1 = {
+  marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1",
+  runtime_marker: "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1",
+  scope: "first_wc_to_void_settlement_evidence_closeout",
+  status: "sealed",
+  chain_id: "2050",
+  tx_hash: "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  value_void: "1.000000",
+  value_wei: "1000000000000000000",
+  settlement_record_key: "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  sealed_heads: {
+    public_redacted_settlement_receipt_v1: "6f637649",
+    redacted_receipt_runtime_scope_fix_v1: "3cf694f7",
+    settlement_evidence_pack_static_v1: "52f342a1",
+    settlement_evidence_pack_runtime_v1: "f268105d",
+    evidence_pack_discovery_link_v1: "843f0680",
+    settlement_evidence_closeout_seal_static_v1: "a9d384b3"
+  },
+  sealed_public_routes: {
+    closeout_seal_json: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json",
+    closeout_seal_html: "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1",
+    evidence_pack_json: "/public-node/wc-to-void/settlement-evidence-pack-v1.json",
+    evidence_pack_html: "/public-node/wc-to-void/settlement-evidence-pack-v1",
+    redacted_receipt_json: "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+    redacted_receipt_html: "/public-node/wc-to-void/redacted-settlement-receipt-v1",
+    route_index: "/public-node/route-index.json",
+    public_node_dashboard: "/public-node"
+  },
+  sealed_tags: {
+    redacted_receipt_cross_box: "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226",
+    runtime_scope_fix_cross_box: "ckpt-wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-cross-box-green-20260621-123144",
+    evidence_pack_static_cross_box: "ckpt-wc-to-void-settlement-evidence-pack-static-v1-cross-box-green-20260621-124512",
+    evidence_pack_runtime_cross_box: "ckpt-wc-to-void-settlement-evidence-pack-runtime-v1-cross-box-green-20260621-125050",
+    discovery_link_cross_box: "ckpt-wc-to-void-evidence-pack-discovery-link-v1-cross-box-green-20260621-125753",
+    closeout_static_cross_box: "ckpt-wc-to-void-settlement-evidence-closeout-seal-static-v1-cross-box-green-20260621-130417"
+  },
+  privacy_boundaries: {
+    plaintext_addresses_redacted: true,
+    plaintext_from_address_written_to_public_closeout: false,
+    plaintext_recipient_address_written_to_public_closeout: false,
+    private_key_seen_by_chat_or_repo: false,
+    seed_phrase_seen_by_chat_or_repo: false,
+    private_settlement_ledger_not_served_publicly: true
+  },
+  closed_boundaries: {
+    read_only_public_closeout_seal: true,
+    does_not_execute_command: true,
+    does_not_broadcast_tx: true,
+    does_not_send_void: true,
+    does_not_call_rpc: true,
+    does_not_create_public_mutation: true,
+    does_not_replace_private_ledger: true
+  }
+} as const;
+
+(() => {
+  const G: any = globalThis as any;
+  const mountKey = "__void_wc_to_void_settlement_evidence_closeout_seal_runtime_v1_mounted";
+
+  function renderWcToVoidSettlementEvidenceCloseoutSealV1Html(e: any): string {
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID WC → VOID Settlement Evidence Closeout Seal v1</title>
+  <style>
+    body { background:#05060a; color:#e8f0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; margin:2rem; line-height:1.45; }
+    a { color:#8bd3ff; }
+    code { background:#101522; padding:0.15rem 0.35rem; border-radius:0.35rem; }
+    .card { border:1px solid #25314d; border-radius:1rem; padding:1rem; margin:1rem 0; background:#0b1020; }
+    .green { color:#83f7b2; }
+  </style>
+</head>
+<body>
+  <h1>VOID WC → VOID Settlement Evidence Closeout Seal v1</h1>
+  <p><code>VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1</code></p>
+
+  <div class="card">
+    <h2>What is sealed</h2>
+    <p>Status: <code class="green">${e.status}</code></p>
+    <p>Transaction hash: <code>${e.tx_hash}</code></p>
+    <p>Chain ID: <code>${e.chain_id}</code></p>
+    <p>Value: <code>${e.value_void} VOID</code></p>
+    <p>Settlement record key: <code>${e.settlement_record_key}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Evidence chain</h2>
+    <p>Redacted receipt head: <code>${e.sealed_heads.public_redacted_settlement_receipt_v1}</code></p>
+    <p>Evidence pack runtime head: <code>${e.sealed_heads.settlement_evidence_pack_runtime_v1}</code></p>
+    <p>Discovery link head: <code>${e.sealed_heads.evidence_pack_discovery_link_v1}</code></p>
+    <p>Static closeout head: <code>${e.sealed_heads.settlement_evidence_closeout_seal_static_v1}</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Reviewer links</h2>
+    <p><a href="${e.sealed_public_routes.closeout_seal_json}">Closeout seal JSON</a></p>
+    <p><a href="${e.sealed_public_routes.evidence_pack_html}">Evidence pack HTML</a></p>
+    <p><a href="${e.sealed_public_routes.evidence_pack_json}">Evidence pack JSON</a></p>
+    <p><a href="${e.sealed_public_routes.redacted_receipt_json}">Redacted receipt JSON</a></p>
+    <p><a href="${e.sealed_public_routes.route_index}">Route index</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Boundaries</h2>
+    <p>Plaintext addresses redacted: <code class="green">${String(e.privacy_boundaries.plaintext_addresses_redacted)}</code></p>
+    <p>Private settlement ledger served publicly: <code>${String(!e.privacy_boundaries.private_settlement_ledger_not_served_publicly)}</code></p>
+    <p>Does not execute command: <code>${String(e.closed_boundaries.does_not_execute_command)}</code></p>
+    <p>Does not broadcast tx: <code>${String(e.closed_boundaries.does_not_broadcast_tx)}</code></p>
+    <p>Does not send VOID: <code>${String(e.closed_boundaries.does_not_send_void)}</code></p>
+    <p>Does not call RPC: <code>${String(e.closed_boundaries.does_not_call_rpc)}</code></p>
+    <p>Does not create public mutation: <code class="green">${String(e.closed_boundaries.does_not_create_public_mutation)}</code></p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function mountWcToVoidSettlementEvidenceCloseoutSealRuntimeV1(): void {
+    if (G[mountKey]) return;
+
+    const APP: any = G.__void_http_app || G.app || null;
+    if (!APP || typeof APP.get !== "function") {
+      setTimeout(mountWcToVoidSettlementEvidenceCloseoutSealRuntimeV1, 400);
+      return;
+    }
+
+    G[mountKey] = true;
+
+    APP.get("/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json", (_req: any, res: any) => {
+      return res.json(wcToVoidSettlementEvidenceCloseoutSealV1);
+    });
+
+    APP.get("/public-node/wc-to-void/settlement-evidence-closeout-seal-v1", (_req: any, res: any) => {
+      const html = renderWcToVoidSettlementEvidenceCloseoutSealV1Html(wcToVoidSettlementEvidenceCloseoutSealV1);
+      if (res && typeof res.type === "function" && typeof res.send === "function") return res.type("html").send(html);
+      if (res && typeof res.html === "function") return res.html(html);
+      return res.send(html);
+    });
+  }
+
+  mountWcToVoidSettlementEvidenceCloseoutSealRuntimeV1();
 })();
