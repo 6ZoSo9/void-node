@@ -58129,7 +58129,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
       <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json">Reviewer verify pack JSON</a></li>
-        </ul>
+              <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_CLOSEOUT_STATUS_LINK_V1 --><a href="/public-node/usdc-void-buy-pool/closeout-status-v1.json">Closeout status JSON</a></li>
+</ul>
         <p><strong>Boundary:</strong> no automatic VOID delivery, no public fulfillment endpoint, no public wallet-send authority, no autonomous write authority, and no private buyer/payment/operator packet/key/send material exposed.</p>
       </div>
 
