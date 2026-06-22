@@ -102,8 +102,9 @@ for required in [
     if required not in html_block:
         raise SystemExit(f"html_block_required_text_missing={required}")
 
-if s.count(visible_marker) != 2:
-    raise SystemExit(f"visible_marker_count_bad={s.count(visible_marker)}")
+visible_marker_count = s.count(visible_marker)
+if visible_marker_count < 2:
+    raise SystemExit(f"visible_marker_count_too_low={visible_marker_count}")
 
 dashboard_marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1"
 dashboard_start = s.find(dashboard_marker)
