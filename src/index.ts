@@ -47941,7 +47941,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
-            { path: "/public-node/usdc-void-buy-pool/closeout-status-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1", use: "VOID_USDC_VOID_BUY_POOL_ROUTE_INDEX_CLOSEOUT_STATUS_DISCOVERY_V1; reviewer-discoverable read-only closeout status linked from /public-node dashboard marker VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_CLOSEOUT_STATUS_LINK_V1; single public read-only closeout status for USDC to VOID buy-pool reviewer readiness and authority boundaries" },
+                  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "target-state policy for automatic USDC to VOID fulfillment after verified payment and sold-out closure; policy only; current runtime authority remains false" },
+{ path: "/public-node/usdc-void-buy-pool/closeout-status-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1", use: "VOID_USDC_VOID_BUY_POOL_ROUTE_INDEX_CLOSEOUT_STATUS_DISCOVERY_V1; reviewer-discoverable read-only closeout status linked from /public-node dashboard marker VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_CLOSEOUT_STATUS_LINK_V1; single public read-only closeout status for USDC to VOID buy-pool reviewer readiness and authority boundaries" },
 { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
@@ -78792,6 +78793,64 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", (_req
   });
 });
 
+
+
+
+// VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1
+const usdcVoidBuyPoolAutomaticFulfillmentTargetPolicyV1 = {
+  marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1",
+  status: "target_policy_only_not_active",
+  scope: "automatic_fulfillment_desired_end_state_policy",
+  chain_id: 2050,
+  desired_end_state: {
+    normal_fulfillment_mode: "automatic_after_verified_usdc_payment",
+    manual_approval_required_for_normal_fulfillment: false,
+    sold_out_behavior: "close_pool_when_inventory_remaining_reaches_zero",
+    buyer_experience: "pay_usdc_receive_void_without_operator_per_buyer_approval_after_hard_gates_green"
+  },
+  current_runtime_authority: {
+    automatic_fulfillment_enabled: false,
+    wallet_fulfillment_enabled: false,
+    signer_access_enabled: false,
+    treasury_transfer_authority_enabled: false,
+    buyer_execution_authorized: false,
+    public_mutation_enabled: false,
+    wc_ledger_write: false,
+    void_transfer_now: false
+  },
+  activation_gates_required_before_enablement: [
+    "verified_usdc_payment_detection",
+    "buyer_address_validation",
+    "quote_expiry_and_price_lock",
+    "inventory_reservation",
+    "duplicate_payment_guard",
+    "idempotency_key",
+    "sold_out_close_condition",
+    "isolated_signer_or_treasury_execution_boundary",
+    "fulfillment_receipt",
+    "failure_refund_or_manual_exception_state",
+    "two_box_runtime_proof",
+    "explicit_operator_activation_record"
+  ],
+  manual_review_policy: {
+    normal_buyer_fulfillment_requires_manual_approval: false,
+    manual_review_allowed_for_exceptions_only: true,
+    exception_reasons: [
+      "payment_mismatch",
+      "duplicate_payment",
+      "invalid_buyer_address",
+      "expired_quote",
+      "insufficient_inventory",
+      "refund_review",
+      "operator_incident_response"
+    ]
+  },
+  public_safety_statement: "This route declares the intended automatic fulfillment end-state only. It does not enable money movement, wallet sends, treasury sends, public mutation, or buyer execution authority."
+};
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", (_req, res) => {
+  res.json(usdcVoidBuyPoolAutomaticFulfillmentTargetPolicyV1);
+});
 
 
 // VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1
