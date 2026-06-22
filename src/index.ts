@@ -47941,7 +47941,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
-                  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "target-state policy for automatic USDC to VOID fulfillment after verified payment and sold-out closure; policy only; current runtime authority remains false" },
+                        { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1", use: "readiness matrix listing hard blockers before automatic USDC to VOID fulfillment can be enabled; activation remains false" },
+{ path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "target-state policy for automatic USDC to VOID fulfillment after verified payment and sold-out closure; policy only; current runtime authority remains false" },
 { path: "/public-node/usdc-void-buy-pool/closeout-status-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1", use: "VOID_USDC_VOID_BUY_POOL_ROUTE_INDEX_CLOSEOUT_STATUS_DISCOVERY_V1; reviewer-discoverable read-only closeout status linked from /public-node dashboard marker VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_CLOSEOUT_STATUS_LINK_V1; single public read-only closeout status for USDC to VOID buy-pool reviewer readiness and authority boundaries" },
 { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
@@ -78794,6 +78795,54 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", (_req
 });
 
 
+
+
+
+// VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1
+const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
+  marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1",
+  status: "activation_blocked_until_all_gates_green",
+  scope: "automatic_fulfillment_activation_readiness_matrix",
+  target_policy_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json",
+  required_state_before_enablement: "all_required_gates_green_and_explicit_operator_activation_record_created",
+  current_activation_state: {
+    automatic_fulfillment_enabled: false,
+    wallet_fulfillment_enabled: false,
+    signer_access_enabled: false,
+    treasury_transfer_authority_enabled: false,
+    buyer_execution_authorized: false,
+    public_mutation_enabled: false,
+    wc_ledger_write: false,
+    void_transfer_now: false,
+    sold_out_auto_close_enabled: false
+  },
+  gates: [
+    { id: "verified_usdc_payment_detection", state: "blocked_missing_implementation", required: true },
+    { id: "buyer_address_validation", state: "blocked_missing_implementation", required: true },
+    { id: "quote_expiry_and_price_lock", state: "blocked_missing_implementation", required: true },
+    { id: "inventory_reservation", state: "blocked_missing_implementation", required: true },
+    { id: "duplicate_payment_guard", state: "blocked_missing_implementation", required: true },
+    { id: "idempotency_key", state: "blocked_missing_implementation", required: true },
+    { id: "sold_out_close_condition", state: "blocked_missing_implementation", required: true },
+    { id: "isolated_signer_or_treasury_execution_boundary", state: "blocked_missing_implementation", required: true },
+    { id: "fulfillment_receipt", state: "blocked_missing_implementation", required: true },
+    { id: "failure_refund_or_manual_exception_state", state: "blocked_missing_implementation", required: true },
+    { id: "two_box_runtime_proof", state: "blocked_until_runtime_proofs_exist_for_all_gates", required: true },
+    { id: "explicit_operator_activation_record", state: "blocked_missing_separate_activation_record", required: true }
+  ],
+  readiness_summary: {
+    required_gate_count: 12,
+    green_gate_count: 0,
+    blocked_gate_count: 12,
+    activation_ready: false,
+    can_enable_automatic_fulfillment_now: false
+  },
+  public_safety_statement: "This matrix defines required gates only. It does not enable fulfillment, mutation, signer access, treasury transfer, wallet send, or VOID transfer."
+};
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", (_req, res) => {
+  res.json(usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1);
+});
 
 
 // VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1
