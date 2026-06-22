@@ -58125,8 +58125,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/buy-pool/usdc-void-v1">Fixed-price buy-pool page</a></li>
           <li><a href="/public-node/buy-pool/usdc-void-v1.json">Fixed-price buy-pool JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
-          <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
-          <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
+          <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
+          <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
       <li><!-- VOID_USDC_VOID_BUY_POOL_REVIEWER_VERIFY_PACK_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json">Reviewer verify pack JSON</a></li>
         </ul>
         <p><strong>Boundary:</strong> no automatic VOID delivery, no public fulfillment endpoint, no public wallet-send authority, no autonomous write authority, and no private buyer/payment/operator packet/key/send material exposed.</p>
