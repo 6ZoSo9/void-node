@@ -47941,7 +47941,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
-      { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
+            { path: "/public-node/usdc-void-buy-pool/closeout-status-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1", use: "single public read-only closeout status for USDC to VOID buy-pool reviewer readiness and authority boundaries" },
+{ path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
@@ -78788,6 +78789,68 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", (_req
       grants_autonomous_write_authority: false,
     },
   });
+});
+
+
+
+// VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1
+const usdcVoidBuyPoolPublicCloseoutStatusV1 = {
+  marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1",
+  status: "public_closeout_ready",
+  scope: "read_only_public_status_summary",
+  chain_id: 2050,
+  surfaces: {
+    funding_surface: "live_read_only",
+    buy_pool_public_status: "live_read_only",
+    reviewer_verify_pack_json: "live_read_only",
+    reviewer_verify_pack_html: "live_read_only",
+    readiness_rollup_json: "live_read_only",
+    readiness_rollup_html: "live_read_only",
+    buyer_status_card: "live_read_only",
+    execution_hold_status: "live_read_only",
+    public_node_dashboard_card: "live_read_only"
+  },
+  public_routes: {
+    funding: "/public-node/funding",
+    buy_pool: "/buy-void",
+    reviewer_verify_pack_json: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json",
+    reviewer_verify_pack_html: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1",
+    readiness_rollup_json: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json",
+    readiness_rollup_html: "/public-node/usdc-void-buy-pool/readiness-rollup-v1",
+    closeout_status_json: "/public-node/usdc-void-buy-pool/closeout-status-v1.json"
+  },
+  authority_boundary: {
+    public_mutation_enabled: false,
+    automatic_fulfillment_enabled: false,
+    wallet_fulfillment_enabled: false,
+    manual_fulfillment_record_created_now: false,
+    buyer_execution_authorized: false,
+    private_execution_packet_public: false,
+    wc_ledger_write: false,
+    void_transfer_now: false
+  },
+  reviewer_summary: [
+    "The public surfaces are ready for read-only reviewer inspection.",
+    "The buy-pool is not an automatic purchase flow.",
+    "Manual fulfillment remains held behind separate operator authority.",
+    "No buyer execution authority is exposed publicly.",
+    "No private operator packet is exposed publicly.",
+    "No public mutation route is introduced by this closeout status."
+  ],
+  required_markers: [
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_MARKER_RUNTIME_REPAIR_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1",
+    "VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_RUNTIME_ROUTES_V1"
+  ]
+};
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/closeout-status-v1.json", (_req, res) => {
+  res.json(usdcVoidBuyPoolPublicCloseoutStatusV1);
 });
 
 
