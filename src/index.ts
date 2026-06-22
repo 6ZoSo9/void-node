@@ -47941,6 +47941,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
@@ -58124,7 +58125,9 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/buy-pool/usdc-void-v1">Fixed-price buy-pool page</a></li>
           <li><a href="/public-node/buy-pool/usdc-void-v1.json">Fixed-price buy-pool JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
-          <li><!-- VOID_USDC_VOID_BUY_POOL_REVIEWER_VERIFY_PACK_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json">Reviewer verify pack JSON</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
+      <li><!-- VOID_USDC_VOID_BUY_POOL_REVIEWER_VERIFY_PACK_VISIBLE_LINKS_V1 --><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json">Reviewer verify pack JSON</a></li>
         </ul>
         <p><strong>Boundary:</strong> no automatic VOID delivery, no public fulfillment endpoint, no public wallet-send authority, no autonomous write authority, and no private buyer/payment/operator packet/key/send material exposed.</p>
       </div>
@@ -78898,6 +78901,53 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", (
     }
   });
 });
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", (_req, res) => {
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Public Reviewer Verify Pack — USDC / VOID Buy Pool</title>
+</head>
+<body>
+  <!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1 -->
+  <main>
+    <h1>USDC → VOID Buy Pool Public Reviewer Verify Pack</h1>
+    <p>This page is a human-readable wrapper around the sealed public reviewer verify pack JSON.</p>
+    <p>The reviewer pack is public and read-only. It creates no quote, accepts no payment, exposes no private operator packet, opens no fulfillment endpoint, grants no wallet-send authority, grants no autonomous write authority, mutates no ledger state, and performs no VOID delivery.</p>
+
+    <h2>Reviewer packet</h2>
+    <ul>
+      <li><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json">Open reviewer verify pack JSON</a></li>
+    </ul>
+
+    <h2>Primary public surfaces</h2>
+    <ul>
+      <li><a href="/public-node">Public Node dashboard</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1">Human readiness rollup</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1.json">Readiness rollup JSON</a></li>
+      <li><a href="/public-node/buy-pool/usdc-void-v1">USDC / VOID fixed-price buy-pool page</a></li>
+      <li><a href="/public-node/buy-pool/usdc-void-v1.json">USDC / VOID public buyer-status JSON</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
+      <li><a href="/public-node/route-index.json">Public route index JSON</a></li>
+    </ul>
+
+    <h2>Safety boundary</h2>
+    <ul>
+      <li>public_read_only=true</li>
+      <li>creates_quote=false</li>
+      <li>accepts_payment=false</li>
+      <li>public_fulfillment_endpoint=false</li>
+      <li>wallet_send_authority=false</li>
+      <li>autonomous_write_authority=false</li>
+      <li>ledger_mutation=false</li>
+      <li>void_delivery=false</li>
+    </ul>
+  </main>
+</body>
+</html>`);
+  });
+
 runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
     res.type("html").send(`<!doctype html>
 <html lang="en">
