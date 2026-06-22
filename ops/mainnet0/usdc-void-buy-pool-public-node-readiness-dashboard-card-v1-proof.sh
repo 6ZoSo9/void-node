@@ -39,10 +39,13 @@ s = Path("src/index.ts").read_text()
 marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1"
 route = "/public-node/usdc-void-buy-pool/readiness-rollup-v1"
 
-if s.count(marker) != 1:
-    raise SystemExit(f"dashboard_card_marker_count_not_one={s.count(marker)}")
+comment_marker = "<!-- " + marker + " -->"
+comment_count = s.count(comment_marker)
 
-card_start = s.find(marker)
+if comment_count != 1:
+    raise SystemExit(f"dashboard_card_html_comment_marker_count_not_one={comment_count}")
+
+card_start = s.find(comment_marker)
 if card_start < 0:
     raise SystemExit("dashboard_card_missing")
 

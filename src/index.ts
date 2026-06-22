@@ -47939,6 +47939,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, buy-pool HTML, buy-pool JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
+      // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
+      { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
@@ -78845,6 +78847,54 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1", (_req:any,
 </main>
 </body>
 </html>`);
+});
+
+// VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1
+runtimeApp.get("/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+    version: 1,
+    surface: "usdc_void_buy_pool_public_reviewer_verify_pack",
+    route: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json",
+    purpose: "Copy/paste verification packet for the public USDC to VOID buy-pool readiness bundle.",
+    public_read_only: true,
+    creates_quote: false,
+    accepts_payment: false,
+    exposes_buyer_records: false,
+    exposes_private_operator_packets: false,
+    public_fulfillment_endpoint: false,
+    wallet_send_authority: false,
+    autonomous_write_authority: false,
+    ledger_mutation: false,
+    void_delivery: false,
+    target_routes: [
+      { path: "/public-node", kind: "html", required_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1" },
+      { path: "/public-node/route-index.json", kind: "json", required_marker: "VOID_PUBLIC_ROUTE_INDEX_V1" },
+      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", required_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1" },
+      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", required_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1" },
+      { path: "/public-node/buy-pool/usdc-void-v1", kind: "html", required_marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1" },
+      { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", required_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1" },
+      { path: "/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", kind: "html", required_marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_ROUTE_INDEX_ENTRY_V1" }
+    ],
+    copy_paste_verify_commands: [
+      "BASE=https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+      "curl -fsS \"$BASE/public-node\" | grep -F VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1",
+      "curl -fsS \"$BASE/public-node/route-index.json\" | grep -F /public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json",
+      "curl -fsS \"$BASE/public-node/usdc-void-buy-pool/readiness-rollup-v1\" | grep -F VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1",
+      "curl -fsS \"$BASE/public-node/usdc-void-buy-pool/readiness-rollup-v1.json\" | grep -F VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1",
+      "curl -fsS \"$BASE/public-node/buy-pool/usdc-void-v1\" | grep -F VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1",
+      "curl -fsS \"$BASE/public-node/buy-pool/usdc-void-v1.json\" | grep -F VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1",
+      "curl -fsS \"$BASE/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1\" | grep -F VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_ROUTE_INDEX_ENTRY_V1"
+    ],
+    safety_boundary: {
+      no_automatic_void_delivery: true,
+      no_public_fulfillment_endpoint: true,
+      no_public_wallet_send_authority: true,
+      no_autonomous_write_authority: true,
+      no_public_ledger_mutation: true,
+      no_private_buyer_payment_operator_packet_key_or_send_material_exposed: true
+    }
+  });
 });
 runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
     res.type("html").send(`<!doctype html>
