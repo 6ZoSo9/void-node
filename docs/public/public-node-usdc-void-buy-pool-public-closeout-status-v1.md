@@ -1,10 +1,10 @@
-# USDC → VOID Buy Pool Public Closeout Status v1
+# USDC → VOID Presale Public Closeout Status v1
 
 Marker: `VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1`
 
 ## Purpose
 
-Publish a single public read-only closeout status for the USDC → VOID buy-pool readiness bundle.
+Publish a single public read-only closeout status for the USDC → VOID presale readiness bundle.
 
 ## Public route
 

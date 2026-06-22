@@ -1,12 +1,12 @@
-# USDC → VOID Buy Pool Automatic Fulfillment Target Policy v1
+# USDC → VOID Presale Automatic Fulfillment Target Policy v1
 
 Marker: `VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1`
 
 ## Purpose
 
-Define the intended end-state for the USDC → VOID buy pool.
+Define the intended end-state for the USDC → VOID buy-only presale.
 
-The target product behavior is automatic fulfillment after verified USDC payment, with no normal per-buyer manual approval, and automatic sold-out closure when pool inventory reaches zero.
+The target product behavior is automatic fulfillment after verified USDC payment, with no normal per-buyer manual approval, and automatic sold-out closure when available presale inventory reaches zero.
 
 ## Public route
 
@@ -18,10 +18,10 @@ The target product behavior is automatic fulfillment after verified USDC payment
 - Buyer pays USDC to the configured funding/receiving path.
 - System verifies payment confirmation.
 - System validates buyer address.
-- System reserves VOID inventory.
+- System reserves VOID allocation only after verified USDC payment.
 - System fulfills VOID automatically.
 - System writes a public fulfillment receipt.
-- Pool closes automatically when remaining inventory reaches zero.
+- Presale closes automatically when remaining available inventory reaches zero.
 
 ## Current boundary
 

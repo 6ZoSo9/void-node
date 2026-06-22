@@ -1,10 +1,10 @@
-# USDC → VOID Buy Pool Automatic Fulfillment Activation Gate Matrix v1
+# USDC → VOID Presale Automatic Fulfillment Activation Gate Matrix v1
 
 Marker: `VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1`
 
 ## Purpose
 
-Define the hard activation gate matrix required before USDC → VOID buy-pool automatic fulfillment can be enabled.
+Define the hard activation gate matrix required before USDC → VOID presale automatic fulfillment can be enabled.
 
 ## Public route
 

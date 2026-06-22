@@ -1,10 +1,10 @@
-# USDC → VOID Buy Pool Public Buyer Status JSON Fields v1
+# USDC → VOID Presale Public Buyer Status JSON Fields v1
 
 Marker: `VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1`
 
 ## Purpose
 
-Mirror the buyer-facing HTML safety card into the public buy-pool JSON route.
+Mirror the buyer-facing HTML safety card into the public presale JSON route.
 
 ## Route
 
@@ -14,7 +14,7 @@ Mirror the buyer-facing HTML safety card into the public buy-pool JSON route.
 
 The JSON should expose public-safe status fields showing:
 
-- buy-pool quote is public-readable,
+- presale quote is public-readable,
 - operator execution remains manual,
 - fulfillment remains gated and withheld,
 - automatic VOID delivery is false,

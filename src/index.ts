@@ -17459,9 +17459,9 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
 
 
 <section class="card"><!-- VOID_BUY_POOL_LINK_BUY_VOID_V1 -->
-  <h2>Fixed-price buy pool proof page</h2>
-  <p>The current USDC → VOID public buy pool is exposed as a public proof page with the fixed price, pool size, self-custody rule, and exchange-send warning.</p>
-  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Fixed Price Buy Pool v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+  <h2>USDC → VOID presale proof page</h2>
+  <p>The current USDC → VOID presale is exposed as a public proof page with the fixed price, presale inventory, self-custody rule, and exchange-send warning.</p>
+  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Presale v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
 </section>
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_REQUEST_FORM_V1 -->
   <h2>Start a Buy VOID request</h2>
@@ -17503,7 +17503,7 @@ async function refreshBuyVoidSaleStateV1(){
     const el = document.getElementById("buySaleState");
     if (!el) return;
     const msg = "Raised so far: $" + Number(j.raised_usdc_so_far || 0).toLocaleString() +
-      " USDC • Requested/reserved: " + Number(j.requested_void_total || 0).toLocaleString() +
+      " USDC • Pending quote / unverified request: " + Number(j.requested_void_total || 0).toLocaleString() +
       " / " + Number(j.pool_void_total || 0).toLocaleString() +
       " VOID • Remaining: " + Number(j.remaining_void || 0).toLocaleString() + " VOID";
     el.textContent = j.sold_out ? "SOLD OUT • " + msg : msg;
@@ -17615,7 +17615,7 @@ code{background:#111827;padding:2px 5px;border-radius:5px}
 <section class="card"><!-- VOID_BUY_POOL_LINK_FUNDING_V1 -->
   <h2>USDC → VOID fixed-price buy pool</h2>
   <p>The public fixed-price buy pool is the current money lane: 10,000,000 VOID at $0.50 USDC per VOID, self-custody wallet only, no exchange sends.</p>
-  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Fixed Price Buy Pool v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+  <p><a href="/public-node/buy-pool/usdc-void-v1">Open USDC → VOID Presale v1</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
 </section>
 Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
 
@@ -47934,15 +47934,16 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
   // VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1: runtime route-index kind tightened to html
       { path: "/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_ROUTE_INDEX_ENTRY_V1", use: "route-index discovery note for the public-safe buy-pool operator execution hold status without exposing private operator materials" },
       // VOID_USDC_VOID_BUY_POOL_READINESS_ROLLUP_ROUTE_INDEX_DISCOVERY_V1
-      { path: "/public-node/buy-pool/usdc-void-v1", kind: "html", marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1", use: "public fixed-price USDC to VOID buy-pool page with buyer-facing safety status and manual execution boundary" },
-      { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1", use: "machine-readable buy-pool quote and buyer-status fields with automatic delivery disabled and private operator material withheld" },
-      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, buy-pool HTML, buy-pool JSON, execution hold status, safety, and private no-leak boundary" },
+      { path: "/public-node/buy-pool/usdc-void-v1", kind: "html", marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1", use: "public fixed-price USDC to VOID presale page with buyer-facing safety status, quote-only pending requests, and manual execution boundary" },
+      { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1", use: "machine-readable presale quote and buyer-status fields with automatic delivery disabled and private operator material withheld" },
+      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
-      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
+      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
-      { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID presale buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/presale-quote-reservation-boundary-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_QUOTE_RESERVATION_BOUNDARY_V1", use: "public read-only presale quote/reservation boundary: quotes and unverified payments do not reserve VOID; verified USDC payment is required before allocation_reserved" },
                         { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1", use: "readiness matrix listing hard blockers before automatic USDC to VOID fulfillment can be enabled; activation remains false" },
-{ path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "target-state policy for automatic USDC to VOID fulfillment after verified payment and sold-out closure; policy only; current runtime authority remains false" },
+{ path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "policy only; current runtime authority remains false; target-state policy for automatic USDC to VOID fulfillment for buy-only presale after verified payment, verified allocation reservation, and sold-out closure; quote and unverified tx do not reserve allocation" },
 { path: "/public-node/usdc-void-buy-pool/closeout-status-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1", use: "VOID_USDC_VOID_BUY_POOL_ROUTE_INDEX_CLOSEOUT_STATUS_DISCOVERY_V1; reviewer-discoverable read-only closeout status linked from /public-node dashboard marker VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_CLOSEOUT_STATUS_LINK_V1; single public read-only closeout status for USDC to VOID buy-pool reviewer readiness and authority boundaries" },
 { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_V1" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
@@ -78839,6 +78840,60 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
   },
   public_safety_statement: "This matrix defines required gates only. It does not enable fulfillment, mutation, signer access, treasury transfer, wallet send, or VOID transfer."
 };
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/presale-quote-reservation-boundary-v1.json", (_req:any, res:any) => {
+    res.json({
+      marker: "VOID_USDC_TO_VOID_PRESALE_QUOTE_RESERVATION_BOUNDARY_V1",
+      status: "presale_quote_reservation_boundary_active",
+      route_namespace_note: "legacy usdc-void-buy-pool path remains for compatibility; public meaning is buy-only presale inventory/accounting",
+      presale_flow: "USDC_to_VOID_buy_only",
+      not_a_swap: true,
+      liquidity_pool: false,
+      void_to_usdc_supported: false,
+      redeem_supported: false,
+      sell_void_supported: false,
+      public_mutation_enabled: false,
+      automatic_fulfillment_enabled: false,
+      wallet_fulfillment_enabled: false,
+      signer_access_enabled: false,
+      treasury_transfer_authority_enabled: false,
+      buyer_execution_authorized: false,
+      wc_ledger_write: false,
+      void_transfer_now: false,
+      quote_states_no_inventory_effect: [
+        "quote_created",
+        "payment_pending",
+        "payment_submitted_unverified"
+      ],
+      reservation_requires: [
+        "payment_verified",
+        "verified_payment_receipt",
+        "duplicate_payment_guard_green",
+        "inventory_available"
+      ],
+      accounting_rules: {
+        quote_created_inventory_effect: "none",
+        payment_pending_inventory_effect: "none",
+        payment_submitted_unverified_inventory_effect: "none",
+        submitted_tx_hash_inventory_effect: "none",
+        payment_verified_inventory_effect: "allocation_may_reserve",
+        allocation_reserved_inventory_effect: "available_presale_inventory_reduced",
+        fulfilled_inventory_effect: "void_sent_and_receipt_written"
+      },
+      public_copy_policy: {
+        allowed_terms: ["presale", "buy request", "quote", "pending payment", "verified payment", "presale allocation", "verified allocation"],
+        avoid_terms_for_unverified_requests: ["reserve VOID", "reserved VOID", "reserved USDC", "swap", "liquidity pool", "redeem", "sell VOID", "VOID-to-USDC"],
+        pending_request_label: "Pending quote / unverified request",
+        verified_reservation_label: "Verified presale allocation"
+      },
+      current_100_usdc_style_case: {
+        if_unverified_label: "Pending quote / unverified request",
+        inventory_effect: "none",
+        allocation_reserved: false
+      }
+    });
+  });
+
 
 runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", (_req, res) => {
   res.json(usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1);

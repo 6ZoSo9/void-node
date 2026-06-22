@@ -1,16 +1,16 @@
-# USDC → VOID Buy Pool Public Buyer Status Card v1
+# USDC → VOID Presale Public Buyer Status Card v1
 
 Marker: `VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_CARD_V1`
 
 ## Purpose
 
-Add a buyer-facing status card directly to the public USDC → VOID buy-pool page.
+Add a buyer-facing status card directly to the public USDC → VOID presale page.
 
 ## Public message
 
 The card makes the boundary visible where buyers and reviewers land:
 
-- buy-pool quote is public-readable,
+- presale quote is public-readable,
 - operator execution is manual,
 - fulfillment is gated and withheld,
 - no automatic VOID delivery is promised by the page,

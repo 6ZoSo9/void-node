@@ -13,7 +13,7 @@ Users must not be able to create new Buy VOID requests once there is no sellable
 1. Add a canonical sellable inventory source for Buy VOID.
 2. Treat missing, unreadable, invalid, or zero inventory as unavailable.
 3. Reject new Buy VOID request creation when sellable inventory is exhausted.
-4. Reject manual or operator fulfillment when inventory is exhausted unless the fulfillment is for an already-reserved request.
+4. Reject manual or operator fulfillment when inventory is exhausted unless the fulfillment is for an already verified and allocation-reserved request.
 5. Preserve existing request, status, and history read routes.
 6. Never infer inventory from UI state alone.
 7. Never allow negative inventory.
@@ -21,7 +21,7 @@ Users must not be able to create new Buy VOID requests once there is no sellable
 
 ## Required Participant UI Behavior
 
-1. Hide or disable the Buy VOID create-request action when pool inventory is empty.
+1. Hide or disable the Buy VOID create-request action when available presale inventory is empty.
 2. Show clear sold-out copy:
    - Buy VOID is temporarily unavailable.
    - The current sellable pool is empty.
@@ -40,7 +40,7 @@ A future implementation proof must verify:
 4. Invalid inventory fails closed.
 5. Oversized requested amount fails closed.
 6. Existing history and status remain readable.
-7. Fulfillment cannot send more VOID than reserved or available.
+7. Fulfillment cannot send more VOID than verified allocation-reserved or available.
 8. Mainnet-0 status smoke remains green.
 9. No Buy VOID auto-send behavior is introduced.
 
