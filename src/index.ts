@@ -58112,6 +58112,20 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       <p>USDC/VOID pair + DataNet paid work + Work Credits settlement flywheel.</p>
       <p><a href="/public-node/money-engine-v1">Open Money Engine v1</a> · <a href="/public-node/money-engine-v1.json">JSON</a></p>
       <p><!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_LINK_INTEGRATION_V1 --><!-- VOID_BUY_POOL_LINK_PUBLIC_NODE_V1 --><strong>USDC → VOID Buy Pool:</strong> <a href="/public-node/buy-pool/usdc-void-v1">Open fixed-price buy pool</a> · <a href="/public-node/buy-pool/usdc-void-v1.json">JSON</a></p>
+      <div class="card" id="usdcVoidBuyPoolReadinessDashboardCardV1">
+        <!-- VOID_USDC_VOID_BUY_POOL_PUBLIC_NODE_READINESS_DASHBOARD_CARD_V1 -->
+        <h3>USDC → VOID Buy Pool Readiness</h3>
+        <p>The buy-pool public surface is sealed for reviewer discovery: public page, machine JSON, readiness rollup, execution hold status, and route-index discovery are available without exposing private operator material.</p>
+        <ul>
+          <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1">Human readiness rollup</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1.json">Readiness rollup JSON</a></li>
+          <li><a href="/public-node/buy-pool/usdc-void-v1">Fixed-price buy-pool page</a></li>
+          <li><a href="/public-node/buy-pool/usdc-void-v1.json">Fixed-price buy-pool JSON</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
+        </ul>
+        <p><strong>Boundary:</strong> no automatic VOID delivery, no public fulfillment endpoint, no public wallet-send authority, no autonomous write authority, and no private buyer/payment/operator packet/key/send material exposed.</p>
+      </div>
+
     </section>
 <section class="card">
           <h2>WC → VOID Settlement Complete</h2>
