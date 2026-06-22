@@ -47937,6 +47937,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/buy-pool/usdc-void-v1", kind: "html", marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1", use: "public fixed-price USDC to VOID buy-pool page with buyer-facing safety status and manual execution boundary" },
       { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1", use: "machine-readable buy-pool quote and buyer-status fields with automatic delivery disabled and private operator material withheld" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, buy-pool HTML, buy-pool JSON, execution hold status, safety, and private no-leak boundary" },
+      // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
+      { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID buy-pool, linking JSON status, buy-pool page, execution hold status, and route index" },
       { path: "/public-node/funding", kind: "html", marker: "VOID_FUNDING_PATH_TIGHTEN_V1", use: "human funding path landing page linking guarded Buy VOID request, funding status, manual review, and no-return/no-auto-delivery boundaries" },
       { path: "/public-node/datanet", kind: "html", marker: "VOID_DATANET_PRIORITY_LANDING_V1", use: "human DataNet landing page linking verification, receipts, WC review candidate boundaries, and funding" },
       { path: "/public-node/wc", kind: "html", marker: "VOID_WC_REVIEW_PATH_LANDING_V1", use: "human Work Credits review path landing page linking evidence, candidates, operator review, and no-award boundaries" },
@@ -78768,6 +78770,68 @@ runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", (_req
   });
 });
 
+
+// VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1
+runtimeApp.get("/public-node/usdc-void-buy-pool/readiness-rollup-v1", (_req:any, res:any) => {
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>VOID USDC → VOID Buy Pool Readiness Rollup</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#050510;color:#f2f4ff;margin:0;padding:32px;line-height:1.45}
+    main{max-width:980px;margin:0 auto}
+    a{color:#8ee8ff}
+    .card{border:1px solid #2a315c;background:#0c1024;border-radius:14px;padding:20px;margin:18px 0}
+    .good{color:#7dffb2}
+    .warn{color:#ffd27d}
+    code{background:#111735;padding:2px 6px;border-radius:6px}
+    ul{padding-left:22px}
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="/public-node">← Public Node</a> · <a href="/public-node/route-index.json">Route Index JSON</a> · <a href="/public-node/buy-pool/usdc-void-v1">Buy Pool</a></p>
+
+  <h1>USDC → VOID Buy Pool Readiness Rollup</h1>
+  <p><strong>Marker:</strong> <code>VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1</code></p>
+
+  <section class="card">
+    <h2>Public status</h2>
+    <ul>
+      <li><span class="good">Buy-pool page:</span> public and read-only</li>
+      <li><span class="good">Buy-pool JSON:</span> public and read-only</li>
+      <li><span class="good">Readiness rollup JSON:</span> public and read-only</li>
+      <li><span class="warn">Operator execution:</span> manual, gated, and withheld</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Safety boundary</h2>
+    <ul>
+      <li>No automatic VOID delivery</li>
+      <li>No public fulfillment endpoint</li>
+      <li>No public wallet-send authority</li>
+      <li>No autonomous write authority</li>
+      <li>No public ledger mutation</li>
+      <li>No private buyer/payment/operator packet/key/send material exposed</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Reviewer links</h2>
+    <ul>
+      <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1.json">Machine-readable readiness rollup JSON</a></li>
+      <li><a href="/public-node/buy-pool/usdc-void-v1">USDC → VOID fixed-price buy-pool page</a></li>
+      <li><a href="/public-node/buy-pool/usdc-void-v1.json">USDC → VOID fixed-price buy-pool JSON</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
+      <li><a href="/public-node/route-index.json">Public route index JSON</a></li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>`);
+});
 runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", (_req:any, res:any) => {
     res.type("html").send(`<!doctype html>
 <html lang="en">
