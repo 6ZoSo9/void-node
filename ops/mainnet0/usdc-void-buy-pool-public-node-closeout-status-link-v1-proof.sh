@@ -15,17 +15,27 @@ closeout_marker = "VOID_USDC_VOID_BUY_POOL_PUBLIC_CLOSEOUT_STATUS_V1"
 closeout_route = "/public-node/usdc-void-buy-pool/closeout-status-v1.json"
 readiness_route = "/public-node/usdc-void-buy-pool/readiness-rollup-v1"
 
+html_link_needles = [
+    f"<!-- {marker} -->",
+    f'<a href="{closeout_route}">Closeout status JSON</a>',
+]
+
 if marker not in doc:
     raise SystemExit("doc_marker_missing")
 
-if src.count(marker) != 1:
-    raise SystemExit(f"source_marker_count_bad={src.count(marker)}")
+source_marker_count = src.count(marker)
+if source_marker_count < 1:
+    raise SystemExit(f"source_marker_count_too_low={source_marker_count}")
 
 if closeout_marker not in src:
     raise SystemExit("closeout_status_marker_missing_from_source")
 
 if closeout_route not in src:
     raise SystemExit("closeout_status_route_missing_from_source")
+
+for needle in html_link_needles:
+    if needle not in src:
+        raise SystemExit(f"dashboard_html_link_needle_missing={needle}")
 
 positions = []
 start = 0
@@ -42,7 +52,7 @@ if not positions:
 matching_dashboard_windows = []
 for pos in positions:
     window = src[max(0, pos - 1000):pos + 9000]
-    if marker in window and closeout_route in window and readiness_route in window:
+    if marker in window and closeout_route in window and readiness_route in window and "Closeout status JSON" in window:
         matching_dashboard_windows.append(pos)
 
 if not matching_dashboard_windows:
@@ -61,6 +71,7 @@ for forbidden in [
     if forbidden in src:
         raise SystemExit(f"forbidden_true_flag_present={forbidden}")
 
+print(f"source_marker_count={source_marker_count}")
 print(f"dashboard_marker_occurrences={len(positions)}")
 print(f"matching_dashboard_windows={len(matching_dashboard_windows)}")
 print("closeout_status_dashboard_link_source_green=true")
