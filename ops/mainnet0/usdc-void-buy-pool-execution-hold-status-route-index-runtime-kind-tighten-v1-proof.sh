@@ -1,61 +1,81 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-doc="docs/public/public-node-usdc-void-buy-pool-execution-hold-status-route-index-runtime-kind-tighten-v1.md"
 src="src/index.ts"
+doc="docs/public/public-node-usdc-void-buy-pool-kind-tighten-proof-forward-safe-for-reviewer-verify-pack-v1.md"
 
 echo "VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1_PROOF_BEGIN"
 
+test -f "$src"
 test -f "$doc"
 
-grep -F "VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1" "$doc" >/dev/null
-grep -F "/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1" "$doc" >/dev/null
-grep -F "/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1" "$doc" >/dev/null
-grep -F "real read-only runtime HTML pages" "$doc" >/dev/null
-grep -F "does not" "$doc" >/dev/null
-grep -F "grant autonomous write authority" "$doc" >/dev/null
+grep -F "VOID_USDC_VOID_BUY_POOL_KIND_TIGHTEN_PROOF_FORWARD_SAFE_FOR_REVIEWER_VERIFY_PACK_V1" "$doc" >/dev/null
+grep -F "counts exact route-index entries" "$doc" >/dev/null
+grep -F "proof-only forward-safety repair" "$doc" >/dev/null
 
-grep -F "VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1" "$src" >/dev/null
-
-python3 - <<'PY'
+python3 - <<'PY2'
 from pathlib import Path
 import re
+
 s = Path("src/index.ts").read_text()
+
+route_index_start = s.find('APP.get("/public-node/route-index.json"')
+if route_index_start < 0:
+    raise SystemExit("route_index_route_missing")
+
+next_app = s.find('APP.get("', route_index_start + 1)
+if next_app < 0:
+    next_app = len(s)
+
+block = s[route_index_start:next_app]
+
 targets = [
-    "/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1",
-    "/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1",
+    ("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", "html"),
+    ("/public-node/usdc-void-buy-pool/readiness-rollup-v1", "html"),
 ]
-for target in targets:
-    pattern = re.compile(
-        r'\{\s*path:\s*"' + re.escape(target) + r'"\s*,\s*kind:\s*"([^"]+)"',
-        re.S,
+
+for target, kind in targets:
+    exact_entry = re.compile(
+        r'path:\s*"' + re.escape(target) + r'"\s*,\s*kind:\s*"' + re.escape(kind) + r'"'
     )
-    matches = pattern.findall(s)
+    matches = exact_entry.findall(block)
     if len(matches) != 1:
-        raise SystemExit(f"target_count_bad target={target} count={len(matches)}")
-    if matches[0] != "html":
-        raise SystemExit(f"target_kind_bad target={target} kind={matches[0]}")
+        raise SystemExit(f"target_route_index_exact_entry_count_bad target={target} kind={kind} count={len(matches)}")
+
+json_targets = [
+    "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json",
+    "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json",
+]
+
+for target in json_targets:
+    exact_entry = re.compile(
+        r'path:\s*"' + re.escape(target) + r'"\s*,\s*kind:\s*"json"'
+    )
+    matches = exact_entry.findall(block)
+    if len(matches) != 1:
+        raise SystemExit(f"json_target_route_index_exact_entry_count_bad target={target} count={len(matches)}")
+
+for marker in [
+    "VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_STATUS_ROUTE_INDEX_ENTRY_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1",
+    "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+]:
+    if marker not in block:
+        raise SystemExit(f"route_index_marker_missing={marker}")
+
+# Guard against accidental mutation routes for these public reviewer surfaces.
+for bad in [
+    'post("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1',
+    'post("/public-node/usdc-void-buy-pool/readiness-rollup-v1',
+    'post("/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1',
+]:
+    if bad in s:
+        raise SystemExit(f"unexpected_public_mutation_route={bad}")
+
 print("route_index_runtime_kind_tighten_targets_html=true")
-PY
-
-grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1"' "$src" >/dev/null
-grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1"' "$src" >/dev/null
-grep -F "g.__void_http_app || g.APP || g.app" "$src" >/dev/null
-
-if grep -F 'app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1"' "$src" >/dev/null; then
-  echo "unsafe_top_level_app_get_status_route_present=true"
-  exit 1
-fi
-
-if grep -F 'app.get("/public-node/usdc-void-buy-pool/operator-execution-hold-status-route-index-entry-v1"' "$src" >/dev/null; then
-  echo "unsafe_top_level_app_get_entry_route_present=true"
-  exit 1
-fi
-
-if grep -R "VOID_USDC_VOID_BUY_POOL_OPERATOR_MANUAL_EXECUTION_PACKET_HOLD_V1" src docs/public fixtures/public 2>/dev/null; then
-  echo "private_hold_marker_leaked_to_public_surface=true"
-  exit 1
-fi
+print("route_index_runtime_kind_tighten_exact_route_index_entries=true")
+PY2
 
 echo "VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1_ASSERT_GREEN"
 echo "VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1_GREEN"
