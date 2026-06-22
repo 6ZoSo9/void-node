@@ -47944,6 +47944,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID presale buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_DUPLICATE_PAYMENT_GUARD_V1", use: "public read-only duplicate payment guard definition; requires canonical payment identity source_chain:transaction_hash:log_index, rejects reused USDC payment identity, request_id alone is not payment dedupe, authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/verified-payment-detection-gate-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_VERIFIED_PAYMENT_DETECTION_GATE_V1", use: "public read-only verified USDC payment detection gate definition; requires receipt status 0x1, matching USDC Transfer log, official receiver match, amount match, duplicate guard, inventory guard, and explicit operator activation record; authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/presale-quote-reservation-boundary-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_QUOTE_RESERVATION_BOUNDARY_V1", use: "public read-only presale quote/reservation boundary: quotes and unverified payments do not reserve VOID; verified USDC payment is required before allocation_reserved" },
                         { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1", use: "readiness matrix listing hard blockers before automatic USDC to VOID fulfillment can be enabled; activation remains false" },
@@ -78844,6 +78845,62 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
   },
   public_safety_statement: "This matrix defines required gates only. It does not enable fulfillment, mutation, signer access, treasury transfer, wallet send, or VOID transfer."
 };
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/duplicate-payment-guard-v1.json", (_req:any, res:any) => {
+    res.json({
+      marker: "VOID_USDC_TO_VOID_PRESALE_DUPLICATE_PAYMENT_GUARD_V1",
+      status: "duplicate_payment_guard_defined_authority_false",
+      activation_gate: "duplicate_payment_guard",
+      duplicate_payment_guard_defined: true,
+      duplicate_payment_guard_green: false,
+      current_verifier_duplicate_payment_guard_enforced: false,
+      current_request_id_dedupe_is_not_payment_dedupe: true,
+      problem_sealed: "request_id accounting is not enough; the same USDC transaction/log must not satisfy more than one presale request",
+      canonical_payment_identity: {
+        intended_key: "source_chain:transaction_hash:log_index",
+        required_fields: [
+          "source_chain",
+          "submitted_tx_hash",
+          "receipt_transaction_hash",
+          "usdc_contract",
+          "transfer_log_index",
+          "official_receiver_address",
+          "verified_amount",
+          "request_id"
+        ],
+        missing_log_index_behavior: "block_automatic_fulfillment_until_receipt_log_identity_is_recorded"
+      },
+      required_guard_behavior: [
+        "one_canonical_payment_identity_may_satisfy_at_most_one_request",
+        "reused_payment_identity_fails_closed",
+        "request_id_alone_is_not_duplicate_payment_guard",
+        "submitted_tx_hash_alone_is_not_verified_payment",
+        "verified_payment_alone_does_not_enable_automatic_fulfillment",
+        "duplicate_guard_green_required_before_allocation_reservation",
+        "inventory_guard_green_required_before_allocation_reservation",
+        "explicit_operator_activation_record_required_before_automatic_fulfillment"
+      ],
+      inventory_effects: {
+        quote_created: "none",
+        payment_pending: "none",
+        payment_submitted_unverified: "none",
+        submitted_tx_hash: "none",
+        payment_verified_without_duplicate_guard: "no_automatic_fulfillment_no_void_transfer",
+        payment_verified_with_duplicate_guard_green: "allocation_may_reserve_only_if_inventory_guard_green"
+      },
+      current_authority: {
+        automatic_fulfillment_enabled: false,
+        wallet_fulfillment_enabled: false,
+        signer_access_enabled: false,
+        treasury_transfer_authority_enabled: false,
+        buyer_execution_authorized: false,
+        public_mutation_enabled: false,
+        wc_ledger_write: false,
+        void_transfer_now: false
+      }
+    });
+  });
+
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/verified-payment-detection-gate-v1.json", (_req:any, res:any) => {
     res.json({
