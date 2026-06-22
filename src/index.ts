@@ -47944,6 +47944,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID presale buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-activation-matrix-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_ALLOCATION_LEDGER_ACTIVATION_MATRIX_V1", use: "public read-only private allocation ledger activation matrix; lists exact green gates required before ledger creation or writes, including verified payment, duplicate guard, inventory guard, allocation record, private ledger hold, path no-leak, append-only writer, hash-chain verifier, duplicate/inventory rechecks, prewrite backup, explicit operator activation, public mutation boundary, advisory AI no-write, and buyer execution refusal; authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-hold-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_ALLOCATION_LEDGER_HOLD_V1", use: "public read-only private allocation ledger hold; defines operator-only append-only ledger requirements, hash-chain rules, duplicate request/payment refusal, inventory refusal, and no public/private record exposure; ledger writes remain disabled and authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/allocation-reservation-record-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_ALLOCATION_RESERVATION_RECORD_V1", use: "public read-only append-only allocation reservation record definition; payment_verified operator event is not allocation_reserved; requires verified payment, duplicate guard, inventory guard, unique request/payment identity, hash-chained allocation record, and explicit operator activation; allocation record writes remain disabled and authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/inventory-allocation-guard-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_INVENTORY_ALLOCATION_GUARD_V1", use: "public read-only inventory/allocation guard definition; request-time quote capacity checks are not atomic allocation reservation; requires verified payment, duplicate guard, remaining inventory, append-only allocation record, oversell guard, sold-out closure, and explicit operator activation; authority remains false" },
@@ -78848,6 +78849,107 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
   },
   public_safety_statement: "This matrix defines required gates only. It does not enable fulfillment, mutation, signer access, treasury transfer, wallet send, or VOID transfer."
 };
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/private-allocation-ledger-activation-matrix-v1.json", (_req:any, res:any) => {
+    res.json({
+      marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_ALLOCATION_LEDGER_ACTIVATION_MATRIX_V1",
+      status: "private_allocation_ledger_activation_matrix_defined_authority_false",
+      activation_gate: "private_allocation_ledger_activation_matrix",
+      private_allocation_ledger_activation_matrix_defined: true,
+      private_allocation_ledger_activation_matrix_green: false,
+      private_allocation_ledger_activation_authorized: false,
+      private_allocation_ledger_created: false,
+      private_allocation_ledger_write_enabled: false,
+      private_allocation_ledger_append_only_enforced: false,
+      private_allocation_ledger_hash_chain_enforced: false,
+      allocation_reservation_record_write_enabled: false,
+      append_only_allocation_reservation_record_enforced: false,
+      public_route_shape_only: true,
+      public_route_discloses_private_ledger_contents: false,
+      matrix_purpose: "define exact green gates required before the private allocation ledger can ever be created or written",
+      current_state: {
+        verified_usdc_payment_detection_gate_green: false,
+        duplicate_payment_guard_green: false,
+        inventory_allocation_guard_green: false,
+        allocation_reservation_record_green: false,
+        private_allocation_ledger_hold_green: false,
+        private_allocation_ledger_activation_matrix_green: false,
+        private_allocation_ledger_activation_authorized: false
+      },
+      required_green_gates_before_activation: [
+        "verified_usdc_payment_detection_gate_green",
+        "duplicate_payment_guard_green",
+        "inventory_allocation_guard_green",
+        "allocation_reservation_record_green",
+        "private_allocation_ledger_hold_green",
+        "private_ledger_file_path_operator_selected",
+        "private_ledger_path_no_leak_check_green",
+        "append_only_writer_implementation_proof_green",
+        "hash_chain_verifier_proof_green",
+        "duplicate_request_id_recheck_green",
+        "duplicate_canonical_payment_identity_recheck_green",
+        "inventory_reservation_prewrite_recheck_green",
+        "prewrite_backup_snapshot_green",
+        "explicit_operator_activation_record_green",
+        "public_mutation_boundary_green",
+        "advisory_ai_no_write_boundary_green",
+        "buyer_execution_refusal_green"
+      ],
+      activation_blockers: [
+        "payment_verifier_definition_only_or_red",
+        "duplicate_payment_guard_definition_only_or_red",
+        "inventory_allocation_guard_definition_only_or_red",
+        "allocation_reservation_record_gate_definition_only_or_red",
+        "private_allocation_ledger_hold_not_green",
+        "private_ledger_path_public_or_leaked",
+        "append_only_writer_not_proven",
+        "hash_chain_verifier_not_proven",
+        "duplicate_request_or_payment_identity_recheck_missing",
+        "inventory_prewrite_recheck_missing",
+        "prewrite_backup_missing",
+        "explicit_operator_activation_record_missing",
+        "public_mutation_boundary_red",
+        "advisory_ai_write_boundary_red",
+        "buyer_execution_refusal_red"
+      ],
+      required_future_activation_record_fields: [
+        "activation_record_type",
+        "activation_record_id",
+        "operator_id",
+        "activated_at_ms",
+        "activated_commit",
+        "activated_cross_box_tag",
+        "verified_payment_gate_ref",
+        "duplicate_payment_guard_ref",
+        "inventory_allocation_guard_ref",
+        "allocation_reservation_record_ref",
+        "private_allocation_ledger_hold_ref",
+        "private_ledger_path_ref",
+        "path_no_leak_proof_ref",
+        "append_only_writer_proof_ref",
+        "hash_chain_verifier_proof_ref",
+        "duplicate_recheck_proof_ref",
+        "inventory_recheck_proof_ref",
+        "prewrite_backup_ref",
+        "public_mutation_boundary_ref",
+        "advisory_ai_no_write_ref",
+        "buyer_execution_refusal_ref",
+        "activation_record_hash"
+      ],
+      non_activation_statement: "this route is a matrix only; it does not create the private ledger, enable writes, reserve inventory, or fulfill VOID",
+      current_authority: {
+        automatic_fulfillment_enabled: false,
+        wallet_fulfillment_enabled: false,
+        signer_access_enabled: false,
+        treasury_transfer_authority_enabled: false,
+        buyer_execution_authorized: false,
+        public_mutation_enabled: false,
+        wc_ledger_write: false,
+        void_transfer_now: false
+      }
+    });
+  });
+
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/private-allocation-ledger-hold-v1.json", (_req:any, res:any) => {
     res.json({
