@@ -16611,8 +16611,8 @@ small{color:#94a3b8}
       }
 
       // VOID_BUY_VOID_PAID_ONLY_POOL_RESERVATION_V1
-      // Unpaid quote/request records do not reserve pool capacity.
-      // Pool capacity is reserved only once a payment tx hash is submitted.
+      // Unpaid quote/request records and unverified tx-hash submissions do not reserve presale capacity.
+      // Available presale inventory is reduced only after operator_status === "payment_verified".
       const reserved_void = Math.min(pool_void_total, submitted_void_total);
       const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
@@ -16634,13 +16634,16 @@ small{color:#94a3b8}
         submitted_usdc_total: raised_usdc_reported,
         submitted_void_total: submitted_void,
         raised_usdc_so_far: raised_usdc_reported,
+        verified_usdc_total: raised_usdc_reported,
+        verified_void_total: submitted_void,
+        allocation_reserved_void: reserved_void,
         request_count,
         submitted_tx_count,
         remaining_void,
         sold_out,
         progress_pct,
-        cutoff_rule: "buy_void_hidden_and_requests_rejected_when_paid_or_submitted_tx_reserved_void_reaches_pool_limit",
-        accounting_note: "unpaid and unverified tx-submitted requests are quotes only; payment_verified operator events reserve pool capacity"
+        cutoff_rule: "buy_void_hidden_and_requests_rejected_when_verified_payment_reserved_void_reaches_presale_limit",
+        accounting_note: "unpaid and unverified tx-submitted requests are quotes only; only payment_verified operator events may reserve presale allocation"
       };
     }
 
@@ -47941,6 +47944,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "public read-only copy/paste reviewer verification packet for USDC to VOID presale buy-pool readiness surfaces" },
+      { path: "/public-node/usdc-void-buy-pool/verified-payment-detection-gate-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_VERIFIED_PAYMENT_DETECTION_GATE_V1", use: "public read-only verified USDC payment detection gate definition; requires receipt status 0x1, matching USDC Transfer log, official receiver match, amount match, duplicate guard, inventory guard, and explicit operator activation record; authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/presale-quote-reservation-boundary-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_QUOTE_RESERVATION_BOUNDARY_V1", use: "public read-only presale quote/reservation boundary: quotes and unverified payments do not reserve VOID; verified USDC payment is required before allocation_reserved" },
                         { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_V1", use: "readiness matrix listing hard blockers before automatic USDC to VOID fulfillment can be enabled; activation remains false" },
 { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-target-policy-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_TARGET_POLICY_V1", use: "policy only; current runtime authority remains false; target-state policy for automatic USDC to VOID fulfillment for buy-only presale after verified payment, verified allocation reservation, and sold-out closure; quote and unverified tx do not reserve allocation" },
@@ -78840,6 +78844,73 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
   },
   public_safety_statement: "This matrix defines required gates only. It does not enable fulfillment, mutation, signer access, treasury transfer, wallet send, or VOID transfer."
 };
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/verified-payment-detection-gate-v1.json", (_req:any, res:any) => {
+    res.json({
+      marker: "VOID_USDC_TO_VOID_PRESALE_VERIFIED_PAYMENT_DETECTION_GATE_V1",
+      status: "verified_payment_detection_gate_defined_authority_false",
+      activation_gate: "verified_usdc_payment_detection",
+      verified_usdc_payment_detection_gate_defined: true,
+      verified_usdc_payment_detection_gate_green: false,
+      gate_green_requires_future_runtime_evidence: [
+        "configured_rpc",
+        "request_exists",
+        "valid_evm_tx_hash",
+        "allowlisted_source_chain",
+        "eth_getTransactionReceipt_success",
+        "receipt_status_0x1",
+        "matching_usdc_transfer_log",
+        "official_receiver_match",
+        "amount_match",
+        "duplicate_payment_guard_green",
+        "inventory_guard_green",
+        "explicit_operator_activation_record"
+      ],
+      supported_source_chains: [
+        {
+          chain: "base",
+          usdc_contract_env: "VOID_BUY_BASE_USDC_CONTRACT or VOID_BUY_USDC_CONTRACT",
+          default_usdc_contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          rpc_env: "VOID_BUY_BASE_RPC_URL"
+        },
+        {
+          chain: "ethereum",
+          usdc_contract_env: "VOID_BUY_ETH_USDC_CONTRACT",
+          default_usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          rpc_env: "VOID_BUY_ETH_RPC_URL"
+        }
+      ],
+      verifier_shape: {
+        operator_endpoint_existing: "/__void/buy-void/operator/verify-payment.json",
+        public_endpoint_enabled: false,
+        public_route_is_status_only: true,
+        receipt_method: "eth_getTransactionReceipt",
+        required_receipt_status: "0x1",
+        required_log: "ERC20 Transfer",
+        asset_in: "USDC",
+        tx_hash_only_inventory_effect: "none",
+        payment_verified_inventory_effect: "allocation_may_reserve_after_duplicate_and_inventory_guards"
+      },
+      inventory_effects: {
+        quote_created: "none",
+        payment_pending: "none",
+        payment_submitted_unverified: "none",
+        submitted_tx_hash: "none",
+        payment_verified: "allocation_may_reserve"
+      },
+      current_authority: {
+        automatic_fulfillment_enabled: false,
+        wallet_fulfillment_enabled: false,
+        signer_access_enabled: false,
+        treasury_transfer_authority_enabled: false,
+        buyer_execution_authorized: false,
+        public_mutation_enabled: false,
+        wc_ledger_write: false,
+        void_transfer_now: false
+      }
+    });
+  });
+
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/presale-quote-reservation-boundary-v1.json", (_req:any, res:any) => {
     res.json({
