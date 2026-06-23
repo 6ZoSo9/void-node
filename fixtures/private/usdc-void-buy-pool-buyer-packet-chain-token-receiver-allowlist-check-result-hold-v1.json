@@ -1,0 +1,98 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_CHAIN_TOKEN_RECEIVER_ALLOWLIST_CHECK_RESULT_HOLD_V1",
+  "status": "buyer_packet_chain_token_receiver_allowlist_check_result_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_chain_token_receiver_allowlist_check_result_hold",
+  "purpose": "Define a private/operator-only hold shape for recording the result of checking a parsed Transfer log candidate against the USDC buy-pool chain, token, and receiver allowlist.",
+  "prerequisite_state": {
+    "transfer_log_parse_result_hold_required": true,
+    "transfer_log_parse_result_recorded_unverified_required": true,
+    "amount_rate_policy_not_started": true,
+    "payment_eligibility_not_started": true
+  },
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_route": false,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "raw_rpc_payload_published": false,
+    "secret_material_recorded": false
+  },
+  "allowlist_check_scope": {
+    "allowlist_check_result_recording_only": true,
+    "operator_controlled_allowlist_check_result_allowed": true,
+    "chain_allowlist_checked": true,
+    "token_contract_allowlist_checked": true,
+    "receiver_address_allowlist_checked": true,
+    "allowlist_candidate_unverified_for_payment_eligibility": true,
+    "amount_rate_policy_verified": false,
+    "duplicate_payment_guard_decided": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_approval_complete": false
+  },
+  "allowlist_check_result_hold_states": [
+    "draft_hold",
+    "blocked_transfer_log_parse_result_not_ready",
+    "blocked_chain_not_allowed",
+    "blocked_token_contract_not_allowed",
+    "blocked_receiver_not_allowed",
+    "chain_token_receiver_allowlist_check_recorded_unverified",
+    "held_for_amount_rate_policy_check"
+  ],
+  "example_allowlist_check_result_record": {
+    "allowlist_check_result_id": "redacted_placeholder_only",
+    "parse_result_id": "redacted_placeholder_only",
+    "receipt_read_result_id": "redacted_placeholder_only",
+    "work_item_id": "redacted_placeholder_only",
+    "queue_record_id": "redacted_placeholder_only",
+    "receipt_record_id": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_parse_result_state": "transfer_log_parse_result_recorded_unverified",
+    "allowlist_check_result_state": "chain_token_receiver_allowlist_check_recorded_unverified",
+    "field_values_redacted": true,
+    "chain": "redacted_placeholder_only",
+    "candidate_token_contract": "redacted_placeholder_only",
+    "candidate_receiver_address": "redacted_placeholder_only",
+    "chain_allowlist_reference": "redacted_placeholder_only",
+    "token_allowlist_reference": "redacted_placeholder_only",
+    "receiver_allowlist_reference": "redacted_placeholder_only",
+    "chain_allowed": true,
+    "token_contract_allowed": true,
+    "receiver_address_allowed": true
+  },
+  "not_satisfied_by_allowlist_check_result_hold": {
+    "amount_rate_policy_complete": false,
+    "duplicate_payment_guard_complete": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_chain_token_receiver_allowlist_check_result_hold_green": true,
+    "private_operator_only_green": true,
+    "allowlist_check_result_recording_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_amount_rate_policy_verification_green": true,
+    "no_duplicate_guard_decision_green": true,
+    "no_payment_decision_green": true,
+    "authority_false_green": true
+  }
+}
