@@ -57621,13 +57621,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
 
         <div class="card" id="publicNodeProofModeStatusCard"><!-- VOID_PUBLIC_NODE_PROOF_MODE_STATUS_UI_V1 -->
           <h2>Proof Mode Status</h2>
-          <p><strong>Precision-only green.</strong> Alienware is temporarily offline after a storm, so cross-box confirmation is pending.</p>
+          <p><strong>Cross-box green.</strong> Precision and Alienware proof lanes are active and aligned.</p>
           <ul>
-            <li>Storm baseline: <code>ckpt-public-node-precision-only-storm-baseline-green-20260612-084430</code></li>
-            <li>Alienware rejoin runbook: <code>ckpt-public-node-alienware-rejoin-runbook-green-20260612-085138</code></li>
-            <li>Mode: <code>Precision-only green / Alienware deferred / cross-box pending</code></li>
+            <li>Mode: <code>Cross-box green / Precision + Alienware aligned</code></li>
+            <li>Boundary: <code>read-only public proof surface</code></li>
           </ul>
-          <p><small>Rule: this node is live on Precision, but not yet re-confirmed cross-box.</small></p>
+          <p><small>Rule: this public node is read-only and cross-box proof aligned.</small></p>
         </div>
 
   <section class="card" id="publicNodeLocalDataDropHumanDemoTopCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_HUMAN_DEMO_TOP_CARD_UI_V1 -->
