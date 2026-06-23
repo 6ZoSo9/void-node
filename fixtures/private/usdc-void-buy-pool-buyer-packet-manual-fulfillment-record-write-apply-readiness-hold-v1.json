@@ -1,0 +1,79 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_RECORD_WRITE_APPLY_READINESS_HOLD_V1",
+  "version": 1,
+  "scope": "private_operator_only",
+  "purpose": "record_manual_fulfillment_record_write_apply_readiness_hold_shape_after_record_write_hold",
+  "prior_required_state": "ready_for_separate_manual_fulfillment_record_write_apply",
+  "write_apply_readiness_state": "held_manual_fulfillment_record_write_apply_readiness_shape_only",
+  "allowed_write_apply_readiness_states": [
+    "draft_hold",
+    "blocked_missing_manual_fulfillment_record_write_hold",
+    "blocked_record_write_hold_not_ready",
+    "blocked_missing_append_only_target",
+    "blocked_missing_pre_apply_backup",
+    "blocked_duplicate_record_key_guard_missing",
+    "blocked_missing_operator_approval",
+    "held_manual_fulfillment_record_write_apply_readiness_shape_only",
+    "ready_for_separate_manual_fulfillment_record_write_apply_packet"
+  ],
+  "references": {
+    "buyer_packet_reference": "private_operator_redacted",
+    "manual_fulfillment_record_write_hold_reference": "private_operator_redacted",
+    "manual_fulfillment_record_creation_hold_reference": "private_operator_redacted",
+    "manual_fulfillment_review_decision_reference": "private_operator_redacted",
+    "payment_eligibility_decision_result_reference": "private_operator_redacted",
+    "operator_approval_reference": "private_operator_redacted",
+    "proposed_buyer_allocation_reference": "private_operator_redacted",
+    "append_only_target_reference": "private_operator_redacted",
+    "pre_apply_backup_reference": "private_operator_redacted"
+  },
+  "proposed_write_apply_readiness": {
+    "write_apply_packet_ready": false,
+    "append_only_target_present": false,
+    "pre_apply_backup_required": true,
+    "pre_apply_backup_present": false,
+    "duplicate_record_key_guard_required": true,
+    "duplicate_record_key_guard_passed": false,
+    "proposed_manual_fulfillment_record_key": "fixture_shape_only_not_written",
+    "proposed_void_allocation_amount": "0",
+    "proposed_void_allocation_decimals": 18,
+    "readiness_reason_codes": [
+      "fixture_shape_only",
+      "no_real_buyer_packet",
+      "no_real_record_write_hold",
+      "no_append_only_target",
+      "no_pre_apply_backup",
+      "no_duplicate_record_key_guard_result",
+      "no_operator_approval",
+      "no_record_written"
+    ],
+    "blocked_reason_codes": [],
+    "next_required_operator_action": "separate_manual_fulfillment_record_write_apply_packet_hold_required"
+  },
+  "authority": {
+    "public_node_mutation_authority": false,
+    "public_route_mounted": false,
+    "manual_fulfillment_record_write_authority": false,
+    "manual_fulfillment_record_apply_authority": false,
+    "append_only_ledger_write_authority": false,
+    "allocation_claim_creation_authority": false,
+    "void_transfer_authority": false,
+    "wallet_signing_authority": false,
+    "treasury_movement_authority": false,
+    "automatic_fulfillment_authority": false
+  },
+  "non_goals": [
+    "public_node_rpc_receipt_read",
+    "public_node_transfer_log_parse",
+    "payment_eligibility_decision",
+    "manual_fulfillment_record_write",
+    "manual_fulfillment_record_apply",
+    "append_only_ledger_write",
+    "allocation_claim_creation",
+    "void_transfer",
+    "wallet_signing",
+    "treasury_movement",
+    "automatic_fulfillment",
+    "public_node_mutation"
+  ]
+}
