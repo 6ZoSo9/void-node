@@ -47967,6 +47967,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1", use: "public allocation claim shape and creation hold gate; no claim creation authority" },
  { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1", use: "public private-allocation ledger write boundary and hold gate; no ledger write authority" },
  { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "public inventory reservation boundary and hold gate; no reserve authority" },
+ { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "public fulfillment execution and VOID transfer boundary; no signer or transfer authority" },
+ { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "human-readable fulfillment execution hold gate; automatic fulfillment and VOID transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "human-readable inventory reserve hold gate; reserve/fulfillment/transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1", use: "human-readable private ledger write hold gate; reserve/fulfillment/transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1", use: "human-readable allocation claim creation hold gate; ledger/reserve/fulfillment authority false" },
@@ -78889,7 +78891,120 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1",
+    status: "fulfillment_execution_hold_gate_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    fulfillment_execution_hold_gate_green: true,
+    fulfillment_execution_shape_policy_green: true,
+    wallet_authority_absent_policy_green: true,
+    transfer_receipt_required_policy_green: true,
+    operator_review_policy_green: true,
+    fulfillment_execution_now: false,
+    automatic_fulfillment_enabled_now: false,
+    wallet_signer_access_enabled_now: false,
+    void_transfer_now: false,
+    inventory_reserved_now: false,
+    private_allocation_ledger_write_now: false,
+    allocation_claim_created_now: false,
+    overall_automatic_activation_state: "still_blocked_other_gates_pending",
+    required_upstream_gate: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
+    fulfillment_execution_shape: {
+      fulfillment_execution_id: "deterministic_public_safe_id_from_inventory_reservation_and_fulfillment_policy",
+      inventory_reservation_id: "deterministic_public_safe_inventory_reservation_id",
+      ledger_entry_id: "deterministic_private_allocation_ledger_entry_id",
+      claim_id: "deterministic_public_safe_allocation_claim_id",
+      buyer_binding_key: "opaque_public_safe_identifier",
+      receiving_void_address: "single_public_receiving_void_address",
+      pool_id: "usdc_void_buy_pool_v1",
+      void_amount: "fixed_rate_quote_amount",
+      fulfillment_policy_version: "fulfillment_execution_hold_v1",
+      execution_state: "fulfillment_execution_hold",
+      transfer_request_state: "not_created",
+      transfer_receipt_state: "not_observed"
+    },
+    fulfillment_execution_states: [
+      "fulfillment_execution_hold",
+      "blocked_inventory_not_reserved",
+      "blocked_private_ledger_not_written",
+      "blocked_claim_not_created",
+      "blocked_operator_not_approved",
+      "blocked_wallet_authority_absent",
+      "blocked_transfer_receipt_missing",
+      "operator_review_required"
+    ],
+    policy_examples: [
+      { case: "inventory_shape_ready_but_fulfillment_held", inventory_reservation_state: "inventory_reserve_hold", fulfillment_shape_ready: true, result_state: "fulfillment_execution_hold", may_execute_fulfillment: false, may_access_wallet_signer: false, may_transfer_void: false, may_enable_automatic_fulfillment: false },
+      { case: "inventory_not_reserved", inventory_reservation_state: "blocked_inventory_not_reserved", fulfillment_shape_ready: false, result_state: "blocked_inventory_not_reserved", may_execute_fulfillment: false, may_transfer_void: false },
+      { case: "wallet_authority_absent", inventory_reservation_state: "inventory_reserve_hold", fulfillment_shape_ready: true, wallet_authority_present: false, result_state: "blocked_wallet_authority_absent", may_execute_fulfillment: false, may_transfer_void: false }
+    ],
+    linked_inventory_reserve_hold_gate_marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
+    linked_inventory_reserve_hold_gate_json_route: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json",
+    linked_inventory_reserve_hold_gate_html_route: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1",
+    reviewer_warnings: {
+      not_fulfillment_execution: true,
+      not_wallet_authority: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    authority_flags: {
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      allocation_claim_creation_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserve_enabled: false,
+      fulfillment_execution_enabled: false,
+      wallet_signer_access_enabled: false,
+      automatic_fulfillment_enabled: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Fulfillment Execution Hold Gate</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Fulfillment Execution Hold Gate</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1</p>",
+    "<p><strong>Status:</strong> fulfillment_execution_hold_gate_green_authority_false</p>",
+    "<p><strong>Gate green:</strong> true</p>",
+    "<p><strong>Execution shape:</strong> deterministic fulfillment id, inventory reservation id, ledger entry id, claim id, buyer binding key, receiving VOID address, pool id, VOID amount, fulfillment policy version, execution state, transfer request state, and transfer receipt state</p>",
+    "<p><strong>Fulfillment execution now:</strong> false</p>",
+    "<p><strong>Wallet signer access enabled now:</strong> false</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>VOID transfer now:</strong> false</p>",
+    "<p><strong>Inventory reserved now:</strong> false</p>",
+    "<p><strong>Overall automatic activation:</strong> still_blocked_other_gates_pending</p>",
+    "<h2>Hold states</h2>",
+    "<ul>",
+    "<li>fulfillment_execution_hold</li>",
+    "<li>blocked_inventory_not_reserved</li>",
+    "<li>blocked_private_ledger_not_written</li>",
+    "<li>blocked_claim_not_created</li>",
+    "<li>blocked_operator_not_approved</li>",
+    "<li>blocked_wallet_authority_absent</li>",
+    "<li>blocked_transfer_receipt_missing</li>",
+    "<li>operator_review_required</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>no public mutation, no runtime queue execution, no wallet signer access, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json\">JSON fulfillment execution hold gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1\">Inventory reserve hold gate</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
     status: "inventory_reserve_hold_gate_green_authority_false",
