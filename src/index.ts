@@ -47969,6 +47969,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "public inventory reservation boundary and hold gate; no reserve authority" },
  { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "public fulfillment execution and VOID transfer boundary; no signer or transfer authority" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1", use: "public automatic fulfillment prerequisite reconciliation; authority remains false" },
+ { path: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1", use: "public authority activation conditions draft; no activation authority" },
+ { path: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1", use: "human-readable authority activation draft gate; automatic fulfillment remains disabled" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1", use: "human-readable automatic fulfillment reconcile view; authority flip still required" },
  { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "human-readable fulfillment execution hold gate; automatic fulfillment and VOID transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "human-readable inventory reserve hold gate; reserve/fulfillment/transfer authority false" },
@@ -78893,7 +78895,114 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1",
+    status: "authority_activation_gate_draft_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    authority_activation_gate_draft_green: true,
+    activation_conditions_defined: true,
+    explicit_operator_approval_required: true,
+    separate_authority_activation_commit_required: true,
+    authority_activation_enabled_now: false,
+    authority_activation_request_created_now: false,
+    automatic_fulfillment_enabled_now: false,
+    runtime_queue_enabled_now: false,
+    wallet_signer_access_enabled_now: false,
+    public_mutation_enabled_now: false,
+    void_transfer_now: false,
+    overall_activation_state: "authority_activation_gate_draft_only",
+    required_upstream_gate: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1",
+    activation_required_conditions: [
+      "explicit_operator_approval_record",
+      "sealed_prerequisite_reconcile",
+      "runtime_queue_boundary_proof",
+      "wallet_signer_boundary_proof",
+      "public_mutation_boundary_proof",
+      "transfer_receipt_verification_proof",
+      "emergency_pause_rollback_boundary",
+      "cross_box_green_tag",
+      "final_precision_sync"
+    ],
+    blocking_states: [
+      "blocked_no_operator_approval",
+      "blocked_no_runtime_queue_boundary",
+      "blocked_no_wallet_signer_boundary",
+      "blocked_no_transfer_receipt_verification",
+      "blocked_no_emergency_pause_boundary",
+      "blocked_no_cross_box_green",
+      "blocked_no_final_sync"
+    ],
+    linked_activation_reconcile_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1",
+    linked_activation_reconcile_json_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1.json",
+    linked_activation_reconcile_html_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1",
+    next_state: "operator_authority_activation_approval_record_required",
+    reviewer_warnings: {
+      not_authority_activation: true,
+      not_public_mutation: true,
+      not_runtime_queue_execution: true,
+      not_wallet_authority: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true
+    },
+    authority_flags: {
+      authority_activation_enabled: false,
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      allocation_claim_creation_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserve_enabled: false,
+      fulfillment_execution_enabled: false,
+      wallet_signer_access_enabled: false,
+      automatic_fulfillment_enabled: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Authority Activation Gate Draft</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Authority Activation Gate Draft</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1</p>",
+    "<p><strong>Status:</strong> authority_activation_gate_draft_green_authority_false</p>",
+    "<p><strong>Draft gate green:</strong> true</p>",
+    "<p><strong>Explicit operator approval required:</strong> true</p>",
+    "<p><strong>Authority activation enabled now:</strong> false</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>Runtime queue enabled now:</strong> false</p>",
+    "<p><strong>Wallet signer access enabled now:</strong> false</p>",
+    "<p><strong>VOID transfer now:</strong> false</p>",
+    "<p><strong>Overall activation:</strong> authority_activation_gate_draft_only</p>",
+    "<h2>Required before activation</h2>",
+    "<ul>",
+    "<li>explicit operator approval record</li>",
+    "<li>sealed prerequisite reconcile</li>",
+    "<li>runtime queue boundary proof</li>",
+    "<li>wallet signer boundary proof</li>",
+    "<li>public mutation boundary proof</li>",
+    "<li>transfer receipt verification proof</li>",
+    "<li>emergency pause / rollback boundary</li>",
+    "<li>cross-box green tag</li>",
+    "<li>final Precision sync</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>This draft does not activate authority: no public mutation, no runtime queue execution, no wallet signer access, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json\">JSON authority activation gate draft</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1\">Automatic fulfillment activation reconcile</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1",
     status: "activation_prerequisites_reconciled_authority_false",
