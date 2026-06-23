@@ -60,7 +60,7 @@ def main():
   print("VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_V1_DISABLED_GREEN", file=sys.stderr)
   return 0
  req_body = json.dumps({"jsonrpc":"2.0","id":1,"method":"eth_getTransactionReceipt","params":[tx_hash]}).encode()
- req = urllib.request.Request(rpc_url, data=req_body, headers={"content-type":"application/json"}, method="POST")
+ req = urllib.request.Request(rpc_url, data=req_body, headers={"content-type":"application/json","user-agent":"void-node-live-readonly/1.0"}, method="POST")
  with urllib.request.urlopen(req, timeout=15) as resp:
   rpc = json.loads(resp.read().decode())
  if rpc.get("error"):
