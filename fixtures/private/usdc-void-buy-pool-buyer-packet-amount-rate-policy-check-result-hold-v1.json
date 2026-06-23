@@ -1,0 +1,102 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_AMOUNT_RATE_POLICY_CHECK_RESULT_HOLD_V1",
+  "status": "buyer_packet_amount_rate_policy_check_result_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_amount_rate_policy_check_result_hold",
+  "purpose": "Define a private/operator-only hold shape for recording the result of checking an allowlisted Transfer log candidate against the USDC/VOID buy-pool amount and rate policy.",
+  "prerequisite_state": {
+    "chain_token_receiver_allowlist_check_result_hold_required": true,
+    "chain_token_receiver_allowlist_check_recorded_unverified_required": true,
+    "duplicate_payment_guard_not_started": true,
+    "payment_eligibility_not_started": true
+  },
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_route": false,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "raw_rpc_payload_published": false,
+    "secret_material_recorded": false
+  },
+  "amount_rate_policy_check_scope": {
+    "amount_rate_policy_check_result_recording_only": true,
+    "operator_controlled_amount_rate_policy_check_result_allowed": true,
+    "observed_usdc_amount_checked": true,
+    "fixed_rate_policy_checked": true,
+    "computed_void_allocation_recorded": true,
+    "minimum_amount_rule_checked": true,
+    "maximum_amount_rule_checked": true,
+    "decimal_normalization_rule_checked": true,
+    "amount_rate_policy_candidate_unverified_for_payment_eligibility": true,
+    "duplicate_payment_guard_decided": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_approval_complete": false
+  },
+  "amount_rate_policy_check_result_hold_states": [
+    "draft_hold",
+    "blocked_allowlist_check_result_not_ready",
+    "blocked_amount_missing",
+    "blocked_amount_below_minimum",
+    "blocked_amount_above_maximum",
+    "amount_rate_policy_check_recorded_unverified",
+    "held_for_duplicate_payment_guard_check"
+  ],
+  "example_amount_rate_policy_check_result_record": {
+    "amount_rate_policy_check_result_id": "redacted_placeholder_only",
+    "allowlist_check_result_id": "redacted_placeholder_only",
+    "parse_result_id": "redacted_placeholder_only",
+    "receipt_read_result_id": "redacted_placeholder_only",
+    "work_item_id": "redacted_placeholder_only",
+    "queue_record_id": "redacted_placeholder_only",
+    "receipt_record_id": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_allowlist_check_result_state": "chain_token_receiver_allowlist_check_recorded_unverified",
+    "amount_rate_policy_check_result_state": "amount_rate_policy_check_recorded_unverified",
+    "field_values_redacted": true,
+    "chain": "redacted_placeholder_only",
+    "transaction_hash": "redacted_placeholder_only",
+    "observed_usdc_amount": "redacted_placeholder_only",
+    "fixed_rate_policy_reference": "redacted_placeholder_only",
+    "computed_void_allocation": "redacted_placeholder_only",
+    "amount_minimum_passed": true,
+    "amount_maximum_passed": true,
+    "decimal_normalization_passed": true,
+    "amount_rate_policy_passed": true
+  },
+  "not_satisfied_by_amount_rate_policy_check_result_hold": {
+    "duplicate_payment_guard_complete": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false,
+    "allocation_claim_creation_complete": false,
+    "inventory_reservation_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_amount_rate_policy_check_result_hold_green": true,
+    "private_operator_only_green": true,
+    "amount_rate_policy_check_result_recording_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_duplicate_guard_decision_green": true,
+    "no_payment_decision_green": true,
+    "no_claim_or_inventory_green": true,
+    "authority_false_green": true
+  }
+}
