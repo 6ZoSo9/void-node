@@ -47958,6 +47958,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1", use: "public read-only evidence bundle for USDC external receipt observation; links reader, queue, job envelope, result envelope, reviewer card, and runtime smoke; no payment approval, no finality, no ledger write, no fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/evidence-link-automatic-readiness-notice-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_EVIDENCE_LINK_AUTOMATIC_READINESS_NOTICE_V1", use: "public link to USDC receipt observation evidence bundle plus automatic fulfillment target/readiness notice; automatic disabled until all gates green" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1", use: "public runtime activation gate matrix for automatic fulfillment readiness; all gates false/pending; automatic disabled now" },
+ { path: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1", use: "public green allowlist policy for allowed chains, USDC token addresses, and receiver address; no automatic fulfillment authority" },
+ { path: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1", use: "human-readable chain/token/receiver allowlist gate; gate green for policy only; automatic remains blocked" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1", use: "human-readable automatic fulfillment activation gate matrix; target allowed later; current authority false" },
  { path: "/public-node/usdc-void-buy-pool/evidence-link-automatic-readiness-notice-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_EVIDENCE_LINK_AUTOMATIC_READINESS_NOTICE_V1", use: "human-readable evidence link and automatic readiness notice; no payment approval, no ledger write, no inventory reserve, no automatic fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1", kind: "html", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1", use: "human-readable public evidence bundle for USDC external receipt observation; explanation/index only; authority false" },
@@ -78872,7 +78874,95 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1",
+    status: "chain_token_receiver_allowlist_gate_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    chain_token_receiver_allowlist_gate_green: true,
+    chain_allowlist_green: true,
+    token_allowlist_green: true,
+    receiver_allowlist_green: true,
+    automatic_fulfillment_enabled_now: false,
+    overall_automatic_activation_state: "still_blocked_other_gates_pending",
+    allowed_chains: [
+      { name: "ethereum_mainnet", chain_id: 1, chain_green: true, native_rpc_fetch_enabled_now: false },
+      { name: "base_mainnet", chain_id: 8453, chain_green: true, native_rpc_fetch_enabled_now: false }
+    ],
+    allowed_tokens: [
+      { chain_id: 1, chain_name: "ethereum_mainnet", symbol: "USDC", token_address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", decimals: 6, token_green: true },
+      { chain_id: 8453, chain_name: "base_mainnet", symbol: "USDC", token_address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", decimals: 6, token_green: true }
+    ],
+    allowed_receivers: [
+      { receiver_address: "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5", receiver_green: true, purpose: "usdc_void_buy_pool_receive_address" }
+    ],
+    blocked_receivers: [
+      { receiver_address: "0x45dd104e3f7cc2a080f2eda094d011d09c51960b", receiver_green: false, status: "deprecated_historical_receiver_blocked_for_new_automatic_candidates" }
+    ],
+    linked_activation_matrix_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+    linked_activation_matrix_json_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json",
+    linked_activation_matrix_html_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",
+    reviewer_warnings: {
+      not_live_fetch: true,
+      not_payment_approval: true,
+      not_finality_verification: true,
+      not_allocation_ledger_write: true,
+      not_inventory_reserve: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    authority_flags: {
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      automatic_fulfillment_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserved_now: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Chain Token Receiver Allowlist Gate</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Chain + Token + Receiver Allowlist Gate</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1</p>",
+    "<p><strong>Status:</strong> chain_token_receiver_allowlist_gate_green_authority_false</p>",
+    "<p><strong>Gate green:</strong> true</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>Overall automatic activation:</strong> still_blocked_other_gates_pending</p>",
+    "<h2>Allowed chains</h2>",
+    "<ul>",
+    "<li>Ethereum mainnet / chain_id 1</li>",
+    "<li>Base mainnet / chain_id 8453</li>",
+    "</ul>",
+    "<h2>Allowed USDC tokens</h2>",
+    "<ul>",
+    "<li>Ethereum USDC: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 / decimals 6</li>",
+    "<li>Base USDC: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 / decimals 6</li>",
+    "</ul>",
+    "<h2>Allowed receiver</h2>",
+    "<p>0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5</p>",
+    "<h2>Blocked historical receiver</h2>",
+    "<p>0x45dd104e3f7cc2a080f2eda094d011d09c51960b</p>",
+    "<h2>Current authority</h2>",
+    "<p>no public mutation, no runtime queue execution, no live fetch now, no finality verification, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json\">JSON allowlist gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1\">Activation gate matrix</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
     status: "automatic_fulfillment_activation_gate_matrix_runtime_authority_false",
