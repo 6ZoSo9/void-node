@@ -11,8 +11,8 @@ validator="ops/mainnet0/usdc-external-receipt-observation-public-reviewer-card-v
 need(){ grep -qF "$1" "$2" || { echo "missing=$1 file=$2"; exit 1; }; }
 bad(){ if grep -qF "$1" "$2"; then echo "forbidden=$1 file=$2"; exit 1; fi; }
 
-test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json"' "$src" | wc -l)" = "1"
-test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1"' "$src" | wc -l)" = "2"
+test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json",' "$src" | wc -l)" = "1"
+test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1",' "$src" | wc -l)" = "1"
 
 python3 "$validator" | grep -qF "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1_GREEN"
 
