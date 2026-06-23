@@ -47952,6 +47952,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/external-payment-proof-pack-transfer-log-parser-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_PAYMENT_PROOF_PACK_TRANSFER_LOG_PARSER_V1", use: "public read-only USDC external payment proof pack ERC-20 Transfer log parser status; offline fixture parser only; no live RPC, no finality verification, no real payment verification, no fulfillment authority" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-rpc-reader-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_V1", use: "public read-only USDC external receipt RPC reader boundary status; disabled unless explicit env; no finality verification, no state-root trust, no payment verification, no fulfillment authority" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1", use: "public read-only USDC external receipt observation queue status; classifies 200/null/403/429/timeout/RPC-error outcomes; no finality, no fulfillment, no ledger write, no VOID transfer" },
+ { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-job-envelope-schema-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_JOB_ENVELOPE_SCHEMA_V1", use: "public read-only USDC external receipt observation job envelope schema; defines job_id, chain_id, tx_hash, endpoint class, classification state, retry policy, review flags, authority-false flags; no runtime queue, no finality, no ledger write, no fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", use: "public read-only USDC external receipt RPC live dry-run harness status; explicit env only; observation-only; no finality, payment verification, ledger write, inventory reserve, fulfillment, or VOID transfer authority" },
  { path: "/public-node/usdc-void-buy-pool/private-ledger-path-no-leak-preflight-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_LEDGER_PATH_NO_LEAK_PREFLIGHT_V1", use: "public read-only private ledger path no-leak preflight; opaque path references only; no path selected, no path printed, no ledger created, no writes enabled, authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-activation-matrix-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_ALLOCATION_LEDGER_ACTIVATION_MATRIX_V1", use: "public read-only private allocation ledger activation matrix; lists exact green gates required before ledger creation or writes, including verified payment, duplicate guard, inventory guard, allocation record, private ledger hold, path no-leak, append-only writer, hash-chain verifier, duplicate/inventory rechecks, prewrite backup, explicit operator activation, public mutation boundary, advisory AI no-write, and buyer execution refusal; authority remains false" },
@@ -78862,7 +78863,62 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-job-envelope-schema-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_JOB_ENVELOPE_SCHEMA_V1",
+    status: "job_envelope_schema_defined_authority_false",
+    schema_definition_only: true,
+    parent_queue_marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
+    validator_path: "ops/mainnet0/usdc-external-receipt-observation-job-envelope-schema-v1.py",
+    fixture_path: "fixtures/public/usdc-external-receipt-observation-job-envelope-schema-v1.json",
+    public_route_status_only: true,
+    public_mutation_enabled: false,
+    runtime_queue_enabled: false,
+    live_fetch_now: false,
+    required_envelope_fields: [
+      "job_id",
+      "queue_marker",
+      "chain_id",
+      "tx_hash",
+      "rpc_endpoint_class",
+      "created_at_utc",
+      "requested_observation_method",
+      "current_queue_state",
+      "classification_state",
+      "retry_allowed",
+      "retry_after_seconds",
+      "operator_review_required",
+      "canonical_payment_identity_hint",
+      "authority_flags"
+    ],
+    allowed_rpc_endpoint_classes: [
+      "free_public_base_rpc",
+      "operator_configured_rpc",
+      "unavailable",
+      "endpoint_blocked"
+    ],
+    allowed_classification_states: [
+      "queued_observation",
+      "observed_receipt_success",
+      "observed_receipt_not_found",
+      "endpoint_blocked_403_no_retry",
+      "rate_limited_429_backoff",
+      "timeout_retry_backoff",
+      "rpc_error_hold",
+      "operator_review_required"
+    ],
+    finality_verified_now: false,
+    external_state_root_trust_enabled: false,
+    real_payment_verified_now: false,
+    automatic_fulfillment_enabled: false,
+    private_allocation_ledger_write_enabled: false,
+    inventory_reserved_now: false,
+    void_transfer_now: false,
+    non_activation_statement: "job envelope schema only; no runtime queue execution, no live fetch, no finality verification, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no public mutation, and no VOID transfer"
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
     status: "receipt_observation_queue_defined_authority_false",
