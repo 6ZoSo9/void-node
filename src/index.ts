@@ -82002,3 +82002,166 @@ if (!VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_TRY_MOUNT
     (VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTE_TIMER as any).unref();
   }
 }
+
+// ---- USDC/VOID buy pool buyer manual review intake instructions v1 ----
+const VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1 = Object.freeze({
+  marker: "VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1",
+  status: "buyer_manual_review_intake_instructions_green",
+  scope: "usdc_void_buy_pool_public_buyer_manual_review_intake",
+  purpose: "Publish public buyer instructions for manual review intake while automatic fulfillment remains disabled.",
+  intake_packet_fields: {
+    chain_name_required: true,
+    transaction_hash_required: true,
+    usdc_amount_required: true,
+    sending_wallet_address_required: true,
+    receiving_void_wallet_address_required: true,
+    buyer_acknowledges_manual_review_required: true,
+    optional_private_contact_path_allowed_only_privately: true
+  },
+  public_do_not_submit: {
+    seed_phrase: true,
+    private_key: true,
+    password: true,
+    secret_material: true,
+    private_contact_info_on_public_node: true
+  },
+  manual_review_requirements: {
+    payment_verification_required: true,
+    chain_token_receiver_allowlist_required: true,
+    amount_rate_policy_required: true,
+    duplicate_payment_guard_required: true,
+    buyer_identity_binding_required: true,
+    finality_confirmations_required: true,
+    payment_eligibility_decision_required: true,
+    operator_review_required: true
+  },
+  current_authority_state: {
+    automatic_fulfillment_enabled_now: false,
+    wallet_fulfillment_enabled_now: false,
+    buyer_execution_enabled_now: false,
+    public_mutation_enabled_now: false,
+    public_node_operator_authority_active_now: false,
+    void_transfer_now: false,
+    instant_delivery_promised: false,
+    investment_return_promised: false,
+    price_appreciation_promised: false
+  },
+  proof_expectations: {
+    buyer_manual_review_intake_instructions_green: true,
+    manual_review_packet_shape_green: true,
+    public_secret_warning_green: true,
+    manual_review_requirements_green: true,
+    authority_false_green: true
+  }
+});
+
+let VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTES_MOUNTED = false;
+
+function VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_MOUNT_ROUTES(APP:any): boolean {
+  if (!APP || typeof APP.get !== "function") return false;
+  if (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTES_MOUNTED) return true;
+
+  APP.get("/public-node/usdc-void-buy-pool/buyer-manual-review-intake-instructions-v1.json", (_req:any, res:any) => {
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.status(200).send(JSON.stringify(VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1, null, 2) + "\n");
+  });
+
+  APP.get("/public-node/usdc-void-buy-pool/buyer-manual-review-intake-instructions-v1", (_req:any, res:any) => {
+    const notice = VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1;
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.status(200).send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VOID USDC/VOID Buyer Manual Review Intake Instructions v1</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 18px;line-height:1.5;background:#08080b;color:#f4f4f5}
+    a{color:#a78bfa}
+    code{background:#18181b;padding:2px 5px;border-radius:5px}
+    .card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:16px 0;background:#111114}
+    .good{color:#86efac}
+    .hold{color:#facc15}
+    .false{color:#fca5a5}
+  </style>
+</head>
+<body>
+  <h1>USDC/VOID Buyer Manual Review Intake Instructions</h1>
+  <p><code>${notice.marker}</code></p>
+
+  <div class="card">
+    <h2>What to prepare for manual review</h2>
+    <ul>
+      <li>Chain name</li>
+      <li>Transaction hash</li>
+      <li>USDC amount</li>
+      <li>Sending wallet address</li>
+      <li>Receiving VOID wallet address</li>
+      <li>Buyer acknowledgment that fulfillment is manual review, not instant automation</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Do not submit publicly</h2>
+    <ul>
+      <li>Seed phrase</li>
+      <li>Private key</li>
+      <li>Password</li>
+      <li>Secret material</li>
+      <li>Private contact information on the public node</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Required before manual fulfillment</h2>
+    <ul>
+      <li>Payment verification</li>
+      <li>Chain / token / receiver allowlist</li>
+      <li>Amount-rate policy</li>
+      <li>Duplicate payment guard</li>
+      <li>Buyer identity binding</li>
+      <li>Finality confirmations</li>
+      <li>Payment eligibility decision</li>
+      <li>Operator review</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Current authority state</h2>
+    <ul>
+      <li>Automatic fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Wallet fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Buyer execution enabled now: <strong class="false">false</strong></li>
+      <li>Public mutation enabled now: <strong class="false">false</strong></li>
+      <li>Public-node operator authority active now: <strong class="false">false</strong></li>
+      <li>VOID transfer now: <strong class="false">false</strong></li>
+      <li>Instant delivery promised: <strong class="false">false</strong></li>
+      <li>Investment return promised: <strong class="false">false</strong></li>
+      <li>Price appreciation promised: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <p><a href="/public-node/usdc-void-buy-pool/buyer-manual-review-intake-instructions-v1.json">JSON proof surface</a></p>
+</body>
+</html>`);
+  });
+
+  VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTES_MOUNTED = true;
+  return true;
+}
+
+function VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_TRY_MOUNT_ROUTES(): boolean {
+  const APP = (globalThis as any).__void_http_app || (globalThis as any).APP || (globalThis as any).app;
+  return VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_MOUNT_ROUTES(APP);
+}
+
+if (!VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_TRY_MOUNT_ROUTES()) {
+  const VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTE_TIMER = setInterval(() => {
+    if (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_TRY_MOUNT_ROUTES()) {
+      clearInterval(VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTE_TIMER);
+    }
+  }, 250);
+
+  if (typeof (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTE_TIMER as any).unref === "function") {
+    (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1_ROUTE_TIMER as any).unref();
+  }
+}
