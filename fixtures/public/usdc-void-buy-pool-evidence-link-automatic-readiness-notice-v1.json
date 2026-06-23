@@ -1,0 +1,49 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_EVIDENCE_LINK_AUTOMATIC_READINESS_NOTICE_V1",
+  "status": "public_evidence_link_and_automatic_target_notice_authority_false",
+  "public_notice_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "evidence_bundle_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1",
+  "evidence_bundle_runtime_smoke_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_RUNTIME_SMOKE_V1",
+  "evidence_bundle_json_route": "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json",
+  "evidence_bundle_html_route": "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1",
+  "automatic_fulfillment_target_state": "allowed_later_after_all_activation_gates_green",
+  "automatic_fulfillment_enabled_now": false,
+  "activation_required_before_automatic": [
+    "live_receipt_fetch_or_observation_scheduler_gate",
+    "chain_allowlist_and_rpc_endpoint_policy",
+    "receiver_allowlist_gate",
+    "usdc_token_address_allowlist_gate",
+    "amount_and_rate_policy_gate",
+    "buyer_identity_binding_gate",
+    "duplicate_payment_guard_gate",
+    "finality_confirmation_policy_gate",
+    "private_allocation_ledger_write_gate",
+    "inventory_reserve_gate",
+    "fulfillment_signer_transfer_gate",
+    "operator_kill_switch_gate",
+    "rollback_and_audit_evidence_pack_gate",
+    "public_mutation_boundary_audit_gate"
+  ],
+  "reviewer_warnings": {
+    "not_payment_approval": true,
+    "not_finality_verification": true,
+    "not_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "automatic_fulfillment_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "void_transfer_now": false
+  }
+}
