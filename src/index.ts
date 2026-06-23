@@ -82283,3 +82283,162 @@ if (typeof (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_PACKET_TEMPLATE_V1_ROUTE
 (VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_PACKET_TEMPLATE_V1_ROUTE_TIMER as any).unref();
 }
 }
+
+// ---- USDC/VOID buy pool buyer packet private intake boundary v1 ----
+const VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1 = Object.freeze({
+  marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1",
+  status: "buyer_packet_private_intake_boundary_green",
+  scope: "usdc_void_buy_pool_public_buyer_packet_private_intake_boundary",
+  purpose: "Publish the boundary that buyer manual review packets are private/operator intake only, not public-node submissions.",
+  public_boundary: {
+    public_node_publishes_instructions: true,
+    public_node_publishes_packet_template: true,
+    private_operator_intake_required: true,
+    public_node_accepts_buyer_packets: false,
+    public_submission_endpoint: false,
+    public_claim_creation_endpoint: false,
+    public_identity_verification_endpoint: false,
+    public_contact_collection_endpoint: false,
+    public_fulfillment_trigger: false,
+    public_wallet_action: false,
+    public_ledger_mutation: false
+  },
+  private_operator_channel: {
+    separate_operator_controlled_channel_required: true,
+    private_contact_info_allowed_only_privately: true,
+    secret_material_allowed: false,
+    seed_phrase_allowed: false,
+    private_key_allowed: false
+  },
+  manual_review_requirements: {
+    payment_verification_required: true,
+    chain_token_receiver_allowlist_required: true,
+    amount_rate_policy_required: true,
+    duplicate_payment_guard_required: true,
+    buyer_identity_binding_required: true,
+    finality_confirmations_required: true,
+    payment_eligibility_decision_required: true,
+    operator_review_required: true
+  },
+  current_authority_state: {
+    automatic_fulfillment_enabled_now: false,
+    wallet_fulfillment_enabled_now: false,
+    buyer_execution_enabled_now: false,
+    public_mutation_enabled_now: false,
+    public_node_operator_authority_active_now: false,
+    void_transfer_now: false,
+    instant_delivery_promised: false,
+    investment_return_promised: false,
+    price_appreciation_promised: false
+  },
+  proof_expectations: {
+    buyer_packet_private_intake_boundary_green: true,
+    private_operator_intake_required_green: true,
+    public_submission_disabled_green: true,
+    no_public_claim_creation_green: true,
+    no_public_wallet_action_green: true,
+    no_public_mutation_green: true,
+    authority_false_green: true
+  }
+});
+
+let VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTES_MOUNTED = false;
+
+function VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_MOUNT_ROUTES(APP:any): boolean {
+  if (!APP || typeof APP.get !== "function") return false;
+  if (VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTES_MOUNTED) return true;
+
+  APP.get("/public-node/usdc-void-buy-pool/buyer-packet-private-intake-boundary-v1.json", (_req:any, res:any) => {
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.status(200).send(JSON.stringify(VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1, null, 2) + "\n");
+  });
+
+  APP.get("/public-node/usdc-void-buy-pool/buyer-packet-private-intake-boundary-v1", (_req:any, res:any) => {
+    const notice = VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1;
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.status(200).send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VOID USDC/VOID Buyer Packet Private Intake Boundary v1</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 18px;line-height:1.5;background:#08080b;color:#f4f4f5}
+    a{color:#a78bfa}
+    code{background:#18181b;padding:2px 5px;border-radius:5px}
+    .card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:16px 0;background:#111114}
+    .good{color:#86efac}
+    .false{color:#fca5a5}
+  </style>
+</head>
+<body>
+  <h1>USDC/VOID Buyer Packet Private Intake Boundary</h1>
+  <p><code>${notice.marker}</code></p>
+
+  <div class="card">
+    <h2>Boundary</h2>
+    <ul>
+      <li>Public node publishes instructions: <strong class="good">true</strong></li>
+      <li>Public node publishes packet template: <strong class="good">true</strong></li>
+      <li>Private operator intake required: <strong class="good">true</strong></li>
+      <li>Public node accepts buyer packets: <strong class="false">false</strong></li>
+      <li>Public submission endpoint: <strong class="false">false</strong></li>
+      <li>Public claim creation endpoint: <strong class="false">false</strong></li>
+      <li>Public identity verification endpoint: <strong class="false">false</strong></li>
+      <li>Public contact collection endpoint: <strong class="false">false</strong></li>
+      <li>Public fulfillment trigger: <strong class="false">false</strong></li>
+      <li>Public wallet action: <strong class="false">false</strong></li>
+      <li>Public ledger mutation: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Private/operator channel</h2>
+    <ul>
+      <li>Separate operator-controlled channel required: <strong class="good">true</strong></li>
+      <li>Private contact info allowed only privately: <strong class="good">true</strong></li>
+      <li>Secret material allowed: <strong class="false">false</strong></li>
+      <li>Seed phrase allowed: <strong class="false">false</strong></li>
+      <li>Private key allowed: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Current authority state</h2>
+    <ul>
+      <li>Automatic fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Wallet fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Buyer execution enabled now: <strong class="false">false</strong></li>
+      <li>Public mutation enabled now: <strong class="false">false</strong></li>
+      <li>Public-node operator authority active now: <strong class="false">false</strong></li>
+      <li>VOID transfer now: <strong class="false">false</strong></li>
+      <li>Instant delivery promised: <strong class="false">false</strong></li>
+      <li>Investment return promised: <strong class="false">false</strong></li>
+      <li>Price appreciation promised: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <p><a href="/public-node/usdc-void-buy-pool/buyer-packet-private-intake-boundary-v1.json">JSON proof surface</a></p>
+</body>
+</html>`);
+  });
+
+  VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTES_MOUNTED = true;
+  return true;
+}
+
+function VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_TRY_MOUNT_ROUTES(): boolean {
+  const APP = (globalThis as any).__void_http_app || (globalThis as any).APP || (globalThis as any).app;
+  return VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_MOUNT_ROUTES(APP);
+}
+
+if (!VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_TRY_MOUNT_ROUTES()) {
+  const VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTE_TIMER = setInterval(() => {
+    if (VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_TRY_MOUNT_ROUTES()) {
+      clearInterval(VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTE_TIMER);
+    }
+  }, 250);
+
+  if (typeof (VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTE_TIMER as any).unref === "function") {
+    (VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTE_TIMER as any).unref();
+  }
+}

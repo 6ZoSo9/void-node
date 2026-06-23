@@ -1,0 +1,56 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1",
+  "status": "buyer_packet_private_intake_boundary_green",
+  "scope": "usdc_void_buy_pool_public_buyer_packet_private_intake_boundary",
+  "purpose": "Publish the boundary that buyer manual review packets are private/operator intake only, not public-node submissions.",
+  "public_boundary": {
+    "public_node_publishes_instructions": true,
+    "public_node_publishes_packet_template": true,
+    "private_operator_intake_required": true,
+    "public_node_accepts_buyer_packets": false,
+    "public_submission_endpoint": false,
+    "public_claim_creation_endpoint": false,
+    "public_identity_verification_endpoint": false,
+    "public_contact_collection_endpoint": false,
+    "public_fulfillment_trigger": false,
+    "public_wallet_action": false,
+    "public_ledger_mutation": false
+  },
+  "private_operator_channel": {
+    "separate_operator_controlled_channel_required": true,
+    "private_contact_info_allowed_only_privately": true,
+    "secret_material_allowed": false,
+    "seed_phrase_allowed": false,
+    "private_key_allowed": false
+  },
+  "manual_review_requirements": {
+    "payment_verification_required": true,
+    "chain_token_receiver_allowlist_required": true,
+    "amount_rate_policy_required": true,
+    "duplicate_payment_guard_required": true,
+    "buyer_identity_binding_required": true,
+    "finality_confirmations_required": true,
+    "payment_eligibility_decision_required": true,
+    "operator_review_required": true
+  },
+  "current_authority_state": {
+    "automatic_fulfillment_enabled_now": false,
+    "wallet_fulfillment_enabled_now": false,
+    "buyer_execution_enabled_now": false,
+    "public_mutation_enabled_now": false,
+    "public_node_operator_authority_active_now": false,
+    "void_transfer_now": false,
+    "instant_delivery_promised": false,
+    "investment_return_promised": false,
+    "price_appreciation_promised": false
+  },
+  "proof_expectations": {
+    "buyer_packet_private_intake_boundary_green": true,
+    "private_operator_intake_required_green": true,
+    "public_submission_disabled_green": true,
+    "no_public_claim_creation_green": true,
+    "no_public_wallet_action_green": true,
+    "no_public_mutation_green": true,
+    "authority_false_green": true
+  }
+}
