@@ -1,0 +1,92 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
+  "status": "inventory_reserve_hold_gate_green_authority_false",
+  "public_policy_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "inventory_reserve_hold_gate_green": true,
+  "inventory_reservation_shape_policy_green": true,
+  "capacity_check_policy_green": true,
+  "inventory_reserve_hold_policy_green": true,
+  "operator_review_policy_green": true,
+  "inventory_reserved_now": false,
+  "private_allocation_ledger_write_now": false,
+  "allocation_claim_created_now": false,
+  "automatic_fulfillment_enabled_now": false,
+  "void_transfer_now": false,
+  "overall_automatic_activation_state": "still_blocked_other_gates_pending",
+  "required_upstream_gate": "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+  "inventory_reservation_shape": {
+    "inventory_reservation_id": "deterministic_public_safe_id_from_claim_pool_inventory_policy",
+    "claim_id": "deterministic_public_safe_allocation_claim_id",
+    "ledger_entry_id": "deterministic_private_allocation_ledger_entry_id",
+    "buyer_binding_key": "opaque_public_safe_identifier",
+    "receiving_void_address": "single_public_receiving_void_address",
+    "pool_id": "usdc_void_buy_pool_v1",
+    "void_amount": "fixed_rate_quote_amount",
+    "inventory_policy_version": "inventory_reserve_hold_v1",
+    "available_inventory_before": "integer_void_units_before_reservation",
+    "reserved_amount": "integer_void_units_to_reserve",
+    "available_inventory_after": "integer_void_units_after_reservation",
+    "reservation_state": "inventory_reserve_hold"
+  },
+  "inventory_reserve_states": [
+    "inventory_reserve_hold",
+    "blocked_private_ledger_not_written",
+    "blocked_claim_not_created",
+    "blocked_capacity_insufficient",
+    "blocked_duplicate_reservation",
+    "blocked_operator_not_approved",
+    "operator_review_required"
+  ],
+  "policy_examples": [
+    {
+      "case": "ledger_shape_ready_but_inventory_reserve_held",
+      "private_allocation_ledger_write_state": "private_allocation_ledger_write_hold",
+      "capacity_policy_ready": true,
+      "result_state": "inventory_reserve_hold",
+      "may_reserve_inventory": false,
+      "may_write_private_allocation_ledger": false,
+      "may_automatic_fulfill": false,
+      "may_transfer_void": false
+    },
+    {
+      "case": "capacity_insufficient",
+      "private_allocation_ledger_write_state": "private_allocation_ledger_write_hold",
+      "capacity_policy_ready": false,
+      "result_state": "blocked_capacity_insufficient",
+      "may_reserve_inventory": false
+    },
+    {
+      "case": "operator_not_approved",
+      "private_allocation_ledger_write_state": "private_allocation_ledger_write_hold",
+      "capacity_policy_ready": true,
+      "operator_approval_present": false,
+      "result_state": "blocked_operator_not_approved",
+      "may_reserve_inventory": false
+    }
+  ],
+  "linked_private_allocation_ledger_write_hold_gate_marker": "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+  "linked_private_allocation_ledger_write_hold_gate_json_route": "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json",
+  "linked_private_allocation_ledger_write_hold_gate_html_route": "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1",
+  "reviewer_warnings": {
+    "not_inventory_reserve": true,
+    "not_private_allocation_ledger_write": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "allocation_claim_creation_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserve_enabled": false,
+    "inventory_reserved_now": false,
+    "automatic_fulfillment_enabled": false,
+    "void_transfer_now": false
+  }
+}

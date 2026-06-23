@@ -47966,6 +47966,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/payment-eligibility-decision-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PAYMENT_ELIGIBILITY_DECISION_GATE_V1", use: "public green payment eligibility decision policy combining buy-pool gates; authority false" },
  { path: "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1", use: "public allocation claim shape and creation hold gate; no claim creation authority" },
  { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1", use: "public private-allocation ledger write boundary and hold gate; no ledger write authority" },
+ { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "public inventory reservation boundary and hold gate; no reserve authority" },
+ { path: "/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1", use: "human-readable inventory reserve hold gate; reserve/fulfillment/transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1", use: "human-readable private ledger write hold gate; reserve/fulfillment/transfer authority false" },
  { path: "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1", use: "human-readable allocation claim creation hold gate; ledger/reserve/fulfillment authority false" },
  { path: "/public-node/usdc-void-buy-pool/payment-eligibility-decision-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PAYMENT_ELIGIBILITY_DECISION_GATE_V1", use: "human-readable payment eligibility decision gate; candidate/hold/reject policy; no fulfillment" },
@@ -78887,7 +78889,114 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
+    status: "inventory_reserve_hold_gate_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    inventory_reserve_hold_gate_green: true,
+    inventory_reservation_shape_policy_green: true,
+    capacity_check_policy_green: true,
+    inventory_reserve_hold_policy_green: true,
+    operator_review_policy_green: true,
+    inventory_reserved_now: false,
+    private_allocation_ledger_write_now: false,
+    allocation_claim_created_now: false,
+    automatic_fulfillment_enabled_now: false,
+    void_transfer_now: false,
+    overall_automatic_activation_state: "still_blocked_other_gates_pending",
+    required_upstream_gate: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+    inventory_reservation_shape: {
+      inventory_reservation_id: "deterministic_public_safe_id_from_claim_pool_inventory_policy",
+      claim_id: "deterministic_public_safe_allocation_claim_id",
+      ledger_entry_id: "deterministic_private_allocation_ledger_entry_id",
+      buyer_binding_key: "opaque_public_safe_identifier",
+      receiving_void_address: "single_public_receiving_void_address",
+      pool_id: "usdc_void_buy_pool_v1",
+      void_amount: "fixed_rate_quote_amount",
+      inventory_policy_version: "inventory_reserve_hold_v1",
+      available_inventory_before: "integer_void_units_before_reservation",
+      reserved_amount: "integer_void_units_to_reserve",
+      available_inventory_after: "integer_void_units_after_reservation",
+      reservation_state: "inventory_reserve_hold"
+    },
+    inventory_reserve_states: [
+      "inventory_reserve_hold",
+      "blocked_private_ledger_not_written",
+      "blocked_claim_not_created",
+      "blocked_capacity_insufficient",
+      "blocked_duplicate_reservation",
+      "blocked_operator_not_approved",
+      "operator_review_required"
+    ],
+    policy_examples: [
+      { case: "ledger_shape_ready_but_inventory_reserve_held", private_allocation_ledger_write_state: "private_allocation_ledger_write_hold", capacity_policy_ready: true, result_state: "inventory_reserve_hold", may_reserve_inventory: false, may_write_private_allocation_ledger: false, may_automatic_fulfill: false, may_transfer_void: false },
+      { case: "capacity_insufficient", private_allocation_ledger_write_state: "private_allocation_ledger_write_hold", capacity_policy_ready: false, result_state: "blocked_capacity_insufficient", may_reserve_inventory: false },
+      { case: "operator_not_approved", private_allocation_ledger_write_state: "private_allocation_ledger_write_hold", capacity_policy_ready: true, operator_approval_present: false, result_state: "blocked_operator_not_approved", may_reserve_inventory: false }
+    ],
+    linked_private_allocation_ledger_write_hold_gate_marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+    linked_private_allocation_ledger_write_hold_gate_json_route: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json",
+    linked_private_allocation_ledger_write_hold_gate_html_route: "/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1",
+    reviewer_warnings: {
+      not_inventory_reserve: true,
+      not_private_allocation_ledger_write: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    authority_flags: {
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      allocation_claim_creation_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserve_enabled: false,
+      inventory_reserved_now: false,
+      automatic_fulfillment_enabled: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Inventory Reserve Hold Gate</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Inventory Reserve Hold Gate</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1</p>",
+    "<p><strong>Status:</strong> inventory_reserve_hold_gate_green_authority_false</p>",
+    "<p><strong>Gate green:</strong> true</p>",
+    "<p><strong>Reservation shape:</strong> deterministic reservation id, claim id, ledger entry id, buyer binding key, receiving VOID address, pool id, VOID amount, inventory policy version, before/after availability, and reservation state</p>",
+    "<p><strong>Inventory reserved now:</strong> false</p>",
+    "<p><strong>Private allocation ledger write now:</strong> false</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>VOID transfer now:</strong> false</p>",
+    "<p><strong>Overall automatic activation:</strong> still_blocked_other_gates_pending</p>",
+    "<h2>Hold states</h2>",
+    "<ul>",
+    "<li>inventory_reserve_hold</li>",
+    "<li>blocked_private_ledger_not_written</li>",
+    "<li>blocked_claim_not_created</li>",
+    "<li>blocked_capacity_insufficient</li>",
+    "<li>blocked_duplicate_reservation</li>",
+    "<li>blocked_operator_not_approved</li>",
+    "<li>operator_review_required</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>no public mutation, no runtime queue execution, no inventory reserve, no private allocation ledger write now, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/inventory-reserve-hold-gate-v1.json\">JSON inventory reserve hold gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1\">Private allocation ledger write hold gate</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/private-allocation-ledger-write-hold-gate-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
     status: "private_allocation_ledger_write_hold_gate_green_authority_false",
