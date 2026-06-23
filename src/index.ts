@@ -47951,6 +47951,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/external-payment-proof-pack-negative-fixture-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_PAYMENT_PROOF_PACK_NEGATIVE_FIXTURE_V1", use: "public read-only negative fixture status; deliberately malformed canonical payment identity; static verifier must reject; no live RPC, no finality verification, no real payment verification, no fulfillment authority" },
  { path: "/public-node/usdc-void-buy-pool/external-payment-proof-pack-transfer-log-parser-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_PAYMENT_PROOF_PACK_TRANSFER_LOG_PARSER_V1", use: "public read-only USDC external payment proof pack ERC-20 Transfer log parser status; offline fixture parser only; no live RPC, no finality verification, no real payment verification, no fulfillment authority" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-rpc-reader-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_V1", use: "public read-only USDC external receipt RPC reader boundary status; disabled unless explicit env; no finality verification, no state-root trust, no payment verification, no fulfillment authority" },
+ { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1", use: "public read-only USDC external receipt observation queue status; classifies 200/null/403/429/timeout/RPC-error outcomes; no finality, no fulfillment, no ledger write, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", use: "public read-only USDC external receipt RPC live dry-run harness status; explicit env only; observation-only; no finality, payment verification, ledger write, inventory reserve, fulfillment, or VOID transfer authority" },
  { path: "/public-node/usdc-void-buy-pool/private-ledger-path-no-leak-preflight-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_LEDGER_PATH_NO_LEAK_PREFLIGHT_V1", use: "public read-only private ledger path no-leak preflight; opaque path references only; no path selected, no path printed, no ledger created, no writes enabled, authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/private-allocation-ledger-activation-matrix-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_ALLOCATION_LEDGER_ACTIVATION_MATRIX_V1", use: "public read-only private allocation ledger activation matrix; lists exact green gates required before ledger creation or writes, including verified payment, duplicate guard, inventory guard, allocation record, private ledger hold, path no-leak, append-only writer, hash-chain verifier, duplicate/inventory rechecks, prewrite backup, explicit operator activation, public mutation boundary, advisory AI no-write, and buyer execution refusal; authority remains false" },
@@ -78861,7 +78862,55 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-reader-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_V1", status: "rpc_reader_defined_disabled_by_default_authority_false", reader_path: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", reader_defined: true, reader_default_disabled_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_call_eth_getTransactionReceipt_when_explicitly_configured: true, can_normalize_erc20_transfer_logs: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the read-only RPC receipt reader boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
+ runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
+    status: "receipt_observation_queue_defined_authority_false",
+    queue_definition_only: true,
+    classifier_path: "ops/mainnet0/usdc-external-receipt-observation-queue-v1.py",
+    fixture_path: "fixtures/public/usdc-external-receipt-observation-queue-v1.json",
+    public_route_status_only: true,
+    public_mutation_enabled: false,
+    live_fetch_now: false,
+    queue_states: [
+      "queued_observation",
+      "observed_receipt_success",
+      "observed_receipt_not_found",
+      "endpoint_blocked_403_no_retry",
+      "rate_limited_429_backoff",
+      "timeout_retry_backoff",
+      "rpc_error_hold",
+      "operator_review_required"
+    ],
+    classification_rules: {
+      http_200_receipt_present: "observed_receipt_success",
+      http_200_receipt_null: "observed_receipt_not_found",
+      http_403: "endpoint_blocked_403_no_retry",
+      http_429: "rate_limited_429_backoff",
+      timeout: "timeout_retry_backoff",
+      json_rpc_error: "rpc_error_hold",
+      ambiguous_result: "operator_review_required"
+    },
+    retry_policy: {
+      endpoint_blocked_403_no_retry: false,
+      rate_limited_429_backoff: true,
+      timeout_retry_backoff: true,
+      observed_receipt_not_found: true,
+      rpc_error_hold: false,
+      operator_review_required: false
+    },
+    finality_verified_now: false,
+    external_state_root_trust_enabled: false,
+    real_payment_verified_now: false,
+    automatic_fulfillment_enabled: false,
+    private_allocation_ledger_write_enabled: false,
+    inventory_reserved_now: false,
+    void_transfer_now: false,
+    non_activation_statement: "queue classification only; no finality verification, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no public mutation, and no VOID transfer"
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-reader-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_V1", status: "rpc_reader_defined_disabled_by_default_authority_false", reader_path: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", reader_defined: true, reader_default_disabled_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_call_eth_getTransactionReceipt_when_explicitly_configured: true, can_normalize_erc20_transfer_logs: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the read-only RPC receipt reader boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
  runtimeApp.get("/public-node/usdc-void-buy-pool/external-payment-proof-pack-transfer-log-parser-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_PAYMENT_PROOF_PACK_TRANSFER_LOG_PARSER_V1", status: "transfer_log_parser_defined_authority_false", parent_static_verifier_marker: "VOID_USDC_EXTERNAL_PAYMENT_PROOF_PACK_STATIC_VERIFIER_V1", parser_path: "ops/mainnet0/usdc-external-payment-proof-pack-transfer-log-parser-v1.py", fixture_path: "fixtures/public/usdc-external-payment-proof-pack-transfer-log-parser-example-v1.json", transfer_log_parser_defined: true, transfer_log_parser_execution_green: true, transfer_log_parser_activation_enabled: false, offline_fixture_only: true, erc20_transfer_topic0_checked: true, transfer_log_token_contract_checked: true, transfer_log_receiver_checked: true, transfer_log_amount_checked: true, canonical_payment_identity_checked: true, live_chain_data: false, external_chain_rpc_fetch_enabled: false, real_payment_verified_now: false, finality_verified_now: false, external_state_root_trust_enabled: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports offline ERC-20 Transfer log parser status only; it does not fetch chain data, verify a real payment, verify finality, trust an external root, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
