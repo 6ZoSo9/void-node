@@ -47970,6 +47970,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "public fulfillment execution and VOID transfer boundary; no signer or transfer authority" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1", use: "public automatic fulfillment prerequisite reconciliation; authority remains false" },
  { path: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1", use: "public authority activation conditions draft; no activation authority" },
+ { path: "/public-node/usdc-void-buy-pool/operator-authority-activation-approval-record-hold-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_AUTHORITY_ACTIVATION_APPROVAL_RECORD_HOLD_V1", use: "public operator authority activation approval record shape; no approval or activation authority" },
+ { path: "/public-node/usdc-void-buy-pool/operator-authority-activation-approval-record-hold-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_AUTHORITY_ACTIVATION_APPROVAL_RECORD_HOLD_V1", use: "human-readable operator approval record hold gate; authority remains false" },
  { path: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1", use: "human-readable authority activation draft gate; automatic fulfillment remains disabled" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-reconcile-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1", use: "human-readable automatic fulfillment reconcile view; authority flip still required" },
  { path: "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1", use: "human-readable fulfillment execution hold gate; automatic fulfillment and VOID transfer authority false" },
@@ -78895,7 +78897,124 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/operator-authority-activation-approval-record-hold-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_AUTHORITY_ACTIVATION_APPROVAL_RECORD_HOLD_V1",
+    status: "operator_authority_activation_approval_record_hold_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    operator_approval_record_hold_gate_green: true,
+    approval_record_shape_policy_green: true,
+    approval_scope_policy_green: true,
+    operator_review_policy_green: true,
+    approval_record_created_now: false,
+    operator_approval_present_now: false,
+    authority_activation_enabled_now: false,
+    automatic_fulfillment_enabled_now: false,
+    runtime_queue_enabled_now: false,
+    wallet_signer_access_enabled_now: false,
+    public_mutation_enabled_now: false,
+    void_transfer_now: false,
+    overall_activation_state: "operator_approval_record_hold_authority_false",
+    required_upstream_gate: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1",
+    approval_record_shape: {
+      approval_record_id: "deterministic_public_safe_id_from_activation_gate_operator_key_policy",
+      operator_identity_key: "public_safe_operator_key_or_role_id",
+      approval_scope: "authority_activation_gate_only",
+      activation_gate_marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1",
+      prerequisite_reconcile_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1",
+      approval_policy_version: "operator_authority_activation_approval_record_hold_v1",
+      approval_state: "operator_authority_activation_approval_record_hold",
+      approval_reason: "not_approved_yet",
+      created_at_policy: "not_created_now",
+      cross_box_required: true,
+      final_sync_required: true
+    },
+    approval_hold_states: [
+      "operator_authority_activation_approval_record_hold",
+      "blocked_missing_operator_approval",
+      "blocked_invalid_approval_scope",
+      "blocked_missing_reconcile_reference",
+      "blocked_missing_cross_box_green",
+      "blocked_missing_final_sync",
+      "operator_review_required"
+    ],
+    policy_examples: [
+      { case: "approval_shape_defined_but_not_created", approval_shape_ready: true, operator_approval_present: false, result_state: "operator_authority_activation_approval_record_hold", may_create_approval_record: false, may_activate_authority: false, may_enable_runtime_queue: false, may_access_wallet_signer: false, may_enable_automatic_fulfillment: false, may_transfer_void: false },
+      { case: "missing_operator_approval", approval_shape_ready: true, operator_approval_present: false, result_state: "blocked_missing_operator_approval", may_activate_authority: false },
+      { case: "missing_final_sync", approval_shape_ready: true, operator_approval_present: false, final_sync_present: false, result_state: "blocked_missing_final_sync", may_activate_authority: false }
+    ],
+    linked_authority_activation_gate_draft_marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1",
+    linked_authority_activation_gate_draft_json_route: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json",
+    linked_authority_activation_gate_draft_html_route: "/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1",
+    next_state: "operator_approval_record_creation_gate_required",
+    reviewer_warnings: {
+      not_operator_approval: true,
+      not_authority_activation: true,
+      not_public_mutation: true,
+      not_runtime_queue_execution: true,
+      not_wallet_authority: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true
+    },
+    authority_flags: {
+      approval_record_creation_enabled: false,
+      operator_approval_present: false,
+      authority_activation_enabled: false,
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      allocation_claim_creation_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserve_enabled: false,
+      fulfillment_execution_enabled: false,
+      wallet_signer_access_enabled: false,
+      automatic_fulfillment_enabled: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/operator-authority-activation-approval-record-hold-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Operator Authority Activation Approval Record Hold</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Operator Authority Activation Approval Record Hold</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_OPERATOR_AUTHORITY_ACTIVATION_APPROVAL_RECORD_HOLD_V1</p>",
+    "<p><strong>Status:</strong> operator_authority_activation_approval_record_hold_green_authority_false</p>",
+    "<p><strong>Hold gate green:</strong> true</p>",
+    "<p><strong>Approval record created now:</strong> false</p>",
+    "<p><strong>Operator approval present now:</strong> false</p>",
+    "<p><strong>Authority activation enabled now:</strong> false</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>Runtime queue enabled now:</strong> false</p>",
+    "<p><strong>Wallet signer access enabled now:</strong> false</p>",
+    "<p><strong>VOID transfer now:</strong> false</p>",
+    "<p><strong>Overall activation:</strong> operator_approval_record_hold_authority_false</p>",
+    "<h2>Hold states</h2>",
+    "<ul>",
+    "<li>operator_authority_activation_approval_record_hold</li>",
+    "<li>blocked_missing_operator_approval</li>",
+    "<li>blocked_invalid_approval_scope</li>",
+    "<li>blocked_missing_reconcile_reference</li>",
+    "<li>blocked_missing_cross_box_green</li>",
+    "<li>blocked_missing_final_sync</li>",
+    "<li>operator_review_required</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>No approval is created here: no public mutation, no runtime queue execution, no wallet signer access, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/operator-authority-activation-approval-record-hold-v1.json\">JSON operator approval record hold</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1\">Authority activation gate draft</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/authority-activation-gate-draft-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_AUTHORITY_ACTIVATION_GATE_DRAFT_V1",
     status: "authority_activation_gate_draft_green_authority_false",
