@@ -47955,6 +47955,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-job-envelope-schema-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_JOB_ENVELOPE_SCHEMA_V1", use: "public read-only USDC external receipt observation job envelope schema; defines job_id, chain_id, tx_hash, endpoint class, classification state, retry policy, review flags, authority-false flags; no runtime queue, no finality, no ledger write, no fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-result-envelope-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_RESULT_ENVELOPE_V1", use: "public read-only USDC external receipt observation result envelope schema; defines observed receipt result fields and authority-false output flags; no runtime queue, no finality, no ledger write, no fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1", use: "public read-only reviewer card JSON for USDC external receipt observation; explains observed/classified receipt without finality, payment approval, allocation, fulfillment, or VOID transfer authority" },
+ { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1", use: "public read-only evidence bundle for USDC external receipt observation; links reader, queue, job envelope, result envelope, reviewer card, and runtime smoke; no payment approval, no finality, no ledger write, no fulfillment, no VOID transfer" },
+ { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1", kind: "html", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1", use: "human-readable public evidence bundle for USDC external receipt observation; explanation/index only; authority false" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1", kind: "html", marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1", use: "human-readable public reviewer card for USDC external receipt observation; explanation only; no finality, no payment approval, no ledger write, no fulfillment, no VOID transfer" },
  { path: "/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", kind: "json", marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", use: "public read-only USDC external receipt RPC live dry-run harness status; explicit env only; observation-only; no finality, payment verification, ledger write, inventory reserve, fulfillment, or VOID transfer authority" },
  { path: "/public-node/usdc-void-buy-pool/private-ledger-path-no-leak-preflight-v1.json", kind: "json", marker: "VOID_USDC_TO_VOID_PRESALE_PRIVATE_LEDGER_PATH_NO_LEAK_PREFLIGHT_V1", use: "public read-only private ledger path no-leak preflight; opaque path references only; no path selected, no path printed, no ledger created, no writes enabled, authority remains false" },
@@ -78866,7 +78868,122 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1",
+    status: "evidence_bundle_defined_authority_false",
+    public_evidence_index_only: true,
+    bundle_subject: "usdc_external_receipt_observation",
+    head_commit: "ef3214be",
+    valid_runtime_smoke_tag: "ckpt-usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-proof-rerun-public-and-alienware-local-green-20260623-122809",
+    valid_runtime_smoke_cross_box_tag: "ckpt-usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-cross-box-green-20260623-123336",
+    runtime_smoke_final_marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_RUNTIME_SMOKE_V1_PRECISION_SYNCED_FINAL",
+    evidence_items: [
+      {
+        name: "RPC reader user-agent compatibility repair",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_READER_USER_AGENT_COMPATIBILITY_REPAIR_V1",
+        proof_path: "ops/mainnet0/usdc-external-receipt-rpc-reader-user-agent-compatibility-repair-v1-proof.sh",
+        proof_only: true
+      },
+      {
+        name: "Receipt observation queue",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
+        public_json_route: "/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json",
+        proof_path: "ops/mainnet0/usdc-external-receipt-observation-queue-v1-proof.sh"
+      },
+      {
+        name: "Observation job envelope schema",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_JOB_ENVELOPE_SCHEMA_V1",
+        public_json_route: "/public-node/usdc-void-buy-pool/external-receipt-observation-job-envelope-schema-v1.json",
+        proof_path: "ops/mainnet0/usdc-external-receipt-observation-job-envelope-schema-v1-proof.sh"
+      },
+      {
+        name: "Observation result envelope",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_RESULT_ENVELOPE_V1",
+        public_json_route: "/public-node/usdc-void-buy-pool/external-receipt-observation-result-envelope-v1.json",
+        proof_path: "ops/mainnet0/usdc-external-receipt-observation-result-envelope-v1-proof.sh"
+      },
+      {
+        name: "Public reviewer card",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1",
+        public_json_route: "/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json",
+        public_html_route: "/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1",
+        proof_path: "ops/mainnet0/usdc-external-receipt-observation-public-reviewer-card-v1-proof.sh"
+      },
+      {
+        name: "Public reviewer card runtime smoke",
+        marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_RUNTIME_SMOKE_V1",
+        proof_path: "ops/mainnet0/usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-proof.sh",
+        proved_public_tailscale_url: "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+        proved_alienware_local_url: "http://127.0.0.1:4100"
+      }
+    ],
+    invalid_or_superseded_tags: [
+      "ckpt-usdc-external-receipt-observation-public-reviewer-card-html-route-repair-v1-local-green-20260623-120803",
+      "ckpt-usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-local-green-20260623-121450",
+      "ckpt-usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-proof-rerun-local-green-20260623-121815",
+      "ckpt-usdc-external-receipt-observation-public-reviewer-card-runtime-smoke-v1-proof-rerun-local-green-20260623-121834"
+    ],
+    reviewer_warnings: {
+      not_payment_approval: true,
+      not_finality_verification: true,
+      not_allocation_ledger_write: true,
+      not_inventory_reserve: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    public_mutation_enabled: false,
+    runtime_queue_enabled: false,
+    live_fetch_now: false,
+    finality_verified_now: false,
+    external_state_root_trust_enabled: false,
+    real_payment_verified_now: false,
+    automatic_fulfillment_enabled: false,
+    private_allocation_ledger_write_enabled: false,
+    inventory_reserved_now: false,
+    void_transfer_now: false,
+    non_activation_statement: "public evidence index only; no runtime queue execution, no live fetch now, no finality verification, no real payment approval, no allocation ledger write, no inventory reserve, no automatic fulfillment, no public mutation, and no VOID transfer"
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID USDC Receipt Observation Evidence Bundle v1</title></head><body>",
+    "<main>",
+    "<h1>USDC External Receipt Observation Evidence Bundle v1</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1</p>",
+    "<p><strong>Status:</strong> evidence_bundle_defined_authority_false</p>",
+    "<p>This is a public read-only evidence bundle for the USDC external receipt observation lane.</p>",
+    "<h2>Evidence surfaces</h2>",
+    "<ul>",
+    "<li>RPC reader user-agent compatibility repair proof</li>",
+    "<li><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-queue-v1.json\">Receipt observation queue JSON</a></li>",
+    "<li><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-job-envelope-schema-v1.json\">Observation job envelope JSON</a></li>",
+    "<li><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-result-envelope-v1.json\">Observation result envelope JSON</a></li>",
+    "<li><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json\">Public reviewer card JSON</a></li>",
+    "<li><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1\">Public reviewer card HTML</a></li>",
+    "<li>Public reviewer card runtime smoke proof</li>",
+    "</ul>",
+    "<h2>Warnings</h2>",
+    "<ul>",
+    "<li>Not payment approval</li>",
+    "<li>Not finality verification</li>",
+    "<li>Not allocation ledger write</li>",
+    "<li>Not inventory reserve</li>",
+    "<li>Not automatic fulfillment</li>",
+    "<li>Not VOID transfer</li>",
+    "<li>Operator review required</li>",
+    "</ul>",
+    "<p><strong>Authority:</strong> no public mutation, no runtime queue execution, no live fetch now, no finality verification, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json\">JSON evidence bundle</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-observation-public-reviewer-card-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1",
     status: "public_reviewer_card_defined_authority_false",
