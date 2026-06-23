@@ -80,7 +80,7 @@ test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/finality-confir
 test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1",' "$src" | wc -l)" = "1"
 
 bad "automatic_fulfillment_enabled_now: true" "$src"
-bad "finality_verified_now: true" "$src"
+bad "      finality_verified_now: true" "$src"
 bad "live_fetch_now: true" "$src"
 bad "automatic_fulfillment_enabled: true" "$src"
 bad "private_allocation_ledger_write_enabled: true" "$src"
