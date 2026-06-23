@@ -81833,3 +81833,145 @@ function __voidTryMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1(): void
 }
 
 __voidTryMountUsdcVoidBuyPoolExecutionHoldStatusRuntimeRoutesV1();
+
+// ---- USDC/VOID buy pool public manual fulfillment truth notice v1 ----
+const VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1 = Object.freeze({
+  marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1",
+  status: "public_manual_fulfillment_truth_notice_green",
+  notice_version: "v1",
+  scope: "usdc_void_buy_pool_public_truth_notice",
+  purpose: "Publish the current public truth boundary for USDC receipt and manual fulfillment while automatic fulfillment remains disabled.",
+  truth_notice: {
+    receiver_address_can_receive_usdc: true,
+    verified_payment_can_enter_manual_operator_review: true,
+    manual_operator_fulfillment_possible_after_verification: true,
+    automatic_fulfillment_enabled_now: false,
+    wallet_fulfillment_enabled_now: false,
+    buyer_execution_enabled_now: false,
+    public_mutation_enabled_now: false,
+    public_node_operator_authority_active_now: false,
+    void_transfer_now: false,
+    instant_delivery_promised: false,
+    investment_return_promised: false,
+    price_appreciation_promised: false,
+    secondary_market_outcome_promised: false,
+    refund_promised_by_this_notice: false
+  },
+  manual_review_boundary: {
+    manual_review_required_before_manual_fulfillment: true,
+    payment_verification_required: true,
+    chain_token_receiver_allowlist_required: true,
+    amount_rate_policy_required: true,
+    duplicate_payment_guard_required: true,
+    buyer_identity_binding_required: true,
+    finality_confirmations_required: true,
+    payment_eligibility_decision_required: true,
+    private_allocation_ledger_write_still_held_by_public_node: true,
+    allocation_claim_creation_still_held_by_public_node: true,
+    fulfillment_execution_still_held_by_public_node: true
+  },
+  public_safety_boundary: {
+    public_pii_allowed: false,
+    private_contact_info_allowed_publicly: false,
+    secret_material_allowed_publicly: false,
+    private_ledger_allowed_publicly: false,
+    public_node_wallet_signing_allowed: false,
+    public_node_transfer_authority_allowed: false,
+    public_node_mutation_allowed: false
+  },
+  public_copy: {
+    short_notice: "USDC can be sent to the listed receiver address, but automatic fulfillment is not active. Verified payments can still be reviewed and fulfilled manually by the operator through separate private/operator lanes.",
+    no_instant_delivery_notice: "Manual review and fulfillment are not instant and are not autonomous.",
+    no_investment_promise_notice: "VOID is presented as network usage/gas for VOID Network, not as a promise of profit or price appreciation."
+  },
+  proof_expectations: {
+    public_manual_fulfillment_truth_notice_green: true,
+    receiver_truth_green: true,
+    automatic_fulfillment_false_now_green: true,
+    manual_review_truth_green: true,
+    manual_fulfillment_truth_green: true,
+    no_instant_delivery_promise_green: true,
+    no_investment_promise_green: true,
+    authority_false_green: true
+  }
+});
+
+app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) => {
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.status(200).send(JSON.stringify(VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1, null, 2) + "\n");
+});
+
+app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) => {
+  const notice = VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1;
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.status(200).send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VOID USDC/VOID Public Manual Fulfillment Truth Notice v1</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 18px;line-height:1.5;background:#08080b;color:#f4f4f5}
+    a{color:#a78bfa}
+    code{background:#18181b;padding:2px 5px;border-radius:5px}
+    .card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:16px 0;background:#111114}
+    .good{color:#86efac}
+    .hold{color:#facc15}
+    .false{color:#fca5a5}
+  </style>
+</head>
+<body>
+  <h1>USDC/VOID Public Manual Fulfillment Truth Notice</h1>
+  <p><code>${notice.marker}</code></p>
+
+  <div class="card">
+    <h2>Plain truth</h2>
+    <p>${notice.public_copy.short_notice}</p>
+    <p>${notice.public_copy.no_instant_delivery_notice}</p>
+    <p>${notice.public_copy.no_investment_promise_notice}</p>
+  </div>
+
+  <div class="card">
+    <h2>Current state</h2>
+    <ul>
+      <li>Receiver address can receive USDC: <strong class="good">true</strong></li>
+      <li>Verified payment can enter manual operator review: <strong class="good">true</strong></li>
+      <li>Manual fulfillment possible after verification: <strong class="good">true</strong></li>
+      <li>Automatic fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Wallet fulfillment enabled now: <strong class="false">false</strong></li>
+      <li>Buyer execution enabled now: <strong class="false">false</strong></li>
+      <li>Public mutation enabled now: <strong class="false">false</strong></li>
+      <li>VOID transfer now: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Required before manual fulfillment</h2>
+    <ul>
+      <li>Payment verification</li>
+      <li>Chain / token / receiver allowlist</li>
+      <li>Amount-rate policy</li>
+      <li>Duplicate payment guard</li>
+      <li>Buyer identity binding</li>
+      <li>Finality confirmations</li>
+      <li>Payment eligibility decision</li>
+      <li>Separate private/operator execution lane</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Public safety boundary</h2>
+    <ul>
+      <li>Public PII allowed: <strong class="false">false</strong></li>
+      <li>Private contact info allowed publicly: <strong class="false">false</strong></li>
+      <li>Secret material allowed publicly: <strong class="false">false</strong></li>
+      <li>Private ledger allowed publicly: <strong class="false">false</strong></li>
+      <li>Public-node wallet signing allowed: <strong class="false">false</strong></li>
+      <li>Public-node transfer authority allowed: <strong class="false">false</strong></li>
+      <li>Public-node mutation allowed: <strong class="false">false</strong></li>
+    </ul>
+  </div>
+
+  <p><a href="/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json">JSON proof surface</a></p>
+</body>
+</html>`);
+});
