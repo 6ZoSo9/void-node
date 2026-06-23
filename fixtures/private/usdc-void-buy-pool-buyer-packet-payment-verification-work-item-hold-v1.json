@@ -1,0 +1,103 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PAYMENT_VERIFICATION_WORK_ITEM_HOLD_V1",
+  "status": "buyer_packet_payment_verification_work_item_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_payment_verification_work_item_hold",
+  "purpose": "Define a private/operator-only work-item hold shape for preparing queued buyer packet payment verification.",
+  "prerequisite_state": {
+    "payment_verification_queue_hold_required": true,
+    "queued_for_payment_verification_hold_required": true,
+    "payment_verification_not_started": true
+  },
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_route": false,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "secret_material_recorded": false
+  },
+  "work_item_scope": {
+    "work_item_preparation_only": true,
+    "prepares_for_later_operator_payment_verification": true,
+    "rpc_receipt_read_complete": false,
+    "receipt_status_verified": false,
+    "transfer_log_parsed": false,
+    "usdc_contract_allowlist_verified": false,
+    "receiver_address_verified": false,
+    "amount_rate_policy_verified": false,
+    "duplicate_payment_guard_decided": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_approval_complete": false
+  },
+  "work_item_hold_states": [
+    "draft_hold",
+    "blocked_queue_state_not_ready",
+    "blocked_missing_verification_inputs",
+    "payment_verification_work_item_prepared_hold",
+    "held_for_operator_receipt_read"
+  ],
+  "example_work_item_record": {
+    "work_item_id": "redacted_placeholder_only",
+    "queue_record_id": "redacted_placeholder_only",
+    "validation_record_id": "redacted_placeholder_only",
+    "receipt_record_id": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_queue_state": "queued_for_payment_verification_hold",
+    "work_item_state": "payment_verification_work_item_prepared_hold",
+    "field_values_redacted": true,
+    "chain": "redacted_placeholder_only",
+    "transaction_hash": "redacted_placeholder_only",
+    "expected_usdc_amount": "redacted_placeholder_only",
+    "expected_receiver_address": "redacted_placeholder_only",
+    "expected_usdc_contract_allowlist_reference": "redacted_placeholder_only",
+    "sending_wallet_address": "redacted_placeholder_only",
+    "receiving_void_wallet_address": "redacted_placeholder_only"
+  },
+  "verification_inputs_required": {
+    "chain_required": true,
+    "transaction_hash_required": true,
+    "expected_usdc_amount_required": true,
+    "expected_receiver_address_required": true,
+    "expected_usdc_contract_allowlist_reference_required": true,
+    "sending_wallet_address_required": true,
+    "receiving_void_wallet_address_required": true
+  },
+  "not_satisfied_by_work_item_hold": {
+    "rpc_receipt_read_complete": false,
+    "receipt_status_verified": false,
+    "transfer_log_parsed": false,
+    "payment_verification_complete": false,
+    "chain_token_receiver_allowlist_complete": false,
+    "amount_rate_policy_complete": false,
+    "duplicate_payment_guard_complete": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_payment_verification_work_item_hold_green": true,
+    "private_operator_only_green": true,
+    "work_item_preparation_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_rpc_read_green": true,
+    "no_payment_decision_green": true,
+    "authority_false_green": true
+  }
+}
