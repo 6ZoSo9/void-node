@@ -47960,6 +47960,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1", use: "public runtime activation gate matrix for automatic fulfillment readiness; all gates false/pending; automatic disabled now" },
  { path: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1", use: "public green allowlist policy for allowed chains, USDC token addresses, and receiver address; no automatic fulfillment authority" },
  { path: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1", use: "public green fixed-price amount/rate policy for USDC to VOID quote math; no payment approval or reserve authority" },
+ { path: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1", use: "public green duplicate payment guard policy; prevents double-counting by chain_id + tx_hash + transfer_log_index; no ledger or reserve authority" },
+ { path: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1", use: "human-readable duplicate payment guard gate; blocks duplicate candidates; authority false" },
  { path: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1", use: "human-readable amount and rate policy gate; fixed 0.50 USDC per VOID; authority false" },
  { path: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1", use: "human-readable chain/token/receiver allowlist gate; gate green for policy only; automatic remains blocked" },
  { path: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1", use: "human-readable automatic fulfillment activation gate matrix; target allowed later; current authority false" },
@@ -78876,7 +78878,134 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1",
+    status: "duplicate_payment_guard_gate_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    duplicate_payment_guard_gate_green: true,
+    primary_event_key_policy_green: true,
+    candidate_claim_key_policy_green: true,
+    duplicate_rejection_policy_green: true,
+    ambiguous_duplicate_hold_policy_green: true,
+    automatic_fulfillment_enabled_now: false,
+    overall_automatic_activation_state: "still_blocked_other_gates_pending",
+    primary_payment_event_key: {
+      key_fields: ["chain_id", "tx_hash", "transfer_log_index"],
+      duplicate_rule: "same_chain_id_tx_hash_transfer_log_index_must_not_count_twice",
+      primary_event_key_policy_green: true
+    },
+    candidate_claim_key: {
+      key_fields: ["chain_id", "tx_hash", "transfer_log_index", "receiver", "token_address", "buyer_binding_key"],
+      duplicate_rule: "same_candidate_claim_key_must_not_create_two_allocation_claims",
+      candidate_claim_key_policy_green: true
+    },
+    duplicate_states: [
+      "new_payment_candidate",
+      "duplicate_same_chain_tx_log_index_blocked",
+      "duplicate_same_candidate_claim_key_blocked",
+      "duplicate_same_tx_without_log_index_hold",
+      "duplicate_conflicting_buyer_binding_hold",
+      "duplicate_conflicting_amount_hold",
+      "operator_review_required"
+    ],
+    policy_examples: [
+      {
+        case: "same_chain_tx_log_index_seen_again",
+        chain_id: 8453,
+        tx_hash: "0xexampletx000000000000000000000000000000000000000000000000000000000001",
+        transfer_log_index: 7,
+        result_state: "duplicate_same_chain_tx_log_index_blocked",
+        may_create_allocation_claim: false
+      },
+      {
+        case: "same_tx_hash_different_chain",
+        chain_id: 1,
+        tx_hash: "0xexampletx000000000000000000000000000000000000000000000000000000000001",
+        transfer_log_index: 7,
+        result_state: "new_payment_candidate",
+        may_create_allocation_claim: false,
+        note: "candidate remains non-authoritative until other gates are green"
+      },
+      {
+        case: "same_tx_hash_missing_log_index",
+        chain_id: 8453,
+        tx_hash: "0xexampletx000000000000000000000000000000000000000000000000000000000001",
+        transfer_log_index: null,
+        result_state: "duplicate_same_tx_without_log_index_hold",
+        may_create_allocation_claim: false
+      }
+    ],
+    linked_amount_rate_gate_marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
+    linked_amount_rate_gate_json_route: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json",
+    linked_amount_rate_gate_html_route: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1",
+    linked_allowlist_gate_marker: "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1",
+    linked_allowlist_gate_json_route: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json",
+    linked_allowlist_gate_html_route: "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1",
+    linked_activation_matrix_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+    linked_activation_matrix_json_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json",
+    linked_activation_matrix_html_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",
+    reviewer_warnings: {
+      not_live_fetch: true,
+      not_payment_approval: true,
+      not_finality_verification: true,
+      not_allocation_ledger_write: true,
+      not_inventory_reserve: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    authority_flags: {
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      automatic_fulfillment_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserved_now: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Duplicate Payment Guard Gate</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Duplicate Payment Guard Gate</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1</p>",
+    "<p><strong>Status:</strong> duplicate_payment_guard_gate_green_authority_false</p>",
+    "<p><strong>Gate green:</strong> true</p>",
+    "<p><strong>Primary event key:</strong> chain_id + tx_hash + transfer_log_index</p>",
+    "<p><strong>Candidate claim key:</strong> chain_id + tx_hash + transfer_log_index + receiver + token_address + buyer_binding_key</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>Overall automatic activation:</strong> still_blocked_other_gates_pending</p>",
+    "<h2>Duplicate states</h2>",
+    "<ul>",
+    "<li>new_payment_candidate</li>",
+    "<li>duplicate_same_chain_tx_log_index_blocked</li>",
+    "<li>duplicate_same_candidate_claim_key_blocked</li>",
+    "<li>duplicate_same_tx_without_log_index_hold</li>",
+    "<li>duplicate_conflicting_buyer_binding_hold</li>",
+    "<li>duplicate_conflicting_amount_hold</li>",
+    "<li>operator_review_required</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>no public mutation, no runtime queue execution, no live fetch now, no finality verification, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json\">JSON duplicate payment guard</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1\">Amount/rate policy gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1\">Chain/token/receiver allowlist gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1\">Activation gate matrix</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
     status: "amount_rate_policy_gate_green_authority_false",
