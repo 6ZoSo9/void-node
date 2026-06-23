@@ -47962,6 +47962,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
  { path: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1", use: "public green fixed-price amount/rate policy for USDC to VOID quote math; no payment approval or reserve authority" },
  { path: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1", use: "public green duplicate payment guard policy; prevents double-counting by chain_id + tx_hash + transfer_log_index; no ledger or reserve authority" },
  { path: "/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1", use: "public green buyer identity binding policy; binds candidate to opaque buyer key and receiving VOID address; no PII or ledger authority" },
+ { path: "/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_FINALITY_CONFIRMATIONS_GATE_V1", use: "public green finality/confirmation policy; Ethereum 12 confirmations and Base 30 confirmations; no live finality authority" },
+ { path: "/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_FINALITY_CONFIRMATIONS_GATE_V1", use: "human-readable finality confirmation policy gate; receipt/log persistence/reorg holds; authority false" },
  { path: "/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1", use: "human-readable buyer identity binding gate; conflict claims held; authority false" },
  { path: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1", use: "human-readable duplicate payment guard gate; blocks duplicate candidates; authority false" },
  { path: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1", use: "human-readable amount and rate policy gate; fixed 0.50 USDC per VOID; authority false" },
@@ -78879,7 +78881,132 @@ const usdcVoidBuyPoolAutomaticFulfillmentActivationGateMatrixV1 = {
 
   runtimeApp.get("/public-node/usdc-void-buy-pool/external-receipt-rpc-live-dry-run-harness-v1.json", (_req:any, res:any) => { res.json({ marker: "VOID_USDC_EXTERNAL_RECEIPT_RPC_LIVE_DRY_RUN_HARNESS_V1", status: "live_dry_run_harness_defined_disabled_by_default_authority_false", harness_path: "ops/mainnet0/usdc-external-receipt-rpc-live-dry-run-harness-v1.sh", reader_dependency: "ops/mainnet0/usdc-external-receipt-rpc-reader-v1.py", harness_defined: true, default_no_env_mode_green: true, requires_explicit_env: ["USDC_EXTERNAL_RPC_URL", "USDC_EXTERNAL_TX_HASH"], optional_semantic_filters: ["USDC_EXTERNAL_CHAIN_ID", "USDC_EXTERNAL_USDC_TOKEN", "USDC_EXTERNAL_OFFICIAL_RECEIVER", "USDC_EXTERNAL_AMOUNT_RAW"], can_invoke_live_read_only_receipt_reader_when_explicitly_configured: true, observation_only_boundary: true, live_chain_data_default: false, external_chain_rpc_fetch_enabled_default: false, receipt_fetch_attempted_default: false, finality_verified_now: false, external_state_root_trust_enabled: false, real_payment_verified_now: false, automatic_fulfillment_enabled: false, private_allocation_ledger_write_enabled: false, inventory_reserved_now: false, void_transfer_now: false, public_route_status_only: true, public_mutation_enabled: false, non_activation_statement: "this route reports the live dry-run harness boundary only; default public status does not fetch chain data, verify finality, trust an external root, verify payment, write a ledger, reserve inventory, fulfill automatically, or transfer VOID" }); });
 
- runtimeApp.get("/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1.json", (_req:any, res:any) => {
+ runtimeApp.get("/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1.json", (_req:any, res:any) => {
+  res.json({
+    marker: "VOID_USDC_VOID_BUY_POOL_FINALITY_CONFIRMATIONS_GATE_V1",
+    status: "finality_confirmations_gate_green_authority_false",
+    public_policy_only: true,
+    buy_pool_subject: "usdc_void_buy_pool",
+    finality_confirmations_gate_green: true,
+    chain_confirmation_thresholds_green: true,
+    receipt_success_policy_green: true,
+    transfer_log_persistence_policy_green: true,
+    reorg_hold_policy_green: true,
+    automatic_fulfillment_enabled_now: false,
+    finality_verified_now: false,
+    live_fetch_now: false,
+    overall_automatic_activation_state: "still_blocked_other_gates_pending",
+    chain_finality_policy: [
+      { chain_name: "ethereum_mainnet", chain_id: 1, required_confirmations: 12, candidate_can_advance_below_threshold: false },
+      { chain_name: "base_mainnet", chain_id: 8453, required_confirmations: 30, candidate_can_advance_below_threshold: false }
+    ],
+    receipt_policy: {
+      required_receipt_status: "success",
+      receipt_status_success_values: ["0x1", 1, true],
+      receipt_status_failed_values_hold: ["0x0", 0, false],
+      receipt_success_policy_green: true
+    },
+    transfer_log_policy: {
+      required_transfer_log_present: true,
+      required_transfer_log_still_present_after_confirmations: true,
+      transfer_log_persistence_policy_green: true
+    },
+    finality_states: [
+      "finality_policy_candidate_ready",
+      "confirmations_below_threshold_hold",
+      "receipt_status_failed_hold",
+      "receipt_missing_hold",
+      "transfer_log_missing_hold",
+      "chain_head_unknown_hold",
+      "block_number_missing_hold",
+      "reorg_risk_hold",
+      "unsupported_chain_hold",
+      "operator_review_required"
+    ],
+    policy_examples: [
+      { case: "base_confirmations_below_threshold", chain_id: 8453, required_confirmations: 30, observed_confirmations: 29, receipt_status: "0x1", transfer_log_present: true, result_state: "confirmations_below_threshold_hold", may_create_allocation_claim: false },
+      { case: "ethereum_confirmations_met_policy_only", chain_id: 1, required_confirmations: 12, observed_confirmations: 12, receipt_status: "0x1", transfer_log_present: true, result_state: "finality_policy_candidate_ready", may_create_allocation_claim: false, note: "candidate remains non-authoritative until other gates are green and a trusted live reader supplies current chain state" },
+      { case: "receipt_failed", chain_id: 8453, required_confirmations: 30, observed_confirmations: 99, receipt_status: "0x0", transfer_log_present: true, result_state: "receipt_status_failed_hold", may_create_allocation_claim: false },
+      { case: "transfer_log_missing", chain_id: 1, required_confirmations: 12, observed_confirmations: 20, receipt_status: "0x1", transfer_log_present: false, result_state: "transfer_log_missing_hold", may_create_allocation_claim: false }
+    ],
+    linked_buyer_identity_binding_gate_marker: "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1",
+    linked_buyer_identity_binding_gate_json_route: "/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1.json",
+    linked_buyer_identity_binding_gate_html_route: "/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1",
+    linked_duplicate_guard_gate_marker: "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1",
+    linked_duplicate_guard_gate_json_route: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json",
+    linked_duplicate_guard_gate_html_route: "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1",
+    linked_amount_rate_gate_marker: "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
+    linked_amount_rate_gate_json_route: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json",
+    linked_amount_rate_gate_html_route: "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1",
+    linked_activation_matrix_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+    linked_activation_matrix_json_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json",
+    linked_activation_matrix_html_route: "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",
+    reviewer_warnings: {
+      not_live_fetch: true,
+      not_payment_approval: true,
+      not_finality_verified_now: true,
+      not_allocation_ledger_write: true,
+      not_inventory_reserve: true,
+      not_automatic_fulfillment: true,
+      not_void_transfer: true,
+      operator_review_required: true
+    },
+    authority_flags: {
+      public_mutation_enabled: false,
+      runtime_queue_enabled: false,
+      live_fetch_now: false,
+      finality_verified_now: false,
+      external_state_root_trust_enabled: false,
+      real_payment_verified_now: false,
+      automatic_fulfillment_enabled: false,
+      private_allocation_ledger_write_enabled: false,
+      inventory_reserved_now: false,
+      void_transfer_now: false
+    }
+  });
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1", (_req:any, res:any) => {
+  res.type("html").send([
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\"><title>VOID Finality Confirmations Gate</title></head><body>",
+    "<main>",
+    "<h1>USDC/VOID Finality + Confirmations Gate</h1>",
+    "<p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_FINALITY_CONFIRMATIONS_GATE_V1</p>",
+    "<p><strong>Status:</strong> finality_confirmations_gate_green_authority_false</p>",
+    "<p><strong>Gate green:</strong> true</p>",
+    "<p><strong>Ethereum confirmations:</strong> 12</p>",
+    "<p><strong>Base confirmations:</strong> 30</p>",
+    "<p><strong>Receipt policy:</strong> successful receipt status plus persistent transfer log required</p>",
+    "<p><strong>Finality verified now:</strong> false</p>",
+    "<p><strong>Live fetch now:</strong> false</p>",
+    "<p><strong>Automatic fulfillment enabled now:</strong> false</p>",
+    "<p><strong>Overall automatic activation:</strong> still_blocked_other_gates_pending</p>",
+    "<h2>Hold states</h2>",
+    "<ul>",
+    "<li>confirmations_below_threshold_hold</li>",
+    "<li>receipt_status_failed_hold</li>",
+    "<li>receipt_missing_hold</li>",
+    "<li>transfer_log_missing_hold</li>",
+    "<li>chain_head_unknown_hold</li>",
+    "<li>block_number_missing_hold</li>",
+    "<li>reorg_risk_hold</li>",
+    "<li>unsupported_chain_hold</li>",
+    "<li>operator_review_required</li>",
+    "</ul>",
+    "<h2>Current authority</h2>",
+    "<p>no public mutation, no runtime queue execution, no live fetch now, no finality verification now, no real payment verification, no allocation ledger write, no inventory reserve, no automatic fulfillment, no VOID transfer.</p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/finality-confirmations-gate-v1.json\">JSON finality confirmation gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1\">Buyer identity binding gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1\">Duplicate payment guard gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1\">Amount/rate policy gate</a></p>",
+    "<p><a href=\"/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1\">Activation gate matrix</a></p>",
+    "</main>",
+    "</body></html>"
+  ].join("\n"));
+});
+
+runtimeApp.get("/public-node/usdc-void-buy-pool/buyer-identity-binding-gate-v1.json", (_req:any, res:any) => {
   res.json({
     marker: "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1",
     status: "buyer_identity_binding_gate_green_authority_false",
