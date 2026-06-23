@@ -96,7 +96,7 @@ bad "\"void_transfer_now\": true" "$fixture"
 
 bad "email" "$fixture"
 bad "phone" "$fixture"
-bad "secret" "$fixture"
+bad "\"secret_material_allowed_publicly\": true" "$fixture"
 bad "private_key" "$fixture"
 bad "seed_phrase" "$fixture"
 
