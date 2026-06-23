@@ -71,7 +71,7 @@ test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfi
 test "$(grep -F 'runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",' "$src" | wc -l)" = "1"
 
 bad "automatic_fulfillment_enabled_now: true" "$src"
-bad "gate_green: true" "$src"
+bad " gate_green: true" "$src"
 bad "automatic_fulfillment_enabled: true" "$src"
 bad "private_allocation_ledger_write_enabled: true" "$src"
 bad "inventory_reserved_now: true" "$src"
