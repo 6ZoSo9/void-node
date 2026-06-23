@@ -1,0 +1,113 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1",
+  "status": "buyer_identity_binding_gate_green_authority_false",
+  "public_policy_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "buyer_identity_binding_gate_green": true,
+  "buyer_binding_key_policy_green": true,
+  "receiving_void_address_policy_green": true,
+  "conflict_hold_policy_green": true,
+  "public_pii_redaction_policy_green": true,
+  "automatic_fulfillment_enabled_now": false,
+  "overall_automatic_activation_state": "still_blocked_other_gates_pending",
+  "buyer_binding_policy": {
+    "buyer_binding_key_type": "opaque_public_safe_identifier",
+    "public_pii_allowed": false,
+    "private_contact_info_allowed_publicly": false,
+    "secret_material_allowed_publicly": false,
+    "binding_source": "operator_reviewed_buyer_intent_or_future_signed_claim",
+    "buyer_binding_key_policy_green": true
+  },
+  "receiving_void_address_policy": {
+    "required_before_allocation_candidate_advances": true,
+    "one_buyer_binding_key_to_one_receiving_void_address_per_candidate": true,
+    "receiving_void_address_policy_green": true
+  },
+  "candidate_binding_key": {
+    "key_fields": [
+      "chain_id",
+      "tx_hash",
+      "transfer_log_index",
+      "buyer_binding_key",
+      "receiving_void_address"
+    ],
+    "binding_rule": "one_payment_event_key_must_bind_to_one_buyer_binding_key_and_one_receiving_void_address_before_advancing",
+    "candidate_binding_key_policy_green": true
+  },
+  "binding_states": [
+    "buyer_binding_candidate_ready",
+    "buyer_binding_missing_hold",
+    "buyer_binding_conflict_hold",
+    "receiving_void_address_missing_hold",
+    "receiving_void_address_conflict_hold",
+    "payment_event_unbound_hold",
+    "operator_review_required"
+  ],
+  "policy_examples": [
+    {
+      "case": "buyer_binding_and_receiving_void_address_present",
+      "chain_id": 8453,
+      "tx_hash": "0xexampletx000000000000000000000000000000000000000000000000000000000002",
+      "transfer_log_index": 3,
+      "buyer_binding_key": "buyer_binding_key_example_redacted",
+      "receiving_void_address": "0xreceiverexample000000000000000000000000000000000001",
+      "result_state": "buyer_binding_candidate_ready",
+      "may_create_allocation_claim": false,
+      "note": "candidate remains non-authoritative until other gates are green"
+    },
+    {
+      "case": "missing_buyer_binding_key",
+      "chain_id": 8453,
+      "tx_hash": "0xexampletx000000000000000000000000000000000000000000000000000000000003",
+      "transfer_log_index": 4,
+      "buyer_binding_key": null,
+      "receiving_void_address": "0xreceiverexample000000000000000000000000000000000002",
+      "result_state": "buyer_binding_missing_hold",
+      "may_create_allocation_claim": false
+    },
+    {
+      "case": "conflicting_receiving_void_address",
+      "chain_id": 1,
+      "tx_hash": "0xexampletx000000000000000000000000000000000000000000000000000000000004",
+      "transfer_log_index": 5,
+      "buyer_binding_key": "buyer_binding_key_example_redacted",
+      "receiving_void_address": "conflicting_receiving_void_address_redacted",
+      "result_state": "receiving_void_address_conflict_hold",
+      "may_create_allocation_claim": false
+    }
+  ],
+  "linked_duplicate_guard_gate_marker": "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1",
+  "linked_duplicate_guard_gate_json_route": "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1.json",
+  "linked_duplicate_guard_gate_html_route": "/public-node/usdc-void-buy-pool/duplicate-payment-guard-gate-v1",
+  "linked_amount_rate_gate_marker": "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
+  "linked_amount_rate_gate_json_route": "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1.json",
+  "linked_amount_rate_gate_html_route": "/public-node/usdc-void-buy-pool/amount-rate-policy-gate-v1",
+  "linked_allowlist_gate_marker": "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1",
+  "linked_allowlist_gate_json_route": "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json",
+  "linked_allowlist_gate_html_route": "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1",
+  "linked_activation_matrix_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+  "linked_activation_matrix_json_route": "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json",
+  "linked_activation_matrix_html_route": "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",
+  "reviewer_warnings": {
+    "not_live_fetch": true,
+    "not_payment_approval": true,
+    "not_finality_verification": true,
+    "not_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "automatic_fulfillment_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "void_transfer_now": false
+  }
+}
