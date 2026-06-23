@@ -8,6 +8,7 @@ This is a template surface only.
 
 It is not:
 
+- a public form
 - a public submission form
 - a claim creation endpoint
 - an automatic fulfillment trigger

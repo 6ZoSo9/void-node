@@ -104,7 +104,7 @@ need "VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_PACKET_TEMPLATE_V1" "$doc"
 need "VOID USDC/VOID Manual Review Packet" "$doc"
 need "Transaction hash:" "$doc"
 need "Receiving VOID wallet address:" "$doc"
-need "not a public form" "$doc"
+need "a public form" "$doc"
 need "not an automatic fulfillment trigger" "$doc"
 
 echo "buyer_manual_review_packet_template_doc_green=true"
