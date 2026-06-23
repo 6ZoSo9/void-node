@@ -110,8 +110,8 @@ need '"void_transfer_now": false' "$fixture"
 
 echo "public_manual_fulfillment_truth_notice_fixture_green=true"
 
-json_route_count="$(grep -cF 'APP.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json"' "$src" || true)"
-html_route_count="$(grep -cF 'app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1"' "$src" || true)"
+json_route_count="$(grep -cF 'app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) =>' "$src" || true)"
+html_route_count="$(grep -cF 'app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) =>' "$src" || true)"
 
 test "$json_route_count" = "1"
 test "$html_route_count" = "1"
