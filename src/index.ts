@@ -81896,82 +81896,109 @@ const VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1 = Object
   }
 });
 
-app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) => {
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.status(200).send(JSON.stringify(VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1, null, 2) + "\n");
-});
+let VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTES_MOUNTED = false;
 
-app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) => {
-  const notice = VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1;
-  res.setHeader("content-type", "text/html; charset=utf-8");
-  res.status(200).send(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>VOID USDC/VOID Public Manual Fulfillment Truth Notice v1</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 18px;line-height:1.5;background:#08080b;color:#f4f4f5}
-    a{color:#a78bfa}
-    code{background:#18181b;padding:2px 5px;border-radius:5px}
-    .card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:16px 0;background:#111114}
-    .good{color:#86efac}
-    .hold{color:#facc15}
-    .false{color:#fca5a5}
-  </style>
-</head>
-<body>
-  <h1>USDC/VOID Public Manual Fulfillment Truth Notice</h1>
-  <p><code>${notice.marker}</code></p>
+function VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_MOUNT_ROUTES(APP:any): boolean {
+  if (!APP || typeof APP.get !== "function") return false;
+  if (VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTES_MOUNTED) return true;
 
-  <div class="card">
-    <h2>Plain truth</h2>
-    <p>${notice.public_copy.short_notice}</p>
-    <p>${notice.public_copy.no_instant_delivery_notice}</p>
-    <p>${notice.public_copy.no_investment_promise_notice}</p>
-  </div>
+  APP.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) => {
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.status(200).send(JSON.stringify(VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1, null, 2) + "\n");
+  });
 
-  <div class="card">
-    <h2>Current state</h2>
-    <ul>
-      <li>Receiver address can receive USDC: <strong class="good">true</strong></li>
-      <li>Verified payment can enter manual operator review: <strong class="good">true</strong></li>
-      <li>Manual fulfillment possible after verification: <strong class="good">true</strong></li>
-      <li>Automatic fulfillment enabled now: <strong class="false">false</strong></li>
-      <li>Wallet fulfillment enabled now: <strong class="false">false</strong></li>
-      <li>Buyer execution enabled now: <strong class="false">false</strong></li>
-      <li>Public mutation enabled now: <strong class="false">false</strong></li>
-      <li>VOID transfer now: <strong class="false">false</strong></li>
-    </ul>
-  </div>
+  APP.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) => {
+    const notice = VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1;
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.status(200).send(`<!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VOID USDC/VOID Public Manual Fulfillment Truth Notice v1</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:920px;margin:40px auto;padding:0 18px;line-height:1.5;background:#08080b;color:#f4f4f5}
+      a{color:#a78bfa}
+      code{background:#18181b;padding:2px 5px;border-radius:5px}
+      .card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:16px 0;background:#111114}
+      .good{color:#86efac}
+      .hold{color:#facc15}
+      .false{color:#fca5a5}
+    </style>
+  </head>
+  <body>
+    <h1>USDC/VOID Public Manual Fulfillment Truth Notice</h1>
+    <p><code>${notice.marker}</code></p>
 
-  <div class="card">
-    <h2>Required before manual fulfillment</h2>
-    <ul>
-      <li>Payment verification</li>
-      <li>Chain / token / receiver allowlist</li>
-      <li>Amount-rate policy</li>
-      <li>Duplicate payment guard</li>
-      <li>Buyer identity binding</li>
-      <li>Finality confirmations</li>
-      <li>Payment eligibility decision</li>
-      <li>Separate private/operator execution lane</li>
-    </ul>
-  </div>
+    <div class="card">
+      <h2>Plain truth</h2>
+      <p>${notice.public_copy.short_notice}</p>
+      <p>${notice.public_copy.no_instant_delivery_notice}</p>
+      <p>${notice.public_copy.no_investment_promise_notice}</p>
+    </div>
 
-  <div class="card">
-    <h2>Public safety boundary</h2>
-    <ul>
-      <li>Public PII allowed: <strong class="false">false</strong></li>
-      <li>Private contact info allowed publicly: <strong class="false">false</strong></li>
-      <li>Secret material allowed publicly: <strong class="false">false</strong></li>
-      <li>Private ledger allowed publicly: <strong class="false">false</strong></li>
-      <li>Public-node wallet signing allowed: <strong class="false">false</strong></li>
-      <li>Public-node transfer authority allowed: <strong class="false">false</strong></li>
-      <li>Public-node mutation allowed: <strong class="false">false</strong></li>
-    </ul>
-  </div>
+    <div class="card">
+      <h2>Current state</h2>
+      <ul>
+        <li>Receiver address can receive USDC: <strong class="good">true</strong></li>
+        <li>Verified payment can enter manual operator review: <strong class="good">true</strong></li>
+        <li>Manual fulfillment possible after verification: <strong class="good">true</strong></li>
+        <li>Automatic fulfillment enabled now: <strong class="false">false</strong></li>
+        <li>Wallet fulfillment enabled now: <strong class="false">false</strong></li>
+        <li>Buyer execution enabled now: <strong class="false">false</strong></li>
+        <li>Public mutation enabled now: <strong class="false">false</strong></li>
+        <li>VOID transfer now: <strong class="false">false</strong></li>
+      </ul>
+    </div>
 
-  <p><a href="/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json">JSON proof surface</a></p>
-</body>
-</html>`);
-});
+    <div class="card">
+      <h2>Required before manual fulfillment</h2>
+      <ul>
+        <li>Payment verification</li>
+        <li>Chain / token / receiver allowlist</li>
+        <li>Amount-rate policy</li>
+        <li>Duplicate payment guard</li>
+        <li>Buyer identity binding</li>
+        <li>Finality confirmations</li>
+        <li>Payment eligibility decision</li>
+        <li>Separate private/operator execution lane</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Public safety boundary</h2>
+      <ul>
+        <li>Public PII allowed: <strong class="false">false</strong></li>
+        <li>Private contact info allowed publicly: <strong class="false">false</strong></li>
+        <li>Secret material allowed publicly: <strong class="false">false</strong></li>
+        <li>Private ledger allowed publicly: <strong class="false">false</strong></li>
+        <li>Public-node wallet signing allowed: <strong class="false">false</strong></li>
+        <li>Public-node transfer authority allowed: <strong class="false">false</strong></li>
+        <li>Public-node mutation allowed: <strong class="false">false</strong></li>
+      </ul>
+    </div>
+
+    <p><a href="/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json">JSON proof surface</a></p>
+  </body>
+  </html>`);
+  });
+
+  VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTES_MOUNTED = true;
+  return true;
+}
+
+function VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_TRY_MOUNT_ROUTES(): boolean {
+  const APP = (globalThis as any).__void_http_app || (globalThis as any).APP || (globalThis as any).app;
+  return VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_MOUNT_ROUTES(APP);
+}
+
+if (!VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_TRY_MOUNT_ROUTES()) {
+  const VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTE_TIMER = setInterval(() => {
+    if (VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_TRY_MOUNT_ROUTES()) {
+      clearInterval(VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTE_TIMER);
+    }
+  }, 250);
+
+  if (typeof (VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTE_TIMER as any).unref === "function") {
+    (VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_ROUTE_TIMER as any).unref();
+  }
+}

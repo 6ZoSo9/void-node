@@ -110,11 +110,17 @@ need '"void_transfer_now": false' "$fixture"
 
 echo "public_manual_fulfillment_truth_notice_fixture_green=true"
 
-json_route_count="$(grep -cF 'app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) =>' "$src" || true)"
-html_route_count="$(grep -cF 'app.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) =>' "$src" || true)"
+json_route_count="$(grep -cF 'APP.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1.json", (_req:any, res:any) =>' "$src" || true)"
+html_route_count="$(grep -cF 'APP.get("/public-node/usdc-void-buy-pool/public-manual-fulfillment-truth-notice-v1", (_req:any, res:any) =>' "$src" || true)"
 
 test "$json_route_count" = "1"
 test "$html_route_count" = "1"
+
+
+need "VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_MOUNT_ROUTES" "$src"
+need "VOID_USDC_VOID_BUY_POOL_PUBLIC_MANUAL_FULFILLMENT_TRUTH_NOTICE_V1_TRY_MOUNT_ROUTES" "$src"
+need "__void_http_app" "$src"
+need "setInterval" "$src"
 
 echo "public_manual_fulfillment_truth_notice_routes_green=true"
 
