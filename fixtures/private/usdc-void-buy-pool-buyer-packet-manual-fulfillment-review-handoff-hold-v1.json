@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_REVIEW_HANDOFF_HOLD_V1",
+  "version": 1,
+  "scope": "private_operator_only",
+  "purpose": "record_manual_fulfillment_review_handoff_shape_after_payment_eligibility_decision_result",
+  "prior_required_state": "payment_eligibility_decision_result_recorded_unverified",
+  "handoff_state": "held_manual_fulfillment_review_handoff_shape_only",
+  "allowed_handoff_states": [
+    "draft_hold",
+    "blocked_missing_payment_eligibility_decision_result",
+    "blocked_payment_not_eligible",
+    "blocked_missing_manual_review_template",
+    "held_manual_fulfillment_review_handoff_shape_only",
+    "ready_for_separate_manual_fulfillment_review_packet"
+  ],
+  "references": {
+    "buyer_packet_reference": "private_operator_redacted",
+    "payment_eligibility_decision_result_reference": "private_operator_redacted",
+    "buyer_identity_binding_result_reference": "private_operator_redacted",
+    "duplicate_payment_guard_result_reference": "private_operator_redacted",
+    "amount_rate_policy_result_reference": "private_operator_redacted",
+    "finality_confirmations_result_reference": "private_operator_redacted",
+    "manual_review_packet_template_reference": "private_operator_redacted"
+  },
+  "eligibility_decision": {
+    "payment_eligible": false,
+    "eligibility_decision_state": "not_evaluated_in_fixture",
+    "eligibility_reason_codes": []
+  },
+  "handoff_result": {
+    "handoff_ready": false,
+    "handoff_reason_codes": [
+      "fixture_shape_only",
+      "no_real_buyer_packet",
+      "no_real_payment_decision",
+      "no_operator_approval"
+    ]
+  },
+  "authority": {
+    "public_node_mutation_authority": false,
+    "public_route_mounted": false,
+    "manual_fulfillment_approval_authority": false,
+    "void_allocation_claim_creation_authority": false,
+    "void_transfer_authority": false,
+    "wallet_signing_authority": false,
+    "treasury_movement_authority": false,
+    "automatic_fulfillment_authority": false
+  },
+  "non_goals": [
+    "public_node_rpc_receipt_read",
+    "public_node_transfer_log_parse",
+    "payment_eligibility_decision",
+    "manual_fulfillment_approval",
+    "void_allocation_claim_creation",
+    "void_transfer",
+    "wallet_signing",
+    "treasury_movement",
+    "automatic_fulfillment",
+    "public_node_mutation"
+  ]
+}
