@@ -23,6 +23,8 @@ unexpected_public_refs="$(
     NF &&
     $0 != "src/index.ts" &&
     $0 != "docs/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-v1.md" &&
+    $0 != "docs/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-discovery-v1.md" &&
+    $0 != "fixtures/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-discovery-v1.json" &&
     $0 != "fixtures/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-v1.json" {
       print
     }
@@ -36,6 +38,7 @@ if [ -n "$unexpected_public_refs" ]; then
 fi
 
 echo "automatic_payment_live_path_terminal_readiness_rollup_hold_public_status_card_reference_allowed=true"
+echo "automatic_payment_live_path_terminal_readiness_rollup_hold_public_discovery_reference_allowed=true"
 echo "automatic_payment_live_path_terminal_readiness_rollup_hold_private_only_green=true"
 
 node - "$fixture" <<'NODE'
