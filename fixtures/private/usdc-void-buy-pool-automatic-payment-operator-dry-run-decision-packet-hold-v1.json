@@ -1,0 +1,77 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_DRY_RUN_DECISION_PACKET_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_operator_dry_run_decision_packet_hold_v1",
+  "status": "operator_private_dry_run_decision_packet_hold",
+  "visibility": "private_operator_only",
+  "public_route": false,
+  "public_safe": false,
+  "private_buyer_or_payment_material_exposed": false,
+  "purpose": "private operator-only dry-run decision packet shape for automatic USDC payment eligibility; evaluates whether a verified payment candidate would qualify without writing ledgers, reserving inventory, creating allocation claims, or fulfilling VOID",
+  "dry_run_only": true,
+  "candidate_input_shape": {
+    "chain_id": "1_or_8453",
+    "tx_hash": "0x_transaction_hash",
+    "transfer_log_index": "integer_log_index",
+    "usdc_token": "official_usdc_contract_for_chain",
+    "receiver": "official_void_buy_pool_receiver",
+    "from": "payer_address",
+    "amount_usdc_atomic": "integer_string",
+    "buyer_opaque_key": "private_operator_local_identifier",
+    "void_delivery_address": "self_custody_0x_address",
+    "observed_block_number": "integer",
+    "observed_confirmations": "integer",
+    "receipt_status": "0x1_required"
+  },
+  "allowed_decision_states": [
+    "blocked_missing_receipt",
+    "blocked_receipt_status_not_success",
+    "blocked_transfer_log_missing",
+    "blocked_chain_token_receiver_allowlist",
+    "blocked_finality_confirmations",
+    "blocked_duplicate_payment_identity",
+    "blocked_amount_rate_policy",
+    "blocked_buyer_identity_binding",
+    "blocked_inventory_capacity",
+    "candidate_payment_eligible_dry_run_only",
+    "blocked_authority_false"
+  ],
+  "canonical_payment_identity": {
+    "format": "chain_id:tx_hash:transfer_log_index",
+    "used_for_duplicate_guard": true,
+    "request_id_alone_is_not_payment_identity": true
+  },
+  "required_public_prerequisites": [
+    "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_CLOSEOUT_V1"
+  ],
+  "private_required_prerequisites": [
+    "verified_receipt_parser_result",
+    "duplicate_payment_guard_result",
+    "amount_rate_policy_result",
+    "buyer_identity_binding_result",
+    "finality_confirmation_result",
+    "inventory_capacity_check_result",
+    "explicit_operator_activation_record_absent_or_false"
+  ],
+  "authority": {
+    "payment_approval": false,
+    "allocation_claim_creation": false,
+    "private_allocation_ledger_write": false,
+    "inventory_reserve": false,
+    "inventory_decrement": false,
+    "fulfillment_record_creation": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "automatic_void_transfer": false,
+    "public_mutation": false
+  },
+  "next_after_green": [
+    "private dry-run decision result fixture",
+    "private duplicate-payment identity cache hold",
+    "private allocation reservation prewrite hold",
+    "operator activation packet remains required before execution"
+  ]
+}
