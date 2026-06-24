@@ -48492,6 +48492,9 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1", route_index_wiring_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1", use: "automatic payment live-path status card JSON route-index entry; machine-readable authority-false status surface" },
       { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1", route_index_wiring_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1", use: "automatic payment live-path discovery HTML route-index entry; links reviewers to the public status card" },
       { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1", route_index_wiring_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1", use: "automatic payment live-path discovery JSON route-index entry; public read-only; no activation authority" },
+      // VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_WIRING_V1: reviewer verify pack route-index entries for automatic payment live-path public status/discovery stack
+      { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1", route_index_wiring_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_WIRING_V1", use: "automatic payment live-path public reviewer verify pack HTML route-index entry; copy-paste verification for status/discovery and false-authority boundaries" },
+      { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1", route_index_wiring_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_ROUTE_INDEX_WIRING_V1", use: "automatic payment live-path public reviewer verify pack JSON route-index entry; machine-readable one-command verification pack" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
@@ -83216,5 +83219,58 @@ if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) 
 
   if ((VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER as any).unref) {
     (VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER as any).unref();
+  }
+}
+
+
+/* [usdc-void-buy-pool.automatic-payment-live-path-public-reviewer-verify-pack.v1] */
+{
+  const mountAutomaticPaymentLivePathPublicReviewerVerifyPackV1 = () => {
+    const runtimeApp = (globalThis as any).__void_http_app;
+    if (!runtimeApp) return false;
+    if ((runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_reviewer_verify_pack_v1) return true;
+    (runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_reviewer_verify_pack_v1 = true;
+
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-automatic-payment-live-path-public-reviewer-verify-pack-v1.json");
+    const readFixture = () => JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+    const esc = (v:any) => String(v).replace(/[&<>"]/g, (c:string) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c] as string));
+
+    runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json", (_req:any, res:any) => {
+      res.json(readFixture());
+    });
+
+    runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1", (_req:any, res:any) => {
+      const pack = readFixture();
+      res.type("html").send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>Automatic Payment Public Reviewer Verify Pack</title></head>
+<body>
+<h1>Automatic Payment Public Reviewer Verify Pack</h1>
+<p><strong>Marker:</strong> <code>${esc(pack.marker)}</code></p>
+<p><strong>Status:</strong> <code>${esc(pack.status)}</code></p>
+<p>Copy-paste public verification for the automatic-payment live-path status card, discovery card, route-index wiring, and false-authority boundaries.</p>
+<ul>
+<li><a href="${esc(pack.routes.pack_json)}">Reviewer pack JSON</a></li>
+<li><a href="${esc(pack.routes.status_card_json)}">Status card JSON</a></li>
+<li><a href="${esc(pack.routes.discovery_json)}">Discovery card JSON</a></li>
+<li><a href="${esc(pack.routes.route_index_json)}">Route index JSON</a></li>
+</ul>
+<h2>Authority</h2>
+<pre>${esc(JSON.stringify(pack.authority, null, 2))}</pre>
+<h2>Copy-paste verify command</h2>
+<pre><code>${esc(pack.copy_paste_verify_command)}</code></pre>
+<p><a href="/public-node">Public node</a> · <a href="/public-node/route-index.json">Route index</a></p>
+</body></html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-reviewer-verify-pack.v1] mounted");
+    return true;
+  };
+
+  if (!mountAutomaticPaymentLivePathPublicReviewerVerifyPackV1()) {
+    setTimeout(() => {
+      if (!mountAutomaticPaymentLivePathPublicReviewerVerifyPackV1()) {
+        console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-reviewer-verify-pack.v1] no app hook; routes not mounted");
+      }
+    }, 250);
   }
 }

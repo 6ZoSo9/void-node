@@ -1,0 +1,36 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_live_path_public_reviewer_verify_pack_v1",
+  "status": "public_reviewer_verify_pack_read_only",
+  "visibility": "public",
+  "public_safe": true,
+  "private_details_exposed": false,
+  "purpose": "one-command public reviewer verification for the automatic payment live-path status card, discovery card, route-index wiring, and false-authority boundaries",
+  "routes": {
+    "pack_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json",
+    "pack_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1",
+    "status_card_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json",
+    "status_card_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1",
+    "discovery_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json",
+    "discovery_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1",
+    "route_index_json": "/public-node/route-index.json"
+  },
+  "required_markers": [
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "void_transfer": false
+  },
+  "copy_paste_verify_command": "base=${VOID_PUBLIC_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}; tmp=$(mktemp -d); set -e; curl -fsS \"$base/public-node/route-index.json\" > \"$tmp/route-index.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json\" > \"$tmp/status.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json\" > \"$tmp/discovery.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json\" > \"$tmp/pack.json\"; grep -F VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1 \"$tmp/pack.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1 \"$tmp/status.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1 \"$tmp/discovery.json\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json \"$tmp/route-index.json\" >/dev/null; python3 -c \"import json,sys; s=json.load(open(sys.argv[1])); d=json.load(open(sys.argv[2])); p=json.load(open(sys.argv[3])); assert s[\\\"marker\\\"]==\\\"VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1\\\"; assert d[\\\"marker\\\"]==\\\"VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1\\\"; assert p[\\\"marker\\\"]==\\\"VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1\\\"; assert s.get(\\\"private_details_exposed\\\") is False; assert d.get(\\\"private_details_exposed\\\") is False; [(_ for _ in ()).throw(AssertionError(k)) for obj in (s,d,p) for k,v in obj[\\\"authority\\\"].items() if v is not False]; print(\\\"VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1_REVIEWER_GREEN\\\")\" \"$tmp/status.json\" \"$tmp/discovery.json\" \"$tmp/pack.json\""
+}
