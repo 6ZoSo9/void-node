@@ -99,6 +99,7 @@ echo "automatic_payment_live_path_public_status_card_discovery_runtime_mount_sco
 route_index_wiring_marker="VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1"
 
 grep -Fq "$route_index_wiring_marker" "$src"
+grep -Fq "route_index_wiring_marker" "$src"
 grep -Fq "automatic payment live-path status card HTML route-index entry" "$src"
 grep -Fq "automatic payment live-path status card JSON route-index entry" "$src"
 grep -Fq "automatic payment live-path discovery HTML route-index entry" "$src"
