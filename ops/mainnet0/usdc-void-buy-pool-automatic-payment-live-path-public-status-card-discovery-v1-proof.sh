@@ -100,6 +100,13 @@ route_index_wiring_marker="VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_P
 
 grep -Fq "$route_index_wiring_marker" "$src"
 grep -Fq "route_index_wiring_marker" "$src"
+
+if grep -Fq '\\n      { path: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1"' "$src"; then
+  echo "automatic_payment_live_path_public_status_card_discovery_route_index_wiring_escaped_newline_absent=false"
+  exit 1
+fi
+
+echo "automatic_payment_live_path_public_status_card_discovery_route_index_wiring_escaped_newline_absent=true"
 grep -Fq "automatic payment live-path status card HTML route-index entry" "$src"
 grep -Fq "automatic payment live-path status card JSON route-index entry" "$src"
 grep -Fq "automatic payment live-path discovery HTML route-index entry" "$src"
