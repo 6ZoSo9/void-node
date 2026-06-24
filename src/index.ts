@@ -83037,12 +83037,25 @@ const usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1 = Object.freeze(
     "Automatic payment live path is terminal-ready as a private hold, but no automatic payment or fulfillment authority is enabled."
 });
 
-app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json", (_req, res) => {
-  res.json(usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1);
-});
+function mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1(): boolean {
+  const runtimeApp = (globalThis as any).__void_http_app;
 
-app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1", (_req, res) => {
-  res.type("html").send(`<!doctype html>
+  if (!runtimeApp || typeof runtimeApp.get !== "function") {
+    return false;
+  }
+
+  if ((runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_card_v1_mounted) {
+    return true;
+  }
+
+  (runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_card_v1_mounted = true;
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json", (_req:any, res:any) => {
+    res.json(usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1);
+  });
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1", (_req:any, res:any) => {
+    res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -83068,4 +83081,28 @@ app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-stat
   </main>
 </body>
 </html>`);
-});
+  });
+
+  console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-status-card.v1] mounted");
+  return true;
+}
+
+if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1()) {
+  const VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1_ROUTE_TIMER = setInterval(() => {
+    if (mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1()) {
+      clearInterval(VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1_ROUTE_TIMER);
+    }
+  }, 250);
+
+  setTimeout(() => {
+    clearInterval(VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1_ROUTE_TIMER);
+    if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1()) {
+      console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-status-card.v1] no app hook; routes not mounted");
+    }
+  }, 20000);
+
+  if ((VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1_ROUTE_TIMER as any).unref) {
+    (VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1_ROUTE_TIMER as any).unref();
+  }
+}
+

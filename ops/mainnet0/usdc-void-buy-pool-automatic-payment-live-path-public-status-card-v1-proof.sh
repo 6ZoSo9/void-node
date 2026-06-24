@@ -79,8 +79,16 @@ echo "automatic_payment_live_path_public_status_card_withheld_values_green=true"
 
 grep -Fq "$json_route" "$src"
 grep -Fq "$html_route" "$src"
+grep -Fq "__void_http_app" "$src"
+grep -Fq "__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_card_v1_mounted" "$src"
+
+if grep -Fq 'app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1' "$src"; then
+  echo "automatic_payment_live_path_public_status_card_bad_app_scope_found=false"
+  exit 1
+fi
 
 echo "automatic_payment_live_path_public_status_card_src_route_green=true"
+echo "automatic_payment_live_path_public_status_card_runtime_mount_scope_green=true"
 
 if grep -E "app\.(post|put|patch|delete)\(\"/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1" "$src" >/dev/null 2>&1; then
   echo "automatic_payment_live_path_public_status_card_mutation_route_found=false"
