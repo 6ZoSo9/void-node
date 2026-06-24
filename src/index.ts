@@ -3736,6 +3736,73 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
   }
 })();
 
+
+/* [usdc-void-buy-pool.buyer-facing-manual-fulfillment-readiness-closeout-card.v1] */
+;(function __voidUsdcVoidBuyPoolBuyerFacingManualFulfillmentReadinessCloseoutCardV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_buyer_facing_manual_fulfillment_readiness_closeout_card_v1) return;
+    (app as any).__void_usdc_void_buy_pool_buyer_facing_manual_fulfillment_readiness_closeout_card_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json";
+    const summaryHtmlRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1";
+    const summaryJsonRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-buyer-facing-manual-fulfillment-readiness-closeout-card-v1.json");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Manual Fulfillment Readiness Closeout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Manual Fulfillment Readiness Closeout</h1>
+    <p><strong>Status:</strong> manual fulfillment readiness evidence is sealed and public-readable.</p>
+    <p><strong>Buyer meaning:</strong> this page confirms the public readiness summary exists. It does not mean fulfillment has happened.</p>
+    <p><strong>Authority:</strong> false. No buyer fulfillment, no manual fulfillment record write/apply, no allocation claim creation, no VOID transfer, no wallet signing, no treasury movement, no automatic fulfillment activation, and no public mutation.</p>
+    <ul>
+      <li>Manual evidence chain: sealed</li>
+      <li>Public readiness summary: live</li>
+      <li>Automatic fulfillment: disabled</li>
+      <li>Manual execution: not performed</li>
+      <li>Private operator material: withheld</li>
+    </ul>
+    <p><a href="${summaryHtmlRoute}">Open public readiness summary</a> · <a href="${summaryJsonRoute}">JSON</a></p>
+    <p><a href="${jsonRoute}">Closeout JSON</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.buyer-facing-manual-fulfillment-readiness-closeout-card.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.buyer-facing-manual-fulfillment-readiness-closeout-card.v1] failed", String(e?.stack || e));
+  }
+})();
+
 /* [latest-number-json.safe.v1] */
 ;(function __voidLatestNumberJsonSafeV1(){
   try{
@@ -48210,6 +48277,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1", use: "machine-readable presale quote and buyer-status fields with automatic delivery disabled and private operator material withheld" },
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1", use: "public read-only buyer-safe manual fulfillment readiness summary; no fulfillment, no execution, no record write/apply, no transfer, no public mutation" },
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1", use: "machine-readable public read-only manual fulfillment readiness summary; private operator material withheld and all authority false" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1", use: "buyer-facing public read-only closeout card for manual fulfillment readiness; evidence sealed, public summary live, fulfillment not executed, automatic fulfillment disabled" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1", use: "machine-readable buyer-facing manual fulfillment readiness closeout; no private operator material and all fulfillment/execution authority false" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
@@ -58455,6 +58524,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/buy-pool/usdc-void-v1.json">Fixed-price buy-pool JSON</a></li>
           <li><!-- VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_DISCOVERY_V1 --><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1">Manual fulfillment public readiness summary</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json">Manual fulfillment public readiness JSON</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1 --><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1">Buyer-facing manual fulfillment readiness closeout</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json">Buyer-facing manual fulfillment readiness closeout JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
