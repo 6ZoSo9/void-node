@@ -1,0 +1,55 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+  "closeout_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1",
+  "summary_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1",
+  "scope": "public_reviewer_one_command_verify_pack",
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1",
+    "json": "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json",
+    "closeout_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1",
+    "closeout_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json",
+    "summary_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1",
+    "summary_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json",
+    "dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json"
+  },
+  "reviewer_checks": [
+    "fetch_dashboard",
+    "fetch_route_index",
+    "fetch_verify_pack_html_json",
+    "fetch_closeout_html_json",
+    "fetch_summary_html_json",
+    "verify_dashboard_discovery",
+    "verify_route_index_discovery",
+    "verify_markers",
+    "verify_false_authority_boundaries"
+  ],
+  "pack_boundary": {
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "automatic_fulfillment_activation": false,
+    "public_mutation": false
+  },
+  "authority": {
+    "public_node_mutation_authority": false,
+    "buyer_execution_authority": false,
+    "manual_fulfillment_authority": false,
+    "wallet_signing_authority": false,
+    "treasury_movement_authority": false,
+    "automatic_fulfillment_authority": false
+  },
+  "privacy": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_wallet_secret": false,
+    "contains_private_document_path": false,
+    "contains_execution_material": false,
+    "contains_transfer_instruction": false
+  },
+  "copy_paste_verify_command": "base=${VOID_PUBLIC_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}; tmp=$(mktemp -d); set -e; curl -fsS \"$base/public-node\" > \"$tmp/dashboard.html\"; curl -fsS \"$base/public-node/route-index.json\" > \"$tmp/route-index.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json\" > \"$tmp/pack.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1\" > \"$tmp/pack.html\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json\" > \"$tmp/closeout.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1\" > \"$tmp/closeout.html\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json\" > \"$tmp/summary.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1\" > \"$tmp/summary.html\"; grep -F VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1 \"$tmp/pack.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1 \"$tmp/pack.html\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1 \"$tmp/closeout.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1 \"$tmp/summary.json\" >/dev/null; python3 - \"$tmp/pack.json\" \"$tmp/closeout.json\" \"$tmp/summary.json\" <<'PY'\nimport json, sys\npack=json.load(open(sys.argv[1]))\ncloseout=json.load(open(sys.argv[2]))\nsummary=json.load(open(sys.argv[3]))\nassert pack[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1\"\nassert closeout[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1\"\nassert summary[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1\"\nfor k,v in closeout[\"authority\"].items():\n    assert v is False, f\"closeout authority {k} must be false\"\nfor k in [\"buyer_fulfilled\",\"manual_fulfillment_record_written\",\"manual_fulfillment_record_applied\",\"allocation_claim_created\",\"void_transfer_performed\",\"wallet_signing_performed\",\"treasury_movement_performed\",\"automatic_fulfillment_active\",\"public_mutation_authorized\"]:\n    assert closeout[\"status\"][k] is False, f\"closeout status {k} must be false\"\nrs=summary[\"runtime_route_hold\"][\"public_runtime_summary\"]\nfor k in [\"buyer_fulfilled\",\"manual_fulfillment_record_written\",\"manual_fulfillment_record_applied\",\"allocation_claim_created\",\"void_transfer_performed\",\"wallet_signing_performed\",\"treasury_movement_performed\",\"automatic_fulfillment_active\",\"public_mutation_authorized\",\"execution_authority\"]:\n    assert rs[k] is False, f\"summary {k} must be false\"\nfor section in [\"pack_boundary\",\"authority\"]:\n    for k,v in pack[section].items():\n        assert v is False, f\"pack {section}.{k} must be false\"\nprint(\"VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1_REVIEWER_GREEN\")\nPY"
+}

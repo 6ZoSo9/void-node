@@ -3803,6 +3803,74 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
   }
 })();
 
+
+/* [usdc-void-buy-pool.manual-fulfillment-readiness-public-reviewer-verify-pack.v1] */
+;(function __voidUsdcVoidBuyPoolManualFulfillmentReadinessPublicReviewerVerifyPackV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_manual_fulfillment_readiness_public_reviewer_verify_pack_v1) return;
+    (app as any).__void_usdc_void_buy_pool_manual_fulfillment_readiness_public_reviewer_verify_pack_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-manual-fulfillment-readiness-public-reviewer-verify-pack-v1.json");
+    const copyPasteVerifyCommand = "base=${VOID_PUBLIC_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}; tmp=$(mktemp -d); set -e; curl -fsS \"$base/public-node\" > \"$tmp/dashboard.html\"; curl -fsS \"$base/public-node/route-index.json\" > \"$tmp/route-index.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json\" > \"$tmp/pack.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1\" > \"$tmp/pack.html\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json\" > \"$tmp/closeout.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1\" > \"$tmp/closeout.html\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json\" > \"$tmp/summary.json\"; curl -fsS \"$base/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1\" > \"$tmp/summary.html\"; grep -F VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1 \"$tmp/pack.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1 \"$tmp/pack.html\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1 \"$tmp/closeout.json\" >/dev/null; grep -F VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1 \"$tmp/summary.json\" >/dev/null; python3 - \"$tmp/pack.json\" \"$tmp/closeout.json\" \"$tmp/summary.json\" <<'PY'\nimport json, sys\npack=json.load(open(sys.argv[1]))\ncloseout=json.load(open(sys.argv[2]))\nsummary=json.load(open(sys.argv[3]))\nassert pack[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1\"\nassert closeout[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1\"\nassert summary[\"marker\"]==\"VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1\"\nfor k,v in closeout[\"authority\"].items():\n    assert v is False, f\"closeout authority {k} must be false\"\nfor k in [\"buyer_fulfilled\",\"manual_fulfillment_record_written\",\"manual_fulfillment_record_applied\",\"allocation_claim_created\",\"void_transfer_performed\",\"wallet_signing_performed\",\"treasury_movement_performed\",\"automatic_fulfillment_active\",\"public_mutation_authorized\"]:\n    assert closeout[\"status\"][k] is False, f\"closeout status {k} must be false\"\nrs=summary[\"runtime_route_hold\"][\"public_runtime_summary\"]\nfor k in [\"buyer_fulfilled\",\"manual_fulfillment_record_written\",\"manual_fulfillment_record_applied\",\"allocation_claim_created\",\"void_transfer_performed\",\"wallet_signing_performed\",\"treasury_movement_performed\",\"automatic_fulfillment_active\",\"public_mutation_authorized\",\"execution_authority\"]:\n    assert rs[k] is False, f\"summary {k} must be false\"\nfor section in [\"pack_boundary\",\"authority\"]:\n    for k,v in pack[section].items():\n        assert v is False, f\"pack {section}.{k} must be false\"\nprint(\"VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1_REVIEWER_GREEN\")\nPY";
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      payload.copy_paste_verify_command = copyPasteVerifyCommand;
+      return payload;
+    };
+
+    const escapeHtml = (x:any) => String(x).replace(/[&<>"]/g, (c:string) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"} as any)[c]);
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      const payload = readPayload();
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Manual Fulfillment Readiness Reviewer Verify Pack</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Manual Fulfillment Readiness Reviewer Verify Pack</h1>
+    <p><strong>Purpose:</strong> one-command public verification for the buyer-facing closeout, readiness summary, dashboard discovery, route-index discovery, and false-authority boundaries.</p>
+    <p><strong>Boundary:</strong> public read-only. No fulfillment, no execution, no record write/apply, no transfer, no wallet signing, no treasury movement, no automatic fulfillment activation, and no public mutation.</p>
+    <ul>
+      <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1">Buyer-facing readiness closeout</a> · <a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json">JSON</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1">Public readiness summary</a> · <a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json">JSON</a></li>
+      <li><a href="/public-node">Public node dashboard</a></li>
+      <li><a href="/public-node/route-index.json">Route index JSON</a></li>
+    </ul>
+    <h2>Copy-paste reviewer verify command</h2>
+    <pre><code>${escapeHtml(payload.copy_paste_verify_command)}</code></pre>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.manual-fulfillment-readiness-public-reviewer-verify-pack.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.manual-fulfillment-readiness-public-reviewer-verify-pack.v1] failed", String(e?.stack || e));
+  }
+})();
+
 /* [latest-number-json.safe.v1] */
 ;(function __voidLatestNumberJsonSafeV1(){
   try{
@@ -48279,6 +48347,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1", use: "machine-readable public read-only manual fulfillment readiness summary; private operator material withheld and all authority false" },
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1", use: "buyer-facing public read-only closeout card for manual fulfillment readiness; evidence sealed, public summary live, fulfillment not executed, automatic fulfillment disabled" },
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1", use: "machine-readable buyer-facing manual fulfillment readiness closeout; no private operator material and all fulfillment/execution authority false" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "one-command public reviewer verify pack for the manual fulfillment readiness stack" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "machine-readable public reviewer verify pack with copy-paste command for closeout, summary, dashboard, route-index, and false-authority checks" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
@@ -58526,6 +58596,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json">Manual fulfillment public readiness JSON</a></li>
           <li><!-- VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1 --><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1">Buyer-facing manual fulfillment readiness closeout</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json">Buyer-facing manual fulfillment readiness closeout JSON</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1 --><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1">Manual fulfillment readiness public reviewer verify pack</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json">Manual fulfillment readiness public reviewer verify pack JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
