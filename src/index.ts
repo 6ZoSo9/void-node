@@ -3942,6 +3942,69 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
   }
 })();
 
+
+/* [usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] */
+;(function __voidUsdcVoidBuyPoolDualChainUsdcAcceptanceAllowlistV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_dual_chain_usdc_acceptance_allowlist_v1) return;
+    (app as any).__void_usdc_void_buy_pool_dual_chain_usdc_acceptance_allowlist_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-dual-chain-usdc-acceptance-allowlist-v1.json");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Dual-Chain USDC Acceptance Allowlist</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Dual-Chain USDC Acceptance Allowlist</h1>
+    <p><strong>Status:</strong> payment acceptance policy is limited to native USDC on Ethereum mainnet and native USDC on Base mainnet.</p>
+    <p><strong>Accepted:</strong></p>
+    <ul>
+      <li>Ethereum mainnet, chain_id 1, USDC contract <code>0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</code>, decimals 6</li>
+      <li>Base mainnet, chain_id 8453, USDC contract <code>0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913</code>, decimals 6</li>
+    </ul>
+    <p><strong>Rejected:</strong> bridged USDbC, non-USDC stablecoins, testnets, alternate token contracts, wrong chain IDs, wrong receiver, wrong decimals, and all non-allowlisted chains.</p>
+    <p><strong>Authority:</strong> this is a public read-only acceptance policy. It does not enable automatic payment execution, automatic fulfillment, wallet signing, treasury movement, VOID transfer, or public mutation.</p>
+    <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1">Automatic payment enablement preflight closeout</a> · <a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1.json">JSON</a></p>
+    <p><a href="${jsonRoute}">Allowlist JSON</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] failed", String(e?.stack || e));
+  }
+})();
+
 /* [latest-number-json.safe.v1] */
 ;(function __voidLatestNumberJsonSafeV1(){
   try{
@@ -48422,6 +48485,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1", use: "machine-readable public reviewer verify pack with copy-paste command for closeout, summary, dashboard, route-index, and false-authority checks" },
       { path: "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1", use: "public read-only preflight closeout for eventual automatic verified-payment handling; authority remains false" },
       { path: "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1", use: "machine-readable automatic payment enablement preflight closeout; no private operator material and all payment/fulfillment execution authority false" },
+      { path: "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1", use: "public read-only dual-chain USDC acceptance allowlist for Ethereum mainnet USDC and Base native USDC only" },
+      { path: "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1", use: "machine-readable allowlist: ethereum chain_id 1 USDC and base chain_id 8453 native USDC only; all execution authority false" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
@@ -58673,6 +58738,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json">Manual fulfillment readiness public reviewer verify pack JSON</a></li>
           <li><!-- VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1 --><a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1">Automatic payment enablement preflight closeout</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1.json">Automatic payment enablement preflight closeout JSON</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1 --><a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1">Dual-chain USDC acceptance allowlist</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1.json">Dual-chain USDC acceptance allowlist JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>

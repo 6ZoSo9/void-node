@@ -1,0 +1,90 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1",
+  "scope": "public_read_only_dual_chain_usdc_acceptance_allowlist",
+  "accepted_assets": [
+    {
+      "chain_key": "ethereum",
+      "chain_name": "Ethereum Mainnet",
+      "chain_id": 1,
+      "caip2": "eip155:1",
+      "token_standard": "ERC-20",
+      "asset_symbol": "USDC",
+      "asset_name": "USD Coin",
+      "token_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token_contract_lowercase": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "decimals": 6,
+      "native_usdc": true
+    },
+    {
+      "chain_key": "base",
+      "chain_name": "Base Mainnet",
+      "chain_id": 8453,
+      "caip2": "eip155:8453",
+      "token_standard": "ERC-20",
+      "asset_symbol": "USDC",
+      "asset_name": "USD Coin",
+      "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token_contract_lowercase": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "decimals": 6,
+      "native_usdc": true
+    }
+  ],
+  "rejected_assets": [
+    "bridged_usdbc",
+    "alternate_usdc_like_contracts",
+    "non_usdc_stablecoins",
+    "testnets",
+    "non_allowlisted_chains",
+    "wrong_receiver",
+    "wrong_token_decimals",
+    "malformed_or_ambiguous_chain_token_identifiers"
+  ],
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1",
+    "json": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/dual-chain-usdc-allowlist-v1.json",
+    "preflight_html": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1",
+    "preflight_json": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1.json",
+    "dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json"
+  },
+  "verification_policy": {
+    "chain_id_must_match": true,
+    "token_contract_must_match_allowlist": true,
+    "token_contract_compare_lowercase": true,
+    "decimals_must_equal_6": true,
+    "erc20_transfer_topic_required": true,
+    "receiver_allowlist_still_required": true,
+    "finality_confirmations_still_required": true,
+    "duplicate_payment_guard_still_required": true
+  },
+  "status": {
+    "ethereum_mainnet_usdc_accepted": true,
+    "base_mainnet_native_usdc_accepted": true,
+    "bridged_usdbc_accepted": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_signing_enabled": false,
+    "treasury_movement_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_wallet_secret": false,
+    "contains_private_document_path": false,
+    "contains_execution_material": false,
+    "contains_transfer_instruction": false
+  }
+}
