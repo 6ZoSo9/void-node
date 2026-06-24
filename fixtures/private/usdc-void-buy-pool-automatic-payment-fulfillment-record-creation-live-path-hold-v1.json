@@ -1,0 +1,72 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_RECORD_CREATION_LIVE_PATH_HOLD_V1",
+  "scope": "private_fulfillment_record_creation_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "fulfillment_record_creation_live_path_enabled": false,
+    "fulfillment_record_creation_enabled": false,
+    "fulfillment_record_append_write_enabled": false,
+    "fulfillment_execution_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "required_prerequisite_results": [
+    "allocation_claim_creation_pass",
+    "inventory_reserve_decrement_pass",
+    "amount_rate_policy_pass",
+    "verified_receipt_parser_pass",
+    "duplicate_payment_guard_pass"
+  ],
+  "fulfillment_record_key_fields": [
+    "buyer_identity_binding_key",
+    "payment_verification_key",
+    "duplicate_guard_key",
+    "quote_or_payment_intent_key",
+    "reserve_key",
+    "allocation_claim_key",
+    "derived_void_amount",
+    "fulfillment_record_key"
+  ],
+  "rejected_fulfillment_record_states": [
+    "missing_buyer_identity_binding",
+    "missing_payment_verification_key",
+    "missing_duplicate_guard_key",
+    "missing_reserve_key",
+    "missing_allocation_claim_key",
+    "missing_derived_void_amount",
+    "fulfillment_amount_mismatch",
+    "duplicate_fulfillment_record_key",
+    "fulfillment_record_before_allocation_claim",
+    "fulfillment_record_after_failed_payment",
+    "fulfillment_record_after_duplicate_payment",
+    "fulfillment_record_after_insufficient_inventory",
+    "fulfillment_record_with_wallet_authority",
+    "fulfillment_record_with_void_transfer_authority",
+    "fulfilled_state_without_execution_authorization"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "fulfillment_record_creation": false,
+    "fulfillment_record_append_write": false,
+    "fulfillment_execution": false,
+    "buyer_fulfillment": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}
