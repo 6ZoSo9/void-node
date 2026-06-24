@@ -3665,6 +3665,72 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
   }
 }
 
+
+/* [usdc-void-buy-pool.manual-fulfillment-public-readiness-summary.late-runtime-route.v1] */
+;(function __voidUsdcVoidBuyPoolManualFulfillmentPublicReadinessSummaryLateRuntimeRouteV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_manual_fulfillment_public_readiness_summary_late_runtime_route_v1) return;
+    (app as any).__void_usdc_void_buy_pool_manual_fulfillment_public_readiness_summary_late_runtime_route_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1";
+    const basePath = "/public-node/usdc-void-buy-pool" + "/manual-fulfillment/public-readiness-summary-v1";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-buyer-packet-manual-fulfillment-public-readiness-summary-runtime-route-hold-v1.json");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(basePath + ".json", (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(basePath, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Manual Fulfillment Public Readiness Summary</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Manual Fulfillment Public Readiness Summary</h1>
+    <p><strong>Status:</strong> private manual evidence chain sealed; public route is read-only.</p>
+    <p><strong>Authority:</strong> false. This is not fulfillment, not execution, not a record write/apply, not a transfer, not automatic fulfillment, and not public mutation.</p>
+    <ul>
+      <li>Buyer fulfillment: not performed</li>
+      <li>Manual fulfillment record write: not performed</li>
+      <li>Manual fulfillment record apply: not performed</li>
+      <li>Allocation claim creation: not performed</li>
+      <li>VOID transfer: not performed</li>
+      <li>Wallet signing: not performed</li>
+      <li>Treasury movement: not performed</li>
+      <li>Automatic fulfillment: not active</li>
+      <li>Execution authority: false</li>
+    </ul>
+    <p><a href="${basePath}.json">View JSON readiness summary</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.manual-fulfillment-public-readiness-summary.late-runtime-route.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.manual-fulfillment-public-readiness-summary.late-runtime-route.v1] failed", String(e?.stack || e));
+  }
+})();
+
 /* [latest-number-json.safe.v1] */
 ;(function __voidLatestNumberJsonSafeV1(){
   try{

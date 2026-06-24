@@ -145,6 +145,19 @@ if command -v systemctl >/dev/null 2>&1; then
   fi
 fi
 
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS "$local_origin$json_route" -o /tmp/void_manual_fulfillment_public_readiness_summary_live_wait.json >/dev/null 2>&1; then
+    echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_local_json_ready_after_${i}s=true"
+    break
+  fi
+  if test "$i" = "10"; then
+    echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_local_json_ready_timeout=false"
+    curl -i "$local_origin$json_route" || true
+    exit 1
+  fi
+  sleep 1
+done
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
