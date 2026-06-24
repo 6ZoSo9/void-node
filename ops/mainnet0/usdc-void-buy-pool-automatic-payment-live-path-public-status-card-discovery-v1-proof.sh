@@ -96,6 +96,16 @@ grep -Fq "__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_ca
 echo "automatic_payment_live_path_public_status_card_discovery_links_green=true"
 echo "automatic_payment_live_path_public_status_card_discovery_runtime_mount_scope_green=true"
 
+route_index_wiring_marker="VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_ROUTE_INDEX_WIRING_V1"
+
+grep -Fq "$route_index_wiring_marker" "$src"
+grep -Fq "automatic payment live-path status card HTML route-index entry" "$src"
+grep -Fq "automatic payment live-path status card JSON route-index entry" "$src"
+grep -Fq "automatic payment live-path discovery HTML route-index entry" "$src"
+grep -Fq "automatic payment live-path discovery JSON route-index entry" "$src"
+
+echo "automatic_payment_live_path_public_status_card_discovery_route_index_wiring_green=true"
+
 if grep -Fq 'app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1' "$src"; then
   echo "automatic_payment_live_path_public_status_card_discovery_bad_app_scope_found=false"
   exit 1
