@@ -145,9 +145,9 @@ grep -q "$runtime_marker" "$tmpdir/public.html"
 grep -q "Authority:</strong> false" "$tmpdir/local.html"
 grep -q "Authority:</strong> false" "$tmpdir/public.html"
 
-node "$tmpdir/local.json" "$tmpdir/public.json" <<'NODE'
+node - "$tmpdir/local.json" "$tmpdir/public.json" <<'NODE'
 const fs = require("fs");
-const files = process.argv.slice(1);
+const files = process.argv.slice(2);
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
