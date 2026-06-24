@@ -83106,3 +83106,110 @@ if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1()) {
   }
 }
 
+
+
+const usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1 = Object.freeze({
+  marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1",
+  schema: "usdc_void_buy_pool_automatic_payment_live_path_public_status_card_discovery_v1",
+  status: "public_discovery_read_only",
+  visibility: "public",
+  public_safe: true,
+  linked_status_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+  linked_private_terminal_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_TERMINAL_READINESS_ROLLUP_HOLD_V1",
+  private_details_exposed: false,
+  routes: {
+    status_card_json: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json",
+    status_card_html: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1",
+    discovery_json: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json",
+    discovery_html: "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1",
+    route_index_json: "/public-node/route-index.json"
+  },
+  authority: {
+    automatic_payment_execution: false,
+    automatic_fulfillment: false,
+    wallet_fulfillment: false,
+    signer_access: false,
+    treasury_transfer_authority: false,
+    buyer_execution: false,
+    public_mutation: false,
+    ledger_write: false,
+    void_transfer: false
+  },
+  reviewer_message:
+    "Use this discovery card to find the automatic payment public status card. The automatic payment path remains not enabled."
+});
+
+function mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1(): boolean {
+  const runtimeApp = (globalThis as any).__void_http_app;
+
+  if (!runtimeApp || typeof runtimeApp.get !== "function") {
+    return false;
+  }
+
+  if ((runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_card_discovery_v1_mounted) {
+    return true;
+  }
+
+  (runtimeApp as any).__void_usdc_void_buy_pool_automatic_payment_live_path_public_status_card_discovery_v1_mounted = true;
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json", (_req:any, res:any) => {
+    res.json(usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1);
+  });
+
+  runtimeApp.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1", (_req:any, res:any) => {
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Automatic Payment Status Discovery</title>
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Automatic Payment Status Discovery</h1>
+    <p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1</p>
+    <p><strong>Status:</strong> public_discovery_read_only</p>
+    <p>This discovery card links to the automatic payment public status card. It does not enable automatic payment or fulfillment.</p>
+    <ul>
+      <li><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json">Automatic payment status JSON</a></li>
+      <li><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1">Automatic payment status HTML</a></li>
+      <li><a href="/public-node/route-index.json">Public route index JSON</a></li>
+    </ul>
+    <h2>Authority state</h2>
+    <ul>
+      <li>automatic payment execution: false</li>
+      <li>automatic fulfillment: false</li>
+      <li>wallet fulfillment: false</li>
+      <li>signer access: false</li>
+      <li>treasury transfer authority: false</li>
+      <li>buyer execution: false</li>
+      <li>public mutation: false</li>
+      <li>private details exposed: false</li>
+    </ul>
+    <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json">JSON discovery card</a></p>
+  </main>
+</body>
+</html>`);
+  });
+
+  console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-status-card-discovery.v1] mounted");
+  return true;
+}
+
+if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) {
+  const VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER = setInterval(() => {
+    if (mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) {
+      clearInterval(VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER);
+    }
+  }, 250);
+
+  setTimeout(() => {
+    clearInterval(VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER);
+    if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) {
+      console.log("[usdc-void-buy-pool.automatic-payment-live-path-public-status-card-discovery.v1] no app hook; routes not mounted");
+    }
+  }, 20000);
+
+  if ((VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER as any).unref) {
+    (VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1_ROUTE_TIMER as any).unref();
+  }
+}
