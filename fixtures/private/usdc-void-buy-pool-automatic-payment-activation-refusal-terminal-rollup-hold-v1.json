@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_TERMINAL_ROLLUP_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_activation_refusal_terminal_rollup_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "activation_refusal_terminal_rollup_hold",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_GUARD_CLOSEOUT_HOLD_V1",
+    "head": "9968d77f",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-guard-closeout-hold-v1-local-green-20260624-212537",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-guard-closeout-hold-v1-cross-box-green-20260624-212630"
+  },
+  "purpose": "private operator-only terminal rollup for the automatic payment activation refusal evidence chain; no execution authority is created",
+  "rollup_chain": {
+    "dry_run_decision_packet_hold": true,
+    "dry_run_decision_result_hold": true,
+    "dry_run_closeout_hold": true,
+    "dry_run_closeout_non_activation_boundary_hold": true,
+    "activation_prerequisite_gap_matrix_hold": true,
+    "activation_refusal_guard_hold": true,
+    "activation_refusal_guard_closeout_hold": true,
+    "activation_refusal_terminal_rollup_hold": true
+  },
+  "rollup_status": {
+    "automatic_payment_remains_refused": true,
+    "evidence_only": true,
+    "activation_artifact": false,
+    "activation_requested": false,
+    "activation_approved": false,
+    "activation_executed": false,
+    "current_artifact_satisfies_activation": false
+  },
+  "future_activation_requirements": {
+    "separate_explicit_operator_activation_artifact_required": true,
+    "separate_activation_proof_stack_required": true,
+    "two_box_green_verification_required": true,
+    "final_precision_sync_required": true
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  },
+  "public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "private_operator_material_exposed": false,
+    "activation_command_exposed": false,
+    "wallet_or_signer_material_exposed": false,
+    "ledger_path_exposed": false
+  }
+}
