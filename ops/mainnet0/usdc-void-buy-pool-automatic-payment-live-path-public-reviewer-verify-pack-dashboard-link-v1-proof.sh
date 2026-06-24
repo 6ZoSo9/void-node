@@ -9,7 +9,7 @@ src="src/index.ts"
 pack_html="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1"
 pack_json="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json"
 
-echo "${marker}_PROOF_BEGIN"
+echo "${marker}_LIVE_ROUTE_REPAIR_PROOF_BEGIN"
 
 test -f "$doc"
 test -f "$src"
@@ -35,27 +35,48 @@ import sys
 
 s = Path(sys.argv[1]).read_text()
 
-checks = [
-    ("VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_PUBLIC_NODE_CARD_V1"),
-    ("VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1", "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_BUY_POOL_CARD_V1"),
+overall = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1"
+public_node_marker = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_PUBLIC_NODE_CARD_V1"
+buy_pool_marker = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_BUY_POOL_CARD_V1"
+pack_html = "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1"
+pack_json = "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json"
+
+def require(cond, msg):
+    if not cond:
+        raise SystemExit(msg)
+
+require(s.count(f'data-void-card="{public_node_marker}"') == 1, "public node card section must appear exactly once")
+require(s.count(f'data-void-card="{buy_pool_marker}"') == 1, "buy pool card section must appear exactly once")
+
+public_start = s.find('APP.get("/public-node",')
+require(public_start >= 0, 'live APP.get("/public-node", route missing')
+public_end = s.find("</body>", public_start)
+require(public_end >= 0, "public node route body end missing")
+public_window = s[public_start:public_end]
+
+buy_starts = [
+    i for i in [
+        s.find('APP.get("/public-node/buy-pool/usdc-void-v1"'),
+        s.find('app.get("/public-node/buy-pool/usdc-void-v1"'),
+        s.find('runtimeApp.get("/public-node/buy-pool/usdc-void-v1"'),
+    ] if i >= 0
 ]
+require(buy_starts, "buy pool html route handler missing")
+buy_start = min(buy_starts)
+buy_end = s.find("</body>", buy_start)
+require(buy_end >= 0, "buy pool route body end missing")
+buy_window = s[buy_start:buy_end]
 
-for anchor, marker in checks:
-    a = s.find(anchor)
-    if a < 0:
-        raise SystemExit(f"missing anchor {anchor}")
-    b = s.find("</body>", a)
-    if b < 0:
-        raise SystemExit(f"missing body close after {anchor}")
-    window = s[a:b]
-    if marker not in window:
-        raise SystemExit(f"{marker} not inside route body for {anchor}")
-    if "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1" not in window:
-        raise SystemExit(f"reviewer pack html link not inside route body for {anchor}")
-    if "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json" not in window:
-        raise SystemExit(f"reviewer pack json link not inside route body for {anchor}")
+for marker, window, name in [
+    (public_node_marker, public_window, "public-node"),
+    (buy_pool_marker, buy_window, "buy-pool"),
+]:
+    require(f'data-void-card="{marker}"' in window, "%s card section missing from live %s route" % (marker, name))
+    require(pack_html in window, "pack html link missing from live %s route" % name)
+    require(pack_json in window, "pack json link missing from live %s route" % name)
+    require(overall in window, "overall marker missing from live %s route" % name)
 
-print("automatic_payment_live_path_public_reviewer_verify_pack_dashboard_link_route_body_green=true")
+print("automatic_payment_live_path_public_reviewer_verify_pack_dashboard_link_live_route_body_green=true")
 PY
 
 if grep -E 'app\.(post|put|patch|delete)\("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack' "$src"; then
@@ -79,4 +100,4 @@ else
   echo "automatic_payment_live_path_public_reviewer_verify_pack_dashboard_link_live_check_skipped=true"
 fi
 
-echo "${marker}_GREEN"
+echo "${marker}_LIVE_ROUTE_REPAIR_GREEN"
