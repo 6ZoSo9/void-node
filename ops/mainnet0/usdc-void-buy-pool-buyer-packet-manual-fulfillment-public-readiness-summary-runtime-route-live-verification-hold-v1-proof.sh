@@ -125,13 +125,19 @@ public_origin="${VOID_RUNTIME_PUBLIC_ORIGIN:-https://zoso-alienware-aurora-r7.ta
 service_name="${VOID_RUNTIME_SERVICE_NAME:-void-node-live.service}"
 
 if command -v systemctl >/dev/null 2>&1; then
-  if sudo -n true 2>/dev/null; then
+  if systemctl --user is-active --quiet "$service_name" 2>/dev/null; then
+    systemctl --user restart "$service_name"
+    systemctl --user is-active --quiet "$service_name"
+    echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_user_service_restart_performed=true"
+  elif sudo -n true 2>/dev/null; then
     sudo -n systemctl restart "$service_name"
     sudo -n systemctl is-active --quiet "$service_name"
     echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_sudo_restart_performed=true"
   else
     echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_sudo_restart_skipped_no_tty=true"
-    if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+    if systemctl --user is-active --quiet "$service_name" 2>/dev/null; then
+      echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_user_service_active_without_restart_green=true"
+    elif systemctl is-active --quiet "$service_name" 2>/dev/null; then
       echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_service_active_without_sudo_green=true"
     else
       echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_service_active_check_skipped_or_inactive_without_sudo=true"
