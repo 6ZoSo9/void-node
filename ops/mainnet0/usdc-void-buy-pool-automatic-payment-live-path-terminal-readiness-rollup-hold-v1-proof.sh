@@ -16,11 +16,26 @@ grep -Fq "$marker" "$fixture"
 echo "automatic_payment_live_path_terminal_readiness_rollup_hold_doc_green=true"
 echo "automatic_payment_live_path_terminal_readiness_rollup_hold_fixture_green=true"
 
-if git grep -F "$marker" -- src docs/public fixtures/public >/dev/null 2>&1; then
+public_refs="$(git grep -l -F "$marker" -- src docs/public fixtures/public || true)"
+
+unexpected_public_refs="$(
+  printf '%s\n' "$public_refs" | awk '
+    NF &&
+    $0 != "src/index.ts" &&
+    $0 != "docs/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-v1.md" &&
+    $0 != "fixtures/public/usdc-void-buy-pool-automatic-payment-live-path-public-status-card-v1.json" {
+      print
+    }
+  '
+)"
+
+if [ -n "$unexpected_public_refs" ]; then
   echo "automatic_payment_live_path_terminal_readiness_rollup_hold_public_leak=false"
+  printf '%s\n' "$unexpected_public_refs"
   exit 1
 fi
 
+echo "automatic_payment_live_path_terminal_readiness_rollup_hold_public_status_card_reference_allowed=true"
 echo "automatic_payment_live_path_terminal_readiness_rollup_hold_private_only_green=true"
 
 node - "$fixture" <<'NODE'

@@ -83000,3 +83000,72 @@ if (!VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_TRY_MOUNT_R
     (VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_BOUNDARY_V1_ROUTE_TIMER as any).unref();
   }
 }
+
+
+const usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1 = Object.freeze({
+  marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+  schema: "usdc_void_buy_pool_automatic_payment_live_path_public_status_card_v1",
+  status: "public_status_read_only_not_enabled",
+  visibility: "public",
+  public_safe: true,
+  terminal_private_rollup_marker: "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_TERMINAL_READINESS_ROLLUP_HOLD_V1",
+  private_details_exposed: false,
+  automatic_payment_live_path: {
+    terminal_readiness_rollup_exists: true,
+    activation_enabled: false,
+    runtime_enabled: false,
+    automatic_payment_execution: false,
+    automatic_fulfillment: false,
+    wallet_fulfillment: false,
+    signer_access: false,
+    treasury_transfer_authority: false,
+    buyer_execution: false,
+    public_mutation: false,
+    ledger_write: false,
+    void_transfer: false
+  },
+  withheld_values: {
+    wallet: true,
+    signer: true,
+    receiver: true,
+    treasury: true,
+    buyer: true,
+    inventory_mutation_details: true,
+    private_rollup_details: true
+  },
+  reviewer_message:
+    "Automatic payment live path is terminal-ready as a private hold, but no automatic payment or fulfillment authority is enabled."
+});
+
+app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json", (_req, res) => {
+  res.json(usdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardV1);
+});
+
+app.get("/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1", (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Automatic Payment Live-Path Status</title>
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Automatic Payment Live-Path Status</h1>
+    <p><strong>Marker:</strong> VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1</p>
+    <p><strong>Status:</strong> public_status_read_only_not_enabled</p>
+    <p>The automatic payment live path is terminal-ready as a private hold, but it is not enabled.</p>
+    <ul>
+      <li>automatic payment execution: false</li>
+      <li>automatic fulfillment: false</li>
+      <li>wallet fulfillment: false</li>
+      <li>signer access: false</li>
+      <li>treasury transfer authority: false</li>
+      <li>buyer execution: false</li>
+      <li>public mutation: false</li>
+      <li>private details exposed: false</li>
+    </ul>
+    <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json">JSON status card</a></p>
+  </main>
+</body>
+</html>`);
+});

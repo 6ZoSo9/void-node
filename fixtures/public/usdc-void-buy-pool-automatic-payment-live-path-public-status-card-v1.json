@@ -1,0 +1,33 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_live_path_public_status_card_v1",
+  "status": "public_status_read_only_not_enabled",
+  "visibility": "public",
+  "public_safe": true,
+  "terminal_private_rollup_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_TERMINAL_READINESS_ROLLUP_HOLD_V1",
+  "private_details_exposed": false,
+  "automatic_payment_live_path": {
+    "terminal_readiness_rollup_exists": true,
+    "activation_enabled": false,
+    "runtime_enabled": false,
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "void_transfer": false
+  },
+  "withheld_values": {
+    "wallet": true,
+    "signer": true,
+    "receiver": true,
+    "treasury": true,
+    "buyer": true,
+    "inventory_mutation_details": true,
+    "private_rollup_details": true
+  },
+  "reviewer_message": "Automatic payment live path is terminal-ready as a private hold, but no automatic payment or fulfillment authority is enabled."
+}
