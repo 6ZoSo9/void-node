@@ -1,0 +1,109 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_VERIFIED_RECEIPT_PARSER_LIVE_PATH_HOLD_V1",
+  "scope": "private_verified_receipt_parser_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "verified_receipt_parser_live_path_enabled": false,
+    "parser_live_execution_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "duplicate_ledger_write_enabled": false,
+    "fulfillment_record_write_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "linked_prerequisites": {
+    "duplicate_payment_guard_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DUPLICATE_PAYMENT_GUARD_LIVE_PATH_HOLD_V1",
+    "fulfillment_wallet_policy_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_WALLET_POLICY_HOLD_V1",
+    "receiver_allowlist_confirmation_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_RECEIVER_ALLOWLIST_CONFIRMATION_HOLD_V1",
+    "dual_chain_usdc_acceptance_allowlist_marker": "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1"
+  },
+  "required_parser_fields": [
+    "receipt_status",
+    "chain_id",
+    "token_contract",
+    "transfer_topic",
+    "from_address",
+    "to_receiver",
+    "value_raw",
+    "decimals",
+    "tx_hash",
+    "log_index",
+    "duplicate_guard_key"
+  ],
+  "transfer_log_policy": {
+    "erc20_transfer_topic": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+    "receipt_status_must_equal": "success",
+    "value_type": "uint256",
+    "decimals_must_equal": 6,
+    "to_receiver_source": "private_receiver_allowlist_confirmation_hold",
+    "duplicate_guard_key_required": true
+  },
+  "chain_scope": {
+    "ethereum_mainnet_usdc": {
+      "chain_id": 1,
+      "token_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token_contract_lowercase": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "decimals": 6,
+      "native_usdc": true
+    },
+    "base_mainnet_native_usdc": {
+      "chain_id": 8453,
+      "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token_contract_lowercase": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "decimals": 6,
+      "native_usdc": true
+    }
+  },
+  "rejected_parser_states": [
+    "failed_receipt",
+    "missing_receipt",
+    "missing_logs",
+    "wrong_transfer_topic",
+    "wrong_token_contract",
+    "wrong_chain_id",
+    "wrong_receiver",
+    "wrong_decimals",
+    "malformed_value",
+    "missing_tx_hash",
+    "missing_log_index",
+    "duplicate_key_derivation_failure",
+    "bridged_usdbc"
+  ],
+  "required_before_activation": [
+    "receipt_status_success_fixture_proof",
+    "erc20_transfer_topic_parser_proof",
+    "dual_chain_token_contract_parser_proof",
+    "private_receiver_match_parser_proof",
+    "value_raw_uint256_parser_proof",
+    "log_index_tx_hash_parser_proof",
+    "duplicate_guard_key_derivation_proof",
+    "negative_receipt_fixture_proof",
+    "cross_box_receipt_parser_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "parser_live_execution": false,
+    "duplicate_ledger_write": false,
+    "fulfillment_record_write": false,
+    "buyer_fulfillment": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}
