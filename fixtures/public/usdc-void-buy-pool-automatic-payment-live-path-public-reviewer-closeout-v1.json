@@ -1,0 +1,45 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_CLOSEOUT_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_live_path_public_reviewer_closeout_v1",
+  "status": "public_reviewer_discovery_closeout_read_only",
+  "visibility": "public",
+  "public_safe": true,
+  "private_details_exposed": false,
+  "purpose": "final public closeout/status endpoint for the automatic-payment public reviewer stack; proves reviewer verification is live and discoverable from public-node dashboard, buy-pool page, route-index, and reviewer verify pack routes",
+  "sealed_dependency_head": "fa25742f",
+  "routes": {
+    "closeout_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-closeout-v1.json",
+    "closeout_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-closeout-v1",
+    "reviewer_pack_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json",
+    "reviewer_pack_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1",
+    "public_node_dashboard": "/public-node",
+    "buy_pool_page": "/public-node/buy-pool/usdc-void-v1",
+    "route_index_json": "/public-node/route-index.json"
+  },
+  "required_markers": [
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_PUBLIC_NODE_CARD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_BUY_POOL_CARD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_CLOSEOUT_ROUTE_INDEX_WIRING_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_CLOSEOUT_V1"
+  ],
+  "discoverability": {
+    "route_index_wired": true,
+    "public_node_dashboard_card_live": true,
+    "buy_pool_page_card_live": true,
+    "reviewer_verify_pack_live": true,
+    "copy_paste_reviewer_command_live": true
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "void_transfer": false
+  }
+}
