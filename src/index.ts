@@ -3683,9 +3683,14 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
     const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-buyer-packet-manual-fulfillment-public-readiness-summary-runtime-route-hold-v1.json");
 
     const readPayload = () => {
-      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
-      payload.marker = marker;
-      return payload;
+      const hold:any = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      if (hold && hold.runtime_route_hold) return hold;
+      hold.marker = marker;
+      return {
+        marker,
+        route_kind: "public_node_runtime_read_only",
+        runtime_route_hold: hold
+      };
     };
 
     app.get(basePath + ".json", (_req:any, res:any) => {
