@@ -131,8 +131,11 @@ if command -v systemctl >/dev/null 2>&1; then
     echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_sudo_restart_performed=true"
   else
     echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_sudo_restart_skipped_no_tty=true"
-    systemctl is-active --quiet "$service_name"
-    echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_service_active_without_sudo_green=true"
+    if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+      echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_service_active_without_sudo_green=true"
+    else
+      echo "buyer_packet_manual_fulfillment_public_readiness_summary_runtime_route_live_verification_hold_service_active_check_skipped_or_inactive_without_sudo=true"
+    fi
   fi
 fi
 
