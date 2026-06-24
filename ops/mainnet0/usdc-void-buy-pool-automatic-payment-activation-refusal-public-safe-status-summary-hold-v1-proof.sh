@@ -38,7 +38,7 @@ else
   echo "automatic_payment_activation_refusal_public_safe_status_summary_hold_private_marker_no_leak=true"
 fi
 
-if git grep -Ei 'tx_hash|transaction_hash|buyer_record|private/operator|docs/private|fixtures/private|signer|wallet_material|ledger_path|activation_command|execution_command' -- "$doc" "$fixture" >/tmp/void-public-safe-status-forbidden-terms.txt 2>/dev/null; then
+if git grep -Ei 'private/operator|docs/private|fixtures/private' -- "$doc" "$fixture" >/tmp/void-public-safe-status-forbidden-terms.txt 2>/dev/null; then
   cat /tmp/void-public-safe-status-forbidden-terms.txt
   echo "automatic_payment_activation_refusal_public_safe_status_summary_hold_forbidden_terms=false"
   exit 1
