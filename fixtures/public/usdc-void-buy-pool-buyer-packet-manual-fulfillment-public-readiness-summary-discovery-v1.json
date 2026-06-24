@@ -1,0 +1,30 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_DISCOVERY_V1",
+  "route_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1",
+  "scope": "public_read_only_discovery",
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1",
+    "json": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json"
+  },
+  "discovery_surfaces": {
+    "public_node_dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json"
+  },
+  "authority": {
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "automatic_fulfillment_activation": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_wallet_secret": false,
+    "contains_private_document_path": false
+  }
+}

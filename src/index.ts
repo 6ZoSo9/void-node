@@ -48208,6 +48208,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       // VOID_USDC_VOID_BUY_POOL_READINESS_ROLLUP_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/buy-pool/usdc-void-v1", kind: "html", marker: "VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1", use: "public fixed-price USDC to VOID presale page with buyer-facing safety status, quote-only pending requests, and manual execution boundary" },
       { path: "/public-node/buy-pool/usdc-void-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1", use: "machine-readable presale quote and buyer-status fields with automatic delivery disabled and private operator material withheld" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1", use: "public read-only buyer-safe manual fulfillment readiness summary; no fulfillment, no execution, no record write/apply, no transfer, no public mutation" },
+      { path: "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1", use: "machine-readable public read-only manual fulfillment readiness summary; private operator material withheld and all authority false" },
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1.json", kind: "json", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_V1", use: "single public read-only readiness rollup for funding, presale HTML, presale JSON, execution hold status, safety, and private no-leak boundary" },
       // VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_ROUTE_INDEX_DISCOVERY_V1
       { path: "/public-node/usdc-void-buy-pool/readiness-rollup-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_READINESS_ROLLUP_HTML_V1", use: "human-facing public read-only readiness rollup for the USDC to VOID presale, linking JSON status, buy-pool page, execution hold status, and route index" },
@@ -58451,6 +58453,8 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <li><a href="/public-node/usdc-void-buy-pool/readiness-rollup-v1.json">Readiness rollup JSON</a></li>
           <li><a href="/public-node/buy-pool/usdc-void-v1">Fixed-price buy-pool page</a></li>
           <li><a href="/public-node/buy-pool/usdc-void-v1.json">Fixed-price buy-pool JSON</a></li>
+          <li><!-- VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_DISCOVERY_V1 --><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1">Manual fulfillment public readiness summary</a></li>
+          <li><a href="/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json">Manual fulfillment public readiness JSON</a></li>
           <li><a href="/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1">Operator execution hold status</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
           <li data-void-marker="VOID_USDC_VOID_BUY_POOL_PUBLIC_REVIEWER_VERIFY_PACK_HTML_VISIBLE_LINKS_V1"><a href="/public-node/usdc-void-buy-pool/reviewer-verify-pack-v1">Reviewer verify pack page</a></li>
