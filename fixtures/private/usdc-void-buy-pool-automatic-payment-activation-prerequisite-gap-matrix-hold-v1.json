@@ -1,0 +1,55 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_PREREQUISITE_GAP_MATRIX_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_activation_prerequisite_gap_matrix_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "activation_prerequisite_gap_matrix_hold",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DRY_RUN_CLOSEOUT_NON_ACTIVATION_BOUNDARY_HOLD_V1",
+    "head": "10acf437",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-dry-run-closeout-non-activation-boundary-hold-v1-local-green-20260624-210951",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-dry-run-closeout-non-activation-boundary-hold-v1-cross-box-green-20260624-211052"
+  },
+  "purpose": "private operator-only gap matrix listing remaining prerequisites before any future automatic payment activation can be considered",
+  "activation_status": {
+    "activation_requested": false,
+    "activation_approved": false,
+    "activation_executed": false,
+    "current_artifact_satisfies_activation": false
+  },
+  "remaining_required_gates": {
+    "explicit_operator_activation_artifact": false,
+    "activation_proof_stack": false,
+    "private_allocation_ledger_write_path_approval": false,
+    "append_only_ledger_writer_proof": false,
+    "allocation_claim_creation_proof": false,
+    "inventory_reserve_decrement_proof": false,
+    "signer_wallet_policy_proof": false,
+    "fulfillment_execution_proof": false,
+    "duplicate_payment_recheck_proof": false,
+    "finality_live_receipt_verification_proof": false,
+    "public_mutation_boundary_proof": false,
+    "advisory_ai_no_write_proof": false,
+    "two_box_green_verification": false,
+    "final_precision_sync": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  },
+  "public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "private_operator_material_exposed": false,
+    "activation_command_exposed": false
+  }
+}
