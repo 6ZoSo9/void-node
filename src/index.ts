@@ -53704,6 +53704,22 @@ APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NOD
     </section>
 
   </main>
+
+<section data-void-card="VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_PUBLIC_NODE_CARD_V1" style="border:1px solid #555;padding:12px;margin:12px 0;">
+  <h2>Automatic payment reviewer verify pack</h2>
+  <p><strong>Marker:</strong> <code>VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_PUBLIC_NODE_CARD_V1</code></p>
+  <p>One-command public reviewer verification for the automatic-payment live-path status card, discovery card, route-index wiring, and false-authority boundaries.</p>
+  <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1">Open reviewer verify pack</a> · <a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json">Reviewer pack JSON</a></p>
+  <p><code>VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1</code></p>
+</section>
+
+<section data-void-card="VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_BUY_POOL_CARD_V1" style="border:1px solid #555;padding:12px;margin:12px 0;">
+  <h2>Automatic payment reviewer verify pack</h2>
+  <p><strong>Marker:</strong> <code>VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_BUY_POOL_CARD_V1</code></p>
+  <p>One-command public reviewer verification for the automatic-payment live-path status card, discovery card, route-index wiring, and false-authority boundaries.</p>
+  <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1">Open reviewer verify pack</a> · <a href="/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-reviewer-verify-pack-v1.json">Reviewer pack JSON</a></p>
+  <p><code>VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1</code></p>
+</section>
 </body>
 </html>`);
 });
