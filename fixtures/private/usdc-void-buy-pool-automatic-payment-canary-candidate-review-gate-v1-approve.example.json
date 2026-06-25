@@ -1,0 +1,6 @@
+{
+  "operator_review_decision": "approve_for_allocation_candidate",
+  "reviewer": "operator",
+  "review_note": "canary candidate approved for allocation-candidate stage",
+  "max_candidate_count": 1
+}
