@@ -17,7 +17,7 @@ def emit(ok, state, reason, record=None):
         },
         "authority": {
             "inventory_already_reserved": bool(record is not None),
-            "allocation_record_created": bool(ok),
+            "allocation_record_created": bool(ok and record is not None),
             "private_allocation_ledger_write": False,
             "fulfillment_execution": False,
             "wallet_signing": False,
@@ -71,8 +71,31 @@ def stable_id(parts):
 actual = load_json_env("CANARY_INVENTORY_RESERVE_ACTUAL_EXECUTE_OUTPUT_JSON")
 policy = load_json_env("CANARY_ALLOCATION_RECORD_CREATION_POLICY_JSON")
 
+def find_dict_with_key(value, key):
+    if isinstance(value, dict):
+        if key in value:
+            return value
+        for child in value.values():
+            found = find_dict_with_key(child, key)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = find_dict_with_key(child, key)
+            if found is not None:
+                return found
+    return None
+
 execute = actual.get("execute", {})
-result = actual.get("result", {})
+result = actual.get("result")
+if not isinstance(result, dict):
+    result = (
+        actual.get("actual_execute_result")
+        or actual.get("inventory_reserve_actual_execute_result")
+        or actual.get("automatic_payment_canary_inventory_reserve_actual_execute_result")
+        or find_dict_with_key(actual, "actual_execute_result_status")
+        or {}
+    )
 authority = actual.get("authority", {})
 
 expected_state = policy.get("expected_actual_execute_state")
