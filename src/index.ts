@@ -4129,6 +4129,98 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 })();
 
 
+
+/* [usdc-void-buy-pool.automatic-payment-canary-rpc-rate-limit-hold.v1] */
+;(function __voidUsdcVoidBuyPoolAutomaticPaymentCanaryRpcRateLimitHoldV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_automatic_payment_canary_rpc_rate_limit_hold_v1) return;
+    (app as any).__void_usdc_void_buy_pool_automatic_payment_canary_rpc_rate_limit_hold_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_RPC_RATE_LIMIT_HOLD_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/rpc-rate-limit-hold-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/rpc-rate-limit-hold-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-automatic-payment-canary-rpc-rate-limit-hold-v1.json");
+
+    const escapeHtml = (value:any): string => String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      const payload = readPayload();
+      const policy = payload.rpc_outcome_policy || {};
+      const classifications = payload.classifications || {};
+      const held = payload.held_state_authority || {};
+      const classRows = Object.entries(classifications)
+        .map((entry:any) => {
+          const key = entry[0];
+          const value = entry[1] || {};
+          return "<tr><td><code>" + escapeHtml(key) + "</code></td><td><code>" + escapeHtml(value.state) + "</code></td><td><code>" + escapeHtml(String(value.candidate_may_be_built)) + "</code></td><td><code>" + escapeHtml(String(value.retry_allowed)) + "</code></td></tr>";
+        })
+        .join("");
+      const heldRows = Object.entries(held)
+        .map((entry:any) => "<li><code>" + escapeHtml(entry[0]) + "</code>: <code>" + escapeHtml(String(entry[1])) + "</code></li>")
+        .join("");
+
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Automatic Payment Canary RPC Rate Limit Hold</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Automatic Payment Canary RPC Rate Limit Hold</h1>
+    <p><strong>Status:</strong> RPC failure is treated as a verification hold, not a buyer rejection.</p>
+    <ul>
+      <li>RPC failure is pause, not rejection: <code>${escapeHtml(String(policy.rpc_failure_is_pause_not_rejection))}</code></li>
+      <li>Buyer action required on rate limit: <code>${escapeHtml(String(policy.buyer_action_required_on_rate_limit))}</code></li>
+      <li>Retry allowed: <code>${escapeHtml(String(policy.retry_allowed))}</code></li>
+      <li>Operator review if retry window exhausted: <code>${escapeHtml(String(policy.operator_review_required_if_retry_window_exhausted))}</code></li>
+    </ul>
+    <h2>RPC outcome classifications</h2>
+    <table border="1" cellpadding="6" cellspacing="0">
+      <thead><tr><th>Outcome</th><th>State</th><th>Candidate may be built</th><th>Retry allowed</th></tr></thead>
+      <tbody>${classRows}</tbody>
+    </table>
+    <h2>Held-state authority</h2>
+    <ul>${heldRows}</ul>
+    <p><strong>Boundary:</strong> held RPC states do not create candidate objects, allocation records, private ledger writes, inventory reserves, fulfillment, wallet signatures, VOID transfers, public mutations, or public buyer execution.</p>
+    <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-canary/candidate-intake-v1">Candidate intake</a> · <a href="${jsonRoute}">RPC hold JSON</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.automatic-payment-canary-rpc-rate-limit-hold.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.automatic-payment-canary-rpc-rate-limit-hold.v1] failed", String(e?.stack || e));
+  }
+})();
+
+
 /* [usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] */
 ;(function __voidUsdcVoidBuyPoolDualChainUsdcAcceptanceAllowlistV1(){
   try{
