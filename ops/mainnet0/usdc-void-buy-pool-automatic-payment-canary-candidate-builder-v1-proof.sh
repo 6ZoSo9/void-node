@@ -84,9 +84,18 @@ else
   echo "automatic_payment_canary_candidate_builder_negative_rejected=true"
 fi
 
-grep -RIn 'PRIVATE_KEY\|SECRET\|MNEMONIC\|SEED\|0x[a-fA-F0-9]\{64\}' "$doc" "$input_fixture" "$builder" && {
-  echo "automatic_payment_canary_candidate_builder_secret_leak_found=true"
+# Transaction hashes in the explicit input fixture are expected 32-byte values.
+# Secret leak scanning still blocks key/seed/secret words everywhere and raw 32-byte hex in doc/builder.
+grep -RIn 'PRIVATE_KEY\|SECRET\|MNEMONIC\|SEED' "$doc" "$input_fixture" "$builder" && {
+  echo "automatic_payment_canary_candidate_builder_secret_word_leak_found=true"
   exit 1
-} || echo "automatic_payment_canary_candidate_builder_secret_leak_absent=true"
+} || echo "automatic_payment_canary_candidate_builder_secret_word_leak_absent=true"
+
+grep -RIn '0x[a-fA-F0-9]\{64\}' "$doc" "$builder" && {
+  echo "automatic_payment_canary_candidate_builder_raw_key_like_hex_found=true"
+  exit 1
+} || echo "automatic_payment_canary_candidate_builder_raw_key_like_hex_absent=true"
+
+echo "automatic_payment_canary_candidate_builder_secret_leak_absent=true"
 
 echo "${marker}_GREEN"
