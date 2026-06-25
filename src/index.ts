@@ -3943,6 +3943,93 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 })();
 
 
+
+/* [usdc-void-buy-pool.automatic-payment-canary-runtime-config.v1] */
+;(function __voidUsdcVoidBuyPoolAutomaticPaymentCanaryRuntimeConfigV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_automatic_payment_canary_runtime_config_v1) return;
+    (app as any).__void_usdc_void_buy_pool_automatic_payment_canary_runtime_config_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_RUNTIME_CONFIG_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-automatic-payment-canary-runtime-config-v1.json");
+
+    const escapeHtml = (value:any): string => String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      const payload = readPayload();
+      const cfg = payload.canary_runtime_config || {};
+      const auth = payload.authority || {};
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Automatic Payment Canary Runtime Config</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Automatic Payment Canary Runtime Config</h1>
+    <p><strong>Status:</strong> automatic payment canary is enabled in capped private-operator mode.</p>
+    <ul>
+      <li>Mode: <code>${escapeHtml(String(cfg.activation_mode || "canary"))}</code></li>
+      <li>Canary payment limit: <code>${escapeHtml(String(cfg.canary_payment_limit))}</code></li>
+      <li>Max USDC for canary: <code>${escapeHtml(String(cfg.canary_max_usdc))}</code></li>
+      <li>Allowed chains: <code>${escapeHtml((cfg.allowed_chains || []).join(", "))}</code></li>
+      <li>Emergency stop supported: <code>${escapeHtml(String(cfg.emergency_stop_supported))}</code></li>
+      <li>Emergency stop active: <code>${escapeHtml(String(cfg.emergency_stop_active))}</code></li>
+      <li>Operator review required after canary: <code>${escapeHtml(String(cfg.operator_review_required_after_canary))}</code></li>
+    </ul>
+    <h2>Authority boundary</h2>
+    <ul>
+      <li>Payment observation enabled: <code>${escapeHtml(String(auth.automatic_payment_observation_enabled))}</code></li>
+      <li>Eligibility enabled: <code>${escapeHtml(String(auth.automatic_payment_eligibility_enabled))}</code></li>
+      <li>Allocation candidate enabled: <code>${escapeHtml(String(auth.automatic_allocation_candidate_enabled))}</code></li>
+      <li>Fulfillment candidate enabled: <code>${escapeHtml(String(auth.automatic_fulfillment_candidate_enabled))}</code></li>
+      <li>Wallet signing enabled: <code>${escapeHtml(String(auth.automatic_wallet_signing_enabled))}</code></li>
+      <li>VOID transfer enabled: <code>${escapeHtml(String(auth.automatic_void_transfer_enabled))}</code></li>
+      <li>Public mutation authorized: <code>${escapeHtml(String(auth.public_mutation_authorized))}</code></li>
+      <li>Public buyer execution authorized: <code>${escapeHtml(String(auth.public_buyer_execution_authorized))}</code></li>
+    </ul>
+    <p><strong>Private material:</strong> private canary paths, signer material, wallet material, treasury secrets, and operator execution material are not exposed by this route.</p>
+    <p><a href="${jsonRoute}">Runtime config JSON</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.automatic-payment-canary-runtime-config.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.automatic-payment-canary-runtime-config.v1] failed", String(e?.stack || e));
+  }
+})();
+
+
 /* [usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] */
 ;(function __voidUsdcVoidBuyPoolDualChainUsdcAcceptanceAllowlistV1(){
   try{

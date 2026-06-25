@@ -1,0 +1,47 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_RUNTIME_CONFIG_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_canary_runtime_config_v1",
+  "visibility": "public_safe_runtime_status",
+  "status": "automatic_payment_canary_runtime_config_ready",
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1",
+    "json": "/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1.json"
+  },
+  "source_activation": {
+    "private_canary_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_CANARY_V1",
+    "private_canary_head_known": "6d3947ce",
+    "private_canary_paths_exposed": false
+  },
+  "canary_runtime_config": {
+    "automatic_payment_canary_enabled": true,
+    "activation_mode": "canary",
+    "canary_payment_limit": 1,
+    "canary_max_usdc": "100.00",
+    "native_usdc_only": true,
+    "allowed_chains": [
+      "ethereum",
+      "base"
+    ],
+    "allowlist_required": true,
+    "finality_confirmations_required": true,
+    "erc20_transfer_log_required": true,
+    "emergency_stop_supported": true,
+    "emergency_stop_active": false,
+    "operator_review_required_after_canary": true,
+    "process_one_candidate_then_stop": true
+  },
+  "authority": {
+    "automatic_payment_observation_enabled": true,
+    "automatic_payment_eligibility_enabled": true,
+    "automatic_allocation_candidate_enabled": true,
+    "automatic_inventory_reserve_candidate_enabled": true,
+    "automatic_private_allocation_ledger_candidate_enabled": true,
+    "automatic_fulfillment_candidate_enabled": true,
+    "automatic_void_transfer_enabled": false,
+    "automatic_wallet_signing_enabled": false,
+    "public_mutation_authorized": false,
+    "public_buyer_execution_authorized": false,
+    "private_key_material_exposed": false,
+    "wallet_or_treasury_secret_exposed": false
+  }
+}
