@@ -1,0 +1,6 @@
+{
+  "operator_private_allocation_ledger_write_decision": "approve_for_separate_private_allocation_ledger_write_execute",
+  "reviewer": "operator",
+  "review_note": "canary private allocation ledger write packet approved for separate private ledger write execute step",
+  "max_packet_count": 1
+}
