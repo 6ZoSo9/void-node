@@ -1,0 +1,14 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_PRIVATE_ALLOCATION_LEDGER_WRITE_PREFLIGHT_V1_POLICY_EXAMPLE",
+  "expected_allocation_record_creation_state": "allocation_record_created_pending_private_allocation_ledger_write_gate",
+  "expected_allocation_record_status": "allocation_record_created_pending_private_allocation_ledger_write_gate",
+  "canary_allocation_record_limit": 1,
+  "canary_allocation_records_already_preflighted": 0,
+  "allow_private_allocation_ledger_write_preflight": true,
+  "allow_private_allocation_ledger_write_now": false,
+  "allow_fulfillment_execution": false,
+  "allow_wallet_signing": false,
+  "allow_void_transfer": false,
+  "allow_public_mutation": false,
+  "operator_review_required_before_actual_ledger_write": true
+}
