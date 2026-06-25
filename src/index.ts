@@ -4030,6 +4030,105 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 })();
 
 
+
+/* [usdc-void-buy-pool.automatic-payment-canary-candidate-intake.v1] */
+;(function __voidUsdcVoidBuyPoolAutomaticPaymentCanaryCandidateIntakeV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_usdc_void_buy_pool_automatic_payment_canary_candidate_intake_v1) return;
+    (app as any).__void_usdc_void_buy_pool_automatic_payment_canary_candidate_intake_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    const marker = "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_CANDIDATE_INTAKE_V1";
+    const htmlRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/candidate-intake-v1";
+    const jsonRoute = "/public-node/usdc-void-buy-pool/automatic-payment-canary/candidate-intake-v1.json";
+    const fixturePath = path.join(process.cwd(), "fixtures/public/usdc-void-buy-pool-automatic-payment-canary-candidate-intake-v1.json");
+
+    const escapeHtml = (value:any): string => String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    const readPayload = () => {
+      const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      payload.marker = marker;
+      return payload;
+    };
+
+    app.get(jsonRoute, (_req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(readPayload());
+    });
+
+    app.get(htmlRoute, (_req:any, res:any) => {
+      const payload = readPayload();
+      const intake = payload.candidate_intake || {};
+      const gates = payload.required_green_gates || {};
+      const auth = payload.authority || {};
+      const requiredFieldsHtml = (intake.required_input_fields || [])
+        .map((field:any) => "<li><code>" + escapeHtml(field) + "</code></li>")
+        .join("");
+      const gatesHtml = Object.entries(gates)
+        .map((entry:any) => "<li><code>" + escapeHtml(entry[0]) + "</code>: <code>" + escapeHtml(String(entry[1])) + "</code></li>")
+        .join("");
+
+      res.setHeader("Cache-Control", "no-store");
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>USDC/VOID Automatic Payment Canary Candidate Intake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <main>
+    <h1>USDC/VOID Automatic Payment Canary Candidate Intake</h1>
+    <p><strong>Status:</strong> canary candidate intake is enabled for one verified native USDC receipt/log candidate.</p>
+    <ul>
+      <li>Candidate source: <code>${escapeHtml(String(intake.candidate_source))}</code></li>
+      <li>Candidate limit: <code>${escapeHtml(String(intake.canary_candidate_limit))}</code></li>
+      <li>Max USDC: <code>${escapeHtml(String(intake.canary_max_usdc))}</code></li>
+      <li>Canonical payment identity: <code>${escapeHtml(String(intake.canonical_payment_identity))}</code></li>
+      <li>Candidate object creation enabled: <code>${escapeHtml(String(intake.candidate_object_creation_enabled))}</code></li>
+      <li>Candidate persistence enabled: <code>${escapeHtml(String(intake.candidate_persistence_enabled))}</code></li>
+      <li>Operator review required after candidate: <code>${escapeHtml(String(intake.operator_review_required_after_candidate))}</code></li>
+    </ul>
+    <h2>Required input fields</h2>
+    <ul>${requiredFieldsHtml}</ul>
+    <h2>Required green gates</h2>
+    <ul>${gatesHtml}</ul>
+    <h2>Authority boundary</h2>
+    <ul>
+      <li>Candidate intake enabled: <code>${escapeHtml(String(auth.automatic_payment_candidate_intake_enabled))}</code></li>
+      <li>Candidate object creation enabled: <code>${escapeHtml(String(auth.automatic_candidate_object_creation_enabled))}</code></li>
+      <li>Inventory reserved now: <code>${escapeHtml(String(auth.inventory_reserved_now))}</code></li>
+      <li>Fulfillment executed now: <code>${escapeHtml(String(auth.fulfillment_executed_now))}</code></li>
+      <li>Wallet signing enabled: <code>${escapeHtml(String(auth.automatic_wallet_signing_enabled))}</code></li>
+      <li>VOID transfer enabled: <code>${escapeHtml(String(auth.automatic_void_transfer_enabled))}</code></li>
+      <li>Public mutation authorized: <code>${escapeHtml(String(auth.public_mutation_authorized))}</code></li>
+      <li>Public buyer execution authorized: <code>${escapeHtml(String(auth.public_buyer_execution_authorized))}</code></li>
+    </ul>
+    <p><strong>Boundary:</strong> candidate object only. No wallet signature, VOID transfer, public mutation, public buyer execution, private ledger path exposure, or secret exposure.</p>
+    <p><a href="/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1">Canary runtime config</a> · <a href="${jsonRoute}">Candidate intake JSON</a></p>
+    <p data-marker="${marker}">${marker}</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    console.log("[usdc-void-buy-pool.automatic-payment-canary-candidate-intake.v1] mounted");
+  }catch(e:any){
+    console.error("[usdc-void-buy-pool.automatic-payment-canary-candidate-intake.v1] failed", String(e?.stack || e));
+  }
+})();
+
+
 /* [usdc-void-buy-pool.dual-chain-usdc-acceptance-allowlist.v1] */
 ;(function __voidUsdcVoidBuyPoolDualChainUsdcAcceptanceAllowlistV1(){
   try{
