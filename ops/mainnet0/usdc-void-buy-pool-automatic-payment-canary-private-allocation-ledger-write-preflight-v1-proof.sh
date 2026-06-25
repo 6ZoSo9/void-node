@@ -16,7 +16,13 @@ test -f "$doc"
 test -f "$policy"
 test -x "$gate"
 test -x "$upstream_proof"
-PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile "$gate"
+python3 - "$gate" <<'PYCOMPILE'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+compile(path.read_text(encoding="utf-8"), str(path), "exec")
+PYCOMPILE
 python3 -m json.tool "$policy" >/tmp/void-canary-private-ledger-preflight-policy.pretty.json
 echo "automatic_payment_canary_private_allocation_ledger_write_preflight_files_exist=true"
 
