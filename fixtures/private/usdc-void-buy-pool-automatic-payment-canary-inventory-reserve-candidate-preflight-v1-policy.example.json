@@ -1,0 +1,8 @@
+{
+  "inventory_policy_kind": "automatic_payment_canary_inventory_reserve_candidate_policy",
+  "canary_inventory_total_void": "200",
+  "canary_inventory_remaining_void": "200",
+  "canary_candidate_limit": 1,
+  "canary_candidates_already_reserved": 0,
+  "operator_review_required_before_actual_reserve": true
+}
