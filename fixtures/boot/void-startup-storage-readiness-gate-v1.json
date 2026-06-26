@@ -1,0 +1,44 @@
+{
+  "marker": "VOID_STARTUP_STORAGE_READINESS_GATE_V1",
+  "artifact": "VOID Startup Storage Readiness Gate v1",
+  "status": "startup storage readiness route guard; no authority change",
+  "states": ["pending", "green", "failed", "skipped"],
+  "default_behavior": {
+    "pending_blocks_storage_derived_public_truth": true,
+    "failed_blocks_storage_derived_public_truth": true,
+    "skipped_blocks_by_default": true,
+    "green_allows_storage_derived_public_truth": true,
+    "skipped_override_env": "VOID_ALLOW_PUBLIC_STORAGE_WITH_REPAIR_SKIPPED"
+  },
+  "route_boundary": {
+    "gated_prefixes": [
+      "/head",
+      "/head.txt",
+      "/api/head",
+      "/blocks/",
+      "/tx/lookup",
+      "/tx/receipt",
+      "/tx/status",
+      "/receipts/",
+      "/mempool",
+      "/mempool/",
+      "/datanet/v1/",
+      "/__void/mainnet0/validator-candidate-registry/",
+      "/__void/runtime/validator-truth/"
+    ],
+    "peers_routes_gated": false,
+    "public_diagnostic_route": false,
+    "local_diagnostic_route": "/__void/diag/storage-repair-readiness-v1.json"
+  },
+  "authority_boundary": {
+    "activates_new_authority": false,
+    "enables_public_mutation": false,
+    "adds_public_repair_trigger": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "mutates_ledgers": false,
+    "changes_segstore": false,
+    "changes_wal_model": false
+  }
+}

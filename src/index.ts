@@ -235,25 +235,99 @@ async function __main__() {
     process.exit(1);
   }
 
-  /* ---------- storage auto-repair before touching store ---------- */
+  /* ---------- startup storage readiness gate v1 ---------- */
+  type StorageRepairState = "pending" | "green" | "failed" | "skipped";
+  let storageRepairState: StorageRepairState = "pending";
+  let storageRepairError = "";
+  let storageRepairStartedAt = Date.now();
+  let storageRepairFinishedAt = 0;
+
+  const storageRepairSkippedOverride = () =>
+    process.env.VOID_ALLOW_PUBLIC_STORAGE_WITH_REPAIR_SKIPPED === "1";
+
+  const storageRepairPublicBody = (state: StorageRepairState, req?: any) => {
+    const isLocal = (() => {
+      try {
+        const r = String(req?.socket?.remoteAddress || req?.ip || "");
+        return (
+          r === "127.0.0.1" ||
+          r === "::1" ||
+          r === "::ffff:127.0.0.1" ||
+          r === "localhost"
+        );
+      } catch {
+        return false;
+      }
+    })();
+
+    const body: any = {
+      marker: "VOID_STARTUP_STORAGE_READINESS_GATE_V1",
+      ok: false,
+      storage_repair_state: state,
+      storage_repair_skipped_override: storageRepairSkippedOverride(),
+      reason: "storage_repair_not_green",
+      authority: {
+        public_mutation: false,
+        repair_trigger: false,
+        signer_wallet_access: false,
+        execution: false
+      }
+    };
+
+    if (state === "failed") {
+      body.error = isLocal ? storageRepairError : "storage_repair_failed";
+    }
+
+    if (state === "skipped") {
+      body.hint = "VOID_SKIP_AUTOREPAIR=1 is set. Storage repair state is not green.";
+    }
+
+    return body;
+  };
+
+  (globalThis as any).__void_storage_repair_state = () => storageRepairState;
+  (globalThis as any).__void_storage_repair_readiness_v1 = () => ({
+    marker: "VOID_STARTUP_STORAGE_READINESS_GATE_V1",
+    ok: storageRepairState === "green" || (storageRepairState === "skipped" && storageRepairSkippedOverride()),
+    storage_repair_state: storageRepairState,
+    storage_repair_skipped_override: storageRepairSkippedOverride(),
+    started_at_ms: storageRepairStartedAt,
+    finished_at_ms: storageRepairFinishedAt,
+    error: storageRepairError,
+    authority: {
+      public_mutation: false,
+      repair_trigger: false,
+      signer_wallet_access: false,
+      execution: false
+    }
+  });
+
   if (process.env.VOID_SKIP_AUTOREPAIR === "1") {
-    console.log("[boot] VOID_SKIP_AUTOREPAIR=1 -> skipping autoRepairDataDir");
+    storageRepairState = "skipped";
+    storageRepairFinishedAt = Date.now();
+    console.log("[boot] VOID_SKIP_AUTOREPAIR=1 -> repair skipped; storage_repair_state=skipped");
   } else {
-    const __t0 = Date.now();
-    console.log("[boot] autoRepairDataDir scheduled");// boot: run auto-repair asynchronously so HTTP can bind first
-  if (process.env.VOID_SKIP_AUTOREPAIR === "1") {
-    console.log("[boot] VOID_SKIP_AUTOREPAIR=1 -> skipping autoRepairDataDir");
-  } else {
+    storageRepairState = "pending";
+    storageRepairStartedAt = Date.now();
+    console.log("[boot] autoRepairDataDir scheduled (async); storage_repair_state=pending");
     setTimeout(() => {
       const __t0 = Date.now();
       console.log("[boot] autoRepairDataDir async begin");
       Promise.resolve(autoRepairDataDir(DATA_DIR, { sparseEvery: 16 }))
-        .then(() => console.log("[boot] autoRepairDataDir async done ms=" + (Date.now() - __t0)))
-        .catch((e:any) => console.error("[boot] autoRepairDataDir async FAIL", e));
+        .then(() => {
+          storageRepairState = "green";
+          storageRepairFinishedAt = Date.now();
+          storageRepairError = "";
+          console.log("[boot] autoRepairDataDir async done ms=" + (Date.now() - __t0) + " storage_repair_state=green");
+        })
+        .catch((e:any) => {
+          storageRepairState = "failed";
+          storageRepairFinishedAt = Date.now();
+          storageRepairError = String(e?.message || e || "unknown").slice(0, 200);
+          console.error("[boot] autoRepairDataDir async FAIL", e);
+        });
     }, 1);
   }
-
-    console.log("[boot] autoRepairDataDir scheduled (async)");}
 
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
@@ -380,6 +454,61 @@ app.get("/nullfeed", (_req:any, res:any) => {
 
   try { console.log("[security] public sensitive route guard v1 installed"); } catch {}
 })();
+
+/* ---------- startup storage readiness gate v1 ---------- */
+function requireStorageRepairGreen(req:any, res:any, next:any) {
+  const state = storageRepairState;
+  const skippedAllowed =
+    state === "skipped" &&
+    process.env.VOID_ALLOW_PUBLIC_STORAGE_WITH_REPAIR_SKIPPED === "1";
+
+  if (state === "green" || skippedAllowed) return next();
+
+  return res.status(503).json(storageRepairPublicBody(state, req));
+}
+
+const STORAGE_DERIVED_PREFIXES = [
+  "/head",
+  "/head.txt",
+  "/api/head",
+  "/blocks/",
+  "/tx/lookup",
+  "/tx/receipt",
+  "/tx/status",
+  "/receipts/",
+  "/mempool",
+  "/mempool/",
+  "/datanet/v1/",
+  "/__void/mainnet0/validator-candidate-registry/",
+  "/__void/runtime/validator-truth/"
+];
+
+function storageRepairGateMatchesPath(req:any): boolean {
+  const pth = String(req?.path || req?.url || "/").split("?")[0] || "/";
+  return STORAGE_DERIVED_PREFIXES.some((prefix) => pth === prefix || pth.startsWith(prefix));
+}
+
+app.get("/__void/diag/storage-repair-readiness-v1.json", (req:any, res:any) => {
+  const out = (globalThis as any).__void_storage_repair_readiness_v1?.() || {
+    marker: "VOID_STARTUP_STORAGE_READINESS_GATE_V1",
+    ok: false,
+    storage_repair_state: "unknown",
+    authority: {
+      public_mutation: false,
+      repair_trigger: false,
+      signer_wallet_access: false,
+      execution: false
+    }
+  };
+  return res.json(out);
+});
+
+app.use((req:any, res:any, next:any) => {
+  if (!storageRepairGateMatchesPath(req)) return next();
+  return requireStorageRepairGreen(req, res, next);
+});
+
+try { console.log("[security] startup storage readiness gate v1 installed"); } catch {}
 
 // === VOID native website routes v1 ===
 // Serves first static website bundles from the VOID node.
