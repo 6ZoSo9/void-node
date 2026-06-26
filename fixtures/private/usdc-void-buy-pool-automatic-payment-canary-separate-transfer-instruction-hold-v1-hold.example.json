@@ -1,0 +1,32 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TRANSFER_INSTRUCTION_HOLD_V1",
+  "scope": "private_operator_only_separate_transfer_instruction_hold",
+  "state": "held_pending_transfer_instruction",
+  "source_execution_authorization_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_FULFILLMENT_EXECUTION_AUTHORIZATION_HOLD_V1",
+  "execution_authorization_id": "void_canary_separate_fulfillment_execution_authorization_4e2ff91a25e4a596",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "instruction": {
+    "instruction_shaped": false,
+    "instruction_scope": "held_no_instruction",
+    "requires_separate_signer_authorization": true,
+    "requires_separate_operator_execute": true,
+    "requires_separate_fulfillment_record": true,
+    "requires_separate_allocation_claim": true
+  },
+  "authority": {
+    "transfer_instruction_recording_only": true,
+    "transfer_instruction_creation_now": false,
+    "signer_authorization_creation": false,
+    "signer_access": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "transaction_broadcast": false,
+    "fulfillment_execution": false,
+    "fulfilled_state": false,
+    "fulfillment_record_creation": false,
+    "allocation_claim_creation": false,
+    "public_mutation": false,
+    "public_buyer_execution": false,
+    "money_movement_now": false
+  }
+}
