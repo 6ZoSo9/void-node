@@ -10,6 +10,20 @@
       "public_safe": true,
       "read_only": true,
       "route": "/public-node/usdc-void-buy-pool/index.json"
+    },
+    {
+      "closed_without_execution": true,
+      "json_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+      "kind": "public_reviewer_closeout_bundle_html",
+      "label": "USDC/VOID canary terminal closeout reviewer bundle",
+      "method": "GET",
+      "pool_index_route": "/public-node/usdc-void-buy-pool/index.json",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+      "status": "canary_separate_terminal_lane_closed_without_execution",
+      "status_html_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+      "status_json_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json"
     }
   ]
 }
