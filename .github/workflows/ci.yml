@@ -21,4 +21,4 @@ jobs:
       - name: Install
         run: npm ci
       - name: Typecheck (no emit)
-        run: npx tsc --noEmit
+        run: bash tools/check_tsc_noemit_baseline.sh

@@ -7,10 +7,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Block files >=10MB
         run: |
-          set -euo pipefail
-          BIG=$(git ls-files -z | xargs -0 -I{} bash -c 'test -f "{}" && stat -c"%s {}" "{}"' | awk '$1>=10485760{print $2}')
-          if [ -n "${BIG:-}" ]; then
-            echo "Files >=10MB:"; echo "$BIG"; exit 1; fi
+          bash tools/check_large_worktree_files.sh
+
       - name: Block root-owned files
         run: |
           set -euo pipefail
