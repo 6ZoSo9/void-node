@@ -1,0 +1,32 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_BUYER_FACING_FINAL_SEAL_LINK_V1",
+  "id": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1",
+  "status": "buyer_facing_reviewer_closeout_link_ready",
+  "source_final_seal": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-public-node-reviewer-closeout-final-seal-v1",
+  "buyer_facing_surface": "/public-node/usdc-void-buy-pool/index.json",
+  "optional_html_target": null,
+  "routes": {
+    "reviewer_bundle_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+    "reviewer_bundle_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+    "status_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "status_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "pool_index": "/public-node/usdc-void-buy-pool/index.json",
+    "root_index": "/public-node/index.json"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "buyer_safe": true,
+    "closed_without_execution": true,
+    "public_mutation_route_created": false,
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "terminal_lane_reopened": false
+  }
+}
