@@ -28,7 +28,7 @@ set -e
 FIXTURE_MARKER="$(jq -r '.marker' "$FIXTURE")"
 
 SELF_MARKER="$(jq -r '.marker // ""' ".runtime/mainnet0/public-buyer-earner-self-check.${STAMP}.json" 2>/dev/null || true)"
-SELF_POLICY_POST="$(jq -r '.policy.public_post_endpoint // "missing"' ".runtime/mainnet0/public-buyer-earner-self-check.${STAMP}.json" 2>/dev/null || true)"
+SELF_POLICY_POST="$(jq -r 'if (.policy | type == "object" and has("public_post_endpoint")) then (.policy.public_post_endpoint|tostring) else "missing" end' ".runtime/mainnet0/public-buyer-earner-self-check.${STAMP}.json" 2>/dev/null || true)"
 
 set +e
 jq -e '.policy.public_post_endpoint == false' ".runtime/mainnet0/public-buyer-earner-self-check.${STAMP}.json" >/dev/null 2>&1
