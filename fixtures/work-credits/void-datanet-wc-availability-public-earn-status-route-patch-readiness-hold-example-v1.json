@@ -1,0 +1,55 @@
+{
+  "packet_kind": "datanet_wc_availability_public_earn_status_route_patch_readiness_hold_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_ROUTE_PATCH_READINESS_HOLD_V1",
+  "readiness_id": "datanet-wc-availability-public-earn-status-route-patch-readiness",
+  "readiness_status": "ready_for_future_separate_route_patch",
+  "candidate_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_ROUTE_CANDIDATE_HOLD_V1",
+  "route_patch_status": "held_for_future_separate_patch",
+  "route_registry_patch_status": "held_for_future_separate_patch",
+  "runtime_route_status": "not_added",
+  "public_index_patch_status": "held_for_future_separate_patch",
+  "wc_issuance_status": "not_issued",
+  "wc_ledger_write_status": "not_written",
+  "execute_gate_status": "held_execute_gate_closed",
+  "timestamp": "2026-06-26T00:00:00.000Z",
+  "public_safety_boundary": {
+    "exposes_participant_identifier": false,
+    "exposes_object_id": false,
+    "exposes_content_root": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "exposes_proposed_ledger_entry_id": false,
+    "exposes_private_object_material": false
+  },
+  "route_boundary": {
+    "creates_public_route": false,
+    "adds_runtime_route": false,
+    "mutates_route_registry": false,
+    "mutates_public_index": false,
+    "changes_runtime_behavior": false,
+    "activates_public_mutation": false
+  },
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "approves_ledger_write": false,
+    "executes_ledger_write": false,
+    "authorizes_ledger_write_execution": false,
+    "opens_execute_gate": false,
+    "performs_ledger_mutation": false,
+    "mutates_claim_state": false
+  },
+  "authority_boundary": {
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}
