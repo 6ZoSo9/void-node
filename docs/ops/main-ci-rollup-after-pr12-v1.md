@@ -22,3 +22,9 @@ Expected result:
 - PRs 9 through 12 merged
 - recent post-merge checkpoint tags present
 - local CI guard checks green
+
+Post-merge note:
+
+- The fixture records the baseline main head observed when the rollup branch was created.
+- The proof accepts current `origin/main` when it contains that expected head as an ancestor, so post-merge main can advance without making the rollup red.
+
