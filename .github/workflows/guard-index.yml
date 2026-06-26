@@ -37,7 +37,4 @@ jobs:
         with: { fetch-depth: 0 }   # IMPORTANT: get full history
       - name: Block blobs >=10MB anywhere in history
         run: |
-          MAX=10
-          git rev-list --objects --all \
-          | git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' \
-          | awk -v max="$MAX" '$1=="blob" && ($3/1024/1024)>=max{ print; bad=1 } END{ exit(bad?1:0) }'
+          bash tools/check_large_history_baseline.sh

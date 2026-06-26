@@ -1,0 +1,24 @@
+{
+  "marker": "VOID_GUARD_BASELINE_LARGE_HISTORY_BLOBS_V1",
+  "reason": "baseline pre-existing large history blobs so guard fails only on newly introduced large blobs",
+  "max_mb": 10,
+  "allowed_blobs": [
+    {
+      "object": "14f61d53310f3780fc6e180716bd9bc2a166974c",
+      "bytes": 16115901,
+      "path": "node:crypto",
+      "reason": "pre-existing repository history blob"
+    },
+    {
+      "object": "07f00fcb52e0e1244b31440bdad83644370bc1f6",
+      "bytes": 25449751,
+      "path": "node:fs",
+      "reason": "pre-existing repository history blob"
+    }
+  ],
+  "policy": {
+    "known_baseline_allowed": true,
+    "new_large_blobs_allowed": false,
+    "override_env": "VOID_LARGE_HISTORY_BASELINE_FILE"
+  }
+}
