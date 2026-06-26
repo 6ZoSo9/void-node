@@ -1,0 +1,14 @@
+{
+  "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
+  "reason": "baseline existing src/index.ts size after public-node self-check snapshot PR9; guard should fail future growth, not existing debt",
+  "path": "src/index.ts",
+  "baseline_bytes": 3709761,
+  "old_hard_limit_bytes": 2097152,
+  "max_lines": 100000,
+  "policy": {
+    "current_baseline_allowed": true,
+    "future_growth_allowed": false,
+    "marker_checks_preserved": true,
+    "override_env": "VOID_INDEX_TS_BASELINE_BYTES"
+  }
+}
