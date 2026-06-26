@@ -1,0 +1,88 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_NO_WRITE_CLOSEOUT_SUMMARY_V1",
+  "artifact": "VOID DataNet WC Availability Public No-Write Closeout Summary v1",
+  "status": "public_safe_no_write_closeout_summary_only_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_no_write_closeout_summary_v1",
+  "source_markers": {
+    "ledger_write_no_write_closeout_rollup_marker": "VOID_DATANET_WC_AVAILABILITY_LEDGER_WRITE_NO_WRITE_CLOSEOUT_ROLLUP_V1",
+    "ledger_write_blocked_result_hold_marker": "VOID_DATANET_WC_AVAILABILITY_LEDGER_WRITE_BLOCKED_RESULT_HOLD_V1",
+    "ledger_write_execute_gate_hold_marker": "VOID_DATANET_WC_AVAILABILITY_LEDGER_WRITE_EXECUTE_GATE_HOLD_V1"
+  },
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "lane_id",
+    "public_summary_status",
+    "earn_status",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "blocked_result_status",
+    "source_closeout_status",
+    "ledger_write_performed",
+    "ledger_file_append_performed",
+    "wc_issued",
+    "next_required_action",
+    "timestamp",
+    "source_markers",
+    "public_safety_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_public_summary_status": [
+    "public_safe_no_write_closeout_summary",
+    "blocked_missing_no_write_closeout",
+    "blocked_private_identifier_present",
+    "blocked_private_object_reference_present",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_earn_status": [
+    "reviewed_work_ready_for_future_operator_review_no_wc_issued",
+    "blocked_no_write_closeout_missing",
+    "blocked_private_data_present",
+    "blocked_unexpected_wc_issuance"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate",
+    "performs_ledger_mutation",
+    "mutates_claim_state"
+  ],
+  "authority_boundary_required_false": [
+    "activates_public_mutation",
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ]
+}
