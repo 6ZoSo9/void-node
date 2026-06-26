@@ -28,6 +28,13 @@ grep -q "$marker" "$route_fixture"
 grep -q "$source_marker" "$runtime_public_file"
 echo "automatic_payment_canary_separate_terminal_closeout_public_status_rollup_route_marker_green=true"
 
+if grep -nE '(_PUSHED"|_GREEN"|PROOF_BEGIN|automatic_payment_canary_|^== source |allocation_record_hash=)' "$doc"; then
+  echo "automatic_payment_canary_separate_terminal_closeout_public_status_rollup_route_doc_terminal_output_contamination_absent=false"
+  exit 1
+fi
+echo "automatic_payment_canary_separate_terminal_closeout_public_status_rollup_route_doc_terminal_output_contamination_absent=true"
+
+
 python3 - "$route_fixture" "$source_fixture" "$runtime_public_file" "$marker" "$source_marker" "$route" <<'PY'
 import json
 import sys
