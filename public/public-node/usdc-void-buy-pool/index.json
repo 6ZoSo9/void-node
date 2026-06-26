@@ -1,0 +1,18 @@
+{
+  "kind": "usdc_void_buy_pool_public_index",
+  "marker": "VOID_USDC_VOID_BUY_POOL_PUBLIC_INDEX_V1",
+  "public_safe": true,
+  "read_only": true,
+  "routes": [
+    {
+      "closed_without_execution": true,
+      "kind": "public_status_rollup",
+      "label": "Canary separate terminal closeout status rollup",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+      "status": "canary_separate_terminal_lane_closed_without_execution"
+    }
+  ]
+}

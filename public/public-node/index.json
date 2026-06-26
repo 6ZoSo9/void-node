@@ -1,0 +1,15 @@
+{
+  "kind": "public_node_index",
+  "marker": "VOID_PUBLIC_NODE_INDEX_V1",
+  "public_safe": true,
+  "read_only": true,
+  "routes": [
+    {
+      "kind": "public_node_section_index",
+      "label": "USDC/VOID buy pool",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/usdc-void-buy-pool/index.json"
+    }
+  ]
+}
