@@ -13,6 +13,17 @@
       "read_only": true,
       "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
       "status": "canary_separate_terminal_lane_closed_without_execution"
+    },
+    {
+      "closed_without_execution": true,
+      "json_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+      "kind": "public_status_rollup_html",
+      "label": "Canary separate terminal closeout status HTML",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+      "status": "canary_separate_terminal_lane_closed_without_execution"
     }
   ]
 }
