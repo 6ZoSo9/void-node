@@ -1,0 +1,121 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_NO_LIVE_RUNTIME_VISIBILITY_SUMMARY_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Public Earn Status No-Live Runtime Visibility Summary Hold v1",
+  "status": "public_no_live_runtime_visibility_summary_hold_only_static_card_exists_runtime_not_observed_no_live_claim_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_earn_status_no_live_runtime_visibility_summary_hold_v1",
+  "static_artifact_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_STATIC_ROUTE_ARTIFACT_HOLD_V1",
+  "runtime_visibility_preflight_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_STATIC_ROUTE_RUNTIME_VISIBILITY_PREFLIGHT_HOLD_V1",
+  "local_runtime_observation_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_STATIC_ROUTE_LOCAL_RUNTIME_OBSERVATION_HOLD_V1",
+  "static_artifact_path": "public/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "intended_public_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "summary_id",
+    "summary_status",
+    "public_summary_text",
+    "static_artifact_path",
+    "intended_public_route",
+    "static_artifact_status",
+    "runtime_visibility_preflight_status",
+    "local_runtime_observation_status",
+    "runtime_live_claim",
+    "runtime_route_observed",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "static_artifact_marker",
+    "runtime_visibility_preflight_marker",
+    "local_runtime_observation_marker",
+    "timestamp",
+    "public_safety_boundary",
+    "runtime_boundary",
+    "route_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_summary_status": [
+    "static_card_exists_local_runtime_not_observed_no_live_claim",
+    "blocked_missing_static_artifact",
+    "blocked_missing_runtime_visibility_preflight",
+    "blocked_missing_local_runtime_observation",
+    "blocked_unexpected_live_route_claim",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_static_artifact_status": [
+    "created_static_json_artifact"
+  ],
+  "allowed_runtime_visibility_preflight_status": [
+    "static_artifact_ready_for_future_runtime_visibility_check"
+  ],
+  "allowed_local_runtime_observation_status": [
+    "local_runtime_route_not_observed_service_inactive_curl_rc_7"
+  ],
+  "allowed_runtime_live_claim": [
+    false
+  ],
+  "allowed_runtime_route_observed": [
+    false
+  ],
+  "allowed_wc_issuance_status": [
+    "not_issued"
+  ],
+  "allowed_wc_ledger_write_status": [
+    "not_written"
+  ],
+  "allowed_execute_gate_status": [
+    "held_execute_gate_closed"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ],
+  "runtime_boundary_required_false": [
+    "claims_route_live",
+    "performs_runtime_request",
+    "starts_service",
+    "restarts_service",
+    "adds_runtime_route",
+    "changes_runtime_behavior"
+  ],
+  "route_boundary_required_false": [
+    "mutates_route_registry",
+    "mutates_public_index",
+    "activates_public_mutation"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate"
+  ],
+  "authority_boundary_required_false": [
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}
