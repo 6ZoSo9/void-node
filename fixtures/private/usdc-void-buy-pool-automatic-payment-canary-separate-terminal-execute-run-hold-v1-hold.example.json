@@ -1,0 +1,36 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_EXECUTE_RUN_HOLD_V1",
+  "scope": "private_operator_only_terminal_execute_run_hold",
+  "state": "held_pending_terminal_execute_run",
+  "source_real_actual_execute_packet_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_REAL_ACTUAL_EXECUTE_PACKET_HOLD_V1",
+  "real_actual_execute_packet_id": "void_canary_separate_real_actual_execute_packet_4e2ff91a25e4a596",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "terminal_run": {
+    "terminal_execute_run_envelope_shaped": false,
+    "terminal_execute_run_scope": "held_no_terminal_execute_run_envelope",
+    "terminal_execute_authorization_required": true,
+    "terminal_execute_authorization_present": false,
+    "terminal_execute_run_executed": false,
+    "terminal_execute_run_signed": false,
+    "terminal_execute_run_broadcast": false,
+    "requires_separate_fulfillment_record": true,
+    "requires_separate_allocation_claim": true
+  },
+  "authority": {
+    "terminal_run_recording_only": true,
+    "terminal_run_envelope_creation_now": false,
+    "terminal_execute_authorized_now": false,
+    "actual_execute_authorized_now": false,
+    "signer_access": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "transaction_broadcast": false,
+    "fulfillment_execution": false,
+    "fulfilled_state": false,
+    "fulfillment_record_creation": false,
+    "allocation_claim_creation": false,
+    "public_mutation": false,
+    "public_buyer_execution": false,
+    "money_movement_now": false
+  }
+}
