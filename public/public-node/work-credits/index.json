@@ -48,6 +48,22 @@
       "wc_ledger_write_enabled": false,
       "void_allocation_enabled": false,
       "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_INDEX_APPLY_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-available-work-packet-template-hold-v1",
+      "title": "DataNet WC Available Work Packet Template Hold v1",
+      "status": "hold",
+      "summary": "Public template for the future DataNet availability work packet shape. Template-only; no live earning, WC issuance, ledger write, VOID allocation, payment handling, wallet/signer access, or runtime mutation is enabled.",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json",
+      "json": "datanet-wc-available-work-packet-template-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_available_work_packet_template",
+      "live_earn_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "marker": "VOID_DATANET_WC_AVAILABLE_WORK_PACKET_TEMPLATE_HOLD_V1"
     }
   ]
 }
