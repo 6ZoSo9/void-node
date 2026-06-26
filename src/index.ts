@@ -49406,6 +49406,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     policy: {
       public_routes_only: true,
       private_api: false,
+      public_post_endpoint: false,
       mutation: false,
       read_only: true,
       money_movement: false,
