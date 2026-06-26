@@ -48,10 +48,14 @@ function safeReadJson(p: string): any | null {
 }
 
 function atomicWriteJson(p: string, obj: any) {
+  atomicWriteText(p, JSON.stringify(obj, null, 2));
+}
+
+function atomicWriteText(p: string, text: string) {
   const dir = path.dirname(p);
   mkdirp(dir);
   const tmp = p + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
+  fs.writeFileSync(tmp, text);
   // Best-effort durability: fsync(tmp) then rename
   try {
     const fd = fs.openSync(tmp, "r");
@@ -171,7 +175,7 @@ export class SegStore {
     if (!fs.existsSync(meta)) {
       const from = Number(seg);
       const m: Meta = { from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
-      fs.writeFileSync(meta, JSON.stringify(m, null, 2));
+      atomicWriteJson(meta, m);
       this.metaCache.set(seg, m);
     }
   }
@@ -194,7 +198,7 @@ export class SegStore {
   private putMeta(seg: string, m: Meta) {
     const { meta } = this.segPaths(seg);
     m.updatedAt = Date.now();
-    fs.writeFileSync(meta, JSON.stringify(m, null, 2));
+    atomicWriteJson(meta, m);
     this.metaCache.set(seg, m);
   }
 
@@ -392,7 +396,7 @@ export class SegStore {
       if (keep.length === 0) {
         fs.unlinkSync(wp);
       } else {
-        fs.writeFileSync(wp, keep.join("\n") + "\n");
+        atomicWriteText(wp, keep.join("\n") + "\n");
         try {
           const fd = fs.openSync(wp, "r");
           try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }

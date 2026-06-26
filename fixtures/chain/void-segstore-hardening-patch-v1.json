@@ -1,0 +1,20 @@
+{
+  "marker": "VOID_SEGSTORE_HARDENING_PATCH_V1",
+  "artifact": "VOID SegStore Hardening Patch v1",
+  "status": "source-level hardening patch; no authority change",
+  "scope": {
+    "source_file": "src/chain/seg_store.ts",
+    "meta_json_writes_atomic": true,
+    "wal_prune_rewrite_atomic": true,
+    "segstore_wal_replay_constructor_synchronous": true
+  },
+  "authority_boundary": {
+    "activates_new_authority": false,
+    "enables_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "mutates_ledgers": false,
+    "changes_route_behavior": false
+  }
+}
