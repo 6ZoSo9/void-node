@@ -1,0 +1,53 @@
+{
+  "schema": "void.public_node.work_credits.index.v1",
+  "status": "hold",
+  "title": "VOID Work Credits Public Index",
+  "summary": "Public discovery index for Work Credits status surfaces. This index is read-only public discovery and does not issue Work Credits, write a ledger, allocate VOID, or activate earning.",
+  "network": "VOID Network",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_INDEX_APPLY_HOLD_V1",
+  "created_by_brick": "datanet-wc-availability-public-earn-status-index-apply-hold-v1",
+  "public_boundary": {
+    "public_index_created": true,
+    "public_discovery_only": true,
+    "read_only": true,
+    "live_earn_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "void_allocation_enabled": false,
+    "usdc_autofulfillment_enabled": false,
+    "wallet_or_signer_required": false,
+    "runtime_mutation_route_enabled": false
+  },
+  "entries": [
+    {
+      "id": "datanet-wc-availability",
+      "title": "DataNet Work Credits Availability",
+      "status": "hold",
+      "summary": "Public earn-status card for the future DataNet Work Credits availability lane. Status-only; earning is not live.",
+      "path": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+      "json": "datanet-wc-availability/earn-status-card-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_availability",
+      "live_earn_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_INDEX_APPLY_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-availability-public-earn-status-index-apply-hold-v1",
+      "title": "DataNet WC Availability Public Earn Status Index Apply Hold v1",
+      "status": "hold",
+      "summary": "Seal showing that the public Work Credits index was created for discovery only while all earn, issuance, ledger, allocation, payment, wallet, signer, and runtime mutation paths remain disabled.",
+      "path": "/public-node/work-credits/datanet-wc-availability-public-earn-status-index-apply-hold-v1.json",
+      "json": "datanet-wc-availability-public-earn-status-index-apply-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "public_index_apply_hold",
+      "live_earn_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_INDEX_APPLY_HOLD_V1"
+    }
+  ]
+}

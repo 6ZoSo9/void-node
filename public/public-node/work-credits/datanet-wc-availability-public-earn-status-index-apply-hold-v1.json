@@ -1,0 +1,42 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_availability_public_earn_status_index_apply_hold.v1",
+  "id": "datanet-wc-availability-public-earn-status-index-apply-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Availability Public Earn Status Index Apply Hold v1",
+  "summary": "The public Work Credits index now includes the DataNet WC availability earn-status lane for discovery only. This is not live earning, not WC issuance, not a WC ledger write, not VOID allocation, and not USDC autofulfillment.",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_INDEX_APPLY_HOLD_V1",
+  "applies_to": {
+    "index": "/public-node/work-credits/index.json",
+    "existing_card": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json"
+  },
+  "public_boundary": {
+    "public_index_created": true,
+    "public_discovery_only": true,
+    "read_only": true,
+    "live_earn_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "wc_ledger_append_enabled": false,
+    "void_allocation_enabled": false,
+    "void_transfer_enabled": false,
+    "usdc_payment_handling_enabled": false,
+    "usdc_autofulfillment_enabled": false,
+    "wallet_access_enabled": false,
+    "signer_access_enabled": false,
+    "runtime_mutation_route_enabled": false,
+    "operator_execution_enabled": false
+  },
+  "proof_expectations": [
+    "index JSON parses",
+    "status card JSON parses",
+    "index contains DataNet WC availability entry",
+    "index contains this apply-hold entry",
+    "marker appears in index, status card, doc, and proof",
+    "no WC issuance is enabled",
+    "no WC ledger write is enabled",
+    "no VOID allocation is enabled",
+    "no USDC autofulfillment is enabled",
+    "no wallet or signer access is enabled",
+    "no runtime mutation route is enabled"
+  ]
+}
