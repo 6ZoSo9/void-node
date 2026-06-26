@@ -1,0 +1,31 @@
+{
+  "marker": "VOID_PUBLIC_BUYER_EARNER_STATUS_ROLLUP_AFTER_CI_RECOVERY_V1",
+  "version": 1,
+  "scope": "public_buyer_earner_status_rollup_after_ci_recovery",
+  "purpose": "publish a public read-only rollup of current Buy VOID and Earn WC availability after CI/PR recovery",
+  "required_public_routes": [
+    "/public-node",
+    "/public-node/route-index.json",
+    "/public-node/route-manifest.json",
+    "/public-node/self-check-snapshot.json"
+  ],
+  "status": {
+    "buy_void_public_info_available": true,
+    "earn_wc_public_info_available": true,
+    "public_post_endpoint": false,
+    "buyer_mutation_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "wallet_send_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "validator_mutation_enabled": false
+  },
+  "boundary": {
+    "public_read_only": true,
+    "status_rollup_only": true,
+    "no_money_movement": true,
+    "no_ledger_write": true,
+    "no_wallet_send": true,
+    "no_runtime_mutation": true
+  }
+}
