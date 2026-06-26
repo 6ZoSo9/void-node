@@ -1,11 +1,11 @@
 VOID Community License (VCL) v1.0
-Copyright (c) 2025 6ZoSo9 and contributors. All rights reserved.
+Copyright (c) 2026 6ZoSo9 and contributors. All rights reserved.
 
 1. Purpose
    The VOID Community License (VCL) allows individuals to read, run, and modify this code
    for the sole purpose of participating in and contributing to the VOID ecosystem
    (including building, testing, validating, or operating nodes and wallet software)
-   and to earn network incentives denominated in VoidStones ($VOID).
+   and to earn network incentives denominated in VoidStones ($VOID) and WorkCredits ($WC).
 
 2. Grant
    Subject to the terms below, you are granted a limited, non-exclusive, non-transferable,

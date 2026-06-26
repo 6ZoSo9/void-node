@@ -299,3 +299,22 @@ Expected receipt file:
     tester-receipt.json
 
 Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.
+
+## Public beta status
+
+Current public beta operator checks:
+
+
+Self-hosted beta CI plan: SELF_HOSTED_BETA_CI_PLAN.md
+
+Boundary: public read-only/bootstrap surfaces may be inspected and smoke-tested, while mutation, wallet movement, validator mutation, WC issuance, and automatic fulfillment remain locked behind explicit operator gates.
+
+## Public beta status command references
+
+Required beta proof commands:
+
+make public-beta-status
+make public-beta-preflight
+make wc-wallet-proof
+
+Self-hosted beta CI plan: SELF_HOSTED_BETA_CI_PLAN.md
