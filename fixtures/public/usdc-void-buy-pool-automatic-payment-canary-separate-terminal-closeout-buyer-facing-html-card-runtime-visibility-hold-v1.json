@@ -1,0 +1,35 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_BUYER_FACING_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1",
+  "id": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-buyer-facing-html-card-runtime-visibility-hold-v1",
+  "status": "buyer_facing_html_card_runtime_visibility_hold_ready",
+  "source_buyer_facing_final_seal_link": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1",
+  "html_file": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1.html",
+  "html_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1.html",
+  "runtime_observation_required": false,
+  "static_html_remains_canonical": true,
+  "routes": {
+    "buyer_facing_html_card": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1.html",
+    "reviewer_bundle_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+    "reviewer_bundle_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+    "status_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "status_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "pool_index": "/public-node/usdc-void-buy-pool/index.json",
+    "root_index": "/public-node/index.json"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "buyer_safe": true,
+    "closed_without_execution": true,
+    "public_mutation_route_created": false,
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "terminal_lane_reopened": false
+  }
+}
