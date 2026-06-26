@@ -1,0 +1,35 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_CANDIDATE_GATE_V1",
+  "id": "usdc-void-buy-pool-automatic-payment-activation-candidate-gate-v1",
+  "status": "activation_candidate_gate_ready",
+  "purpose": "Record operator intent to begin activation of the USDC/VOID automatic payment lane without granting signer, transfer, broadcast, fulfillment, or public mutation authority.",
+  "precision_source_of_truth": true,
+  "alienware_cross_box_required": false,
+  "source_chain": {
+    "activation_canary": "fixtures/private/usdc-void-buy-pool-automatic-payment-activation-canary-v1.json",
+    "activation_prerequisite_gap_matrix": "fixtures/private/usdc-void-buy-pool-automatic-payment-activation-prerequisite-gap-matrix-hold-v1.json",
+    "operator_activation_packet": "fixtures/private/usdc-void-buy-pool-automatic-payment-operator-activation-packet-hold-v1.json",
+    "wallet_policy": "fixtures/private/usdc-void-buy-pool-automatic-payment-fulfillment-wallet-policy-hold-v1.json",
+    "public_buyer_evidence_index": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-buyer-evidence-index-v1.json",
+    "pool_index": "public/public-node/usdc-void-buy-pool/index.json"
+  },
+  "next_required_gate": "activation_candidate_preflight_execution_plan_v1",
+  "boundary": {
+    "private_operator_only": true,
+    "activation_intent_recorded": true,
+    "activation_scope": "candidate_gate_only",
+    "verified_payment_decisioning_candidate": true,
+    "public_mutation_route_created": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "signer_access_granted": false,
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false
+  },
+  "operator_note": "This is the first activation-intent gate after public buyer evidence closeout. It does not enable live money movement."
+}
