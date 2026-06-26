@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_REVIEWER_CLOSEOUT_BUNDLE_V1",
+  "kind": "public_reviewer_closeout_bundle",
+  "scope": "usdc_void_buy_pool_automatic_payment_canary_separate_terminal_closeout",
+  "bundle_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+  "bundle_file": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+  "status": "canary_separate_terminal_lane_closed_without_execution",
+  "closed_without_execution": true,
+  "method": "GET",
+  "read_only": true,
+  "public_safe": true,
+  "reviewer_purpose": "single_public_safe_closeout_bundle_for_json_html_indexes_and_runtime_holds",
+  "included_public_routes": {
+    "json_status_rollup": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "html_status_page": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "root_public_node_index": "/public-node/index.json",
+    "usdc_void_buy_pool_public_index": "/public-node/usdc-void-buy-pool/index.json"
+  },
+  "included_public_files": {
+    "json_status_rollup": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "html_status_page": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "bundle": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+    "pool_index": "public/public-node/usdc-void-buy-pool/index.json"
+  },
+  "sealed_public_runtime_holds": {
+    "json_runtime_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_STATUS_ROLLUP_ROUTE_RUNTIME_LIVE_VERIFICATION_HOLD_V1",
+    "html_runtime_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_STATUS_ROLLUP_HTML_RUNTIME_LIVE_VERIFICATION_HOLD_V1",
+    "runtime_observation_optional": true,
+    "static_artifacts_remain_green_when_runtime_not_observed": true
+  },
+  "private_material_exposed": false,
+  "canonical_payment_identity_exposed": false,
+  "allocation_record_hash_exposed": false,
+  "operator_only_paths_exposed": false,
+  "wallet_secret_exposed": false,
+  "wallet_address_exposed": false,
+  "private_key_exposed": false,
+  "seed_phrase_exposed": false,
+  "authority": {
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "public_mutation_route_created": false,
+    "terminal_lane_reopened": false
+  }
+}
