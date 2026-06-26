@@ -1,0 +1,62 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_QUEST_LANE_V1",
+  "artifact": "VOID DataNet WC Availability Quest Lane v1",
+  "status": "definition_proof_only_no_wc_issuance",
+  "quest": {
+    "name": "DataNet Availability Quest",
+    "kind": "datanet_availability_work_credit_lane",
+    "goal": "mirror_pin_verify_and_prove_availability_for_a_datanet_object",
+    "eligible_work": [
+      "verify_content_root",
+      "mirror_or_pin_object",
+      "prove_local_availability",
+      "prove_retrieval_or_peer_observation",
+      "submit_reviewable_evidence_packet"
+    ],
+    "states": [
+      "draft",
+      "submitted",
+      "needs_review",
+      "approved_for_wc_review",
+      "rejected",
+      "duplicate",
+      "invalid_root",
+      "unavailable"
+    ]
+  },
+  "evidence_packet_required_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "manifest_hash",
+    "root_commitment",
+    "chunk_count",
+    "chunk_proof_summary",
+    "availability_proof",
+    "retrieval_proof_or_peer_observation",
+    "timestamp",
+    "reviewer_status"
+  ],
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "bypasses_reviewer_approval": false
+  },
+  "authority_boundary": {
+    "activates_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  },
+  "future_artifacts": [
+    "evidence_packet_schema",
+    "reviewer_decision_packet",
+    "duplicate_proof_guard",
+    "wc_award_recommendation_packet",
+    "validator_attested_availability_challenge"
+  ]
+}
