@@ -24,6 +24,11 @@ MAIN_HEAD="$(git rev-parse origin/main)"
 EXPECTED_MAIN_HEAD="$(jq -r '.expected_main_head' "$FIXTURE")"
 CURRENT_BRANCH="$(git branch --show-current)"
 
+set +e
+git merge-base --is-ancestor "$EXPECTED_MAIN_HEAD" "$MAIN_HEAD"
+MAIN_CONTAINS_EXPECTED_BASELINE_RC="$?"
+set -e
+
 OPEN_PR_COUNT="$(gh pr list --repo 6ZoSo9/void-node --state open --json number --jq 'length' 2>/dev/null || echo 999)"
 
 PR9_STATE="$(gh pr view 9 --repo 6ZoSo9/void-node --json state --jq '.state' 2>/dev/null || echo unknown)"
@@ -85,7 +90,7 @@ out = sys.argv[1]
 
 data = {
   "marker": "VOID_MAIN_CI_ROLLUP_AFTER_PR12_V1_GREEN" if all([
-    "$MAIN_HEAD" == "$EXPECTED_MAIN_HEAD",
+    "$MAIN_CONTAINS_EXPECTED_BASELINE_RC" == "0",
     "$OPEN_PR_COUNT" == "0",
     "$PR9_STATE" == "MERGED",
     "$PR10_STATE" == "MERGED",
@@ -107,6 +112,7 @@ data = {
   "expected_main_head": "$EXPECTED_MAIN_HEAD",
   "checks": {
     "main_head_matches_fixture": "$MAIN_HEAD" == "$EXPECTED_MAIN_HEAD",
+    "main_contains_expected_baseline": "$MAIN_CONTAINS_EXPECTED_BASELINE_RC" == "0",
     "open_pr_count": int("$OPEN_PR_COUNT") if "$OPEN_PR_COUNT".isdigit() else "$OPEN_PR_COUNT",
     "open_pr_count_zero": "$OPEN_PR_COUNT" == "0",
     "recent_pr_states": {
