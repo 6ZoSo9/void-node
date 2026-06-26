@@ -1,0 +1,205 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_NO_LIVE_SUMMARY_INDEX_PATCH_APPLY_EVALUATION_DRY_RUN_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Public Earn Status No-Live Summary Index Patch Apply Evaluation Dry-Run Hold v1",
+  "status": "index_patch_apply_evaluation_dry_run_hold_only_no_public_index_mutation_no_public_index_file_write_no_route_registry_mutation_no_runtime_route_no_live_claim_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_earn_status_no_live_summary_index_patch_apply_evaluation_dry_run_hold_v1",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_NO_LIVE_SUMMARY_INDEX_PATCH_APPLY_PREFLIGHT_HOLD_V1",
+  "proposed_public_index_target": "public/public-node/work-credits/index.json",
+  "proposed_index_entry_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "evaluation_dry_run_id",
+    "evaluation_status",
+    "source_marker",
+    "source_apply_preflight_status",
+    "source_patch_apply_status",
+    "proposed_public_index_target",
+    "proposed_index_entry",
+    "public_index_exists",
+    "public_index_worktree_status",
+    "public_index_write_status",
+    "duplicate_route_check_status",
+    "candidate_shape_check_status",
+    "patch_apply_status",
+    "public_index_mutation_status",
+    "public_index_file_write_status",
+    "listing_publication_status",
+    "listing_live_claim",
+    "route_registry_mutation_status",
+    "runtime_route_status",
+    "runtime_live_claim",
+    "runtime_route_observed",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "timestamp",
+    "public_safety_boundary",
+    "evaluation_dry_run_boundary",
+    "apply_preflight_boundary",
+    "index_patch_boundary",
+    "runtime_boundary",
+    "route_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "proposed_index_entry_required_fields": [
+    "title",
+    "route",
+    "status",
+    "runtime_live_claim",
+    "runtime_route_observed",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_evaluation_status": [
+    "candidate_shape_valid_index_unchanged_duplicate_route_pending_operator_review",
+    "candidate_shape_valid_index_unchanged_candidate_route_absent",
+    "blocked_missing_source_apply_preflight",
+    "blocked_missing_public_index",
+    "blocked_unexpected_public_index_mutation",
+    "blocked_unexpected_public_index_file_write",
+    "blocked_unexpected_listing_publication",
+    "blocked_unexpected_listing_live_claim",
+    "blocked_unexpected_route_registry_mutation",
+    "blocked_unexpected_runtime_route",
+    "blocked_unexpected_live_claim",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_source_apply_preflight_status": [
+    "ready_for_future_separate_apply_evaluation"
+  ],
+  "allowed_source_patch_apply_status": [
+    "not_applied"
+  ],
+  "allowed_public_index_exists": [
+    true,
+    false
+  ],
+  "allowed_public_index_worktree_status": [
+    "unchanged_required"
+  ],
+  "allowed_public_index_write_status": [
+    "not_written"
+  ],
+  "allowed_duplicate_route_check_status": [
+    "candidate_route_absent_from_index",
+    "candidate_route_already_present_requires_operator_review",
+    "public_index_missing_route_check_not_performed"
+  ],
+  "allowed_candidate_shape_check_status": [
+    "candidate_shape_valid"
+  ],
+  "allowed_patch_apply_status": [
+    "not_applied"
+  ],
+  "allowed_public_index_mutation_status": [
+    "not_mutated"
+  ],
+  "allowed_public_index_file_write_status": [
+    "not_written"
+  ],
+  "allowed_listing_publication_status": [
+    "not_published"
+  ],
+  "allowed_listing_live_claim": [
+    false
+  ],
+  "allowed_route_registry_mutation_status": [
+    "not_mutated"
+  ],
+  "allowed_runtime_route_status": [
+    "not_added"
+  ],
+  "allowed_runtime_live_claim": [
+    false
+  ],
+  "allowed_runtime_route_observed": [
+    false
+  ],
+  "allowed_wc_issuance_status": [
+    "not_issued"
+  ],
+  "allowed_wc_ledger_write_status": [
+    "not_written"
+  ],
+  "allowed_execute_gate_status": [
+    "held_execute_gate_closed"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ],
+  "evaluation_dry_run_boundary_required_false": [
+    "applies_patch",
+    "applies_diff",
+    "mutates_public_index",
+    "writes_public_index_file",
+    "publishes_listing",
+    "claims_listing_live"
+  ],
+  "apply_preflight_boundary_required_false": [
+    "applies_patch",
+    "applies_diff",
+    "mutates_public_index",
+    "writes_public_index_file",
+    "publishes_listing",
+    "claims_listing_live"
+  ],
+  "index_patch_boundary_required_false": [
+    "mutates_public_index",
+    "writes_public_index_file",
+    "publishes_listing",
+    "claims_listing_live",
+    "activates_public_discovery"
+  ],
+  "runtime_boundary_required_false": [
+    "claims_route_live",
+    "performs_runtime_request",
+    "starts_service",
+    "restarts_service",
+    "adds_runtime_route",
+    "changes_runtime_behavior"
+  ],
+  "route_boundary_required_false": [
+    "mutates_route_registry",
+    "mutates_public_index",
+    "activates_public_mutation"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate"
+  ],
+  "authority_boundary_required_false": [
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}
