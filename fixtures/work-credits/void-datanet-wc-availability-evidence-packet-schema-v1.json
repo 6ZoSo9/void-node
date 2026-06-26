@@ -1,0 +1,57 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+  "artifact": "VOID DataNet WC Availability Evidence Packet Schema v1",
+  "status": "schema_example_proof_only_no_wc_issuance",
+  "packet_kind": "datanet_wc_availability_evidence_packet_v1",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "participant_id",
+    "object_id_or_content_root",
+    "manifest_hash",
+    "root_commitment",
+    "chunk_count",
+    "chunk_proof_summary",
+    "availability_proof",
+    "retrieval_proof_or_peer_observation",
+    "claimed_work_actions",
+    "timestamp",
+    "reviewer_status",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "allowed_reviewer_status": [
+    "draft",
+    "submitted",
+    "needs_review",
+    "approved_for_wc_review",
+    "rejected",
+    "duplicate",
+    "invalid_root",
+    "unavailable"
+  ],
+  "allowed_claimed_work_actions": [
+    "verify_content_root",
+    "mirror_object",
+    "pin_object",
+    "prove_local_availability",
+    "serve_retrieval",
+    "peer_observed_availability"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "bypasses_reviewer_approval"
+  ],
+  "authority_boundary_required_false": [
+    "activates_public_mutation",
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}

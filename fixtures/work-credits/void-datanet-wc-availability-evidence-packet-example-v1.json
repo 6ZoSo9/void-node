@@ -1,0 +1,50 @@
+{
+  "packet_kind": "datanet_wc_availability_evidence_packet_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+  "participant_id": "example-participant-local-only",
+  "object_id_or_content_root": "sha256:example-content-root-not-live",
+  "manifest_hash": "sha256:example-manifest-hash-not-live",
+  "root_commitment": "sha256:example-root-commitment-not-live",
+  "chunk_count": 3,
+  "chunk_proof_summary": {
+    "kind": "example_chunk_hash_summary",
+    "all_chunks_present": true,
+    "all_chunk_hashes_match_manifest": true
+  },
+  "availability_proof": {
+    "kind": "local_example_availability_proof",
+    "local_pin_present": true,
+    "local_readback_ok": true,
+    "served_publicly": false
+  },
+  "retrieval_proof_or_peer_observation": {
+    "kind": "example_local_retrieval_observation",
+    "retrieval_attempted": true,
+    "retrieval_ok": true,
+    "observer": "local-example"
+  },
+  "claimed_work_actions": [
+    "verify_content_root",
+    "mirror_object",
+    "pin_object",
+    "prove_local_availability"
+  ],
+  "timestamp": "2026-06-26T00:00:00.000Z",
+  "reviewer_status": "submitted",
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "bypasses_reviewer_approval": false
+  },
+  "authority_boundary": {
+    "activates_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}
