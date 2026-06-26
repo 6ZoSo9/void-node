@@ -1,0 +1,48 @@
+{
+  "packet_kind": "datanet_wc_availability_reviewer_decision_packet_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_DECISION_PACKET_V1",
+  "evidence_packet_kind": "datanet_wc_availability_evidence_packet_v1",
+  "evidence_packet_marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+  "participant_id": "example-participant-local-only",
+  "object_id_or_content_root": "sha256:example-content-root-not-live",
+  "manifest_hash": "sha256:example-manifest-hash-not-live",
+  "root_commitment": "sha256:example-root-commitment-not-live",
+  "claimed_work_actions": [
+    "verify_content_root",
+    "mirror_object",
+    "pin_object",
+    "prove_local_availability"
+  ],
+  "decision": "approved_for_wc_review",
+  "reviewer_id": "example-reviewer-local-only",
+  "decision_timestamp": "2026-06-26T00:00:00.000Z",
+  "reviewer_checks": {
+    "content_root_present": true,
+    "manifest_hash_present": true,
+    "root_commitment_present": true,
+    "chunk_proof_summary_present": true,
+    "availability_proof_present": true,
+    "retrieval_or_peer_observation_present": true,
+    "claimed_work_actions_allowed": true,
+    "wc_boundary_false": true,
+    "authority_boundary_false": true,
+    "duplicate_checked": true
+  },
+  "reviewer_notes": "Example decision packet only. No WC issued.",
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "bypasses_reviewer_approval": false
+  },
+  "authority_boundary": {
+    "activates_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}
