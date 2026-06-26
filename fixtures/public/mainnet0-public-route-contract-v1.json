@@ -1,0 +1,102 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_ROUTE_CONTRACT_V1",
+  "version": 1,
+  "scope": "mainnet0_public_live_boundary",
+  "purpose": "machine-readable public route contract for the post-canonical-tx-hotpath runtime",
+  "public_paths": [
+    {
+      "path": "/health",
+      "allowed_status": [200],
+      "reason": "basic node health is public"
+    },
+    {
+      "path": "/__void/ready.json",
+      "allowed_status": [200],
+      "reason": "readiness summary is public"
+    },
+    {
+      "path": "/mempool/count",
+      "allowed_status": [200],
+      "reason": "aggregate mempool count is public"
+    },
+    {
+      "path": "/participant",
+      "allowed_status": [200],
+      "reason": "participant UI is public"
+    },
+    {
+      "path": "/blocks/latest/number",
+      "allowed_status": [200],
+      "reason": "latest block number is public"
+    }
+  ],
+  "remote_hidden_paths": [
+    {
+      "path": "/__void/diag/storage-repair-readiness-v1.json",
+      "allowed_status": [404],
+      "reason": "diagnostics are local-only remotely"
+    },
+    {
+      "path": "/__void/dev/inspect/sealBlockOnce",
+      "allowed_status": [404],
+      "reason": "dev execution/inspection surface is remote-hidden"
+    },
+    {
+      "path": "/__void/operator/nope",
+      "allowed_status": [404],
+      "reason": "operator namespace is remote-hidden"
+    },
+    {
+      "path": "/__void/admin/nope",
+      "allowed_status": [404],
+      "reason": "admin namespace is remote-hidden"
+    },
+    {
+      "path": "/__void/participant/wallet/export",
+      "allowed_status": [404],
+      "reason": "wallet export is remote-hidden"
+    },
+    {
+      "path": "/__debug/nope",
+      "allowed_status": [404],
+      "reason": "debug namespace is remote-hidden"
+    },
+    {
+      "path": "/dev/routes.json",
+      "allowed_status": [404],
+      "reason": "dev route inventory is remote-hidden"
+    }
+  ],
+  "local_diag_paths": [
+    {
+      "path": "/__void/diag/storage-repair-readiness-v1.json",
+      "allowed_status": [200],
+      "reason": "local operator storage readiness proof remains available"
+    },
+    {
+      "path": "/__void/diag/txsubmit_canonical.json",
+      "allowed_status": [200],
+      "reason": "local canonical txsubmit proof remains available"
+    },
+    {
+      "path": "/__void/diag/txsubmit_canonical_cleanup.json",
+      "allowed_status": [200],
+      "reason": "local cleanup route-count proof remains available"
+    }
+  ],
+  "source_forbidden_patterns": [
+    "literal legacy app.post/app.use /tx/submit mounts",
+    "Object.prototype.filter shim",
+    "globalEnqueueTx(req.body)",
+    "early_singleton handlers",
+    "txsubmit_late_repair_v1 handlers"
+  ],
+  "authority": {
+    "public_mutation_authority": false,
+    "remote_diag_authority": false,
+    "remote_dev_authority": false,
+    "remote_operator_authority": false,
+    "remote_admin_authority": false,
+    "remote_wallet_export_authority": false
+  }
+}
