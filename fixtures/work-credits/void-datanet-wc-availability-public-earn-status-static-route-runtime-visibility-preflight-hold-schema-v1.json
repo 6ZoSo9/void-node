@@ -1,0 +1,112 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_STATIC_ROUTE_RUNTIME_VISIBILITY_PREFLIGHT_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Public Earn Status Static Route Runtime Visibility Preflight Hold v1",
+  "status": "runtime_visibility_preflight_hold_only_no_runtime_claim_no_route_registry_mutation_no_public_index_mutation_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_earn_status_static_route_runtime_visibility_preflight_hold_v1",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_STATIC_ROUTE_ARTIFACT_HOLD_V1",
+  "static_artifact_path": "public/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "intended_public_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "preflight_id",
+    "preflight_status",
+    "static_artifact_path",
+    "intended_public_route",
+    "runtime_visibility_claim_status",
+    "runtime_observation_status",
+    "route_registry_status",
+    "public_index_status",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "source_marker",
+    "timestamp",
+    "public_safety_boundary",
+    "runtime_boundary",
+    "route_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_preflight_status": [
+    "static_artifact_ready_for_future_runtime_visibility_check",
+    "blocked_missing_static_artifact",
+    "blocked_invalid_static_artifact",
+    "blocked_unexpected_runtime_claim",
+    "blocked_unexpected_route_registry_mutation",
+    "blocked_unexpected_public_index_mutation",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_runtime_visibility_claim_status": [
+    "not_claimed_live"
+  ],
+  "allowed_runtime_observation_status": [
+    "not_observed"
+  ],
+  "allowed_route_registry_status": [
+    "not_mutated"
+  ],
+  "allowed_public_index_status": [
+    "not_mutated"
+  ],
+  "allowed_wc_issuance_status": [
+    "not_issued"
+  ],
+  "allowed_wc_ledger_write_status": [
+    "not_written"
+  ],
+  "allowed_execute_gate_status": [
+    "held_execute_gate_closed"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ],
+  "runtime_boundary_required_false": [
+    "claims_route_live",
+    "performs_runtime_request",
+    "observes_runtime_route",
+    "adds_runtime_route",
+    "changes_runtime_behavior"
+  ],
+  "route_boundary_required_false": [
+    "mutates_route_registry",
+    "mutates_public_index",
+    "activates_public_mutation"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate"
+  ],
+  "authority_boundary_required_false": [
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}
