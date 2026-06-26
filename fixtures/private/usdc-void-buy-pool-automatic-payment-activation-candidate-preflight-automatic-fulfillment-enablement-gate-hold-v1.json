@@ -1,0 +1,52 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_CANDIDATE_PREFLIGHT_AUTOMATIC_FULFILLMENT_ENABLEMENT_GATE_HOLD_V1",
+  "id": "usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-automatic-fulfillment-enablement-gate-hold-v1",
+  "status": "activation_candidate_preflight_automatic_fulfillment_enablement_gate_held",
+  "scope": "private_operator_only_automatic_fulfillment_enablement_gate_hold_not_execution",
+  "precision_source_of_truth": true,
+  "source_fixture": "fixtures/private/usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-wallet-fulfillment-gate-hold-v1.json",
+  "wallet_fulfillment_gate_status": "activation_candidate_preflight_wallet_fulfillment_gate_held",
+  "signer_access_gate_status": "activation_candidate_preflight_signer_access_gate_held",
+  "actual_execute_gate_status": "activation_candidate_preflight_actual_execute_gate_held",
+  "terminal_authority_gate_status": "activation_candidate_preflight_terminal_authority_gate_held",
+  "automatic_fulfillment_enablement_gate": {
+    "gate_exists": true,
+    "gate_state": "held_closed",
+    "automatic_fulfillment_enabled": false,
+    "reason": "wallet fulfillment gate hold is not automatic fulfillment enablement"
+  },
+  "gate_hold_checks": [
+    "wallet_fulfillment_gate_complete_but_not_automatic_fulfillment_enablement",
+    "automatic_fulfillment_enablement_gate_exists",
+    "automatic_fulfillment_enablement_gate_held_closed",
+    "no_automatic_fulfillment_enabled",
+    "no_wallet_fulfillment_enabled",
+    "no_signer_access_granted",
+    "no_actual_execute_authorized",
+    "no_signing_performed",
+    "no_void_transfer_performed",
+    "no_transaction_broadcast_created",
+    "no_fulfilled_state_write_created",
+    "no_public_mutation_route_created"
+  ],
+  "boundary": {
+    "automatic_fulfillment_enablement_gate_hold": true,
+    "wallet_fulfillment_gate_hold_complete": true,
+    "signer_access_gate_hold_complete": true,
+    "actual_execute_gate_hold_complete": true,
+    "terminal_authority_gate_hold_complete": true,
+    "execution_plan_only": true,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "signer_access_granted": false,
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "public_mutation_route_created": false
+  },
+  "next_required_gate": "activation_candidate_preflight_public_mutation_gate_hold_v1"
+}
