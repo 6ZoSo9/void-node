@@ -1,0 +1,45 @@
+{
+  "marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
+  "artifact": "VOID Constitutional Authority Boundary v1",
+  "version": "1.0.0-draft",
+  "date": "2026-06-26",
+  "status": "Phase 0 doctrine/specification draft — constraint-only; no authority activated.",
+  "current_phase": {
+    "phase": 0,
+    "name": "Founder/operator-rooted construction state",
+    "validator_contest_authority_active": false,
+    "validator_quorum_active": false,
+    "public_mutation_authority_active": false,
+    "signer_or_wallet_access_granted": false,
+    "execution_authority_granted": false
+  },
+  "authority_boundary": {
+    "constraint_only": true,
+    "activates_new_authority": false,
+    "transfers_authority": false,
+    "creates_validator_quorum": false,
+    "enables_public_mutation": false,
+    "authorizes_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "mutates_ledgers": false
+  },
+  "doctrine": [
+    "Authority must be legible, typed, bounded, and contestable at every layer.",
+    "Validators are not just infrastructure. Validators are protected witnesses to VOID truth.",
+    "Constitutional authority may stop the machine. It may not secretly become the machine.",
+    "Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process."
+  ],
+  "break_glass": {
+    "permitted_classes": ["pause", "quarantine", "challenge"],
+    "forbidden_classes": ["fund_movement", "authority_rotation", "history_rewrite", "ledger_mutation", "signer_wallet_access", "public_mutation"]
+  },
+  "phase_ladder": [
+    "Phase 0 — Founder/operator construction state",
+    "Phase 1 — Named validator observer state",
+    "Phase 2 — Validator contest-delay state",
+    "Phase 3 — Validator quorum-required state",
+    "Phase 4 — Reaffirmed founder authority",
+    "Phase 5 — Network constitutional authority"
+  ]
+}
