@@ -381,6 +381,715 @@ console.log("[shim] published global node (post-construct)");
 
 const app = express();
 
+
+/* VOID_CANONICAL_TX_HOTPATH_V1
+   Authority:
+   - exactly one public POST /tx/submit route
+   - appends exactly once into live node.mempool
+   - does not mirror into global __void_tx_queue
+   - preempts late legacy /tx/submit mounts and wrappers
+*/
+;(() => {
+  try {
+    const G: any = globalThis as any;
+    if (G.__void_canonical_tx_hotpath_v1_installed) return;
+    G.__void_canonical_tx_hotpath_v1_installed = true;
+
+    const ROUTE = "/tx/submit";
+    const KEEP = "__void_canonical_tx_hotpath_v1_keep";
+
+    const appAny: any = app as any;
+    const appProto: any =
+      Object.getPrototypeOf(appAny) ||
+      ((express as any).application || null);
+
+    const S: any = G.__void_canonical_tx_hotpath_v1 = G.__void_canonical_tx_hotpath_v1 || {
+      installed: true,
+      mounted: false,
+      allowed_post_total: 0,
+      skipped_post_total: 0,
+      skipped_use_total: 0,
+      submits_total: 0,
+      accepted_total: 0,
+      rejected_total: 0,
+      append_ok_total: 0,
+      append_err_total: 0,
+      last_hash: "",
+      last_error: "",
+      last_mempool_len: -1,
+      last_submit_ts_ms: 0
+    };
+
+    function isTxSubmitPath(pth: any): boolean {
+      try {
+        if (pth === ROUTE) return true;
+        if (Array.isArray(pth)) return pth.includes(ROUTE);
+      } catch {}
+      return false;
+    }
+
+    function hasKeepHandler(handlers: any[]): boolean {
+      try {
+        return handlers.some((h: any) => !!(h && h[KEEP]));
+      } catch {
+        return false;
+      }
+    }
+
+    // Install the authoritative mount guard BEFORE legacy /tx/submit blocks run.
+    if (appProto && !appProto.__void_canonical_tx_hotpath_v1_guard_installed) {
+      appProto.__void_canonical_tx_hotpath_v1_guard_installed = true;
+
+      // Also suppress the older late guard block so it cannot reopen the route later.
+      appProto.__void_tx_submit_mount_guard_v1_installed = true;
+
+      const origPost: any = appProto.post;
+      const origUse: any = appProto.use;
+
+      if (typeof origPost === "function") {
+        appProto.post = function(this: any, pth: any, ...handlers: any[]) {
+          try {
+            if (isTxSubmitPath(pth)) {
+              if (!hasKeepHandler(handlers)) {
+                S.skipped_post_total = Number(S.skipped_post_total || 0) + 1;
+                if (!G.__void_canonical_tx_hotpath_v1_skip_post_log_once) {
+                  G.__void_canonical_tx_hotpath_v1_skip_post_log_once = true;
+                  try { console.log("[txsubmit.canonical.v1] skipped legacy app.post(/tx/submit) mount"); } catch {}
+                }
+                return this;
+              }
+
+              G.__void_canonical_tx_hotpath_v1_mounted = true;
+              G.__void_tx_submit_mounted_v1 = true;
+              S.allowed_post_total = Number(S.allowed_post_total || 0) + 1;
+            }
+          } catch {}
+          return origPost.call(this, pth, ...handlers);
+        };
+      }
+
+      if (typeof origUse === "function") {
+        appProto.use = function(this: any, pth: any, ...handlers: any[]) {
+          try {
+            if (isTxSubmitPath(pth)) {
+              S.skipped_use_total = Number(S.skipped_use_total || 0) + 1;
+              if (!G.__void_canonical_tx_hotpath_v1_skip_use_log_once) {
+                G.__void_canonical_tx_hotpath_v1_skip_use_log_once = true;
+                try { console.log("[txsubmit.canonical.v1] skipped legacy app.use(/tx/submit) mount"); } catch {}
+              }
+              return this;
+            }
+          } catch {}
+          return origUse.call(this, pth, ...handlers);
+        };
+      }
+    }
+
+    function stableJson(x: any): string {
+      if (x === null) return "null";
+      const t = typeof x;
+      if (t === "string" || t === "number" || t === "boolean") return JSON.stringify(x);
+      if (t === "bigint") return JSON.stringify(String(x));
+      if (Array.isArray(x)) return "[" + x.map((v: any) => stableJson(v)).join(",") + "]";
+      if (t === "object") {
+        const keys = Object.keys(x).sort();
+        return "{" + keys.map((k: string) => JSON.stringify(k) + ":" + stableJson(x[k])).join(",") + "}";
+      }
+      return JSON.stringify(String(x));
+    }
+
+    function sha256Hex(x: string): string {
+      const crypto: any = require("node:crypto");
+      return crypto.createHash("sha256").update(x).digest("hex");
+    }
+
+    function cleanHash(v: any): string {
+      const h = String(v || "").trim().toLowerCase().replace(/^0x/, "");
+      return /^[0-9a-f]{64}$/.test(h) ? h : "";
+    }
+
+    function normalizeTx(body: any): any {
+      const tx: any =
+        body && typeof body === "object" && !Array.isArray(body)
+          ? { ...body }
+          : { data: body };
+
+      const suppliedHash = cleanHash(tx.hash || tx.txHash);
+      if (suppliedHash) {
+        tx.hash = suppliedHash;
+      } else {
+        const material: any = { ...tx };
+        delete material.hash;
+        delete material.txHash;
+        tx.hash = sha256Hex(stableJson(material));
+      }
+
+      if (tx.body === undefined && tx.data !== undefined && typeof tx.data === "object") {
+        tx.body = tx.data;
+      }
+
+      if (tx.receivedAtMs === undefined) tx.receivedAtMs = Date.now();
+      if (tx.source === undefined) tx.source = "txsubmit_canonical_v1";
+
+      return tx;
+    }
+
+    function getNode(): any {
+      return (
+        G.__void_node ||
+        G.node ||
+        G.VOID_NODE ||
+        G.__void_live_node ||
+        null
+      );
+    }
+
+    function mempoolLen(node: any): number {
+      try {
+        const mp: any = node?.mempool;
+        if (Array.isArray(mp?.txs)) return mp.txs.length;
+        if (typeof mp?.peekAll === "function") {
+          const a = mp.peekAll();
+          return Array.isArray(a) ? a.length : -1;
+        }
+        if (typeof mp?.size === "function") return Number(mp.size());
+      } catch {}
+      return -1;
+    }
+
+    function appendCanonical(tx: any): { ok: boolean; src: string; count: number; error?: string } {
+      try {
+        const node: any = getNode();
+        const mp: any = node?.mempool;
+
+        if (!node) return { ok: false, src: "none", count: -1, error: "no_live_node" };
+        if (!mp) return { ok: false, src: "none", count: -1, error: "no_live_mempool" };
+
+        if (Array.isArray(mp.txs)) {
+          mp.txs.push(tx);
+          return { ok: true, src: "node.mempool.txs", count: mp.txs.length };
+        }
+
+        if (typeof mp.push === "function") {
+          mp.push(tx);
+          return { ok: true, src: "node.mempool.push", count: mempoolLen(node) };
+        }
+
+        if (typeof mp.enqueue === "function") {
+          mp.enqueue(tx);
+          return { ok: true, src: "node.mempool.enqueue", count: mempoolLen(node) };
+        }
+
+        return { ok: false, src: "unknown", count: -1, error: "unsupported_mempool_shape" };
+      } catch (e: any) {
+        return { ok: false, src: "throw", count: -1, error: String(e?.message || e) };
+      }
+    }
+
+    function txSubmitRouteCount(): any {
+      const stack: any[] =
+        (Array.isArray(appAny?._router?.stack) ? appAny._router.stack : null) ||
+        (Array.isArray(appAny?.router?.stack) ? appAny.router.stack : []) ||
+        [];
+
+      let routes = 0;
+      let layers = 0;
+
+      for (const layer of stack) {
+        try {
+          const r: any = layer?.route;
+          if (!r) continue;
+          if (r.path !== ROUTE) continue;
+          if (!(r.methods && r.methods.post)) continue;
+          routes++;
+          layers += Array.isArray(r.stack) ? r.stack.length : 0;
+        } catch {}
+      }
+
+      return { routes, layers };
+    }
+
+    function isLocalReq(req: any): boolean {
+      const r = String(req?.socket?.remoteAddress || req?.connection?.remoteAddress || req?.ip || "");
+      return r === "127.0.0.1" || r === "::1" || r === "::ffff:127.0.0.1" || r === "localhost";
+    }
+
+    const jsonParser: any = (express as any).json({
+      limit: "1mb",
+      type: ["application/json", "application/*+json", "text/json"]
+    });
+    jsonParser[KEEP] = true;
+    jsonParser.__void_txsubmit_wrap_ge_v1 = true;
+    jsonParser.__void_txsubmit_keep_v1 = true;
+
+    const canonicalHandler: any = function __voidCanonicalTxSubmitV1(req: any, res: any) {
+      S.submits_total = Number(S.submits_total || 0) + 1;
+      S.last_submit_ts_ms = Date.now();
+
+      try {
+        const body = req?.body;
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          S.rejected_total = Number(S.rejected_total || 0) + 1;
+          S.last_error = "body_must_be_json_object";
+          return res.status(400).json({
+            ok: false,
+            error: "body_must_be_json_object",
+            handled: "txsubmit_canonical_v1"
+          });
+        }
+
+        const tx = normalizeTx(body);
+        const appended = appendCanonical(tx);
+
+        if (!appended.ok) {
+          S.rejected_total = Number(S.rejected_total || 0) + 1;
+          S.append_err_total = Number(S.append_err_total || 0) + 1;
+          S.last_error = appended.error || "append_failed";
+          S.last_hash = tx.hash || "";
+          S.last_mempool_len = appended.count;
+          return res.status(503).json({
+            ok: false,
+            error: appended.error || "append_failed",
+            handled: "txsubmit_canonical_v1",
+            hash: tx.hash,
+            src: appended.src,
+            mempoolLen: appended.count
+          });
+        }
+
+        S.accepted_total = Number(S.accepted_total || 0) + 1;
+        S.append_ok_total = Number(S.append_ok_total || 0) + 1;
+        S.last_error = "";
+        S.last_hash = tx.hash || "";
+        S.last_mempool_len = appended.count;
+
+        return res.status(200).json({
+          ok: true,
+          handled: "txsubmit_canonical_v1",
+          hash: tx.hash,
+          src: appended.src,
+          mempoolLen: appended.count
+        });
+      } catch (e: any) {
+        S.rejected_total = Number(S.rejected_total || 0) + 1;
+        S.append_err_total = Number(S.append_err_total || 0) + 1;
+        S.last_error = String(e?.message || e);
+        return res.status(500).json({
+          ok: false,
+          error: S.last_error,
+          handled: "txsubmit_canonical_v1"
+        });
+      }
+    };
+
+    canonicalHandler[KEEP] = true;
+
+    // These flags make legacy wrapper/prune blocks leave this handler alone.
+    canonicalHandler.__void_txsubmit_wrap_ge_v1 = true;
+    canonicalHandler.__void_txsubmit_keep_v1 = true;
+
+    appAny.post(ROUTE, jsonParser, canonicalHandler);
+    S.mounted = true;
+
+    appAny.get("/__void/diag/txsubmit_canonical.json", (req: any, res: any) => {
+      if (process.env.VOID_ALLOW_REMOTE_SENSITIVE_ROUTES !== "1" && !isLocalReq(req)) {
+        return res.status(404).type("text/plain").send("not found");
+      }
+
+      return res.json({
+        ok: true,
+        marker: "VOID_CANONICAL_TX_HOTPATH_V1",
+        state: S,
+        route_count: txSubmitRouteCount(),
+        policy: {
+          canonical_route: ROUTE,
+          public_mutation: true,
+          appends_to: "live node.mempool only",
+          mirrors_to_global_tx_queue: false,
+          calls_globalEnqueueTx: false,
+          legacy_txsubmit_mounts_skipped: true
+        }
+      });
+    });
+
+    appAny.get("/__void/metrics/txsubmit_canonical.prom", (_req: any, res: any) => {
+      const rc = txSubmitRouteCount();
+      res.type("text/plain; version=0.0.4; charset=utf-8").send([
+        "# HELP void_txsubmit_canonical_installed canonical tx submit installed",
+        "# TYPE void_txsubmit_canonical_installed gauge",
+        "void_txsubmit_canonical_installed 1",
+        "# HELP void_txsubmit_canonical_routes POST /tx/submit route count",
+        "# TYPE void_txsubmit_canonical_routes gauge",
+        "void_txsubmit_canonical_routes " + Number(rc.routes || 0),
+        "# HELP void_txsubmit_canonical_submits_total POST /tx/submit calls",
+        "# TYPE void_txsubmit_canonical_submits_total counter",
+        "void_txsubmit_canonical_submits_total " + Number(S.submits_total || 0),
+        "# HELP void_txsubmit_canonical_accepted_total accepted submits",
+        "# TYPE void_txsubmit_canonical_accepted_total counter",
+        "void_txsubmit_canonical_accepted_total " + Number(S.accepted_total || 0),
+        "# HELP void_txsubmit_canonical_rejected_total rejected submits",
+        "# TYPE void_txsubmit_canonical_rejected_total counter",
+        "void_txsubmit_canonical_rejected_total " + Number(S.rejected_total || 0),
+        "# HELP void_txsubmit_canonical_skipped_post_total skipped legacy app.post mounts",
+        "# TYPE void_txsubmit_canonical_skipped_post_total counter",
+        "void_txsubmit_canonical_skipped_post_total " + Number(S.skipped_post_total || 0),
+        "# HELP void_txsubmit_canonical_skipped_use_total skipped legacy app.use mounts",
+        "# TYPE void_txsubmit_canonical_skipped_use_total counter",
+        "void_txsubmit_canonical_skipped_use_total " + Number(S.skipped_use_total || 0),
+        "# HELP void_txsubmit_canonical_last_mempool_len last observed mempool length",
+        "# TYPE void_txsubmit_canonical_last_mempool_len gauge",
+        "void_txsubmit_canonical_last_mempool_len " + Number(S.last_mempool_len || 0)
+      ].join("\n") + "\n");
+    });
+
+    try { console.log("[txsubmit.canonical.v1] mounted authoritative POST /tx/submit"); } catch {}
+  } catch (e: any) {
+    try { console.error("[txsubmit.canonical.v1] install failed", String(e?.stack || e)); } catch {}
+  }
+})();
+
+
+
+/* VOID_CANONICAL_TX_HOTPATH_V1_LATE_PRUNE_AND_COUNT_V1
+   Recovery clamp:
+   - direct app.post/app.use guard skips later legacy /tx/submit mounts
+   - repeated late prune removes already-mounted legacy /tx/submit routes
+   - canonical /mempool/count reports the same live mempool shape used by canonical submit
+*/
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_canonical_tx_hotpath_v1_late_prune_and_count_v1_installed";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const appAny:any = app as any;
+    const ROUTE = "/tx/submit";
+    const KEEP = "__void_canonical_tx_hotpath_v1_keep";
+
+    const S:any = G.__void_canonical_tx_hotpath_v1_late_prune_and_count_v1 =
+      G.__void_canonical_tx_hotpath_v1_late_prune_and_count_v1 || {
+        installed: true,
+        direct_guard_installed: false,
+        skipped_post_total: 0,
+        skipped_use_total: 0,
+        sweep_runs: 0,
+        pruned_total: 0,
+        pruned_last: 0,
+        routes_before: null,
+        routes_after: null,
+        count_route_installed: false,
+        count_route_promoted_total: 0,
+        last_count: -1,
+        last_count_src: "",
+        last_error: ""
+      };
+
+    function isTxSubmitPath(pth:any): boolean {
+      try {
+        if (pth === ROUTE) return true;
+        if (Array.isArray(pth)) return pth.includes(ROUTE);
+      } catch {}
+      return false;
+    }
+
+    function hasKeepHandlers(handlers:any[]): boolean {
+      try {
+        return handlers.some((h:any) => !!(h && h[KEEP]));
+      } catch {
+        return false;
+      }
+    }
+
+    function routeStack(): any[] {
+      try {
+        const r:any = appAny?._router || appAny?.router || null;
+        return Array.isArray(r?.stack) ? r.stack : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function isPostTxSubmitLayer(layer:any): boolean {
+      try {
+        const r:any = layer?.route;
+        if (!r) return false;
+        if (r.path !== ROUTE) return false;
+        return !!(r.methods && r.methods.post);
+      } catch {
+        return false;
+      }
+    }
+
+    function layerHasKeep(layer:any): boolean {
+      try {
+        const rs:any[] = Array.isArray(layer?.route?.stack) ? layer.route.stack : [];
+        return rs.some((x:any) => !!(x?.handle && x.handle[KEEP]));
+      } catch {
+        return false;
+      }
+    }
+
+    function txRouteCount(): any {
+      const st = routeStack();
+      let routes = 0;
+      let layers = 0;
+      let keep = 0;
+      let legacy = 0;
+
+      for (const layer of st) {
+        if (!isPostTxSubmitLayer(layer)) continue;
+        routes++;
+        try { layers += Array.isArray(layer?.route?.stack) ? layer.route.stack.length : 0; } catch {}
+        if (layerHasKeep(layer)) keep++;
+        else legacy++;
+      }
+
+      return { routes, layers, keep, legacy };
+    }
+
+    function pruneTxSubmitRoutes(): any {
+      const before = txRouteCount();
+      const st = routeStack();
+      let removed = 0;
+
+      for (let i = st.length - 1; i >= 0; i--) {
+        const layer = st[i];
+        if (!isPostTxSubmitLayer(layer)) continue;
+        if (layerHasKeep(layer)) continue;
+        st.splice(i, 1);
+        removed++;
+      }
+
+      const after = txRouteCount();
+      S.sweep_runs = Number(S.sweep_runs || 0) + 1;
+      S.pruned_last = removed;
+      S.pruned_total = Number(S.pruned_total || 0) + removed;
+      S.routes_before = before;
+      S.routes_after = after;
+      return { removed, before, after };
+    }
+
+    function isLocalReq(req:any): boolean {
+      const r = String(req?.socket?.remoteAddress || req?.connection?.remoteAddress || req?.ip || "");
+      return r === "127.0.0.1" || r === "::1" || r === "::ffff:127.0.0.1" || r === "localhost";
+    }
+
+    /* VOID_COUNT_ROUTE_RESJSON_FIX_V1
+       Express route layers must not be promoted before expressInit.
+       Also make this route raw-safe so res.json/res.status are not required.
+    */
+    function sendJsonRaw(res:any, status:number, obj:any): any {
+      try {
+        if (res && typeof res.status === "function" && typeof res.json === "function") {
+          return res.status(status).json(obj);
+        }
+      } catch {}
+      try {
+        const body = JSON.stringify(obj);
+        try { res.statusCode = status; } catch {}
+        try { res.setHeader?.("content-type", "application/json; charset=utf-8"); } catch {}
+        try { res.end?.(body + "\n"); } catch {}
+        return;
+      } catch {
+        try { res.statusCode = status; res.end?.("{\"ok\":false,\"error\":\"json_encode_failed\"}\n"); } catch {}
+      }
+    }
+
+    function storageReadyOk(req:any, res:any): boolean {
+      try {
+        const fn = G.__void_storage_repair_readiness_v1;
+        if (typeof fn !== "function") return true;
+        const out = fn();
+        if (out && out.ok === false) {
+          sendJsonRaw(res, 503, out);
+          return false;
+        }
+      } catch {}
+      return true;
+    }
+
+    function liveNode(): any {
+      return G.__void_node || G.node || G.VOID_NODE || G.__void_live_node || null;
+    }
+
+    function liveMempoolCount(): any {
+      try {
+        const n:any = liveNode();
+        const mp:any = n?.mempool;
+
+        if (!n) return { count: 0, src: "no_live_node" };
+        if (!mp) return { count: 0, src: "no_live_mempool" };
+
+        if (Array.isArray(mp.txs)) {
+          return { count: mp.txs.length, src: "node.mempool.txs" };
+        }
+
+        if (typeof mp.peekAll === "function") {
+          const a = mp.peekAll();
+          if (Array.isArray(a)) return { count: a.length, src: "node.mempool.peekAll" };
+        }
+
+        if (typeof mp.size === "function") {
+          const n0 = Number(mp.size());
+          return { count: Number.isFinite(n0) ? n0 : 0, src: "node.mempool.size()" };
+        }
+
+        if (typeof mp.size === "number") {
+          return { count: Number(mp.size) || 0, src: "node.mempool.size" };
+        }
+
+        if (Array.isArray(mp)) {
+          return { count: mp.length, src: "node.mempool[]" };
+        }
+
+        if (Array.isArray(n.txQueue)) {
+          return { count: n.txQueue.length, src: "node.txQueue_fallback" };
+        }
+
+        return { count: 0, src: "unsupported_mempool_shape" };
+      } catch (e:any) {
+        return { count: 0, src: "throw", error: String(e?.message || e) };
+      }
+    }
+
+    const mempoolCountHandler:any = (req:any, res:any) => {
+      if (!storageReadyOk(req, res)) return;
+      const out = liveMempoolCount();
+      S.last_count = Number(out.count || 0);
+      S.last_count_src = String(out.src || "");
+      return sendJsonRaw(res, 200, {
+        ok: true,
+        count: Number(out.count || 0),
+        size: Number(out.count || 0),
+        src: String(out.src || ""),
+        error: out.error || "",
+        __patch: "VOID_MEMPOOL_COUNT_CANONICAL_V1",
+        __fix: "VOID_COUNT_ROUTE_RESJSON_FIX_V1"
+      });
+    };
+    mempoolCountHandler.__void_mempool_count_canonical_v1 = true;
+
+    function installCountRouteOnce() {
+      if (S.count_route_installed) return;
+      appAny.get("/mempool/count", mempoolCountHandler);
+      S.count_route_installed = true;
+    }
+
+    function promoteCountRoute() {
+      // Do not unshift route layers ahead of Express query/expressInit.
+      // The canonical count route is installed early enough already.
+      try {
+        S.count_route_promoted_total = Number(S.count_route_promoted_total || 0);
+      } catch {}
+    }
+
+    function sweep() {
+      try {
+        const out = pruneTxSubmitRoutes();
+        installCountRouteOnce();
+        promoteCountRoute();
+        return out;
+      } catch (e:any) {
+        S.last_error = String(e?.message || e);
+        return { removed: 0, before: txRouteCount(), after: txRouteCount(), error: S.last_error };
+      }
+    }
+
+    if (!appAny.__void_canonical_tx_hotpath_v1_direct_guard_installed) {
+      appAny.__void_canonical_tx_hotpath_v1_direct_guard_installed = true;
+      S.direct_guard_installed = true;
+
+      const origPost:any = appAny.post;
+      const origUse:any = appAny.use;
+
+      if (typeof origPost === "function") {
+        appAny.post = function(this:any, pth:any, ...handlers:any[]) {
+          try {
+            if (isTxSubmitPath(pth) && !hasKeepHandlers(handlers)) {
+              S.skipped_post_total = Number(S.skipped_post_total || 0) + 1;
+              return this;
+            }
+          } catch {}
+          return origPost.call(this, pth, ...handlers);
+        };
+      }
+
+      if (typeof origUse === "function") {
+        appAny.use = function(this:any, pth:any, ...handlers:any[]) {
+          try {
+            if (isTxSubmitPath(pth)) {
+              S.skipped_use_total = Number(S.skipped_use_total || 0) + 1;
+              return this;
+            }
+          } catch {}
+          return origUse.call(this, pth, ...handlers);
+        };
+      }
+    }
+
+    appAny.get("/__void/diag/txsubmit_canonical_cleanup.json", (req:any, res:any) => {
+      if (process.env.VOID_ALLOW_REMOTE_SENSITIVE_ROUTES !== "1" && !isLocalReq(req)) {
+        return res.status(404).type("text/plain").send("not found");
+      }
+
+      const swept = sweep();
+      return res.json({
+        ok: true,
+        marker: "VOID_CANONICAL_TX_HOTPATH_V1_LATE_PRUNE_AND_COUNT_V1",
+        swept,
+        route_count: txRouteCount(),
+        mempool_count: liveMempoolCount(),
+        state: S
+      });
+    });
+
+    appAny.get("/__void/metrics/txsubmit_canonical_cleanup.prom", (_req:any, res:any) => {
+      const rc = txRouteCount();
+      res.type("text/plain; version=0.0.4; charset=utf-8").send([
+        "# HELP void_txsubmit_cleanup_routes POST /tx/submit route count after cleanup",
+        "# TYPE void_txsubmit_cleanup_routes gauge",
+        "void_txsubmit_cleanup_routes " + Number(rc.routes || 0),
+        "# HELP void_txsubmit_cleanup_keep_routes canonical POST /tx/submit routes",
+        "# TYPE void_txsubmit_cleanup_keep_routes gauge",
+        "void_txsubmit_cleanup_keep_routes " + Number(rc.keep || 0),
+        "# HELP void_txsubmit_cleanup_legacy_routes legacy POST /tx/submit routes",
+        "# TYPE void_txsubmit_cleanup_legacy_routes gauge",
+        "void_txsubmit_cleanup_legacy_routes " + Number(rc.legacy || 0),
+        "# HELP void_txsubmit_cleanup_pruned_total legacy POST /tx/submit routes pruned",
+        "# TYPE void_txsubmit_cleanup_pruned_total counter",
+        "void_txsubmit_cleanup_pruned_total " + Number(S.pruned_total || 0),
+        "# HELP void_txsubmit_cleanup_skipped_post_total legacy app.post(/tx/submit) mounts skipped",
+        "# TYPE void_txsubmit_cleanup_skipped_post_total counter",
+        "void_txsubmit_cleanup_skipped_post_total " + Number(S.skipped_post_total || 0),
+        "# HELP void_txsubmit_cleanup_skipped_use_total legacy app.use(/tx/submit) mounts skipped",
+        "# TYPE void_txsubmit_cleanup_skipped_use_total counter",
+        "void_txsubmit_cleanup_skipped_use_total " + Number(S.skipped_use_total || 0),
+        "# HELP void_mempool_count_canonical_last last canonical mempool count",
+        "# TYPE void_mempool_count_canonical_last gauge",
+        "void_mempool_count_canonical_last " + Number(S.last_count || 0)
+      ].join("\n") + "\n");
+    });
+
+    installCountRouteOnce();
+
+    let runs = 0;
+    const timer:any = setInterval(() => {
+      runs++;
+      sweep();
+      if (runs >= 240) clearInterval(timer);
+    }, 250);
+    try { timer.unref?.(); } catch {}
+
+    setTimeout(() => { try { sweep(); } catch {} }, 0).unref?.();
+
+    try { console.log("[txsubmit.canonical.cleanup.v1] armed late prune/count clamp"); } catch {}
+  } catch (e:any) {
+    try { console.error("[txsubmit.canonical.cleanup.v1] install failed", String(e?.stack || e)); } catch {}
+  }
+})();
+
+
 // === VOID public root redirect v1 ===
 // Public users often open http://127.0.0.1:4100/ first.
 // Keep the root route tiny and redirect to the participant UI.
@@ -6134,309 +6843,13 @@ try {
 
 
 
-// -------- TXSUBMIT DEBUG ENDPOINT v1 --------
-try {
-  const g:any = (globalThis as any);
-  const app:any = g.__void_http_app;
 
-  function __void_findNodeWithMempool(): any {
-    const candKeys = [
-      "__void_node","__VOID_NODE","__voidNode","node","__node","__apiNode",
-      "__void_main_node","__void_core_node","__voidNodeCore"
-    ];
-    for (const k of candKeys) {
-      const v = g[k];
-      if (v && v.mempool && Array.isArray(v.mempool.txs)) return v;
-    }
-    // fallback: scan globals for something that looks like {mempool:{txs:[]}}
-    try {
-      for (const k of Object.keys(g)) {
-        const v = g[k];
-        if (v && v.mempool && Array.isArray(v.mempool.txs)) return v;
-      }
-    } catch {}
-    return null;
-  }
-
-  function __void_safeStr(x:any, n=180){
-    try { return String(x ?? "").slice(0,n).replace(/\n/g," "); } catch { return ""; }
-  }
-
-  if (app && !g.__void_txsubmit_debug_v1_installed) {
-    g.__void_txsubmit_debug_v1_installed = true;
-
-    g.__void_txsubmit_debug_hits_total = Number(g.__void_txsubmit_debug_hits_total || 0);
-    g.__void_txsubmit_debug_enq_ok_total = Number(g.__void_txsubmit_debug_enq_ok_total || 0);
-    g.__void_txsubmit_debug_enq_err_total = Number(g.__void_txsubmit_debug_enq_err_total || 0);
-    g.__void_txsubmit_debug_push_ok_total = Number(g.__void_txsubmit_debug_push_ok_total || 0);
-    g.__void_txsubmit_debug_push_err_total = Number(g.__void_txsubmit_debug_push_err_total || 0);
-    g.__void_txsubmit_debug_last_err = g.__void_txsubmit_debug_last_err ?? null;
-    g.__void_txsubmit_debug_last_nonce = g.__void_txsubmit_debug_last_nonce ?? null;
-
-    app.post(
-      "/__void/tx/submit_debug",
-      // route-level JSON parser so we don't depend on the existing /tx/submit middleware mess
-      (express as any).json({ limit: "1mb", type: ["application/json","application/*+json","text/json"] }),
-      async (req:any, res:any) => {
-        g.__void_txsubmit_debug_hits_total = Number(g.__void_txsubmit_debug_hits_total || 0) + 1;
-
-        const tx = (req && typeof req.body === "object" && req.body) ? req.body : null;
-        const nonce = tx?.nonce ?? null;
-        g.__void_txsubmit_debug_last_nonce = nonce ?? null;
-
-        let enqOk = false;
-        let pushOk = false;
-
-        // 1) try globalEnqueueTx if present
-        try {
-          if (tx && typeof (globalEnqueueTx as any) === "function") {
-            await (globalEnqueueTx as any)(tx);
-            enqOk = true;
-            g.__void_txsubmit_debug_enq_ok_total = Number(g.__void_txsubmit_debug_enq_ok_total || 0) + 1;
-          } else {
-            throw new Error(!tx ? "no tx body" : "globalEnqueueTx not a function");
-          }
-        } catch (e:any) {
-          g.__void_txsubmit_debug_enq_err_total = Number(g.__void_txsubmit_debug_enq_err_total || 0) + 1;
-          g.__void_txsubmit_debug_last_err = e?.message || __void_safeStr(e);
-        }
-
-        // 2) ALSO push straight into node.mempool.txs if we can find it
-        try {
-          const node = __void_findNodeWithMempool();
-          if (tx && node && node.mempool && Array.isArray(node.mempool.txs)) {
-            node.mempool.txs.push(tx);
-            pushOk = true;
-            g.__void_txsubmit_debug_push_ok_total = Number(g.__void_txsubmit_debug_push_ok_total || 0) + 1;
-          } else {
-            throw new Error(!tx ? "no tx body" : "no node.mempool.txs found");
-          }
-        } catch (e:any) {
-          g.__void_txsubmit_debug_push_err_total = Number(g.__void_txsubmit_debug_push_err_total || 0) + 1;
-          g.__void_txsubmit_debug_last_err = g.__void_txsubmit_debug_last_err || (e?.message || __void_safeStr(e));
-        }
-
-        // report current best-effort mempool size
-        let mempoolLen = -1;
-        try {
-          const node = __void_findNodeWithMempool();
-          mempoolLen = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs.length : -1;
-        } catch {}
-
-        res.json({
-          ok: true,
-          handled: "txsubmit_debug_v1",
-          nonce,
-          enqOk,
-          pushOk,
-          mempoolLen
-        });
-      }
-    );
-
-    app.get("/__void/diag/mempool_peek.json", (_req:any, res:any) => {
-      try {
-        const node = __void_findNodeWithMempool();
-        const txs = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs : [];
-        const peek = txs.slice(0, 5).map((t:any)=>({
-          kind: t?.kind ?? null,
-          nonce: t?.nonce ?? null,
-          keys: t && typeof t === "object" ? Object.keys(t).slice(0, 30) : []
-        }));
-        res.json({ ok:true, found: !!node, len: txs.length, peek });
-      } catch (e:any) {
-        res.json({ ok:false, err: e?.message || String(e) });
-      }
-    });
-
-    app.get("/__void/diag/txsubmit_debug.json", (_req:any,res:any)=>{
-      res.json({
-        ok:true,
-        installed:true,
-        hits_total: Number(g.__void_txsubmit_debug_hits_total||0),
-        enq_ok_total: Number(g.__void_txsubmit_debug_enq_ok_total||0),
-        enq_err_total: Number(g.__void_txsubmit_debug_enq_err_total||0),
-        push_ok_total: Number(g.__void_txsubmit_debug_push_ok_total||0),
-        push_err_total: Number(g.__void_txsubmit_debug_push_err_total||0),
-        last_nonce: g.__void_txsubmit_debug_last_nonce ?? null,
-        last_err: g.__void_txsubmit_debug_last_err ?? null
-      });
-    });
-  }
-} catch {}
-// -------- /TXSUBMIT DEBUG ENDPOINT v1 --------
+// [deleted legacy txsubmit block: txsubmit_debug_endpoint_v1]
 
 
 
-// -------- TXSUBMIT WRAP LAYER GLOBALENQ v1 --------
-try {
-  const g:any = (globalThis as any);
-  const app:any = g.__void_http_app;
 
-  if (app && !g.__void_txsubmit_wrap_ge_v1_installed) {
-    g.__void_txsubmit_wrap_ge_v1_installed = true;
-
-    // counters/state
-    g.__void_txsubmit_wrap_ge_hits_total = Number(g.__void_txsubmit_wrap_ge_hits_total || 0);
-    g.__void_txsubmit_wrap_ge_enq_ok_total = Number(g.__void_txsubmit_wrap_ge_enq_ok_total || 0);
-    g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0);
-    g.__void_txsubmit_wrap_ge_last_err = g.__void_txsubmit_wrap_ge_last_err ?? null;
-
-    g.__void_txsubmit_wrap_ge_routes_total = Number(g.__void_txsubmit_wrap_ge_routes_total || 0);
-    g.__void_txsubmit_wrap_ge_wrapped = !!g.__void_txsubmit_wrap_ge_wrapped;
-    g.__void_txsubmit_wrap_ge_last_wrap_ts = Number(g.__void_txsubmit_wrap_ge_last_wrap_ts || 0);
-
-    function safeStr(x:any, n=160){
-      try { return String(x ?? "").slice(0,n).replace(/\n/g," "); } catch { return ""; }
-    }
-
-    function extractTx(req:any){
-      try {
-        if (req && typeof req.body === "object" && req.body) return req.body;
-        if (req && typeof req.body === "string" && req.body) {
-          try { return JSON.parse(req.body); } catch {}
-        }
-      } catch {}
-      return null;
-    }
-
-    async function tryEnq(tx:any){
-      try {
-        if (typeof (globalEnqueueTx as any) === "function" && tx) {
-          await (globalEnqueueTx as any)(tx);
-          g.__void_txsubmit_wrap_ge_enq_ok_total = Number(g.__void_txsubmit_wrap_ge_enq_ok_total || 0) + 1;
-          return true;
-        }
-        g.__void_txsubmit_wrap_ge_last_err = tx ? "globalEnqueueTx not a function" : "no tx body";
-        g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
-        return false;
-      } catch (e:any) {
-        g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
-        g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
-        return false;
-      }
-    }
-
-    function scanAndWrap(){
-      try {
-        const stack:any[] = app?._router?.stack || [];
-        let routesTotal = 0;
-        let wrappedAny = false;
-
-        for (const layer of stack) {
-          const r = layer?.route;
-          if (!r) continue;
-          if (r.path !== "/tx/submit") continue;
-          if (!r.methods || !r.methods.post) continue;
-
-          routesTotal += 1;
-
-          // Express keeps route handlers under r.stack[]
-          const rs:any[] = r.stack || [];
-          for (const h of rs) {
-            const fn:any = h?.handle;
-            if (!fn || fn.__void_txsubmit_wrap_ge_v1) continue;
-
-            const wrapped = async function(req:any,res:any,next:any){
-              try {
-                g.__void_txsubmit_wrap_ge_hits_total = Number(g.__void_txsubmit_wrap_ge_hits_total || 0) + 1;
-                const tx = extractTx(req);
-                await tryEnq(tx);
-              } catch (e:any) {
-                g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
-                g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
-              }
-              return fn(req,res,next);
-            };
-            wrapped.__void_txsubmit_wrap_ge_v1 = true;
-            h.handle = wrapped;
-
-            wrappedAny = true;
-          }
-        }
-
-        g.__void_txsubmit_wrap_ge_routes_total = routesTotal;
-        if (wrappedAny) {
-          g.__void_txsubmit_wrap_ge_wrapped = true;
-          g.__void_txsubmit_wrap_ge_last_wrap_ts = Date.now();
-        }
-      } catch (e:any) {
-        g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
-      }
-    }
-
-    // NOTE: some Node/TS builds uppercase True is invalid; keep JS correct:
-    // (we patch that in-place here)
-    // eslint-disable-next-line
-    ;(function fixTrueBug(){
-      // no-op placeholder (the python injector will replace "True" -> "true")
-    })();
-
-    // Replace accidental "True" if it exists (hard guard)
-    // (this is safe even if not present)
-    try {
-      // @ts-ignore
-      if (typeof wrappedAny !== "undefined") {}
-    } catch {}
-
-    // do an immediate wrap + periodic retry (routes may be attached later)
-    scanAndWrap();
-    const t = setInterval(scanAndWrap, 500);
-    (t as any).unref?.();
-
-    app.get("/__void/diag/txsubmit_wrap_ge.json", (_req:any,res:any)=>{
-      res.json({
-        ok:true,
-        installed:true,
-        routes_total: Number(g.__void_txsubmit_wrap_ge_routes_total||0),
-        wrapped: !!g.__void_txsubmit_wrap_ge_wrapped,
-        last_wrap_ts: Number(g.__void_txsubmit_wrap_ge_last_wrap_ts||0),
-        hits_total: Number(g.__void_txsubmit_wrap_ge_hits_total||0),
-        enq_ok_total: Number(g.__void_txsubmit_wrap_ge_enq_ok_total||0),
-        enq_err_total: Number(g.__void_txsubmit_wrap_ge_enq_err_total||0),
-        last_err: g.__void_txsubmit_wrap_ge_last_err ?? null
-      });
-    });
-
-    app.get("/__void/metrics/txsubmit_wrap_ge.prom", (_req:any,res:any)=>{
-      res.type("text/plain; version=0.0.4");
-      const routes = Number(g.__void_txsubmit_wrap_ge_routes_total||0);
-      const wrapped = g.__void_txsubmit_wrap_ge_wrapped ? 1 : 0;
-      const hits = Number(g.__void_txsubmit_wrap_ge_hits_total||0);
-      const ok = Number(g.__void_txsubmit_wrap_ge_enq_ok_total||0);
-      const err = Number(g.__void_txsubmit_wrap_ge_enq_err_total||0);
-      const lastWrap = Number(g.__void_txsubmit_wrap_ge_last_wrap_ts||0);
-      const lastErr = safeStr(g.__void_txsubmit_wrap_ge_last_err, 160);
-      res.send(
-        "# HELP void_txsubmit_wrap_ge_installed wrapper installed (1/0)\n" +
-        "# TYPE void_txsubmit_wrap_ge_installed gauge\n" +
-        "void_txsubmit_wrap_ge_installed 1\n" +
-        "# HELP void_txsubmit_wrap_ge_routes_total POST /tx/submit routes seen\n" +
-        "# TYPE void_txsubmit_wrap_ge_routes_total gauge\n" +
-        `void_txsubmit_wrap_ge_routes_total ${routes}\n` +
-        "# HELP void_txsubmit_wrap_ge_wrapped wrapper attached (1/0)\n" +
-        "# TYPE void_txsubmit_wrap_ge_wrapped gauge\n" +
-        `void_txsubmit_wrap_ge_wrapped ${wrapped}\n` +
-        "# HELP void_txsubmit_wrap_ge_last_wrap_ts_ms last wrap time (ms)\n" +
-        "# TYPE void_txsubmit_wrap_ge_last_wrap_ts_ms gauge\n" +
-        `void_txsubmit_wrap_ge_last_wrap_ts_ms ${lastWrap}\n` +
-        "# HELP void_txsubmit_wrap_ge_hits_total /tx/submit hits through wrapper\n" +
-        "# TYPE void_txsubmit_wrap_ge_hits_total counter\n" +
-        `void_txsubmit_wrap_ge_hits_total ${hits}\n` +
-        "# HELP void_txsubmit_wrap_ge_enq_ok_total globalEnqueueTx ok count\n" +
-        "# TYPE void_txsubmit_wrap_ge_enq_ok_total counter\n" +
-        `void_txsubmit_wrap_ge_enq_ok_total ${ok}\n` +
-        "# HELP void_txsubmit_wrap_ge_enq_err_total globalEnqueueTx err count\n" +
-        "# TYPE void_txsubmit_wrap_ge_enq_err_total counter\n" +
-        `void_txsubmit_wrap_ge_enq_err_total ${err}\n` +
-        "# HELP void_txsubmit_wrap_ge_last_err last error string (label)\n" +
-        "# TYPE void_txsubmit_wrap_ge_last_err gauge\n" +
-        `void_txsubmit_wrap_ge_last_err{msg="${lastErr}"} 1\n`
-      );
-    });
-  }
-} catch {}
-// -------- /TXSUBMIT WRAP LAYER GLOBALENQ v1 --------
+// [deleted legacy txsubmit block: txsubmit_wrap_layer_globalenq_v1]
 
 
 
@@ -6715,162 +7128,8 @@ try {
 
 
 
-// -------- TXSUBMIT PRUNE-TO-ONE v1 --------
-// Goal: guarantee exactly ONE POST /tx/submit handler to stop dup-enqueue / dup-responses.
-// We attach a canonical handler (marked __void_txsubmit_keep_v1) and then prune any other
-// /tx/submit POST routes from express' router stack.
-try {
-  const g:any = (globalThis as any);
-  const app:any = g.__void_http_app;
-  if (app && !g.__void_txsubmit_prune_to_one_v1_installed) {
-    g.__void_txsubmit_prune_to_one_v1_installed = true;
-    if (typeof g.__void_txsubmit_pruned_total !== "number") g.__void_txsubmit_pruned_total = 0;
-    if (typeof g.__void_txsubmit_keep_hits_total !== "number") g.__void_txsubmit_keep_hits_total = 0;
 
-    const pickNode = () => {
-      // best-effort: tolerate multiple historical globals
-      return (
-        (g.__void_node) ||
-        (g.__void_node_inst) ||
-        (g.__void_node_v1) ||
-        (g.__void_node_main) ||
-        ((app as any)?.locals?.node) ||
-        ((globalThis as any).__void_node) ||
-        null
-      );
-    };
-
-    const keepHandler:any = (req:any, res:any) => {
-      try { g.__void_txsubmit_keep_hits_total++; } catch {}
-      const tx = (req && (req as any).body) ? (req as any).body : null;
-
-      const node:any = pickNode();
-      let forced = "none";
-      let mempoolLen = -1;
-      let queueLen = -1;
-
-      try {
-        if (node && node.mempool) {
-          if (Array.isArray(node.mempool.txs)) {
-            if (tx) node.mempool.txs.push(tx);
-            mempoolLen = node.mempool.txs.length|0;
-            forced = "node.mempool.txs";
-          } else if (typeof node.mempool.push === "function") {
-            if (tx) node.mempool.push(tx);
-            forced = "node.mempool.push";
-          }
-        }
-      } catch {}
-
-      try {
-        const q:any = (g.__void_tx_queue || g.tx_queue || null);
-        if (Array.isArray(q)) {
-          if (tx) q.push(tx);
-          queueLen = q.length|0;
-          if (forced === "none") forced = "tx_queue";
-        }
-      } catch {}
-
-      res.json({
-        ok: true,
-        handled: "txsubmit_pruned_v1",
-        forced,
-        mempoolLen,
-        queueLen
-      });
-    };
-    keepHandler.__void_txsubmit_keep_v1 = true;
-
-    // Always register keep handler (at end)
-    // -------- TXSUBMIT PRUNED JSON PARSER v1 --------
-    app.post("/tx/submit", (express as any).json({ limit: "1mb" }), keepHandler);
-
-    const prune = () => {
-      try {
-        const r = (app as any)._router;
-        const stack:any[] = (r && Array.isArray(r.stack)) ? r.stack : [];
-        let total = 0, kept = 0, removed = 0;
-
-        // remove non-keep /tx/submit POST routes
-        for (let idx = stack.length - 1; idx >= 0; idx--) {
-          const layer:any = stack[idx];
-          const route:any = layer && layer.route;
-          if (!route) continue;
-          if (route.path !== "/tx/submit") continue;
-          if (!(route.methods && route.methods.post)) continue;
-
-          total++;
-
-          const rs = Array.isArray(route.stack) ? route.stack : [];
-          const hasKeep = rs.some((x:any) => x && x.handle && (x.handle as any).__void_txsubmit_keep_v1);
-          if (hasKeep) { kept++; continue; }
-
-          // drop this entire route layer
-          stack.splice(idx, 1);
-          removed++;
-        }
-
-        g.__void_txsubmit_routes_total = total;
-        g.__void_txsubmit_routes_kept = kept;
-        g.__void_txsubmit_routes_removed_last = removed;
-        g.__void_txsubmit_pruned_total += removed;
-      } catch (e:any) {
-        g.__void_txsubmit_prune_last_err = (e && (e.message||String(e))) || "err";
-      }
-    };
-
-    // prune shortly after boot (after other route registrations)
-    setTimeout(prune, 250);
-
-    // diag + metrics
-    app.get("/__void/diag/txsubmit_routes.json", (_req:any, res:any) => {
-      res.json({
-        ok: true,
-        total: g.__void_txsubmit_routes_total ?? null,
-        kept: g.__void_txsubmit_routes_kept ?? null,
-        removed_last: g.__void_txsubmit_routes_removed_last ?? null,
-        pruned_total: g.__void_txsubmit_pruned_total ?? null,
-        keep_hits_total: g.__void_txsubmit_keep_hits_total ?? null,
-        last_err: g.__void_txsubmit_prune_last_err ?? null
-      });
-    });
-
-    app.get("/__void/metrics/txsubmit_routes.prom", (_req:any, res:any) => {
-      const lines:string[] = [];
-      const n = (x:any)=> (typeof x==="number" && Number.isFinite(x)) ? x : 0;
-
-      lines.push("# HELP void_txsubmit_routes_prune_installed txsubmit prune-to-one installed (1/0)");
-      lines.push("# TYPE void_txsubmit_routes_prune_installed gauge");
-      lines.push("void_txsubmit_routes_prune_installed 1");
-
-      lines.push("# HELP void_txsubmit_routes_total Current count of POST /tx/submit routes detected during prune");
-      lines.push("# TYPE void_txsubmit_routes_total gauge");
-      lines.push("void_txsubmit_routes_total " + n(g.__void_txsubmit_routes_total));
-
-      lines.push("# HELP void_txsubmit_routes_kept Current kept POST /tx/submit routes (should be 1)");
-      lines.push("# TYPE void_txsubmit_routes_kept gauge");
-      lines.push("void_txsubmit_routes_kept " + n(g.__void_txsubmit_routes_kept));
-
-      lines.push("# HELP void_txsubmit_routes_removed_last Routes removed in last prune pass");
-      lines.push("# TYPE void_txsubmit_routes_removed_last gauge");
-      lines.push("void_txsubmit_routes_removed_last " + n(g.__void_txsubmit_routes_removed_last));
-
-      lines.push("# HELP void_txsubmit_routes_pruned_total Total routes pruned since boot");
-      lines.push("# TYPE void_txsubmit_routes_pruned_total counter");
-      lines.push("void_txsubmit_routes_pruned_total " + n(g.__void_txsubmit_pruned_total));
-
-      lines.push("# HELP void_txsubmit_keep_hits_total Hits served by canonical /tx/submit handler");
-      lines.push("# TYPE void_txsubmit_keep_hits_total counter");
-      lines.push("void_txsubmit_keep_hits_total " + n(g.__void_txsubmit_keep_hits_total));
-
-      res.setHeader("content-type","text/plain; version=0.0.4");
-      res.send(lines.join("\\n") + "\n");
-    });
-
-    (console?.log||(()=>{}))("[txsubmit] prune-to-one v1 installed");
-  }
-} catch {}
-// -------- /TXSUBMIT PRUNE-TO-ONE v1 --------
+// [deleted legacy txsubmit block: txsubmit_prune_to_one_v1]
 
 
 
@@ -6934,341 +7193,27 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
 
 
 
-// -------- TXSUBMIT INJECT MEMPOOL v1 --------
-try {
-  const g:any = (globalThis as any);
-  const app:any = g.__void_http_app;
-  if (app && !g.__void_txsubmit_inject_mempool_v1_installed) {
-    g.__void_txsubmit_inject_mempool_v1_installed = true;
-    if (g.__void_txsubmit_inject_hits_total == null) g.__void_txsubmit_inject_hits_total = 0;
 
-    // Ensure POST /tx/submit always lands in the live node mempool (and mirrors to tx_queue for compatibility).
-    // This runs early and then calls next(), so existing handlers can still respond OK.
-    app.use("/tx/submit", require("express").json({ limit: "64kb" }), (req:any, _res:any, next:any) => {
-      return next();
-    });
+// [deleted legacy txsubmit block: txsubmit_inject_mempool_v1]
 
-    // tiny prom view
-    app.get("/__void/metrics/txsubmit_inject.prom", (_req:any, res:any) => {
-      try {
-        const gg:any = (globalThis as any);
-        res.set("content-type","text/plain; version=0.0.4");
-        res.send(
-`# HELP void_txsubmit_inject_mempool_installed txsubmit inject mempool installed (1/0)
-# TYPE void_txsubmit_inject_mempool_installed gauge
-void_txsubmit_inject_mempool_installed ${gg.__void_txsubmit_inject_mempool_v1_installed ? 1 : 0}
-# HELP void_txsubmit_inject_hits_total POST /tx/submit mirrored into mempool (best-effort)
-# TYPE void_txsubmit_inject_hits_total counter
-void_txsubmit_inject_hits_total ${Number(gg.__void_txsubmit_inject_hits_total||0)}
-`
-        );
-      } catch {
-        res.status(500).send("err\n");
-      }
-    });
-  }
-} catch {}
+// [deleted legacy txsubmit block: txsubmit_force_mempool_v1]
 
 
-
-
-// -------- TX SUBMIT FORCE MEMPOOL v1 --------
-try {
-  const express = require("express");
-  const app:any = (globalThis as any).__void_http_app;
-  const g:any = (globalThis as any);
-
-  if (app && !g.__void_tx_submit_force_mempool_v1_installed) {
-    g.__void_tx_submit_force_mempool_v1_installed = true;
-
-    // Put this BEFORE any other /tx/submit mounts by inserting it very early in index.ts.
-    app.post("/tx/submit", express.json({ limit: "64kb" }), (req:any, res:any) => {
-      try {
-        const gg:any = (globalThis as any);
-        const node:any = (gg.__void_node || gg.node || null);
-        if (!node || !node.mempool) return res.status(503).json({ ok:false, err:"no_node_or_mempool" });
-
-        if (!Array.isArray(node.mempool.txs)) node.mempool.txs = [];
-        const tx = (req && req.body) ? req.body : {};
-        node.mempool.txs.push(tx);
-
-        // mirror to tx queue if present
-        const qn:any = Array.isArray(node?.txQueue) ? node.txQueue : null;
-
-        // best-effort early hits metric (you already have this global)
-        if (typeof gg.__void_tx_submit_early_hits_total === "number") gg.__void_tx_submit_early_hits_total++;
-
-        return res.json({
-          ok: true,
-          forced: "mempool_v1",
-          mempoolLen: Array.isArray(node.mempool.txs) ? node.mempool.txs.length : null,
-          queueLen: Array.isArray(qn) ? qn.length : 0
-        });
-      } catch (e:any) {
-        return res.status(500).json({ ok:false, err:String(e?.message||e) });
-      }
-    });
-
-    try { (console?.log||(()=>{}))("[txsubmit.force] mounted /tx/submit -> live mempool"); } catch {}
-  }
-} catch {}
-// -------- /TX SUBMIT FORCE MEMPOOL v1 --------
-
-// -------- Mempool Target Diag v1 --------
-try {
-  const express = require("express");
-  const app:any = (globalThis as any).__void_http_app;
-  if (app && !(globalThis as any).__void_mempool_target_diag_v1_installed) {
-    (globalThis as any).__void_mempool_target_diag_v1_installed = true;
-    app.get("/__void/diag/mempool_target", (req:any,res:any)=>{
-      try {
-        const g:any = (globalThis as any);
-        const node:any = (g.__void_node || g.node || null);
-        const mp:any = node?.mempool || node?.mempool?.txs || null;
-        const q:any = g.__void_tx_queue || null;
-        const snap = {
-          have_node: !!node,
-          mempool_has_txs_array: Array.isArray(node?.mempool?.txs),
-          mempool_txs_len: Array.isArray(node?.mempool?.txs) ? node.mempool.txs.length : null,
-          mempool_has_push: typeof node?.mempool?.push === "function",
-          queue_is_array: Array.isArray(q),
-          queue_len: Array.isArray(q) ? q.length : null,
-          submit_singleton_installed: !!g.__void_tx_submit_early_singleton_v1_installed,
-        };
-        res.json({ ok:true, ...snap });
-      } catch (e:any) {
-        res.status(500).json({ ok:false, err: String(e?.message||e) });
-      }
-    });
-  }
-} catch {}
-// -------- /Mempool Target Diag v1 --------
+// [deleted legacy txsubmit block: mempool_target_diag_v1]
 
 ;
 
-// -------- TX SUBMIT EARLY SINGLETON v1 --------
-// Goal: make /tx/submit run EXACTLY ONCE (no dup mounts, no mirror-to-two-queues surprises).
-// Strategy: install an EARLY handler that enqueues into ONE canonical queue (__void_tx_queue)
-// and ends the request (no next()), so later duplicate mounts never run.
-// This fixes: 1 submit => mempoolSize=2.
-try {
-  const g: any = (globalThis as any);
-  if (!g.__void_tx_submit_early_singleton_v1_installed) {
-    g.__void_tx_submit_early_singleton_v1_installed = true;
 
-    // Ensure the tx queue exists (canonical for proposer pipeline)
-    if (!Array.isArray(g.__void_tx_queue)) g.__void_tx_queue = [];
+// [deleted legacy txsubmit block: early_singleton_v1]
 
-    const expressAny: any = require("express");
-    const jsonMid = (expressAny && expressAny.json) ? expressAny.json({ limit: "64kb" }) : require("express").json({ limit: "64kb" });
 
-    app.post("/tx/submit", jsonMid, (req: any, res: any) => {
-      try {
-        const body = (req && req.body) ?? {};
-        const tx = (body && typeof body === "object") ? body : { raw: body };
+// [deleted legacy txsubmit block: early_singleton_v2_terminal]
 
-        // optional: minimal stamp (helps debugging)
-        if (tx && typeof tx === "object") {
-          if ((tx as any)._rx_ts == null) (tx as any)._rx_ts = Date.now();
-          if ((tx as any)._rx_src == null) (tx as any)._rx_src = "early_singleton_v1";
-        }
-
-        // Enqueue EXACTLY ONCE into the canonical queue
-        try { (g.__void_tx_queue as any[]).push(tx); } catch {}
-
-        // Respond immediately: prevents all later /tx/submit mounts from running
-                // -------- TX SUBMIT EARLY HITS FIX v1 --------
-        try { g.__void_tx_submit_early_hits_total = Number(g.__void_tx_submit_early_hits_total || 0) + 1; } catch {}
-        // -------- /TX SUBMIT EARLY HITS FIX v1 --------
-return res.json({ ok: true, early: true });
-      } catch {
-        return res.status(500).json({ ok: false, err: "tx_submit_early_failed" });
-      }
-    });
-
-    (console?.log || (()=>{}))("[guard] installed early /tx/submit singleton v1 (queue-only)");
-  }
-} catch {}
-// -------- /TX SUBMIT EARLY SINGLETON v1 --------
-
-// [early_singleton_v2_terminal] terminal /tx/submit with TTL dedupe; prevents downstream dup enqueue
-try {
-  const g:any = (globalThis as any);
-  const app:any = g.__void_http_app;
-  if (app && !g.__void_tx_submit_early_terminal_v2_installed) {
-    g.__void_tx_submit_early_terminal_v2_installed = true;
-
-    if (g.__void_tx_submit_early_hits_total == null) g.__void_tx_submit_early_hits_total = 0;
-    if (g.__void_tx_submit_early_dups_total == null) g.__void_tx_submit_early_dups_total = 0;
-    if (!g.__void_tx_submit_seen_v2) g.__void_tx_submit_seen_v2 = new Map(); // key -> ts_ms
-
-    const json64 = require("express").json({ limit: "64kb" });
-
-    app.post("/tx/submit", json64, (req:any, res:any) => {
-      try {
-        const gg:any = (globalThis as any);
-        const node:any = (gg.__void_node || gg.node || gg.__void_live_node);
-        const mp:any = node?.mempool;
-
-        const tx:any = (req?.body ?? {}) || {};
-        const now = Date.now();
-
-        // prune old keys (10s window)
-        const seen: Map<string, number> = gg.__void_tx_submit_seen_v2;
-        for (const [k, t] of seen) { if ((now - (t||0)) > 10_000) seen.delete(k); }
-
-        // stable-ish dedupe key
-        const k = String(tx.hash ?? "") + "|" + String(tx.nonce ?? "") + "|" + JSON.stringify(tx);
-
-        if (seen.has(k)) {
-          gg.__void_tx_submit_early_dups_total++;
-          return res.json({ ok: true, dup: true, handled: "early_singleton_v2_terminal" });
-        }
-        seen.set(k, now);
-
-        gg.__void_tx_submit_early_hits_total++;
-
-        // enqueue ONCE: prefer mempool.txs[] then mempool.push(); DO NOT also mirror to queue
-        let mempoolLen = -1;
-        if (mp?.txs && Array.isArray(mp.txs)) {
-          mp.txs.push(tx);
-          mempoolLen = mp.txs.length;
-        } else if (typeof mp?.push === "function") {
-          mp.push(tx);
-          mempoolLen = Array.isArray(mp?.txs) ? mp.txs.length : -1;
-        }
-
-        // keep queue reporting truthful: use live node.txQueue only, not legacy global noise
-        const qn:any = Array.isArray(node?.txQueue) ? node.txQueue : null;
-        const queueLen = Array.isArray(qn) ? qn.length : 0;
-
-        return res.json({ ok: true, handled: "early_singleton_v2_terminal", mempoolLen, queueLen });
-      } catch (e:any) {
-        return res.status(500).json({ ok:false, err:String(e?.message||e) });
-      }
-    });
-
-    // exporter for sanity
-    app.get("/__void/metrics/txsubmit_early.prom", (_req:any, res:any) => {
-      const gg:any = (globalThis as any);
-      const inst = gg.__void_tx_submit_early_terminal_v2_installed ? 1 : 0;
-      const hits = Number(gg.__void_tx_submit_early_hits_total || 0);
-      const dups = Number(gg.__void_tx_submit_early_dups_total || 0);
-      res.setHeader("content-type", "text/plain; version=0.0.4");
-      res.end(
-        "# HELP void_tx_submit_early_singleton_installed Early /tx/submit singleton installed (1/0)\n" +
-        "# TYPE void_tx_submit_early_singleton_installed gauge\n" +
-        `void_tx_submit_early_singleton_installed ${inst}\n` +
-        "# HELP void_tx_submit_early_hits_total Count of POST /tx/submit seen (best-effort)\n" +
-        "# TYPE void_tx_submit_early_hits_total counter\n" +
-        `void_tx_submit_early_hits_total ${hits}\n` +
-        "# HELP void_tx_submit_early_dups_total Deduped POST /tx/submit (best-effort)\n" +
-        "# TYPE void_tx_submit_early_dups_total counter\n" +
-        `void_tx_submit_early_dups_total ${dups}\n`
-      );
-    });
-
-    (console?.log||(()=>{}))("[txsubmit] early singleton v2 terminal installed");
-  }
-} catch {}
+// [deleted legacy txsubmit block: txsubmit_early_metrics_v1]
 
 
 
-// -------- TX SUBMIT EARLY METRICS v1 --------
-try {
-  const g: any = (globalThis as any);
-  if (!g.__void_tx_submit_early_metrics_v1_installed) {
-    g.__void_tx_submit_early_metrics_v1_installed = true;
-    if (g.__void_tx_submit_early_hits_total == null) g.__void_tx_submit_early_hits_total = 0;
-
-    // Wrap the early handler hit counter by monkeypatching res.json in the early route only is messy,
-    // so we increment inside the early handler: look for _rx_src == early_singleton_v1 during queue push.
-    // As a fallback, we also bump on any POST /tx/submit seen early via a lightweight middleware.
-    app.use("/tx/submit", (req: any, _res: any, next: any) => {
-      try { if ((req?.method || "").toUpperCase() === "POST") g.__void_tx_submit_early_hits_total++; } catch {}
-      return next();
-    });
-
-    app.get("/__void/metrics/txsubmit_early.prom", (_req: any, res: any) => {
-      try {
-        res.setHeader("content-type", "text/plain; version=0.0.4");
-        const hits = Number(g.__void_tx_submit_early_hits_total || 0);
-        const installed = g.__void_tx_submit_early_singleton_v1_installed ? 1 : 0;
-        res.end(
-          "# HELP void_tx_submit_early_singleton_installed Early /tx/submit singleton installed (1/0)\n" +
-          "# TYPE void_tx_submit_early_singleton_installed gauge\n" +
-          `void_tx_submit_early_singleton_installed ${installed}\n` +
-          "# HELP void_tx_submit_early_hits_total Count of POST /tx/submit seen (best-effort)\n" +
-          "# TYPE void_tx_submit_early_hits_total counter\n" +
-          `void_tx_submit_early_hits_total ${hits}\n`
-        );
-      } catch {
-        try { res.status(500).end("err\n"); } catch {}
-      }
-    });
-
-    (console?.log || (()=>{}))("[guard] installed txsubmit early metrics v1 at /__void/metrics/txsubmit_early.prom");
-  }
-} catch {}
-// -------- /TX SUBMIT EARLY METRICS v1 --------
-
-
-// -------- TX SUBMIT MOUNT GUARD v1 --------
-// Purpose: enforce EXACTLY ONE /tx/submit mount across the huge index.ts.
-// Fixes: double-enqueue (1 submit => mempoolSize=2) caused by duplicate route mounts.
-// NOTE: additive-only; does not delete any existing mounts; it simply skips duplicates at mount-time.
-try {
-  // Express' shared application prototype
-  const expressAny: any = require("express");
-  const appProto: any = (expressAny && (expressAny.application || expressAny?.default?.application)) || (expressAny && expressAny?.application);
-  const onceKey = "__void_tx_submit_mount_guard_v1_installed";
-  if (appProto && !appProto[onceKey]) {
-    appProto[onceKey] = true;
-
-    const origPost = appProto.post;
-    const origUse  = appProto.use;
-
-    const g: any = (globalThis as any);
-    const mountedKey = "__void_tx_submit_mounted_v1";
-
-    const isTxSubmit = (p: any) => p === "/tx/submit";
-
-    appProto.post = function(p: any, ...handlers: any[]) {
-      try {
-        if (isTxSubmit(p)) {
-          if (g[mountedKey]) {
-            if (!g.__void_tx_submit_dupe_log_once_v1) {
-              g.__void_tx_submit_dupe_log_once_v1 = true;
-              (console?.log || (()=>{}))("[guard] skip duplicate app.post(/tx/submit) mount");
-            }
-            return this;
-          }
-          g[mountedKey] = true;
-        }
-      } catch {}
-      return origPost.call(this, p, ...handlers);
-    };
-
-    appProto.use = function(p: any, ...handlers: any[]) {
-      try {
-        if (isTxSubmit(p)) {
-          if (g[mountedKey]) {
-            if (!g.__void_tx_submit_dupe_log_once2_v1) {
-              g.__void_tx_submit_dupe_log_once2_v1 = true;
-              (console?.log || (()=>{}))("[guard] skip duplicate app.use(/tx/submit) mount");
-            }
-            return this;
-          }
-          g[mountedKey] = true;
-        }
-      } catch {}
-      return origUse.call(this, p, ...handlers);
-    };
-
-    (console?.log || (()=>{}))("[guard] installed /tx/submit mount-guard v1");
-  }
-} catch {}
-// -------- /TX SUBMIT MOUNT GUARD v1 --------
+// [deleted legacy txsubmit block: txsubmit_mount_guard_v1]
 
 /* __void_seals_rate_clamp_pre_v2 (additive, EARLY)
    Why: the /metrics/void/seals route is registered BEFORE later middleware, so post-route patching never runs.
@@ -7481,24 +7426,7 @@ try {
   });
 })();
 
-// [ADD] Object.prototype.filter shim v3 (self-contained, last-writer-wins)
-;(function(){
-  try{
-    Object.defineProperty(Object.prototype, "filter", {
-      configurable: true, enumerable: false, writable: true,
-      value: function(cb:any, thisArg?:any){
-        const fn = (typeof cb === "function") ? cb : (v:any)=>Boolean(v);
-        const txs = (this && Array.isArray((this as any).txs)) ? (this as any).txs : undefined;
-        if (txs) return txs.filter(fn, thisArg);
-        if (Array.isArray(this)) return Array.prototype.filter.call(this, fn, thisArg);
-        if (this && typeof (this as any).length === "number")
-          return Array.prototype.filter.call(this as any, fn, thisArg);
-        return Array.prototype.filter.call([this], fn, thisArg);
-      }
-    });
-    console.log("[guard] Object.prototype.filter shim v3 active");
-  }catch(e){ console.warn("[guard] filter shim v3 override failed", e); }
-})();
+// [deleted legacy prototype filter shim]
 ;;;;;app.use(express.json({ limit: "128mb" }));
   // tx routes must come right after body parser
   registerTxRoutes(app);
@@ -7506,24 +7434,7 @@ try {
   // Dev routes (safe if not present)
   try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
 
-  // --- minimal mempool-backed tx submit route (dev only) ---
-  const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
-  app.post("/tx/submit", async (req, res) => {
-
-
-    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
-  try { globalEnqueueTx(req.body ?? {}); } catch {}
-  try {
-      const tx = req.body && typeof req.body === "object" ? req.body : null;
-      if (!tx || typeof tx.data !== "string" || !tx.data.length)
-        return res.status(400).json({ ok:false, error:"expected {data:string}" });
-      await fs.promises.mkdir(path.dirname(MEMPOOL), { recursive: true });
-      await fs.promises.appendFile(MEMPOOL, JSON.stringify({ data: tx.data, ts: Date.now() }) + "\n");
-      return res.json({ ok:true });
-    } catch (err) {
-      return res.status(500).json({ ok:false, error: String((err as any)?.message ?? err) });
-    }
-  });
+  // [deleted legacy minimal txsubmit route]
 
   // Mount follower + P2P + KIDX-extra routes
   registerFollowerRoutes(app, node, metrics);
@@ -23282,18 +23193,7 @@ const wal = new WALv1(getDataDir());
       if (app.__void_wal_tx_mirror) return; app.__void_wal_tx_mirror = true;
 
       // Express runs middleware in order; this mirrors bodies before core handlers.
-      app.use("/tx/submit", async (req:any, res:any, next:any)=>{
-        try{
-          if (wal.overCap()){
-            // Backpressure: refuse new TX to relieve memory pressure (V7 mitigation)
-            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
-            return;
-          }
-          const body = req.body ?? {};
-          await wal.append("tx", { body });
-        }catch(_){}
-        next();
-      });
+// [deleted legacy txsubmit literal mount]
 
       // Optional: capture bursts/dev routes if they exist
       app.use("/tx/dev", async (req:any, res:any, next:any)=>{
@@ -26061,16 +25961,7 @@ const wal = new WALv1(getDataDir());
     if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
     if ((app as any).__void_safe_submit_v1) return; (app as any).__void_safe_submit_v1 = true;
 
-    app.post("/tx/submit", express.json({limit:"64kb"}), (req:any,res:any)=>{
-      try{
-        const body = req.body || {};
-        const kind = String(body.kind||"").slice(0,32) || "ping";
-        const nonce = String(body.nonce ?? Date.now()).slice(0,64);
-        const tx = { kind, nonce };
-        node.mempool.txs.push(tx);
-        res.json({ok:true, queued:true, kind, nonce, mempool_size: node.mempool.txs.length});
-      }catch(e){ res.status(400).json({ok:false, error: String(e?.message||e)}) }
-    });
+// [deleted legacy txsubmit literal mount]
 
     (console?.log||(()=>{}))('[safe-submit] mounted /tx/submit (direct mempool)');
   }
@@ -26089,9 +25980,7 @@ const wal = new WALv1(getDataDir());
     if ((app as any).__void_safe_submit_v1_1) return; (app as any).__void_safe_submit_v1_1 = true;
 
     // Accept tx and mirror into mempool + txQueue (if present)
-    app.post("/tx/submit", require("express").json({limit:"64kb"}), (_req:any,res:any)=>{
-      return res.status(410).json({ ok:false, disabled:true, handler:"safe_submit_v1_1_disabled", use:"txsubmit_late_repair_v1" });
-    });
+// [deleted legacy txsubmit literal mount]
 
     (console?.log||(()=>{}))('[safe-submit] /tx/submit mirrors to mempool + txQueue');
   }
@@ -26530,9 +26419,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
     if (a.__void_safe_submit_v13) return; a.__void_safe_submit_v13 = true;
 
     const express = require("express");
-    a.post("/tx/submit", express.json({limit:"64kb"}), (_req,res)=>{
-      return res.status(410).json({ ok:false, disabled:true, handler:"safe_submit_v13_disabled", use:"txsubmit_late_repair_v1" });
-    });
+// [deleted legacy txsubmit literal mount]
 
     (console?.log||(()=>{}))('[safe-submit.v13] /tx/submit unified to live node');
   }
@@ -40559,206 +40446,8 @@ try {
 })();
 
 
-// [ADD] txsubmit late repair v1
-;if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (()=>{
-  const g:any = globalThis as any;
-  if (g.__void_txsubmit_late_repair_v1_installed) return;
-  g.__void_txsubmit_late_repair_v1_installed = true;
 
-  function getApp(){
-    return g.__void_http_app || g.app || null;
-  }
-
-  function getNode(){
-    const app:any = getApp();
-    return g.__void_node || g.node || app?.locals?.__void_node || null;
-  }
-
-  function getQueue(node:any){
-    if (Array.isArray(node?.txQueue)) return node.txQueue;
-    if (Array.isArray(g.__void_tx_queue)) return g.__void_tx_queue;
-    if (!Array.isArray(g.__void_tx_queue)) g.__void_tx_queue = [];
-    return g.__void_tx_queue;
-  }
-
-  function ensureMempool(node:any){
-    if (!node) return null;
-    let mp:any = node.mempool ?? node.mPool ?? node.txPool ?? null;
-
-    if (!mp) {
-      mp = [];
-      node.mempool = mp;
-    }
-
-    if (Array.isArray(mp)) {
-      const arr:any[] = mp;
-      if (typeof (mp as any).push !== "function") (mp as any).push = Array.prototype.push.bind(arr);
-      if (typeof (mp as any).peekAll !== "function") (mp as any).peekAll = ()=>arr.slice();
-      if (typeof (mp as any).size !== "function") (mp as any).size = ()=>arr.length;
-      if (!Array.isArray((mp as any).txs)) (mp as any).txs = arr;
-      return mp;
-    }
-
-    if (!Array.isArray(mp.txs)) mp.txs = [];
-    if (typeof mp.push !== "function") mp.push = (tx:any)=> mp.txs.push(tx);
-    if (typeof mp.peekAll !== "function") mp.peekAll = ()=> mp.txs.slice();
-    if (typeof mp.size !== "function") mp.size = ()=> mp.txs.length;
-    return mp;
-  }
-
-  function enqueueIntoLiveMempool(tx:any){
-    const node:any = getNode();
-    const mp:any = ensureMempool(node);
-    const q:any[] = Array.isArray(node?.txQueue) ? node.txQueue : [];
-    const raw:any = (tx && typeof tx === "object") ? { ...tx } : { value: tx };
-
-    const now = Date.now();
-    if (raw && typeof raw === "object") {
-      if (raw._rx_src == null) raw._rx_src = "txsubmit_late_repair_v2";
-      if (raw.ts == null) raw.ts = now;
-      if (raw.nonce == null) raw.nonce = Math.floor(Math.random() * 1e9);
-    }
-
-    function stable(v:any):string{
-      try{
-        if (v === null || typeof v !== "object") return JSON.stringify(v);
-        if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
-        const ks = Object.keys(v).sort();
-        return "{" + ks.map((k)=>JSON.stringify(k)+":"+stable(v[k])).join(",") + "}";
-      }catch{
-        try{ return JSON.stringify(v); }catch{ return String(v); }
-      }
-    }
-
-    function sha256hex(s:any):string{
-      try{
-        const crypto = require("crypto");
-        return crypto.createHash("sha256").update(String(s)).digest("hex");
-      }catch{
-        return String(now) + String(Math.random()).slice(2);
-      }
-    }
-
-    const body:any =
-      (raw && typeof raw.body === "object" && raw.body !== null)
-        ? { ...raw.body }
-        : { ...raw };
-
-    if (body && typeof body === "object") {
-      if (body.ts == null) body.ts = raw.ts ?? now;
-      if (body.nonce == null) body.nonce = raw.nonce ?? Math.floor(Math.random() * 1e9);
-    }
-
-    const txObj:any = {
-      body,
-      hash: (typeof raw?.hash === "string" && /^[0-9a-fA-F]{64}$/.test(raw.hash))
-        ? String(raw.hash).toLowerCase()
-        : sha256hex(stable(body)),
-      ts: raw.ts ?? now,
-      nonce: String(raw.nonce ?? body?.nonce ?? now),
-      _rx_src: "txsubmit_late_repair_v2"
-    };
-
-    let mempoolLen:number|null = null;
-    let queueLen:number|null = null;
-    let forced = "none";
-
-    if (mp) {
-      if (Array.isArray(mp.txs)) {
-        mp.txs.push(txObj);
-        mempoolLen = mp.txs.length;
-        forced = "node.mempool.txs";
-      } else if (typeof mp.push === "function") {
-        mp.push(txObj);
-        mempoolLen = Array.isArray(mp.txs) ? mp.txs.length : null;
-        forced = "node.mempool.push";
-      }
-    }
-
-    if (Array.isArray(q)) {
-      queueLen = q.length;
-    }
-
-    g.__void_txsubmit_late_repair_v1_hits = (g.__void_txsubmit_late_repair_v1_hits || 0) + 1;
-    g.__void_txsubmit_late_repair_v1_last = {
-      when: Date.now(),
-      forced,
-      mempoolLen,
-      queueLen,
-      shape: {
-        has_body: !!txObj?.body,
-        has_hash: typeof txObj?.hash === "string",
-        hash_len: typeof txObj?.hash === "string" ? txObj.hash.length : 0
-      }
-    };
-
-    return {
-      ok:true,
-      forced,
-      mempoolLen,
-      queueLen,
-      canonical: true,
-      hasBody: !!txObj?.body,
-      hasHash: typeof txObj?.hash === "string"
-    };
-  }
-
-  function attach(){
-    const app:any = getApp();
-    if (!app || g.__void_txsubmit_late_repair_v1_mounted) {
-      return setTimeout(attach, 500).unref?.();
-    }
-
-    app.post("/tx/submit", require("express").json({ limit: "64kb" }), (req:any, res:any) => {
-      try{
-        const out = enqueueIntoLiveMempool(req?.body ?? {});
-        return res.json({ ...out, handled: "txsubmit_late_repair_v1" });
-      }catch(e:any){
-        g.__void_txsubmit_late_repair_v1_err = String(e?.message || e);
-        return res.status(500).json({ ok:false, err:String(e?.message || e), handled:"txsubmit_late_repair_v1" });
-      }
-    });
-
-    app.get("/__void/diag/txsubmit_late_repair_v1.json", (_req:any, res:any) => {
-      res.json({
-        ok: true,
-        installed: true,
-        mounted: true,
-        hits: g.__void_txsubmit_late_repair_v1_hits || 0,
-        last: g.__void_txsubmit_late_repair_v1_last || null,
-        last_err: g.__void_txsubmit_late_repair_v1_err || null
-      });
-    });
-
-    app.get("/__void/metrics/txsubmit_late_repair_v1.prom", (_req:any, res:any) => {
-      const hits = Number(g.__void_txsubmit_late_repair_v1_hits || 0);
-      const lastWhen = Number(g.__void_txsubmit_late_repair_v1_last?.when || 0);
-      const lastErr = String(g.__void_txsubmit_late_repair_v1_err || "");
-      const txt =
-`# HELP void_txsubmit_late_repair_v1_installed late txsubmit repair installed
-# TYPE void_txsubmit_late_repair_v1_installed gauge
-void_txsubmit_late_repair_v1_installed 1
-# HELP void_txsubmit_late_repair_v1_hits_total late txsubmit repair hits
-# TYPE void_txsubmit_late_repair_v1_hits_total counter
-void_txsubmit_late_repair_v1_hits_total ${hits}
-# HELP void_txsubmit_late_repair_v1_last_when_ms last hit timestamp ms
-# TYPE void_txsubmit_late_repair_v1_last_when_ms gauge
-void_txsubmit_late_repair_v1_last_when_ms ${lastWhen}
-# HELP void_txsubmit_late_repair_v1_last_err last error string
-# TYPE void_txsubmit_late_repair_v1_last_err gauge
-void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").replace(/"/g,"\\\"")}"} 1
-`;
-      res.type("text/plain; version=0.0.4").send(txt);
-    });
-
-    g.__void_txsubmit_late_repair_v1_mounted = true;
-    try{ console.log("[txsubmit.late-repair] mounted /tx/submit + diag + metrics"); }catch{}
-  }
-
-  setTimeout(attach, 250);
-})();
-
-
+// [deleted legacy txsubmit block: txsubmit_late_repair_v1]
 // [ADD] reader truthfix v1
 ;if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") (()=>{
   const g:any = globalThis as any;
