@@ -1,0 +1,31 @@
+{
+  "packet_kind": "datanet_wc_availability_award_recommendation_hold_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_AWARD_RECOMMENDATION_HOLD_V1",
+  "participant_id": "example-participant-local-only",
+  "object_id_or_content_root": "sha256:example-content-root-not-live",
+  "reviewer_decision_marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_DECISION_PACKET_V1",
+  "reviewer_decision": "approved_for_wc_review",
+  "recommended_wc_min": 10,
+  "recommended_wc_max": 100,
+  "recommendation_reason": "Example recommendation for verified DataNet availability work. No WC issued.",
+  "duplicate_guard_status": "not_duplicate",
+  "reviewer_id": "example-reviewer-local-only",
+  "timestamp": "2026-06-26T00:00:00.000Z",
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "bypasses_later_approval": false,
+    "bypasses_later_ledger_write_proof": false
+  },
+  "authority_boundary": {
+    "activates_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}
