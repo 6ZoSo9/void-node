@@ -1,0 +1,111 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_ROUTE_CANDIDATE_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Public Earn Status Route Candidate Hold v1",
+  "status": "public_earn_status_route_candidate_hold_only_no_route_creation_no_registry_mutation_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_earn_status_route_candidate_hold_v1",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_DISCOVERY_HOLD_V1",
+  "candidate_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "candidate_id",
+    "candidate_status",
+    "candidate_route",
+    "candidate_content_kind",
+    "source_marker",
+    "route_creation_status",
+    "route_registry_status",
+    "runtime_route_status",
+    "public_index_status",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "timestamp",
+    "public_safety_boundary",
+    "route_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_candidate_status": [
+    "candidate_held_not_created",
+    "blocked_missing_discovery_hold",
+    "blocked_unexpected_route_creation",
+    "blocked_unexpected_registry_mutation",
+    "blocked_unexpected_runtime_route",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_candidate_content_kind": [
+    "public_earn_status_card"
+  ],
+  "allowed_route_creation_status": [
+    "not_created"
+  ],
+  "allowed_route_registry_status": [
+    "not_mutated"
+  ],
+  "allowed_runtime_route_status": [
+    "not_added"
+  ],
+  "allowed_public_index_status": [
+    "not_mutated"
+  ],
+  "allowed_wc_issuance_status": [
+    "not_issued"
+  ],
+  "allowed_wc_ledger_write_status": [
+    "not_written"
+  ],
+  "allowed_execute_gate_status": [
+    "held_execute_gate_closed"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ],
+  "route_boundary_required_false": [
+    "creates_public_route",
+    "adds_runtime_route",
+    "mutates_route_registry",
+    "mutates_public_index",
+    "activates_public_mutation",
+    "changes_runtime_behavior"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate",
+    "performs_ledger_mutation",
+    "mutates_claim_state"
+  ],
+  "authority_boundary_required_false": [
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}
