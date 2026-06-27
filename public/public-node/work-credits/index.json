@@ -467,6 +467,29 @@
       "wallet_or_signer_required": false,
       "runtime_mutation_route_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_TRANSFER_EXECUTION_RESULT_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-redacted-settlement-receipt-candidate-hold-v1",
+      "title": "DataNet WC Held Redacted Settlement Receipt Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future redacted settlement receipt after DataNet Work Credits transfer execution-result planning. Candidate-only; no settlement receipt is created or published, no ledger append is performed, no transaction hash is exposed, void_amount is zero, and no wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-redacted-settlement-receipt-candidate-hold-v1.json",
+      "json": "datanet-wc-held-redacted-settlement-receipt-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_redacted_settlement_receipt_candidate",
+      "redacted_settlement_receipt_candidate_only": true,
+      "settlement_receipt_created": false,
+      "settlement_receipt_published": false,
+      "worker_receipt_created": false,
+      "public_receipt_created": false,
+      "ledger_append_performed": false,
+      "transaction_hash_exposed": false,
+      "void_transfer_performed": false,
+      "wc_amount": 0,
+      "void_amount": 0,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_REDACTED_SETTLEMENT_RECEIPT_CANDIDATE_HOLD_V1"
     }
   ]
 }
