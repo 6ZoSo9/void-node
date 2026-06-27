@@ -16,7 +16,8 @@
     "void_allocation_enabled": false,
     "usdc_autofulfillment_enabled": false,
     "wallet_or_signer_required": false,
-    "runtime_mutation_route_enabled": false
+    "runtime_mutation_route_enabled": false,
+    "void_transfer_enabled": false
   },
   "entries": [
     {
@@ -399,6 +400,27 @@
       "void_allocation_enabled": false,
       "void_transfer_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_VOID_ALLOCATION_PACKET_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-void-transfer-packet-candidate-hold-v1",
+      "title": "DataNet WC Held VOID Transfer Packet Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future DataNet Work Credits VOID transfer packet after allocation planning. Candidate-only; no transfer packet is created, no VOID transfer is prepared or performed, void_amount is zero, no signer or wallet access is required, no broadcast occurs, no execute gate is opened, and no runtime route or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-void-transfer-packet-candidate-hold-v1.json",
+      "json": "datanet-wc-held-void-transfer-packet-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_void_transfer_packet_candidate",
+      "void_transfer_packet_candidate_only": true,
+      "transfer_packet_created": false,
+      "void_transfer_prepared": false,
+      "void_transfer_performed": false,
+      "void_amount": 0,
+      "broadcast_performed": false,
+      "execute_gate_opened": false,
+      "wallet_or_signer_required": false,
+      "void_allocation_performed": false,
+      "void_transfer_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_VOID_TRANSFER_PACKET_CANDIDATE_HOLD_V1"
     }
   ]
 }
