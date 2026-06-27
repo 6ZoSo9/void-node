@@ -24,6 +24,28 @@
       "status": "canary_separate_terminal_lane_closed_without_execution",
       "status_html_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
       "status_json_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json"
+    },
+    {
+      "kind": "public_node_section_index",
+      "label": "DataNet public discovery",
+      "method": "GET",
+      "route": "/public-node/datanet/index.json",
+      "status": "hold",
+      "public_safe": true,
+      "read_only": true,
+      "discovery_only": true,
+      "static_index_only": true,
+      "public_intake_enabled": false,
+      "upload_enabled": false,
+      "object_write_enabled": false,
+      "mirror_command_enabled": false,
+      "peer_pin_command_enabled": false,
+      "wc_claim_enabled": false,
+      "wc_issuance_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_ROOT_PUBLIC_NODE_DATANET_DISCOVERY_INDEX_LINK_HOLD_V1"
     }
   ]
 }
