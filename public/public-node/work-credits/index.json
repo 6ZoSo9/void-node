@@ -140,6 +140,28 @@
       "void_allocation_enabled": false,
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_WC_REVIEW_RESULT_TEMPLATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-review-result-example-hold-v1",
+      "title": "DataNet WC Review Result Example Hold v1",
+      "status": "hold",
+      "summary": "Public-safe example of a future DataNet Work Credits review result. Example-only; decision is none, eligible_for_future_wc_action is false, WC amount is zero, and no approval, issuance, ledger write, VOID allocation, USDC autofulfillment, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-review-result-example-hold-v1.json",
+      "json": "datanet-wc-review-result-example-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_review_result_example",
+      "example_only": true,
+      "review_decision_enabled": false,
+      "eligible_for_future_wc_action": false,
+      "wc_amount": 0,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "marker": "VOID_DATANET_WC_REVIEW_RESULT_EXAMPLE_HOLD_V1"
     }
   ]
 }
