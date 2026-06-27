@@ -1,0 +1,27 @@
+{
+  "schema": "void.public_node.datanet.index.v1",
+  "status": "hold",
+  "title": "VOID DataNet Public Discovery Index",
+  "summary": "Read-only public-node DataNet discovery index. Static discovery only; no intake, upload, mirror command, peer pin command, WC claim, wallet/signer access, runtime mutation route, or mutation handler is active.",
+  "entries": [
+    {
+      "id": "datanet-public-discovery-onboarding-card-hold-v1",
+      "title": "DataNet Public Discovery Onboarding Card Hold v1",
+      "status": "hold",
+      "path": "/public-node/datanet/datanet-public-discovery-onboarding-card-hold-v1.html",
+      "json": "datanet-public-discovery-onboarding-card-hold-v1.json",
+      "html": "datanet-public-discovery-onboarding-card-hold-v1.html",
+      "scope": "datanet_public_discovery_onboarding",
+      "static_discovery_only": true,
+      "public_intake_enabled": false,
+      "upload_enabled": false,
+      "mirror_command_enabled": false,
+      "peer_pin_command_enabled": false,
+      "wc_claim_enabled": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1"
+    }
+  ],
+  "marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1"
+}

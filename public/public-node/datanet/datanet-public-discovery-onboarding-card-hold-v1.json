@@ -1,0 +1,48 @@
+{
+  "schema": "void.public_node.datanet.public_discovery_onboarding_card.v1",
+  "id": "datanet-public-discovery-onboarding-card-hold-v1",
+  "title": "DataNet Public Discovery Onboarding Card Hold v1",
+  "status": "hold",
+  "marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1",
+  "scope": "datanet_public_discovery_onboarding",
+  "summary": "Browser-visible read-only onboarding card for DataNet public discovery.",
+  "html_path": "/public-node/datanet/datanet-public-discovery-onboarding-card-hold-v1.html",
+  "index_path": "/public-node/datanet/index.json",
+  "references": {
+    "legacy_demo": "/demo/datanet/index.html",
+    "work_credits_available_work": "/public-node/work-credits/datanet-wc-available-work-public-html-card-hold-v1.html"
+  },
+  "discovery_state": {
+    "static_discovery_only": true,
+    "public_node_datanet_index_created": true,
+    "browser_visible_html_card_created": true,
+    "public_intake_enabled": false,
+    "upload_enabled": false,
+    "object_write_enabled": false,
+    "mirror_command_enabled": false,
+    "peer_pin_command_enabled": false,
+    "wc_claim_enabled": false,
+    "wc_issuance_enabled": false,
+    "wallet_or_signer_required": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "wallet_or_signer_required": false
+  },
+  "boundary": [
+    "This is a static public discovery/onboarding card only.",
+    "No public intake endpoint is enabled.",
+    "No upload or object write is enabled.",
+    "No mirror command is enabled.",
+    "No peer pin command is enabled.",
+    "No WC claim, issuance, ledger write, or settlement path is enabled.",
+    "No wallet or signer access is required.",
+    "No runtime mutation route or mutation handler is enabled."
+  ]
+}
