@@ -490,6 +490,29 @@
       "wallet_or_signer_required": false,
       "runtime_mutation_route_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_REDACTED_SETTLEMENT_RECEIPT_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-redacted-settlement-receipt-verify-pack-candidate-hold-v1",
+      "title": "DataNet WC Held Redacted Settlement Receipt Verify Pack Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future verification pack for a redacted DataNet Work Credits settlement receipt. Candidate-only; no verify pack is created or published, no settlement receipt is created, no ledger append is performed, no transaction hash is exposed, void_amount is zero, and no wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-redacted-settlement-receipt-verify-pack-candidate-hold-v1.json",
+      "json": "datanet-wc-held-redacted-settlement-receipt-verify-pack-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_redacted_settlement_receipt_verify_pack_candidate",
+      "verify_pack_candidate_only": true,
+      "verify_pack_created": false,
+      "verify_pack_published": false,
+      "settlement_receipt_created": false,
+      "settlement_receipt_published": false,
+      "ledger_append_performed": false,
+      "transaction_hash_exposed": false,
+      "void_transfer_performed": false,
+      "wc_amount": 0,
+      "void_amount": 0,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_REDACTED_SETTLEMENT_RECEIPT_VERIFY_PACK_CANDIDATE_HOLD_V1"
     }
   ]
 }
