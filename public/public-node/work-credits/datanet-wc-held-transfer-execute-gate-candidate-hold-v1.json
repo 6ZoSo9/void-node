@@ -1,0 +1,119 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_held_transfer_execute_gate_candidate_hold.v1",
+  "id": "datanet-wc-held-transfer-execute-gate-candidate-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Held Transfer Execute Gate Candidate Hold v1",
+  "summary": "Public candidate shape for a future transfer execute gate after VOID transfer packet planning. This is candidate-only: no execute gate exists, no execution is authorized, no transaction is created, signed, or broadcast, void_amount is zero, and no wallet access, signer access, runtime routing, or mutation handling occurs.",
+  "marker": "VOID_DATANET_WC_HELD_TRANSFER_EXECUTE_GATE_CANDIDATE_HOLD_V1",
+  "candidate_status": "held_transfer_execute_gate_candidate_only",
+  "applies_to": {
+    "held_void_transfer_packet_candidate": "/public-node/work-credits/datanet-wc-held-void-transfer-packet-candidate-hold-v1.json",
+    "held_void_allocation_packet_candidate": "/public-node/work-credits/datanet-wc-held-void-allocation-packet-candidate-hold-v1.json",
+    "held_wc_issuance_packet_candidate": "/public-node/work-credits/datanet-wc-held-wc-issuance-packet-candidate-hold-v1.json",
+    "held_ledger_write_packet_candidate": "/public-node/work-credits/datanet-wc-held-ledger-write-packet-candidate-hold-v1.json"
+  },
+  "candidate_execute_gate_shape": {
+    "execute_gate_id": "future_datanet_wc_void_transfer_execute_gate_id",
+    "execute_gate_kind": "datanet_wc_held_transfer_execute_gate",
+    "execute_gate_status": "held_closed_not_created",
+    "transfer_packet_reference": "future_public_safe_void_transfer_packet_reference",
+    "allocation_packet_reference": "future_public_safe_void_allocation_packet_reference",
+    "gate_intent": "none",
+    "eligible_for_execution": false,
+    "void_amount": 0,
+    "command_reference": "none",
+    "execute_gate_state": {
+      "execute_gate_created": false,
+      "execute_gate_opened": false,
+      "execute_authorization_created": false,
+      "execution_authorized": false,
+      "operator_action_enabled": false,
+      "wallet_access_required": false,
+      "signer_access_required": false,
+      "transaction_path_enabled": false,
+      "broadcast_path_enabled": false,
+      "transfer_performed": false
+    },
+    "signing_boundary": {
+      "wallet_access_required": false,
+      "signer_access_required": false,
+      "signature_required": false,
+      "private_key_required": false,
+      "signer_identity_public": false
+    },
+    "transaction_boundary": {
+      "transaction_created": false,
+      "transaction_signed": false,
+      "transaction_broadcast": false,
+      "transaction_hash_public": false,
+      "network_broadcast_performed": false
+    },
+    "identity_boundary": {
+      "participant_identifier_public": false,
+      "operator_identifier_public": false,
+      "reviewer_identifier_public": false,
+      "approver_identifier_public": false,
+      "ledger_writer_identifier_public": false,
+      "issuer_identifier_public": false,
+      "allocator_identifier_public": false,
+      "transfer_operator_identifier_public": false,
+      "execute_operator_identifier_public": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_candidate_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "exposes_approver_identifier": false,
+    "exposes_ledger_writer_identifier": false,
+    "exposes_issuer_identifier": false,
+    "exposes_allocator_identifier": false,
+    "exposes_transfer_operator_identifier": false,
+    "exposes_execute_operator_identifier": false,
+    "exposes_wallet_address": false,
+    "exposes_transaction_hash": false,
+    "requires_private_key": false,
+    "requires_private_material": false
+  },
+  "execute_gate_boundary": {
+    "execute_gate_active": false,
+    "creates_execute_gate": false,
+    "opens_execute_gate": false,
+    "creates_execute_authorization": false,
+    "authorizes_execution": false,
+    "requires_wallet_access": false,
+    "requires_signer_access": false,
+    "enables_transaction_path": false,
+    "enables_broadcast_path": false,
+    "performs_transfer": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

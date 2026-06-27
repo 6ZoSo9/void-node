@@ -421,6 +421,28 @@
       "void_allocation_performed": false,
       "void_transfer_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_VOID_TRANSFER_PACKET_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-transfer-execute-gate-candidate-hold-v1",
+      "title": "DataNet WC Held Transfer Execute Gate Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future transfer execute gate after VOID transfer packet planning. Candidate-only; no execute gate exists, no execution is authorized, no transaction is created, signed, or broadcast, void_amount is zero, and no wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-transfer-execute-gate-candidate-hold-v1.json",
+      "json": "datanet-wc-held-transfer-execute-gate-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_transfer_execute_gate_candidate",
+      "transfer_execute_gate_candidate_only": true,
+      "execute_gate_created": false,
+      "execute_gate_opened": false,
+      "execution_authorized": false,
+      "transaction_created": false,
+      "transaction_signed": false,
+      "broadcast_performed": false,
+      "void_transfer_performed": false,
+      "void_amount": 0,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_TRANSFER_EXECUTE_GATE_CANDIDATE_HOLD_V1"
     }
   ]
 }
