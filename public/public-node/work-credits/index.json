@@ -443,6 +443,30 @@
       "wallet_or_signer_required": false,
       "runtime_mutation_route_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_TRANSFER_EXECUTE_GATE_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-transfer-execution-result-candidate-hold-v1",
+      "title": "DataNet WC Held Transfer Execution Result Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future DataNet Work Credits VOID transfer execution result after transfer execute-gate planning. Candidate-only; no execution result is created, no execution is authorized, no transaction is created, signed, or broadcast, no transaction hash is exposed, void_amount is zero, and no wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-transfer-execution-result-candidate-hold-v1.json",
+      "json": "datanet-wc-held-transfer-execution-result-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_transfer_execution_result_candidate",
+      "transfer_execution_result_candidate_only": true,
+      "execution_result_created": false,
+      "execution_result_status": "not_executed_hold",
+      "execute_gate_opened": false,
+      "execution_authorized": false,
+      "transaction_created": false,
+      "transaction_signed": false,
+      "transaction_broadcast": false,
+      "transaction_hash_exposed": false,
+      "void_transfer_performed": false,
+      "void_amount": 0,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_TRANSFER_EXECUTION_RESULT_CANDIDATE_HOLD_V1"
     }
   ]
 }
