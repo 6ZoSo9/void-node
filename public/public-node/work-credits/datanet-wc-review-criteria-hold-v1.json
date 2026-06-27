@@ -1,0 +1,89 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_review_criteria_hold.v1",
+  "id": "datanet-wc-review-criteria-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Review Criteria Hold v1",
+  "summary": "Public criteria describing how future DataNet availability work packets may be evaluated. This is criteria-only and does not perform intake, review approval, WC issuance, ledger mutation, VOID allocation, payment handling, or runtime mutation.",
+  "marker": "VOID_DATANET_WC_REVIEW_CRITERIA_HOLD_V1",
+  "criteria_status": "criteria_only_hold",
+  "applies_to": {
+    "template": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json",
+    "example": "/public-node/work-credits/datanet-wc-available-work-packet-example-hold-v1.json",
+    "availability_status": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json"
+  },
+  "review_model": {
+    "review_required": true,
+    "review_status": "not_active",
+    "review_decision_enabled": false,
+    "review_approval_enabled": false,
+    "operator_action_enabled": false,
+    "automatic_scoring_enabled": false
+  },
+  "criteria": [
+    {
+      "id": "public_safe_evidence",
+      "title": "Public-safe evidence only",
+      "requirement": "Evidence must avoid private DataNet object material, private content roots, private object IDs, participant identifiers, reviewer identifiers, and operator identifiers.",
+      "required": true
+    },
+    {
+      "id": "availability_claim_shape",
+      "title": "Availability claim shape",
+      "requirement": "A future packet should describe the claimed DataNet availability work type, claimed capability, public-safe route or observation reference, and review window.",
+      "required": true
+    },
+    {
+      "id": "reviewer_verifiability",
+      "title": "Reviewer verifiability",
+      "requirement": "A reviewer should be able to inspect the public-safe evidence without needing secrets, wallet access, signer access, private object material, or runtime mutation.",
+      "required": true
+    },
+    {
+      "id": "no_duplicate_reward_claim",
+      "title": "Duplicate reward prevention",
+      "requirement": "A future review process should check whether the same claim has already been evaluated before any future WC lane action is considered.",
+      "required": true
+    },
+    {
+      "id": "manual_hold_boundary",
+      "title": "Manual hold boundary",
+      "requirement": "Criteria publication alone must not trigger intake, approval, WC issuance, ledger write, VOID allocation, payment handling, or execution.",
+      "required": true
+    }
+  ],
+  "public_safety_boundary": {
+    "public_criteria_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

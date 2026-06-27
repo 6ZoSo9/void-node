@@ -82,6 +82,25 @@
       "void_allocation_enabled": false,
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_WC_AVAILABLE_WORK_PACKET_EXAMPLE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-review-criteria-hold-v1",
+      "title": "DataNet WC Review Criteria Hold v1",
+      "status": "hold",
+      "summary": "Public review criteria for future DataNet Work Credits evaluation. Criteria-only; no public submission, live earning, WC issuance, WC approval, ledger write, VOID allocation, USDC autofulfillment, wallet/signer access, runtime route, or mutation handler is enabled.",
+      "path": "/public-node/work-credits/datanet-wc-review-criteria-hold-v1.json",
+      "json": "datanet-wc-review-criteria-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_review_criteria",
+      "criteria_only": true,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "marker": "VOID_DATANET_WC_REVIEW_CRITERIA_HOLD_V1"
     }
   ]
 }
