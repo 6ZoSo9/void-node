@@ -566,6 +566,37 @@
       "wallet_or_signer_required": false,
       "runtime_mutation_route_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_SETTLEMENT_CANDIDATE_CHAIN_CLOSEOUT_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-settlement-candidate-chain-public-reviewer-final-seal-hold-v1",
+      "title": "DataNet WC Held Settlement Candidate Chain Public Reviewer Final Seal Hold v1",
+      "status": "hold",
+      "summary": "Public reviewer final seal for the held DataNet Work Credits settlement candidate chain. Seal-only; the candidate chain remains closed on hold, Work Credits remain unlimited and uncapped, zero candidate amounts are placeholders only, and no WC issuance, ledger append, VOID allocation/transfer, transaction, receipt, verify pack, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-settlement-candidate-chain-public-reviewer-final-seal-hold-v1.json",
+      "json": "datanet-wc-held-settlement-candidate-chain-public-reviewer-final-seal-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_settlement_candidate_chain_public_reviewer_final_seal",
+      "public_reviewer_final_seal_only": true,
+      "candidate_chain_status": "closed_hold",
+      "source_closeout": "/public-node/work-credits/datanet-wc-held-settlement-candidate-chain-closeout-hold-v1.json",
+      "wc_supply_unlimited_uncapped": true,
+      "wc_supply_lifetime_cap_declared": false,
+      "candidate_zero_amount_is_supply_cap": false,
+      "wc_amount": 0,
+      "void_amount": 0,
+      "wc_issuance_performed": false,
+      "ledger_append_performed": false,
+      "void_allocation_performed": false,
+      "void_transfer_performed": false,
+      "transaction_created": false,
+      "transaction_signed": false,
+      "transaction_broadcast": false,
+      "transaction_hash_exposed": false,
+      "settlement_receipt_created": false,
+      "verify_pack_created": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_SETTLEMENT_CANDIDATE_CHAIN_PUBLIC_REVIEWER_FINAL_SEAL_HOLD_V1"
     }
   ]
 }
