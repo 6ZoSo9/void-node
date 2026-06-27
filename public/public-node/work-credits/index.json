@@ -101,6 +101,25 @@
       "void_allocation_enabled": false,
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_WC_REVIEW_CRITERIA_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-review-checklist-hold-v1",
+      "title": "DataNet WC Review Checklist Hold v1",
+      "status": "hold",
+      "summary": "Public reviewer checklist for future DataNet Work Credits evaluation. Checklist-only; no packet intake, public submission, live earning, WC approval, WC issuance, ledger write, VOID allocation, USDC autofulfillment, wallet/signer access, runtime route, or mutation handler is enabled.",
+      "path": "/public-node/work-credits/datanet-wc-review-checklist-hold-v1.json",
+      "json": "datanet-wc-review-checklist-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_review_checklist",
+      "checklist_only": true,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "marker": "VOID_DATANET_WC_REVIEW_CHECKLIST_HOLD_V1"
     }
   ]
 }
