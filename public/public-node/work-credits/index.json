@@ -513,6 +513,32 @@
       "wallet_or_signer_required": false,
       "runtime_mutation_route_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_REDACTED_SETTLEMENT_RECEIPT_VERIFY_PACK_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-settlement-candidate-chain-rollup-hold-v1",
+      "title": "DataNet WC Held Settlement Candidate Chain Rollup Hold v1",
+      "status": "hold",
+      "summary": "Public rollup for the held DataNet Work Credits settlement candidate chain from ledger-write planning through redacted receipt verify-pack planning. Rollup-only; no WC issuance, ledger append, VOID allocation, VOID transfer, transaction, settlement receipt, verify pack, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-settlement-candidate-chain-rollup-hold-v1.json",
+      "json": "datanet-wc-held-settlement-candidate-chain-rollup-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_settlement_candidate_chain_rollup",
+      "rollup_only": true,
+      "candidate_chain_status": "hold",
+      "wc_amount": 0,
+      "void_amount": 0,
+      "wc_supply_lifetime_cap_declared": false,
+      "candidate_zero_amount_is_supply_cap": false,
+      "wc_issuance_performed": false,
+      "ledger_append_performed": false,
+      "void_allocation_performed": false,
+      "void_transfer_performed": false,
+      "transaction_hash_exposed": false,
+      "settlement_receipt_created": false,
+      "verify_pack_created": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_SETTLEMENT_CANDIDATE_CHAIN_ROLLUP_HOLD_V1"
     }
   ]
 }

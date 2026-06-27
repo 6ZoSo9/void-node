@@ -1,0 +1,102 @@
+{
+  "schema": "void.public_node.work_credits.held_settlement_candidate_chain_rollup.v1",
+  "id": "datanet-wc-held-settlement-candidate-chain-rollup-hold-v1",
+  "title": "DataNet WC Held Settlement Candidate Chain Rollup Hold v1",
+  "status": "hold",
+  "marker": "VOID_DATANET_WC_HELD_SETTLEMENT_CANDIDATE_CHAIN_ROLLUP_HOLD_V1",
+  "lane": "work_credits",
+  "scope": "datanet_held_settlement_candidate_chain_rollup",
+  "summary": "Public rollup for the held DataNet Work Credits settlement candidate chain. This is a status rollup only and does not perform WC issuance, ledger append, VOID allocation, VOID transfer, receipt creation, verify-pack publication, or any wallet/signer/runtime mutation action.",
+  "rollup_only": true,
+  "work_credits_policy": {
+    "wc_supply_unlimited_uncapped": true,
+    "wc_supply_lifetime_cap_declared": false,
+    "candidate_zero_amount_is_supply_cap": false,
+    "candidate_amounts_are_placeholders_only": true,
+    "notes": [
+      "Work Credits are uncapped accounting units for useful verifiable work.",
+      "Zero candidate amounts in this rollup mean no live settlement is being performed.",
+      "No lifetime Work Credits supply cap is introduced by this rollup."
+    ]
+  },
+  "candidate_amounts": {
+    "wc_amount": 0,
+    "void_amount": 0
+  },
+  "candidate_chain": {
+    "ledger_write_packet_candidate": "/public-node/work-credits/datanet-wc-held-ledger-write-packet-candidate-hold-v1.json",
+    "wc_issuance_packet_candidate": "/public-node/work-credits/datanet-wc-held-wc-issuance-packet-candidate-hold-v1.json",
+    "void_allocation_packet_candidate": "/public-node/work-credits/datanet-wc-held-void-allocation-packet-candidate-hold-v1.json",
+    "void_transfer_packet_candidate": "/public-node/work-credits/datanet-wc-held-void-transfer-packet-candidate-hold-v1.json",
+    "transfer_execute_gate_candidate": "/public-node/work-credits/datanet-wc-held-transfer-execute-gate-candidate-hold-v1.json",
+    "transfer_execution_result_candidate": "/public-node/work-credits/datanet-wc-held-transfer-execution-result-candidate-hold-v1.json",
+    "redacted_settlement_receipt_candidate": "/public-node/work-credits/datanet-wc-held-redacted-settlement-receipt-candidate-hold-v1.json",
+    "redacted_settlement_receipt_verify_pack_candidate": "/public-node/work-credits/datanet-wc-held-redacted-settlement-receipt-verify-pack-candidate-hold-v1.json"
+  },
+  "chain_state": {
+    "candidate_chain_status": "hold",
+    "ledger_write_packet_candidate_present": true,
+    "wc_issuance_packet_candidate_present": true,
+    "void_allocation_packet_candidate_present": true,
+    "void_transfer_packet_candidate_present": true,
+    "transfer_execute_gate_candidate_present": true,
+    "transfer_execution_result_candidate_present": true,
+    "redacted_settlement_receipt_candidate_present": true,
+    "redacted_settlement_receipt_verify_pack_candidate_present": true,
+    "wc_issuance_performed": false,
+    "ledger_append_performed": false,
+    "void_allocation_performed": false,
+    "void_transfer_performed": false,
+    "execute_gate_opened": false,
+    "execution_authorized": false,
+    "transaction_created": false,
+    "transaction_signed": false,
+    "transaction_broadcast": false,
+    "transaction_hash": null,
+    "transaction_hash_exposed": false,
+    "settlement_receipt_created": false,
+    "settlement_receipt_published": false,
+    "verify_pack_created": false,
+    "verify_pack_published": false,
+    "wallet_or_signer_accessed": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "contains_transaction_hash": false,
+    "contains_private_ledger_path": false,
+    "contains_worker_private_identity": false,
+    "buyer_or_worker_action_required": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "wallet_or_signer_required": false
+  },
+  "next_authority_required_before_any_real_settlement": [
+    "real_work_completion_claim_authority",
+    "operator_review_authority",
+    "wc_issuance_authority",
+    "ledger_append_authority",
+    "void_allocation_authority",
+    "transfer_execution_authority",
+    "wallet_signer_authority",
+    "post_execution_receipt_authority",
+    "redacted_public_receipt_publication_authority"
+  ],
+  "boundary": [
+    "This is a public status rollup only.",
+    "No WC issuance is performed.",
+    "No ledger append is performed.",
+    "No VOID allocation is performed.",
+    "No VOID transfer is performed.",
+    "No transaction is created, signed, or broadcast.",
+    "No transaction hash is exposed.",
+    "No settlement receipt is created or published.",
+    "No verify pack is created or published.",
+    "No wallet or signer access is required.",
+    "No runtime route or mutation handler is enabled.",
+    "No Work Credits lifetime supply cap is declared."
+  ]
+}
