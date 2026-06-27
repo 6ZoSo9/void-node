@@ -1,0 +1,101 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_held_wc_issuance_packet_candidate_hold.v1",
+  "id": "datanet-wc-held-wc-issuance-packet-candidate-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Held WC Issuance Packet Candidate Hold v1",
+  "summary": "Public candidate shape for a future DataNet Work Credits issuance packet after ledger-write planning. This is candidate-only: no issuance packet is created, no WC issuance is performed, wc_amount is zero, no ledger file is mutated, and no VOID allocation, transfer, signer access, wallet access, runtime routing, or mutation handling occurs.",
+  "marker": "VOID_DATANET_WC_HELD_WC_ISSUANCE_PACKET_CANDIDATE_HOLD_V1",
+  "candidate_status": "held_wc_issuance_packet_candidate_only",
+  "applies_to": {
+    "held_ledger_write_packet_candidate": "/public-node/work-credits/datanet-wc-held-ledger-write-packet-candidate-hold-v1.json",
+    "held_approval_packet_candidate": "/public-node/work-credits/datanet-wc-held-approval-packet-candidate-hold-v1.json",
+    "held_duplicate_claim_guard_candidate": "/public-node/work-credits/datanet-wc-held-duplicate-claim-guard-candidate-hold-v1.json",
+    "held_review_decision_packet_candidate": "/public-node/work-credits/datanet-wc-held-review-decision-packet-candidate-hold-v1.json"
+  },
+  "candidate_issuance_packet_shape": {
+    "issuance_packet_id": "future_datanet_wc_issuance_packet_id",
+    "issuance_packet_kind": "datanet_wc_held_wc_issuance_packet",
+    "issuance_packet_status": "held_not_created",
+    "ledger_write_packet_reference": "future_public_safe_ledger_write_packet_reference",
+    "approval_packet_reference": "future_public_safe_approval_packet_reference",
+    "issuance_intent": "none",
+    "eligible_for_wc": false,
+    "wc_amount": 0,
+    "wc_delta": 0,
+    "issuance_result": "none",
+    "ledger_reference": {
+      "ledger_entry_id": "none",
+      "ledger_append_path": "none",
+      "ledger_mutation_performed": false
+    },
+    "issuance_state": {
+      "issuance_packet_created": false,
+      "issuance_prepared": false,
+      "wc_issuance_performed": false,
+      "ledger_line_created": false,
+      "ledger_append_performed": false,
+      "ledger_file_mutated": false,
+      "void_allocation_unlocked": false,
+      "void_allocation_performed": false,
+      "void_transfer_performed": false,
+      "operator_action_enabled": false
+    },
+    "identity_boundary": {
+      "participant_identifier_public": false,
+      "operator_identifier_public": false,
+      "reviewer_identifier_public": false,
+      "approver_identifier_public": false,
+      "ledger_writer_identifier_public": false,
+      "issuer_identifier_public": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_candidate_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "exposes_approver_identifier": false,
+    "exposes_ledger_writer_identifier": false,
+    "exposes_issuer_identifier": false,
+    "requires_private_material": false
+  },
+  "issuance_boundary": {
+    "issuance_active": false,
+    "creates_issuance_packet": false,
+    "prepares_issuance": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "mutates_ledger_file": false,
+    "unlocks_void_allocation": false,
+    "activates_earn_lane": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}
