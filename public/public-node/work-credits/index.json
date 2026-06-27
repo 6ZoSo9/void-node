@@ -292,6 +292,28 @@
       "void_allocation_enabled": false,
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_REVIEW_DECISION_PACKET_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-duplicate-claim-guard-candidate-hold-v1",
+      "title": "DataNet WC Held Duplicate Claim Guard Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future duplicate-claim guard before any DataNet Work Credits approval or ledger-write path. Candidate-only; no duplicate scan is active, no claim is accepted, no review decision is approved, no WC is issued, no ledger line is created, and no VOID allocation, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-duplicate-claim-guard-candidate-hold-v1.json",
+      "json": "datanet-wc-held-duplicate-claim-guard-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_duplicate_claim_guard_candidate",
+      "duplicate_claim_guard_candidate_only": true,
+      "duplicate_scan_active": false,
+      "claim_accepted": false,
+      "review_decision_approved": false,
+      "eligible_for_wc": false,
+      "wc_amount": 0,
+      "live_earn_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_DUPLICATE_CLAIM_GUARD_CANDIDATE_HOLD_V1"
     }
   ]
 }
