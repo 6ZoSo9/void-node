@@ -1,0 +1,98 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_held_intake_candidate_packet.v1",
+  "id": "datanet-wc-held-intake-candidate-packet-v1",
+  "status": "hold",
+  "title": "DataNet WC Held Intake Candidate Packet v1",
+  "summary": "Public candidate shape for a future DataNet Work Credits intake packet. This is candidate-only: intake is held, no packet is accepted, no public submission endpoint exists, and no review, earning, WC approval, WC issuance, ledger mutation, VOID allocation, payment handling, signer access, wallet access, runtime routing, or mutation handling occurs.",
+  "marker": "VOID_DATANET_WC_HELD_INTAKE_CANDIDATE_PACKET_V1",
+  "candidate_status": "held_intake_candidate_only",
+  "applies_to": {
+    "earn_readiness_summary": "/public-node/work-credits/datanet-wc-public-earn-readiness-summary-hold-v1.json",
+    "review_lane_rollup": "/public-node/work-credits/datanet-wc-public-review-lane-rollup-hold-v1.json",
+    "work_packet_template": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json"
+  },
+  "candidate_packet_shape": {
+    "candidate_packet_id": "future_datanet_wc_intake_candidate_packet_id",
+    "candidate_packet_kind": "datanet_wc_held_intake_candidate_packet",
+    "candidate_packet_status": "held_not_submitted",
+    "intended_future_lane": "work_credits",
+    "work_type": "datanet_availability",
+    "public_safe_summary": "Future public-safe summary of DataNet availability work offered for review.",
+    "public_safe_evidence": {
+      "public_route_reference": "future_public_safe_route_reference",
+      "availability_window": "future_public_safe_window",
+      "content_reference_mode": "redacted_or_public_safe_reference_only",
+      "private_content_root": "not_disclosed",
+      "private_object_id": "not_disclosed",
+      "participant_identifier": "not_disclosed",
+      "operator_identifier": "not_disclosed",
+      "reviewer_identifier": "not_disclosed"
+    },
+    "intake_state": {
+      "intake_open": false,
+      "packet_submitted": false,
+      "packet_accepted": false,
+      "public_submission_enabled": false,
+      "intake_queue_created": false,
+      "operator_review_queue_created": false
+    },
+    "review_state": {
+      "review_required": true,
+      "review_active": false,
+      "review_decision_performed": false,
+      "review_approval_performed": false
+    },
+    "wc_state": {
+      "wc_approval_performed": false,
+      "wc_issuance_performed": false,
+      "wc_amount": 0,
+      "wc_ledger_write_performed": false,
+      "void_allocation_performed": false,
+      "void_transfer_performed": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_candidate_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "intake_boundary": {
+    "intake_open": false,
+    "accepts_packets": false,
+    "public_submission_endpoint_enabled": false,
+    "creates_intake_queue": false,
+    "creates_operator_review_queue": false,
+    "activates_review_lane": false,
+    "activates_earn_lane": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}
