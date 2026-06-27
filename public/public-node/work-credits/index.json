@@ -224,6 +224,28 @@
       "void_allocation_enabled": false,
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_INTAKE_CANDIDATE_PACKET_V1"
+    },
+    {
+      "id": "datanet-wc-held-intake-queue-candidate-hold-v1",
+      "title": "DataNet WC Held Intake Queue Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future DataNet Work Credits intake queue. Queue-candidate-only; no live intake queue exists, no packet is accepted, no public submission endpoint exists, and no operator review queue, review decision, live earning, WC approval, WC issuance, ledger write, VOID allocation, USDC autofulfillment, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-intake-queue-candidate-hold-v1.json",
+      "json": "datanet-wc-held-intake-queue-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_intake_queue_candidate",
+      "queue_candidate_only": true,
+      "live_intake_queue": false,
+      "packet_accepted": false,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "review_decision_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_INTAKE_QUEUE_CANDIDATE_HOLD_V1"
     }
   ]
 }
