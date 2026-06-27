@@ -1,0 +1,80 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_available_work_packet_example_hold.v1",
+  "id": "datanet-wc-available-work-packet-example-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Available Work Packet Example Hold v1",
+  "summary": "Public-safe example packet showing how a future DataNet availability work packet may be shaped. This is example-only and does not submit work, issue Work Credits, write a ledger, allocate VOID, or activate earning.",
+  "marker": "VOID_DATANET_WC_AVAILABLE_WORK_PACKET_EXAMPLE_HOLD_V1",
+  "example_status": "public_safe_example_only",
+  "template_reference": {
+    "id": "datanet-wc-available-work-packet-template-hold-v1",
+    "path": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json"
+  },
+  "example_packet": {
+    "packet_id": "example_datanet_wc_available_work_packet_redacted_hold_v1",
+    "packet_kind": "datanet_wc_available_work_packet",
+    "packet_status": "example_not_submitted",
+    "work_type": "datanet_availability",
+    "work_summary": "Example: a node operator may later present public-safe evidence that a node served or mirrored DataNet availability during a review window.",
+    "claimed_capability": "serve_or_mirror_datanet_content",
+    "evidence": {
+      "public_node_route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+      "availability_window": "example_window_redacted_not_observed",
+      "content_reference_mode": "redacted_public_safe_reference_only",
+      "content_root": "not_disclosed",
+      "object_id": "not_disclosed",
+      "participant_identifier": "not_disclosed",
+      "reviewer_identifier": "not_disclosed",
+      "operator_identifier": "not_disclosed",
+      "operator_notes": "Example only; no actual work claim, no review, and no WC issuance occurred."
+    },
+    "review": {
+      "review_required": true,
+      "review_status": "not_reviewed_example_only",
+      "reviewer_identifier_public": false,
+      "operator_identifier_public": false,
+      "review_decision": "none"
+    },
+    "wc_result": {
+      "wc_issued": false,
+      "wc_amount": 0,
+      "wc_ledger_write_performed": false,
+      "void_allocated": false,
+      "void_transferred": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_example_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "submits_work": false,
+    "issues_work_credits": false,
+    "approves_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}
