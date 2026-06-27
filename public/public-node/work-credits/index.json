@@ -335,6 +335,28 @@
       "void_allocation_enabled": false,
       "void_transfer_enabled": false,
       "marker": "VOID_DATANET_WC_HELD_APPROVAL_PACKET_CANDIDATE_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-held-ledger-write-packet-candidate-hold-v1",
+      "title": "DataNet WC Held Ledger Write Packet Candidate Hold v1",
+      "status": "hold",
+      "summary": "Public candidate shape for a future DataNet Work Credits ledger-write packet after approval. Candidate-only; no ledger-write packet is created, no ledger line is created, no ledger append is performed, no WC is issued, and no VOID allocation, transfer, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-held-ledger-write-packet-candidate-hold-v1.json",
+      "json": "datanet-wc-held-ledger-write-packet-candidate-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_held_ledger_write_packet_candidate",
+      "ledger_write_packet_candidate_only": true,
+      "ledger_write_packet_created": false,
+      "ledger_line_created": false,
+      "ledger_append_performed": false,
+      "eligible_for_wc": false,
+      "wc_amount": 0,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "void_transfer_enabled": false,
+      "marker": "VOID_DATANET_WC_HELD_LEDGER_WRITE_PACKET_CANDIDATE_HOLD_V1"
     }
   ]
 }
