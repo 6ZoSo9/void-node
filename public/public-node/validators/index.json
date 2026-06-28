@@ -1,0 +1,30 @@
+{
+  "kind": "public_node_validators_index",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_INDEX_HOLD_V1",
+  "version": 1,
+  "status": "hold",
+  "public_safe": true,
+  "read_only": true,
+  "visibility_only": true,
+  "static_index_only": true,
+  "routes": [
+    {
+      "kind": "mainnet0_validator_candidate_public_visibility_index",
+      "label": "Mainnet-0 validator candidate visibility",
+      "method": "GET",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-index-hold-v1.json",
+      "status": "hold",
+      "public_safe": true,
+      "read_only": true,
+      "visibility_only": true,
+      "static_index_only": true,
+      "public_submit_enabled": false,
+      "stake_lock_enabled": false,
+      "candidate_registration_enabled": false,
+      "active_admission_enabled": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_INDEX_HOLD_V1"
+    }
+  ]
+}

@@ -46,6 +46,24 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_ROOT_PUBLIC_NODE_DATANET_DISCOVERY_INDEX_LINK_HOLD_V1"
+    },
+    {
+      "kind": "public_node_section_index",
+      "label": "Mainnet-0 validators",
+      "method": "GET",
+      "route": "/public-node/validators/index.json",
+      "status": "hold",
+      "public_safe": true,
+      "read_only": true,
+      "visibility_only": true,
+      "static_index_only": true,
+      "public_submit_enabled": false,
+      "stake_lock_enabled": false,
+      "candidate_registration_enabled": false,
+      "active_admission_enabled": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_INDEX_HOLD_V1"
     }
   ]
 }
