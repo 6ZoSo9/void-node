@@ -74,6 +74,33 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_DATANET_PUBLIC_DISCOVERY_FINAL_SEAL_HOLD_V1"
+    },
+    {
+      "id": "datanet-public-discovery-final-seal-html-card-hold-v1",
+      "title": "DataNet Public Discovery Final Seal HTML Card Hold v1",
+      "status": "hold",
+      "path": "/public-node/datanet/datanet-public-discovery-final-seal-html-card-hold-v1.html",
+      "json": "datanet-public-discovery-final-seal-html-card-hold-v1.json",
+      "html": "datanet-public-discovery-final-seal-html-card-hold-v1.html",
+      "scope": "datanet_public_discovery_final_seal_html_card",
+      "browser_visible_final_seal_card": true,
+      "public_safe": true,
+      "read_only": true,
+      "discovery_only": true,
+      "final_seal_json_required": true,
+      "runtime_fetch_required": false,
+      "runtime_fetch_optional": true,
+      "public_intake_enabled": false,
+      "upload_enabled": false,
+      "object_write_enabled": false,
+      "mirror_command_enabled": false,
+      "peer_pin_command_enabled": false,
+      "wc_claim_enabled": false,
+      "wc_issuance_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_PUBLIC_DISCOVERY_FINAL_SEAL_HTML_CARD_HOLD_V1"
     }
   ],
   "marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1"
