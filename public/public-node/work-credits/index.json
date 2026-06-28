@@ -926,6 +926,38 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_SEAL_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-hold-v1",
+      "title": "DataNet WC Public Earn Status Reviewer Final Closeout Audit Rollup Hold v1",
+      "status": "hold",
+      "summary": "Public reviewer final closeout audit rollup for the DataNet WC public earn-status lane. Audit/status only; Work Credits remain unlimited and uncapped, earning remains held, and no public submission, review decision, WC issuance, ledger write, VOID allocation/transfer, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-hold-v1.json",
+      "json": "datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_wc_public_earn_status_reviewer_final_closeout_audit_rollup",
+      "summary_only": true,
+      "reviewer_final_closeout_audit_rollup_only": true,
+      "wc_supply_unlimited_uncapped": true,
+      "wc_supply_lifetime_cap_declared": false,
+      "source_final_seal_path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-hold-v1.json",
+      "source_html_card_path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-html-card-hold-v1.html",
+      "source_runtime_visibility_path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-html-card-runtime-visibility-hold-v1.json",
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "accepts_work_packets": false,
+      "review_decision_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "void_transfer_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_route_enabled": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
     }
   ]
 }
