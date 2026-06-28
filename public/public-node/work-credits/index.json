@@ -1024,6 +1024,38 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_CLOSEOUT_AUDIT_ROLLUP_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-chain-closeout-audit-hold-v1",
+      "title": "DataNet WC Public Earn Status Reviewer Chain Closeout Audit Hold v1",
+      "status": "hold",
+      "summary": "Compact public-safe closeout audit for the DataNet WC public earn-status reviewer chain spanning PRs #59 through #67. Audit/status only; Work Credits remain unlimited and uncapped, earning remains held, and no public submission, review decision, WC issuance, ledger write, VOID allocation/transfer, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-chain-closeout-audit-hold-v1.json",
+      "json": "datanet-wc-public-earn-status-reviewer-chain-closeout-audit-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_wc_public_earn_status_reviewer_chain_closeout_audit",
+      "summary_only": true,
+      "chain_closeout_audit_only": true,
+      "chain_first_pr": 59,
+      "chain_last_pr": 67,
+      "chain_merged_pr_count": 9,
+      "wc_supply_unlimited_uncapped": true,
+      "wc_supply_lifetime_cap_declared": false,
+      "earning_remains_held": true,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "accepts_work_packets": false,
+      "review_decision_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "void_transfer_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_route_enabled": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CHAIN_CLOSEOUT_AUDIT_HOLD_V1"
     }
   ]
 }
