@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mainnet-0 validator candidate visibility</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="void-marker" content="VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_HTML_CARD_HOLD_V1">
+  <style>
+    body { font-family: monospace; max-width: 920px; margin: 40px auto; padding: 0 18px; background: #050505; color: #e8e8e8; }
+    .card { border: 1px solid #777; padding: 22px; border-radius: 10px; background: #101010; }
+    h1 { margin-top: 0; }
+    code { color: #d7ffb8; }
+    li { margin: 8px 0; }
+    .hold { color: #ffd37a; }
+    .green { color: #b8ffcf; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Mainnet-0 validator candidate visibility</h1>
+    <p><strong>Status:</strong> <span class="hold">hold</span></p>
+    <p><strong>Marker:</strong> <code>VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_HTML_CARD_HOLD_V1</code></p>
+    <p>This is a public-safe, read-only, browser-visible card for the Mainnet-0 validator candidate posture.</p>
+
+    <h2>What this exposes</h2>
+    <ul>
+      <li>Minimum validator self-stake remains <strong>10,000 VOID</strong>.</li>
+      <li>Public validator registration does not equal active validator admission.</li>
+      <li>Candidate/waiting visibility is separate from active validator runtime truth.</li>
+      <li>Active admission requires an explicit epoch/operator/governance activation step.</li>
+      <li>Public visibility does not change active validator count.</li>
+    </ul>
+
+    <h2>What this does not enable</h2>
+    <ul>
+      <li>No public validator submit.</li>
+      <li>No stake lock.</li>
+      <li>No wallet connect.</li>
+      <li>No candidate registration or intake.</li>
+      <li>No active validator admission.</li>
+      <li>No epoch activation.</li>
+      <li>No validator-set write.</li>
+      <li>No validator runtime truth write.</li>
+      <li>No runtime mutation route or mutation handler.</li>
+    </ul>
+
+    <h2>Source record</h2>
+    <p><a href="/public-node/validators/mainnet0-validator-candidate-public-visibility-index-hold-v1.json">Validator candidate visibility JSON</a></p>
+    <p><a href="/public-node/validators/mainnet0-validator-candidate-public-visibility-html-card-hold-v1.json">This card JSON metadata</a></p>
+
+    <p class="green">Boundary: static public discovery only.</p>
+  </main>
+</body>
+</html>
