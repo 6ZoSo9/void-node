@@ -1,0 +1,60 @@
+{
+  "kind": "mainnet0_validator_candidate_public_visibility_index",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_INDEX_HOLD_V1",
+  "version": 1,
+  "status": "hold",
+  "public_safe": true,
+  "read_only": true,
+  "visibility_only": true,
+  "static_index_only": true,
+  "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-index-hold-v1.json",
+  "title": "Mainnet-0 validator candidate public visibility index",
+  "summary": "Public-safe read-only visibility record for Mainnet-0 validator candidate posture.",
+  "mainnet0_validator_policy": {
+    "minimum_validator_self_stake_void": 10000,
+    "public_registration_does_not_equal_active_admission": true,
+    "active_admission_requires_explicit_epoch_activation": true,
+    "candidate_or_waiting_state_before_active": true,
+    "active_validator_runtime_truth_must_not_change_from_public_visibility": true,
+    "active_validator_count_after_public_registration_equals_before_unless_explicit_activation": true,
+    "validator_power_model": "stake_weighted",
+    "permissionless_entry_policy_if_minimum_stake_met": true,
+    "mainnet0_visibility_status": "candidate_visibility_only"
+  },
+  "public_surface": {
+    "public_submit_enabled": false,
+    "stake_lock_enabled": false,
+    "wallet_connect_enabled": false,
+    "candidate_registration_enabled": false,
+    "candidate_intake_enabled": false,
+    "active_admission_enabled": false,
+    "activation_enabled": false,
+    "epoch_mutation_enabled": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false,
+    "signer_or_wallet_required": false,
+    "validator_set_write_enabled": false,
+    "validator_runtime_truth_write_enabled": false
+  },
+  "candidate_states": [
+    "CANDIDATE",
+    "WAITING",
+    "ACTIVE",
+    "EXITING",
+    "JAILED",
+    "UNBONDED"
+  ],
+  "source_docs": [
+    "docs/mainnet0/validator-registration-waiting-pool-v1.md",
+    "docs/mainnet0/VALIDATOR_POLICY.md",
+    "docs/MAINNET0_VALIDATOR_ADMISSION_RUNBOOK.md",
+    "docs/MAINNET0_VALIDATOR_ADMISSION_CHECKLIST.md",
+    "docs/MAINNET0_VALIDATOR_STATUS_RECORD_TEMPLATE.md"
+  ],
+  "reviewer_notes": [
+    "This record makes the validator candidate posture easier to discover from the public node.",
+    "This record does not create or open public validator registration.",
+    "This record does not lock stake, accept candidate submissions, admit active validators, or mutate runtime truth.",
+    "Public validator registration, when later enabled, must not automatically increase the active validator set."
+  ]
+}
