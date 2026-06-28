@@ -736,6 +736,33 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_DATANET_WC_AVAILABLE_WORK_PUBLIC_REVIEWER_FINAL_SEAL_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1",
+      "title": "DataNet WC Public Earn Status Reviewer Closeout Rollup Hold v1",
+      "status": "hold",
+      "summary": "Public reviewer closeout rollup for the DataNet Work Credits public earn-status lane. Rollup-only; Work Credits remain unlimited and uncapped, earning remains held, and no public submission, review decision, WC issuance, ledger write, VOID allocation/transfer, wallet/signer access, runtime route, or mutation handler is active.",
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1.json",
+      "json": "datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1.json",
+      "lane": "work_credits",
+      "scope": "datanet_wc_public_earn_status_reviewer_closeout_rollup",
+      "summary_only": true,
+      "reviewer_closeout_rollup_only": true,
+      "wc_supply_unlimited_uncapped": true,
+      "wc_supply_lifetime_cap_declared": false,
+      "live_earn_enabled": false,
+      "public_submission_enabled": false,
+      "review_decision_enabled": false,
+      "wc_approval_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "void_allocation_enabled": false,
+      "void_transfer_enabled": false,
+      "usdc_autofulfillment_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CLOSEOUT_ROLLUP_HOLD_V1"
     }
   ]
 }
