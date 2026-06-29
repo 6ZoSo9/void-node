@@ -1154,5 +1154,32 @@
       "runtime_mutation_route": false,
       "mutation_handler": false
     }
+  },
+  "mainnet0_validator_candidate_readiness_matrix": {
+    "kind": "mainnet0_validator_candidate_readiness_matrix",
+    "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HOLD_V1",
+    "title": "Mainnet-0 validator candidate readiness matrix",
+    "status": "sealed_public_safe_read_only_candidate_readiness_matrix",
+    "route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json",
+    "source_previous_lane_root_final_seal_route": "/public-node/mainnet0-validator-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-closeout-root-link-final-seal-hold-v1.json",
+    "minimum_public_candidate_stake_policy_void": 10000,
+    "matrix_item_count": 8,
+    "boundary": {
+      "public_safe": true,
+      "read_only": true,
+      "candidate_readiness_matrix_only": true,
+      "definition_only": true,
+      "public_validator_submit": false,
+      "candidate_registration_open": false,
+      "candidate_intake": false,
+      "stake_lock": false,
+      "wallet_connect": false,
+      "active_validator_admission": false,
+      "epoch_activation": false,
+      "validator_set_write": false,
+      "validator_runtime_truth_write": false,
+      "runtime_mutation_route": false,
+      "mutation_handler": false
+    }
   }
 }
