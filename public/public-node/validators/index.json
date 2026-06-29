@@ -836,5 +836,32 @@
       "runtime_mutation_route": false,
       "mutation_handler": false
     }
+  },
+  "mainnet0_validator_root_to_reviewer_audit_final_seal_entrypoint_closeout_discovery_polish_runtime_visibility": {
+    "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_closeout_discovery_polish_runtime_visibility",
+    "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_CLOSEOUT_DISCOVERY_POLISH_RUNTIME_VISIBILITY_HOLD_V1",
+    "title": "Root-to-reviewer audit final seal entrypoint closeout discovery polish runtime visibility",
+    "status": "sealed_public_safe_read_only_runtime_visibility",
+    "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-polish-runtime-visibility-hold-v1.json",
+    "source_discovery_polish_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-polish-hold-v1.json",
+    "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-html-card-hold-v1.html",
+    "boundary": {
+      "public_safe": true,
+      "read_only": true,
+      "runtime_visibility_metadata_only": true,
+      "discovery_polish_visibility_only": true,
+      "static_discovery_only": true,
+      "public_validator_submit": false,
+      "stake_lock": false,
+      "wallet_connect": false,
+      "candidate_registration": false,
+      "candidate_intake": false,
+      "active_validator_admission": false,
+      "epoch_activation": false,
+      "validator_set_write": false,
+      "validator_runtime_truth_write": false,
+      "runtime_mutation_route": false,
+      "mutation_handler": false
+    }
   }
 }
