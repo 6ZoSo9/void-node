@@ -1,0 +1,99 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-readiness-matrix-hold-v1",
+  "status": "readiness_hold",
+  "public_surface": "read_only_static_visibility",
+  "authority": {
+    "registration_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "validator_set_write_enabled": false,
+    "peer_state_write_enabled": false
+  },
+  "readiness_categories": [
+    {
+      "id": "machine_readiness",
+      "label": "Machine readiness",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Prepare a stable machine suitable for long-running node software. This matrix does not require or collect machine details."
+    },
+    {
+      "id": "operating_system_readiness",
+      "label": "Operating system readiness",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Use a maintained operating system, keep packages updated, and avoid mixing node operation with risky desktop workloads."
+    },
+    {
+      "id": "network_reachability",
+      "label": "Network reachability",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Understand local firewall, router, and public reachability basics before public node participation opens further."
+    },
+    {
+      "id": "public_node_identity",
+      "label": "Public node identity",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Prepare a stable operator identity and node name, but do not treat this as registration or admission."
+    },
+    {
+      "id": "datanet_storage_expectations",
+      "label": "DataNet storage expectations",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Plan for verifiable data storage growth, backups, and recovery readiness."
+    },
+    {
+      "id": "uptime_expectations",
+      "label": "Uptime expectations",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Expect public nodes to benefit from stable power, network availability, and clean restart procedures."
+    },
+    {
+      "id": "operator_security_basics",
+      "label": "Operator security basics",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Protect shell access, avoid exposing secrets, and keep operator-only materials separate from public files."
+    },
+    {
+      "id": "validator_candidate_separation",
+      "label": "Validator candidate separation",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Running or preparing a public node is separate from validator candidacy and does not activate validator status."
+    },
+    {
+      "id": "wallet_and_funding_boundary",
+      "label": "Wallet and funding boundary",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "This readiness matrix does not connect wallets, request funds, accept stake, or authorize transfers."
+    },
+    {
+      "id": "current_status",
+      "label": "Current status",
+      "status": "preparation_guidance_only",
+      "operator_guidance": "Mainnet-0 public node operator readiness is visible as guidance only while activation authority remains disabled."
+    }
+  ],
+  "boundary": {
+    "allowed": [
+      "read-only public operator readiness guidance",
+      "static JSON visibility",
+      "static HTML visibility",
+      "public-safe preparation checklist",
+      "validator candidate separation language"
+    ],
+    "forbidden": [
+      "node registration",
+      "validator admission",
+      "validator activation",
+      "staking",
+      "wallet connection",
+      "ledger write",
+      "peer state write",
+      "validator set write",
+      "public mutation endpoint"
+    ]
+  },
+  "operator_summary": "VOID Mainnet-0 public node operator readiness is in a read-only hold state. Prospective operators may prepare, but this surface does not register nodes, activate validators, connect wallets, accept stake, or mutate network state."
+}
