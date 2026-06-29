@@ -1,0 +1,40 @@
+{
+  "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_closeout_rollup_html_runtime_visibility",
+  "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_CLOSEOUT_ROLLUP_HTML_RUNTIME_VISIBILITY_HOLD_V1",
+  "version": 1,
+  "status": "sealed_public_safe_read_only_runtime_visibility",
+  "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-rollup-html-runtime-visibility-hold-v1.json",
+  "source_html_card_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-rollup-html-card-hold-v1.html",
+  "source_html_card_json_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-rollup-html-card-hold-v1.json",
+  "source_closeout_rollup_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-rollup-hold-v1.json",
+  "source_entrypoint_polish_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-polish-hold-v1.json",
+  "source_entrypoint_runtime_visibility_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-runtime-visibility-hold-v1.json",
+  "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.html",
+  "runtime_visibility": {
+    "html_card_present": true,
+    "html_card_metadata_present": true,
+    "closeout_rollup_present": true,
+    "validator_section_entry_present": true,
+    "preferred_browser_visible_reviewer_route_present": true,
+    "static_html_visible": true,
+    "runtime_mutation_enabled": false
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "runtime_visibility_metadata_only": true,
+    "static_html_visibility_only": true,
+    "closeout_rollup_visibility_only": true,
+    "public_validator_submit": false,
+    "stake_lock": false,
+    "wallet_connect": false,
+    "candidate_registration": false,
+    "candidate_intake": false,
+    "active_validator_admission": false,
+    "epoch_activation": false,
+    "validator_set_write": false,
+    "validator_runtime_truth_write": false,
+    "runtime_mutation_route": false,
+    "mutation_handler": false
+  }
+}
