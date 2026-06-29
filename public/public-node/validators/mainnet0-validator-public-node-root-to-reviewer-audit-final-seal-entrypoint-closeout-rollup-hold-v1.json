@@ -1,0 +1,63 @@
+{
+  "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_closeout_rollup",
+  "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_CLOSEOUT_ROLLUP_HOLD_V1",
+  "version": 1,
+  "status": "sealed_public_safe_read_only_closeout",
+  "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-rollup-hold-v1.json",
+  "public_node_root_index_route": "/public-node/index.json",
+  "validator_section_index_route": "/public-node/validators/index.json",
+  "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.html",
+  "closed_chain": [
+    {
+      "kind": "entrypoint_polish",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_POLISH_HOLD_V1",
+      "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-polish-hold-v1.json"
+    },
+    {
+      "kind": "entrypoint_runtime_visibility",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_RUNTIME_VISIBILITY_HOLD_V1",
+      "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-runtime-visibility-hold-v1.json"
+    },
+    {
+      "kind": "audit_final_seal",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_VISIBILITY_ROOT_TO_REVIEWER_CHAIN_AUDIT_FINAL_SEAL_HOLD_V1",
+      "route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-hold-v1.json"
+    },
+    {
+      "kind": "audit_final_seal_html_card",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_VISIBILITY_ROOT_TO_REVIEWER_CHAIN_AUDIT_FINAL_SEAL_HTML_CARD_HOLD_V1",
+      "route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.html",
+      "json_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.json"
+    },
+    {
+      "kind": "audit_final_seal_html_runtime_visibility",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_VISIBILITY_ROOT_TO_REVIEWER_CHAIN_AUDIT_FINAL_SEAL_HTML_RUNTIME_VISIBILITY_HOLD_V1",
+      "route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-runtime-visibility-hold-v1.json"
+    }
+  ],
+  "closeout_assertions": {
+    "root_index_entry_present": true,
+    "runtime_visibility_entry_present": true,
+    "preferred_browser_visible_reviewer_route_present": true,
+    "source_chain_markers_present": true,
+    "public_safe_read_only": true,
+    "runtime_mutation_enabled": false
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "closeout_rollup_metadata_only": true,
+    "static_discovery_only": true,
+    "public_validator_submit": false,
+    "stake_lock": false,
+    "wallet_connect": false,
+    "candidate_registration": false,
+    "candidate_intake": false,
+    "active_validator_admission": false,
+    "epoch_activation": false,
+    "validator_set_write": false,
+    "validator_runtime_truth_write": false,
+    "runtime_mutation_route": false,
+    "mutation_handler": false
+  }
+}
