@@ -1,0 +1,65 @@
+{
+  "kind": "mainnet0_validator_candidate_public_visibility_reviewer_final_seal",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_REVIEWER_FINAL_SEAL_HOLD_V1",
+  "version": 1,
+  "status": "hold",
+  "public_safe": true,
+  "read_only": true,
+  "reviewer_final_seal_only": true,
+  "static_index_only": true,
+  "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-hold-v1.json",
+  "section_index_route": "/public-node/validators/index.json",
+  "reviewer_summary": [
+    "Mainnet-0 validator candidate public visibility is discoverable from the public node.",
+    "The validator visibility chain has JSON, browser-visible HTML, runtime visibility metadata, closeout rollup, closeout HTML, and closeout HTML runtime visibility records.",
+    "All records are public-safe and read-only.",
+    "No public validator action is enabled."
+  ],
+  "source_records": [
+    {
+      "kind": "validator_candidate_visibility_index",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-index-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_INDEX_HOLD_V1"
+    },
+    {
+      "kind": "validator_candidate_visibility_html_card",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-html-card-hold-v1.html",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_HTML_CARD_HOLD_V1"
+    },
+    {
+      "kind": "validator_candidate_visibility_html_runtime",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-html-card-runtime-visibility-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1"
+    },
+    {
+      "kind": "validator_candidate_visibility_closeout_rollup",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-closeout-rollup-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_CLOSEOUT_ROLLUP_HOLD_V1"
+    },
+    {
+      "kind": "validator_candidate_visibility_closeout_rollup_html_card",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-closeout-rollup-html-card-hold-v1.html",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_CLOSEOUT_ROLLUP_HTML_CARD_HOLD_V1"
+    },
+    {
+      "kind": "validator_candidate_visibility_closeout_rollup_html_runtime",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-closeout-rollup-html-card-runtime-visibility-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_CLOSEOUT_ROLLUP_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1"
+    }
+  ],
+  "public_surface": {
+    "public_submit_enabled": false,
+    "stake_lock_enabled": false,
+    "wallet_connect_enabled": false,
+    "candidate_registration_enabled": false,
+    "candidate_intake_enabled": false,
+    "active_admission_enabled": false,
+    "activation_enabled": false,
+    "epoch_mutation_enabled": false,
+    "validator_set_write_enabled": false,
+    "validator_runtime_truth_write_enabled": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false,
+    "signer_or_wallet_required": false
+  }
+}
