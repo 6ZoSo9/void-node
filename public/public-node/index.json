@@ -88,5 +88,57 @@
       "mutation_handler_enabled": false,
       "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_REVIEWER_ENTRYPOINT_POLISH_HOLD_V1"
     }
+  ],
+  "mainnet0_validator_root_to_reviewer_audit_final_seal_entrypoint_polish": {
+    "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_polish",
+    "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_POLISH_HOLD_V1",
+    "title": "Mainnet-0 validator root-to-reviewer audit final seal entrypoint polish",
+    "status": "sealed_public_safe_read_only",
+    "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-polish-hold-v1.json",
+    "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.html",
+    "source_final_seal_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-hold-v1.json",
+    "boundary": {
+      "public_safe": true,
+      "read_only": true,
+      "static_discovery_only": true,
+      "public_validator_submit": false,
+      "stake_lock": false,
+      "wallet_connect": false,
+      "candidate_registration": false,
+      "candidate_intake": false,
+      "active_validator_admission": false,
+      "epoch_activation": false,
+      "validator_set_write": false,
+      "validator_runtime_truth_write": false,
+      "runtime_mutation_route": false,
+      "mutation_handler": false
+    }
+  },
+  "reviewer_entrypoints": [
+    {
+      "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_polish",
+      "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_POLISH_HOLD_V1",
+      "title": "Mainnet-0 validator root-to-reviewer audit final seal entrypoint polish",
+      "status": "sealed_public_safe_read_only",
+      "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-polish-hold-v1.json",
+      "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-html-card-hold-v1.html",
+      "source_final_seal_route": "/public-node/validators/mainnet0-validator-public-visibility-root-to-reviewer-chain-audit-final-seal-hold-v1.json",
+      "boundary": {
+        "public_safe": true,
+        "read_only": true,
+        "static_discovery_only": true,
+        "public_validator_submit": false,
+        "stake_lock": false,
+        "wallet_connect": false,
+        "candidate_registration": false,
+        "candidate_intake": false,
+        "active_validator_admission": false,
+        "epoch_activation": false,
+        "validator_set_write": false,
+        "validator_runtime_truth_write": false,
+        "runtime_mutation_route": false,
+        "mutation_handler": false
+      }
+    }
   ]
 }
