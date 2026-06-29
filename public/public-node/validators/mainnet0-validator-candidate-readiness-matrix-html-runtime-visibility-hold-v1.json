@@ -1,0 +1,45 @@
+{
+  "schema": "void.public_node.validators.mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility.v1",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_HOLD_V1",
+  "status": "hold",
+  "kind": "validator_candidate_readiness_matrix_html_runtime_visibility",
+  "scope": "mainnet0_validator_public_visibility",
+  "route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-runtime-visibility-hold-v1.json",
+  "source_matrix": {
+    "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HOLD_V1",
+    "route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json",
+    "section_key": "mainnet0_validator_candidate_readiness_matrix"
+  },
+  "source_html_card": {
+    "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_CARD_HOLD_V1",
+    "json_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.json",
+    "html_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.html",
+    "section_key": "mainnet0_validator_candidate_readiness_matrix_html_card"
+  },
+  "runtime_visibility": {
+    "browser_visible_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.html",
+    "runtime_truth_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-runtime-visibility-hold-v1.json",
+    "visibility_state": "static_html_card_visible",
+    "mutation_state": "read_only",
+    "candidate_intake_state": "not_open",
+    "stake_lock_state": "not_enabled",
+    "wallet_connect_state": "not_enabled",
+    "active_validator_admission_state": "not_enabled",
+    "epoch_activation_state": "not_enabled",
+    "validator_set_write_state": "not_enabled"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "opens_public_validator_submit": false,
+    "opens_candidate_registration_or_intake": false,
+    "opens_stake_lock": false,
+    "opens_wallet_connect": false,
+    "opens_active_validator_admission": false,
+    "opens_epoch_activation": false,
+    "opens_validator_set_write": false,
+    "opens_validator_runtime_truth_write": false,
+    "opens_runtime_mutation_route": false
+  }
+}
