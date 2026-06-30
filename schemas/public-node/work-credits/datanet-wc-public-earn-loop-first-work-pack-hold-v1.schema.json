@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void.public_node.work_credits.datanet-wc-public-earn-loop-first-work-pack-hold-v1.schema.json",
+  "title": "DataNet WC Public Earn Loop First Work Pack Hold v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "marker",
+    "status",
+    "kind",
+    "scope",
+    "route",
+    "html_route",
+    "work_pack",
+    "work_credit_policy",
+    "submission_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void.public_node.work_credits.datanet_wc_public_earn_loop_first_work_pack.v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1"
+    },
+    "status": {
+      "const": "hold"
+    },
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack"
+    },
+    "scope": {
+      "const": "public_work_credit_earn_loop"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "work_pack": {
+      "type": "object",
+      "required": [
+        "title",
+        "version",
+        "lane",
+        "task_type",
+        "candidate_work_items",
+        "review_method"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "lane": {
+          "const": "DataNet"
+        },
+        "task_type": {
+          "const": "artifact_verification"
+        },
+        "candidate_work_items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "review_method": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "work_credit_policy": {
+      "type": "object",
+      "required": [
+        "wc_supply_policy",
+        "issues_work_credits",
+        "writes_work_credit_ledger",
+        "creates_reward",
+        "creates_void_transfer",
+        "operator_review_required"
+      ],
+      "properties": {
+        "wc_supply_policy": {
+          "const": "unlimited_uncapped_accounting_units_for_useful_verifiable_work"
+        },
+        "issues_work_credits": {
+          "const": false
+        },
+        "writes_work_credit_ledger": {
+          "const": false
+        },
+        "creates_reward": {
+          "const": false
+        },
+        "creates_void_transfer": {
+          "const": false
+        },
+        "operator_review_required": {
+          "const": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

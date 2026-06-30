@@ -1,0 +1,50 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_loop_first_work_pack.v1",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+  "status": "hold",
+  "kind": "datanet_wc_public_earn_loop_first_work_pack",
+  "scope": "public_work_credit_earn_loop",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html",
+  "work_pack": {
+    "title": "DataNet Artifact Verification Starter Pack",
+    "version": "v1",
+    "lane": "DataNet",
+    "task_type": "artifact_verification",
+    "candidate_work_items": [
+      "Verify a public DataNet artifact route resolves and matches its advertised JSON metadata.",
+      "Check that a public DataNet HTML card is browser-visible and linked from its index or parent discovery route.",
+      "Submit a short reviewer note describing what was checked, what passed, and what was not checked."
+    ],
+    "review_method": "operator_review_before_any_future_work_credit_award"
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "wc_settlement_note": "Any future WC award or VOID settlement remains separate and requires an explicit ledger/write/settlement lane.",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false,
+    "operator_review_required": true
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false
+  },
+  "safety_boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "no_private_operator_material": true,
+    "no_secret_material": true,
+    "no_payment_instruction": true,
+    "no_wc_cap": true,
+    "no_wc_issuance": true,
+    "no_void_transfer": true,
+    "no_runtime_mutation_route": true
+  }
+}
