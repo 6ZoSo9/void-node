@@ -1275,5 +1275,21 @@
     "issues_work_credits": false,
     "writes_work_credit_ledger": false,
     "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-candidate-hold-v1"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_wc_amount_recommendation_candidate": {
+    "title": "DataNet WC amount recommendation candidate hold v1",
+    "status": "hold_static_wc_amount_recommendation_candidate_only",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CANDIDATE_HOLD_V1",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-candidate-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-candidate-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "operator_review_required": true,
+    "requires_accepted_decision": true,
+    "suggested_starter_amount_wc": 100,
+    "suggested_amount_is_not_supply_limit": true,
+    "wc_amount_approved": false,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-example-hold-v1"
   }
 }

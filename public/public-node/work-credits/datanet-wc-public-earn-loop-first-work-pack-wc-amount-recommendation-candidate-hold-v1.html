@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Amount Recommendation Candidate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Amount Recommendation Candidate</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CANDIDATE_HOLD_V1</code></p>
+    <p>Status: static WC amount recommendation candidate only.</p>
+
+    <h2>What this enables</h2>
+    <p>Defines how an operator can recommend a WC amount after a future accepted decision.</p>
+
+    <h2>Recommendation candidate template</h2>
+    <pre>{
+  &quot;operator_recommendation_id&quot;: &quot;operator-assigned recommendation id&quot;,
+  &quot;source_decision_reference&quot;: &quot;accepted operator decision reference or copied hash&quot;,
+  &quot;source_decision_required_option&quot;: &quot;accept&quot;,
+  &quot;worker_public_handle&quot;: &quot;copied from accepted review packet&quot;,
+  &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+  &quot;recommended_wc_amount&quot;: {
+    &quot;suggested_starter_amount&quot;: 100,
+    &quot;amount_is_recommendation_only&quot;: true,
+    &quot;amount_is_not_approved_here&quot;: true,
+    &quot;amount_is_not_supply_limit&quot;: true
+  },
+  &quot;recommendation_inputs&quot;: {
+    &quot;accepted_decision_present&quot;: &quot;required before future amount recommendation&quot;,
+    &quot;work_pack_matches_lane&quot;: &quot;required true&quot;,
+    &quot;evidence_reproducible_or_reviewer_openable&quot;: &quot;required true&quot;,
+    &quot;duplicate_or_replay_screen&quot;: &quot;required no_duplicate_found&quot;,
+    &quot;operator_notes&quot;: &quot;required human-readable amount rationale&quot;
+  },
+  &quot;recommendation_rules&quot;: [
+    &quot;recommendation may only follow an accepted operator decision&quot;,
+    &quot;recommended amount is advisory until separately approved&quot;,
+    &quot;no recommendation here issues Work Credits&quot;,
+    &quot;no recommendation here writes or appends a Work Credit ledger&quot;,
+    &quot;no recommendation here creates a reward or VOID transfer&quot;
+  ],
+  &quot;wc_amount_recommendation_created_here&quot;: false,
+  &quot;wc_amount_approved_here&quot;: false,
+  &quot;ledger_write_candidate_created_here&quot;: false
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No approved WC amount.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No ledger-write candidate.</li>
+      <li>No VOID transfer.</li>
+      <li>No wallet connect.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>
