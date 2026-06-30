@@ -297,6 +297,27 @@
         "peer_state_write_enabled": false,
         "validator_set_write_enabled": false
       }
+    },
+    {
+      "id": "mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1",
+      "title": "Mainnet-0 Public Node Operator Reviewer Handoff Pack",
+      "status": "reviewer_handoff_pack_hold",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_REVIEWER_HANDOFF_PACK_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.html",
+      "summary": "Single read-only reviewer starting point for the VOID Mainnet-0 public node operator readiness stack.",
+      "authority": {
+        "registration_enabled": false,
+        "checklist_submission_enabled": false,
+        "validator_admission_enabled": false,
+        "validator_activation_enabled": false,
+        "staking_enabled": false,
+        "wallet_connect_enabled": false,
+        "public_mutation_enabled": false,
+        "ledger_write_enabled": false,
+        "peer_state_write_enabled": false,
+        "validator_set_write_enabled": false
+      }
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
