@@ -275,6 +275,28 @@
       "status": "index_link_hold",
       "summary": "Read-only operator self-check guidance for prospective VOID Mainnet-0 public node operators.",
       "title": "Mainnet-0 Public Node Operator Preflight Checklist"
+    },
+    {
+      "id": "mainnet0-public-node-operator-readiness-chain-rollup-index-link-hold-v1",
+      "title": "Mainnet-0 Public Node Operator Readiness Chain Rollup",
+      "status": "index_link_hold",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_INDEX_LINK_HOLD_V1_GREEN",
+      "source_marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.html",
+      "summary": "Read-only reviewer-facing rollup for the VOID Mainnet-0 public node operator readiness chain.",
+      "authority": {
+        "registration_enabled": false,
+        "checklist_submission_enabled": false,
+        "validator_admission_enabled": false,
+        "validator_activation_enabled": false,
+        "staking_enabled": false,
+        "wallet_connect_enabled": false,
+        "public_mutation_enabled": false,
+        "ledger_write_enabled": false,
+        "peer_state_write_enabled": false,
+        "validator_set_write_enabled": false
+      }
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
