@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-packet-candidate-hold-v1.schema.json",
+  "title": "DataNet WC Operator Intake Review Packet Candidate Hold v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "status",
+    "marker",
+    "route",
+    "html_route",
+    "source_chain",
+    "operator_intake_review",
+    "operator_review_packet_template",
+    "work_credit_policy",
+    "submission_boundary",
+    "review_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack_operator_intake_review_packet_candidate"
+    },
+    "version": {
+      "const": "v1"
+    },
+    "status": {
+      "const": "hold_static_operator_review_packet_candidate_only"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_PACKET_CANDIDATE_HOLD_V1"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "source_chain": {
+      "type": "object"
+    },
+    "operator_intake_review": {
+      "type": "object"
+    },
+    "operator_review_packet_template": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "review_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
