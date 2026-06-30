@@ -1,0 +1,118 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_operator_intake_review_decision_candidate",
+  "version": "v1",
+  "status": "hold_static_operator_review_decision_candidate_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CANDIDATE_HOLD_V1",
+  "created_at": "2026-06-30T14:48:42Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-candidate-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-candidate-hold-v1.html",
+  "purpose": "Define the deterministic accept/reject/needs-more-info operator decision candidate shape for the DataNet WC first work-pack public submission intake lane.",
+  "source_chain": {
+    "operator_intake_review_packet_candidate_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_PACKET_CANDIDATE_HOLD_V1",
+    "operator_intake_review_packet_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_PACKET_EXAMPLE_HOLD_V1",
+    "public_submission_intake_packet_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_PACKET_HOLD_V1"
+  },
+  "operator_decision_candidate": {
+    "decision_candidate_created": true,
+    "decision_options_defined": [
+      "accept",
+      "reject",
+      "needs_more_info"
+    ],
+    "deterministic_decision_rules_defined": true,
+    "operator_review_required": true,
+    "decision_fixture_created_here": false,
+    "accepted_here": false,
+    "rejected_here": false,
+    "needs_more_info_here": false,
+    "wc_amount_approved_here": false,
+    "ledger_write_candidate_created_here": false,
+    "runtime_decision_endpoint_created": false
+  },
+  "operator_review_decision_candidate_template": {
+    "operator_decision_id": "operator-assigned decision id",
+    "source_operator_review_packet_reference": "operator review packet reference or copied hash",
+    "worker_public_handle": "copied from review packet",
+    "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+    "decision_inputs": {
+      "packet_is_public_safe": "required true before accept",
+      "no_secret_material": "required true before accept",
+      "work_pack_matches_lane": "required true before accept",
+      "evidence_is_reproducible_or_reviewer_openable": "required true before accept",
+      "duplicate_or_replay_screen": "required no_duplicate_found before accept",
+      "operator_notes": "required human-readable review note"
+    },
+    "decision_options": {
+      "accept": {
+        "meaning": "operator believes work is valid and can move to a future WC amount recommendation candidate",
+        "allowed_here": true,
+        "wc_amount_approved_here": false,
+        "ledger_write_candidate_created_here": false
+      },
+      "reject": {
+        "meaning": "operator believes packet fails lane requirements or safety checks",
+        "allowed_here": true,
+        "wc_amount_approved_here": false,
+        "ledger_write_candidate_created_here": false
+      },
+      "needs_more_info": {
+        "meaning": "operator needs more public-safe evidence before accept/reject",
+        "allowed_here": true,
+        "wc_amount_approved_here": false,
+        "ledger_write_candidate_created_here": false
+      }
+    },
+    "deterministic_decision_rules": [
+      "accept requires all public-safety and lane-match checks to pass",
+      "reject requires at least one failing safety, lane-match, reproducibility, or duplicate/replay check",
+      "needs_more_info applies when evidence is incomplete but not unsafe",
+      "no decision here may approve WC amount",
+      "no decision here may write or append a WC ledger"
+    ],
+    "decision_fixture_created_here": false,
+    "wc_amount_approved_here": false,
+    "ledger_write_candidate_created_here": false
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false,
+    "operator_review_required": true
+  },
+  "decision_boundary": {
+    "decision_candidate_only": true,
+    "decision_fixture_created": false,
+    "acceptance_created": false,
+    "rejection_created": false,
+    "needs_more_info_created": false,
+    "wc_amount_approved": false,
+    "ledger_write_candidate_created": false,
+    "ledger_append_enabled": false
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  },
+  "next_recommended_brick": {
+    "id": "datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-example-hold-v1",
+    "purpose": "Add a public-safe example decision packet that shows accept/reject/needs-more-info shape without approving WC or writing a ledger."
+  }
+}
