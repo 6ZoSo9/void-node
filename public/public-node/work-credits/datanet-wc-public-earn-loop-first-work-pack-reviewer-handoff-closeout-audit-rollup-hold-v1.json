@@ -1,0 +1,69 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_loop_first_work_pack_reviewer_handoff_closeout_audit_rollup.v1",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_HANDOFF_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+  "status": "hold",
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_reviewer_handoff_closeout_audit_rollup",
+  "scope": "public_work_credit_earn_loop_reviewer_handoff_closeout",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-closeout-audit-rollup-hold-v1.json",
+  "source_chain": {
+    "first_work_pack": {
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+      "json_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+      "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html"
+    },
+    "first_work_pack_closeout_audit": {
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+      "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-closeout-audit-rollup-hold-v1.json"
+    },
+    "reviewer_handoff_packet": {
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_HANDOFF_PACKET_HOLD_V1",
+      "json_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.json",
+      "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.html"
+    }
+  },
+  "closeout_audit": {
+    "first_work_pack_present": true,
+    "first_work_pack_html_present": true,
+    "first_work_pack_closeout_present": true,
+    "reviewer_handoff_packet_present": true,
+    "reviewer_handoff_html_present": true,
+    "work_credits_index_entries_present": true,
+    "root_public_node_discovery_entries_present": true,
+    "latest_first_work_pack_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+    "latest_first_work_pack_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html",
+    "latest_first_work_pack_closeout_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-closeout-audit-rollup-hold-v1.json",
+    "latest_reviewer_handoff_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.json",
+    "latest_reviewer_handoff_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.html",
+    "reviewer_handoff_closeout_state": "public_visible_read_only_closeout_audited"
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false,
+    "operator_review_required": true
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false
+  },
+  "safety_boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "closeout_audit_only": true,
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true
+  }
+}
