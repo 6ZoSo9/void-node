@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Ledger Write Approval Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Ledger Write Approval Example</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_EXAMPLE_HOLD_V1</code></p>
+    <p>Status: static WC ledger-write approval example only.</p>
+
+    <h2>What this enables</h2>
+    <p>Shows the future operator approval candidate packet shape before any future WC ledger write can be authorized.</p>
+
+    <h2>Approval example packet</h2>
+    <pre>{
+  &quot;operator_approval_candidate_id&quot;: &quot;example-wc-ledger-write-approval-candidate-001&quot;,
+  &quot;source_ledger_write_candidate_reference&quot;: &quot;future-ledger-write-candidate-reference&quot;,
+  &quot;source_amount_approval_reference&quot;: &quot;future-approved-amount-reference&quot;,
+  &quot;source_decision_reference&quot;: &quot;future-accepted-operator-decision-reference&quot;,
+  &quot;worker_public_handle&quot;: &quot;example-worker-001&quot;,
+  &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+  &quot;approval_review_inputs&quot;: {
+    &quot;accepted_decision_present&quot;: true,
+    &quot;future_approved_amount_present&quot;: true,
+    &quot;ledger_candidate_matches_approved_amount&quot;: true,
+    &quot;worker_reference_public_safe&quot;: true,
+    &quot;evidence_reference_public_safe&quot;: true,
+    &quot;duplicate_or_replay_review_required&quot;: true,
+    &quot;operator_final_review_required&quot;: true
+  },
+  &quot;candidate_approval_decision_option_example&quot;: &quot;approve_for_future_ledger_write_packet&quot;,
+  &quot;example_amount_wc&quot;: 100,
+  &quot;example_amount_is_not_approved_here&quot;: true,
+  &quot;example_amount_is_not_supply_limit&quot;: true,
+  &quot;example_only&quot;: true,
+  &quot;approval_candidate_shape_referenced&quot;: true,
+  &quot;approval_decision_created_here&quot;: false,
+  &quot;ledger_write_authorized_here&quot;: false,
+  &quot;ledger_write_candidate_instantiated_here&quot;: false,
+  &quot;ledger_line_created_here&quot;: false,
+  &quot;ledger_append_performed_here&quot;: false,
+  &quot;wc_issuance_created_here&quot;: false,
+  &quot;wc_ledger_write_created_here&quot;: false,
+  &quot;reward_created_here&quot;: false,
+  &quot;void_transfer_created_here&quot;: false
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No approval decision created.</li>
+      <li>No ledger-write authorization.</li>
+      <li>No ledger line created.</li>
+      <li>No ledger append performed.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No VOID transfer.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>
