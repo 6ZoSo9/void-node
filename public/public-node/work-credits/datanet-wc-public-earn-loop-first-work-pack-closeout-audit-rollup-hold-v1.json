@@ -1,0 +1,48 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_loop_first_work_pack_closeout_audit_rollup.v1",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+  "status": "hold",
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_closeout_audit_rollup",
+  "scope": "public_work_credit_earn_loop_discovery_closeout",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-closeout-audit-rollup-hold-v1.json",
+  "source_first_work_pack": {
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+    "json_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html",
+    "wc_index_key": "datanet_wc_public_earn_loop_first_work_pack"
+  },
+  "source_work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false,
+    "operator_review_required": true
+  },
+  "closeout_audit": {
+    "first_work_pack_json_present": true,
+    "first_work_pack_html_present": true,
+    "work_credits_index_entry_present": true,
+    "root_public_node_discovery_entry_present": true,
+    "latest_first_work_pack_json_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+    "latest_first_work_pack_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html",
+    "closeout_audit_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-closeout-audit-rollup-hold-v1.json",
+    "earn_loop_first_work_pack_state": "public_visible_read_only_closeout_audited"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "closeout_audit_only": true,
+    "work_credits_unlimited_uncapped": true,
+    "opens_public_submission": false,
+    "opens_wallet_connect": false,
+    "opens_automatic_scoring": false,
+    "opens_automatic_award": false,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false,
+    "opens_runtime_mutation_route": false
+  }
+}

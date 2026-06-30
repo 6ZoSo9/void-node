@@ -1101,5 +1101,14 @@
     "work_pack": "DataNet Artifact Verification Starter Pack",
     "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
     "boundary": "public_safe_read_only_definition_only_no_wc_issuance_no_ledger_write_no_void_transfer"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_closeout_audit_rollup": {
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "status": "hold",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-closeout-audit-rollup-hold-v1.json",
+    "source_first_work_pack_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.json",
+    "source_first_work_pack_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "boundary": "public_safe_read_only_closeout_audit_only_no_wc_issuance_no_ledger_write_no_void_transfer"
   }
 }
