@@ -1,0 +1,106 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_REVIEWER_HANDOFF_PACK_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1",
+  "status": "reviewer_handoff_pack_hold",
+  "public_surface": "read_only_static_reviewer_handoff_pack",
+  "review_order": [
+    {
+      "order": 1,
+      "label": "Reviewer final seal",
+      "lane": "mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html",
+      "review_note": "Start here for the final reviewer-facing summary of the public-node operator readiness stack."
+    },
+    {
+      "order": 2,
+      "label": "Readiness chain rollup",
+      "lane": "mainnet0-public-node-operator-readiness-chain-rollup-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.html",
+      "review_note": "Use this to inspect the complete chain of readiness surfaces."
+    },
+    {
+      "order": 3,
+      "label": "Readiness chain rollup root index link",
+      "lane": "mainnet0-public-node-operator-readiness-chain-rollup-index-link-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_INDEX_LINK_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-index-link-hold-v1.json",
+      "review_note": "Confirms the chain rollup is discoverable from the root public-node index."
+    },
+    {
+      "order": 4,
+      "label": "Operator preflight checklist",
+      "lane": "mainnet0-public-node-operator-preflight-checklist-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.html",
+      "review_note": "Shows the operator self-check guidance without submission authority."
+    },
+    {
+      "order": 5,
+      "label": "Operator preflight checklist root index link",
+      "lane": "mainnet0-public-node-operator-preflight-checklist-index-link-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_INDEX_LINK_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-preflight-checklist-index-link-hold-v1.json",
+      "review_note": "Confirms the checklist is discoverable from the root public-node index."
+    },
+    {
+      "order": 6,
+      "label": "Operator readiness matrix",
+      "lane": "mainnet0-public-node-operator-readiness-matrix-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.html",
+      "review_note": "Shows the high-level operator readiness categories."
+    },
+    {
+      "order": 7,
+      "label": "Operator readiness matrix root index link",
+      "lane": "mainnet0-public-node-operator-readiness-index-link-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_INDEX_LINK_HOLD_V1_GREEN",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-index-link-hold-v1.json",
+      "review_note": "Confirms the readiness matrix is discoverable from the root public-node index."
+    }
+  ],
+  "source_markers": [
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_INDEX_LINK_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_INDEX_LINK_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_INDEX_LINK_HOLD_V1_GREEN"
+  ],
+  "source_links": {
+    "matrix_json": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.json",
+    "matrix_html": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.html",
+    "checklist_json": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.json",
+    "checklist_html": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.html",
+    "chain_rollup_json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.json",
+    "chain_rollup_html": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.html",
+    "final_seal_json": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+    "final_seal_html": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html",
+    "root_index_json": "/public-node/index.json"
+  },
+  "root_index_link": {
+    "enabled": true,
+    "json": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.json",
+    "html": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.html"
+  },
+  "authority": {
+    "registration_enabled": false,
+    "checklist_submission_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "peer_state_write_enabled": false,
+    "validator_set_write_enabled": false
+  },
+  "reviewer_summary": "This handoff pack gives reviewers a single starting point for the Mainnet-0 public node operator readiness stack. It is public-safe and read-only. It does not register nodes, submit checklists, admit validators, activate validators, connect wallets, accept stake, write ledgers, write peer state, write validator sets, or mutate network state."
+}
