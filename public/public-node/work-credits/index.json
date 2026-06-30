@@ -1182,5 +1182,17 @@
     "operator_review_required": true,
     "issues_work_credits": false,
     "writes_work_credit_ledger": false
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_public_submission_intake_closeout_audit_rollup": {
+    "title": "DataNet WC public submission intake closeout audit rollup hold v1",
+    "status": "hold_static_closeout_audit_rollup_only",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-closeout-audit-rollup-hold-v1.json",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "public_submission_open": false,
+    "operator_review_required": true,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-packet-candidate-hold-v1"
   }
 }
