@@ -1372,5 +1372,24 @@
     "ledger_line_created": false,
     "ledger_append_performed": false,
     "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-approval-candidate-hold-v1"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_wc_ledger_write_approval_candidate": {
+    "title": "DataNet WC ledger-write approval candidate hold v1",
+    "status": "hold_static_wc_ledger_write_approval_candidate_shape_only",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CANDIDATE_HOLD_V1",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-approval-candidate-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-approval-candidate-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "operator_review_required": true,
+    "requires_future_ledger_write_candidate": true,
+    "requires_future_approved_wc_amount": true,
+    "example_amount_wc": 100,
+    "example_amount_is_not_supply_limit": true,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "ledger_write_authorized": false,
+    "ledger_line_created": false,
+    "ledger_append_performed": false,
+    "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-approval-example-hold-v1"
   }
 }
