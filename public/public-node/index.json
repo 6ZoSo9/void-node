@@ -414,5 +414,17 @@
     "source_evidence_packet_example_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-evidence-packet-example-hold-v1.json",
     "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
     "boundary": "public_safe_read_only_closeout_audit_only_no_wc_issuance_no_ledger_write_no_void_transfer"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_public_submission_intake_packet": {
+    "title": "DataNet WC public submission intake packet hold v1",
+    "status": "hold_static_submission_packet_template_only",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_PACKET_HOLD_V1",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-packet-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-packet-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "public_submission_open": false,
+    "operator_review_required": true,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false
   }
 }
