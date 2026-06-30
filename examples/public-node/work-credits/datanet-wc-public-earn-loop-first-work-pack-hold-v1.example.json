@@ -42,7 +42,7 @@
     "no_private_operator_material": true,
     "no_secret_material": true,
     "no_payment_instruction": true,
-    "no_wc_cap": true,
+    "no_fixed_work_credits_ceiling": true,
     "no_wc_issuance": true,
     "no_void_transfer": true,
     "no_runtime_mutation_route": true

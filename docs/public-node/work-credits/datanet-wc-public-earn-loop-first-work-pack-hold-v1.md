@@ -12,7 +12,7 @@ The pack is for DataNet artifact verification. It gives future reviewers a publi
 
 Work Credits are unlimited and uncapped accounting units for useful verifiable work.
 
-This brick does **not** define a lifetime WC supply limit. It also does not issue Work Credits.
+This brick does not define a fixed lifetime Work Credits ceiling. It also does not issue Work Credits.
 
 ## Routes
 
