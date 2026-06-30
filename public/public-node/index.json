@@ -306,5 +306,14 @@
     "source_runtime_visibility_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-runtime-visibility-hold-v1.json",
     "preferred_reviewer_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.html",
     "boundary": "public_safe_read_only_root_link_only_no_validator_activation"
+  },
+  "mainnet0_public_node_operator_readiness_reviewer_final_seal_index_link": {
+    "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_INDEX_LINK_HOLD_V1",
+    "status": "hold",
+    "route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-index-link-hold-v1.json",
+    "source_reviewer_final_seal_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+    "preferred_reviewer_html_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html",
+    "source_reviewer_final_seal_marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+    "boundary": "public_safe_read_only_index_link_only_no_validator_activation"
   }
 }
