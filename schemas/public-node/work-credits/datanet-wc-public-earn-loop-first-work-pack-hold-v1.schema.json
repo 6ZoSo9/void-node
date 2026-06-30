@@ -39,72 +39,10 @@
       "type": "string"
     },
     "work_pack": {
-      "type": "object",
-      "required": [
-        "title",
-        "version",
-        "lane",
-        "task_type",
-        "candidate_work_items",
-        "review_method"
-      ],
-      "properties": {
-        "title": {
-          "type": "string"
-        },
-        "version": {
-          "const": "v1"
-        },
-        "lane": {
-          "const": "DataNet"
-        },
-        "task_type": {
-          "const": "artifact_verification"
-        },
-        "candidate_work_items": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1
-        },
-        "review_method": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
+      "type": "object"
     },
     "work_credit_policy": {
-      "type": "object",
-      "required": [
-        "wc_supply_policy",
-        "issues_work_credits",
-        "writes_work_credit_ledger",
-        "creates_reward",
-        "creates_void_transfer",
-        "operator_review_required"
-      ],
-      "properties": {
-        "wc_supply_policy": {
-          "const": "unlimited_uncapped_accounting_units_for_useful_verifiable_work"
-        },
-        "issues_work_credits": {
-          "const": false
-        },
-        "writes_work_credit_ledger": {
-          "const": false
-        },
-        "creates_reward": {
-          "const": false
-        },
-        "creates_void_transfer": {
-          "const": false
-        },
-        "operator_review_required": {
-          "const": true
-        }
-      },
-      "additionalProperties": true
+      "type": "object"
     },
     "submission_boundary": {
       "type": "object"
