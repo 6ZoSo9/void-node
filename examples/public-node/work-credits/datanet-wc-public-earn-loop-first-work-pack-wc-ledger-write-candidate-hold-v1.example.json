@@ -1,0 +1,131 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_wc_ledger_write_candidate_example",
+  "version": "v1",
+  "status": "hold_static_wc_ledger_write_candidate_shape_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CANDIDATE_HOLD_V1",
+  "created_at": "2026-06-30T15:32:42Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-candidate-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-candidate-hold-v1.html",
+  "purpose": "Define the future WC ledger-write candidate shape for the DataNet first work-pack lane after a future approved WC amount, without creating a ledger line or appending any ledger.",
+  "source_chain": {
+    "wc_amount_recommendation_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "wc_amount_recommendation_candidate_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CANDIDATE_HOLD_V1",
+    "wc_amount_recommendation_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_EXAMPLE_HOLD_V1",
+    "operator_decision_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1"
+  },
+  "wc_ledger_write_candidate": {
+    "ledger_write_candidate_shape_created": true,
+    "requires_future_approved_wc_amount": true,
+    "example_amount_wc": 100,
+    "example_amount_is_not_approved_here": true,
+    "example_amount_is_not_supply_limit": true,
+    "ledger_write_candidate_instantiated_here": false,
+    "ledger_line_created_here": false,
+    "ledger_append_performed_here": false,
+    "wc_issuance_created_here": false,
+    "reward_created_here": false,
+    "void_transfer_created_here": false,
+    "operator_review_required": true,
+    "runtime_ledger_endpoint_created": false
+  },
+  "wc_ledger_write_candidate_template": {
+    "operator_ledger_candidate_id": "operator-assigned candidate id",
+    "source_amount_recommendation_reference": "approved future amount recommendation reference or copied hash",
+    "source_amount_required_status": "future_approved_amount_required",
+    "worker_public_handle": "copied from accepted review packet",
+    "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+    "candidate_ledger_entry": {
+      "ledger_entry_type": "work_credit_award",
+      "accounting_unit": "WC",
+      "amount": 100,
+      "amount_is_example_placeholder": true,
+      "amount_is_not_approved_here": true,
+      "amount_is_not_supply_limit": true,
+      "reason": "future operator-approved first work-pack award only",
+      "source_evidence_reference": "future accepted evidence packet reference",
+      "source_decision_reference": "future accepted operator decision reference",
+      "source_amount_approval_reference": "future amount approval reference"
+    },
+    "candidate_rules": [
+      "candidate may only follow a future approved WC amount",
+      "candidate must preserve public-safe worker/evidence references",
+      "candidate must not append the Work Credits ledger here",
+      "candidate must not issue Work Credits here",
+      "candidate must not create a reward or VOID transfer here"
+    ],
+    "ledger_write_candidate_shape_created_here": true,
+    "ledger_write_candidate_instantiated_here": false,
+    "ledger_line_created_here": false,
+    "ledger_append_performed_here": false,
+    "wc_issuance_created_here": false,
+    "void_transfer_created_here": false
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false,
+    "operator_review_required": true
+  },
+  "ledger_boundary": {
+    "ledger_write_candidate_shape_only": true,
+    "ledger_write_candidate_instantiated": false,
+    "ledger_line_created": false,
+    "ledger_append_performed": false,
+    "wc_issuance_created": false,
+    "wc_ledger_write_created": false,
+    "reward_created": false,
+    "void_transfer_created": false
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_ledger_line_creation": true,
+    "no_ledger_append": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  },
+  "next_recommended_brick": {
+    "id": "datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-candidate-example-hold-v1",
+    "purpose": "Add a public-safe example WC ledger-write candidate packet without creating or appending a ledger line."
+  },
+  "example_candidate_packet": {
+    "operator_ledger_candidate_id": "example-wc-ledger-candidate-001",
+    "source_amount_recommendation_reference": "future-approved-amount-reference",
+    "worker_public_handle": "example-worker-001",
+    "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+    "candidate_ledger_entry": {
+      "ledger_entry_type": "work_credit_award",
+      "accounting_unit": "WC",
+      "amount": 100,
+      "amount_is_example_placeholder": true,
+      "amount_is_not_approved_here": true,
+      "amount_is_not_supply_limit": true,
+      "reason": "example future first work-pack award candidate",
+      "source_evidence_reference": "future-evidence-reference",
+      "source_decision_reference": "future-accepted-decision-reference",
+      "source_amount_approval_reference": "future-amount-approval-reference"
+    },
+    "example_only": true,
+    "ledger_line_created_here": false,
+    "ledger_append_performed_here": false,
+    "wc_issuance_created_here": false,
+    "void_transfer_created_here": false
+  }
+}
