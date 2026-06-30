@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-readiness-chain-rollup-hold-v1",
+  "status": "chain_rollup_hold",
+  "public_surface": "read_only_static_chain_rollup",
+  "source_chain": [
+    {
+      "order": 1,
+      "lane": "mainnet0-public-node-operator-readiness-matrix-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+      "status": "readiness_hold",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.html"
+    },
+    {
+      "order": 2,
+      "lane": "mainnet0-public-node-operator-readiness-index-link-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_INDEX_LINK_HOLD_V1_GREEN",
+      "status": "index_link_hold",
+      "json": "/public-node/mainnet0-public-node-operator-readiness-index-link-hold-v1.json"
+    },
+    {
+      "order": 3,
+      "lane": "mainnet0-public-node-operator-preflight-checklist-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN",
+      "status": "preflight_checklist_hold",
+      "json": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.json",
+      "html": "/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.html"
+    },
+    {
+      "order": 4,
+      "lane": "mainnet0-public-node-operator-preflight-checklist-index-link-hold-v1",
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_INDEX_LINK_HOLD_V1_GREEN",
+      "status": "index_link_hold",
+      "json": "/public-node/mainnet0-public-node-operator-preflight-checklist-index-link-hold-v1.json"
+    }
+  ],
+  "authority": {
+    "registration_enabled": false,
+    "checklist_submission_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "peer_state_write_enabled": false,
+    "validator_set_write_enabled": false
+  },
+  "summary": "The Mainnet-0 public node operator readiness chain is sealed as read-only public guidance: readiness matrix, root index discovery, preflight checklist, and root index discovery for the checklist. No registration, submission, staking, wallet connection, validator activation, or mutation authority is enabled."
+}
