@@ -1220,5 +1220,15 @@
     "source_html_card_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.html",
     "runtime_visibility": "static_html_card_visible_read_only",
     "boundary": "public_safe_read_only_definition_only_no_validator_activation"
+  },
+  "mainnet0_validator_candidate_readiness_matrix_closeout_audit_rollup": {
+    "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "status": "hold",
+    "route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-closeout-audit-rollup-hold-v1.json",
+    "source_matrix_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json",
+    "source_html_card_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-card-hold-v1.html",
+    "source_runtime_visibility_route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-html-runtime-visibility-hold-v1.json",
+    "source_root_link_route": "/public-node/mainnet0-validator-candidate-readiness-matrix-html-runtime-visibility-root-link-hold-v1.json",
+    "boundary": "public_safe_read_only_audit_rollup_only_no_validator_activation"
   }
 }
