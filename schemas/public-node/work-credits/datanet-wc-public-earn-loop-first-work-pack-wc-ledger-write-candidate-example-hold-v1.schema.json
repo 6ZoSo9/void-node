@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-ledger-write-candidate-example-hold-v1.schema.json",
+  "title": "DataNet WC Ledger Write Candidate Example Hold v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "status",
+    "marker",
+    "route",
+    "html_route",
+    "source_chain",
+    "wc_ledger_write_candidate_example",
+    "wc_ledger_write_candidate_example_packet",
+    "work_credit_policy",
+    "submission_boundary",
+    "ledger_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack_wc_ledger_write_candidate_example"
+    },
+    "version": {
+      "const": "v1"
+    },
+    "status": {
+      "const": "hold_static_wc_ledger_write_candidate_example_only"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CANDIDATE_EXAMPLE_HOLD_V1"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "source_chain": {
+      "type": "object"
+    },
+    "wc_ledger_write_candidate_example": {
+      "type": "object"
+    },
+    "wc_ledger_write_candidate_example_packet": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "ledger_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
