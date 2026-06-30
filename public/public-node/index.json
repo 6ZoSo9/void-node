@@ -675,5 +675,26 @@
     "ledger_line_created": false,
     "ledger_append_performed": false,
     "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_wc_award_public_status_rollup": {
+    "title": "DataNet WC award public status rollup hold v1",
+    "status": "hold_static_public_award_status_rollup_only",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_ROLLUP_HOLD_V1",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "public_status": "ready_shape_documented_not_live_award",
+    "operator_review_required": true,
+    "example_amount_wc": 100,
+    "example_amount_is_not_supply_limit": true,
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "award_created": false,
+    "award_approved": false,
+    "approval_decision_created": false,
+    "ledger_write_authorized": false,
+    "ledger_line_created": false,
+    "ledger_append_performed": false,
+    "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-closeout-audit-rollup-hold-v1"
   }
 }

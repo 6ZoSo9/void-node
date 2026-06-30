@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1.schema.json",
+  "title": "DataNet WC Award Public Status Rollup Hold v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "status",
+    "marker",
+    "route",
+    "html_route",
+    "source_chain",
+    "public_status_rollup",
+    "work_credit_policy",
+    "submission_boundary",
+    "award_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack_wc_award_public_status_rollup"
+    },
+    "version": {
+      "const": "v1"
+    },
+    "status": {
+      "const": "hold_static_public_award_status_rollup_only"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_ROLLUP_HOLD_V1"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "source_chain": {
+      "type": "object"
+    },
+    "public_status_rollup": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "award_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

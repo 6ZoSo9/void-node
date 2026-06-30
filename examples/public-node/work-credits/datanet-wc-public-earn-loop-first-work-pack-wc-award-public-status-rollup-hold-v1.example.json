@@ -1,0 +1,137 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_wc_award_public_status_rollup_example",
+  "version": "v1",
+  "status": "hold_static_public_award_status_rollup_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_ROLLUP_HOLD_V1",
+  "created_at": "2026-06-30T16:11:16Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-rollup-hold-v1.html",
+  "purpose": "Publish a public-safe status rollup for the DataNet first work-pack WC award lane after ledger-write approval readiness shapes, without issuing Work Credits, creating an award, authorizing a ledger write, or appending any ledger.",
+  "source_chain": {
+    "wc_ledger_write_approval_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "wc_ledger_write_approval_candidate_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CANDIDATE_HOLD_V1",
+    "wc_ledger_write_approval_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_EXAMPLE_HOLD_V1",
+    "wc_ledger_write_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "wc_amount_recommendation_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "operator_decision_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_submission_intake_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1"
+  },
+  "public_status_rollup": {
+    "lane": "DataNet WC first work-pack public earn lane",
+    "public_status": "ready_shape_documented_not_live_award",
+    "public_reader_summary": "The first work-pack lane has documented the static path from public work pack through review, amount recommendation, ledger-write candidate, and ledger-write approval readiness. No Work Credits have been issued by this lane and no ledger append has happened here.",
+    "steps": [
+      {
+        "step": "first_work_pack_public",
+        "status": "complete_static_public",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+        "public_meaning": "A first public DataNet WC work pack exists."
+      },
+      {
+        "step": "public_submission_intake_shape",
+        "status": "complete_static_hold",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+        "public_meaning": "The future public submission intake shape is documented, but not opened as a live route."
+      },
+      {
+        "step": "operator_decision_shape",
+        "status": "complete_static_hold",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+        "public_meaning": "The operator intake/review decision shape is documented, but no live automatic decisioning exists."
+      },
+      {
+        "step": "amount_recommendation_shape",
+        "status": "complete_static_hold",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+        "public_meaning": "The future amount recommendation shape is documented; 100 WC appears only as an example placeholder."
+      },
+      {
+        "step": "ledger_write_candidate_shape",
+        "status": "complete_static_hold",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+        "public_meaning": "The future ledger-write candidate shape is documented without creating or appending any ledger line."
+      },
+      {
+        "step": "ledger_write_approval_shape",
+        "status": "complete_static_hold",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+        "public_meaning": "The future ledger-write approval candidate/example pair is documented without an approval decision or ledger authorization."
+      },
+      {
+        "step": "award_public_status_rollup",
+        "status": "this_brick_static_status_only",
+        "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_ROLLUP_HOLD_V1",
+        "public_meaning": "This page summarizes the lane status for public readers without issuing WC or writing the ledger."
+      }
+    ],
+    "example_amount_wc": 100,
+    "example_amount_is_not_approved_here": true,
+    "example_amount_is_not_supply_limit": true,
+    "public_submission_open": false,
+    "operator_review_required": true,
+    "award_created_here": false,
+    "award_approved_here": false,
+    "approval_decision_created_here": false,
+    "ledger_write_authorized_here": false,
+    "ledger_write_candidate_instantiated_here": false,
+    "ledger_line_created_here": false,
+    "ledger_append_performed_here": false,
+    "wc_issuance_created_here": false,
+    "wc_ledger_write_created_here": false,
+    "reward_created_here": false,
+    "void_transfer_created_here": false,
+    "runtime_award_endpoint_created": false
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_award": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "operator_review_required": true
+  },
+  "award_boundary": {
+    "public_status_rollup_only": true,
+    "award_created": false,
+    "award_approved": false,
+    "approval_decision_created": false,
+    "ledger_write_authorized": false,
+    "ledger_write_candidate_instantiated": false,
+    "ledger_line_created": false,
+    "ledger_append_performed": false,
+    "wc_issuance_created": false,
+    "wc_ledger_write_created": false,
+    "reward_created": false,
+    "void_transfer_created": false
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_ledger_line_creation": true,
+    "no_ledger_append": true,
+    "no_ledger_write_authorization": true,
+    "no_approval_decision": true,
+    "no_award_creation": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  },
+  "next_recommended_brick": {
+    "id": "datanet-wc-public-earn-loop-first-work-pack-wc-award-public-status-closeout-audit-rollup-hold-v1",
+    "purpose": "Close out the public award-status rollup before deciding whether to build a private/operator-only append approval lane."
+  }
+}
