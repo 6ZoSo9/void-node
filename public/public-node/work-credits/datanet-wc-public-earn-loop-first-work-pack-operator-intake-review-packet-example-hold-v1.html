@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Operator Intake Review Packet Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Operator Intake Review Packet Example</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_PACKET_EXAMPLE_HOLD_V1</code></p>
+    <p>Status: static operator review packet example only.</p>
+
+    <h2>What this enables</h2>
+    <p>Shows an operator how a prepared worker submission packet can be copied into the review shape.</p>
+
+    <h2>Example operator review packet</h2>
+    <pre>{
+  &quot;operator_review_id&quot;: &quot;example-operator-review-001&quot;,
+  &quot;source_submission_packet_reference&quot;: &quot;example-public-safe-worker-packet-reference&quot;,
+  &quot;worker_public_handle&quot;: &quot;example-worker-001&quot;,
+  &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+  &quot;review_inputs&quot;: {
+    &quot;claimed_completed_tasks&quot;: [
+      &quot;verified the public DataNet first work-pack artifact reference&quot;,
+      &quot;captured reproducible verification evidence&quot;,
+      &quot;prepared reviewer-safe notes&quot;
+    ],
+    &quot;evidence_items&quot;: [
+      {
+        &quot;kind&quot;: &quot;log_excerpt&quot;,
+        &quot;description&quot;: &quot;public-safe verification output excerpt&quot;,
+        &quot;reference&quot;: &quot;sha256-or-reviewer-openable-artifact-reference&quot;
+      },
+      {
+        &quot;kind&quot;: &quot;artifact_reference&quot;,
+        &quot;description&quot;: &quot;reviewer-openable DataNet artifact reference&quot;,
+        &quot;reference&quot;: &quot;public-safe-artifact-id-or-path&quot;
+      }
+    ],
+    &quot;worker_attestation&quot;: {
+      &quot;public_safe&quot;: true,
+      &quot;no_secret_material&quot;: true,
+      &quot;original_work_or_reproducible_verification&quot;: true,
+      &quot;understands_operator_review_required&quot;: true
+    },
+    &quot;requested_review_note&quot;: &quot;Example only. No live decision or ledger write is created by this packet.&quot;
+  },
+  &quot;review_checks&quot;: {
+    &quot;packet_is_public_safe&quot;: &quot;pending_operator_review&quot;,
+    &quot;no_secret_material&quot;: &quot;pending_operator_review&quot;,
+    &quot;work_pack_matches_lane&quot;: &quot;pending_operator_review&quot;,
+    &quot;evidence_is_reproducible_or_reviewer_openable&quot;: &quot;pending_operator_review&quot;,
+    &quot;duplicate_or_replay_screen&quot;: &quot;pending_operator_review&quot;,
+    &quot;operator_notes&quot;: &quot;Example pending-review packet only.&quot;
+  },
+  &quot;review_outcome_candidate&quot;: {
+    &quot;decision_created_here&quot;: false,
+    &quot;accepted&quot;: false,
+    &quot;rejected&quot;: false,
+    &quot;needs_more_info&quot;: false,
+    &quot;suggested_wc_amount&quot;: null,
+    &quot;ledger_write_candidate_created_here&quot;: false
+  }
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No accept/reject decision.</li>
+      <li>No approved WC amount.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No VOID transfer.</li>
+      <li>No wallet connect.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>
