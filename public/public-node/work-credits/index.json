@@ -1131,5 +1131,16 @@
     "preferred_reviewer_handoff_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.html",
     "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
     "boundary": "public_safe_read_only_closeout_audit_only_no_wc_issuance_no_ledger_write_no_void_transfer"
+  },
+  "datanet_wc_public_earn_loop_first_work_pack_reviewer_evidence_packet_template": {
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_EVIDENCE_PACKET_TEMPLATE_HOLD_V1",
+    "status": "hold",
+    "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-evidence-packet-template-hold-v1.json",
+    "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-evidence-packet-template-hold-v1.html",
+    "source_reviewer_handoff_packet_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.json",
+    "source_reviewer_handoff_closeout_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-closeout-audit-rollup-hold-v1.json",
+    "preferred_evidence_template_html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-reviewer-evidence-packet-template-hold-v1.html",
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "boundary": "public_safe_read_only_evidence_template_only_no_wc_issuance_no_ledger_write_no_void_transfer"
   }
 }
