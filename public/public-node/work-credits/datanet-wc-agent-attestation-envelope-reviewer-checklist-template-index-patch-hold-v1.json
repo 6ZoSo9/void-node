@@ -1,0 +1,39 @@
+{
+  "schema": "void.datanet.wc.agent_attestation_envelope_reviewer_checklist_template_index_patch.v1",
+  "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_REVIEWER_CHECKLIST_TEMPLATE_INDEX_PATCH_HOLD_V1",
+  "source_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_REVIEWER_CHECKLIST_TEMPLATE_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Attestation Envelope Reviewer Checklist Template Index Patch",
+  "public_surface": true,
+  "read_only": true,
+  "purpose": "Make the DataNet Work Credits agent attestation envelope reviewer checklist template discoverable from the public Work Credits index.",
+  "source": {
+    "main_head": "3a3c2547",
+    "subject": "feat: add DataNet WC agent attestation envelope reviewer checklist template",
+    "reviewer_checklist_json": "datanet-wc-agent-attestation-envelope-reviewer-checklist-template-hold-v1.json",
+    "reviewer_checklist_html": "datanet-wc-agent-attestation-envelope-reviewer-checklist-template-hold-v1.html",
+    "validation_final_seal_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_VALIDATION_RECEIPT_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+    "validation_receipt_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_VALIDATION_RECEIPT_HOLD_V1",
+    "schema_candidate_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+    "validation_final_seal_json": "datanet-wc-agent-attestation-envelope-validation-receipt-index-patch-closeout-final-seal-hold-v1.json",
+    "validation_receipt_json": "datanet-wc-agent-attestation-envelope-validation-receipt-hold-v1.json",
+    "schema_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.schema.json",
+    "example_json": "datanet-wc-agent-attestation-envelope-schema-candidate-example-hold-v1.json"
+  },
+  "boundary": {
+    "index_discovery_only": true,
+    "review_decision_created": false,
+    "wc_award_recommended": false,
+    "wc_award_approved": false,
+    "identity_registry_write_enabled": false,
+    "attestation_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}
