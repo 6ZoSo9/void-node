@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+  "kind": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-closeout-audit-rollup-hold-v1",
+  "status": "hold",
+  "visibility": "public_safe_readonly",
+  "closeout_type": "work_credits_public_discovery_chain_final_seal_index_patch_closeout_audit_rollup",
+  "source": {
+    "source_main_head_at_creation": "fe14d482",
+    "source_main_subject_at_creation": "feat: add DataNet WC public award append sealed status discovery chain final seal index patch",
+    "private_marker_values": "redacted_not_published"
+  },
+  "public_chain": {
+    "chain_final_seal_index_patch_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_SEAL_INDEX_PATCH_HOLD_V1",
+    "chain_final_seal_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_SEAL_HOLD_V1",
+    "final_rollup_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_ROLLUP_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "final_rollup_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_ROLLUP_HOLD_V1",
+    "prior_index_patch_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_INDEX_PATCH_HOLD_V1"
+  },
+  "closeout": {
+    "chain_final_seal_index_patch_bound": true,
+    "chain_final_seal_bound": true,
+    "final_rollup_closeout_bound": true,
+    "final_rollup_bound": true,
+    "prior_index_patch_bound": true,
+    "index_json_bound": true,
+    "operator_side_award_append_chain": "sealed_for_review",
+    "operator_side_index": "sealed",
+    "public_disclosure_level": "public_safe_no_private_markers",
+    "closeout_state": "chain_final_seal_index_patch_closed_for_public_review_hold",
+    "execution_state": "not_executed_by_this_public_index_patch_closeout",
+    "ledger_append_state": "not_appended_by_this_public_index_patch_closeout",
+    "public_mutation_state": "not_enabled",
+    "wc_policy": "unlimited_uncapped_useful_verifiable_work_accounting",
+    "links": {
+      "chain_final_seal_index_patch_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-hold-v1.html",
+      "chain_final_seal_index_patch_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-hold-v1.json",
+      "chain_final_seal_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-hold-v1.html",
+      "chain_final_seal_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-hold-v1.json",
+      "final_rollup_closeout_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-rollup-closeout-audit-rollup-hold-v1.html",
+      "final_rollup_closeout_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-rollup-closeout-audit-rollup-hold-v1.json",
+      "final_rollup_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-rollup-hold-v1.html",
+      "final_rollup_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-rollup-hold-v1.json"
+    }
+  },
+  "boundary": {
+    "public_readonly_index_patch_closeout_only": true,
+    "no_private_marker_values": true,
+    "no_private_record_payload": true,
+    "no_submit_route": true,
+    "no_public_mutation": true,
+    "no_private_ledger_mutation": true,
+    "no_effective_execution_performed": true,
+    "no_ledger_append": true,
+    "no_wc_issuance": true,
+    "no_wc_settlement": true,
+    "no_void_transfer": true,
+    "no_wallet_or_signer_access": true,
+    "no_broadcast": true,
+    "no_automatic_reward": true
+  }
+}
