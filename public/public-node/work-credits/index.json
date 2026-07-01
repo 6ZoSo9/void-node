@@ -1513,6 +1513,26 @@
         "no_broadcast": true,
         "no_automatic_reward": true
       }
+    },
+    {
+      "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_SEAL_INDEX_PATCH_HOLD_V1",
+      "title": "DataNet WC public award append sealed status discovery chain final seal index patch",
+      "kind": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-hold-v1",
+      "status": "hold",
+      "visibility": "public_safe_readonly",
+      "href_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-hold-v1.json",
+      "href_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-chain-final-seal-index-patch-hold-v1.html",
+      "source_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CHAIN_FINAL_SEAL_HOLD_V1",
+      "wc_policy": "unlimited_uncapped_useful_verifiable_work_accounting",
+      "boundary": {
+        "read_only": true,
+        "no_private_marker_values": true,
+        "no_submit_route": true,
+        "no_ledger_append": true,
+        "no_wc_issuance": true,
+        "no_void_transfer": true,
+        "no_wallet_or_signer_access": true
+      }
     }
   ]
 }
