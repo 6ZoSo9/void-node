@@ -1091,6 +1091,19 @@
       "runtime_mutation_route_enabled": false,
       "mutation_handler_enabled": false,
       "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_CHAIN_CLOSEOUT_DISCOVERY_POLISH_HOLD_V1"
+    },
+    {
+      "id": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-hold-v1",
+      "title": "DataNet WC Agent Identity + Attestation Policy",
+      "status": "hold",
+      "marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_INDEX_PATCH_HOLD_V1",
+      "source_marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_HOLD_V1",
+      "json": "datanet-wc-agent-identity-attestation-policy-public-explainer-hold-v1.json",
+      "html": "datanet-wc-agent-identity-attestation-policy-public-explainer-hold-v1.html",
+      "index_patch_json": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-hold-v1.json",
+      "index_patch_html": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-hold-v1.html",
+      "read_only": true,
+      "boundary": "public_safe_read_only_index_discovery_only"
     }
   ],
   "datanet_wc_public_earn_loop_first_work_pack": {

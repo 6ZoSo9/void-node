@@ -1,0 +1,26 @@
+{
+  "schema": "void.datanet.wc.agent_identity_attestation_policy_public_explainer_index_patch.v1",
+  "marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_INDEX_PATCH_HOLD_V1",
+  "source_marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Identity + Attestation Policy Index Patch",
+  "public_surface": true,
+  "read_only": true,
+  "purpose": "Make the DataNet Work Credits agent identity and attestation policy explainer discoverable from the public Work Credits index.",
+  "source": {
+    "json": "datanet-wc-agent-identity-attestation-policy-public-explainer-hold-v1.json",
+    "html": "datanet-wc-agent-identity-attestation-policy-public-explainer-hold-v1.html"
+  },
+  "boundary": {
+    "index_discovery_only": true,
+    "identity_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}
