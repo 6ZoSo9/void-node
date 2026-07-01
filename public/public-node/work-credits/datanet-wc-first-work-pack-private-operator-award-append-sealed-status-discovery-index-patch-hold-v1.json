@@ -1,0 +1,52 @@
+{
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_INDEX_PATCH_HOLD_V1",
+  "kind": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-sealed-status-discovery-index-patch-hold-v1",
+  "status": "hold",
+  "visibility": "public_safe_readonly",
+  "patch_type": "work_credits_public_index_discovery_patch",
+  "source": {
+    "source_main_head_at_creation": "488e8ba8",
+    "source_main_subject_at_creation": "feat: add DataNet WC public award append sealed status discovery final seal",
+    "private_marker_values": "redacted_not_published"
+  },
+  "index_entry": {
+    "id": "datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-index-patch-hold-v1",
+    "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_INDEX_PATCH_HOLD_V1",
+    "kind": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-sealed-status-discovery-index-patch-hold-v1",
+    "status": "hold",
+    "visibility": "public_safe_readonly",
+    "title": "DataNet WC first work pack award append sealed status discovery",
+    "description": "Public-safe discovery index entry for the sealed award append status chain. Private operator marker values are not published.",
+    "wc_policy": "unlimited_uncapped_useful_verifiable_work_accounting",
+    "links": {
+      "index_patch_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-index-patch-hold-v1.html",
+      "index_patch_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-index-patch-hold-v1.json",
+      "discovery_final_seal_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-card-final-seal-hold-v1.html",
+      "discovery_final_seal_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-card-final-seal-hold-v1.json",
+      "discovery_card_html": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-card-hold-v1.html",
+      "discovery_card_json": "./datanet-wc-first-work-pack-private-operator-award-append-sealed-status-discovery-card-hold-v1.json"
+    },
+    "chain": {
+      "discovery_final_seal_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CARD_FINAL_SEAL_HOLD_V1",
+      "discovery_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CARD_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+      "discovery_card_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_DISCOVERY_CARD_HOLD_V1",
+      "sealed_status_final_seal_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_FINAL_SEAL_HOLD_V1"
+    },
+    "boundary": {
+      "public_readonly_index_patch_only": true,
+      "no_private_marker_values": true,
+      "no_private_record_payload": true,
+      "no_submit_route": true,
+      "no_public_mutation": true,
+      "no_private_ledger_mutation": true,
+      "no_effective_execution_performed": true,
+      "no_ledger_append": true,
+      "no_wc_issuance": true,
+      "no_wc_settlement": true,
+      "no_void_transfer": true,
+      "no_wallet_or_signer_access": true,
+      "no_broadcast": true,
+      "no_automatic_reward": true
+    }
+  }
+}
