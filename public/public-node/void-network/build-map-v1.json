@@ -1,0 +1,187 @@
+{
+  "kind": "void_network_build_map",
+  "version": "v1",
+  "marker": "VOID_NETWORK_BUILD_MAP_V1_HOLD",
+  "title": "VOID Network Build Map v1",
+  "status": "public_safe_read_only_build_map_hold",
+  "summary": "A public-safe read-only map of the current VOID Network build surface: what exists, what is held, and what is explicitly not live.",
+  "public_safe": true,
+  "read_only": true,
+  "static_visibility_only": true,
+  "generated_for": "public_node_reviewer_visibility",
+  "canonical_route": "/public-node/void-network/build-map-v1.json",
+  "browser_visible_route": "/public-node/void-network/build-map-v1.html",
+  "doc_route": "docs/public-node/void-network-build-map-v1.md",
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "static_visibility_only": true,
+    "mutation_handler": false,
+    "runtime_mutation_route": false,
+    "wallet_connect": false,
+    "signer_access": false,
+    "secret_material": false,
+    "ledger_write": false,
+    "wc_issuance": false,
+    "wc_claim": false,
+    "void_transfer": false,
+    "usdc_transfer": false,
+    "buy_pool_execution": false,
+    "validator_registration": false,
+    "validator_admission": false,
+    "validator_set_write": false,
+    "epoch_activation": false,
+    "datanet_object_write": false,
+    "peer_pin_command": false,
+    "mirror_command": false,
+    "ai_autonomous_write": false
+  },
+  "sections": [
+    {
+      "id": "datanet",
+      "title": "DataNet",
+      "phase": "public_discovery_and_verification_surface",
+      "current_state": "Public discovery, reviewer, closeout, final-seal, and browser-visible status artifacts exist as static/read-only surfaces.",
+      "public_routes": [
+        "/public-node/datanet/index.json"
+      ],
+      "live_now": [
+        "static public discovery metadata",
+        "reviewer visibility artifacts",
+        "final-seal and closeout references"
+      ],
+      "not_live": [
+        "public object upload",
+        "public object write",
+        "public mirror command",
+        "public peer-pin command",
+        "runtime mutation route"
+      ],
+      "operator_review_required": true
+    },
+    {
+      "id": "work_credits",
+      "title": "Work Credits",
+      "phase": "public_earn_loop_status_and_operator_review",
+      "current_state": "Work Credits are unlimited/uncapped accounting units for useful verifiable work. Public surfaces expose earn/status/reviewer visibility only; award or ledger writes require operator-controlled review paths.",
+      "policy": {
+        "unlimited_uncapped": true,
+        "useful_verifiable_work_only": true,
+        "operator_review_required": true,
+        "wc_to_void_ratio_reference": "100 WC : 1 VOID where funded settlement capacity exists",
+        "not_a_lifetime_supply_cap": true
+      },
+      "live_now": [
+        "public earn/status discovery",
+        "reviewer evidence packet surfaces",
+        "static status visibility"
+      ],
+      "not_live": [
+        "public WC issuance",
+        "public WC claim",
+        "public ledger append",
+        "automatic reward",
+        "wallet-triggered settlement"
+      ]
+    },
+    {
+      "id": "mainnet0_validators",
+      "title": "Mainnet-0 Validators",
+      "phase": "candidate_visibility_and_readiness_hold",
+      "current_state": "Mainnet-0 validator public surfaces are candidate/readiness/reviewer visibility only.",
+      "public_routes": [
+        "/public-node/validators/index.json"
+      ],
+      "policy": {
+        "candidate_waiting_only": true,
+        "minimum_public_candidate_stake_void": 10000,
+        "active_validator_cap": 256,
+        "early_public_active_target_range": "32-64"
+      },
+      "live_now": [
+        "static candidate visibility",
+        "readiness matrix",
+        "reviewer final-seal visibility"
+      ],
+      "not_live": [
+        "public validator registration",
+        "active validator admission",
+        "stake lock",
+        "validator-set write",
+        "epoch activation"
+      ]
+    },
+    {
+      "id": "usdc_void_buy_pool",
+      "title": "USDC/VOID Buy Pool",
+      "phase": "public_status_and_reviewer_visibility",
+      "current_state": "The buy pool public surface is buy-only/status/reviewer visibility. Automatic fulfillment and execution remain disabled unless separately authorized by future operator-controlled gates.",
+      "public_routes": [
+        "/public-node/usdc-void-buy-pool/index.json"
+      ],
+      "policy": {
+        "fixed_price_usdc_per_void": "0.50",
+        "presale_allocation_void": 10000000,
+        "buy_only": true,
+        "avoid_swap_or_redeem_language": true
+      },
+      "live_now": [
+        "public status rollups",
+        "buyer-facing static evidence surfaces",
+        "reviewer closeout bundle"
+      ],
+      "not_live": [
+        "automatic fulfillment",
+        "buyer execution route",
+        "wallet fulfillment",
+        "USDC transfer from public node",
+        "VOID transfer from public node"
+      ]
+    },
+    {
+      "id": "apollyon",
+      "title": "Apollyon",
+      "phase": "advisory_identity_and_safety_boundary",
+      "current_state": "Apollyon is an advisory AI identity with gated communication and no autonomous authority.",
+      "live_now": [
+        "identity and advisory boundary artifacts",
+        "operator-reviewed communication model"
+      ],
+      "not_live": [
+        "autonomous commits",
+        "autonomous ledger writes",
+        "autonomous wallet access",
+        "autonomous validator changes",
+        "secret access"
+      ]
+    },
+    {
+      "id": "public_node",
+      "title": "Public Node",
+      "phase": "static_reviewer_gateway",
+      "current_state": "The public node is currently a static/read-only reviewer and discovery gateway across VOID lanes.",
+      "public_routes": [
+        "/public-node/index.json",
+        "/public-node/void-network/build-map-v1.html",
+        "/public-node/void-network/build-map-v1.json"
+      ],
+      "live_now": [
+        "static JSON routes",
+        "browser-visible HTML cards",
+        "reviewer entrypoints"
+      ],
+      "not_live": [
+        "public mutation handlers",
+        "runtime writes",
+        "wallet connections",
+        "signing",
+        "fund transfer execution"
+      ]
+    }
+  ],
+  "reviewer_summary": {
+    "what_this_is": "A map of the VOID build surface for orientation and review.",
+    "what_this_is_not": "It is not a ledger, not a wallet, not a transaction route, not a validator registry, and not an execution authority.",
+    "safe_to_publish": true
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "kind": "public_node_section_index",
+  "section": "void_network",
+  "version": "v1",
+  "marker": "VOID_NETWORK_PUBLIC_NODE_SECTION_INDEX_V1_HOLD",
+  "title": "VOID Network public node section index",
+  "status": "public_safe_read_only_section_index_hold",
+  "summary": "Static public-safe section index for VOID Network orientation and build-map visibility.",
+  "public_safe": true,
+  "read_only": true,
+  "static_index_only": true,
+  "mutation_handler_enabled": false,
+  "runtime_mutation_route_enabled": false,
+  "wallet_or_signer_required": false,
+  "routes": [
+    {
+      "id": "void_network_build_map_v1",
+      "kind": "void_network_build_map",
+      "title": "VOID Network Build Map v1",
+      "label": "VOID Network Build Map v1",
+      "status": "public_safe_read_only_build_map_hold",
+      "marker": "VOID_NETWORK_BUILD_MAP_V1_HOLD",
+      "json": "/public-node/void-network/build-map-v1.json",
+      "html": "/public-node/void-network/build-map-v1.html",
+      "doc": "docs/public-node/void-network-build-map-v1.md",
+      "public_safe": true,
+      "read_only": true,
+      "static_visibility_only": true
+    }
+  ],
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "static_index_only": true,
+    "mutation_handler": false,
+    "runtime_mutation_route": false,
+    "wallet_connect": false,
+    "signer_access": false,
+    "ledger_write": false,
+    "wc_issuance": false,
+    "void_transfer": false,
+    "validator_admission": false,
+    "datanet_object_write": false,
+    "ai_autonomous_write": false
+  }
+}

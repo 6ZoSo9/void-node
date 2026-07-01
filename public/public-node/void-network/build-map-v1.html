@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Network Build Map v1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07070a;
+      --panel: #11121a;
+      --panel2: #171927;
+      --text: #f2f2f5;
+      --muted: #a9afc3;
+      --line: #2b3044;
+      --good: #98ffb3;
+      --warn: #ffd37a;
+    }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #15172a 0, var(--bg) 42rem);
+      color: var(--text);
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    header, section {
+      background: rgba(17, 18, 26, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      margin: 18px 0;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+    }
+    h1, h2, h3 { line-height: 1.15; margin: 0 0 12px; }
+    p { margin: 8px 0; }
+    a { color: var(--good); }
+    code {
+      background: #05060a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 2px 6px;
+      color: var(--good);
+    }
+    .grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      margin-top: 16px;
+    }
+    .card {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .pill {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin: 4px 6px 4px 0;
+      color: var(--muted);
+      background: #0c0d14;
+      font-size: 0.92rem;
+    }
+    .safe { color: var(--good); }
+    .hold { color: var(--warn); }
+    ul { padding-left: 1.2rem; }
+    li { margin: 4px 0; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="pill">VOID_NETWORK_BUILD_MAP_V1_HOLD</p>
+    <h1>VOID Network Build Map v1</h1>
+    <p>A public-safe, read-only orientation map for the current VOID Network build surface.</p>
+    <p class="safe">Public safe: true · Read only: true · Static visibility only: true</p>
+    <p>
+      JSON source:
+      <a href="/public-node/void-network/build-map-v1.json">/public-node/void-network/build-map-v1.json</a>
+    </p>
+  </header>
+
+  <section>
+    <h2>What this is</h2>
+    <p>This page maps the major VOID lanes so reviewers and contributors can quickly see what exists, what is held, and what is explicitly not live.</p>
+    <p>This is not a ledger, wallet, validator registry, transaction route, execution gate, or authority surface.</p>
+  </section>
+
+  <section>
+    <h2>Lane map</h2>
+    <div class="grid">
+      <article class="card">
+        <h3>DataNet</h3>
+        <p class="hold">Phase: public discovery and verification surface.</p>
+        <p>Static discovery, reviewer, closeout, final-seal, and browser-visible status artifacts exist.</p>
+        <p class="muted">Not live: public upload, object write, mirror command, peer-pin command, runtime mutation route.</p>
+      </article>
+
+      <article class="card">
+        <h3>Work Credits</h3>
+        <p class="hold">Phase: public earn-loop status and operator review.</p>
+        <p>Work Credits are unlimited/uncapped accounting units for useful verifiable work.</p>
+        <p class="muted">Not live: public issuance, public claim, public ledger append, automatic reward, wallet-triggered settlement.</p>
+      </article>
+
+      <article class="card">
+        <h3>Mainnet-0 Validators</h3>
+        <p class="hold">Phase: candidate visibility and readiness hold.</p>
+        <p>Validator surfaces are candidate/readiness/reviewer visibility only.</p>
+        <p class="muted">Not live: public registration, active admission, stake lock, validator-set write, epoch activation.</p>
+      </article>
+
+      <article class="card">
+        <h3>USDC/VOID Buy Pool</h3>
+        <p class="hold">Phase: public status and reviewer visibility.</p>
+        <p>Buy-only public status and reviewer surfaces exist. Automatic fulfillment remains disabled.</p>
+        <p class="muted">Not live: automatic fulfillment, buyer execution route, wallet fulfillment, USDC transfer, VOID transfer.</p>
+      </article>
+
+      <article class="card">
+        <h3>Apollyon</h3>
+        <p class="hold">Phase: advisory identity and safety boundary.</p>
+        <p>Advisory AI identity only; no autonomous authority.</p>
+        <p class="muted">Not live: autonomous commits, ledger writes, wallet access, validator changes, secret access.</p>
+      </article>
+
+      <article class="card">
+        <h3>Public Node</h3>
+        <p class="hold">Phase: static reviewer gateway.</p>
+        <p>The public node is a static/read-only reviewer and discovery gateway across VOID lanes.</p>
+        <p class="muted">Not live: public mutation handlers, runtime writes, wallet connections, signing, fund transfer execution.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Boundary</h2>
+    <p>The Build Map does not create authority. It only points at existing public-safe surfaces and summarizes hold state.</p>
+    <p>
+      <span class="pill">no wallet connect</span>
+      <span class="pill">no signer access</span>
+      <span class="pill">no ledger write</span>
+      <span class="pill">no WC issuance</span>
+      <span class="pill">no VOID transfer</span>
+      <span class="pill">no validator admission</span>
+      <span class="pill">no runtime mutation</span>
+      <span class="pill">no autonomous AI write</span>
+    </p>
+  </section>
+</main>
+</body>
+</html>
