@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataNet WC first work pack private operator award append effective execution example hold v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "marker",
+    "kind",
+    "status",
+    "visibility",
+    "chain",
+    "effective_execution_example",
+    "boundary"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_EXAMPLE_HOLD_V1"
+    },
+    "kind": {
+      "const": "datanet-wc-first-work-pack-private-operator-award-append-effective-execution-example-hold-v1"
+    },
+    "status": {
+      "const": "hold"
+    },
+    "visibility": {
+      "const": "private_operator_only"
+    },
+    "chain": {
+      "type": "object"
+    },
+    "effective_execution_example": {
+      "type": "object"
+    },
+    "boundary": {
+      "type": "object"
+    }
+  }
+}
