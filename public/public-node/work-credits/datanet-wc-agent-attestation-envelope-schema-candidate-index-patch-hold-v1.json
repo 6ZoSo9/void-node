@@ -1,0 +1,31 @@
+{
+  "schema": "void.datanet.wc.agent_attestation_envelope_schema_candidate_index_patch.v1",
+  "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_INDEX_PATCH_HOLD_V1",
+  "source_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Attestation Envelope Schema Candidate Index Patch",
+  "public_surface": true,
+  "read_only": true,
+  "purpose": "Make the DataNet Work Credits agent attestation envelope schema candidate discoverable from the public Work Credits index.",
+  "source": {
+    "main_head": "7d718492",
+    "subject": "feat: add DataNet WC agent attestation envelope schema candidate",
+    "schema_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.schema.json",
+    "example_json": "datanet-wc-agent-attestation-envelope-schema-candidate-example-hold-v1.json",
+    "public_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.json",
+    "public_html": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.html"
+  },
+  "boundary": {
+    "index_discovery_only": true,
+    "identity_registry_write_enabled": false,
+    "attestation_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}
