@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void.datanet.wc.agent_attestation_envelope.schema_candidate.v1",
+  "title": "DataNet WC Agent Attestation Envelope Schema Candidate",
+  "type": "object",
+  "required": [
+    "schema",
+    "attestation_id",
+    "actor",
+    "work_artifact",
+    "evidence",
+    "review",
+    "work_credit_status",
+    "boundary"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void.datanet.wc.agent_attestation_envelope.v1"
+    },
+    "attestation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "type": "object",
+      "required": ["actor_id", "actor_type", "identity_envelope_ref"],
+      "properties": {
+        "actor_id": { "type": "string", "minLength": 1 },
+        "actor_type": {
+          "type": "string",
+          "enum": ["agent", "tool_runner", "script_runner", "human_reviewer", "operator_lane"]
+        },
+        "identity_envelope_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "work_artifact": {
+      "type": "object",
+      "required": ["artifact_ref", "artifact_kind"],
+      "properties": {
+        "artifact_ref": { "type": "string", "minLength": 1 },
+        "artifact_kind": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_packet_ref", "proof_command_ref"],
+      "properties": {
+        "evidence_packet_ref": { "type": "string", "minLength": 1 },
+        "proof_command_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["review_status", "decision_ref"],
+      "properties": {
+        "review_status": {
+          "type": "string",
+          "enum": ["not_reviewed", "review_pending", "accepted", "rejected", "needs_more_evidence"]
+        },
+        "decision_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "work_credit_status": {
+      "type": "object",
+      "required": ["award_state", "work_credits_policy"],
+      "properties": {
+        "award_state": {
+          "type": "string",
+          "enum": ["none", "recommended", "approved_pending_ledger", "ledger_written", "rejected"]
+        },
+        "work_credits_policy": {
+          "const": "unlimited_uncapped_accounting_units_for_useful_verifiable_work"
+        }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "required": [
+        "schema_candidate_only",
+        "identity_registry_write_enabled",
+        "attestation_registry_write_enabled",
+        "public_mutation_enabled",
+        "automatic_wc_award_enabled",
+        "wc_issuance_enabled",
+        "wc_ledger_write_enabled",
+        "reviewer_staking_enabled",
+        "void_transfer_enabled",
+        "wallet_path_enabled",
+        "signer_path_enabled"
+      ],
+      "properties": {
+        "schema_candidate_only": { "const": true },
+        "identity_registry_write_enabled": { "const": false },
+        "attestation_registry_write_enabled": { "const": false },
+        "public_mutation_enabled": { "const": false },
+        "automatic_wc_award_enabled": { "const": false },
+        "wc_issuance_enabled": { "const": false },
+        "wc_ledger_write_enabled": { "const": false },
+        "reviewer_staking_enabled": { "const": false },
+        "void_transfer_enabled": { "const": false },
+        "wallet_path_enabled": { "const": false },
+        "signer_path_enabled": { "const": false }
+      }
+    }
+  },
+  "additionalProperties": false
+}
