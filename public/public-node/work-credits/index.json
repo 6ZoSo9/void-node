@@ -1104,6 +1104,21 @@
       "index_patch_html": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-hold-v1.html",
       "read_only": true,
       "boundary": "public_safe_read_only_index_discovery_only"
+    },
+    {
+      "id": "datanet-wc-agent-attestation-envelope-schema-candidate-index-patch-hold-v1",
+      "title": "DataNet WC Agent Attestation Envelope Schema Candidate",
+      "status": "hold",
+      "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_INDEX_PATCH_HOLD_V1",
+      "source_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+      "schema_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.schema.json",
+      "example_json": "datanet-wc-agent-attestation-envelope-schema-candidate-example-hold-v1.json",
+      "json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.json",
+      "html": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.html",
+      "index_patch_json": "datanet-wc-agent-attestation-envelope-schema-candidate-index-patch-hold-v1.json",
+      "index_patch_html": "datanet-wc-agent-attestation-envelope-schema-candidate-index-patch-hold-v1.html",
+      "read_only": true,
+      "boundary": "public_safe_read_only_index_discovery_only"
     }
   ],
   "datanet_wc_public_earn_loop_first_work_pack": {
