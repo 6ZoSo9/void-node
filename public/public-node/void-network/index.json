@@ -94,6 +94,16 @@
       "build_map_html": "build-map-v1.html",
       "read_only": true,
       "boundary": "public_safe_read_only_index_discovery_only"
+    },
+    {
+      "id": "void-network-current-build-status-snapshot-hold-v1",
+      "title": "VOID Network Current Build Status Snapshot",
+      "status": "hold",
+      "marker": "VOID_NETWORK_CURRENT_BUILD_STATUS_SNAPSHOT_HOLD_V1",
+      "json": "current-build-status-snapshot-hold-v1.json",
+      "html": "current-build-status-snapshot-hold-v1.html",
+      "read_only": true,
+      "boundary": "public_safe_read_only_status_snapshot_only"
     }
   ],
   "boundary": {

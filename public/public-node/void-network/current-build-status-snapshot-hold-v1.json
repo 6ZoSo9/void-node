@@ -1,0 +1,42 @@
+{
+  "schema": "void.network.current_build_status_snapshot.v1",
+  "marker": "VOID_NETWORK_CURRENT_BUILD_STATUS_SNAPSHOT_HOLD_V1",
+  "status": "hold",
+  "title": "VOID Network Current Build Status Snapshot",
+  "public_surface": true,
+  "read_only": true,
+  "source": {
+    "main_head": "e7f384f9",
+    "subject": "feat: add VOID Network build map discovery rollup index closeout final seal",
+    "build_map_final_marker": "VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1_POST_MERGE_EXACT_GREEN",
+    "build_map_proof": "ops/mainnet0/void-network-build-map-discovery-chain-rollup-index-patch-closeout-final-seal-hold-v1-proof.sh"
+  },
+  "summary": {
+    "datanet": "public discovery and verification surfaces are visible through the sealed Build Map chain",
+    "work_credits": "unlimited and uncapped accounting units for useful verifiable work",
+    "mainnet0_validators": "candidate/readiness public status only; no active admission path enabled here",
+    "usdc_void_buy_pool": "public status surfaces only; no execution path enabled here",
+    "apollyon": "advisory boundary only; no autonomous writes",
+    "public_node": "read-only reviewer/discovery surface"
+  },
+  "boundary": {
+    "status_snapshot_only": true,
+    "wallet_connection_enabled": false,
+    "signer_access_enabled": false,
+    "secret_material_exposed": false,
+    "ledger_write_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_claim_enabled": false,
+    "void_transfer_enabled": false,
+    "usdc_transfer_enabled": false,
+    "buy_pool_execution_enabled": false,
+    "validator_registration_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_set_write_enabled": false,
+    "epoch_activation_enabled": false,
+    "datanet_object_write_enabled": false,
+    "peer_pin_command_enabled": false,
+    "mirror_command_enabled": false,
+    "autonomous_ai_write_enabled": false
+  }
+}
