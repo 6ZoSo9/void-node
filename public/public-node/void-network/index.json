@@ -46,6 +46,29 @@
       "index_patch_html": "build-map-closeout-final-seal-index-patch-hold-v1.html",
       "read_only": true,
       "boundary": "public_safe_read_only_index_discovery_only"
+    },
+    {
+      "id": "void-network-build-map-closeout-final-seal-index-patch-closeout-final-seal-index-patch-hold-v1",
+      "title": "VOID Network Build Map Final Seal Index Closeout Final Seal",
+      "status": "hold",
+      "marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_HOLD_V1",
+      "source_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+      "closeout_rollup_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+      "index_patch_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_HOLD_V1",
+      "final_seal_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+      "closeout_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+      "build_map_proof_marker": "VOID_NETWORK_BUILD_MAP_V1_GREEN",
+      "build_map_final_marker": "VOID_NETWORK_BUILD_MAP_V1_POST_MERGE_EXACT_GREEN",
+      "json": "build-map-closeout-final-seal-index-patch-closeout-final-seal-hold-v1.json",
+      "html": "build-map-closeout-final-seal-index-patch-closeout-final-seal-hold-v1.html",
+      "index_patch_json": "build-map-closeout-final-seal-index-patch-closeout-final-seal-index-patch-hold-v1.json",
+      "index_patch_html": "build-map-closeout-final-seal-index-patch-closeout-final-seal-index-patch-hold-v1.html",
+      "closeout_rollup_json": "build-map-closeout-final-seal-index-patch-closeout-audit-rollup-hold-v1.json",
+      "closeout_rollup_html": "build-map-closeout-final-seal-index-patch-closeout-audit-rollup-hold-v1.html",
+      "build_map_json": "build-map-v1.json",
+      "build_map_html": "build-map-v1.html",
+      "read_only": true,
+      "boundary": "public_safe_read_only_index_discovery_only"
     }
   ],
   "boundary": {
