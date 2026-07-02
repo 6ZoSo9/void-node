@@ -1,0 +1,5 @@
+{
+  "artifact_id": "demo-datanet-verification-artifact",
+  "claim": "sample artifact for deterministic WC evidence packet generation",
+  "status": "fixture_only"
+}
