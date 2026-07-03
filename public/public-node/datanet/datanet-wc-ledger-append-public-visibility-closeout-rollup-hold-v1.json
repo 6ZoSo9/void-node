@@ -1,0 +1,61 @@
+{
+  "schema": "void.public_node.datanet.wc_ledger_append.public_visibility_closeout_rollup.hold_v1",
+  "id": "datanet-wc-ledger-append-public-visibility-closeout-rollup-hold-v1",
+  "title": "DataNet WC Ledger Append Public Visibility Closeout Rollup Hold v1",
+  "status": "hold",
+  "marker": "VOID_DATANET_WC_LEDGER_APPEND_PUBLIC_VISIBILITY_CLOSEOUT_ROLLUP_HOLD_V1_GREEN",
+  "scope": "datanet_wc_ledger_append_public_visibility_closeout_rollup",
+  "summary": "Public-safe closeout rollup for the DataNet WC ledger append public JSON card, HTML card, runtime visibility metadata, and DataNet index entries.",
+  "public_visibility_closeout_rollup_hold_only": true,
+  "datanet_public_node_index": "/public-node/datanet/index.json",
+  "sealed_entries": [
+    {
+      "id": "datanet-wc-ledger-append-public-json-card-hold-v1",
+      "path": "/public-node/datanet/datanet-wc-ledger-append-public-json-card-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_LEDGER_APPEND_PUBLIC_JSON_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-ledger-append-public-html-card-hold-v1",
+      "path": "/public-node/datanet/datanet-wc-ledger-append-public-html-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_WC_LEDGER_APPEND_PUBLIC_HTML_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-ledger-append-public-html-card-runtime-visibility-hold-v1",
+      "path": "/public-node/datanet/datanet-wc-ledger-append-public-html-card-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_LEDGER_APPEND_PUBLIC_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    }
+  ],
+  "closeout_state": {
+    "datanet_public_node_index_present": true,
+    "public_json_card_present": true,
+    "public_json_card_index_entry_present": true,
+    "public_html_card_present": true,
+    "public_html_card_index_entry_present": true,
+    "runtime_visibility_metadata_present": true,
+    "runtime_visibility_index_entry_present": true,
+    "runtime_fetch_required": false,
+    "runtime_fetch_optional": true,
+    "public_intake_enabled": false,
+    "upload_enabled": false,
+    "object_write_enabled": false,
+    "mirror_command_enabled": false,
+    "peer_pin_command_enabled": false,
+    "wc_claim_enabled": false,
+    "wc_issuance_enabled": false,
+    "canonical_ledger_append_enabled": false,
+    "operator_decision_enabled": false,
+    "operator_signature_enabled": false,
+    "approval_execution_enabled": false,
+    "wallet_or_signer_required": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "wallet_or_signer_required": false
+  }
+}
