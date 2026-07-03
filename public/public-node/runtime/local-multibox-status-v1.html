@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Local Multi-Box Runtime Status v1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    code, pre { background: #111; color: #eee; padding: .2rem .35rem; border-radius: .25rem; }
+    .card { border: 1px solid #ccc; border-radius: .75rem; padding: 1rem; margin: 1rem 0; }
+    .ok { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>VOID Local Multi-Box Runtime Status v1</h1>
+
+  <p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1</code></p>
+
+  <p class="ok">
+    VOID is now observed running across multiple local machines: Precision, Alienware, and Nimo/N153B.
+  </p>
+
+  <div class="card">
+    <h2>Precision</h2>
+    <p>Role: source-of-truth live node.</p>
+    <p>Observed live on HTTP <code>4100</code> and P2P <code>4700</code>.</p>
+    <p>Readiness was green with head <code>1856587</code>, gap <code>0</code>.</p>
+  </div>
+
+  <div class="card">
+    <h2>Alienware</h2>
+    <p>Role: local VOID runtime machine.</p>
+    <p>Status: running locally.</p>
+  </div>
+
+  <div class="card">
+    <h2>Nimo/N153B</h2>
+    <p>Role: local observer/follower node.</p>
+    <p>Status: running locally.</p>
+  </div>
+
+  <h2>Boundary</h2>
+  <p>
+    This is public-safe runtime visibility only. It does not activate wallet execution,
+    money movement, validator admission, validator mutation, WC-to-VOID swap execution,
+    buy-VOID fulfillment, or public mutation routes.
+  </p>
+
+  <p>
+    JSON: <a href="./local-multibox-status-v1.json">local-multibox-status-v1.json</a>
+  </p>
+</body>
+</html>
