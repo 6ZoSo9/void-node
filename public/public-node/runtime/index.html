@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Runtime Discovery Index v1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    code { background: #111; color: #eee; padding: .15rem .35rem; border-radius: .25rem; }
+    .card { border: 1px solid #ccc; border-radius: .75rem; padding: 1rem; margin: 1rem 0; }
+    a { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>VOID Runtime Discovery Index v1</h1>
+
+  <p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1</code></p>
+
+  <div class="card">
+    <h2>Local Multi-Box Runtime Status</h2>
+    <p>
+      VOID is observed running locally across Precision, Alienware, and Nimo/N153B.
+      This card exposes the public-safe runtime status routes so operators and outside
+      readers do not need to guess the exact endpoint.
+    </p>
+
+    <ul>
+      <li><a href="./local-multibox-status-v1.html">Human-readable status</a></li>
+      <li><a href="./local-multibox-status-v1.json">JSON status</a></li>
+      <li><a href="/__void/diag/local-multibox-runtime-route-v1.json">Runtime route diagnostic</a></li>
+    </ul>
+  </div>
+
+  <h2>Boundary</h2>
+  <p>
+    This is read-only/public-safe runtime discovery only. It does not enable wallet execution,
+    money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator admission,
+    validator mutation, public mutation routes, public WC self-serve earning, or a public internet mesh claim.
+  </p>
+
+  <p>JSON: <a href="./index.json">index.json</a></p>
+</body>
+</html>

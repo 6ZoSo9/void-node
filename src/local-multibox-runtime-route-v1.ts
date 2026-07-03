@@ -11,6 +11,11 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const htmlRoute = "/public-node/runtime/local-multibox-status-v1.html";
   const jsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-status-v1.json");
   const htmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-status-v1.html");
+  const indexRoute = "/public-node/runtime/index.json";
+  const indexHtmlRoute = "/public-node/runtime/index.html";
+  const indexAliasRoute = "/public-node/runtime";
+  const indexPath = path.resolve(process.cwd(), "public/public-node/runtime/index.json");
+  const indexHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/index.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -54,17 +59,65 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     }
   });
 
+
+  /* VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1 */
+  app.get(indexRoute, (_req: any, res: any) => {
+    try {
+      if (!fs.existsSync(indexPath)) {
+        return res.status(404).json({
+          ok: false,
+          marker: "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+          error: "missing_runtime_index_json",
+          path: indexPath
+        });
+      }
+
+      const raw = fs.readFileSync(indexPath, "utf8");
+      JSON.parse(raw);
+      return res.status(200).set("content-type", "application/json; charset=utf-8").send(raw);
+    } catch (e: any) {
+      return res.status(500).json({
+        ok: false,
+        marker: "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+        route: indexRoute,
+        error: String(e?.message || e)
+      });
+    }
+  });
+
+  app.get([indexHtmlRoute, indexAliasRoute], (_req: any, res: any) => {
+    try {
+      if (!fs.existsSync(indexHtmlPath)) {
+        return res.status(404).type("text/plain").send("VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1 missing html artifact: " + indexHtmlPath);
+      }
+
+      const raw = fs.readFileSync(indexHtmlPath, "utf8");
+      return res.status(200).set("content-type", "text/html; charset=utf-8").send(raw);
+    } catch (e: any) {
+      return res.status(500).json({
+        ok: false,
+        marker: "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+        route: indexHtmlRoute,
+        error: String(e?.message || e)
+      });
+    }
+  });
+
   app.get("/__void/diag/local-multibox-runtime-route-v1.json", (_req: any, res: any) => {
     res.json({
       ok: true,
       marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1",
-      routes: [jsonRoute, htmlRoute],
+      routes: [indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
         htmlPath,
         jsonExists: fs.existsSync(jsonPath),
-        htmlExists: fs.existsSync(htmlPath)
+        htmlExists: fs.existsSync(htmlPath),
+        indexPath,
+        indexHtmlPath,
+        indexExists: fs.existsSync(indexPath),
+        indexHtmlExists: fs.existsSync(indexHtmlPath)
       },
       boundary: {
         read_only: true,
