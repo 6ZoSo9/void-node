@@ -1,14 +1,18 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline existing src/index.ts size after public-node self-check snapshot PR9; guard should fail future growth, not existing debt",
+  "reason": "baseline after PR297 tiny local multibox runtime route mount hook; route body lives outside src/index.ts and proof enforces marker outside index",
   "path": "src/index.ts",
-  "baseline_bytes": 3709761,
+  "baseline_bytes": 3709893,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
     "current_baseline_allowed": true,
     "future_growth_allowed": false,
     "marker_checks_preserved": true,
-    "override_env": "VOID_INDEX_TS_BASELINE_BYTES"
-  }
+    "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
+    "route_body_outside_index_required": true,
+    "index_mount_hook_only": true,
+    "baseline_update_reason": "tiny mount hook for extracted read-only runtime route"
+  },
+  "previous_baseline_bytes": 3709761
 }
