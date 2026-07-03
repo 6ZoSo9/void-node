@@ -1,3 +1,4 @@
+import { mountLocalMultiboxRuntimeRouteV1 } from "./local-multibox-runtime-route-v1.js";
 import { createRequire } from 'node:module';
 
 // [diag-eaddrinuse-listen.v1] print listen() callsite on EADDRINUSE (self-double-listen detector)
@@ -380,6 +381,11 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
 
 const app = express();
+mountLocalMultiboxRuntimeRouteV1(app);
+
+
+
+
 
 
 /* VOID_CANONICAL_TX_HOTPATH_V1
