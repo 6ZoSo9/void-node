@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
+  "purpose": "public_safe_local_multibox_runtime_visibility",
+  "status": "local_multibox_runtime_observed",
+  "updated_utc": "2026-07-03T22:49:34Z",
+  "summary": {
+    "void_is_running_on_multiple_local_machines": true,
+    "public_internet_network_claim": false,
+    "local_runtime_visibility_only": true
+  },
+  "machines": [
+    {
+      "name": "Precision",
+      "host": "zoso-Precision-Tower-7810",
+      "role": "source_of_truth_live_node",
+      "repo": "~/dev/void-node",
+      "branch": "main",
+      "head": "57015d528408b0b73db47c7e4c608e5fee3c0a6b",
+      "http_port": 4100,
+      "p2p_port": 4700,
+      "node_id": "9d89483769e469e0473b489dc50dba96",
+      "observed_ready": true,
+      "observed_head": 1856587,
+      "observed_gap": 0,
+      "listen": [
+        "192.168.1.88:4700"
+      ]
+    },
+    {
+      "name": "Alienware",
+      "role": "local_void_runtime_machine",
+      "observed_running": true,
+      "details": "Running VOID locally; public-safe status only."
+    },
+    {
+      "name": "Nimo/N153B",
+      "role": "local_observer_follower_node",
+      "observed_running": true,
+      "details": "Running local VOID observer/follower node; public-safe status only."
+    }
+  ],
+  "public_routes": {
+    "precision_effective_base_url": "http://108.232.1.111:4100",
+    "well_known": "http://108.232.1.111:4100/.well-known/void-public-node.json",
+    "public_node": "http://108.232.1.111:4100/public-node",
+    "proofs": "http://108.232.1.111:4100/proofs"
+  },
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  }
+}
