@@ -6,6 +6,7 @@ const HOST = process.env.VOID_ADAPTER_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_ADAPTER_PORT || "4111");
 
 const exactAllow = new Set([
+  "/wc-proofs/latest",
   "/",
   "/funding",
   "/buy-void",
