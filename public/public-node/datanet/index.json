@@ -346,6 +346,28 @@
       "usdc_autofulfillment_enabled": false,
       "marker": "VOID_DATANET_PUBLIC_DISCOVERY_REVIEWER_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
       "root_public_node_route_required": true
+    },
+    {
+      "id": "datanet-wc-ledger-append-public-json-card-hold-v1",
+      "title": "DataNet WC Ledger Append Public JSON Card Hold v1",
+      "status": "hold",
+      "path": "/public-node/datanet/datanet-wc-ledger-append-public-json-card-hold-v1.json",
+      "json": "datanet-wc-ledger-append-public-json-card-hold-v1.json",
+      "scope": "datanet_wc_ledger_append_public_json_card",
+      "public_safe": true,
+      "read_only": true,
+      "discovery_only": true,
+      "static_discovery_only": true,
+      "wc_claim_enabled": false,
+      "wc_issuance_enabled": false,
+      "canonical_ledger_append_enabled": false,
+      "operator_decision_enabled": false,
+      "operator_signature_enabled": false,
+      "approval_execution_enabled": false,
+      "wallet_or_signer_required": false,
+      "runtime_mutation_route_enabled": false,
+      "mutation_handler_enabled": false,
+      "marker": "VOID_DATANET_WC_LEDGER_APPEND_PUBLIC_JSON_CARD_HOLD_V1_GREEN"
     }
   ],
   "marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1"
