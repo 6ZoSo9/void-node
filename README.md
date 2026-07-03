@@ -1,10 +1,37 @@
 # void-node
 
-## Native public sites
+<!-- VOID_README_CURRENT_STATUS_V1_START -->
+## VOID Network current status
 
-VOID now serves its public site bundle directly from a VOID node with DataNet-backed content and repo static fallback for bootstrap availability.
+VOID Network is a Mainnet-0 public node, DataNet, and Work Credits prototype focused on verifiable public proofs, read-only public discovery, and tightly guarded mutation paths.
 
-Proven public routes:
+Live public entry point:
+
+- `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+
+What is public-live now:
+
+- Public node dashboard and route discovery.
+- DataNet-backed public proof/read/verify surfaces.
+- Public Work Credit proof summaries and verifier links.
+- Public build-map, DataNet, Work Credits, validator-candidate, and status documentation.
+- Public-safe static/repo fallback surfaces for bootstrap availability.
+
+What remains guarded:
+
+- Private RPC is not public.
+- Wallet/signer access is not public.
+- Ledger writes are not public.
+- Work Credit awards and Work Credit settlement are not public mutation routes.
+- VOID transfers, Buy VOID fulfillment, validator admission, validator mutation, and operator/private routes remain behind explicit operator gates.
+
+Work Credits policy:
+
+- Work Credits are useful-work accounting units.
+- Work Credits are intended to be unlimited/uncapped.
+- Any funded settlement tranche capacity is not a lifetime Work Credit supply cap.
+
+Native public site routes:
 
 - `/download` redirects to `/site/voidchain`
 - `/voidchain` redirects to `/site/voidchain`
@@ -12,21 +39,26 @@ Proven public routes:
 - `/site/voidchain` serves the Voidchain public site
 - `/site/nullfeed` serves the NullFeed public preview
 
-Current cross-box checkpoint:
+<!-- VOID_README_CURRENT_STATUS_V1_END -->
 
-- commit: `96ec9e76`
-- tag: `ckpt-public-docs-index-site-bundle-green-20260528-131718`
+<!-- VOID_README_PUBLIC_PROOF_FEED_V1_START -->
+### Public node proof feed
 
-DataNet roots:
+The live public node exposes a read-only Work Credit proof summary feed used by the public dashboard proof stats card:
 
-- Voidchain dataset: `1b8bf41db2d64f8877d0aec397373fa1`
-- Voidchain content root: `db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2`
-- NullFeed dataset: `2930d5e8436eb5674be06d2b0152d20c`
-- NullFeed content root: `f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372`
+- Public dashboard: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+- Latest proof summaries: `GET /wc-proofs/latest?limit=12`
+- Route marker: `VOID_WC_PROOFS_LATEST_ROUTE_V1`
+- Current post-merge live check marker: `VOID_PUBLIC_FUNNEL_WC_PROOFS_LATEST_POST_MERGE_GREEN`
 
-See `docs/public/README.md` and `docs/public/mainnet0-current-public-status.md` for the public status path. Follower nodes must seed the packed DataNet site bundles until peer materialization is automated; see `ops/runbooks/datanet-site-bundle-seeding.md`.
+Boundary:
 
-Guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires `datanet_live_v1` headers and expected content roots.
+- The public seed adapter allowlist entry is exact: `/wc-proofs/latest`.
+- There is no `/wc-proofs/*` wildcard.
+- The route is `GET`/`HEAD` public-read-only proof summary access.
+- It does not expose private RPC, wallet/signer access, ledger writes, Work Credit awards, Work Credit settlement, validator mutation, operator/private routes, or public mutation authority.
+
+<!-- VOID_README_PUBLIC_PROOF_FEED_V1_END -->
 
 <!-- VOID_PUBLIC_DOCS_START -->
 ## VOID Mainnet-0 is live
