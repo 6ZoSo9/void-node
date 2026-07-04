@@ -1,0 +1,80 @@
+{
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1",
+  "purpose": "public_node_operator_quickstart",
+  "status": "operator_quickstart_ready",
+  "routes": {
+    "quickstart_page": "/public-node/operator-quickstart-v1",
+    "quickstart_json": "/public-node/public-node-operator-quickstart-v1.json",
+    "quickstart_html": "/public-node/public-node-operator-quickstart-v1.html",
+    "bootstrap_public": "/__void/public-bootstrap.json",
+    "bootstrap_network": "/bootstrap/network.json",
+    "bootstrap_peers": "/bootstrap/peers.json",
+    "connect_pack": "/public-node/connect",
+    "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json",
+    "receipt_template": "/public-node/connect/receipt-template-v1",
+    "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json"
+  },
+  "steps": [
+    {
+      "order": 1,
+      "title": "Read bootstrap info",
+      "route": "/__void/public-bootstrap.json"
+    },
+    {
+      "order": 2,
+      "title": "Fetch bootstrap peers",
+      "route": "/bootstrap/peers.json"
+    },
+    {
+      "order": 3,
+      "title": "Open connect pack",
+      "route": "/public-node/connect"
+    },
+    {
+      "order": 4,
+      "title": "Dial a peer manually",
+      "route": "/public-node/connect/public-node-connect-pack-v1.json"
+    },
+    {
+      "order": 5,
+      "title": "Verify local health and peers",
+      "route": "/health and /peers on the operator node"
+    },
+    {
+      "order": 6,
+      "title": "Fill public-safe receipt template",
+      "route": "/public-node/connect/receipt-template-v1"
+    },
+    {
+      "order": 7,
+      "title": "Share only public-safe receipt evidence",
+      "route": "/public-node/connect/public-node-connect-receipt-template-v1.json"
+    }
+  ],
+  "safety_checklist": [
+    "do not share private keys",
+    "do not share seed phrases",
+    "do not share wallet secrets",
+    "do not share .env files",
+    "do not share full private logs",
+    "do not share screenshots with secrets visible"
+  ],
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "operator_guidance_only": true,
+    "quickstart_only": true,
+    "automatic_peer_dial_enabled_by_this_quickstart": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "work_credit_claim_created": false,
+    "public_internet_mesh_claim": false
+  },
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1_GREEN"
+}
