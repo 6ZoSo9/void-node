@@ -826,13 +826,18 @@
     "local_multibox_runtime": "/public-node/runtime",
     "local_multibox_runtime_smoke_card": "/public-node/runtime#runtime-smoke-check",
     "local_multibox_runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
-    "local_multibox_runtime_smoke_script": "/public-node/runtime/smoke-pack-v1.sh"
+    "local_multibox_runtime_smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "local_multibox_runtime_closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "local_multibox_runtime_closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
     "local_multibox_runtime_public_node_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1",
     "local_multibox_runtime_smoke_pack": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1",
-    "local_multibox_runtime_smoke_card": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1"
+    "local_multibox_runtime_smoke_card": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1",
+    "local_multibox_runtime_closeout_root_index": "VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROOT_INDEX_V1",
+    "local_multibox_runtime_discovery_closeout_rollup": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1",
+    "well_known_local_multibox_runtime_closeout_rollup_link": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROLLUP_LINK_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -854,6 +859,40 @@
       "/public-node/runtime/index.json",
       "/public-node/runtime/local-multibox-status-v1.json",
       "/__void/diag/local-multibox-runtime-route-v1.json"
+    ],
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "local_multibox_runtime_closeout_root_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROOT_INDEX_V1",
+  "local_multibox_runtime_discovery_closeout_rollup": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROOT_INDEX_V1",
+    "purpose": "machine_discoverable_root_public_node_index_metadata_for_local_multibox_runtime_discovery_closeout_rollup",
+    "status": "root_index_closeout_rollup_linked",
+    "closeout_json": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "closeout_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "closeout_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1",
+    "well_known_link_marker": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROLLUP_LINK_V1",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN",
+    "route_chain": [
+      "/.well-known/void-public-node.json",
+      "/public-node",
+      "/public-node/index.json",
+      "/public-node/runtime",
+      "/public-node/runtime/index.json",
+      "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+      "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+      "/public-node/runtime/smoke-pack-v1.sh"
     ],
     "boundary": {
       "read_only": true,
