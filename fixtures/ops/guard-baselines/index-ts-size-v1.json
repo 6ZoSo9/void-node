@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline after adding well-known local multibox runtime discovery links; links are read-only discovery only and do not add mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
+  "reason": "baseline after adding well-known local multibox runtime smoke links; links are read-only discovery/smoke visibility only and do not add mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
   "path": "src/index.ts",
-  "baseline_bytes": 3710977,
+  "baseline_bytes": 3711673,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
@@ -12,8 +12,9 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "well-known read-only runtime discovery link",
-    "well_known_discovery_link_only": true
+    "baseline_update_reason": "well-known read-only runtime smoke links",
+    "well_known_discovery_link_only": true,
+    "well_known_smoke_links_only": true
   },
-  "previous_baseline_bytes": 3709893
+  "previous_baseline_bytes": 3710977
 }
