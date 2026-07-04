@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline after PR297 tiny local multibox runtime route mount hook; route body lives outside src/index.ts and proof enforces marker outside index",
+  "reason": "baseline after adding well-known local multibox runtime discovery links; links are read-only discovery only and do not add mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
   "path": "src/index.ts",
-  "baseline_bytes": 3709893,
+  "baseline_bytes": 3710977,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
@@ -12,7 +12,8 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "tiny mount hook for extracted read-only runtime route"
+    "baseline_update_reason": "well-known read-only runtime discovery link",
+    "well_known_discovery_link_only": true
   },
-  "previous_baseline_bytes": 3709761
+  "previous_baseline_bytes": 3709893
 }

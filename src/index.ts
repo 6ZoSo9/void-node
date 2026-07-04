@@ -53323,6 +53323,7 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
     protocol: "void-public-node-discovery-v1",
     status: "public_node_agent_discovery_ready",
     effective_base_url: effectiveBaseUrl,
+    local_multibox_runtime_discovery_link_marker: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_LINK_V1",
     links: {
       public_node: effectiveBaseUrl + "/public-node",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -53331,10 +53332,19 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
       result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
       real_data_import_lane_status: effectiveBaseUrl + "/public-node/real-data-import-lane-status.json",
+      public_node_index: effectiveBaseUrl + "/public-node/index.json",
+      local_multibox_runtime: effectiveBaseUrl + "/public-node/runtime",
+      local_multibox_runtime_index: effectiveBaseUrl + "/public-node/runtime/index.json",
+      local_multibox_runtime_status: effectiveBaseUrl + "/public-node/runtime/local-multibox-status-v1.json",
+      local_multibox_runtime_status_html: effectiveBaseUrl + "/public-node/runtime/local-multibox-status-v1.html",
+      local_multibox_runtime_diag: effectiveBaseUrl + "/__void/diag/local-multibox-runtime-route-v1.json",
       proofs: effectiveBaseUrl + "/proofs"
     },
     route_markers: {
-      real_data_import_lane_status: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1"
+      real_data_import_lane_status: "VOID_PUBLIC_NODE_REAL_DATA_IMPORT_LANE_STATUS_ROUTE_V1",
+      well_known_local_multibox_runtime_discovery_link: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_LINK_V1",
+      local_multibox_runtime_discovery_index: "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+      local_multibox_runtime_status: "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1"
     },
     policy: {
       public_routes_only: true,
@@ -53345,7 +53355,10 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       wallet_send: false,
       wc_to_void_swap: false,
       buy_void_fulfillment: false,
-      validator_mutation: false
+      validator_mutation: false,
+      validator_admission: false,
+      public_wc_self_serve_earning: false,
+      public_internet_mesh_claim: false
     }
   });
 });
