@@ -53325,6 +53325,7 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
     effective_base_url: effectiveBaseUrl,
     local_multibox_runtime_discovery_link_marker: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_LINK_V1",
     local_multibox_runtime_smoke_links_marker: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_SMOKE_LINKS_V1",
+    local_multibox_runtime_public_node_card_index_link_marker: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_PUBLIC_NODE_CARD_INDEX_LINK_V1",
     links: {
       public_node: effectiveBaseUrl + "/public-node",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -53341,6 +53342,8 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       local_multibox_runtime_smoke_card: effectiveBaseUrl + "/public-node/runtime#runtime-smoke-check",
       local_multibox_runtime_smoke_pack: effectiveBaseUrl + "/public-node/runtime/smoke-pack-v1.json",
       local_multibox_runtime_smoke_script: effectiveBaseUrl + "/public-node/runtime/smoke-pack-v1.sh",
+      local_multibox_runtime_public_node_card: effectiveBaseUrl + "/public-node#publicNodeLocalMultiboxRuntimeCard",
+      local_multibox_runtime_public_node_card_index: effectiveBaseUrl + "/public-node/index.json",
       local_multibox_runtime_diag: effectiveBaseUrl + "/__void/diag/local-multibox-runtime-route-v1.json",
       proofs: effectiveBaseUrl + "/proofs"
     },
@@ -53351,7 +53354,10 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
       local_multibox_runtime_status: "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
       well_known_local_multibox_runtime_smoke_links: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_SMOKE_LINKS_V1",
       local_multibox_runtime_smoke_pack: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1",
-      local_multibox_runtime_smoke_card: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1"
+      local_multibox_runtime_smoke_card: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1",
+      well_known_local_multibox_public_node_card_index_link: "VOID_WELL_KNOWN_LOCAL_MULTIBOX_PUBLIC_NODE_CARD_INDEX_LINK_V1",
+      local_multibox_runtime_public_node_card_index: "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
+      local_multibox_runtime_public_node_card: "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1"
     },
     policy: {
       public_routes_only: true,
