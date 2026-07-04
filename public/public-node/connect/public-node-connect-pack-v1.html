@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Public Node Connect Pack v1</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { background:#05070b; color:#e5e7eb; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; margin:0; padding:24px; }
+    main { max-width:980px; margin:0 auto; }
+    .card { border:1px solid #334155; border-radius:16px; padding:18px; background:#0f172a; margin:16px 0; }
+    code, pre { color:#86efac; }
+    pre { white-space:pre-wrap; background:#020617; padding:12px; border-radius:12px; border:1px solid #1e293b; }
+    .warn { color:#fbbf24; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>VOID Public Node Connect Pack v1</h1>
+
+  <div class="card">
+    <p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code></p>
+    <p><strong>Status:</strong> <code>connect_pack_ready</code></p>
+  </div>
+
+  <div class="card">
+    <h2>Bootstrap</h2>
+    <p>Start with public bootstrap metadata:</p>
+    <pre>curl -fsS http://&lt;BOOTSTRAP_HOST&gt;:4100/bootstrap/peers.json | jq .</pre>
+  </div>
+
+  <div class="card">
+    <h2>Dial a peer</h2>
+    <pre>curl -fsS -X POST -H 'content-type: application/json' --data '{"addr":"&lt;PEER_HOST&gt;:&lt;PEER_P2P_PORT&gt;"}' http://127.0.0.1:4100/p2p/dial | jq .</pre>
+  </div>
+
+  <div class="card">
+    <h2>Verify</h2>
+    <pre>curl -fsS http://127.0.0.1:4100/health | jq .
+curl -fsS http://127.0.0.1:4100/peers | jq .</pre>
+  </div>
+
+  <div class="card">
+    <h2>Boundary</h2>
+    <p class="warn">This is not validator admission, staking, Work Credit earning, wallet movement, token movement, buy VOID fulfillment, or a public internet mesh claim.</p>
+    <p>Public-safe node connection guidance only.</p>
+  </div>
+
+  <div class="card">
+    <h2>Links</h2>
+    <p><a href="/public-node/connect/public-node-connect-pack-v1.json">JSON</a></p>
+    <p><a href="/public-node/connect/public-node-connect-pack-v1.html">HTML</a></p>
+  </div>
+</main>
+</body>
+</html>
