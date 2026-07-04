@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Public Node Operator Receipt Example v1</title>
+</head>
+<body>
+<h1>Public Node Operator Receipt Example v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1</code></p>
+<p><strong>Status:</strong> <code>operator_receipt_example_ready</code></p>
+<p>Public-safe example receipt for an outside VOID node operator.</p>
+<p>This example creates no receipt, no claim, no wallet action, no validator admission, and no Work Credit award.</p>
+
+<h2>Routes</h2>
+<ul>
+<li><strong>receipt_example_page</strong>: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>receipt_example_json</strong>: <code>/public-node/public-node-operator-receipt-example-v1.json</code></li>
+<li><strong>receipt_example_html</strong>: <code>/public-node/public-node-operator-receipt-example-v1.html</code></li>
+<li><strong>handoff_packet</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>handoff_packet_json</strong>: <code>/public-node/public-node-operator-handoff-packet-v1.json</code></li>
+<li><strong>receipt_template</strong>: <code>/public-node/connect/receipt-template-v1</code></li>
+<li><strong>receipt_template_json</strong>: <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>operator_status_rollup</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_status_rollup_json</strong>: <code>/public-node/public-node-operator-status-rollup-v1.json</code></li>
+<li><strong>operator_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>connect_pack_json</strong>: <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>bootstrap_public</strong>: <code>/__void/public-bootstrap.json</code></li>
+<li><strong>bootstrap_peers</strong>: <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Green components</h2>
+<ul>
+<li><strong>operator_handoff_packet</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1</code> — <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>operator_status_rollup</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1</code> — <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1</code> — <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>connect_pack</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code> — <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>receipt_template</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1</code> — <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>bootstrap_gateway</strong>: green — <code>VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1</code> — <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Example receipt</h2>
+<ul>
+<li><strong>receipt_schema</strong>: <code>&quot;void.public_node.operator_receipt.example.v1&quot;</code></li>
+<li><strong>example_only</strong>: <code>true</code></li>
+<li><strong>operator_alias</strong>: <code>&quot;example-outside-node-operator&quot;</code></li>
+<li><strong>operator_node_id</strong>: <code>&quot;example-node-id-public-safe-placeholder&quot;</code></li>
+<li><strong>operator_public_base_url_if_any</strong>: <code>&quot;https://example.invalid/void-public-node&quot;</code></li>
+<li><strong>observed_bootstrap_route</strong>: <code>&quot;/bootstrap/peers.json&quot;</code></li>
+<li><strong>observed_connect_pack_marker</strong>: <code>&quot;VOID_PUBLIC_NODE_CONNECT_PACK_V1&quot;</code></li>
+<li><strong>observed_status_rollup_marker</strong>: <code>&quot;VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1&quot;</code></li>
+<li><strong>observed_handoff_packet_marker</strong>: <code>&quot;VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1&quot;</code></li>
+<li><strong>observed_receipt_template_marker</strong>: <code>&quot;VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1&quot;</code></li>
+<li><strong>observed_peer_count</strong>: <code>1</code></li>
+<li><strong>observed_timestamp_utc</strong>: <code>&quot;2026-07-04T00:00:00Z&quot;</code></li>
+<li><strong>public_safe_notes</strong>: <code>&quot;Example only. Replace placeholders with public-safe operator observations. Do not include private keys, seed phrases, wallet secrets, signer secrets, private operator data, money transfer claims, validator claims, or Work Credit claims.&quot;</code></li>
+<li><strong>private_material_included</strong>: <code>false</code></li>
+<li><strong>money_transfer_claim</strong>: <code>false</code></li>
+<li><strong>validator_admission_claim</strong>: <code>false</code></li>
+<li><strong>work_credit_claim</strong>: <code>false</code></li>
+<li><strong>public_internet_mesh_claim</strong>: <code>false</code></li>
+</ul>
+
+<h2>Forbidden receipt fields</h2>
+<ul>
+<li><code>private_key</code></li>
+<li><code>seed_phrase</code></li>
+<li><code>wallet_secret</code></li>
+<li><code>signer_secret</code></li>
+<li><code>private_ip_unless_operator_explicitly_allows</code></li>
+<li><code>money_transfer_claim</code></li>
+<li><code>validator_admission_claim</code></li>
+<li><code>work_credit_claim</code></li>
+</ul>
+
+<h2>Boundary</h2>
+<ul>
+<li>Read-only public routes only.</li>
+<li>Operator receipt example only.</li>
+<li>Receipt example only.</li>
+<li>Operator guidance only.</li>
+<li>Example creates no receipt.</li>
+<li>Not automatic peer dialing.</li>
+<li>Not mutation route enablement.</li>
+<li>Not wallet send enablement.</li>
+<li>Not money movement.</li>
+<li>Not buy VOID fulfillment.</li>
+<li>Not WC to VOID settlement.</li>
+<li>Not validator mutation or validator admission.</li>
+<li>Not public Work Credit self-serve earning.</li>
+<li>Not Work Credit claim creation.</li>
+<li>Not a public internet mesh claim.</li>
+<li>Do not share private keys, seed phrases, wallet secrets, signer secrets, private IPs, or private operator data.</li>
+</ul>
+
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1_GREEN</code></p>
+</body>
+</html>

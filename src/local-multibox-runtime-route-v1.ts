@@ -58,6 +58,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorHandoffPacketPagePath = path.resolve(process.cwd(), "public/public-node/operator-handoff-packet-v1.html");
   const publicNodeOperatorHandoffPacketJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-handoff-packet-v1.json");
   const publicNodeOperatorHandoffPacketHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-handoff-packet-v1.html");
+  const publicNodeOperatorReceiptExamplePageRoute = "/public-node/operator-receipt-example-v1";
+  const publicNodeOperatorReceiptExampleJsonRoute = "/public-node/public-node-operator-receipt-example-v1.json";
+  const publicNodeOperatorReceiptExampleHtmlRoute = "/public-node/public-node-operator-receipt-example-v1.html";
+  const publicNodeOperatorReceiptExamplePagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-example-v1.html");
+  const publicNodeOperatorReceiptExampleJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-example-v1.json");
+  const publicNodeOperatorReceiptExampleHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-example-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -340,6 +346,18 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorHandoffPacketHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorHandoffPacketHtmlPath);
+  });
+
+  app.get(publicNodeOperatorReceiptExamplePageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptExamplePagePath);
+  });
+
+  app.get(publicNodeOperatorReceiptExampleJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptExampleJsonPath);
+  });
+
+  app.get(publicNodeOperatorReceiptExampleHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptExampleHtmlPath);
   });
 
 }
