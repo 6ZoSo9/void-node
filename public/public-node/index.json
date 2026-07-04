@@ -414,7 +414,10 @@
     "/public-node/public-node-operator-receipt-example-v1.html",
     "/public-node/operator-receipt-review-checklist-v1",
     "/public-node/public-node-operator-receipt-review-checklist-v1.json",
-    "/public-node/public-node-operator-receipt-review-checklist-v1.html"
+    "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+    "/public-node/operator-receipt-review-decision-template-v1",
+    "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "/public-node/public-node-operator-receipt-review-decision-template-v1.html"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -878,7 +881,10 @@
     "public_node_operator_receipt_example_html": "/public-node/public-node-operator-receipt-example-v1.html",
     "public_node_operator_receipt_review_checklist": "/public-node/operator-receipt-review-checklist-v1",
     "public_node_operator_receipt_review_checklist_json": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
-    "public_node_operator_receipt_review_checklist_html": "/public-node/public-node-operator-receipt-review-checklist-v1.html"
+    "public_node_operator_receipt_review_checklist_html": "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+    "public_node_operator_receipt_review_decision_template": "/public-node/operator-receipt-review-decision-template-v1",
+    "public_node_operator_receipt_review_decision_template_json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "public_node_operator_receipt_review_decision_template_html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -896,7 +902,8 @@
     "public_node_operator_status_rollup": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
     "public_node_operator_handoff_packet": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
     "public_node_operator_receipt_example": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1",
-    "public_node_operator_receipt_review_checklist": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1"
+    "public_node_operator_receipt_review_checklist": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1",
+    "public_node_operator_receipt_review_decision_template": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1158,6 +1165,38 @@
       "checklist_creates_no_review_decision": true,
       "checklist_creates_no_work_credit_claim": true,
       "automatic_peer_dial_enabled_by_this_checklist": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "work_credit_claim_created": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "public_node_operator_receipt_review_decision_template": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1",
+    "status": "operator_receipt_review_decision_template_ready",
+    "page": "/public-node/operator-receipt-review-decision-template-v1",
+    "json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_INDEX_ROUTE_V1_GREEN",
+    "pairs_with": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1",
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "operator_receipt_review_decision_template_only": true,
+      "manual_review_template_only": true,
+      "operator_guidance_only": true,
+      "template_creates_no_receipt": true,
+      "template_creates_no_review_decision": true,
+      "template_creates_no_work_credit_claim": true,
+      "template_creates_no_validator_admission": true,
+      "template_creates_no_money_movement": true,
+      "automatic_peer_dial_enabled_by_this_template": false,
       "mutation_route_enabled": false,
       "wallet_send_enabled": false,
       "money_movement_enabled": false,
