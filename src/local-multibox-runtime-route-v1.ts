@@ -52,6 +52,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorStatusRollupPagePath = path.resolve(process.cwd(), "public/public-node/operator-status-rollup-v1.html");
   const publicNodeOperatorStatusRollupJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-status-rollup-v1.json");
   const publicNodeOperatorStatusRollupHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-status-rollup-v1.html");
+  const publicNodeOperatorHandoffPacketPageRoute = "/public-node/operator-handoff-packet-v1";
+  const publicNodeOperatorHandoffPacketJsonRoute = "/public-node/public-node-operator-handoff-packet-v1.json";
+  const publicNodeOperatorHandoffPacketHtmlRoute = "/public-node/public-node-operator-handoff-packet-v1.html";
+  const publicNodeOperatorHandoffPacketPagePath = path.resolve(process.cwd(), "public/public-node/operator-handoff-packet-v1.html");
+  const publicNodeOperatorHandoffPacketJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-handoff-packet-v1.json");
+  const publicNodeOperatorHandoffPacketHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-handoff-packet-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -322,6 +328,18 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorStatusRollupHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorStatusRollupHtmlPath);
+  });
+
+  app.get(publicNodeOperatorHandoffPacketPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorHandoffPacketPagePath);
+  });
+
+  app.get(publicNodeOperatorHandoffPacketJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorHandoffPacketJsonPath);
+  });
+
+  app.get(publicNodeOperatorHandoffPacketHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorHandoffPacketHtmlPath);
   });
 
 }
