@@ -359,6 +359,36 @@
       "validator_admission_enabled": false,
       "datanet_object_write_enabled": false,
       "ai_autonomous_write_enabled": false
+    },
+    {
+      "path": "/public-node/runtime",
+      "kind": "html",
+      "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+      "use": "public-safe local multi-box runtime discovery index"
+    },
+    {
+      "path": "/public-node/runtime/index.json",
+      "kind": "json",
+      "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+      "use": "machine-readable local multi-box runtime discovery index"
+    },
+    {
+      "path": "/public-node/runtime/index.html",
+      "kind": "html",
+      "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+      "use": "human-readable local multi-box runtime discovery index"
+    },
+    {
+      "path": "/public-node/runtime/local-multibox-status-v1.json",
+      "kind": "json",
+      "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
+      "use": "machine-readable local multi-box runtime status"
+    },
+    {
+      "path": "/public-node/runtime/local-multibox-status-v1.html",
+      "kind": "html",
+      "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
+      "use": "human-readable local multi-box runtime status"
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
@@ -757,5 +787,38 @@
     "ledger_line_created": false,
     "ledger_append_performed": false,
     "next_recommended_brick": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-preflight-hold-v1"
+  },
+  "local_multibox_runtime_discovery_index_link": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_LINK_V1",
+    "purpose": "public_node_root_index_link_to_local_multibox_runtime_discovery",
+    "status": "linked",
+    "label": "Local multi-box runtime status",
+    "summary": "Public-safe discovery link for VOID local runtime status across Precision, Alienware, and Nimo/N153B.",
+    "route": "/public-node/runtime",
+    "links": {
+      "runtime": "/public-node/runtime",
+      "runtime_html": "/public-node/runtime/index.html",
+      "runtime_json": "/public-node/runtime/index.json",
+      "status_html": "/public-node/runtime/local-multibox-status-v1.html",
+      "status_json": "/public-node/runtime/local-multibox-status-v1.json",
+      "diag": "/__void/diag/local-multibox-runtime-route-v1.json"
+    },
+    "references": {
+      "runtime_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+      "status_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1"
+    },
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
   }
 }
