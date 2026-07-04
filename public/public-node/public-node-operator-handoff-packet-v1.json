@@ -1,0 +1,138 @@
+{
+  "boundary": {
+    "automatic_peer_dial_enabled_by_this_packet": false,
+    "buy_void_fulfillment_enabled": false,
+    "money_movement_enabled": false,
+    "mutation_route_enabled": false,
+    "operator_guidance_only": true,
+    "operator_handoff_packet_only": true,
+    "public_internet_mesh_claim": false,
+    "public_routes_only": true,
+    "public_wc_self_serve_earning_enabled": false,
+    "read_only": true,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "wallet_send_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "work_credit_claim_created": false
+  },
+  "components": [
+    {
+      "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_CLOSEOUT_V1_GREEN",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
+      "name": "operator_status_rollup",
+      "route": "/public-node/operator-status-rollup-v1",
+      "status": "green"
+    },
+    {
+      "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_CLOSEOUT_V1_GREEN",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1",
+      "name": "operator_quickstart",
+      "route": "/public-node/operator-quickstart-v1",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_CONNECT_LANE_CLOSEOUT_V1_GREEN",
+      "name": "connect_lane",
+      "route": "/public-node/connect",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+      "name": "connect_pack",
+      "route": "/public-node/connect/public-node-connect-pack-v1.json",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+      "name": "receipt_template",
+      "route": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1",
+      "name": "bootstrap_gateway",
+      "route": "/bootstrap/peers.json",
+      "status": "green"
+    }
+  ],
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1_GREEN",
+  "forbidden_receipt_fields": [
+    "private_key",
+    "seed_phrase",
+    "wallet_secret",
+    "signer_secret",
+    "private_ip_unless_operator_explicitly_allows",
+    "money_transfer_claim",
+    "validator_admission_claim",
+    "work_credit_claim"
+  ],
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
+  "purpose": "Public-safe handoff packet for an outside node operator to read status, follow quickstart, use bootstrap/connect routes, and return a receipt template.",
+  "recipient_steps": [
+    {
+      "order": 1,
+      "purpose": "Confirm the public operator lane currently reports green before attempting a node connection.",
+      "route": "/public-node/operator-status-rollup-v1",
+      "title": "Open the operator status rollup"
+    },
+    {
+      "order": 2,
+      "purpose": "Follow the human operator sequence before sharing any public-safe evidence.",
+      "route": "/public-node/operator-quickstart-v1",
+      "title": "Read the operator quickstart"
+    },
+    {
+      "order": 3,
+      "purpose": "Read network identity and chain information.",
+      "route": "/__void/public-bootstrap.json",
+      "title": "Fetch bootstrap metadata"
+    },
+    {
+      "order": 4,
+      "purpose": "Read public bootstrap peer hints only.",
+      "route": "/bootstrap/peers.json",
+      "title": "Fetch bootstrap peers"
+    },
+    {
+      "order": 5,
+      "purpose": "Manually connect a node operator to the advertised local/public bootstrap lane.",
+      "route": "/public-node/connect",
+      "title": "Use the connect pack"
+    },
+    {
+      "order": 6,
+      "purpose": "Return public-safe connection evidence without keys, wallet data, money movement, or validator claims.",
+      "route": "/public-node/connect/receipt-template-v1",
+      "title": "Fill the receipt template"
+    }
+  ],
+  "required_public_receipt_fields": [
+    "operator_alias",
+    "operator_node_id",
+    "operator_public_base_url_if_any",
+    "observed_bootstrap_route",
+    "observed_connect_pack_marker",
+    "observed_status_rollup_marker",
+    "observed_peer_count",
+    "observed_timestamp_utc",
+    "public_safe_notes"
+  ],
+  "routes": {
+    "bootstrap_peers": "/bootstrap/peers.json",
+    "bootstrap_public": "/__void/public-bootstrap.json",
+    "connect_pack": "/public-node/connect",
+    "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json",
+    "handoff_packet_html": "/public-node/public-node-operator-handoff-packet-v1.html",
+    "handoff_packet_json": "/public-node/public-node-operator-handoff-packet-v1.json",
+    "handoff_packet_page": "/public-node/operator-handoff-packet-v1",
+    "operator_quickstart": "/public-node/operator-quickstart-v1",
+    "operator_quickstart_json": "/public-node/public-node-operator-quickstart-v1.json",
+    "operator_status_rollup": "/public-node/operator-status-rollup-v1",
+    "operator_status_rollup_json": "/public-node/public-node-operator-status-rollup-v1.json",
+    "receipt_template": "/public-node/connect/receipt-template-v1",
+    "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json"
+  },
+  "schema": "void.public_node.operator_handoff_packet.v1",
+  "status": "operator_handoff_packet_ready"
+}

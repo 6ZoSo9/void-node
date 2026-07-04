@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Public Node Operator Handoff Packet v1</title>
+</head>
+<body>
+<h1>Public Node Operator Handoff Packet v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1</code></p>
+<p><strong>Status:</strong> <code>operator_handoff_packet_ready</code></p>
+<p>Public-safe handoff packet for an outside VOID node operator.</p>
+
+<h2>Routes</h2>
+<ul>
+<li><strong>handoff_packet_page</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>handoff_packet_json</strong>: <code>/public-node/public-node-operator-handoff-packet-v1.json</code></li>
+<li><strong>handoff_packet_html</strong>: <code>/public-node/public-node-operator-handoff-packet-v1.html</code></li>
+<li><strong>operator_status_rollup</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_status_rollup_json</strong>: <code>/public-node/public-node-operator-status-rollup-v1.json</code></li>
+<li><strong>operator_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>operator_quickstart_json</strong>: <code>/public-node/public-node-operator-quickstart-v1.json</code></li>
+<li><strong>connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>connect_pack_json</strong>: <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>receipt_template</strong>: <code>/public-node/connect/receipt-template-v1</code></li>
+<li><strong>receipt_template_json</strong>: <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>bootstrap_public</strong>: <code>/__void/public-bootstrap.json</code></li>
+<li><strong>bootstrap_peers</strong>: <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Green components</h2>
+<ul>
+<li><strong>operator_status_rollup</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1</code> — <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1</code> — <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>connect_lane</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_LANE_CLOSEOUT_V1_GREEN</code> — <code>/public-node/connect</code></li>
+<li><strong>connect_pack</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code> — <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>receipt_template</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1</code> — <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>bootstrap_gateway</strong>: green — <code>VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1</code> — <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Recipient steps</h2>
+<ol>
+<li><strong>1. Open the operator status rollup</strong>: <code>/public-node/operator-status-rollup-v1</code> — Confirm the public operator lane currently reports green before attempting a node connection.</li>
+<li><strong>2. Read the operator quickstart</strong>: <code>/public-node/operator-quickstart-v1</code> — Follow the human operator sequence before sharing any public-safe evidence.</li>
+<li><strong>3. Fetch bootstrap metadata</strong>: <code>/__void/public-bootstrap.json</code> — Read network identity and chain information.</li>
+<li><strong>4. Fetch bootstrap peers</strong>: <code>/bootstrap/peers.json</code> — Read public bootstrap peer hints only.</li>
+<li><strong>5. Use the connect pack</strong>: <code>/public-node/connect</code> — Manually connect a node operator to the advertised local/public bootstrap lane.</li>
+<li><strong>6. Fill the receipt template</strong>: <code>/public-node/connect/receipt-template-v1</code> — Return public-safe connection evidence without keys, wallet data, money movement, or validator claims.</li>
+</ol>
+
+<h2>Required public-safe receipt fields</h2>
+<ul>
+<li><code>operator_alias</code></li>
+<li><code>operator_node_id</code></li>
+<li><code>operator_public_base_url_if_any</code></li>
+<li><code>observed_bootstrap_route</code></li>
+<li><code>observed_connect_pack_marker</code></li>
+<li><code>observed_status_rollup_marker</code></li>
+<li><code>observed_peer_count</code></li>
+<li><code>observed_timestamp_utc</code></li>
+<li><code>public_safe_notes</code></li>
+</ul>
+
+<h2>Forbidden receipt fields</h2>
+<ul>
+<li><code>private_key</code></li>
+<li><code>seed_phrase</code></li>
+<li><code>wallet_secret</code></li>
+<li><code>signer_secret</code></li>
+<li><code>private_ip_unless_operator_explicitly_allows</code></li>
+<li><code>money_transfer_claim</code></li>
+<li><code>validator_admission_claim</code></li>
+<li><code>work_credit_claim</code></li>
+</ul>
+
+<h2>Boundary</h2>
+<ul>
+<li>Read-only public routes only.</li>
+<li>Operator handoff packet only.</li>
+<li>Operator guidance only.</li>
+<li>Not automatic peer dialing.</li>
+<li>Not mutation route enablement.</li>
+<li>Not wallet send enablement.</li>
+<li>Not money movement.</li>
+<li>Not buy VOID fulfillment.</li>
+<li>Not WC to VOID settlement.</li>
+<li>Not validator mutation or validator admission.</li>
+<li>Not public Work Credit self-serve earning.</li>
+<li>Not Work Credit claim creation.</li>
+<li>Not a public internet mesh claim.</li>
+<li>Do not share private keys, seed phrases, wallet secrets, signer secrets, or private operator data.</li>
+</ul>
+
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1_GREEN</code></p>
+</body>
+</html>
