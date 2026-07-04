@@ -58320,6 +58320,31 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
     <p class="muted">The participant page remains the owner console. This page is the public proof surface.</p>
   </section>
 
+        <div class="card" id="publicNodeLocalMultiboxRuntimeCard"><!-- VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1 -->
+          <h2>Local Multi-Box Runtime Verification</h2>
+          <p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1</code></p>
+          <p>
+            VOID exposes a public-safe route chain for verifying the current local multi-box runtime status.
+            Start from the well-known discovery document, then follow the runtime smoke card and smoke pack.
+          </p>
+          <ul>
+            <li><a href="/.well-known/void-public-node.json">Well-known public node discovery JSON</a></li>
+            <li><a href="/public-node/runtime">Runtime discovery page</a></li>
+            <li><a href="/public-node/runtime#runtime-smoke-check">Runtime smoke check card</a></li>
+            <li><a href="/public-node/runtime/smoke-pack-v1.json">Smoke pack JSON</a></li>
+            <li><a href="/public-node/runtime/smoke-pack-v1.sh">Smoke script</a></li>
+          </ul>
+          <p>
+            Expected smoke-script green marker:
+            <code>VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN</code>
+          </p>
+          <p>
+            Boundary: read-only discovery and smoke visibility only. No mutation routes, wallet send,
+            money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator mutation/admission,
+            public WC self-serve earning, or completed public internet mesh claim.
+          </p>
+        </div>
+
         <div class="card" id="publicNodeProofModeStatusCard"><!-- VOID_PUBLIC_NODE_PROOF_MODE_STATUS_UI_V1 -->
           <h2>Proof Mode Status</h2>
           <p><strong>Cross-box green.</strong> Precision and Alienware proof lanes are active and aligned.</p>
