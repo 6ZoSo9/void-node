@@ -40,6 +40,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeConnectPagePath = path.resolve(process.cwd(), "public/public-node/connect/index.html");
   const publicNodeConnectJsonPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.json");
   const publicNodeConnectHtmlPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.html");
+  const publicNodeOperatorQuickstartPageRoute = "/public-node/operator-quickstart-v1";
+  const publicNodeOperatorQuickstartJsonRoute = "/public-node/public-node-operator-quickstart-v1.json";
+  const publicNodeOperatorQuickstartHtmlRoute = "/public-node/public-node-operator-quickstart-v1.html";
+  const publicNodeOperatorQuickstartPagePath = path.resolve(process.cwd(), "public/public-node/operator-quickstart-v1.html");
+  const publicNodeOperatorQuickstartJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-quickstart-v1.json");
+  const publicNodeOperatorQuickstartHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-quickstart-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -284,6 +290,19 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeConnectReceiptHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeConnectReceiptHtmlPath);
+  });
+
+
+  app.get(publicNodeOperatorQuickstartPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorQuickstartPagePath);
+  });
+
+  app.get(publicNodeOperatorQuickstartJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorQuickstartJsonPath);
+  });
+
+  app.get(publicNodeOperatorQuickstartHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorQuickstartHtmlPath);
   });
 
 }
