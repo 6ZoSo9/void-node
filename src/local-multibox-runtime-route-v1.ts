@@ -18,6 +18,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const indexHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/index.html");
   const publicNodeRootIndexRoute = "/public-node/index.json";
   const publicNodeRootIndexPath = path.resolve(process.cwd(), "public/public-node/index.json");
+  const smokePackRoute = "/public-node/runtime/smoke-pack-v1.json";
+  const smokeScriptRoute = "/public-node/runtime/smoke-pack-v1.sh";
+  const smokePackPath = path.resolve(process.cwd(), "public/public-node/runtime/smoke-pack-v1.json");
+  const smokeScriptPath = path.resolve(process.cwd(), "public/public-node/runtime/smoke-pack-v1.sh");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -130,11 +134,37 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     }
   });
 
+  /* VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1 */
+  app.get(smokePackRoute, (_req: any, res: any) => {
+    try {
+      if (!fs.existsSync(smokePackPath)) {
+        return res.status(404).json({ ok: false, marker: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1", error: "missing_smoke_pack_json", path: smokePackPath });
+      }
+      const raw = fs.readFileSync(smokePackPath, "utf8");
+      JSON.parse(raw);
+      return res.status(200).set("content-type", "application/json; charset=utf-8").send(raw);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, marker: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1", route: smokePackRoute, error: String(e?.message || e) });
+    }
+  });
+
+  app.get(smokeScriptRoute, (_req: any, res: any) => {
+    try {
+      if (!fs.existsSync(smokeScriptPath)) {
+        return res.status(404).type("text/plain").send("VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1 missing script artifact: " + smokeScriptPath);
+      }
+      const raw = fs.readFileSync(smokeScriptPath, "utf8");
+      return res.status(200).set("content-type", "text/x-shellscript; charset=utf-8").send(raw);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, marker: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1", route: smokeScriptRoute, error: String(e?.message || e) });
+    }
+  });
+
   app.get("/__void/diag/local-multibox-runtime-route-v1.json", (_req: any, res: any) => {
     res.json({
       ok: true,
       marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1",
-      routes: [publicNodeRootIndexRoute, indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute],
+      routes: [publicNodeRootIndexRoute, indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute, smokePackRoute, smokeScriptRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -146,7 +176,11 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         indexExists: fs.existsSync(indexPath),
         indexHtmlExists: fs.existsSync(indexHtmlPath),
         publicNodeRootIndexPath,
-        publicNodeRootIndexExists: fs.existsSync(publicNodeRootIndexPath)
+        publicNodeRootIndexExists: fs.existsSync(publicNodeRootIndexPath),
+        smokePackPath,
+        smokeScriptPath,
+        smokePackExists: fs.existsSync(smokePackPath),
+        smokeScriptExists: fs.existsSync(smokeScriptPath)
       },
       boundary: {
         read_only: true,
