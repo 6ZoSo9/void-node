@@ -16,6 +16,8 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const indexAliasRoute = "/public-node/runtime";
   const indexPath = path.resolve(process.cwd(), "public/public-node/runtime/index.json");
   const indexHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/index.html");
+  const publicNodeRootIndexRoute = "/public-node/index.json";
+  const publicNodeRootIndexPath = path.resolve(process.cwd(), "public/public-node/index.json");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -59,6 +61,31 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     }
   });
 
+
+  /* VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_ROUTE_V1 */
+  app.get(publicNodeRootIndexRoute, (_req: any, res: any) => {
+    try {
+      if (!fs.existsSync(publicNodeRootIndexPath)) {
+        return res.status(404).json({
+          ok: false,
+          marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_ROUTE_V1",
+          error: "missing_public_node_root_index_json",
+          path: publicNodeRootIndexPath
+        });
+      }
+
+      const raw = fs.readFileSync(publicNodeRootIndexPath, "utf8");
+      JSON.parse(raw);
+      return res.status(200).set("content-type", "application/json; charset=utf-8").send(raw);
+    } catch (e: any) {
+      return res.status(500).json({
+        ok: false,
+        marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_ROUTE_V1",
+        route: publicNodeRootIndexRoute,
+        error: String(e?.message || e)
+      });
+    }
+  });
 
   /* VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1 */
   app.get(indexRoute, (_req: any, res: any) => {
@@ -107,7 +134,7 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     res.json({
       ok: true,
       marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1",
-      routes: [indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute],
+      routes: [publicNodeRootIndexRoute, indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -117,7 +144,9 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         indexPath,
         indexHtmlPath,
         indexExists: fs.existsSync(indexPath),
-        indexHtmlExists: fs.existsSync(indexHtmlPath)
+        indexHtmlExists: fs.existsSync(indexHtmlPath),
+        publicNodeRootIndexPath,
+        publicNodeRootIndexExists: fs.existsSync(publicNodeRootIndexPath)
       },
       boundary: {
         read_only: true,
