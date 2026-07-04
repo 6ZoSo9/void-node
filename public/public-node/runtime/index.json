@@ -26,7 +26,9 @@
     "closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
     "closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
     "local_multibox_runtime_peer_rejoin_card": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
-    "local_multibox_runtime_peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
+    "local_multibox_runtime_peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "local_multibox_nimo_rejoin_operator_runbook": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "local_multibox_nimo_rejoin_operator_runbook_html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
   },
   "boundary": {
     "read_only": true,
@@ -105,10 +107,13 @@
   },
   "routes": [
     "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
-    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
   ],
   "route_markers": {
-    "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1"
+    "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+    "local_multibox_nimo_rejoin_operator_runbook": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1"
   },
   "local_multibox_runtime_peer_rejoin_card": {
     "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
@@ -120,6 +125,23 @@
       "read_only": true,
       "runtime_visibility_only": true,
       "automatic_peer_dial_enabled_by_this_card": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "local_multibox_nimo_rejoin_operator_runbook": {
+    "marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1",
+    "status": "operator_runbook_ready",
+    "json": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "operator_guidance_only": true,
+      "automatic_peer_dial_enabled_by_this_runbook": false,
       "mutation_route_enabled": false,
       "wallet_send_enabled": false,
       "money_movement_enabled": false,

@@ -1,0 +1,59 @@
+{
+  "marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1",
+  "purpose": "public_safe_nimo_rejoin_operator_runbook",
+  "status": "operator_runbook_ready",
+  "updated_utc": "2026-07-04T12:29:35Z",
+  "summary": {
+    "documents_manual_rejoin_after_precision_restart": true,
+    "automatic_peer_dial_enabled": false,
+    "nimo_http_observed_from_precision": false,
+    "nimo_ssh_observed_from_precision": false,
+    "public_internet_mesh_claim": false
+  },
+  "topology": {
+    "precision": {
+      "node_id": "9d89483769e469e0473b489dc50dba96",
+      "http": "127.0.0.1:4100",
+      "p2p": "192.168.1.88:4700"
+    },
+    "nimo": {
+      "node_id": "042c8b22f14cf343139e9bc806937bf3",
+      "p2p": "192.168.1.99:4701",
+      "http_reachable_from_precision": false,
+      "ssh_reachable_from_precision": false
+    }
+  },
+  "operator_commands": {
+    "manual_dial": "curl -fsS -X POST -H 'content-type: application/json' --data '{\"addr\":\"192.168.1.99:4701\"}' http://127.0.0.1:4100/p2p/dial | jq .",
+    "verify_health": "curl -fsS http://127.0.0.1:4100/health | jq .",
+    "verify_peers": "curl -fsS http://127.0.0.1:4100/peers | jq ."
+  },
+  "expected_after_rejoin": {
+    "peer_id": "042c8b22f14cf343139e9bc806937bf3",
+    "peer_addr": "192.168.1.99:4701",
+    "peer_outbound_from_precision": true
+  },
+  "source_routes": {
+    "peer_rejoin_card_json": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "runbook_doc": "docs/public/local-multibox-nimo-rejoin-operator-runbook-v1.md",
+    "runbook_json": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "runbook_html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
+  },
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "operator_guidance_only": true,
+    "automatic_peer_dial_enabled_by_this_runbook": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  },
+  "expected_green_marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1_GREEN"
+}

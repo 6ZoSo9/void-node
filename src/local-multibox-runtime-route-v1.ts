@@ -30,6 +30,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const peerRejoinHtmlRoute = "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html";
   const peerRejoinJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json");
   const peerRejoinHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html");
+  const nimoRunbookJsonRoute = "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json";
+  const nimoRunbookHtmlRoute = "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html";
+  const nimoRunbookJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json");
+  const nimoRunbookHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -187,7 +191,9 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         closeoutJsonRoute,
         closeoutHtmlRoute,
         peerRejoinJsonRoute,
-        peerRejoinHtmlRoute],
+        peerRejoinHtmlRoute,
+        nimoRunbookJsonRoute,
+        nimoRunbookHtmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -225,6 +231,15 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(peerRejoinHtmlRoute, (_req: any, res: any) => {
     res.sendFile(peerRejoinHtmlPath);
+  });
+
+
+  app.get(nimoRunbookJsonRoute, (_req: any, res: any) => {
+    res.sendFile(nimoRunbookJsonPath);
+  });
+
+  app.get(nimoRunbookHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(nimoRunbookHtmlPath);
   });
 
 }
