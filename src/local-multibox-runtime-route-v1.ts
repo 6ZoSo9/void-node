@@ -22,6 +22,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const smokeScriptRoute = "/public-node/runtime/smoke-pack-v1.sh";
   const smokePackPath = path.resolve(process.cwd(), "public/public-node/runtime/smoke-pack-v1.json");
   const smokeScriptPath = path.resolve(process.cwd(), "public/public-node/runtime/smoke-pack-v1.sh");
+  const closeoutJsonRoute = "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json";
+  const closeoutHtmlRoute = "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html";
+  const closeoutJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json");
+  const closeoutHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -158,6 +162,17 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     } catch (e: any) {
       return res.status(500).json({ ok: false, marker: "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_ROUTE_V1", route: smokeScriptRoute, error: String(e?.message || e) });
     }
+  });
+
+  // VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_ROUTE_V1
+  app.get(closeoutJsonRoute, (_req, res) => {
+    res.type("application/json");
+    res.sendFile(closeoutJsonPath);
+  });
+
+  app.get(closeoutHtmlRoute, (_req, res) => {
+    res.type("text/html");
+    res.sendFile(closeoutHtmlPath);
   });
 
   app.get("/__void/diag/local-multibox-runtime-route-v1.json", (_req: any, res: any) => {
