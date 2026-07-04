@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>VOID Local Multibox Nimo Rejoin Operator Runbook v1</title></head>
+<body>
+<main>
+<h1>VOID Local Multibox Nimo Rejoin Operator Runbook v1</h1>
+<p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1</code></p>
+<p><strong>Status:</strong> <code>operator_runbook_ready</code></p>
+<h2>Manual Rejoin</h2>
+<pre>curl -fsS -X POST -H 'content-type: application/json' --data '{"addr":"192.168.1.99:4701"}' http://127.0.0.1:4100/p2p/dial | jq .</pre>
+<p>Expected Nimo peer id: <code>042c8b22f14cf343139e9bc806937bf3</code></p>
+<h2>Boundary</h2>
+<p>This runbook is public-safe operator guidance only. It does not enable automatic peer dialing, mutation routes, wallet send, money movement, WC settlement, validator admission, public WC self-serve earning, or a public internet mesh claim.</p>
+<p>Nimo HTTP and SSH were not observed from Precision during the sealed runtime check.</p>
+<p><a href="/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json">JSON</a></p>
+<p><a href="/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html">HTML</a></p>
+</main>
+</body>
+</html>
