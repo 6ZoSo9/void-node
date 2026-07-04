@@ -396,7 +396,10 @@
     "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html",
     "/public-node/connect",
     "/public-node/connect/public-node-connect-pack-v1.json",
-    "/public-node/connect/public-node-connect-pack-v1.html"
+    "/public-node/connect/public-node-connect-pack-v1.html",
+    "/public-node/connect/receipt-template-v1",
+    "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "/public-node/connect/public-node-connect-receipt-template-v1.html"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -842,7 +845,10 @@
     "local_multibox_nimo_rejoin_operator_runbook_html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html",
     "public_node_connect": "/public-node/connect",
     "public_node_connect_pack": "/public-node/connect/public-node-connect-pack-v1.json",
-    "public_node_connect_pack_html": "/public-node/connect/public-node-connect-pack-v1.html"
+    "public_node_connect_pack_html": "/public-node/connect/public-node-connect-pack-v1.html",
+    "public_node_connect_receipt_template": "/public-node/connect/receipt-template-v1",
+    "public_node_connect_receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "public_node_connect_receipt_template_html": "/public-node/connect/public-node-connect-receipt-template-v1.html"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -854,7 +860,8 @@
     "well_known_local_multibox_runtime_closeout_rollup_link": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROLLUP_LINK_V1",
     "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
     "local_multibox_nimo_rejoin_operator_runbook": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1",
-    "public_node_connect_pack": "VOID_PUBLIC_NODE_CONNECT_PACK_V1"
+    "public_node_connect_pack": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+    "public_node_connect_receipt_template": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -976,6 +983,28 @@
       "money_movement_enabled": false,
       "validator_admission_enabled": false,
       "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "public_node_connect_receipt_template": {
+    "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+    "status": "receipt_template_ready",
+    "page": "/public-node/connect/receipt-template-v1",
+    "json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "html": "/public-node/connect/public-node-connect-receipt-template-v1.html",
+    "expected_green_marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "operator_guidance_only": true,
+      "receipt_template_only": true,
+      "automatic_peer_dial_enabled_by_this_template": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "work_credit_claim_created": false,
       "public_internet_mesh_claim": false
     }
   }

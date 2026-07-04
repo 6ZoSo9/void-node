@@ -40,6 +40,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeConnectPagePath = path.resolve(process.cwd(), "public/public-node/connect/index.html");
   const publicNodeConnectJsonPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.json");
   const publicNodeConnectHtmlPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.html");
+  const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
+  const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
+  const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
+  const publicNodeConnectReceiptPagePath = path.resolve(process.cwd(), "public/public-node/connect/receipt-template-v1.html");
+  const publicNodeConnectReceiptJsonPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-receipt-template-v1.json");
+  const publicNodeConnectReceiptHtmlPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-receipt-template-v1.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -202,7 +208,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         nimoRunbookHtmlRoute,
         publicNodeConnectRoute,
         publicNodeConnectJsonRoute,
-        publicNodeConnectHtmlRoute],
+        publicNodeConnectHtmlRoute,
+        publicNodeConnectReceiptPageRoute,
+        publicNodeConnectReceiptJsonRoute,
+        publicNodeConnectReceiptHtmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -262,6 +271,19 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeConnectHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeConnectHtmlPath);
+  });
+
+
+  app.get(publicNodeConnectReceiptPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectReceiptPagePath);
+  });
+
+  app.get(publicNodeConnectReceiptJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectReceiptJsonPath);
+  });
+
+  app.get(publicNodeConnectReceiptHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectReceiptHtmlPath);
   });
 
 }
