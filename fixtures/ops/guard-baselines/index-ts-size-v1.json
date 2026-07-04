@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline after adding read-only public-node local multibox runtime verification card; card is visibility-only and does not add mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
+  "reason": "baseline after adding read-only well-known pointer to public-node local multibox runtime card index metadata; visibility-only, no mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
   "path": "src/index.ts",
-  "baseline_bytes": 3713185,
+  "baseline_bytes": 3713863,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
@@ -12,10 +12,11 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "public-node read-only runtime verification card",
+    "baseline_update_reason": "well-known read-only public-node runtime card index link",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
-    "public_node_runtime_card_only": true
+    "public_node_runtime_card_only": true,
+    "well_known_public_node_card_index_link_only": true
   },
-  "previous_baseline_bytes": 3711673
+  "previous_baseline_bytes": 3713185
 }
