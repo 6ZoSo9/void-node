@@ -374,6 +374,21 @@ The smoke script verifies the route chain end-to-end and should print:
 
 Boundary: this is read-only discovery/smoke visibility only. It does not enable wallet send, money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator mutation/admission, public WC self-serve earning, mutation routes, or public internet mesh completion.
 
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_README_START -->
+### Canonical runtime discovery closeout
+
+Marker: `VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1`
+
+The local multi-box runtime discovery path is sealed by a canonical closeout rollup:
+
+- `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json`
+- `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html`
+
+Expected marker: `VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1`
+
+This is read-only discovery/status documentation only; it does not enable mutation, wallet, money, validator, WC self-serve, or public mesh behavior.
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_README_END -->
+
 More detail: [`docs/public/local-multibox-runtime-verification-path-v1.md`](docs/public/local-multibox-runtime-verification-path-v1.md)
 <!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_END -->
 

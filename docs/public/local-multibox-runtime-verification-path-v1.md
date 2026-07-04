@@ -56,3 +56,22 @@ It does not enable or claim:
 - validator admission
 - public WC self-serve earning
 - public internet mesh completion
+
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_DOC_START -->
+## Canonical closeout rollup
+
+Marker: `VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1`
+
+The local multi-box runtime discovery path now has a canonical closeout rollup:
+
+- JSON: `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json`
+- HTML: `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html`
+
+Expected closeout marker:
+
+`VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1`
+
+The closeout rollup summarizes the full public-safe discovery path from `/.well-known/void-public-node.json` through `/public-node`, `/public-node/index.json`, `/public-node/runtime`, the runtime smoke card, and the downloadable smoke script.
+
+Boundary: this is read-only discovery/status documentation only. It does not enable mutation routes, wallet send, money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator mutation/admission, public WC self-serve earning, or public internet mesh completion.
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_DOC_END -->
