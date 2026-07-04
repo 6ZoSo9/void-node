@@ -1,0 +1,112 @@
+{
+  "boundary": {
+    "automatic_peer_dial_enabled_by_this_example": false,
+    "buy_void_fulfillment_enabled": false,
+    "example_creates_no_receipt": true,
+    "money_movement_enabled": false,
+    "mutation_route_enabled": false,
+    "operator_guidance_only": true,
+    "operator_receipt_example_only": true,
+    "public_internet_mesh_claim": false,
+    "public_routes_only": true,
+    "public_wc_self_serve_earning_enabled": false,
+    "read_only": true,
+    "receipt_example_only": true,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "wallet_send_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "work_credit_claim_created": false
+  },
+  "components": [
+    {
+      "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_CLOSEOUT_V1_GREEN",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
+      "name": "operator_handoff_packet",
+      "route": "/public-node/operator-handoff-packet-v1",
+      "status": "green"
+    },
+    {
+      "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_CLOSEOUT_V1_GREEN",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
+      "name": "operator_status_rollup",
+      "route": "/public-node/operator-status-rollup-v1",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1",
+      "name": "operator_quickstart",
+      "route": "/public-node/operator-quickstart-v1",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+      "name": "connect_pack",
+      "route": "/public-node/connect/public-node-connect-pack-v1.json",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+      "name": "receipt_template",
+      "route": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1",
+      "name": "bootstrap_gateway",
+      "route": "/bootstrap/peers.json",
+      "status": "green"
+    }
+  ],
+  "example_receipt": {
+    "example_only": true,
+    "money_transfer_claim": false,
+    "observed_bootstrap_route": "/bootstrap/peers.json",
+    "observed_connect_pack_marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+    "observed_handoff_packet_marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
+    "observed_peer_count": 1,
+    "observed_receipt_template_marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+    "observed_status_rollup_marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
+    "observed_timestamp_utc": "2026-07-04T00:00:00Z",
+    "operator_alias": "example-outside-node-operator",
+    "operator_node_id": "example-node-id-public-safe-placeholder",
+    "operator_public_base_url_if_any": "https://example.invalid/void-public-node",
+    "private_material_included": false,
+    "public_internet_mesh_claim": false,
+    "public_safe_notes": "Example only. Replace placeholders with public-safe operator observations. Do not include private keys, seed phrases, wallet secrets, signer secrets, private operator data, money transfer claims, validator claims, or Work Credit claims.",
+    "receipt_schema": "void.public_node.operator_receipt.example.v1",
+    "validator_admission_claim": false,
+    "work_credit_claim": false
+  },
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1_GREEN",
+  "forbidden_receipt_fields": [
+    "private_key",
+    "seed_phrase",
+    "wallet_secret",
+    "signer_secret",
+    "private_ip_unless_operator_explicitly_allows",
+    "money_transfer_claim",
+    "validator_admission_claim",
+    "work_credit_claim"
+  ],
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1",
+  "purpose": "Public-safe example receipt for an outside node operator after following the handoff packet and connect receipt template.",
+  "routes": {
+    "bootstrap_peers": "/bootstrap/peers.json",
+    "bootstrap_public": "/__void/public-bootstrap.json",
+    "connect_pack": "/public-node/connect",
+    "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json",
+    "handoff_packet": "/public-node/operator-handoff-packet-v1",
+    "handoff_packet_json": "/public-node/public-node-operator-handoff-packet-v1.json",
+    "operator_quickstart": "/public-node/operator-quickstart-v1",
+    "operator_status_rollup": "/public-node/operator-status-rollup-v1",
+    "operator_status_rollup_json": "/public-node/public-node-operator-status-rollup-v1.json",
+    "receipt_example_html": "/public-node/public-node-operator-receipt-example-v1.html",
+    "receipt_example_json": "/public-node/public-node-operator-receipt-example-v1.json",
+    "receipt_example_page": "/public-node/operator-receipt-example-v1",
+    "receipt_template": "/public-node/connect/receipt-template-v1",
+    "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json"
+  },
+  "schema": "void.public_node.operator_receipt_example.v1",
+  "status": "operator_receipt_example_ready"
+}
