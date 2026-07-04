@@ -820,5 +820,53 @@
       "public_wc_self_serve_earning_enabled": false,
       "public_internet_mesh_claim": false
     }
+  },
+  "links": {
+    "local_multibox_runtime_public_node_card": "/public-node#publicNodeLocalMultiboxRuntimeCard",
+    "local_multibox_runtime": "/public-node/runtime",
+    "local_multibox_runtime_smoke_card": "/public-node/runtime#runtime-smoke-check",
+    "local_multibox_runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
+    "local_multibox_runtime_smoke_script": "/public-node/runtime/smoke-pack-v1.sh"
+  },
+  "route_markers": {
+    "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
+    "local_multibox_runtime_public_node_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1",
+    "local_multibox_runtime_smoke_pack": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1",
+    "local_multibox_runtime_smoke_card": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1"
+  },
+  "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
+  "local_multibox_runtime_public_node_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
+    "purpose": "machine_discoverable_root_index_metadata_for_public_node_runtime_verification_card",
+    "status": "public_node_runtime_card_indexed",
+    "public_node_route": "/public-node",
+    "public_node_card_route": "/public-node#publicNodeLocalMultiboxRuntimeCard",
+    "public_node_card_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_V1",
+    "runtime_discovery": "/public-node/runtime",
+    "runtime_smoke_card": "/public-node/runtime#runtime-smoke-check",
+    "runtime_smoke_pack_json": "/public-node/runtime/smoke-pack-v1.json",
+    "runtime_smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN",
+    "verifies": [
+      "/.well-known/void-public-node.json",
+      "/public-node/index.json",
+      "/public-node/runtime",
+      "/public-node/runtime/index.json",
+      "/public-node/runtime/local-multibox-status-v1.json",
+      "/__void/diag/local-multibox-runtime-route-v1.json"
+    ],
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
   }
 }
