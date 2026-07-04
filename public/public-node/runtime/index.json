@@ -24,7 +24,9 @@
     "smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
     "smoke_card": "/public-node/runtime#runtime-smoke-check",
     "closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
-    "closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html"
+    "closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "local_multibox_runtime_peer_rejoin_card": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "local_multibox_runtime_peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
   },
   "boundary": {
     "read_only": true,
@@ -100,5 +102,29 @@
     "html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
     "status": "sealed_closeout_rollup_ready",
     "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN"
+  },
+  "routes": [
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
+  ],
+  "route_markers": {
+    "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1"
+  },
+  "local_multibox_runtime_peer_rejoin_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+    "status": "precision_to_nimo_p2p_rejoin_observed",
+    "json": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "runtime_visibility_only": true,
+      "automatic_peer_dial_enabled_by_this_card": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
+      "public_internet_mesh_claim": false
+    }
   }
 }

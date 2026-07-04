@@ -389,7 +389,9 @@
       "kind": "html",
       "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
       "use": "human-readable local multi-box runtime status"
-    }
+    },
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -828,7 +830,9 @@
     "local_multibox_runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
     "local_multibox_runtime_smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
     "local_multibox_runtime_closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
-    "local_multibox_runtime_closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html"
+    "local_multibox_runtime_closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "local_multibox_runtime_peer_rejoin_card": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "local_multibox_runtime_peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -837,7 +841,8 @@
     "local_multibox_runtime_smoke_card": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1",
     "local_multibox_runtime_closeout_root_index": "VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROOT_INDEX_V1",
     "local_multibox_runtime_discovery_closeout_rollup": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1",
-    "well_known_local_multibox_runtime_closeout_rollup_link": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROLLUP_LINK_V1"
+    "well_known_local_multibox_runtime_closeout_rollup_link": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_ROLLUP_LINK_V1",
+    "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -905,6 +910,23 @@
       "validator_mutation_enabled": false,
       "validator_admission_enabled": false,
       "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "local_multibox_runtime_peer_rejoin_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+    "status": "precision_to_nimo_p2p_rejoin_observed",
+    "json": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "runtime_visibility_only": true,
+      "automatic_peer_dial_enabled_by_this_card": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
       "public_internet_mesh_claim": false
     }
   }
