@@ -70,6 +70,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorReceiptReviewChecklistPagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-review-checklist-v1.html");
   const publicNodeOperatorReceiptReviewChecklistJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-checklist-v1.json");
   const publicNodeOperatorReceiptReviewChecklistHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-checklist-v1.html");
+  const publicNodeOperatorReceiptReviewDecisionTemplatePageRoute = "/public-node/operator-receipt-review-decision-template-v1";
+  const publicNodeOperatorReceiptReviewDecisionTemplateJsonRoute = "/public-node/public-node-operator-receipt-review-decision-template-v1.json";
+  const publicNodeOperatorReceiptReviewDecisionTemplateHtmlRoute = "/public-node/public-node-operator-receipt-review-decision-template-v1.html";
+  const publicNodeOperatorReceiptReviewDecisionTemplatePagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-review-decision-template-v1.html");
+  const publicNodeOperatorReceiptReviewDecisionTemplateJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-template-v1.json");
+  const publicNodeOperatorReceiptReviewDecisionTemplateHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-template-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -376,6 +382,18 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorReceiptReviewChecklistHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorReceiptReviewChecklistHtmlPath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionTemplatePageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionTemplatePagePath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionTemplateJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionTemplateJsonPath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionTemplateHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionTemplateHtmlPath);
   });
 
 }
