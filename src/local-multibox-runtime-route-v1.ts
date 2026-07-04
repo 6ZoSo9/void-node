@@ -46,6 +46,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorQuickstartPagePath = path.resolve(process.cwd(), "public/public-node/operator-quickstart-v1.html");
   const publicNodeOperatorQuickstartJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-quickstart-v1.json");
   const publicNodeOperatorQuickstartHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-quickstart-v1.html");
+  const publicNodeOperatorStatusRollupPageRoute = "/public-node/operator-status-rollup-v1";
+  const publicNodeOperatorStatusRollupJsonRoute = "/public-node/public-node-operator-status-rollup-v1.json";
+  const publicNodeOperatorStatusRollupHtmlRoute = "/public-node/public-node-operator-status-rollup-v1.html";
+  const publicNodeOperatorStatusRollupPagePath = path.resolve(process.cwd(), "public/public-node/operator-status-rollup-v1.html");
+  const publicNodeOperatorStatusRollupJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-status-rollup-v1.json");
+  const publicNodeOperatorStatusRollupHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-status-rollup-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -303,6 +309,19 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorQuickstartHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorQuickstartHtmlPath);
+  });
+
+
+  app.get(publicNodeOperatorStatusRollupPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorStatusRollupPagePath);
+  });
+
+  app.get(publicNodeOperatorStatusRollupJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorStatusRollupJsonPath);
+  });
+
+  app.get(publicNodeOperatorStatusRollupHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorStatusRollupHtmlPath);
   });
 
 }
