@@ -33,6 +33,24 @@
     </ul>
   </div>
 
+  
+  <div class="card" id="runtime-smoke-check">
+    <h2>Runtime Smoke Check</h2>
+    <p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1</code></p>
+    <p>
+      This public-safe smoke check verifies the well-known discovery route, public-node root index,
+      runtime discovery index, local multi-box status JSON, and runtime diagnostic route.
+    </p>
+
+    <p>Copy and run:</p>
+    <pre><code>PUBLIC_NODE_BASE="${PUBLIC_NODE_BASE:-http://127.0.0.1:4100}" bash -c 'TMP_SCRIPT="$(mktemp)" &amp;&amp; curl -fsS "$PUBLIC_NODE_BASE/public-node/runtime/smoke-pack-v1.sh" -o "$TMP_SCRIPT" &amp;&amp; bash "$TMP_SCRIPT"; rc=$?; rm -f "$TMP_SCRIPT"; exit $rc'</code></pre>
+
+    <ul>
+      <li><a href="./smoke-pack-v1.json">Smoke pack JSON</a></li>
+      <li><a href="./smoke-pack-v1.sh">Runtime smoke pack shell script</a></li>
+    </ul>
+  </div>
+
   <h2>Boundary</h2>
   <p>
     This is read-only/public-safe runtime discovery only. It does not enable wallet execution,

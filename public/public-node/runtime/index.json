@@ -21,7 +21,8 @@
     "diag": "/__void/diag/local-multibox-runtime-route-v1.json",
     "public_node": "/public-node",
     "smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
-    "smoke_script": "/public-node/runtime/smoke-pack-v1.sh"
+    "smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "smoke_card": "/public-node/runtime#runtime-smoke-check"
   },
   "boundary": {
     "read_only": true,
@@ -47,6 +48,36 @@
       "/public-node/runtime/local-multibox-status-v1.json",
       "/__void/diag/local-multibox-runtime-route-v1.json"
     ],
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "smoke_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1",
+    "purpose": "human_facing_copyable_runtime_smoke_command",
+    "status": "runtime_smoke_card_ready",
+    "page": "/public-node/runtime",
+    "smoke_pack_json": "/public-node/runtime/smoke-pack-v1.json",
+    "smoke_pack_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "verifies": [
+      "/.well-known/void-public-node.json",
+      "/public-node/index.json",
+      "/public-node/runtime",
+      "/public-node/runtime/index.json",
+      "/public-node/runtime/local-multibox-status-v1.json",
+      "/__void/diag/local-multibox-runtime-route-v1.json"
+    ],
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN",
     "boundary": {
       "read_only": true,
       "public_routes_only": true,
