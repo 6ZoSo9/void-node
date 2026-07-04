@@ -26,6 +26,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const closeoutHtmlRoute = "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html";
   const closeoutJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json");
   const closeoutHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html");
+  const peerRejoinJsonRoute = "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json";
+  const peerRejoinHtmlRoute = "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html";
+  const peerRejoinJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json");
+  const peerRejoinHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -179,7 +183,11 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
     res.json({
       ok: true,
       marker: "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1",
-      routes: [publicNodeRootIndexRoute, indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute, smokePackRoute, smokeScriptRoute],
+      routes: [publicNodeRootIndexRoute, indexAliasRoute, indexRoute, indexHtmlRoute, jsonRoute, htmlRoute, smokePackRoute, smokeScriptRoute,
+        closeoutJsonRoute,
+        closeoutHtmlRoute,
+        peerRejoinJsonRoute,
+        peerRejoinHtmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -210,4 +218,13 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
       }
     });
   });
+
+  app.get(peerRejoinJsonRoute, (_req: any, res: any) => {
+    res.sendFile(peerRejoinJsonPath);
+  });
+
+  app.get(peerRejoinHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(peerRejoinHtmlPath);
+  });
+
 }
