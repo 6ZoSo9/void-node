@@ -350,3 +350,30 @@ make public-beta-preflight
 make wc-wallet-proof
 
 Self-hosted beta CI plan: SELF_HOSTED_BETA_CI_PLAN.md
+
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_START -->
+## Local multi-box runtime verification
+
+Marker: `VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1`
+
+VOID now exposes a public-safe verification path for the local multi-box runtime stack. External testers and agents can start at:
+
+`/.well-known/void-public-node.json`
+
+From there, the well-known discovery document links to the runtime discovery surface, smoke card, smoke pack JSON, and smoke script:
+
+- `/public-node/index.json`
+- `/public-node/runtime`
+- `/public-node/runtime#runtime-smoke-check`
+- `/public-node/runtime/smoke-pack-v1.json`
+- `/public-node/runtime/smoke-pack-v1.sh`
+
+The smoke script verifies the route chain end-to-end and should print:
+
+`VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN`
+
+Boundary: this is read-only discovery/smoke visibility only. It does not enable wallet send, money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator mutation/admission, public WC self-serve earning, mutation routes, or public internet mesh completion.
+
+More detail: [`docs/public/local-multibox-runtime-verification-path-v1.md`](docs/public/local-multibox-runtime-verification-path-v1.md)
+<!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_END -->
+
