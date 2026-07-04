@@ -22,7 +22,9 @@
     "public_node": "/public-node",
     "smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
     "smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
-    "smoke_card": "/public-node/runtime#runtime-smoke-check"
+    "smoke_card": "/public-node/runtime#runtime-smoke-check",
+    "closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html"
   },
   "boundary": {
     "read_only": true,
@@ -91,5 +93,12 @@
       "public_wc_self_serve_earning_enabled": false,
       "public_internet_mesh_claim": false
     }
+  },
+  "local_multibox_runtime_discovery_closeout_rollup": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1",
+    "json": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "status": "sealed_closeout_rollup_ready",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN"
   }
 }
