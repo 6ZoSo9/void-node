@@ -34,6 +34,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const nimoRunbookHtmlRoute = "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html";
   const nimoRunbookJsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json");
   const nimoRunbookHtmlPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html");
+  const publicNodeConnectRoute = "/public-node/connect";
+  const publicNodeConnectJsonRoute = "/public-node/connect/public-node-connect-pack-v1.json";
+  const publicNodeConnectHtmlRoute = "/public-node/connect/public-node-connect-pack-v1.html";
+  const publicNodeConnectPagePath = path.resolve(process.cwd(), "public/public-node/connect/index.html");
+  const publicNodeConnectJsonPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.json");
+  const publicNodeConnectHtmlPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.html");
 
   app.get(jsonRoute, (_req: any, res: any) => {
     try {
@@ -193,7 +199,10 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         peerRejoinJsonRoute,
         peerRejoinHtmlRoute,
         nimoRunbookJsonRoute,
-        nimoRunbookHtmlRoute],
+        nimoRunbookHtmlRoute,
+        publicNodeConnectRoute,
+        publicNodeConnectJsonRoute,
+        publicNodeConnectHtmlRoute],
       files: {
         cwd: process.cwd(),
         jsonPath,
@@ -240,6 +249,19 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(nimoRunbookHtmlRoute, (_req: any, res: any) => {
     res.sendFile(nimoRunbookHtmlPath);
+  });
+
+
+  app.get(publicNodeConnectRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectPagePath);
+  });
+
+  app.get(publicNodeConnectJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectJsonPath);
+  });
+
+  app.get(publicNodeConnectHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeConnectHtmlPath);
   });
 
 }
