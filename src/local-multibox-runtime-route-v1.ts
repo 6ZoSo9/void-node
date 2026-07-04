@@ -165,12 +165,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   });
 
   // VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_ROUTE_V1
-  app.get(closeoutJsonRoute, (_req, res) => {
+  app.get(closeoutJsonRoute, (_req: any, res: any) => {
     res.type("application/json");
     res.sendFile(closeoutJsonPath);
   });
 
-  app.get(closeoutHtmlRoute, (_req, res) => {
+  app.get(closeoutHtmlRoute, (_req: any, res: any) => {
     res.type("text/html");
     res.sendFile(closeoutHtmlPath);
   });
