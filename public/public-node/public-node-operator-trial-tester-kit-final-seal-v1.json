@@ -1,0 +1,111 @@
+{
+  "kind": "public_node_operator_trial_tester_kit_final_seal_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_FINAL_SEAL_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_FINAL_SEAL_V1_GREEN",
+  "status": "tester_kit_final_sealed",
+  "title": "VOID Public Node Operator Trial Tester Kit Final Seal v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-kit-final-seal-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-kit-final-seal-v1.json",
+  "purpose": "Final seal confirming the public node operator trial tester kit is linked, usable, public-safe, read-only, and non-authoritative.",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "final_seal_only": true,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true,
+    "no_private_keys_required": true,
+    "no_secrets_required": true,
+    "no_pii_required": true
+  },
+  "seal_status": {
+    "tester_kit_rollup_ready": true,
+    "tester_instruction_pack_ready": true,
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example_ready": true,
+    "submission_intake_ready": true,
+    "submission_review_queue_ready": true,
+    "terminal_final_seal_ready": true,
+    "tester_kit_final_sealed": true,
+    "operator_review_required_for_real_receipts": true,
+    "live_authority_enabled": false,
+    "tester_receipts_are_network_truth": false
+  },
+  "sealed_components": [
+    {
+      "key": "tester_kit_rollup",
+      "route": "/public-node/public-node-operator-trial-tester-kit-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "tester_instruction_pack",
+      "route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_template",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_example",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "submission_intake",
+      "route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1_GREEN"
+    },
+    {
+      "key": "submission_review_queue",
+      "route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1_GREEN"
+    },
+    {
+      "key": "terminal_final_seal",
+      "route": "/public-node/public-node-operator-trial-terminal-final-seal-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_FINAL_SEAL_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_FINAL_SEAL_V1_GREEN"
+    }
+  ],
+  "tester_flow_locked": [
+    "Read tester instruction pack.",
+    "Copy tester receipt template.",
+    "Use tester receipt example as formatting reference only.",
+    "Record public-safe observed results.",
+    "Submit for operator review only.",
+    "Do not treat tester receipt as network truth."
+  ],
+  "do_not_infer": [
+    "live operator authority",
+    "real external tester submission",
+    "network truth",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}
