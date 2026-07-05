@@ -1,0 +1,183 @@
+{
+  "boundary": {
+    "automatic_peer_dial_enabled_by_this_dashboard": false,
+    "buy_void_fulfillment_enabled": false,
+    "dashboard_creates_no_money_movement": true,
+    "dashboard_creates_no_receipt": true,
+    "dashboard_creates_no_review_decision": true,
+    "dashboard_creates_no_validator_admission": true,
+    "dashboard_creates_no_work_credit_claim": true,
+    "human_facing_navigation_only": true,
+    "money_movement_enabled": false,
+    "mutation_route_enabled": false,
+    "operator_dashboard_only": true,
+    "operator_guidance_only": true,
+    "public_internet_mesh_claim": false,
+    "public_routes_only": true,
+    "public_wc_self_serve_earning_enabled": false,
+    "read_only": true,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "wallet_send_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "work_credit_claim_created": false
+  },
+  "dashboard_sections": [
+    {
+      "id": "status",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
+      "primary_route": "/public-node/operator-status-rollup-v1",
+      "purpose": "See the current public-safe operator lane status.",
+      "status": "green",
+      "title": "Operator status"
+    },
+    {
+      "id": "start",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1",
+      "primary_route": "/public-node/operator-quickstart-v1",
+      "purpose": "Start from the public-safe outside-node-operator quickstart.",
+      "status": "green",
+      "title": "Operator quickstart"
+    },
+    {
+      "id": "connect",
+      "json_route": "/public-node/connect/public-node-connect-pack-v1.json",
+      "marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+      "primary_route": "/public-node/connect",
+      "purpose": "Use the public-safe connect lane and receipt template.",
+      "status": "green",
+      "title": "Connect pack"
+    },
+    {
+      "id": "handoff",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
+      "primary_route": "/public-node/operator-handoff-packet-v1",
+      "purpose": "Read the public-safe handoff packet for outside node operators.",
+      "status": "green",
+      "title": "Operator handoff packet"
+    },
+    {
+      "id": "receipt_example",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1",
+      "primary_route": "/public-node/operator-receipt-example-v1",
+      "purpose": "Compare against a public-safe receipt example.",
+      "status": "green",
+      "title": "Receipt example"
+    },
+    {
+      "id": "review",
+      "markers": [
+        "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1",
+        "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1",
+        "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_V1"
+      ],
+      "primary_route": "/public-node/operator-receipt-review-checklist-v1",
+      "purpose": "Use the manual review checklist, static decision template, and example decision.",
+      "related_routes": [
+        "/public-node/operator-receipt-review-decision-template-v1",
+        "/public-node/operator-receipt-review-decision-example-v1"
+      ],
+      "status": "green",
+      "title": "Review checklist and decision surfaces"
+    },
+    {
+      "id": "sealed_review_lane",
+      "markers": [
+        "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1",
+        "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_CLOSEOUT_V1_GREEN",
+        "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_FINAL_SEAL_V1_GREEN",
+        "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_FINAL_SEAL_CLOSEOUT_V1_GREEN"
+      ],
+      "primary_route": "/public-node/operator-review-lane-rollup-v1",
+      "purpose": "Confirm the review lane rollup, final seal, and closeout proof chain.",
+      "status": "green",
+      "title": "Sealed review lane"
+    },
+    {
+      "id": "bootstrap",
+      "markers": [
+        "VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1",
+        "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN",
+        "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1_GREEN"
+      ],
+      "primary_route": "/bootstrap/peers.json",
+      "purpose": "Confirm public bootstrap and local runtime smoke surfaces.",
+      "related_routes": [
+        "/__void/public-bootstrap.json",
+        "/public-node/runtime/index.json",
+        "/public-node/runtime/smoke-pack-v1.sh"
+      ],
+      "status": "green",
+      "title": "Bootstrap and runtime checks"
+    }
+  ],
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1_GREEN",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1",
+  "purpose": "One public-safe human-facing dashboard for outside-node-operator onboarding, review-lane navigation, sealed proof-chain visibility, and bootstrap/runtime status.",
+  "recommended_operator_path": [
+    {
+      "name": "read_status",
+      "order": 1,
+      "route": "/public-node/operator-status-rollup-v1"
+    },
+    {
+      "name": "follow_quickstart",
+      "order": 2,
+      "route": "/public-node/operator-quickstart-v1"
+    },
+    {
+      "name": "use_connect_pack",
+      "order": 3,
+      "route": "/public-node/connect"
+    },
+    {
+      "name": "read_handoff_packet",
+      "order": 4,
+      "route": "/public-node/operator-handoff-packet-v1"
+    },
+    {
+      "name": "compare_receipt_example",
+      "order": 5,
+      "route": "/public-node/operator-receipt-example-v1"
+    },
+    {
+      "name": "manual_review_checklist",
+      "order": 6,
+      "route": "/public-node/operator-receipt-review-checklist-v1"
+    },
+    {
+      "name": "decision_template_and_example",
+      "order": 7,
+      "related_route": "/public-node/operator-receipt-review-decision-example-v1",
+      "route": "/public-node/operator-receipt-review-decision-template-v1"
+    },
+    {
+      "name": "confirm_review_lane_rollup",
+      "order": 8,
+      "route": "/public-node/operator-review-lane-rollup-v1"
+    }
+  ],
+  "routes": {
+    "bootstrap_peers": "/bootstrap/peers.json",
+    "bootstrap_public": "/__void/public-bootstrap.json",
+    "connect_pack": "/public-node/connect",
+    "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json",
+    "dashboard_html": "/public-node/public-node-operator-dashboard-v1.html",
+    "dashboard_json": "/public-node/public-node-operator-dashboard-v1.json",
+    "dashboard_page": "/public-node/operator-dashboard-v1",
+    "decision_example": "/public-node/operator-receipt-review-decision-example-v1",
+    "decision_template": "/public-node/operator-receipt-review-decision-template-v1",
+    "handoff_packet": "/public-node/operator-handoff-packet-v1",
+    "operator_quickstart": "/public-node/operator-quickstart-v1",
+    "operator_review_lane_rollup": "/public-node/operator-review-lane-rollup-v1",
+    "operator_status_rollup": "/public-node/operator-status-rollup-v1",
+    "receipt_example": "/public-node/operator-receipt-example-v1",
+    "receipt_template": "/public-node/connect/receipt-template-v1",
+    "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "review_checklist": "/public-node/operator-receipt-review-checklist-v1",
+    "runtime_index": "/public-node/runtime/index.json",
+    "runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.sh"
+  },
+  "schema": "void.public_node.operator_dashboard.v1",
+  "status": "operator_dashboard_ready"
+}
