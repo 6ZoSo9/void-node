@@ -1,0 +1,18 @@
+name: public-node-operator-trial-submission-review-chain-final-seal
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  public-node-operator-trial-submission-review-chain-final-seal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public node operator trial submission review chain final seal
+        run: bash tools/check_public_node_operator_trial_submission_review_chain_final_seal_v1.sh
