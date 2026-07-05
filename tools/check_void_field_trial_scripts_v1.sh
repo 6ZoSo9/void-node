@@ -36,4 +36,9 @@ fi
 
 grep -q 'Do not paste the placeholder' /tmp/void-field-pull-placeholder.out
 
+VOID_NETWORK_HINT=cellphone-data npm run datanet:pull -- --diagnose-only http://192.168.1.88:8088/public-node/index.json >/tmp/void-field-pull-diagnostics.out
+grep -q 'VOID_DATANET_PULL_DIAGNOSTIC_V1_READY' /tmp/void-field-pull-diagnostics.out
+grep -q 'target_class=private_lan' /tmp/void-field-pull-diagnostics.out
+grep -q '192.168.x.x is private LAN address space' /tmp/void-field-pull-diagnostics.out
+
 echo "VOID_FIELD_TRIAL_SCRIPTS_V1_GREEN"
