@@ -428,7 +428,9 @@
     "/public-node/public-node-operator-trial-review-decision-example-v1.html",
     "/public-node/public-node-operator-trial-review-decision-example-v1.json",
     "/public-node/public-node-operator-trial-lane-rollup-v1.html",
-    "/public-node/public-node-operator-trial-lane-rollup-v1.json"
+    "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+    "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "/public-node/public-node-operator-trial-lane-final-seal-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -916,7 +918,10 @@
     "public_node_operator_trial_review_decision_example_json": "/public-node/public-node-operator-trial-review-decision-example-v1.json",
     "public_node_operator_trial_lane_rollup": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
     "public_node_operator_trial_lane_rollup_html": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
-    "public_node_operator_trial_lane_rollup_json": "/public-node/public-node-operator-trial-lane-rollup-v1.json"
+    "public_node_operator_trial_lane_rollup_json": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+    "public_node_operator_trial_lane_final_seal": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "public_node_operator_trial_lane_final_seal_html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "public_node_operator_trial_lane_final_seal_json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -942,7 +947,8 @@
     "public_node_operator_trial_packet": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1",
     "public_node_operator_trial_receipt_example": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1",
     "public_node_operator_trial_review_decision_example": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1",
-    "public_node_operator_trial_lane_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1"
+    "public_node_operator_trial_lane_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1",
+    "public_node_operator_trial_lane_final_seal": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1794,5 +1800,40 @@
         "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1"
       }
     }
+  },
+  "public_node_operator_trial_lane_final_seal": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1_GREEN",
+    "status": "trial_lane_final_seal_ready",
+    "title": "VOID Public Node Operator Trial Lane Final Seal v1",
+    "html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+    "page": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true
+    },
+    "sealed_chain_components": [
+      "trial_packet",
+      "trial_receipt_example",
+      "trial_review_decision_example",
+      "trial_lane_rollup"
+    ],
+    "source_trial_lane_rollup_route": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+    "source_trial_packet_route": "/public-node/public-node-operator-trial-packet-v1.json",
+    "source_trial_receipt_example_route": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+    "source_trial_review_decision_example_route": "/public-node/public-node-operator-trial-review-decision-example-v1.json"
   }
 }
