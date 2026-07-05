@@ -1,0 +1,162 @@
+{
+  "kind": "public_node_operator_trial_tester_receipt_template_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1_GREEN",
+  "status": "tester_receipt_template_ready",
+  "title": "VOID Public Node Operator Trial Tester Receipt Template v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+  "purpose": "Copy-safe public tester receipt template for recording observed public node operator trial results before operator review.",
+  "source_tester_instruction_pack_route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+  "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+  "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+  "source_terminal_final_seal_route": "/public-node/public-node-operator-trial-terminal-final-seal-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "copy_template_only": true,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipt_is_network_truth": false,
+    "operator_review_required_for_real_receipts": true,
+    "no_private_keys_required": true,
+    "no_secrets_required": true,
+    "no_pii_required": true
+  },
+  "receipt_fields": [
+    {
+      "key": "tester_alias",
+      "required": true,
+      "description": "Public-safe tester alias or handle."
+    },
+    {
+      "key": "tester_contact_optional",
+      "required": false,
+      "description": "Optional public-safe contact route; leave blank if private."
+    },
+    {
+      "key": "run_id",
+      "required": true,
+      "description": "Tester-chosen unique run id."
+    },
+    {
+      "key": "timestamp_utc",
+      "required": true,
+      "description": "UTC time when the trial was run."
+    },
+    {
+      "key": "node_version_or_commit",
+      "required": true,
+      "description": "VOID node version, commit, tag, or public build reference tested."
+    },
+    {
+      "key": "environment_os",
+      "required": true,
+      "description": "Operating system and basic environment."
+    },
+    {
+      "key": "hardware_summary_optional",
+      "required": false,
+      "description": "Optional public-safe hardware summary."
+    },
+    {
+      "key": "network_mode",
+      "required": true,
+      "description": "LAN, local-only, public node page review, or other public-safe test mode."
+    },
+    {
+      "key": "public_routes_checked",
+      "required": true,
+      "description": "Public routes or files checked by the tester."
+    },
+    {
+      "key": "commands_run",
+      "required": true,
+      "description": "Commands actually run, redacted for secrets."
+    },
+    {
+      "key": "observed_results",
+      "required": true,
+      "description": "What the tester observed."
+    },
+    {
+      "key": "failures_or_warnings",
+      "required": true,
+      "description": "Any failures, warnings, confusion, or blockers."
+    },
+    {
+      "key": "evidence_links_or_hashes",
+      "required": false,
+      "description": "Optional public-safe evidence links, hashes, screenshots, or logs."
+    },
+    {
+      "key": "tester_attestation",
+      "required": true,
+      "description": "Plain-language statement that the receipt is accurate to the tester's observation."
+    },
+    {
+      "key": "requested_review_action",
+      "required": true,
+      "description": "review, needs-help, reject, or informational."
+    }
+  ],
+  "copy_template": {
+    "kind": "public_node_operator_trial_tester_receipt_v1",
+    "template_source_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+    "tester_alias": "CHANGE_ME_PUBLIC_ALIAS",
+    "tester_contact_optional": "",
+    "run_id": "CHANGE_ME_UNIQUE_RUN_ID",
+    "timestamp_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "node_version_or_commit": "CHANGE_ME",
+    "environment_os": "CHANGE_ME",
+    "hardware_summary_optional": "",
+    "network_mode": "public-route-review | local-node-smoke | lan-node-smoke | other",
+    "public_routes_checked": [],
+    "commands_run": [],
+    "observed_results": [],
+    "failures_or_warnings": [],
+    "evidence_links_or_hashes": [],
+    "tester_attestation": "I attest this receipt describes my own public-safe observed results and contains no private keys, secrets, or private personal data.",
+    "requested_review_action": "review"
+  },
+  "submission_rules": [
+    "Use only public-safe observations.",
+    "Do not include private keys, seed phrases, wallet secrets, API keys, passwords, private IPs unless intentionally public, or private personal data.",
+    "A tester receipt is not network truth.",
+    "A tester receipt does not award WC, trigger money movement, admit validators, or authorize runtime mutation.",
+    "Real receipts require operator review before any downstream decision."
+  ],
+  "do_not_include": [
+    "private keys",
+    "seed phrases",
+    "wallet secrets",
+    "API keys",
+    "passwords",
+    "private logs containing secrets",
+    "private personal data",
+    "unredacted machine secrets"
+  ],
+  "do_not_infer": [
+    "network truth",
+    "live operator authority",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}
