@@ -510,6 +510,36 @@
       "wc_issuance_enabled": false
     }
   ],
+  "field_replication_proof_bundle_public_summary_v1": {
+    "boundaries": {
+      "absolute_paths_published": false,
+      "hostnames_published": false,
+      "private_bundle_published": false,
+      "public_mutation_route_enabled": false,
+      "raw_receipts_published": false,
+      "runtime_public_write_enabled": false,
+      "static_public_file_published_by_pr": true,
+      "tailnet_urls_published": false
+    },
+    "dangerous_authorities_enabled": {
+      "automatic_rewards": false,
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "secret_handling": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "doc_source_path": "docs/public/datanet-field-replication-proof-bundle-public-summary-v1.md",
+    "private_details_redacted": true,
+    "proof_sha256": "e7bee9f07a0959c2f87d959c5fd60ef5502e5a75c6c7dada2e7f8418c5ab9fcb",
+    "public_html_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.html",
+    "public_json_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.json",
+    "public_safe": true,
+    "source_bundle_sha256": "e441f7d9f5481358344f41543ccb7a0f7991e2988e857d0ae9d54268b29740f2",
+    "status": "green",
+    "title": "DataNet field replication proof bundle public summary v1"
+  },
   "field_replication_safe_serve_runbook_v1": {
     "dangerous_authorities_enabled": {
       "automatic_rewards": false,

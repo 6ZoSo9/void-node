@@ -55,3 +55,16 @@ The repeatable safe-serve field replication runbook is now discoverable from thi
 - Source doc: `docs/public/datanet-field-replication-safe-serve-runbook-v1.md`
 - Boundary: private tailnet addresses redacted; dangerous authorities remain disabled.
 
+<!-- VOID_DATANET_FIELD_REPLICATION_PROOF_BUNDLE_PUBLIC_SUMMARY_PUBLISH_V1 -->
+## Public-safe proof bundle summary
+
+Status: GREEN.
+
+The real two-box DataNet field replication proof bundle now has a public-safe summary.
+
+- Public HTML: `/public-node/datanet/field-replication-proof-bundle-public-summary-v1.html`
+- Public JSON: `/public-node/datanet/field-replication-proof-bundle-public-summary-v1.json`
+- Source private bundle SHA-256: `e441f7d9f5481358344f41543ccb7a0f7991e2988e857d0ae9d54268b29740f2`
+- Verified proof SHA-256: `e7bee9f07a0959c2f87d959c5fd60ef5502e5a75c6c7dada2e7f8418c5ab9fcb`
+- Boundary: private receipts, tailnet addresses, hostnames, absolute paths, private bundle contents, and server log details are redacted.
+
