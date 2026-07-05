@@ -1,54 +1,75 @@
 {
-  "marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1",
-  "green_marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN",
-  "status": "green",
-  "kind": "datanet_field_replication_status_card",
-  "created_at": "2026-07-05T17:43:48.418870+00:00",
   "claim": "Precision created and served a public-safe DataNet field object; Nimo on cellphone data plus tailnet pulled and verified it; Nimo mirrored it; Precision pulled Nimo's mirror back and verified the exact SHA-256.",
+  "created_at": "2026-07-05T17:43:48.418870+00:00",
   "field_result": {
-    "source_node": "precision_home_node",
-    "field_node": "nimo_n153b",
-    "network_path": "cellphone_data_plus_tailnet",
-    "tailnet_addresses_publicly_redacted": true,
-    "source_to_field_pull_green": true,
     "field_mirror_green": true,
+    "field_node": "nimo_n153b",
     "home_roundtrip_verify_green": true,
-    "verified_sha256": "5b4cbc3c4a26a7032ed951bbc17f8470d5e8c865d76817fbdad740562606ede7",
+    "network_path": "cellphone_data_plus_tailnet",
+    "roundtrip_match": true,
+    "source_node": "precision_home_node",
+    "source_to_field_pull_green": true,
+    "tailnet_addresses_publicly_redacted": true,
     "verified_bytes": 174,
-    "roundtrip_match": true
+    "verified_sha256": "5b4cbc3c4a26a7032ed951bbc17f8470d5e8c865d76817fbdad740562606ede7"
   },
+  "green_marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN",
+  "kind": "datanet_field_replication_status_card",
+  "marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1",
   "proof_markers": [
     "VOID_DATANET_FIELD_OBJECT_TRIAL_V1_GREEN",
     "VOID_DATANET_FIELD_OBJECT_MIRROR_V1_GREEN",
     "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN",
     "VOID_DATANET_PULL_TAILNET_DIAGNOSTICS_V1_GREEN"
   ],
+  "routes": {
+    "doc": "docs/public/datanet-field-replication-status-card-v1.md",
+    "html": "/public-node/datanet/field-replication-status-card-v1.html",
+    "json": "/public-node/datanet/field-replication-status-card-v1.json"
+  },
+  "safe_serve_update_v1": {
+    "dangerous_paths_touched": false,
+    "enabled_authorities": {
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "field_mirror_serve_command": "npm run public-node:serve -- --port 8089",
+    "field_runner_marker": "VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN",
+    "proof_date": "2026-07-05",
+    "roundtrip_verifier_marker": "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN",
+    "safe_serve_marker": "VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY",
+    "serves_public_directory_only": true,
+    "source_serve_command": "npm run public-node:serve -- --port 8088",
+    "status": "green",
+    "summary": "Field replication loop verified with repository safe serve command instead of generic Python HTTP server.",
+    "tailnet_addresses_redacted": true,
+    "verified_mirror_sha256": "feed57f0441871cc0a27153025808becf3f9d3a9c264a54189d0de88a2ec33cb"
+  },
+  "safety_boundary": {
+    "dangerous_paths_touched": false,
+    "no_ledger_write": true,
+    "no_public_mutation_route": true,
+    "no_validator_admission": true,
+    "no_wallet_movement": true,
+    "no_wc_settlement": true,
+    "public_status_only": true,
+    "read_only": true,
+    "tailnet_ips_redacted": true
+  },
   "sealed_commits": {
     "field_object_roundtrip_verifier": {
-      "pr": 396,
       "main": "162cd085",
+      "pr": 396,
       "tag": "ckpt-datanet-field-object-roundtrip-v1-post-merge-exact-green-20260705-123421"
     },
     "tailnet_diagnostics": {
-      "pr": 397,
       "main": "9a9f6131",
+      "pr": 397,
       "tag": "ckpt-datanet-pull-tailnet-diagnostics-v1-post-merge-exact-green-20260705-124020"
     }
   },
-  "safety_boundary": {
-    "public_status_only": true,
-    "read_only": true,
-    "tailnet_ips_redacted": true,
-    "no_wallet_movement": true,
-    "no_wc_settlement": true,
-    "no_validator_admission": true,
-    "no_public_mutation_route": true,
-    "no_ledger_write": true,
-    "dangerous_paths_touched": false
-  },
-  "routes": {
-    "json": "/public-node/datanet/field-replication-status-card-v1.json",
-    "html": "/public-node/datanet/field-replication-status-card-v1.html",
-    "doc": "docs/public/datanet-field-replication-status-card-v1.md"
-  }
+  "status": "green"
 }

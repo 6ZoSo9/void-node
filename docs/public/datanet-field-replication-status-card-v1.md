@@ -26,3 +26,22 @@ Precision created and served a public-safe DataNet field object. Nimo on cellpho
 ## Boundary
 
 Public status only. Read-only. No wallet movement, WC settlement, validator admission, public mutation route, or ledger write.
+
+<!-- VOID_DATANET_FIELD_REPLICATION_SAFE_SERVE_STATUS_UPDATE_V1 -->
+## Safe serve proof update
+
+Status: GREEN.
+
+The field replication loop has now been verified using the repository safe serve command instead of a generic Python HTTP server.
+
+- Source serve command: `npm run public-node:serve -- --port 8088`
+- Field mirror serve command: `npm run public-node:serve -- --port 8089`
+- Safe serve marker: `VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY`
+- Field runner marker: `VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN`
+- Roundtrip verifier marker: `VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN`
+- Verified mirror SHA-256: `feed57f0441871cc0a27153025808becf3f9d3a9c264a54189d0de88a2ec33cb`
+- Boundary: serves `public/` only; dangerous paths touched: `false`
+- Tailnet addresses: redacted from public status
+
+No wallet movement, WC settlement, validator admission, public mutation route, or ledger write is enabled by this status update.
+
