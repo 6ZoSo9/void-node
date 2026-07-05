@@ -82,6 +82,13 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorReceiptReviewDecisionExamplePagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-review-decision-example-v1.html");
   const publicNodeOperatorReceiptReviewDecisionExampleJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-example-v1.json");
   const publicNodeOperatorReceiptReviewDecisionExampleHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-example-v1.html");
+
+  const publicNodeOperatorReviewLaneRollupPageRoute = "/public-node/operator-review-lane-rollup-v1";
+  const publicNodeOperatorReviewLaneRollupJsonRoute = "/public-node/public-node-operator-review-lane-rollup-v1.json";
+  const publicNodeOperatorReviewLaneRollupHtmlRoute = "/public-node/public-node-operator-review-lane-rollup-v1.html";
+  const publicNodeOperatorReviewLaneRollupPagePath = path.resolve(process.cwd(), "public/public-node/operator-review-lane-rollup-v1.html");
+  const publicNodeOperatorReviewLaneRollupJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-review-lane-rollup-v1.json");
+  const publicNodeOperatorReviewLaneRollupHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-review-lane-rollup-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -412,6 +419,18 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorReceiptReviewDecisionExampleHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorReceiptReviewDecisionExampleHtmlPath);
+  });
+
+app.get(publicNodeOperatorReviewLaneRollupPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReviewLaneRollupPagePath);
+  });
+
+app.get(publicNodeOperatorReviewLaneRollupJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReviewLaneRollupJsonPath);
+  });
+
+app.get(publicNodeOperatorReviewLaneRollupHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReviewLaneRollupHtmlPath);
   });
 
 }

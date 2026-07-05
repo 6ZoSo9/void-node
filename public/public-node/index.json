@@ -890,7 +890,10 @@
     "public_node_operator_receipt_review_decision_template_html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html",
     "public_node_operator_receipt_review_decision_example": "/public-node/operator-receipt-review-decision-example-v1",
     "public_node_operator_receipt_review_decision_example_json": "/public-node/public-node-operator-receipt-review-decision-example-v1.json",
-    "public_node_operator_receipt_review_decision_example_html": "/public-node/public-node-operator-receipt-review-decision-example-v1.html"
+    "public_node_operator_receipt_review_decision_example_html": "/public-node/public-node-operator-receipt-review-decision-example-v1.html",
+    "public_node_operator_review_lane_rollup": "/public-node/operator-review-lane-rollup-v1",
+    "public_node_operator_review_lane_rollup_json": "/public-node/public-node-operator-review-lane-rollup-v1.json",
+    "public_node_operator_review_lane_rollup_html": "/public-node/public-node-operator-review-lane-rollup-v1.html"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -910,7 +913,8 @@
     "public_node_operator_receipt_example": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1",
     "public_node_operator_receipt_review_checklist": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1",
     "public_node_operator_receipt_review_decision_template": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1",
-    "public_node_operator_receipt_review_decision_example": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_V1"
+    "public_node_operator_receipt_review_decision_example": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_V1",
+    "public_node_operator_review_lane_rollup": "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1246,6 +1250,173 @@
       "public_wc_self_serve_earning_enabled": false,
       "work_credit_claim_created": false,
       "public_internet_mesh_claim": false
+    }
+  },
+  "public_node_operator_review_lane_rollup": {
+    "schema": "void.public_node.operator_review_lane_rollup.v1",
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1",
+    "status": "operator_review_lane_rollup_ready",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_INDEX_ROUTE_V1_GREEN",
+    "base_green_marker": "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1_GREEN",
+    "purpose": "Public-safe status rollup for the outside-node-operator receipt review lane, tying together handoff packet, receipt example, manual checklist, decision template, decision example, and their closeouts.",
+    "routes": {
+      "bootstrap_peers": "/bootstrap/peers.json",
+      "bootstrap_public": "/__void/public-bootstrap.json",
+      "connect_pack": "/public-node/connect",
+      "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json",
+      "decision_example": "/public-node/operator-receipt-review-decision-example-v1",
+      "decision_example_json": "/public-node/public-node-operator-receipt-review-decision-example-v1.json",
+      "decision_template": "/public-node/operator-receipt-review-decision-template-v1",
+      "decision_template_json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+      "handoff_packet": "/public-node/operator-handoff-packet-v1",
+      "handoff_packet_json": "/public-node/public-node-operator-handoff-packet-v1.json",
+      "operator_quickstart": "/public-node/operator-quickstart-v1",
+      "operator_status_rollup": "/public-node/operator-status-rollup-v1",
+      "receipt_example": "/public-node/operator-receipt-example-v1",
+      "receipt_example_json": "/public-node/public-node-operator-receipt-example-v1.json",
+      "receipt_template": "/public-node/connect/receipt-template-v1",
+      "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+      "review_checklist": "/public-node/operator-receipt-review-checklist-v1",
+      "review_checklist_json": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+      "review_lane_rollup_html": "/public-node/public-node-operator-review-lane-rollup-v1.html",
+      "review_lane_rollup_json": "/public-node/public-node-operator-review-lane-rollup-v1.json",
+      "review_lane_rollup_page": "/public-node/operator-review-lane-rollup-v1"
+    },
+    "review_sequence": [
+      {
+        "name": "read_operator_status_rollup",
+        "order": 1,
+        "route": "/public-node/operator-status-rollup-v1",
+        "status": "green"
+      },
+      {
+        "name": "follow_operator_handoff_packet",
+        "order": 2,
+        "route": "/public-node/operator-handoff-packet-v1",
+        "status": "green"
+      },
+      {
+        "name": "compare_against_receipt_example",
+        "order": 3,
+        "route": "/public-node/operator-receipt-example-v1",
+        "status": "green"
+      },
+      {
+        "name": "review_with_manual_checklist",
+        "order": 4,
+        "route": "/public-node/operator-receipt-review-checklist-v1",
+        "status": "green"
+      },
+      {
+        "name": "use_static_decision_template",
+        "order": 5,
+        "route": "/public-node/operator-receipt-review-decision-template-v1",
+        "status": "green"
+      },
+      {
+        "name": "compare_against_static_decision_example",
+        "order": 6,
+        "route": "/public-node/operator-receipt-review-decision-example-v1",
+        "status": "green"
+      }
+    ],
+    "review_lane_components": [
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1",
+        "name": "operator_status_rollup",
+        "route": "/public-node/operator-status-rollup-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1",
+        "name": "operator_quickstart",
+        "route": "/public-node/operator-quickstart-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1",
+        "name": "operator_handoff_packet",
+        "route": "/public-node/operator-handoff-packet-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1",
+        "name": "operator_receipt_example",
+        "route": "/public-node/operator-receipt-example-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1",
+        "name": "operator_receipt_review_checklist",
+        "route": "/public-node/operator-receipt-review-checklist-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1",
+        "name": "operator_receipt_review_decision_template",
+        "route": "/public-node/operator-receipt-review-decision-template-v1",
+        "status": "green"
+      },
+      {
+        "closeout_marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_CLOSEOUT_V1_GREEN",
+        "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_V1",
+        "name": "operator_receipt_review_decision_example",
+        "route": "/public-node/operator-receipt-review-decision-example-v1",
+        "status": "green"
+      },
+      {
+        "marker": "VOID_PUBLIC_NODE_CONNECT_LANE_CLOSEOUT_V1_GREEN",
+        "name": "public_node_connect_lane",
+        "route": "/public-node/connect",
+        "status": "green"
+      },
+      {
+        "marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+        "name": "connect_pack",
+        "route": "/public-node/connect/public-node-connect-pack-v1.json",
+        "status": "green"
+      },
+      {
+        "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+        "name": "receipt_template",
+        "route": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+        "status": "green"
+      },
+      {
+        "marker": "VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1",
+        "name": "bootstrap_gateway",
+        "route": "/bootstrap/peers.json",
+        "status": "green"
+      }
+    ],
+    "boundary": {
+      "automatic_peer_dial_enabled_by_this_rollup": false,
+      "buy_void_fulfillment_enabled": false,
+      "money_movement_enabled": false,
+      "mutation_route_enabled": false,
+      "operator_guidance_only": true,
+      "operator_review_lane_rollup_only": true,
+      "operator_status_visibility_only": true,
+      "public_internet_mesh_claim": false,
+      "public_routes_only": true,
+      "public_wc_self_serve_earning_enabled": false,
+      "read_only": true,
+      "rollup_creates_no_money_movement": true,
+      "rollup_creates_no_receipt": true,
+      "rollup_creates_no_review_decision": true,
+      "rollup_creates_no_validator_admission": true,
+      "rollup_creates_no_work_credit_claim": true,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "wallet_send_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "work_credit_claim_created": false
     }
   }
 }
