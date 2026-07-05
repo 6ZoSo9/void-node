@@ -53,6 +53,23 @@ function classifyHost(host) {
     };
   }
 
+  const ipv4 = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4) {
+    const o1 = Number(ipv4[1]);
+    const o2 = Number(ipv4[2]);
+
+    if (o1 === 100 && o2 >= 64 && o2 <= 127) {
+      const tailscaleHint = /tailscale|tailnet/i.test(networkHint);
+      return {
+        target_class: tailscaleHint ? "tailscale_tailnet" : "cgnat_or_tailnet",
+        private_or_local: true,
+        hint: tailscaleHint
+          ? "100.64.0.0/10 is being treated as Tailscale/tailnet space because network_hint includes tailscale."
+          : "100.64.0.0/10 is CGNAT space, commonly used by Tailscale tailnets; it is not normal public internet.",
+      };
+    }
+  }
+
   if (h.startsWith("10.")) {
     return {
       target_class: "private_lan",
