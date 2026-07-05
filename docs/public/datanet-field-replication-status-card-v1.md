@@ -45,3 +45,13 @@ The field replication loop has now been verified using the repository safe serve
 
 No wallet movement, WC settlement, validator admission, public mutation route, or ledger write is enabled by this status update.
 
+<!-- VOID_DATANET_FIELD_REPLICATION_SAFE_SERVE_RUNBOOK_DISCOVERY_V1 -->
+## Safe serve runbook discovery
+
+The repeatable safe-serve field replication runbook is now discoverable from this status card.
+
+- Public HTML: `/public-node/datanet/field-replication-safe-serve-runbook-v1.html`
+- Public JSON: `/public-node/datanet/field-replication-safe-serve-runbook-v1.json`
+- Source doc: `docs/public/datanet-field-replication-safe-serve-runbook-v1.md`
+- Boundary: private tailnet addresses redacted; dangerous authorities remain disabled.
+

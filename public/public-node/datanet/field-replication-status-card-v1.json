@@ -27,6 +27,22 @@
     "html": "/public-node/datanet/field-replication-status-card-v1.html",
     "json": "/public-node/datanet/field-replication-status-card-v1.json"
   },
+  "safe_serve_runbook_discovery_v1": {
+    "dangerous_authorities_enabled": {
+      "automatic_rewards": false,
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "secret_handling": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "doc_source_path": "docs/public/datanet-field-replication-safe-serve-runbook-v1.md",
+    "private_tailnet_details_redacted": true,
+    "public_html_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.html",
+    "public_json_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.json",
+    "status": "green"
+  },
   "safe_serve_update_v1": {
     "dangerous_paths_touched": false,
     "enabled_authorities": {
