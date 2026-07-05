@@ -507,7 +507,9 @@
     "/public-node/public-node-operator-trial-tester-launch-announcement-packet-v1.html",
     "/public-node/public-node-operator-trial-tester-launch-announcement-packet-v1.json",
     "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
-    "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json"
+    "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
+    "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -1106,7 +1108,10 @@
     "public_node_operator_trial_tester_launch_announcement_start_here": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.html",
     "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup_html": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
-    "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json"
+    "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
+    "public_node_operator_trial_tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "public_node_operator_trial_tester_launch_announcement_terminal_final_seal_html": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "public_node_operator_trial_tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -1169,7 +1174,8 @@
     "public_node_operator_trial_tester_launch_invite_packet": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_INVITE_PACKET_V1",
     "public_node_operator_trial_tester_launch_invite_packet_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_INVITE_PACKET_CLOSEOUT_ROLLUP_V1",
     "public_node_operator_trial_tester_launch_announcement_packet": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_PACKET_V1",
-    "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_PACKET_CLOSEOUT_ROLLUP_V1"
+    "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_PACKET_CLOSEOUT_ROLLUP_V1",
+    "public_node_operator_trial_tester_launch_announcement_terminal_final_seal": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_TERMINAL_FINAL_SEAL_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -2231,7 +2237,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_root_link": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
@@ -2481,7 +2490,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_submission_review_queue": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
@@ -2600,7 +2612,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_submission_review_decision_example": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
@@ -3177,7 +3192,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_receipt_example": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
@@ -3273,7 +3291,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_kit_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_ROLLUP_V1",
@@ -3749,7 +3770,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_checklist_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_CHECKLIST_CLOSEOUT_ROLLUP_V1",
@@ -3895,7 +3919,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_handoff_packet_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_HANDOFF_PACKET_CLOSEOUT_ROLLUP_V1",
@@ -4024,7 +4051,10 @@
     "tester_launch_invite_packet_closeout_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_status_card_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_STATUS_CARD_CLOSEOUT_ROLLUP_V1",
@@ -4148,7 +4178,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_terminal_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_TERMINAL_CLOSEOUT_ROLLUP_V1",
@@ -4213,7 +4246,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_ready_index_pin": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_READY_INDEX_PIN_V1",
@@ -4286,7 +4322,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_ready_index_pin_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_READY_INDEX_PIN_CLOSEOUT_ROLLUP_V1",
@@ -4345,7 +4384,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_invite_packet": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_INVITE_PACKET_V1",
@@ -4413,7 +4455,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_invite_packet_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_INVITE_PACKET_CLOSEOUT_ROLLUP_V1",
@@ -4467,7 +4512,10 @@
     "tester_launch_announcement_packet_ready": true,
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_announcement_packet": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_PACKET_V1",
@@ -4530,7 +4578,10 @@
     },
     "tester_launch_announcement_packet_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.html",
     "tester_launch_announcement_packet_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-packet-closeout-rollup-v1.json",
-    "tester_launch_announcement_packet_closeout_ready": true
+    "tester_launch_announcement_packet_closeout_ready": true,
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
   },
   "public_node_operator_trial_tester_launch_announcement_packet_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_PACKET_CLOSEOUT_ROLLUP_V1",
@@ -4565,6 +4616,59 @@
     },
     "start_here": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.html",
     "closeout_status": {
+      "tester_launch_announcement_packet_closeout_ready": true,
+      "tester_launch_announcement_packet_ready": true,
+      "tester_launch_invite_packet_closeout_ready": true,
+      "outside_tester_launch_ready": true,
+      "start_here_route_pinned": true,
+      "terminal_closeout_complete": true,
+      "handoff_packet_ready": true,
+      "launch_checklist_ready": true,
+      "receipt_template_ready": true,
+      "receipt_example_ready": true,
+      "submission_review_path_ready": true,
+      "operator_review_required_for_real_receipts": true,
+      "live_authority_enabled": false,
+      "tester_receipts_are_network_truth": false
+    },
+    "tester_launch_announcement_terminal_final_seal": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "tester_launch_announcement_terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "tester_launch_announcement_terminal_final_sealed": true
+  },
+  "public_node_operator_trial_tester_launch_announcement_terminal_final_seal": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_TERMINAL_FINAL_SEAL_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_ANNOUNCEMENT_TERMINAL_FINAL_SEAL_V1_GREEN",
+    "status": "tester_launch_announcement_terminal_final_sealed",
+    "title": "VOID Public Node Operator Trial Tester Launch Announcement Terminal Final Seal v1",
+    "html": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "json": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.json",
+    "page": "/public-node/public-node-operator-trial-tester-launch-announcement-terminal-final-seal-v1.html",
+    "public_safe": true,
+    "read_only": true,
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "announcement_terminal_final_seal_only": true,
+      "mutation_route_enabled": false,
+      "submission_endpoint_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true,
+      "no_private_keys_required": true,
+      "no_secrets_required": true,
+      "no_pii_required": true
+    },
+    "start_here": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.html",
+    "seal_status": {
+      "tester_launch_announcement_terminal_final_sealed": true,
       "tester_launch_announcement_packet_closeout_ready": true,
       "tester_launch_announcement_packet_ready": true,
       "tester_launch_invite_packet_closeout_ready": true,
