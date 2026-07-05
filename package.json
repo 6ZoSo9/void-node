@@ -25,7 +25,8 @@
     "datanet:field-replication:run": "node tools/datanet-field-replication-runner-v1.mjs",
     "public-node:serve": "node tools/public-node-safe-serve-v1.mjs",
     "datanet:field-replication:safe-serve-smoke": "bash tools/check_datanet_field_replication_safe_serve_runbook_discovery_runtime_v1.sh",
-    "datanet:field-replication:proof-bundle": "node tools/datanet-field-replication-proof-bundle-v1.mjs"
+    "datanet:field-replication:proof-bundle": "node tools/datanet-field-replication-proof-bundle-v1.mjs",
+    "datanet:field-replication:proof-bundle:public-summary": "node tools/datanet-field-replication-proof-bundle-public-summary-v1.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
