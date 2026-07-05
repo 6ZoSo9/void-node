@@ -69,6 +69,7 @@ function finish(receipt, code = 0) {
   writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n");
 
   console.log(receipt.marker);
+  console.log(`host=${receipt.host || ""}`);
   console.log(`source_input=${receipt.source_input}`);
   console.log(`mirror_base=${receipt.mirror_base}`);
   console.log(`trial_receipt=${receipt.trial_receipt || ""}`);
