@@ -109,6 +109,14 @@
       ],
       "status": "green",
       "title": "Bootstrap and runtime checks"
+    },
+    {
+      "key": "trial_lane_final_seal",
+      "title": "Public Node Operator Trial Lane Final Seal v1",
+      "status": "sealed_public_safe_read_only",
+      "html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+      "json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1"
     }
   ],
   "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1_GREEN",
@@ -176,8 +184,38 @@
     "receipt_template_json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
     "review_checklist": "/public-node/operator-receipt-review-checklist-v1",
     "runtime_index": "/public-node/runtime/index.json",
-    "runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.sh"
+    "runtime_smoke_pack": "/public-node/runtime/smoke-pack-v1.sh",
+    "trial_lane_dashboard_link": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
+    "trial_lane_final_seal": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "trial_lane_rollup": "/public-node/public-node-operator-trial-lane-rollup-v1.html"
   },
   "schema": "void.public_node.operator_dashboard.v1",
-  "status": "operator_dashboard_ready"
+  "status": "operator_dashboard_ready",
+  "trial_lane_dashboard_link": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1_GREEN",
+    "status": "trial_lane_dashboard_link_ready",
+    "html": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
+    "json": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
+    "final_seal_html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "final_seal_json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+    "rollup_html": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
+    "rollup_json": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true
+    }
+  }
 }
