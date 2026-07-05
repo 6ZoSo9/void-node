@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Public Node Operator Trial Packet v1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 980px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    code, pre { background: #111; color: #eee; padding: 0.15rem 0.35rem; border-radius: 0.25rem; }
+    pre { padding: 1rem; overflow-x: auto; }
+    .card { border: 1px solid #444; border-radius: 0.75rem; padding: 1rem; margin: 1rem 0; }
+    .warn { border-color: #a66; }
+    .ok { border-color: #6a6; }
+    li { margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <h1>VOID Public Node Operator Trial Packet v1</h1>
+
+  <div class="card ok">
+    <p><strong>Status:</strong> trial packet ready</p>
+    <p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1</code></p>
+    <p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1_GREEN</code></p>
+  </div>
+
+  <p>
+    This is a public-safe operator/tester packet for walking the VOID public node operator path
+    and returning evidence for manual review.
+  </p>
+
+  <div class="card warn">
+    <h2>Boundary</h2>
+    <ul>
+      <li>Read-only public routes only.</li>
+      <li>No wallet sends.</li>
+      <li>No money movement.</li>
+      <li>No Buy VOID fulfillment.</li>
+      <li>No WC issuance.</li>
+      <li>No WC→VOID swap.</li>
+      <li>No validator admission or mutation.</li>
+      <li>Tester receipts are not network truth.</li>
+      <li>Operator review is required.</li>
+    </ul>
+  </div>
+
+  <h2>Operator path</h2>
+  <ol>
+    <li><a href="/public-node/public-node-operator-quickstart-v1.html">Read the public operator quickstart</a></li>
+    <li><a href="/public-node/connect/public-node-connect-pack-v1.html">Open the connect pack</a></li>
+    <li><a href="/public-node/connect/public-node-connect-receipt-template-v1.html">Use the receipt template</a></li>
+    <li><a href="/public-node/public-node-operator-receipt-example-v1.html">Compare against the receipt example</a></li>
+    <li><a href="/public-node/public-node-operator-handoff-packet-v1.html">Package the handoff evidence</a></li>
+    <li><a href="/public-node/public-node-operator-receipt-review-checklist-v1.html">Review against the checklist</a></li>
+    <li><a href="/public-node/public-node-operator-receipt-review-decision-template-v1.html">Record a review decision</a></li>
+  </ol>
+
+  <h2>Evidence requested</h2>
+  <ul>
+    <li>tester handle or operator alias</li>
+    <li>UTC timestamp</li>
+    <li>public node route tested</li>
+    <li>local environment summary safe to disclose</li>
+    <li>commands run, excluding secrets and private paths</li>
+    <li>observed result</li>
+    <li>errors or mismatch notes</li>
+    <li>receipt template filled with public-safe evidence only</li>
+  </ul>
+
+  <h2>Do not submit</h2>
+  <ul>
+    <li>wallet private keys or mnemonics</li>
+    <li>env files</li>
+    <li>node keys</li>
+    <li>API tokens or RPC credentials</li>
+    <li>private IPs unless intentionally disclosed by the tester</li>
+    <li>funds transfer claims</li>
+    <li>validator admission claims</li>
+    <li>claims that tester receipts are network truth</li>
+  </ul>
+
+  <h2>Machine-readable packet</h2>
+  <p><a href="/public-node/public-node-operator-trial-packet-v1.json">public-node-operator-trial-packet-v1.json</a></p>
+</body>
+</html>
