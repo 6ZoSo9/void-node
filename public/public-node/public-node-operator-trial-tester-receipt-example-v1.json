@@ -1,0 +1,109 @@
+{
+  "kind": "public_node_operator_trial_tester_receipt_example_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1_GREEN",
+  "status": "tester_receipt_example_ready",
+  "title": "VOID Public Node Operator Trial Tester Receipt Example v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+  "purpose": "Public-safe filled tester receipt example showing how an external tester can report observed public node operator trial results before operator review.",
+  "source_tester_receipt_template_route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+  "source_tester_instruction_pack_route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+  "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+  "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+  "source_terminal_final_seal_route": "/public-node/public-node-operator-trial-terminal-final-seal-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "example_fixture_only": true,
+    "copy_template_only": false,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipt_is_network_truth": false,
+    "operator_review_required_for_real_receipts": true,
+    "no_private_keys_required": true,
+    "no_secrets_required": true,
+    "no_pii_required": true
+  },
+  "example_receipt": {
+    "kind": "public_node_operator_trial_tester_receipt_v1",
+    "template_source_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+    "example_fixture": true,
+    "example_id": "VOID-TRIAL-TESTER-RECEIPT-EXAMPLE-001",
+    "tester_alias": "example-public-tester",
+    "tester_contact_optional": "",
+    "run_id": "example-public-route-review-001",
+    "timestamp_utc": "2026-07-05T12:00:00Z",
+    "node_version_or_commit": "example-current-main-after-template-seal-4695d827",
+    "environment_os": "Ubuntu Linux example environment",
+    "hardware_summary_optional": "public-safe workstation summary only",
+    "network_mode": "public-route-review",
+    "public_routes_checked": [
+      "/public-node/index.json",
+      "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+      "/public-node/public-node-operator-trial-tester-receipt-template-v1.json"
+    ],
+    "commands_run": [
+      "python3 -m json.tool public/public-node/index.json",
+      "python3 -m json.tool public/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+      "bash tools/check_public_node_operator_trial_tester_receipt_template_v1.sh"
+    ],
+    "observed_results": [
+      {
+        "check": "public node index parses as JSON",
+        "result": "pass"
+      },
+      {
+        "check": "tester instruction pack route is linked",
+        "result": "pass"
+      },
+      {
+        "check": "tester receipt template route is linked",
+        "result": "pass"
+      },
+      {
+        "check": "boundary says tester receipt is not network truth",
+        "result": "pass"
+      }
+    ],
+    "failures_or_warnings": [
+      "Example fixture only; this is not a real external tester receipt.",
+      "No live authority, WC issuance, wallet send, validator admission, or runtime truth is implied."
+    ],
+    "evidence_links_or_hashes": [],
+    "tester_attestation": "Example only. A real tester should replace this with a public-safe attestation that the receipt describes their own observed results and contains no private keys, secrets, or private personal data.",
+    "requested_review_action": "informational"
+  },
+  "submission_rules": [
+    "Use the tester receipt template for real tester submissions.",
+    "This example is illustrative only.",
+    "Do not include private keys, seed phrases, wallet secrets, API keys, passwords, private logs containing secrets, or private personal data.",
+    "A tester receipt is not network truth.",
+    "A tester receipt does not award WC, trigger money movement, admit validators, or authorize runtime mutation.",
+    "Real receipts require operator review before any downstream decision."
+  ],
+  "do_not_infer": [
+    "real external tester submission",
+    "network truth",
+    "live operator authority",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}
