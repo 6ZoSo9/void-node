@@ -1,0 +1,50 @@
+{
+  "kind": "public_node_operator_trial_root_link_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1_GREEN",
+  "status": "trial_root_link_ready",
+  "title": "VOID Public Node Operator Trial Root Link v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Root public-node index link that marks the public node operator trial public entrypoint as the preferred start-here route for outside testers and operators.",
+  "html": "/public-node/public-node-operator-trial-root-link-v1.html",
+  "json": "/public-node/public-node-operator-trial-root-link-v1.json",
+  "root_index": "/public-node/index.json",
+  "preferred_public_start_route": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+  "preferred_public_start_json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+  "linked_routes": {
+    "public_entrypoint": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "operator_dashboard": "/public-node/public-node-operator-dashboard-v1.html",
+    "trial_lane_final_seal": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "trial_packet": "/public-node/public-node-operator-trial-packet-v1.html",
+    "receipt_template": "/public-node/connect/public-node-connect-receipt-template-v1.html"
+  },
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "do_not_infer": [
+    "live operator authority",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}
