@@ -1,0 +1,113 @@
+{
+  "kind": "public_node_operator_trial_tester_launch_handoff_packet_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_HANDOFF_PACKET_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_HANDOFF_PACKET_V1_GREEN",
+  "status": "tester_launch_handoff_packet_ready",
+  "title": "VOID Public Node Operator Trial Tester Launch Handoff Packet v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-launch-handoff-packet-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-launch-handoff-packet-v1.json",
+  "purpose": "Public-safe handoff packet for sending the completed public node operator trial tester path to outside testers.",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "handoff_packet_only": true,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true,
+    "no_private_keys_required": true,
+    "no_secrets_required": true,
+    "no_pii_required": true
+  },
+  "source_routes": {
+    "tester_launch_checklist_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-checklist-closeout-rollup-v1.json",
+    "tester_launch_checklist": "/public-node/public-node-operator-trial-tester-launch-checklist-v1.json",
+    "tester_kit_public_entrypoint_link_closeout_rollup": "/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.json",
+    "tester_kit_public_entrypoint_link": "/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-v1.json",
+    "tester_kit_closeout_rollup": "/public-node/public-node-operator-trial-tester-kit-closeout-rollup-v1.json",
+    "tester_instruction_pack": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+    "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "submission_intake": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+    "submission_review_queue": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+    "submission_review_decision_example": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.json"
+  },
+  "handoff_steps": [
+    {
+      "step": 1,
+      "title": "Start with the tester launch checklist",
+      "route": "/public-node/public-node-operator-trial-tester-launch-checklist-v1.json",
+      "operator_note": "Use this as the tester's public start point."
+    },
+    {
+      "step": 2,
+      "title": "Read the tester instruction pack",
+      "route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+      "operator_note": "Explains what to test and what not to include."
+    },
+    {
+      "step": 3,
+      "title": "Copy the tester receipt template",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+      "operator_note": "Tester fills this with their own public-safe observations."
+    },
+    {
+      "step": 4,
+      "title": "Reference the tester receipt example",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+      "operator_note": "Formatting reference only; not a real external receipt."
+    },
+    {
+      "step": 5,
+      "title": "Submit for operator review",
+      "route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+      "operator_note": "Receipt remains non-authoritative until reviewed."
+    }
+  ],
+  "handoff_status": {
+    "tester_launch_handoff_packet_ready": true,
+    "tester_launch_checklist_closeout_ready": true,
+    "tester_kit_discoverable": true,
+    "tester_instruction_pack_ready": true,
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example_ready": true,
+    "submission_intake_ready": true,
+    "submission_review_queue_ready": true,
+    "operator_review_required_for_real_receipts": true,
+    "live_authority_enabled": false,
+    "tester_receipts_are_network_truth": false
+  },
+  "tester_message_summary": [
+    "Use the tester launch checklist first.",
+    "Do not include private keys, wallet secrets, API keys, passwords, private logs, or private personal data.",
+    "Use the receipt template for public-safe observations.",
+    "Use the receipt example only as a formatting reference.",
+    "Submit for operator review only.",
+    "Tester receipts are not network truth."
+  ],
+  "do_not_infer": [
+    "submission endpoint",
+    "live operator authority",
+    "real external tester submission",
+    "network truth",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}
