@@ -6,6 +6,8 @@ SERVER_OUT="/tmp/void-datanet-proof-bundle-safe-serve-${PORT}.out"
 RUNNER_OUT="/tmp/void-datanet-proof-bundle-runner-${PORT}.out"
 ROUNDTRIP_OUT="/tmp/void-datanet-proof-bundle-roundtrip-${PORT}.out"
 BUNDLE_OUT="/tmp/void-datanet-proof-bundle-${PORT}.out"
+REPORT_JSON=".void-field-reports/void-field-report-proof-bundle-local-check-$(date +%Y-%m-%dT%H-%M-%S)-${PORT}.json"
+REPORT_MD="${REPORT_JSON%.json}.md"
 
 cleanup() {
   if [ -n "${pid:-}" ]; then
@@ -63,8 +65,28 @@ VOID_NETWORK_HINT=local-proof-bundle-check npm run datanet:field-object:roundtri
 grep -q 'VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN' "$ROUNDTRIP_OUT"
 grep -q 'match=true' "$ROUNDTRIP_OUT"
 
-VOID_NETWORK_HINT=local-proof-bundle-check npm run void:field-report >/tmp/void-datanet-proof-bundle-field-report.out
-grep -q 'VOID_FIELD_REPORT_V1_READY' /tmp/void-datanet-proof-bundle-field-report.out
+mkdir -p .void-field-reports
+cat > "$REPORT_JSON" <<JSON
+{
+  "marker": "VOID_FIELD_REPORT_V1_READY",
+  "status": "green",
+  "kind": "proof_bundle_local_check_fixture",
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "artifacts": [
+    "$RUNNER_OUT",
+    "$ROUNDTRIP_OUT"
+  ],
+  "note": "Fixture report used by proof-bundle check to avoid recursive field-report growth."
+}
+JSON
+
+cat > "$REPORT_MD" <<MD
+# Proof bundle local check field report fixture
+
+VOID_FIELD_REPORT_V1_READY
+
+This fixture avoids calling the full field-report generator from the proof-bundle check.
+MD
 
 npm run datanet:field-replication:proof-bundle | tee "$BUNDLE_OUT"
 
@@ -90,14 +112,12 @@ if (bundle.status !== "green") throw new Error("bundle not green");
 if (bundle.local_only !== true) throw new Error("bundle local_only must be true");
 if (bundle.public_safe !== false) throw new Error("bundle public_safe must be false");
 if (bundle.proof?.match !== true) throw new Error("bundle proof match not true");
-if (bundle.proof?.actual_sha256 !== process.env.EXPECTED_SHA && bundle.proof?.expected_sha256 !== process.env.EXPECTED_SHA && bundle.proof?.runner_sha256 !== process.env.EXPECTED_SHA) {
-  throw new Error("bundle proof sha did not match runner sha");
-}
+const proofSha = bundle.proof?.actual_sha256 || bundle.proof?.expected_sha256 || bundle.proof?.runner_sha256;
+if (proofSha !== process.env.EXPECTED_SHA) throw new Error("bundle proof sha mismatch");
+if (bundle.boundaries?.local_operator_bundle_only !== true) throw new Error("local operator boundary not true");
+if (bundle.boundaries?.writes_public_tree !== false) throw new Error("writes public tree boundary must be false");
 for (const [key, value] of Object.entries(bundle.boundaries || {})) {
-  if (key === "local_operator_bundle_only" && value !== true) {
-    throw new Error("local operator boundary not true");
-  }
-  if (key !== "local_operator_bundle_only" && key !== "writes_public_tree" && value !== false) {
+  if (key !== "local_operator_bundle_only" && value !== false) {
     throw new Error(`boundary should be false: ${key}`);
   }
 }
@@ -109,3 +129,4 @@ for (const entry of Object.values(bundle.copied || {})) {
 NODE
 
 echo "VOID_DATANET_FIELD_REPLICATION_PROOF_BUNDLE_V1_GREEN"
+

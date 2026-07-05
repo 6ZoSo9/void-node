@@ -9,14 +9,66 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
-import { hostname } from "node:os";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { hostname, homedir } from "node:os";
 
 const MARKER = "VOID_DATANET_FIELD_REPLICATION_PROOF_BUNDLE_V1_GREEN";
 const FAIL_MARKER = "VOID_DATANET_FIELD_REPLICATION_PROOF_BUNDLE_V1_FAIL";
 
 const ROOT = process.cwd();
-const OUT_ROOT = join(ROOT, ".void-field-trial", "datanet-field-replication-proof-bundles");
+const DEFAULT_OUT_ROOT = join(ROOT, ".void-field-trial", "datanet-field-replication-proof-bundles");
+
+function usage() {
+  console.log(`Usage:
+  npm run datanet:field-replication:proof-bundle -- [options]
+
+Options:
+  --runner-receipt <path>      Explicit field-node runner receipt JSON
+  --roundtrip-receipt <path>   Explicit source-node roundtrip receipt JSON
+  --field-report-json <path>   Explicit source-node field report JSON
+  --field-report-md <path>     Optional explicit source-node field report Markdown
+  --out-root <path>            Output root for bundles
+  --label <label>              Optional label stored in bundle metadata
+  --help                       Show this help
+
+Default behavior without explicit paths uses latest local receipts/reports.
+`);
+}
+
+function parseArgs(argv) {
+  const opts = {
+    runnerReceiptPath: null,
+    roundtripReceiptPath: null,
+    fieldReportJsonPath: null,
+    fieldReportMdPath: null,
+    outRoot: DEFAULT_OUT_ROOT,
+    label: null,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--help" || arg === "-h") {
+      usage();
+      process.exit(0);
+    }
+
+    const next = () => {
+      const value = argv[++i];
+      if (!value) fail(`missing value for ${arg}`);
+      return value;
+    };
+
+    if (arg === "--runner-receipt") opts.runnerReceiptPath = next();
+    else if (arg === "--roundtrip-receipt") opts.roundtripReceiptPath = next();
+    else if (arg === "--field-report-json") opts.fieldReportJsonPath = next();
+    else if (arg === "--field-report-md") opts.fieldReportMdPath = next();
+    else if (arg === "--out-root") opts.outRoot = next();
+    else if (arg === "--label") opts.label = next();
+    else fail(`unknown argument: ${arg}`);
+  }
+
+  return opts;
+}
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -26,6 +78,12 @@ function fail(message) {
   console.error(FAIL_MARKER);
   console.error(message);
   process.exit(1);
+}
+
+function resolveInputPath(path) {
+  if (!path) return null;
+  const expanded = path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
+  return isAbsolute(expanded) ? expanded : resolve(ROOT, expanded);
 }
 
 function readJson(path) {
@@ -149,21 +207,34 @@ function optionalSafeServeLog(path) {
   };
 }
 
-const runnerReceiptPath = latestFile(
-  join(ROOT, ".void-field-trial", "datanet-field-replication-runner"),
-  (path) => basename(path) === "receipt.json"
-);
-const roundtripReceiptPath = latestFile(
-  join(ROOT, ".void-field-trial", "datanet-field-object-roundtrip"),
-  (path) => basename(path) === "receipt.json"
-);
-const fieldReportJsonPath = latestReportJson();
+const opts = parseArgs(process.argv.slice(2));
 
-if (!runnerReceiptPath) fail("missing latest datanet field replication runner receipt");
-if (!roundtripReceiptPath) fail("missing latest datanet field object roundtrip receipt");
-if (!fieldReportJsonPath) fail("missing latest VOID field report JSON");
+const explicitRunnerReceiptPath = resolveInputPath(opts.runnerReceiptPath);
+const explicitRoundtripReceiptPath = resolveInputPath(opts.roundtripReceiptPath);
+const explicitFieldReportJsonPath = resolveInputPath(opts.fieldReportJsonPath);
+const explicitFieldReportMdPath = resolveInputPath(opts.fieldReportMdPath);
 
-const fieldReportMdPath = fieldReportJsonPath.replace(/\.json$/, ".md");
+const runnerReceiptPath =
+  explicitRunnerReceiptPath ||
+  latestFile(join(ROOT, ".void-field-trial", "datanet-field-replication-runner"), (path) => basename(path) === "receipt.json");
+const roundtripReceiptPath =
+  explicitRoundtripReceiptPath ||
+  latestFile(join(ROOT, ".void-field-trial", "datanet-field-object-roundtrip"), (path) => basename(path) === "receipt.json");
+const fieldReportJsonPath = explicitFieldReportJsonPath || latestReportJson();
+
+if (!runnerReceiptPath) fail("missing latest or explicit datanet field replication runner receipt");
+if (!roundtripReceiptPath) fail("missing latest or explicit datanet field object roundtrip receipt");
+if (!fieldReportJsonPath) fail("missing latest or explicit VOID field report JSON");
+
+for (const p of [runnerReceiptPath, roundtripReceiptPath, fieldReportJsonPath]) {
+  if (!existsSync(p)) fail(`input path does not exist: ${p}`);
+}
+
+const defaultFieldReportMdPath = fieldReportJsonPath.replace(/\.json$/, ".md");
+const fieldReportMdPath = explicitFieldReportMdPath || defaultFieldReportMdPath;
+if (explicitFieldReportMdPath && !existsSync(explicitFieldReportMdPath)) {
+  fail(`explicit field report markdown path does not exist: ${explicitFieldReportMdPath}`);
+}
 
 const runnerReceipt = readJson(runnerReceiptPath);
 const roundtripReceipt = readJson(roundtripReceiptPath);
@@ -195,7 +266,7 @@ const ok = runnerMarkerOk && roundtripMarkerOk && fieldReportMarkerOk && roundtr
 if (!ok) {
   fail(
     [
-      "latest proof inputs did not validate",
+      "proof inputs did not validate",
       `runner_marker_ok=${runnerMarkerOk}`,
       `roundtrip_marker_ok=${roundtripMarkerOk}`,
       `field_report_marker_ok=${fieldReportMarkerOk}`,
@@ -205,8 +276,11 @@ if (!ok) {
   );
 }
 
-const bundleId = stamp();
-const bundleDir = join(OUT_ROOT, bundleId);
+const bundleIdBase = stamp();
+const safeLabel = opts.label ? opts.label.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80) : "";
+const bundleId = safeLabel ? `${bundleIdBase}-${safeLabel}` : bundleIdBase;
+const outRoot = resolveInputPath(opts.outRoot || DEFAULT_OUT_ROOT);
+const bundleDir = join(outRoot, bundleId);
 mkdirSync(bundleDir, { recursive: true });
 
 const copied = {
@@ -228,8 +302,15 @@ const bundle = {
   public_safe: false,
   created_at: new Date().toISOString(),
   host: hostname(),
+  label: opts.label || null,
   bundle_id: bundleId,
   bundle_dir: bundleDir,
+  input_mode: {
+    runner_receipt: explicitRunnerReceiptPath ? "explicit" : "latest",
+    roundtrip_receipt: explicitRoundtripReceiptPath ? "explicit" : "latest",
+    field_report_json: explicitFieldReportJsonPath ? "explicit" : "latest",
+    field_report_md: explicitFieldReportMdPath ? "explicit" : (existsSync(fieldReportMdPath) ? "paired" : "missing"),
+  },
   inputs: {
     runner_receipt_path: runnerReceiptPath,
     roundtrip_receipt_path: roundtripReceiptPath,
@@ -280,7 +361,16 @@ Created: ${bundle.created_at}
 
 Host: \`${bundle.host}\`
 
+Label: \`${bundle.label || ""}\`
+
 Bundle directory: \`${bundle.bundle_dir}\`
+
+Input mode:
+
+- Runner receipt: \`${bundle.input_mode.runner_receipt}\`
+- Roundtrip receipt: \`${bundle.input_mode.roundtrip_receipt}\`
+- Field report JSON: \`${bundle.input_mode.field_report_json}\`
+- Field report Markdown: \`${bundle.input_mode.field_report_md}\`
 
 ## Proof
 
@@ -314,6 +404,9 @@ console.log(`bundle_md=${bundleMdPath}`);
 console.log(`runner_receipt=${runnerReceiptPath}`);
 console.log(`roundtrip_receipt=${roundtripReceiptPath}`);
 console.log(`field_report_json=${fieldReportJsonPath}`);
+console.log(`input_mode_runner=${bundle.input_mode.runner_receipt}`);
+console.log(`input_mode_roundtrip=${bundle.input_mode.roundtrip_receipt}`);
+console.log(`input_mode_field_report_json=${bundle.input_mode.field_report_json}`);
 console.log(`sha256=${actualSha || expectedSha || runnerSha || ""}`);
 console.log("local_only=true");
 console.log("public_safe=false");
