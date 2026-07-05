@@ -459,7 +459,9 @@
     "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -982,7 +984,10 @@
     "public_node_operator_trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "public_node_operator_trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
     "public_node_operator_trial_submission_review_chain_closeout_rollup_html": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "public_node_operator_trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "public_node_operator_trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "public_node_operator_trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "public_node_operator_trial_terminal_closeout_rollup_html": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "public_node_operator_trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -1020,7 +1025,8 @@
     "public_node_operator_trial_submission_review_decision_example": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
     "public_node_operator_trial_submission_review_chain_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_ROLLUP_V1",
     "public_node_operator_trial_submission_review_chain_final_seal": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_FINAL_SEAL_V1",
-    "public_node_operator_trial_submission_review_chain_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_CLOSEOUT_ROLLUP_V1"
+    "public_node_operator_trial_submission_review_chain_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_CLOSEOUT_ROLLUP_V1",
+    "public_node_operator_trial_terminal_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_CLOSEOUT_ROLLUP_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1992,7 +1998,9 @@
     "trial_submission_review_decision_example": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.html",
     "trial_submission_review_decision_example_json": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_root_link": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
@@ -2029,7 +2037,9 @@
     "trial_submission_review_queue": "/public-node/public-node-operator-trial-submission-review-queue-v1.html",
     "trial_submission_review_queue_json": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1",
@@ -2080,7 +2090,9 @@
     "trial_submission_review_chain_final_seal": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_intake": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1",
@@ -2130,7 +2142,9 @@
     "trial_submission_review_chain_final_seal": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_review_queue": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
@@ -2183,7 +2197,9 @@
     "trial_submission_review_chain_final_seal": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_review_decision_example": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
@@ -2258,7 +2274,9 @@
     "trial_submission_review_chain_final_seal": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_review_chain_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_ROLLUP_V1",
@@ -2306,7 +2324,9 @@
     "trial_submission_review_chain_final_seal": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
     "trial_submission_review_chain_final_seal_json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_review_chain_final_seal": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_FINAL_SEAL_V1",
@@ -2355,7 +2375,9 @@
     "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
     "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
     "trial_submission_review_chain_closeout_rollup": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.html",
-    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json"
+    "trial_submission_review_chain_closeout_rollup_json": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
   },
   "public_node_operator_trial_submission_review_chain_closeout_rollup": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_CLOSEOUT_ROLLUP_V1",
@@ -2408,6 +2430,60 @@
     "source_submission_review_chain_final_seal_route": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
     "source_submission_review_chain_rollup_route": "/public-node/public-node-operator-trial-submission-review-chain-rollup-v1.json",
     "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
-    "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json"
+    "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+    "trial_terminal_closeout_rollup": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "trial_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json"
+  },
+  "public_node_operator_trial_terminal_closeout_rollup": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_CLOSEOUT_ROLLUP_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_CLOSEOUT_ROLLUP_V1_GREEN",
+    "status": "trial_terminal_closeout_rollup_ready",
+    "title": "VOID Public Node Operator Trial Terminal Closeout Rollup v1",
+    "html": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "json": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.json",
+    "page": "/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html",
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "terminal_closeout_rollup_only": true,
+      "public_queue_mutation_enabled": false,
+      "public_upload_route_enabled": false,
+      "public_form_enabled": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true
+    },
+    "terminal_status": {
+      "terminal_closeout_ready": true,
+      "trial_lane_closeout_bound": true,
+      "submission_review_chain_closeout_bound": true,
+      "submission_review_chain_final_sealed": true,
+      "root_visible": true,
+      "public_start_here_visible": true,
+      "dashboard_visible": true,
+      "submission_intake_ready": true,
+      "submission_review_queue_ready": true,
+      "submission_review_decision_example_ready": true,
+      "public_safe": true,
+      "read_only": true,
+      "live_authority_enabled": false,
+      "queue_mutation_enabled": false,
+      "public_upload_route_enabled": false,
+      "public_form_enabled": false,
+      "operator_review_required_for_real_receipts": true
+    },
+    "source_submission_review_chain_closeout_rollup_route": "/public-node/public-node-operator-trial-submission-review-chain-closeout-rollup-v1.json",
+    "source_submission_review_chain_final_seal_route": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
+    "source_trial_closeout_rollup_route": "/public-node/public-node-operator-trial-closeout-rollup-v1.json",
+    "source_trial_root_link_route": "/public-node/public-node-operator-trial-root-link-v1.json"
   }
 }
