@@ -22,7 +22,8 @@
     "datanet:field-object:trial": "node tools/datanet-field-object-trial-v1.mjs",
     "datanet:field-object:mirror": "node tools/datanet-field-object-mirror-v1.mjs",
     "datanet:field-object:roundtrip": "node tools/datanet-field-object-roundtrip-v1.mjs",
-    "datanet:field-replication:run": "node tools/datanet-field-replication-runner-v1.mjs"
+    "datanet:field-replication:run": "node tools/datanet-field-replication-runner-v1.mjs",
+    "public-node:serve": "node tools/public-node-safe-serve-v1.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
