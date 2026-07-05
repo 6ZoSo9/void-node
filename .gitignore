@@ -184,3 +184,17 @@ ops/systemd-effective-baseline.*.txt
 logs/
 data_a/
 .aider*
+
+# public repo hygiene: local runtime/root artifacts
+.nodeid*
+.nodekey*
+.peerstore.json
+*.env
+*.env.*
+!*.env.example
+!*.env.template
+backup_*.tgz
+catchup_*.ndjson
+export_*.ndjson
+journal-txroot-*.txt
+/void-node@*
