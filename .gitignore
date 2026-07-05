@@ -198,3 +198,7 @@ catchup_*.ndjson
 export_*.ndjson
 journal-txroot-*.txt
 /void-node@*
+
+.void-field-trial/
+
+.void-field-reports/
