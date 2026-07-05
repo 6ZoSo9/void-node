@@ -1,0 +1,109 @@
+{
+  "kind": "public_node_operator_trial_receipt_example_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1_GREEN",
+  "status": "trial_receipt_example_ready",
+  "title": "VOID Public Node Operator Trial Receipt Example v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Filled public-safe example receipt for an outside operator/tester using the Public Node Operator Trial Packet v1.",
+  "html": "/public-node/public-node-operator-trial-receipt-example-v1.html",
+  "json": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+  "pairs_with": {
+    "trial_packet": "/public-node/public-node-operator-trial-packet-v1.json",
+    "connect_receipt_template": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "operator_handoff_packet": "/public-node/public-node-operator-handoff-packet-v1.json",
+    "operator_review_checklist": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+    "operator_decision_template": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "operator_dashboard": "/public-node/public-node-operator-dashboard-v1.json",
+    "handoff_packet": "/public-node/public-node-operator-handoff-packet-v1.json",
+    "review_checklist": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+    "decision_template": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "dashboard": "/public-node/public-node-operator-dashboard-v1.json"
+  },
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required": true
+  },
+  "example_receipt": {
+    "receipt_kind": "public_node_operator_trial_receipt",
+    "receipt_status": "example_not_submitted",
+    "tester_alias": "example-public-operator",
+    "timestamp_utc": "2026-07-04T00:00:00Z",
+    "trial_packet_route": "/public-node/public-node-operator-trial-packet-v1.html",
+    "routes_checked": [
+      "/public-node/index.json",
+      "/public-node/public-node-operator-dashboard-v1.html",
+      "/public-node/public-node-operator-trial-packet-v1.html",
+      "/public-node/connect/public-node-connect-pack-v1.html",
+      "/public-node/connect/public-node-connect-receipt-template-v1.html",
+      "/public-node/public-node-operator-handoff-packet-v1.html",
+      "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+      "/public-node/public-node-operator-receipt-review-decision-template-v1.html"
+    ],
+    "safe_environment_summary": {
+      "os_family": "example-linux",
+      "browser_or_client": "example-browser-or-curl",
+      "network_context": "public internet or local test context, public-safe only",
+      "private_ip_disclosed": false,
+      "secrets_disclosed": false
+    },
+    "commands_or_checks": [
+      {
+        "label": "open public node index",
+        "command_public_safe": "curl -fsS https://example.invalid/public-node/index.json",
+        "observed_result": "index reachable and JSON parseable"
+      },
+      {
+        "label": "open trial packet",
+        "command_public_safe": "curl -fsS https://example.invalid/public-node/public-node-operator-trial-packet-v1.json",
+        "observed_result": "trial packet reachable and marker present"
+      }
+    ],
+    "observed_markers": [
+      "VOID_PUBLIC_NODE_INDEX_V1",
+      "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1"
+    ],
+    "tester_notes": [
+      "All evidence is public-safe example data.",
+      "This receipt is not a network truth claim.",
+      "This receipt does not request or imply WC issuance.",
+      "This receipt does not request or imply validator admission."
+    ],
+    "requested_operator_classification": "informational_example"
+  },
+  "operator_review_result": {
+    "decision_status": "not_reviewed_example",
+    "allowed_decisions": [
+      "accepted",
+      "needs_changes",
+      "rejected",
+      "informational"
+    ],
+    "example_recommended_decision": "informational",
+    "reason": "Example receipt demonstrates expected public-safe structure only."
+  },
+  "do_not_include": [
+    "wallet private keys",
+    "mnemonics",
+    "env files",
+    "node keys",
+    "API tokens",
+    "RPC credentials",
+    "private IPs unless intentionally disclosed by the tester",
+    "funds transfer claims",
+    "validator admission claims",
+    "claims that tester receipts are network truth"
+  ]
+}
