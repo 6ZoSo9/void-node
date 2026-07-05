@@ -5876,5 +5876,16 @@
     "tester_launch_announcement_publish_ready_status_card_terminal_closeout_rollup": "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-closeout-rollup-v1.html",
     "tester_launch_announcement_publish_ready_status_card_terminal_closeout_rollup_json": "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-closeout-rollup-v1.json",
     "tester_launch_announcement_publish_ready_status_card_terminal_closeout_rollup_ready": true
+  },
+  "datanet_field_replication_status_card_v1": {
+    "id": "datanet-field-replication-status-card-v1",
+    "title": "DataNet Field Replication Status Card v1",
+    "status": "green",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1",
+    "json": "/public-node/datanet/field-replication-status-card-v1.json",
+    "html": "/public-node/datanet/field-replication-status-card-v1.html",
+    "doc": "docs/public/datanet-field-replication-status-card-v1.md",
+    "read_only": true,
+    "tailnet_ips_redacted": true
   }
 }
