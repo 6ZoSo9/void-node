@@ -467,7 +467,9 @@
     "/public-node/public-node-operator-trial-tester-instruction-pack-v1.html",
     "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
-    "/public-node/public-node-operator-trial-tester-receipt-template-v1.json"
+    "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+    "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "/public-node/public-node-operator-trial-tester-receipt-example-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -1003,7 +1005,10 @@
     "public_node_operator_trial_human_start": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.html",
     "public_node_operator_trial_tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "public_node_operator_trial_tester_receipt_template_html": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
-    "public_node_operator_trial_tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json"
+    "public_node_operator_trial_tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+    "public_node_operator_trial_tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "public_node_operator_trial_tester_receipt_example_html": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "public_node_operator_trial_tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -1046,7 +1051,8 @@
     "public_node_operator_trial_terminal_final_seal": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_FINAL_SEAL_V1",
     "public_node_operator_trial_tester_instruction_pack": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1",
     "public_node_operator_trial_human_start": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1",
-    "public_node_operator_trial_tester_receipt_template": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1"
+    "public_node_operator_trial_tester_receipt_template": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+    "public_node_operator_trial_tester_receipt_example": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -2181,7 +2187,10 @@
     "trial_tester_instruction_pack_json": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
-    "tester_receipt_template_ready": true
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
   },
   "public_node_operator_trial_submission_review_queue": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
@@ -2243,7 +2252,10 @@
     "trial_tester_instruction_pack_json": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
-    "tester_receipt_template_ready": true
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
   },
   "public_node_operator_trial_submission_review_decision_example": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
@@ -2543,7 +2555,10 @@
     "trial_tester_instruction_pack_json": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
-    "tester_receipt_template_ready": true
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
   },
   "public_node_operator_trial_terminal_final_seal": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_FINAL_SEAL_V1",
@@ -2602,7 +2617,10 @@
     "trial_tester_instruction_pack_json": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
-    "tester_receipt_template_ready": true
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
   },
   "public_node_operator_trial_tester_instruction_pack": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1",
@@ -2652,7 +2670,10 @@
     "source_receipt_template_route": "/public-node/connect/public-node-connect-receipt-template-v1.json",
     "tester_receipt_template": "/public-node/public-node-operator-trial-tester-receipt-template-v1.html",
     "tester_receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
-    "tester_receipt_template_ready": true
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
   },
   "public_node_operator_trial_tester_receipt_template": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
@@ -2685,6 +2706,48 @@
       "no_secrets_required": true,
       "no_pii_required": true
     },
+    "source_tester_instruction_pack_route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+    "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+    "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+    "source_terminal_final_seal_route": "/public-node/public-node-operator-trial-terminal-final-seal-v1.json",
+    "tester_receipt_example": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "tester_receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "tester_receipt_example_ready": true
+  },
+  "public_node_operator_trial_tester_receipt_example": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1_GREEN",
+    "status": "tester_receipt_example_ready",
+    "title": "VOID Public Node Operator Trial Tester Receipt Example v1",
+    "html": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "page": "/public-node/public-node-operator-trial-tester-receipt-example-v1.html",
+    "public_safe": true,
+    "read_only": true,
+    "example_fixture_only": true,
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "example_fixture_only": true,
+      "copy_template_only": false,
+      "mutation_route_enabled": false,
+      "submission_endpoint_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipt_is_network_truth": false,
+      "operator_review_required_for_real_receipts": true,
+      "no_private_keys_required": true,
+      "no_secrets_required": true,
+      "no_pii_required": true
+    },
+    "source_tester_receipt_template_route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
     "source_tester_instruction_pack_route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
     "source_submission_intake_route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
     "source_submission_review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
