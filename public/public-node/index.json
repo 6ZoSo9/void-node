@@ -445,7 +445,9 @@
     "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
     "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
     "/public-node/public-node-operator-trial-root-link-v1.html",
-    "/public-node/public-node-operator-trial-root-link-v1.json"
+    "/public-node/public-node-operator-trial-root-link-v1.json",
+    "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "/public-node/public-node-operator-trial-closeout-rollup-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -947,7 +949,10 @@
     "public_node_operator_trial_root_link_html": "/public-node/public-node-operator-trial-root-link-v1.html",
     "public_node_operator_trial_root_link_json": "/public-node/public-node-operator-trial-root-link-v1.json",
     "public_node_operator_trial_start_here": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
-    "public_node_operator_trial_start_here_json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json"
+    "public_node_operator_trial_start_here_json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+    "public_node_operator_trial_closeout_rollup": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "public_node_operator_trial_closeout_rollup_html": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "public_node_operator_trial_closeout_rollup_json": "/public-node/public-node-operator-trial-closeout-rollup-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -978,7 +983,8 @@
     "public_node_operator_trial_lane_dashboard_link": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1",
     "public_node_operator_trial_public_entrypoint": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1",
     "public_node_operator_trial_root_link": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
-    "public_node_operator_trial_start_here": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1"
+    "public_node_operator_trial_start_here": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1",
+    "public_node_operator_trial_closeout_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1940,7 +1946,9 @@
     "source_trial_lane_final_seal_route": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
     "source_trial_lane_dashboard_link_route": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
     "root_link": "/public-node/public-node-operator-trial-root-link-v1.html",
-    "root_index_visible": true
+    "root_index_visible": true,
+    "trial_closeout_rollup": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "trial_closeout_ready": true
   },
   "public_node_operator_trial_root_link": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
@@ -1969,6 +1977,47 @@
       "runtime_truth_claim": false,
       "tester_receipts_are_network_truth": false,
       "operator_review_required_for_real_receipts": true
-    }
+    },
+    "trial_closeout_rollup": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "trial_closeout_rollup_json": "/public-node/public-node-operator-trial-closeout-rollup-v1.json"
+  },
+  "public_node_operator_trial_closeout_rollup": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1_GREEN",
+    "status": "trial_closeout_rollup_ready",
+    "title": "VOID Public Node Operator Trial Closeout Rollup v1",
+    "html": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "json": "/public-node/public-node-operator-trial-closeout-rollup-v1.json",
+    "page": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true
+    },
+    "closeout_status": {
+      "root_visible": true,
+      "public_start_here_ready": true,
+      "dashboard_linked": true,
+      "final_sealed": true,
+      "trial_packet_ready": true,
+      "receipt_example_ready": true,
+      "review_decision_example_ready": true,
+      "operator_review_required_for_real_receipts": true,
+      "live_authority_enabled": false
+    },
+    "source_trial_root_link_route": "/public-node/public-node-operator-trial-root-link-v1.json",
+    "source_trial_public_entrypoint_route": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+    "source_trial_lane_final_seal_route": "/public-node/public-node-operator-trial-lane-final-seal-v1.json"
   }
 }
