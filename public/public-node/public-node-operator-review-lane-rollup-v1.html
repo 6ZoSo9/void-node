@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Public Node Operator Review Lane Rollup v1</title>
+</head>
+<body>
+<h1>Public Node Operator Review Lane Rollup v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1</code></p>
+<p><strong>Status:</strong> <code>operator_review_lane_rollup_ready</code></p>
+<p>Public-safe status rollup for the outside-node-operator receipt review lane.</p>
+<p>This rollup creates no receipt, no actual review decision, no Work Credit claim, no validator admission, no wallet action, and no money movement.</p>
+
+<h2>Routes</h2>
+<ul>
+<li><strong>review_lane_rollup_page</strong>: <code>/public-node/operator-review-lane-rollup-v1</code></li>
+<li><strong>review_lane_rollup_json</strong>: <code>/public-node/public-node-operator-review-lane-rollup-v1.json</code></li>
+<li><strong>review_lane_rollup_html</strong>: <code>/public-node/public-node-operator-review-lane-rollup-v1.html</code></li>
+<li><strong>operator_status_rollup</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>handoff_packet</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>handoff_packet_json</strong>: <code>/public-node/public-node-operator-handoff-packet-v1.json</code></li>
+<li><strong>receipt_example</strong>: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>receipt_example_json</strong>: <code>/public-node/public-node-operator-receipt-example-v1.json</code></li>
+<li><strong>review_checklist</strong>: <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>review_checklist_json</strong>: <code>/public-node/public-node-operator-receipt-review-checklist-v1.json</code></li>
+<li><strong>decision_template</strong>: <code>/public-node/operator-receipt-review-decision-template-v1</code></li>
+<li><strong>decision_template_json</strong>: <code>/public-node/public-node-operator-receipt-review-decision-template-v1.json</code></li>
+<li><strong>decision_example</strong>: <code>/public-node/operator-receipt-review-decision-example-v1</code></li>
+<li><strong>decision_example_json</strong>: <code>/public-node/public-node-operator-receipt-review-decision-example-v1.json</code></li>
+<li><strong>receipt_template</strong>: <code>/public-node/connect/receipt-template-v1</code></li>
+<li><strong>receipt_template_json</strong>: <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>connect_pack_json</strong>: <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>bootstrap_public</strong>: <code>/__void/public-bootstrap.json</code></li>
+<li><strong>bootstrap_peers</strong>: <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Review sequence</h2>
+<ol>
+<li><strong>1. read_operator_status_rollup</strong>: green — <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>2. follow_operator_handoff_packet</strong>: green — <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>3. compare_against_receipt_example</strong>: green — <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>4. review_with_manual_checklist</strong>: green — <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>5. use_static_decision_template</strong>: green — <code>/public-node/operator-receipt-review-decision-template-v1</code></li>
+<li><strong>6. compare_against_static_decision_example</strong>: green — <code>/public-node/operator-receipt-review-decision-example-v1</code></li>
+</ol>
+
+<h2>Green components</h2>
+<ul>
+<li><strong>operator_status_rollup</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_QUICKSTART_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>operator_handoff_packet</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>operator_receipt_example</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>operator_receipt_review_checklist</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>operator_receipt_review_decision_template</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-receipt-review-decision-template-v1</code></li>
+<li><strong>operator_receipt_review_decision_example</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_V1</code> — closeout <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_EXAMPLE_CLOSEOUT_V1_GREEN</code> — <code>/public-node/operator-receipt-review-decision-example-v1</code></li>
+<li><strong>public_node_connect_lane</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_LANE_CLOSEOUT_V1_GREEN</code> — <code>/public-node/connect</code></li>
+<li><strong>connect_pack</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code> — <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>receipt_template</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1</code> — <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>bootstrap_gateway</strong>: green — <code>VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1</code> — <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Boundary</h2>
+<ul>
+<li>Read-only public routes only.</li>
+<li>Operator review lane rollup only.</li>
+<li>Operator status visibility only.</li>
+<li>Operator guidance only.</li>
+<li>Rollup creates no receipt.</li>
+<li>Rollup creates no review decision.</li>
+<li>Rollup creates no Work Credit claim.</li>
+<li>Rollup creates no validator admission.</li>
+<li>Rollup creates no money movement.</li>
+<li>Not automatic peer dialing.</li>
+<li>Not mutation route enablement.</li>
+<li>Not wallet send enablement.</li>
+<li>Not money movement.</li>
+<li>Not buy VOID fulfillment.</li>
+<li>Not WC to VOID settlement.</li>
+<li>Not validator mutation or validator admission.</li>
+<li>Not public Work Credit self-serve earning.</li>
+<li>Not Work Credit claim creation.</li>
+<li>Not a public internet mesh claim.</li>
+<li>Do not share private keys, seed phrases, wallet secrets, signer secrets, private IPs, or private operator data.</li>
+</ul>
+
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1_GREEN</code></p>
+</body>
+</html>
