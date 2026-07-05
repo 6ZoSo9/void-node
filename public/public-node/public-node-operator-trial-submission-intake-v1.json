@@ -1,0 +1,122 @@
+{
+  "kind": "public_node_operator_trial_submission_intake_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1_GREEN",
+  "status": "trial_submission_intake_ready",
+  "title": "VOID Public Node Operator Trial Submission Intake v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Public-safe manual intake guide for outside testers or operators submitting a real public node operator trial receipt for operator review.",
+  "html": "/public-node/public-node-operator-trial-submission-intake-v1.html",
+  "json": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "public_upload_route_enabled": false,
+    "public_form_enabled": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "routes": {
+    "trial_root_link": {
+      "html": "/public-node/public-node-operator-trial-root-link-v1.html",
+      "json": "/public-node/public-node-operator-trial-root-link-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1"
+    },
+    "trial_closeout_rollup": {
+      "html": "/public-node/public-node-operator-trial-closeout-rollup-v1.html",
+      "json": "/public-node/public-node-operator-trial-closeout-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1"
+    },
+    "trial_public_entrypoint": {
+      "html": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+      "json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1"
+    },
+    "operator_dashboard": {
+      "html": "/public-node/public-node-operator-dashboard-v1.html",
+      "json": "/public-node/public-node-operator-dashboard-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1"
+    },
+    "trial_packet": {
+      "html": "/public-node/public-node-operator-trial-packet-v1.html",
+      "json": "/public-node/public-node-operator-trial-packet-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1"
+    },
+    "receipt_template": {
+      "html": "/public-node/connect/public-node-connect-receipt-template-v1.html",
+      "json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1"
+    },
+    "trial_receipt_example": {
+      "html": "/public-node/public-node-operator-trial-receipt-example-v1.html",
+      "json": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1"
+    },
+    "review_checklist": {
+      "html": "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+      "json": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1"
+    },
+    "decision_template": {
+      "html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html",
+      "json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1"
+    }
+  },
+  "submission_policy": {
+    "manual_operator_review_required": true,
+    "operator_provided_submission_channel_required": true,
+    "public_upload_route_enabled": false,
+    "public_form_enabled": false,
+    "submitted_receipts_are_not_network_truth": true,
+    "work_credit_award_not_authorized_by_submission": true,
+    "ledger_write_not_authorized_by_submission": true,
+    "validator_admission_not_authorized_by_submission": true
+  },
+  "required_submission_fields": [
+    "tester_alias_or_handle",
+    "operator_trial_packet_route_used",
+    "connect_pack_route_used",
+    "receipt_template_version",
+    "timestamp_utc",
+    "machine_or_environment_summary",
+    "public_routes_opened",
+    "observed_result",
+    "logs_or_screenshots_if_public_safe",
+    "boundary_acknowledgement",
+    "requested_operator_review_outcome"
+  ],
+  "review_sequence": [
+    "tester_follows_public_entrypoint",
+    "tester_reads_trial_packet",
+    "tester_uses_receipt_template",
+    "tester_prepares_public_safe_receipt",
+    "tester_submits_via_operator_provided_channel",
+    "operator_applies_review_checklist",
+    "operator_uses_decision_template",
+    "operator_records_manual_decision"
+  ],
+  "do_not_infer": [
+    "live operator authority",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}
