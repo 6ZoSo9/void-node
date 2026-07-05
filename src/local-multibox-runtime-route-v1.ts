@@ -76,6 +76,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorReceiptReviewDecisionTemplatePagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-review-decision-template-v1.html");
   const publicNodeOperatorReceiptReviewDecisionTemplateJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-template-v1.json");
   const publicNodeOperatorReceiptReviewDecisionTemplateHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-template-v1.html");
+  const publicNodeOperatorReceiptReviewDecisionExamplePageRoute = "/public-node/operator-receipt-review-decision-example-v1";
+  const publicNodeOperatorReceiptReviewDecisionExampleJsonRoute = "/public-node/public-node-operator-receipt-review-decision-example-v1.json";
+  const publicNodeOperatorReceiptReviewDecisionExampleHtmlRoute = "/public-node/public-node-operator-receipt-review-decision-example-v1.html";
+  const publicNodeOperatorReceiptReviewDecisionExamplePagePath = path.resolve(process.cwd(), "public/public-node/operator-receipt-review-decision-example-v1.html");
+  const publicNodeOperatorReceiptReviewDecisionExampleJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-example-v1.json");
+  const publicNodeOperatorReceiptReviewDecisionExampleHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-receipt-review-decision-example-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -394,6 +400,18 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeOperatorReceiptReviewDecisionTemplateHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorReceiptReviewDecisionTemplateHtmlPath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionExamplePageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionExamplePagePath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionExampleJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionExampleJsonPath);
+  });
+
+  app.get(publicNodeOperatorReceiptReviewDecisionExampleHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorReceiptReviewDecisionExampleHtmlPath);
   });
 
 }
