@@ -89,6 +89,13 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeOperatorReviewLaneRollupPagePath = path.resolve(process.cwd(), "public/public-node/operator-review-lane-rollup-v1.html");
   const publicNodeOperatorReviewLaneRollupJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-review-lane-rollup-v1.json");
   const publicNodeOperatorReviewLaneRollupHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-review-lane-rollup-v1.html");
+
+  const publicNodeOperatorDashboardPageRoute = "/public-node/operator-dashboard-v1";
+  const publicNodeOperatorDashboardJsonRoute = "/public-node/public-node-operator-dashboard-v1.json";
+  const publicNodeOperatorDashboardHtmlRoute = "/public-node/public-node-operator-dashboard-v1.html";
+  const publicNodeOperatorDashboardPagePath = path.resolve(process.cwd(), "public/public-node/operator-dashboard-v1.html");
+  const publicNodeOperatorDashboardJsonPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-dashboard-v1.json");
+  const publicNodeOperatorDashboardHtmlPath = path.resolve(process.cwd(), "public/public-node/public-node-operator-dashboard-v1.html");
   const publicNodeConnectReceiptPageRoute = "/public-node/connect/receipt-template-v1";
   const publicNodeConnectReceiptJsonRoute = "/public-node/connect/public-node-connect-receipt-template-v1.json";
   const publicNodeConnectReceiptHtmlRoute = "/public-node/connect/public-node-connect-receipt-template-v1.html";
@@ -431,6 +438,18 @@ app.get(publicNodeOperatorReviewLaneRollupJsonRoute, (_req: any, res: any) => {
 
 app.get(publicNodeOperatorReviewLaneRollupHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeOperatorReviewLaneRollupHtmlPath);
+  });
+
+app.get(publicNodeOperatorDashboardPageRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorDashboardPagePath);
+  });
+
+app.get(publicNodeOperatorDashboardJsonRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorDashboardJsonPath);
+  });
+
+app.get(publicNodeOperatorDashboardHtmlRoute, (_req: any, res: any) => {
+    res.sendFile(publicNodeOperatorDashboardHtmlPath);
   });
 
 }
