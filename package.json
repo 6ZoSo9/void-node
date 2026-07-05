@@ -18,7 +18,8 @@
     "datanet:pull": "node tools/datanet-pull-v1.mjs",
     "void:field-report": "node tools/void-field-report-v1.mjs",
     "datanet:field-object:create": "node tools/datanet-field-object-create-v1.mjs",
-    "datanet:field-object:pull": "node tools/datanet-field-object-pull-v1.mjs"
+    "datanet:field-object:pull": "node tools/datanet-field-object-pull-v1.mjs",
+    "datanet:field-object:trial": "node tools/datanet-field-object-trial-v1.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
