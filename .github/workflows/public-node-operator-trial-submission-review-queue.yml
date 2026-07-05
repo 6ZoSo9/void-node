@@ -1,0 +1,18 @@
+name: public-node-operator-trial-submission-review-queue
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  public-node-operator-trial-submission-review-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public node operator trial submission review queue
+        run: bash tools/check_public_node_operator_trial_submission_review_queue_v1.sh
