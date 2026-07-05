@@ -204,3 +204,5 @@ journal-txroot-*.txt
 .void-field-reports/
 
 public/public-node/datanet/field-objects/
+
+public/public-node/datanet/field-object-mirrors/
