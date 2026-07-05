@@ -202,3 +202,5 @@ journal-txroot-*.txt
 .void-field-trial/
 
 .void-field-reports/
+
+public/public-node/datanet/field-objects/
