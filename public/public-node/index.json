@@ -432,7 +432,9 @@
     "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
     "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
     "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
-    "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json"
+    "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
+    "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "/public-node/public-node-operator-trial-public-entrypoint-v1.json"
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
@@ -926,7 +928,10 @@
     "public_node_operator_trial_lane_final_seal_json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
     "public_node_operator_trial_lane_dashboard_link": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
     "public_node_operator_trial_lane_dashboard_link_html": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
-    "public_node_operator_trial_lane_dashboard_link_json": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json"
+    "public_node_operator_trial_lane_dashboard_link_json": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
+    "public_node_operator_trial_public_entrypoint": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "public_node_operator_trial_public_entrypoint_html": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "public_node_operator_trial_public_entrypoint_json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json"
   },
   "route_markers": {
     "local_multibox_runtime_public_node_card_index": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
@@ -954,7 +959,8 @@
     "public_node_operator_trial_review_decision_example": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1",
     "public_node_operator_trial_lane_rollup": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1",
     "public_node_operator_trial_lane_final_seal": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1",
-    "public_node_operator_trial_lane_dashboard_link": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1"
+    "public_node_operator_trial_lane_dashboard_link": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1",
+    "public_node_operator_trial_public_entrypoint": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1"
   },
   "local_multibox_runtime_public_node_card_index_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PUBLIC_NODE_CARD_INDEX_V1",
   "local_multibox_runtime_public_node_card": {
@@ -1644,7 +1650,9 @@
     },
     "trial_lane_dashboard_link": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
     "trial_lane_final_seal": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
-    "trial_lane_status": "sealed_public_safe_read_only"
+    "trial_lane_status": "sealed_public_safe_read_only",
+    "trial_public_entrypoint": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "trial_public_entrypoint_json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json"
   },
   "public_node_operator_trial_packet": {
     "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1",
@@ -1873,5 +1881,43 @@
     "dashboard_json": "/public-node/public-node-operator-dashboard-v1.json",
     "source_trial_lane_final_seal_route": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
     "source_trial_lane_rollup_route": "/public-node/public-node-operator-trial-lane-rollup-v1.json"
+  },
+  "public_node_operator_trial_public_entrypoint": {
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1",
+    "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1_GREEN",
+    "status": "trial_public_entrypoint_ready",
+    "title": "VOID Public Node Operator Trial Public Entrypoint v1",
+    "html": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "json": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+    "page": "/public-node/public-node-operator-trial-public-entrypoint-v1.html",
+    "boundary": {
+      "public_routes_only": true,
+      "read_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_issuance_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "wc_ledger_write_enabled": false,
+      "validator_admission_enabled": false,
+      "validator_mutation_enabled": false,
+      "runtime_truth_claim": false,
+      "tester_receipts_are_network_truth": false,
+      "operator_review_required_for_real_receipts": true
+    },
+    "start_here_sequence": [
+      "open_public_entrypoint",
+      "open_operator_dashboard",
+      "inspect_trial_lane_final_seal",
+      "open_trial_packet",
+      "open_connect_pack",
+      "use_receipt_template",
+      "compare_trial_receipt_example",
+      "inspect_trial_review_decision_example",
+      "submit_real_receipt_for_operator_review"
+    ],
+    "source_trial_lane_final_seal_route": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+    "source_trial_lane_dashboard_link_route": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json"
   }
 }
