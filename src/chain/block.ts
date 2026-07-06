@@ -1531,3 +1531,157 @@ export function assertLiveCanonicalChainStateApiResponseReplayNonceBoundaryGreen
 
   return decision.marker;
 }
+
+/**
+ * VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_EXPORTS_V1
+ *
+ * Domain separation boundary for signed/fresh/replay-safe live canonical
+ * chain-state API responses.
+ *
+ * This helper is deliberately local/deterministic. It does not fetch from the
+ * network, mutate chain state, rotate signers, admit validators, or accept a
+ * finality response by itself. It only evaluates whether an already signed,
+ * fresh, replay-safe API response is bound to the expected VOID network,
+ * chain, route, purpose, and authority domain.
+ */
+export const LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_V1 =
+  'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_AUDIT_V1' as const;
+
+export type LiveCanonicalChainStateApiResponseDomainSeparationPolicyV1 = Readonly<{
+  enabled: boolean;
+  requireSignedResponse: boolean;
+  requireFreshResponse: boolean;
+  requireReplayNonceAccepted: boolean;
+  expectedChainId: number;
+  expectedNetworkId: string;
+  expectedResponsePurpose: string;
+  expectedRoutePath: string;
+  expectedAuthorityDomain: string;
+}>;
+
+export type LiveCanonicalChainStateApiResponseDomainSeparationCandidateV1 = Readonly<{
+  signatureAccepted: boolean;
+  freshnessAccepted: boolean;
+  replayNonceAccepted: boolean;
+  chainId: number;
+  networkId: string;
+  responsePurpose: string;
+  routePath: string;
+  authorityDomain: string;
+}>;
+
+export type LiveCanonicalChainStateApiResponseDomainSeparationDecisionV1 = Readonly<{
+  accepted: boolean;
+  marker: typeof LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_V1;
+  reasons: readonly string[];
+  normalizedNetworkId: string;
+  normalizedResponsePurpose: string;
+  normalizedRoutePath: string;
+  normalizedAuthorityDomain: string;
+}>;
+
+function normalizeLiveCanonicalChainStateApiResponseDomainValueV1(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeLiveCanonicalChainStateApiResponseDomainRoutePathV1(value: string): string {
+  const trimmed = value.trim();
+
+  if (trimmed.length === 0) {
+    return '';
+  }
+
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+  if (withLeadingSlash === '/') {
+    return withLeadingSlash;
+  }
+
+  return withLeadingSlash.replace(/\/+$/u, '');
+}
+
+function isLiveCanonicalChainStateApiResponseDomainSafeChainIdV1(value: number): boolean {
+  return typeof value === 'number' && isFinite(value) && Math.floor(value) === value && value > 0 && value <= 9007199254740991;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseDomainSeparationBoundaryV1(
+  policy: LiveCanonicalChainStateApiResponseDomainSeparationPolicyV1,
+  candidate: LiveCanonicalChainStateApiResponseDomainSeparationCandidateV1,
+): LiveCanonicalChainStateApiResponseDomainSeparationDecisionV1 {
+  const reasons: string[] = [];
+  const expectedNetworkId = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(policy.expectedNetworkId);
+  const candidateNetworkId = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(candidate.networkId);
+  const expectedResponsePurpose = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(policy.expectedResponsePurpose);
+  const candidateResponsePurpose = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(candidate.responsePurpose);
+  const expectedRoutePath = normalizeLiveCanonicalChainStateApiResponseDomainRoutePathV1(policy.expectedRoutePath);
+  const candidateRoutePath = normalizeLiveCanonicalChainStateApiResponseDomainRoutePathV1(candidate.routePath);
+  const expectedAuthorityDomain = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(policy.expectedAuthorityDomain);
+  const candidateAuthorityDomain = normalizeLiveCanonicalChainStateApiResponseDomainValueV1(candidate.authorityDomain);
+
+  if (!policy.enabled) {
+    reasons.push('domain_separation_policy_disabled');
+  }
+
+  if (policy.requireSignedResponse && !candidate.signatureAccepted) {
+    reasons.push('signed_response_required');
+  }
+
+  if (policy.requireFreshResponse && !candidate.freshnessAccepted) {
+    reasons.push('fresh_response_required');
+  }
+
+  if (policy.requireReplayNonceAccepted && !candidate.replayNonceAccepted) {
+    reasons.push('replay_nonce_acceptance_required');
+  }
+
+  if (!isLiveCanonicalChainStateApiResponseDomainSafeChainIdV1(policy.expectedChainId)) {
+    reasons.push('expected_chain_id_invalid');
+  }
+
+  if (!isLiveCanonicalChainStateApiResponseDomainSafeChainIdV1(candidate.chainId)) {
+    reasons.push('candidate_chain_id_invalid');
+  }
+
+  if (isLiveCanonicalChainStateApiResponseDomainSafeChainIdV1(policy.expectedChainId) && candidate.chainId !== policy.expectedChainId) {
+    reasons.push('chain_id_mismatch');
+  }
+
+  if (expectedNetworkId.length === 0 || candidateNetworkId !== expectedNetworkId) {
+    reasons.push('network_id_mismatch');
+  }
+
+  if (expectedResponsePurpose.length === 0 || candidateResponsePurpose !== expectedResponsePurpose) {
+    reasons.push('response_purpose_mismatch');
+  }
+
+  if (expectedRoutePath.length === 0 || candidateRoutePath !== expectedRoutePath) {
+    reasons.push('route_path_mismatch');
+  }
+
+  if (expectedAuthorityDomain.length === 0 || candidateAuthorityDomain !== expectedAuthorityDomain) {
+    reasons.push('authority_domain_mismatch');
+  }
+
+  return {
+    accepted: policy.enabled ? reasons.length === 0 : true,
+    marker: LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_V1,
+    reasons,
+    normalizedNetworkId: candidateNetworkId,
+    normalizedResponsePurpose: candidateResponsePurpose,
+    normalizedRoutePath: candidateRoutePath,
+    normalizedAuthorityDomain: candidateAuthorityDomain,
+  };
+}
+
+export function assertLiveCanonicalChainStateApiResponseDomainSeparationBoundaryGreenV1(
+  policy: LiveCanonicalChainStateApiResponseDomainSeparationPolicyV1,
+  candidate: LiveCanonicalChainStateApiResponseDomainSeparationCandidateV1,
+): typeof LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_DOMAIN_SEPARATION_BOUNDARY_V1 {
+  const decision = evaluateLiveCanonicalChainStateApiResponseDomainSeparationBoundaryV1(policy, candidate);
+
+  if (!decision.accepted) {
+    throw new Error(`live canonical chain-state API response domain separation boundary rejected: ${decision.reasons.join(',')}`);
+  }
+
+  return decision.marker;
+}
