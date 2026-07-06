@@ -1,1 +1,126 @@
-{"claim": "Precision created and served a public-safe DataNet field object; Nimo on cellphone data plus tailnet pulled and verified it; Nimo mirrored it; Precision pulled Nimo's mirror back and verified the exact SHA-256.", "created_at": "2026-07-05T17:43:48.418870+00:00", "field_result": {"field_mirror_green": true, "field_node": "nimo_n153b", "home_roundtrip_verify_green": true, "network_path": "cellphone_data_plus_tailnet", "roundtrip_match": true, "source_node": "precision_home_node", "source_to_field_pull_green": true, "tailnet_addresses_publicly_redacted": true, "verified_bytes": 174, "verified_sha256": "5b4cbc3c4a26a7032ed951bbc17f8470d5e8c865d76817fbdad740562606ede7"}, "green_marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN", "kind": "datanet_field_replication_status_card", "marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1", "proof_bundle_public_summary_v1": {"boundaries": {"absolute_paths_published": false, "hostnames_published": false, "private_bundle_published": false, "public_mutation_route_enabled": false, "raw_receipts_published": false, "runtime_public_write_enabled": false, "static_public_file_published_by_pr": true, "tailnet_urls_published": false}, "bounded_report": {"artifacts_observed": 500, "field_report_bounded": true, "total_candidates_observed": 688, "truncated": true}, "dangerous_authorities_enabled": {"automatic_rewards": false, "ledger_write": false, "public_mutation_route": false, "secret_handling": false, "validator_admission": false, "wallet_movement": false, "wc_settlement": false}, "doc_source_path": "docs/public/datanet-field-replication-proof-bundle-public-summary-v1.md", "private_details_redacted": true, "proof_sha256": "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da", "public_html_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.html", "public_json_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.json", "public_safe": true, "source_bundle_sha256": "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2", "status": "green"}, "proof_markers": ["VOID_DATANET_FIELD_OBJECT_TRIAL_V1_GREEN", "VOID_DATANET_FIELD_OBJECT_MIRROR_V1_GREEN", "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN", "VOID_DATANET_PULL_TAILNET_DIAGNOSTICS_V1_GREEN"], "routes": {"doc": "docs/public/datanet-field-replication-status-card-v1.md", "html": "/public-node/datanet/field-replication-status-card-v1.html", "json": "/public-node/datanet/field-replication-status-card-v1.json"}, "safe_serve_runbook_discovery_v1": {"dangerous_authorities_enabled": {"automatic_rewards": false, "ledger_write": false, "public_mutation_route": false, "secret_handling": false, "validator_admission": false, "wallet_movement": false, "wc_settlement": false}, "doc_source_path": "docs/public/datanet-field-replication-safe-serve-runbook-v1.md", "private_tailnet_details_redacted": true, "public_html_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.html", "public_json_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.json", "status": "green"}, "safe_serve_update_v1": {"dangerous_paths_touched": false, "enabled_authorities": {"ledger_write": false, "public_mutation_route": false, "validator_admission": false, "wallet_movement": false, "wc_settlement": false}, "field_mirror_serve_command": "npm run public-node:serve -- --port 8089", "field_runner_marker": "VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN", "proof_date": "2026-07-05", "roundtrip_verifier_marker": "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN", "safe_serve_marker": "VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY", "serves_public_directory_only": true, "source_serve_command": "npm run public-node:serve -- --port 8088", "status": "green", "summary": "Field replication loop verified with repository safe serve command instead of generic Python HTTP server.", "tailnet_addresses_redacted": true, "verified_mirror_sha256": "feed57f0441871cc0a27153025808becf3f9d3a9c264a54189d0de88a2ec33cb"}, "safety_boundary": {"dangerous_paths_touched": false, "no_ledger_write": true, "no_public_mutation_route": true, "no_validator_admission": true, "no_wallet_movement": true, "no_wc_settlement": true, "public_status_only": true, "read_only": true, "tailnet_ips_redacted": true}, "sealed_commits": {"field_object_roundtrip_verifier": {"main": "162cd085", "pr": 396, "tag": "ckpt-datanet-field-object-roundtrip-v1-post-merge-exact-green-20260705-123421"}, "tailnet_diagnostics": {"main": "9a9f6131", "pr": 397, "tag": "ckpt-datanet-pull-tailnet-diagnostics-v1-post-merge-exact-green-20260705-124020"}}, "status": "green"}
+{
+  "claim": "Precision created and served a public-safe DataNet field object; Nimo on cellphone data plus tailnet pulled and verified it; Nimo mirrored it; Precision pulled Nimo's mirror back and verified the exact SHA-256.",
+  "created_at": "2026-07-05T17:43:48.418870+00:00",
+  "field_result": {
+    "field_mirror_green": true,
+    "field_node": "nimo_n153b",
+    "home_roundtrip_verify_green": true,
+    "network_path": "cellphone_data_plus_tailnet",
+    "roundtrip_match": true,
+    "source_node": "precision_home_node",
+    "source_to_field_pull_green": true,
+    "tailnet_addresses_publicly_redacted": true,
+    "verified_bytes": 174,
+    "verified_sha256": "5b4cbc3c4a26a7032ed951bbc17f8470d5e8c865d76817fbdad740562606ede7"
+  },
+  "green_marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN",
+  "kind": "datanet_field_replication_status_card",
+  "marker": "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1",
+  "proof_bundle_public_summary_v1": {
+    "boundaries": {
+      "absolute_paths_published": false,
+      "hostnames_published": false,
+      "private_bundle_published": false,
+      "public_mutation_route_enabled": false,
+      "raw_receipts_published": false,
+      "runtime_public_write_enabled": false,
+      "static_public_file_published_by_pr": true,
+      "tailnet_urls_published": false
+    },
+    "bounded_report": {
+      "artifacts_observed": 500,
+      "field_report_bounded": true,
+      "total_candidates_observed": 688,
+      "truncated": true
+    },
+    "dangerous_authorities_enabled": {
+      "automatic_rewards": false,
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "secret_handling": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "doc_source_path": "docs/public/datanet-field-replication-proof-bundle-public-summary-v1.md",
+    "private_details_redacted": true,
+    "proof_sha256": "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da",
+    "public_html_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.html",
+    "public_json_path": "/public-node/datanet/field-replication-proof-bundle-public-summary-v1.json",
+    "public_safe": true,
+    "source_bundle_sha256": "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2",
+    "status": "green"
+  },
+  "proof_markers": [
+    "VOID_DATANET_FIELD_OBJECT_TRIAL_V1_GREEN",
+    "VOID_DATANET_FIELD_OBJECT_MIRROR_V1_GREEN",
+    "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN",
+    "VOID_DATANET_PULL_TAILNET_DIAGNOSTICS_V1_GREEN"
+  ],
+  "routes": {
+    "doc": "docs/public/datanet-field-replication-status-card-v1.md",
+    "html": "/public-node/datanet/field-replication-status-card-v1.html",
+    "json": "/public-node/datanet/field-replication-status-card-v1.json"
+  },
+  "safe_serve_runbook_discovery_v1": {
+    "dangerous_authorities_enabled": {
+      "automatic_rewards": false,
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "secret_handling": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "doc_source_path": "docs/public/datanet-field-replication-safe-serve-runbook-v1.md",
+    "private_tailnet_details_redacted": true,
+    "public_html_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.html",
+    "public_json_path": "/public-node/datanet/field-replication-safe-serve-runbook-v1.json",
+    "status": "green"
+  },
+  "safe_serve_update_v1": {
+    "dangerous_paths_touched": false,
+    "enabled_authorities": {
+      "ledger_write": false,
+      "public_mutation_route": false,
+      "validator_admission": false,
+      "wallet_movement": false,
+      "wc_settlement": false
+    },
+    "field_mirror_serve_command": "npm run public-node:serve -- --port 8089",
+    "field_runner_marker": "VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN",
+    "proof_date": "2026-07-05",
+    "roundtrip_verifier_marker": "VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN",
+    "safe_serve_marker": "VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY",
+    "serves_public_directory_only": true,
+    "source_serve_command": "npm run public-node:serve -- --port 8088",
+    "status": "green",
+    "summary": "Field replication loop verified with repository safe serve command instead of generic Python HTTP server.",
+    "tailnet_addresses_redacted": true,
+    "verified_mirror_sha256": "feed57f0441871cc0a27153025808becf3f9d3a9c264a54189d0de88a2ec33cb"
+  },
+  "safety_boundary": {
+    "dangerous_paths_touched": false,
+    "no_ledger_write": true,
+    "no_public_mutation_route": true,
+    "no_validator_admission": true,
+    "no_wallet_movement": true,
+    "no_wc_settlement": true,
+    "public_status_only": true,
+    "read_only": true,
+    "tailnet_ips_redacted": true
+  },
+  "sealed_commits": {
+    "field_object_roundtrip_verifier": {
+      "main": "162cd085",
+      "pr": 396,
+      "tag": "ckpt-datanet-field-object-roundtrip-v1-post-merge-exact-green-20260705-123421"
+    },
+    "tailnet_diagnostics": {
+      "main": "9a9f6131",
+      "pr": 397,
+      "tag": "ckpt-datanet-pull-tailnet-diagnostics-v1-post-merge-exact-green-20260705-124020"
+    }
+  },
+  "status": "green"
+}
