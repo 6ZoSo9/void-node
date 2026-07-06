@@ -1,0 +1,69 @@
+{
+  "closed_scope": {
+    "candidate_fixture_runtime": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_CANDIDATE_FIXTURE_RUNTIME_V1_GREEN",
+    "current_main_audit": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_CURRENT_MAIN_AUDIT_GREEN",
+    "multi_object_manifest_runtime": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_RUNTIME_V1_GREEN",
+    "private_receipts_public_safe_summary": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_V1_GREEN",
+    "private_receipts_public_safe_summary_runtime": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_V1_GREEN"
+  },
+  "closeout_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_CLOSEOUT_V1_GREEN",
+  "disabled_boundaries": {
+    "automatic_rewards_enabled": false,
+    "public_tree_mutation_enabled": false,
+    "secret_handling_enabled": false,
+    "validator_admission_enabled": false,
+    "wallet_or_ledger_action_enabled": false
+  },
+  "evidence_chain": [
+    {
+      "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_RUNTIME_V1_GREEN",
+      "name": "multi-object manifest runtime",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_CANDIDATE_FIXTURE_RUNTIME_V1_GREEN",
+      "name": "candidate fixture runtime",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_V1_GREEN",
+      "name": "private receipts public-safe summary",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_V1_GREEN",
+      "name": "private receipts public-safe summary runtime",
+      "status": "green"
+    },
+    {
+      "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_CURRENT_MAIN_AUDIT_GREEN",
+      "name": "current-main audit",
+      "status": "green"
+    }
+  ],
+  "id": "datanet-field-replication-multi-object-private-receipts-public-safe-summary-closeout-v1",
+  "next_step": "Add runtime smoke for this closeout, then terminal final seal.",
+  "private_details_redacted": true,
+  "proof_date": "2026-07-06",
+  "public_commitments": {
+    "aggregate_receipts_sha256": "7f84d2219ccc10f7f1615a32fc2c5cad2ecab5b018c6b987ebaa45f42c883572",
+    "minimum_object_count_satisfied": true,
+    "object_count": 2,
+    "source_public_safe_candidate_sha256": "36dbffb3e0af5f338cc1ffaf5c254be1188caf8e772bb6a7bcbfa9c7db99d9bb"
+  },
+  "public_safe": true,
+  "publication_boundary": {
+    "enables_automatic_rewards": false,
+    "enables_public_mutation": false,
+    "enables_validator_admission": false,
+    "enables_wallet_or_ledger_action": false,
+    "publishes_lan_or_tailnet_addresses": false,
+    "publishes_machine_names": false,
+    "publishes_private_paths": false,
+    "publishes_secret_material": false
+  },
+  "purpose": "Close out the DataNet multi-object private receipts public-safe summary runtime lane before terminal sealing.",
+  "source_main_commit": "0a670e85",
+  "status": "green",
+  "title": "DataNet field replication multi-object private receipts public-safe summary closeout v1"
+}
