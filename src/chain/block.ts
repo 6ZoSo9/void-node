@@ -91,6 +91,34 @@ export function verifyBlockSignatureWithPubkey(candidate: any, pubPEM: string): 
 }
 
 
+export function blockProposerAuthorityRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = String(
+    env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED ||
+    env.VOID_REQUIRE_TRUSTED_BLOCK_PROPOSER ||
+    ""
+  ).trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function parseTrustedBlockProposerIds(raw: any): Set<string> {
+  return new Set(
+    String(raw || "")
+      .split(/[,\s]+/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+  );
+}
+
+export function trustedBlockProposerIdsFromEnv(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return parseTrustedBlockProposerIds(
+    env.VOID_BLOCK_TRUSTED_PROPOSERS ||
+    env.VOID_TRUSTED_BLOCK_PROPOSERS ||
+    env.VOID_BLOCK_PROPOSER_ALLOWLIST ||
+    ""
+  );
+}
+
+
 
 export type BlockValidationResult =
   | { ok: true }
@@ -151,11 +179,24 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
     return { ok: false, reason: "invalid_block_signature_shape" };
   }
 
+  const authorityRequired = blockProposerAuthorityRequiredFromEnv();
   const proposerPubkey = String(candidate.proposerPubkey || "");
+
+  if (authorityRequired && !proposerPubkey.trim()) {
+    return { ok: false, reason: "missing_proposer_pubkey" };
+  }
+
   if (proposerPubkey.trim()) {
     // Pass the exact PEM string through. Node ids are derived from the exact exported PEM.
     const signatureValid = verifyBlockSignatureWithPubkey(candidate, proposerPubkey);
     if (!signatureValid.ok) return signatureValid;
+  }
+
+  if (authorityRequired) {
+    const trusted = trustedBlockProposerIdsFromEnv();
+    if (!trusted.has(proposer)) {
+      return { ok: false, reason: "unauthorized_proposer" };
+    }
   }
 
   if (!isHex64(String(candidate.parentHash || ""))) return { ok: false, reason: "invalid_parent_hash" };
