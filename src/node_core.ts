@@ -7,7 +7,7 @@ import * as net from "node:net";
 import * as crypto from "node:crypto";
 
 import { Mempool } from "./chain/mempool.js";
-import { Block, computeRoots, blockHash, validateBlockForAppend } from "./chain/block.js";
+import { Block, computeRoots, blockHash, blockHeaderBytes, validateBlockForAppend } from "./chain/block.js";
 import { cidForBytes } from "./util/cid.js";
 import { ensureDir } from "./util/files.js";
 import { SegStore } from "./chain/seg_store.js";
@@ -667,16 +667,14 @@ export class Node {
     const parentBlock = parent >= 0 ? this.store.loadBlock(parent) : null;
     const parentHash = parent >= 0 && parentBlock ? blockHash(parentBlock) : "".padStart(64, "0");
 
-    const headerBytes = Buffer.from(
-      JSON.stringify({
-        number,
-        parentHash,
-        timestamp: now,
-        txRoot: roots.txRoot,
-        blobRoot: roots.blobRoot,
-        proposer: this.id,
-      }),
-    );
+    const headerBytes = blockHeaderBytes({
+      number,
+      parentHash,
+      timestamp: now,
+      txRoot: roots.txRoot,
+      blobRoot: roots.blobRoot,
+      proposer: this.id,
+    } as any);
 
     const sig = signBytes(this.priv, headerBytes);
     const b: Block = {
@@ -688,6 +686,7 @@ export class Node {
       txs,
       blobs,
       proposer: this.id,
+      proposerPubkey: this.pubPEM,
       sig,
     };
 
