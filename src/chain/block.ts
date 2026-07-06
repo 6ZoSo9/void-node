@@ -1386,3 +1386,148 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
 
   return { ok: true };
 }
+
+/**
+ * VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_EXPORTS_V1
+ *
+ * Replay nonce boundary for signed/fresh live canonical chain-state API responses.
+ *
+ * This helper is deliberately local/deterministic. It does not fetch from the
+ * network, mutate chain state, rotate signers, admit validators, or accept a
+ * finality response by itself. It only evaluates whether an already signed and
+ * freshness-checked API response is replay-safe against local acceptance state.
+ */
+export const LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_V1 =
+  'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_AUDIT_V1' as const;
+
+export type LiveCanonicalChainStateApiResponseReplayNoncePolicyV1 = Readonly<{
+  enabled: boolean;
+  requireSignedResponse: boolean;
+  requireFreshResponse: boolean;
+  requireMonotonicObservedAtMs: boolean;
+  requireNonRegressingFinalizedHeight: boolean;
+  requireDistinctResponseNonce: boolean;
+}>;
+
+export type LiveCanonicalChainStateApiResponseReplayNonceStateV1 = Readonly<{
+  lastAcceptedObservedAtMs?: number;
+  lastAcceptedFinalizedHeight?: number;
+  seenResponseNonces?: readonly string[];
+}>;
+
+export type LiveCanonicalChainStateApiResponseReplayNonceCandidateV1 = Readonly<{
+  signatureAccepted: boolean;
+  freshnessAccepted: boolean;
+  observedAtMs: number;
+  finalizedHeight: number;
+  responseNonce: string;
+}>;
+
+export type LiveCanonicalChainStateApiResponseReplayNonceDecisionV1 = Readonly<{
+  accepted: boolean;
+  marker: typeof LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_V1;
+  reasons: readonly string[];
+  normalizedResponseNonce: string;
+}>;
+
+function normalizeLiveCanonicalChainStateApiResponseReplayNonceV1(value: string): string {
+  return value.trim();
+}
+
+function isLiveCanonicalChainStateApiResponseReplayNonceSafeIntegerV1(value: number): boolean {
+  return typeof value === 'number' && isFinite(value) && Math.floor(value) === value && value >= 0 && value <= 9007199254740991;
+}
+
+function hasLiveCanonicalChainStateApiResponseReplayNonceSeenV1(
+  seenResponseNonces: readonly string[] | undefined,
+  normalizedResponseNonce: string,
+): boolean {
+  if (!seenResponseNonces) {
+    return false;
+  }
+
+  for (const seenResponseNonce of seenResponseNonces) {
+    if (normalizeLiveCanonicalChainStateApiResponseReplayNonceV1(seenResponseNonce) === normalizedResponseNonce) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseReplayNonceBoundaryV1(
+  policy: LiveCanonicalChainStateApiResponseReplayNoncePolicyV1,
+  state: LiveCanonicalChainStateApiResponseReplayNonceStateV1,
+  candidate: LiveCanonicalChainStateApiResponseReplayNonceCandidateV1,
+): LiveCanonicalChainStateApiResponseReplayNonceDecisionV1 {
+  const reasons: string[] = [];
+  const normalizedResponseNonce = normalizeLiveCanonicalChainStateApiResponseReplayNonceV1(candidate.responseNonce);
+
+  if (!policy.enabled) {
+    reasons.push('replay_nonce_policy_disabled');
+  }
+
+  if (policy.requireSignedResponse && !candidate.signatureAccepted) {
+    reasons.push('signed_response_required');
+  }
+
+  if (policy.requireFreshResponse && !candidate.freshnessAccepted) {
+    reasons.push('fresh_response_required');
+  }
+
+  if (!isLiveCanonicalChainStateApiResponseReplayNonceSafeIntegerV1(candidate.observedAtMs)) {
+    reasons.push('candidate_observed_at_ms_invalid');
+  }
+
+  if (!isLiveCanonicalChainStateApiResponseReplayNonceSafeIntegerV1(candidate.finalizedHeight)) {
+    reasons.push('candidate_finalized_height_invalid');
+  }
+
+  if (normalizedResponseNonce.length < 16) {
+    reasons.push('response_nonce_required');
+  }
+
+  if (
+    policy.requireMonotonicObservedAtMs &&
+    typeof state.lastAcceptedObservedAtMs === 'number' &&
+    candidate.observedAtMs <= state.lastAcceptedObservedAtMs
+  ) {
+    reasons.push('observed_at_ms_not_monotonic');
+  }
+
+  if (
+    policy.requireNonRegressingFinalizedHeight &&
+    typeof state.lastAcceptedFinalizedHeight === 'number' &&
+    candidate.finalizedHeight < state.lastAcceptedFinalizedHeight
+  ) {
+    reasons.push('finalized_height_regressed');
+  }
+
+  if (
+    policy.requireDistinctResponseNonce &&
+    hasLiveCanonicalChainStateApiResponseReplayNonceSeenV1(state.seenResponseNonces, normalizedResponseNonce)
+  ) {
+    reasons.push('response_nonce_replayed');
+  }
+
+  return {
+    accepted: policy.enabled ? reasons.length === 0 : true,
+    marker: LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_V1,
+    reasons,
+    normalizedResponseNonce,
+  };
+}
+
+export function assertLiveCanonicalChainStateApiResponseReplayNonceBoundaryGreenV1(
+  policy: LiveCanonicalChainStateApiResponseReplayNoncePolicyV1,
+  state: LiveCanonicalChainStateApiResponseReplayNonceStateV1,
+  candidate: LiveCanonicalChainStateApiResponseReplayNonceCandidateV1,
+): typeof LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_REPLAY_NONCE_BOUNDARY_V1 {
+  const decision = evaluateLiveCanonicalChainStateApiResponseReplayNonceBoundaryV1(policy, state, candidate);
+
+  if (!decision.accepted) {
+    throw new Error(`live canonical chain-state API response replay nonce boundary rejected: ${decision.reasons.join(',')}`);
+  }
+
+  return decision.marker;
+}
