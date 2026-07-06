@@ -32,7 +32,7 @@ function emptyBlock(number: number, parentHash: string): Block {
     txs: [],
     blobs: [],
     proposer: "fixture",
-    sig: "",
+    sig: "a".repeat(128),
   };
 }
 
