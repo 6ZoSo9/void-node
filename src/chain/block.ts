@@ -16,7 +16,7 @@ export type Block = {
   txs: Tx[];
   blobs: BlobRef[];
   proposer: string;         // nodeId
-  sig: string;              // 64-hex ed25519 signature over header bytes
+  sig: string;              // 128-hex Ed25519 signature over header bytes
 };
 
 export function computeRoots(txs: Tx[], blobs: BlobRef[]) {
@@ -51,6 +51,10 @@ export const ZERO_HASH_64 = "".padStart(64, "0");
 
 function isHex64(v: any): boolean {
   return typeof v === "string" && /^[0-9a-fA-F]{64}$/.test(v);
+}
+
+function isHex128(v: any): boolean {
+  return typeof v === "string" && /^[0-9a-fA-F]{128}$/.test(v);
 }
 
 function isTxShape(t: any): boolean {
@@ -90,6 +94,12 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
 
   if (!Number.isFinite(Number(candidate.timestamp)) || Number(candidate.timestamp) <= 0) {
     return { ok: false, reason: "invalid_timestamp" };
+  }
+
+  const proposer = String(candidate.proposer || "").trim();
+  if (!proposer) return { ok: false, reason: "missing_proposer" };
+  if (!isHex128(String(candidate.sig || "").trim())) {
+    return { ok: false, reason: "invalid_block_signature_shape" };
   }
 
   if (!isHex64(String(candidate.parentHash || ""))) return { ok: false, reason: "invalid_parent_hash" };
