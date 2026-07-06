@@ -2355,3 +2355,340 @@ export function assertLiveCanonicalChainStateApiResponseSignerPolicyQuorumV1(
 
   return true;
 }
+
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_BOUNDARY_V1_SOURCE
+export type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1 =
+  VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumResponseV1 & Readonly<{
+    domain?: string;
+    responseNonce?: string;
+    finalizedHeight?: number;
+    finalizedBlockHash?: string;
+    epochRoot?: string;
+  }>;
+
+export type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1 = Readonly<{
+  certificatePurpose: string;
+  domain: string;
+  signerPolicyId: string;
+  signerAuthorityVersion: string;
+  signerPolicySequence: number;
+  quorumThreshold: number;
+  finalizedHeight: number;
+  finalizedBlockHash: string;
+  epochRoot: string;
+  responseNonce: string;
+  quorumSignerKeyIds: readonly string[];
+  bindingPayload: string;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingDecisionV1 = Readonly<{
+  accepted: boolean;
+  reason: string;
+  expectedBindingPayload?: string;
+  actualBindingPayload?: string;
+  expectedSignerKeyIds: readonly string[];
+  certificateSignerKeyIds: readonly string[];
+}>;
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_BOUNDARY_V1_SOURCE =
+  "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_BOUNDARY_V1_SOURCE";
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_PURPOSE_V1 =
+  "void-live-canonical-chain-state-api-response-quorum-certificate-v1";
+
+type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingUnsignedV1 = Readonly<{
+  certificatePurpose: string;
+  domain: string;
+  signerPolicyId: string;
+  signerAuthorityVersion: string;
+  signerPolicySequence: number;
+  quorumThreshold: number;
+  finalizedHeight: number;
+  finalizedBlockHash: string;
+  epochRoot: string;
+  responseNonce: string;
+  quorumSignerKeyIds: readonly string[];
+}>;
+
+type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildResultV1 =
+  | Readonly<{ accepted: true; certificate: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1 }>
+  | Readonly<{ accepted: false; reason: string; expectedSignerKeyIds: readonly string[] }>;
+
+type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildRejectedV1 = Extract<
+  VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildResultV1,
+  Readonly<{ accepted: false }>
+>;
+
+const isVoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildRejectedV1 = (
+  result: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildResultV1,
+): result is VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildRejectedV1 => result.accepted === false;
+
+const isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1 = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const isVoidLiveCanonicalChainStateQuorumCertificateBindingNonNegativeIntegerV1 = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+
+const normalizeVoidLiveCanonicalChainStateQuorumCertificateBindingStringV1 = (value: string): string => value.trim();
+
+const canonicalizeVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1 = (
+  signerKeyIds: readonly string[],
+): readonly string[] | undefined => {
+  const normalizedSignerKeyIds: string[] = [];
+  const seenSignerKeyIds = new Set<string>();
+
+  for (const rawSignerKeyId of signerKeyIds) {
+    if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1(rawSignerKeyId)) {
+      return undefined;
+    }
+
+    const signerKeyId = normalizeVoidLiveCanonicalChainStateQuorumCertificateBindingStringV1(rawSignerKeyId);
+    if (seenSignerKeyIds.has(signerKeyId)) {
+      return undefined;
+    }
+
+    seenSignerKeyIds.add(signerKeyId);
+    normalizedSignerKeyIds.push(signerKeyId);
+  }
+
+  return normalizedSignerKeyIds.sort((left, right) => left.localeCompare(right));
+};
+
+const equalVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1 = (
+  left: readonly string[],
+  right: readonly string[],
+): boolean => left.length === right.length && left.every((value, index) => value === right[index]);
+
+const encodeVoidLiveCanonicalChainStateQuorumCertificateBindingComponentV1 = (value: string | number): string =>
+  encodeURIComponent(String(value));
+
+const buildVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingPayloadV1 = (
+  certificate: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingUnsignedV1,
+): string => {
+  const components = [
+    ["purpose", certificate.certificatePurpose],
+    ["domain", certificate.domain],
+    ["signerPolicyId", certificate.signerPolicyId],
+    ["signerAuthorityVersion", certificate.signerAuthorityVersion],
+    ["signerPolicySequence", certificate.signerPolicySequence],
+    ["quorumThreshold", certificate.quorumThreshold],
+    ["finalizedHeight", certificate.finalizedHeight],
+    ["finalizedBlockHash", certificate.finalizedBlockHash],
+    ["epochRoot", certificate.epochRoot],
+    ["responseNonce", certificate.responseNonce],
+    ["quorumSignerKeyIds", certificate.quorumSignerKeyIds.join(",")],
+  ] as const;
+
+  return components
+    .map(([key, value]) => `${key}=${encodeVoidLiveCanonicalChainStateQuorumCertificateBindingComponentV1(value)}`)
+    .join("|");
+};
+
+const voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1 = (
+  accepted: boolean,
+  reason: string,
+  expectedSignerKeyIds: readonly string[] = [],
+  certificateSignerKeyIds: readonly string[] = [],
+  expectedBindingPayload?: string,
+  actualBindingPayload?: string,
+): VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingDecisionV1 => ({
+  accepted,
+  reason,
+  expectedBindingPayload,
+  actualBindingPayload,
+  expectedSignerKeyIds,
+  certificateSignerKeyIds,
+});
+
+const computeVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1 = (
+  response: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+): VoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildResultV1 => {
+  const quorumDecision = evaluateLiveCanonicalChainStateApiResponseSignerPolicyQuorumV1(response, policy);
+  if (!quorumDecision.accepted) {
+    return {
+      accepted: false,
+      reason: `source_signer_policy_quorum_rejected:${quorumDecision.reason}`,
+      expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds,
+    };
+  }
+
+  if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1(response.domain)) {
+    return { accepted: false, reason: "missing_response_domain", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1(response.responseNonce)) {
+    return { accepted: false, reason: "missing_response_nonce", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonNegativeIntegerV1(response.finalizedHeight)) {
+    return { accepted: false, reason: "missing_or_invalid_response_finalized_height", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1(response.finalizedBlockHash)) {
+    return { accepted: false, reason: "missing_response_finalized_block_hash", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  if (!isVoidLiveCanonicalChainStateQuorumCertificateBindingNonEmptyStringV1(response.epochRoot)) {
+    return { accepted: false, reason: "missing_response_epoch_root", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  const quorumSignerKeyIds = canonicalizeVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1(
+    quorumDecision.acceptedSignerKeyIds,
+  );
+  if (quorumSignerKeyIds === undefined) {
+    return { accepted: false, reason: "invalid_quorum_decision_signer_key_ids", expectedSignerKeyIds: quorumDecision.acceptedSignerKeyIds };
+  }
+
+  const unsignedCertificate: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingUnsignedV1 = {
+    certificatePurpose: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_PURPOSE_V1,
+    domain: response.domain.trim(),
+    signerPolicyId: policy.signerPolicyId,
+    signerAuthorityVersion: policy.signerAuthorityVersion,
+    signerPolicySequence: policy.signerPolicySequence,
+    quorumThreshold: policy.quorumThreshold,
+    finalizedHeight: response.finalizedHeight,
+    finalizedBlockHash: response.finalizedBlockHash.trim(),
+    epochRoot: response.epochRoot.trim(),
+    responseNonce: response.responseNonce.trim(),
+    quorumSignerKeyIds,
+  };
+
+  return {
+    accepted: true,
+    certificate: {
+      ...unsignedCertificate,
+      bindingPayload: buildVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingPayloadV1(unsignedCertificate),
+    },
+  };
+};
+
+export function getVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingBoundarySourceMarkerV1(): string {
+  return VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_BOUNDARY_V1_SOURCE;
+}
+
+export function buildLiveCanonicalChainStateApiResponseQuorumCertificateBindingV1(
+  response: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+): VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1 {
+  const result = computeVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1(response, policy);
+  if (isVoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildRejectedV1(result)) {
+    throw new Error(`VOID live canonical chain-state API response quorum certificate build rejected: ${result.reason}`);
+  }
+
+  return result.certificate;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseQuorumCertificateBindingV1(
+  response: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+  certificate: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1,
+): VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingDecisionV1 {
+  const expectedResult = computeVoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1(response, policy);
+  const certificateSignerKeyIds = Array.isArray(certificate.quorumSignerKeyIds)
+    ? certificate.quorumSignerKeyIds.map(String)
+    : [];
+
+  if (isVoidLiveCanonicalChainStateApiResponseQuorumCertificateBuildRejectedV1(expectedResult)) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(
+      false,
+      expectedResult.reason,
+      expectedResult.expectedSignerKeyIds,
+      certificateSignerKeyIds,
+    );
+  }
+
+  const expectedCertificate = expectedResult.certificate;
+  const canonicalCertificateSignerKeyIds = Array.isArray(certificate.quorumSignerKeyIds)
+    ? canonicalizeVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1(certificate.quorumSignerKeyIds)
+    : undefined;
+
+  if (canonicalCertificateSignerKeyIds === undefined) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(
+      false,
+      "invalid_quorum_certificate_signer_key_ids",
+      expectedCertificate.quorumSignerKeyIds,
+      certificateSignerKeyIds,
+      expectedCertificate.bindingPayload,
+      certificate.bindingPayload,
+    );
+  }
+
+  if (!equalVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1(certificateSignerKeyIds, canonicalCertificateSignerKeyIds)) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(
+      false,
+      "quorum_certificate_signer_set_not_canonical",
+      expectedCertificate.quorumSignerKeyIds,
+      certificateSignerKeyIds,
+      expectedCertificate.bindingPayload,
+      certificate.bindingPayload,
+    );
+  }
+
+  if (!equalVoidLiveCanonicalChainStateQuorumCertificateBindingSignerKeyIdsV1(canonicalCertificateSignerKeyIds, expectedCertificate.quorumSignerKeyIds)) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(
+      false,
+      "quorum_certificate_signer_set_mismatch",
+      expectedCertificate.quorumSignerKeyIds,
+      certificateSignerKeyIds,
+      expectedCertificate.bindingPayload,
+      certificate.bindingPayload,
+    );
+  }
+
+  if (certificate.certificatePurpose !== expectedCertificate.certificatePurpose) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_purpose_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.domain !== expectedCertificate.domain) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_domain_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.signerPolicyId !== expectedCertificate.signerPolicyId) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_signer_policy_id_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.signerAuthorityVersion !== expectedCertificate.signerAuthorityVersion) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_signer_authority_version_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.signerPolicySequence !== expectedCertificate.signerPolicySequence) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_signer_policy_sequence_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.quorumThreshold !== expectedCertificate.quorumThreshold) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_threshold_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.finalizedHeight !== expectedCertificate.finalizedHeight) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_finalized_height_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.finalizedBlockHash !== expectedCertificate.finalizedBlockHash) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_finalized_block_hash_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.epochRoot !== expectedCertificate.epochRoot) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_epoch_root_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.responseNonce !== expectedCertificate.responseNonce) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_response_nonce_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+  if (certificate.bindingPayload !== expectedCertificate.bindingPayload) {
+    return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(false, "quorum_certificate_binding_payload_mismatch", expectedCertificate.quorumSignerKeyIds, certificateSignerKeyIds, expectedCertificate.bindingPayload, certificate.bindingPayload);
+  }
+
+  return voidLiveCanonicalChainStateQuorumCertificateBindingDecisionV1(
+    true,
+    "quorum_certificate_binding_accepted",
+    expectedCertificate.quorumSignerKeyIds,
+    certificateSignerKeyIds,
+    expectedCertificate.bindingPayload,
+    certificate.bindingPayload,
+  );
+}
+
+export function assertLiveCanonicalChainStateApiResponseQuorumCertificateBindingV1(
+  response: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+  certificate: VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1,
+): true {
+  const decision = evaluateLiveCanonicalChainStateApiResponseQuorumCertificateBindingV1(response, policy, certificate);
+  if (!decision.accepted) {
+    throw new Error(`VOID live canonical chain-state API response quorum certificate binding rejected: ${decision.reason}`);
+  }
+
+  return true;
+}
