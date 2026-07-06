@@ -1,0 +1,5 @@
+VOID DATANET MULTI OBJECT CANDIDATE FIXTURE V1
+object: beta
+purpose: public-safe deterministic multi-object field replication candidate
+private: no
+mutation: no

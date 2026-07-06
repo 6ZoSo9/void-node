@@ -1,0 +1,60 @@
+{
+  "candidate_fixture": {
+    "aggregate": {
+      "aggregate_manifest_sha256": "a2bd8502cbd55607bc375f39b330d8314784b5335a088d77849c61b6291ee05e",
+      "all_private_details_redacted": true,
+      "all_public_safe": true,
+      "all_runtime_fetches_green": false,
+      "all_sha256_present": true
+    },
+    "minimum_object_count_satisfied": true,
+    "object_count": 2,
+    "objects": [
+      {
+        "bytes": 162,
+        "content_kind": "public_safe_text",
+        "object_id": "multi-object-fixture-alpha-v1",
+        "path": "/public-node/datanet/field-objects/multi-object-fixtures/v1/multi-object-fixture-alpha-v1.txt",
+        "public_summary_status": "candidate_fixture_defined",
+        "redaction_status": "no_private_details",
+        "replication_status": "candidate_not_replicated_yet",
+        "sha256": "f0ca03c92a99384c52d5669fd6d73b5da758fd05a1af9f141773ab45c792019a"
+      },
+      {
+        "bytes": 161,
+        "content_kind": "public_safe_text",
+        "object_id": "multi-object-fixture-beta-v1",
+        "path": "/public-node/datanet/field-objects/multi-object-fixtures/v1/multi-object-fixture-beta-v1.txt",
+        "public_summary_status": "candidate_fixture_defined",
+        "redaction_status": "no_private_details",
+        "replication_status": "candidate_not_replicated_yet",
+        "sha256": "ffd405533a111e7379e9ed7a54fc92c5d76232681b20fcba30bac9837d5f1780"
+      }
+    ]
+  },
+  "disabled_boundaries": {
+    "automatic_rewards_enabled": false,
+    "runtime_mutation_enabled": false,
+    "secret_handling_enabled": false,
+    "validator_admission_enabled": false,
+    "wallet_or_ledger_action_enabled": false
+  },
+  "fixture_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_CANDIDATE_FIXTURE_V1_GREEN",
+  "id": "datanet-field-replication-multi-object-candidate-fixture-v1",
+  "next_lane_steps": [
+    "runtime-smoke the candidate fixture JSON, HTML, index entry, and object text files through public-node safe serve",
+    "run private per-object field replication receipts",
+    "generate a public-safe multi-object replication summary",
+    "close out with a public-safe multi-object proof bundle"
+  ],
+  "previous_manifest_runtime": {
+    "main_commit": "f60c7fad",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_RUNTIME_V1_GREEN"
+  },
+  "private_details_redacted": true,
+  "proof_date": "2026-07-06",
+  "public_safe": true,
+  "purpose": "Provide a deterministic public-safe two-object candidate fixture for the next multi-object DataNet field replication proof lane.",
+  "status": "green",
+  "title": "DataNet field replication multi-object candidate fixture v1"
+}
