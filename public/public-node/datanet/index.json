@@ -510,6 +510,18 @@
       "wc_issuance_enabled": false
     }
   ],
+  "field_replication_multi_object_candidate_fixture_v1": {
+    "aggregate_manifest_sha256": "a2bd8502cbd55607bc375f39b330d8314784b5335a088d77849c61b6291ee05e",
+    "html": "/public-node/datanet/field-replication-multi-object-candidate-fixture-v1.html",
+    "json": "/public-node/datanet/field-replication-multi-object-candidate-fixture-v1.json",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_CANDIDATE_FIXTURE_V1_GREEN",
+    "object_count": 2,
+    "previous_manifest_runtime_main_commit": "f60c7fad",
+    "private_details_redacted": true,
+    "public_safe": true,
+    "status": "green",
+    "title": "DataNet field replication multi-object candidate fixture v1"
+  },
   "field_replication_multi_object_manifest_v1": {
     "html": "/public-node/datanet/field-replication-multi-object-manifest-v1.html",
     "json": "/public-node/datanet/field-replication-multi-object-manifest-v1.json",
