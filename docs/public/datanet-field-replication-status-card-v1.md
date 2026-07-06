@@ -60,11 +60,23 @@ The repeatable safe-serve field replication runbook is now discoverable from thi
 
 Status: GREEN.
 
-The real two-box DataNet field replication proof bundle now has a public-safe summary.
+The real two-box bounded DataNet field replication proof bundle now has a public-safe summary.
 
 - Public HTML: `/public-node/datanet/field-replication-proof-bundle-public-summary-v1.html`
 - Public JSON: `/public-node/datanet/field-replication-proof-bundle-public-summary-v1.json`
-- Source private bundle SHA-256: `e441f7d9f5481358344f41543ccb7a0f7991e2988e857d0ae9d54268b29740f2`
-- Verified proof SHA-256: `e7bee9f07a0959c2f87d959c5fd60ef5502e5a75c6c7dada2e7f8418c5ab9fcb`
+- Source private bundle SHA-256: `03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2`
+- Verified proof SHA-256: `3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da`
 - Boundary: private receipts, tailnet addresses, hostnames, absolute paths, private bundle contents, and server log details are redacted.
+
+## Real two-box bounded public-safe summary refresh
+
+Status: GREEN.
+
+The public-safe proof bundle summary now points at the real two-box bounded report proof.
+
+- Source private bundle SHA-256: `03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2`
+- Verified proof SHA-256: `3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da`
+- Bounded field report: `artifacts=500`, `total_candidates=688`, `truncated=true`
+- Public-safe summary marker: `VOID_REAL_TWO_BOX_BOUNDED_PUBLIC_SAFE_SUMMARY_GREEN`
+- Boundary: private receipts, tailnet addresses, hostnames, absolute paths, private bundle contents, and server log details remain redacted.
 

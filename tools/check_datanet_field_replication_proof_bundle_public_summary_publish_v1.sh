@@ -55,8 +55,8 @@ summary = json.loads(Path("public/public-node/datanet/field-replication-proof-bu
 assert summary["status"] == "green"
 assert summary["public_safe"] is True
 assert summary["published_static_public_summary"] is True
-assert summary["source_bundle_sha256"] == "e441f7d9f5481358344f41543ccb7a0f7991e2988e857d0ae9d54268b29740f2"
-assert summary["proof_sha256"] == "e7bee9f07a0959c2f87d959c5fd60ef5502e5a75c6c7dada2e7f8418c5ab9fcb"
+assert summary["source_bundle_sha256"] == "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2"
+assert summary["proof_sha256"] == "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da"
 assert summary["validation"]["private_details_redacted"] is True
 assert summary["redactions"]["server_log_details_redacted"] is True
 assert summary["boundaries"]["static_public_file_published_by_pr"] is True
