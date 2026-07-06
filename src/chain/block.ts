@@ -129,6 +129,12 @@ export function blockProposerAuthoritySourceFromEnv(env: NodeJS.ProcessEnv = pro
     raw === "runtime-truth" ||
     raw === "validator-runtime-truth"
   ) return "runtime_truth";
+  if (
+    raw === "signed_runtime_truth" ||
+    raw === "signed-validator-runtime-truth" ||
+    raw === "signed_runtime-truth" ||
+    raw === "signed-runtime-truth"
+  ) return "signed_runtime_truth";
   return raw;
 }
 
@@ -182,6 +188,112 @@ function runtimeTruthEntries(root: any, epoch: string): Array<{ entry: any; inde
   return out;
 }
 
+
+function stableJsonStringify(v: any): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map((x) => stableJsonStringify(x)).join(",") + "]";
+  const keys = Object.keys(v).filter((k) => typeof v[k] !== "undefined").sort();
+  return "{" + keys.map((k) => JSON.stringify(k) + ":" + stableJsonStringify(v[k])).join(",") + "}";
+}
+
+function runtimeTruthBodyWithoutSignature(truth: any): any {
+  const body: any = {};
+  for (const k of Object.keys(truth || {})) {
+    if (k === "signature" || k === "manifestSignature" || k === "manifest_signature") continue;
+    body[k] = truth[k];
+  }
+  return body;
+}
+
+export function validatorRuntimeTruthSigningBody(truth: any): Buffer {
+  return Buffer.from(stableJsonStringify(runtimeTruthBodyWithoutSignature(truth)));
+}
+
+export function validatorRuntimeTruthSignatureRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const source = blockProposerAuthoritySourceFromEnv(env);
+  if (source === "signed_runtime_truth") return true;
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNATURE_REQUIRED ||
+    env.VOID_REQUIRE_SIGNED_VALIDATOR_RUNTIME_TRUTH ||
+    ""
+  ).trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function trustedValidatorRuntimeTruthSignerPubkeyFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const file = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNER_PUBKEY_FILE ||
+    env.VOID_VALIDATOR_RUNTIME_TRUTH_SIGNER_PUBKEY_FILE ||
+    env.VOID_SIGNED_VALIDATOR_RUNTIME_TRUTH_PUBKEY_FILE ||
+    ""
+  ).trim();
+
+  if (file) {
+    try {
+      return fs.readFileSync(file, "utf8");
+    } catch {
+      return "";
+    }
+  }
+
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNER_PUBKEY ||
+    env.VOID_VALIDATOR_RUNTIME_TRUTH_SIGNER_PUBKEY ||
+    env.VOID_SIGNED_VALIDATOR_RUNTIME_TRUTH_PUBKEY ||
+    ""
+  );
+
+  return raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
+}
+
+function runtimeTruthSignatureBlock(truth: any): any {
+  return truth?.signature ?? truth?.manifestSignature ?? truth?.manifest_signature ?? null;
+}
+
+export function verifyValidatorRuntimeTruthManifestSignature(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult {
+  const sigBlock = runtimeTruthSignatureBlock(truth);
+  if (!sigBlock || typeof sigBlock !== "object") {
+    return { ok: false, reason: "validator_runtime_truth_signature_missing" };
+  }
+
+  const alg = String(sigBlock.alg || sigBlock.algorithm || "").trim().toLowerCase();
+  if (alg !== "ed25519") return { ok: false, reason: "validator_runtime_truth_signature_alg_unsupported" };
+
+  const sig = String(sigBlock.sig || sigBlock.signature || "").trim();
+  if (!isHex128(sig)) return { ok: false, reason: "validator_runtime_truth_signature_shape_invalid" };
+
+  const signerPubkey = String(sigBlock.signer_pubkey || sigBlock.pubkey || sigBlock.publicKey || "");
+  if (!signerPubkey.trim()) {
+    return { ok: false, reason: "validator_runtime_truth_signer_pubkey_missing" };
+  }
+
+  const trustedPubkey = trustedValidatorRuntimeTruthSignerPubkeyFromEnv(env);
+  if (!trustedPubkey.trim()) {
+    return { ok: false, reason: "missing_validator_runtime_truth_trusted_signer" };
+  }
+
+  if (signerPubkey !== trustedPubkey) {
+    return { ok: false, reason: "validator_runtime_truth_signer_mismatch" };
+  }
+
+  let pub: crypto.KeyObject;
+  try {
+    pub = crypto.createPublicKey(trustedPubkey);
+  } catch {
+    return { ok: false, reason: "invalid_validator_runtime_truth_trusted_signer" };
+  }
+
+  try {
+    const ok = crypto.verify(null, validatorRuntimeTruthSigningBody(truth), pub, Buffer.from(sig, "hex"));
+    return ok ? { ok: true } : { ok: false, reason: "validator_runtime_truth_signature_invalid" };
+  } catch {
+    return { ok: false, reason: "validator_runtime_truth_signature_invalid" };
+  }
+}
+
 export function expectedBlockProposerFromRuntimeTruth(
   candidate: any,
   env: NodeJS.ProcessEnv = process.env
@@ -199,6 +311,11 @@ export function expectedBlockProposerFromRuntimeTruth(
 
   if (!truth || typeof truth !== "object") {
     return { ok: false, reason: "invalid_validator_runtime_truth_file" };
+  }
+
+  if (validatorRuntimeTruthSignatureRequiredFromEnv(env)) {
+    const signatureValid = verifyValidatorRuntimeTruthManifestSignature(truth, env);
+    if (!signatureValid.ok) return signatureValid;
   }
 
   const epoch = String(
@@ -309,7 +426,7 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
   if (authorityRequired) {
     const authoritySource = blockProposerAuthoritySourceFromEnv();
 
-    if (authoritySource === "runtime_truth") {
+    if (authoritySource === "runtime_truth" || authoritySource === "signed_runtime_truth") {
       const expected = expectedBlockProposerFromRuntimeTruth(candidate);
       if (!expected.ok) return expected;
       if (expected.proposer !== proposer) {
