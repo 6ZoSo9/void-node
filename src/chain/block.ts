@@ -2,6 +2,7 @@
 // Copyright (c) 2025 6ZoSo9
 
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import { merkleRootHex, hashToLeafHex } from "../util/merkle.js";
 
 export type Tx = { hash: string; body: Record<string, any> };
@@ -119,6 +120,119 @@ export function trustedBlockProposerIdsFromEnv(env: NodeJS.ProcessEnv = process.
 }
 
 
+export function blockProposerAuthoritySourceFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = String(env.VOID_BLOCK_PROPOSER_AUTHORITY_SOURCE || "env").trim().toLowerCase();
+  if (!raw || raw === "env" || raw === "allowlist" || raw === "operator_env") return "env";
+  if (
+    raw === "runtime_truth" ||
+    raw === "validator_runtime_truth" ||
+    raw === "runtime-truth" ||
+    raw === "validator-runtime-truth"
+  ) return "runtime_truth";
+  return raw;
+}
+
+export function blockValidatorRuntimeTruthFileFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_FILE ||
+    env.VOID_VALIDATOR_RUNTIME_TRUTH_FILE ||
+    env.VOID_VALIDATOR_TRUTH_FILE ||
+    ""
+  ).trim();
+}
+
+function runtimeTruthEntryProposer(entry: any): string {
+  const raw = entry?.proposer ?? entry?.proposerId ?? entry?.nodeId ?? entry?.id ?? entry?.validatorId ?? entry?.validator ?? "";
+  if (raw && typeof raw === "object") {
+    return String(raw.nodeId ?? raw.id ?? raw.proposer ?? raw.proposerId ?? "");
+  }
+  return String(raw || "");
+}
+
+function runtimeTruthEntries(root: any, epoch: string): Array<{ entry: any; index: number; fallbackEpoch: string }> {
+  const out: Array<{ entry: any; index: number; fallbackEpoch: string }> = [];
+  const rootEpoch = String(root?.epoch ?? root?.epochNumber ?? epoch);
+
+  const push = (arr: any, fallbackEpoch: string) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach((entry, index) => out.push({ entry, index, fallbackEpoch }));
+  };
+
+  push(root?.schedule, rootEpoch);
+  push(root?.scheduleWindow, rootEpoch);
+  push(root?.proposers, rootEpoch);
+
+  const epochs = root?.epochs;
+  if (epochs && typeof epochs === "object") {
+    const e = epochs[epoch] ?? epochs[String(Number(epoch))];
+    const eEpoch = String(e?.epoch ?? e?.epochNumber ?? epoch);
+    push(e?.schedule, eEpoch);
+    push(e?.scheduleWindow, eEpoch);
+    push(e?.proposers, eEpoch);
+  }
+
+  const runtime = root?.validatorRuntimeTruth ?? root?.runtimeTruth;
+  if (runtime && typeof runtime === "object") {
+    const rEpoch = String(runtime?.epoch ?? runtime?.epochNumber ?? rootEpoch);
+    push(runtime?.schedule, rEpoch);
+    push(runtime?.scheduleWindow, rEpoch);
+    push(runtime?.proposers, rEpoch);
+  }
+
+  return out;
+}
+
+export function expectedBlockProposerFromRuntimeTruth(
+  candidate: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { proposer?: string } {
+  const file = blockValidatorRuntimeTruthFileFromEnv(env);
+  if (!file) return { ok: false, reason: "missing_validator_runtime_truth_file" };
+  if (!fs.existsSync(file)) return { ok: false, reason: "validator_runtime_truth_file_missing" };
+
+  let truth: any;
+  try {
+    truth = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return { ok: false, reason: "invalid_validator_runtime_truth_file" };
+  }
+
+  if (!truth || typeof truth !== "object") {
+    return { ok: false, reason: "invalid_validator_runtime_truth_file" };
+  }
+
+  const epoch = String(
+    env.VOID_BLOCK_PROPOSER_EPOCH ??
+    env.VOID_VALIDATOR_RUNTIME_EPOCH ??
+    candidate?.epoch ??
+    candidate?.proposerEpoch ??
+    "0"
+  );
+
+  const slot = String(
+    env.VOID_BLOCK_PROPOSER_SLOT ??
+    env.VOID_VALIDATOR_RUNTIME_SLOT ??
+    candidate?.slot ??
+    candidate?.proposerSlot ??
+    candidate?.number
+  );
+
+  const entries = runtimeTruthEntries(truth, epoch);
+  if (!entries.length) return { ok: false, reason: "validator_runtime_truth_schedule_missing" };
+
+  for (const { entry, index, fallbackEpoch } of entries) {
+    const entryEpoch = String(entry?.epoch ?? entry?.epochNumber ?? fallbackEpoch);
+    const entrySlot = String(entry?.slot ?? entry?.slotNumber ?? entry?.proposerSlot ?? entry?.number ?? index);
+    const proposer = runtimeTruthEntryProposer(entry).trim();
+    if (entryEpoch === epoch && entrySlot === slot && proposer) {
+      return { ok: true, proposer };
+    }
+  }
+
+  return { ok: false, reason: "runtime_truth_proposer_not_found" };
+}
+
+
 
 export type BlockValidationResult =
   | { ok: true }
@@ -193,9 +307,21 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
   }
 
   if (authorityRequired) {
-    const trusted = trustedBlockProposerIdsFromEnv();
-    if (!trusted.has(proposer)) {
-      return { ok: false, reason: "unauthorized_proposer" };
+    const authoritySource = blockProposerAuthoritySourceFromEnv();
+
+    if (authoritySource === "runtime_truth") {
+      const expected = expectedBlockProposerFromRuntimeTruth(candidate);
+      if (!expected.ok) return expected;
+      if (expected.proposer !== proposer) {
+        return { ok: false, reason: "runtime_truth_proposer_mismatch" };
+      }
+    } else if (authoritySource === "env") {
+      const trusted = trustedBlockProposerIdsFromEnv();
+      if (!trusted.has(proposer)) {
+        return { ok: false, reason: "unauthorized_proposer" };
+      }
+    } else {
+      return { ok: false, reason: "unsupported_proposer_authority_source" };
     }
   }
 
