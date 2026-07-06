@@ -2170,3 +2170,188 @@ export function assertLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuar
 
   return true;
 }
+
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_QUORUM_BOUNDARY_V1_SOURCE
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1 = Readonly<{
+  signerPolicyId: string;
+  signerAuthorityVersion: string;
+  signerPolicySequence: number;
+  quorumThreshold: number;
+  allowedSignerKeyIds: readonly string[];
+  revokedSignerKeyIds?: readonly string[];
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumResponseV1 = Readonly<{
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  signerPolicySequence?: number;
+  signerKeyIds?: readonly string[];
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumDecisionV1 = Readonly<{
+  accepted: boolean;
+  reason: string;
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  signerPolicySequence?: number;
+  quorumThreshold?: number;
+  acceptedSignerKeyIds: readonly string[];
+  rejectedSignerKeyIds: readonly string[];
+}>;
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_QUORUM_BOUNDARY_V1_SOURCE =
+  "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_QUORUM_BOUNDARY_V1_SOURCE";
+
+const isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1 = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const isVoidLiveCanonicalChainStateSignerPolicyQuorumSequenceV1 = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+
+const isVoidLiveCanonicalChainStateSignerPolicyQuorumThresholdV1 = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
+
+const normalizeVoidLiveCanonicalChainStateSignerPolicyQuorumKeyIdV1 = (value: string): string => value.trim();
+
+const voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1 = (
+  accepted: boolean,
+  reason: string,
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumResponseV1,
+  policy: Partial<VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1>,
+  acceptedSignerKeyIds: readonly string[] = [],
+  rejectedSignerKeyIds: readonly string[] = [],
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumDecisionV1 => ({
+  accepted,
+  reason,
+  signerPolicyId: response.signerPolicyId,
+  signerAuthorityVersion: response.signerAuthorityVersion,
+  signerPolicySequence: response.signerPolicySequence,
+  quorumThreshold: policy.quorumThreshold,
+  acceptedSignerKeyIds,
+  rejectedSignerKeyIds,
+});
+
+export function getVoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumBoundarySourceMarkerV1(): string {
+  return VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_QUORUM_BOUNDARY_V1_SOURCE;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseSignerPolicyQuorumV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumDecisionV1 {
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(policy.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_policy_signer_policy_id", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(policy.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_policy_signer_authority_version", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumSequenceV1(policy.signerPolicySequence)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "invalid_policy_signer_policy_sequence", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumThresholdV1(policy.quorumThreshold)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "invalid_policy_quorum_threshold", response, policy);
+  }
+
+  const allowedSignerKeyIds = new Set<string>();
+  for (const keyId of policy.allowedSignerKeyIds) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(keyId)) {
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "invalid_allowed_signer_key_id", response, policy);
+    }
+    allowedSignerKeyIds.add(normalizeVoidLiveCanonicalChainStateSignerPolicyQuorumKeyIdV1(keyId));
+  }
+
+  const revokedSignerKeyIds = new Set<string>();
+  for (const keyId of policy.revokedSignerKeyIds ?? []) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(keyId)) {
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "invalid_revoked_signer_key_id", response, policy);
+    }
+    revokedSignerKeyIds.add(normalizeVoidLiveCanonicalChainStateSignerPolicyQuorumKeyIdV1(keyId));
+  }
+
+  const liveAllowedSignerKeyIds = Array.from(allowedSignerKeyIds).filter((keyId) => !revokedSignerKeyIds.has(keyId));
+  if (liveAllowedSignerKeyIds.length === 0) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "no_live_allowed_signer_keys", response, policy);
+  }
+
+  if (policy.quorumThreshold > liveAllowedSignerKeyIds.length) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "quorum_threshold_exceeds_live_allowed_signers", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(response.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_response_signer_policy_id", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(response.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_response_signer_authority_version", response, policy);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumSequenceV1(response.signerPolicySequence)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_or_invalid_response_signer_policy_sequence", response, policy);
+  }
+
+  if (response.signerPolicyId !== policy.signerPolicyId) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "response_signer_policy_id_mismatch", response, policy);
+  }
+
+  if (response.signerAuthorityVersion !== policy.signerAuthorityVersion) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "response_signer_authority_version_mismatch", response, policy);
+  }
+
+  if (response.signerPolicySequence !== policy.signerPolicySequence) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "response_signer_policy_sequence_mismatch", response, policy);
+  }
+
+  if (!Array.isArray(response.signerKeyIds)) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "missing_response_signer_key_ids", response, policy);
+  }
+
+  const acceptedSignerKeyIds: string[] = [];
+  const rejectedSignerKeyIds: string[] = [];
+  const seenSignerKeyIds = new Set<string>();
+
+  for (const rawKeyId of response.signerKeyIds) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyQuorumNonEmptyStringV1(rawKeyId)) {
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "invalid_response_signer_key_id", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+    }
+
+    const keyId = normalizeVoidLiveCanonicalChainStateSignerPolicyQuorumKeyIdV1(rawKeyId);
+    if (seenSignerKeyIds.has(keyId)) {
+      rejectedSignerKeyIds.push(keyId);
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "duplicate_response_signer_key_id", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+    }
+    seenSignerKeyIds.add(keyId);
+
+    if (!allowedSignerKeyIds.has(keyId)) {
+      rejectedSignerKeyIds.push(keyId);
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "response_signer_key_id_not_allowed", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+    }
+
+    if (revokedSignerKeyIds.has(keyId)) {
+      rejectedSignerKeyIds.push(keyId);
+      return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "response_signer_key_id_revoked", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+    }
+
+    acceptedSignerKeyIds.push(keyId);
+  }
+
+  if (acceptedSignerKeyIds.length < policy.quorumThreshold) {
+    return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(false, "signer_policy_quorum_not_met", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+  }
+
+  return voidLiveCanonicalChainStateSignerPolicyQuorumDecisionV1(true, "signer_policy_quorum_accepted", response, policy, acceptedSignerKeyIds, rejectedSignerKeyIds);
+}
+
+export function assertLiveCanonicalChainStateApiResponseSignerPolicyQuorumV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
+): true {
+  const decision = evaluateLiveCanonicalChainStateApiResponseSignerPolicyQuorumV1(response, policy);
+  if (!decision.accepted) {
+    throw new Error(`VOID live canonical chain-state API response signer policy quorum rejected: ${decision.reason}`);
+  }
+
+  return true;
+}
