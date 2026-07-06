@@ -143,6 +143,14 @@ export function blockProposerAuthoritySourceFromEnv(env: NodeJS.ProcessEnv = pro
     raw === "epoch_root" ||
     raw === "epoch-root"
   ) return "signed_runtime_truth_epoch_root";
+  if (
+    raw === "signed_runtime_truth_chain_epoch_root" ||
+    raw === "signed-runtime-truth-chain-epoch-root" ||
+    raw === "chain_epoch_root" ||
+    raw === "chain-epoch-root" ||
+    raw === "chain_derived_epoch_root" ||
+    raw === "chain-derived-epoch-root"
+  ) return "signed_runtime_truth_chain_epoch_root";
   return raw;
 }
 
@@ -259,9 +267,138 @@ export function verifyValidatorRuntimeTruthEpochRoot(
   return { ok: true, root: actual };
 }
 
+
+export function validatorEpochRootCommitmentFileFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return String(
+    env.VOID_BLOCK_VALIDATOR_EPOCH_ROOT_COMMITMENT_FILE ||
+    env.VOID_VALIDATOR_EPOCH_ROOT_COMMITMENT_FILE ||
+    env.VOID_CHAIN_VALIDATOR_EPOCH_ROOT_COMMITMENT_FILE ||
+    env.VOID_VALIDATOR_SET_COMMITMENT_FILE ||
+    ""
+  ).trim();
+}
+
+function epochRootFromCommitmentEntry(entry: any): string {
+  const raw = entry?.root ?? entry?.epochRoot ?? entry?.epoch_root ?? entry?.bodyHash ?? entry?.body_hash ?? entry?.validatorRuntimeTruthRoot ?? "";
+  return String(raw || "").trim().replace(/^0x/i, "");
+}
+
+function commitmentEntries(root: any, epoch: string): Array<{ entry: any; index: number; fallbackEpoch: string }> {
+  const out: Array<{ entry: any; index: number; fallbackEpoch: string }> = [];
+  const rootEpoch = String(root?.epoch ?? root?.epochNumber ?? epoch);
+
+  const push = (arr: any, fallbackEpoch: string) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach((entry, index) => out.push({ entry, index, fallbackEpoch }));
+  };
+
+  push(root?.commitments, rootEpoch);
+  push(root?.epoch_roots, rootEpoch);
+  push(root?.epochRoots, rootEpoch);
+  push(root?.roots, rootEpoch);
+  push(root?.validatorSetCommitments, rootEpoch);
+  push(root?.validator_set_commitments, rootEpoch);
+
+  const epochs = root?.epochs;
+  if (epochs && typeof epochs === "object") {
+    const e = epochs[epoch] ?? epochs[String(Number(epoch))];
+    if (typeof e === "string") {
+      out.push({ entry: { epoch, root: e }, index: 0, fallbackEpoch: epoch });
+    } else if (e && typeof e === "object") {
+      const eEpoch = String(e?.epoch ?? e?.epochNumber ?? epoch);
+      out.push({ entry: e, index: 0, fallbackEpoch: eEpoch });
+      push(e?.commitments, eEpoch);
+      push(e?.epoch_roots, eEpoch);
+      push(e?.epochRoots, eEpoch);
+      push(e?.roots, eEpoch);
+    }
+  }
+
+  if (root?.root || root?.epochRoot || root?.epoch_root || root?.bodyHash || root?.body_hash) {
+    out.push({ entry: root, index: 0, fallbackEpoch: rootEpoch });
+  }
+
+  return out;
+}
+
+export function expectedValidatorRuntimeTruthEpochRootFromCommitmentFile(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { root?: string } {
+  const file = validatorEpochRootCommitmentFileFromEnv(env);
+  if (!file) return { ok: false, reason: "missing_validator_epoch_root_commitment_file" };
+  if (!fs.existsSync(file)) return { ok: false, reason: "validator_epoch_root_commitment_file_missing" };
+
+  let commitment: any;
+  try {
+    commitment = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return { ok: false, reason: "invalid_validator_epoch_root_commitment_file" };
+  }
+
+  if (!commitment || typeof commitment !== "object") {
+    return { ok: false, reason: "invalid_validator_epoch_root_commitment_file" };
+  }
+
+  const epoch = String(
+    env.VOID_BLOCK_PROPOSER_EPOCH ??
+    env.VOID_VALIDATOR_RUNTIME_EPOCH ??
+    truth?.epoch ??
+    truth?.epochNumber ??
+    "0"
+  );
+
+  const entries = commitmentEntries(commitment, epoch);
+  if (!entries.length) return { ok: false, reason: "validator_epoch_root_commitment_missing" };
+
+  for (const { entry, index, fallbackEpoch } of entries) {
+    const entryEpoch = String(entry?.epoch ?? entry?.epochNumber ?? fallbackEpoch);
+    const entrySlot = entry?.slot ?? entry?.slotNumber;
+    if (typeof entrySlot !== "undefined" && String(entrySlot) !== "0") continue;
+    if (entryEpoch !== epoch) continue;
+
+    const root = epochRootFromCommitmentEntry(entry);
+    if (!root) continue;
+    if (!isHex64(root)) return { ok: false, reason: "invalid_validator_epoch_root_commitment" };
+    return { ok: true, root };
+  }
+
+  return { ok: false, reason: "validator_epoch_root_commitment_missing" };
+}
+
+export function validatorRuntimeTruthChainEpochRootRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const source = blockProposerAuthoritySourceFromEnv(env);
+  if (source === "signed_runtime_truth_chain_epoch_root") return true;
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_CHAIN_EPOCH_ROOT_REQUIRED ||
+    env.VOID_REQUIRE_CHAIN_VALIDATOR_EPOCH_ROOT ||
+    ""
+  ).trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function verifyValidatorRuntimeTruthChainEpochRoot(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { root?: string } {
+  const expected = expectedValidatorRuntimeTruthEpochRootFromCommitmentFile(truth, env);
+  if (!expected.ok) return expected;
+
+  const actual = validatorRuntimeTruthManifestBodyHash(truth);
+  if (actual !== expected.root) {
+    return { ok: false, reason: "validator_runtime_truth_chain_epoch_root_mismatch" };
+  }
+
+  return { ok: true, root: actual };
+}
+
 export function validatorRuntimeTruthSignatureRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   const source = blockProposerAuthoritySourceFromEnv(env);
-  if (source === "signed_runtime_truth" || source === "signed_runtime_truth_epoch_root") return true;
+  if (
+    source === "signed_runtime_truth" ||
+    source === "signed_runtime_truth_epoch_root" ||
+    source === "signed_runtime_truth_chain_epoch_root"
+  ) return true;
   const raw = String(
     env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNATURE_REQUIRED ||
     env.VOID_REQUIRE_SIGNED_VALIDATOR_RUNTIME_TRUTH ||
@@ -368,7 +505,10 @@ export function expectedBlockProposerFromRuntimeTruth(
     if (!signatureValid.ok) return signatureValid;
   }
 
-  if (validatorRuntimeTruthEpochRootRequiredFromEnv(env)) {
+  if (validatorRuntimeTruthChainEpochRootRequiredFromEnv(env)) {
+    const rootValid = verifyValidatorRuntimeTruthChainEpochRoot(truth, env);
+    if (!rootValid.ok) return rootValid;
+  } else if (validatorRuntimeTruthEpochRootRequiredFromEnv(env)) {
     const rootValid = verifyValidatorRuntimeTruthEpochRoot(truth, env);
     if (!rootValid.ok) return rootValid;
   }
@@ -484,7 +624,8 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
     if (
       authoritySource === "runtime_truth" ||
       authoritySource === "signed_runtime_truth" ||
-      authoritySource === "signed_runtime_truth_epoch_root"
+      authoritySource === "signed_runtime_truth_epoch_root" ||
+      authoritySource === "signed_runtime_truth_chain_epoch_root"
     ) {
       const expected = expectedBlockProposerFromRuntimeTruth(candidate);
       if (!expected.ok) return expected;
