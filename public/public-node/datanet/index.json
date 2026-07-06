@@ -510,6 +510,19 @@
       "wc_issuance_enabled": false
     }
   ],
+  "field_replication_multi_object_manifest_v1": {
+    "html": "/public-node/datanet/field-replication-multi-object-manifest-v1.html",
+    "json": "/public-node/datanet/field-replication-multi-object-manifest-v1.json",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_V1_GREEN",
+    "minimum_object_count": 2,
+    "previous_proof_sha256": "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da",
+    "previous_source_bundle_sha256": "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2",
+    "previous_terminal_final_seal_main_commit": "75ccfaf1",
+    "private_details_redacted": true,
+    "public_safe": true,
+    "status": "green",
+    "title": "DataNet field replication multi-object manifest v1"
+  },
   "field_replication_proof_bundle_public_summary_v1": {
     "boundaries": {
       "absolute_paths_published": false,
