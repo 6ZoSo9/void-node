@@ -1,82 +1,246 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { hostname, platform, release, arch } from "node:os";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { execSync } from "node:child_process";
+import { hostname } from "node:os";
 
-function run(cmd, args = []) {
+const MARKER = "VOID_FIELD_REPORT_V1_READY";
+const FAIL_MARKER = "VOID_FIELD_REPORT_V1_FAIL";
+const ROOT = process.cwd();
+
+const maxArtifacts = Number(process.env.VOID_FIELD_REPORT_MAX_ARTIFACTS || "500");
+const maxDepth = Number(process.env.VOID_FIELD_REPORT_MAX_DEPTH || "12");
+const hashMaxBytes = Number(process.env.VOID_FIELD_REPORT_HASH_MAX_BYTES || String(2 * 1024 * 1024));
+
+const defaultRoots = [
+  ".void-field-trial",
+  "public/public-node/datanet/field-objects",
+  "public/public-node/datanet/field-object-mirrors",
+];
+
+const roots = (process.env.VOID_FIELD_REPORT_ROOTS || defaultRoots.join(":"))
+  .split(":")
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const skipDirNames = new Set([
+  ".git",
+  "node_modules",
+  ".void-field-reports",
+]);
+
+function fail(message) {
+  console.error(FAIL_MARKER);
+  console.error(message);
+  process.exit(1);
+}
+
+function isoStamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function safeRel(path) {
+  const rel = relative(ROOT, path);
+  return rel && !rel.startsWith("..") && !rel.startsWith(sep) ? rel : path;
+}
+
+function gitInfo() {
+  const out = {};
   try {
-    return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    out.head = execSync("git rev-parse --short HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    out.head = null;
+  }
+
+  try {
+    out.branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    out.branch = null;
+  }
+
+  try {
+    out.status_short = execSync("git status --short", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(0, 50);
+  } catch {
+    out.status_short = [];
+  }
+
+  return out;
+}
+
+function maybeSha256(path, size) {
+  if (size > hashMaxBytes) return null;
+
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+function walk(rootPath, depth, state) {
+  if (depth > maxDepth) {
+    state.skipped_depth++;
+    return;
+  }
+
+  let entries;
+  try {
+    entries = readdirSync(rootPath, { withFileTypes: true });
   } catch (err) {
-    return String(err.stdout || err.stderr || err.message || "").trim();
+    state.errors.push({ path: safeRel(rootPath), error: err.message });
+    return;
+  }
+
+  for (const entry of entries) {
+    const path = join(rootPath, entry.name);
+
+    if (entry.isDirectory()) {
+      if (skipDirNames.has(entry.name)) {
+        state.skipped_dirs++;
+        continue;
+      }
+      walk(path, depth + 1, state);
+      continue;
+    }
+
+    if (!entry.isFile()) continue;
+
+    let st;
+    try {
+      st = statSync(path);
+    } catch (err) {
+      state.errors.push({ path: safeRel(path), error: err.message });
+      continue;
+    }
+
+    state.total_candidates++;
+
+    if (state.artifacts.length >= maxArtifacts) {
+      state.truncated_candidates++;
+      continue;
+    }
+
+    const artifact = {
+      path: safeRel(path),
+      bytes: st.size,
+      mtime_ms: Math.round(st.mtimeMs),
+    };
+
+    const sha = maybeSha256(path, st.size);
+    if (sha) artifact.sha256 = sha;
+    else if (st.size > hashMaxBytes) artifact.sha256_omitted_reason = "file_too_large_for_report_hash_bound";
+
+    state.artifacts.push(artifact);
   }
 }
 
-function walk(dir, acc = []) {
-  if (!existsSync(dir)) return acc;
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, acc);
-    else if (name.endsWith(".json")) acc.push(p);
+function makeReport() {
+  const state = {
+    roots: [],
+    artifacts: [],
+    total_candidates: 0,
+    truncated_candidates: 0,
+    skipped_dirs: 0,
+    skipped_depth: 0,
+    errors: [],
+  };
+
+  for (const root of roots) {
+    const rootPath = resolve(ROOT, root);
+    const exists = existsSync(rootPath);
+    state.roots.push({ root, exists });
+
+    if (!exists) continue;
+    walk(rootPath, 0, state);
   }
-  return acc;
+
+  state.artifacts.sort((a, b) => (b.mtime_ms - a.mtime_ms) || a.path.localeCompare(b.path));
+
+  const generatedAt = new Date().toISOString();
+  const report = {
+    marker: MARKER,
+    status: "ready",
+    generated_at: generatedAt,
+    host: hostname(),
+    git: gitInfo(),
+    bounds: {
+      max_artifacts: maxArtifacts,
+      max_depth: maxDepth,
+      hash_max_bytes: hashMaxBytes,
+      total_candidates: state.total_candidates,
+      included_artifacts: state.artifacts.length,
+      truncated_candidates: state.truncated_candidates,
+      truncated: state.truncated_candidates > 0,
+      skipped_dirs: state.skipped_dirs,
+      skipped_depth: state.skipped_depth,
+      error_count: state.errors.length,
+    },
+    roots: state.roots,
+    artifacts: state.artifacts,
+    errors: state.errors.slice(0, 50),
+  };
+
+  const outDir = join(ROOT, ".void-field-reports");
+  mkdirSync(outDir, { recursive: true });
+
+  const stamp = isoStamp();
+  const jsonPath = join(outDir, `void-field-report-${stamp}.json`);
+  const mdPath = join(outDir, `void-field-report-${stamp}.md`);
+
+  writeFileSync(jsonPath, JSON.stringify(report, null, 2) + "\n");
+
+  const md = `# VOID field report v1
+
+${MARKER}
+
+Generated: ${generatedAt}
+
+Host: \`${report.host}\`
+
+Git head: \`${report.git.head || ""}\`
+
+Git branch: \`${report.git.branch || ""}\`
+
+Artifacts included: ${report.bounds.included_artifacts}
+
+Total candidates: ${report.bounds.total_candidates}
+
+Truncated: ${report.bounds.truncated ? "true" : "false"}
+
+Max artifacts: ${report.bounds.max_artifacts}
+
+Max depth: ${report.bounds.max_depth}
+
+Hash max bytes: ${report.bounds.hash_max_bytes}
+
+This report is bounded to avoid recursive growth and oversized JSON output.
+`;
+  writeFileSync(mdPath, md);
+
+  return { report, jsonPath, mdPath };
 }
 
-mkdirSync(".void-field-reports", { recursive: true });
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+try {
+  const { report, jsonPath, mdPath } = makeReport();
 
-const artifacts = walk(".void-field-trial").concat(walk(".void-field-reports"));
-const parsed = [];
-for (const p of artifacts) {
-  try {
-    parsed.push({ path: p, json: JSON.parse(readFileSync(p, "utf8")) });
-  } catch {}
+  console.log(MARKER);
+  console.log(`json=${safeRel(jsonPath)}`);
+  console.log(`md=${safeRel(mdPath)}`);
+  console.log(`artifacts=${report.bounds.included_artifacts}`);
+  console.log(`total_candidates=${report.bounds.total_candidates}`);
+  console.log(`truncated=${report.bounds.truncated}`);
+} catch (err) {
+  fail(err && err.stack ? err.stack : String(err));
 }
-
-const report = {
-  marker: "VOID_FIELD_REPORT_V1_READY",
-  created_at: new Date().toISOString(),
-  network_hint: process.env.VOID_NETWORK_HINT || "operator-specified",
-  machine: {
-    hostname: hostname(),
-    platform: platform(),
-    release: release(),
-    arch: arch(),
-  },
-  git: {
-    branch: run("git", ["branch", "--show-current"]),
-    head: run("git", ["rev-parse", "--short", "HEAD"]),
-    status_short: run("git", ["status", "--short"]),
-  },
-  node: run("node", ["--version"]),
-  npm: run("npm", ["--version"]),
-  artifact_count: parsed.length,
-  artifacts: parsed,
-  dangerous_paths_touched: false,
-};
-
-const jsonPath = join(".void-field-reports", `void-field-report-${stamp}.json`);
-const mdPath = join(".void-field-reports", `void-field-report-${stamp}.md`);
-
-writeFileSync(jsonPath, JSON.stringify(report, null, 2) + "\n");
-
-writeFileSync(mdPath, [
-  "# VOID Field Report v1",
-  "",
-  `- marker: ${report.marker}`,
-  `- created_at: ${report.created_at}`,
-  `- network_hint: ${report.network_hint}`,
-  `- host: ${report.machine.hostname}`,
-  `- git: ${report.git.branch} @ ${report.git.head}`,
-  `- artifact_count: ${report.artifact_count}`,
-  `- dangerous_paths_touched: ${report.dangerous_paths_touched}`,
-  "",
-  "## Artifacts",
-  ...parsed.map((x) => `- ${x.path}: ${x.json.marker || "unknown-marker"}`),
-  "",
-].join("\n"));
-
-console.log("VOID_FIELD_REPORT_V1_READY");
-console.log(`json=${jsonPath}`);
-console.log(`md=${mdPath}`);
-console.log(`artifacts=${parsed.length}`);
