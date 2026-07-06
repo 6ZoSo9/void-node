@@ -1892,3 +1892,139 @@ export function assertLiveCanonicalChainStateApiResponseSignerPolicyBindingV1(
 
   return true;
 }
+
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ACTIVATION_WINDOW_BOUNDARY_V1_SOURCE
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowPolicyV1 = Readonly<{
+  signerPolicyId: string;
+  signerAuthorityVersion: string;
+  activatedAtMs: number;
+  expiresAtMs?: number;
+  revokedAtMs?: number;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowResponseV1 = Readonly<{
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowDecisionV1 = Readonly<{
+  accepted: boolean;
+  reason: string;
+  observedAtMs: number;
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  activatedAtMs?: number;
+  expiresAtMs?: number;
+  revokedAtMs?: number;
+}>;
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ACTIVATION_WINDOW_BOUNDARY_V1_SOURCE =
+  "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ACTIVATION_WINDOW_BOUNDARY_V1_SOURCE";
+
+const isVoidLiveCanonicalChainStateSignerPolicyActivationWindowNonEmptyStringV1 = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const isVoidLiveCanonicalChainStateSignerPolicyActivationWindowEpochMsV1 = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1 = (
+  accepted: boolean,
+  reason: string,
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowPolicyV1,
+  observedAtMs: number,
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowDecisionV1 => ({
+  accepted,
+  reason,
+  observedAtMs,
+  signerPolicyId: response.signerPolicyId,
+  signerAuthorityVersion: response.signerAuthorityVersion,
+  activatedAtMs: policy.activatedAtMs,
+  expiresAtMs: policy.expiresAtMs,
+  revokedAtMs: policy.revokedAtMs,
+});
+
+export function getVoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowBoundarySourceMarkerV1(): string {
+  return VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ACTIVATION_WINDOW_BOUNDARY_V1_SOURCE;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowPolicyV1,
+  observedAtMs: number,
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowDecisionV1 {
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowEpochMsV1(observedAtMs)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "invalid_observed_at_ms", response, policy, observedAtMs);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowNonEmptyStringV1(policy.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "missing_policy_signer_policy_id", response, policy, observedAtMs);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowNonEmptyStringV1(policy.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "missing_policy_signer_authority_version", response, policy, observedAtMs);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowNonEmptyStringV1(response.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "missing_response_signer_policy_id", response, policy, observedAtMs);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowNonEmptyStringV1(response.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "missing_response_signer_authority_version", response, policy, observedAtMs);
+  }
+
+  if (response.signerPolicyId !== policy.signerPolicyId) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "response_signer_policy_id_mismatch", response, policy, observedAtMs);
+  }
+
+  if (response.signerAuthorityVersion !== policy.signerAuthorityVersion) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "response_signer_authority_version_mismatch", response, policy, observedAtMs);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowEpochMsV1(policy.activatedAtMs)) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "invalid_policy_activated_at_ms", response, policy, observedAtMs);
+  }
+
+  if (observedAtMs < policy.activatedAtMs) {
+    return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "signer_policy_not_yet_active", response, policy, observedAtMs);
+  }
+
+  if (policy.expiresAtMs !== undefined) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowEpochMsV1(policy.expiresAtMs)) {
+      return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "invalid_policy_expires_at_ms", response, policy, observedAtMs);
+    }
+
+    if (policy.expiresAtMs <= policy.activatedAtMs) {
+      return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "policy_expiry_not_after_activation", response, policy, observedAtMs);
+    }
+
+    if (observedAtMs > policy.expiresAtMs) {
+      return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "signer_policy_expired", response, policy, observedAtMs);
+    }
+  }
+
+  if (policy.revokedAtMs !== undefined) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyActivationWindowEpochMsV1(policy.revokedAtMs)) {
+      return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "invalid_policy_revoked_at_ms", response, policy, observedAtMs);
+    }
+
+    if (observedAtMs >= policy.revokedAtMs) {
+      return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(false, "signer_policy_revoked_at_observation_time", response, policy, observedAtMs);
+    }
+  }
+
+  return voidLiveCanonicalChainStateSignerPolicyActivationWindowDecisionV1(true, "signer_policy_activation_window_accepted", response, policy, observedAtMs);
+}
+
+export function assertLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowPolicyV1,
+  observedAtMs: number,
+): true {
+  const decision = evaluateLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowV1(response, policy, observedAtMs);
+  if (!decision.accepted) {
+    throw new Error(`VOID live canonical chain-state API response signer policy activation window rejected: ${decision.reason}`);
+  }
+
+  return true;
+}
