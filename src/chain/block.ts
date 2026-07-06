@@ -135,6 +135,14 @@ export function blockProposerAuthoritySourceFromEnv(env: NodeJS.ProcessEnv = pro
     raw === "signed_runtime-truth" ||
     raw === "signed-runtime-truth"
   ) return "signed_runtime_truth";
+  if (
+    raw === "signed_runtime_truth_epoch_root" ||
+    raw === "signed-runtime-truth-epoch-root" ||
+    raw === "signed_validator_runtime_truth_epoch_root" ||
+    raw === "signed-validator-runtime-truth-epoch-root" ||
+    raw === "epoch_root" ||
+    raw === "epoch-root"
+  ) return "signed_runtime_truth_epoch_root";
   return raw;
 }
 
@@ -209,9 +217,51 @@ export function validatorRuntimeTruthSigningBody(truth: any): Buffer {
   return Buffer.from(stableJsonStringify(runtimeTruthBodyWithoutSignature(truth)));
 }
 
+
+export function validatorRuntimeTruthManifestBodyHash(truth: any): string {
+  return crypto.createHash("sha256").update(validatorRuntimeTruthSigningBody(truth)).digest("hex");
+}
+
+export function validatorRuntimeTruthEpochRootRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const source = blockProposerAuthoritySourceFromEnv(env);
+  if (source === "signed_runtime_truth_epoch_root") return true;
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_EPOCH_ROOT_REQUIRED ||
+    env.VOID_REQUIRE_VALIDATOR_RUNTIME_TRUTH_EPOCH_ROOT ||
+    ""
+  ).trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function expectedValidatorRuntimeTruthEpochRootFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_EPOCH_ROOT ||
+    env.VOID_VALIDATOR_RUNTIME_TRUTH_EPOCH_ROOT ||
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_BODY_HASH ||
+    env.VOID_VALIDATOR_RUNTIME_TRUTH_BODY_HASH ||
+    ""
+  ).trim().replace(/^0x/i, "");
+}
+
+export function verifyValidatorRuntimeTruthEpochRoot(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { root?: string } {
+  const expected = expectedValidatorRuntimeTruthEpochRootFromEnv(env);
+  if (!expected) return { ok: false, reason: "missing_validator_runtime_truth_epoch_root" };
+  if (!isHex64(expected)) return { ok: false, reason: "invalid_validator_runtime_truth_epoch_root" };
+
+  const actual = validatorRuntimeTruthManifestBodyHash(truth);
+  if (actual !== expected) {
+    return { ok: false, reason: "validator_runtime_truth_epoch_root_mismatch" };
+  }
+
+  return { ok: true, root: actual };
+}
+
 export function validatorRuntimeTruthSignatureRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   const source = blockProposerAuthoritySourceFromEnv(env);
-  if (source === "signed_runtime_truth") return true;
+  if (source === "signed_runtime_truth" || source === "signed_runtime_truth_epoch_root") return true;
   const raw = String(
     env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNATURE_REQUIRED ||
     env.VOID_REQUIRE_SIGNED_VALIDATOR_RUNTIME_TRUTH ||
@@ -316,6 +366,11 @@ export function expectedBlockProposerFromRuntimeTruth(
   if (validatorRuntimeTruthSignatureRequiredFromEnv(env)) {
     const signatureValid = verifyValidatorRuntimeTruthManifestSignature(truth, env);
     if (!signatureValid.ok) return signatureValid;
+  }
+
+  if (validatorRuntimeTruthEpochRootRequiredFromEnv(env)) {
+    const rootValid = verifyValidatorRuntimeTruthEpochRoot(truth, env);
+    if (!rootValid.ok) return rootValid;
   }
 
   const epoch = String(
@@ -426,7 +481,11 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
   if (authorityRequired) {
     const authoritySource = blockProposerAuthoritySourceFromEnv();
 
-    if (authoritySource === "runtime_truth" || authoritySource === "signed_runtime_truth") {
+    if (
+      authoritySource === "runtime_truth" ||
+      authoritySource === "signed_runtime_truth" ||
+      authoritySource === "signed_runtime_truth_epoch_root"
+    ) {
       const expected = expectedBlockProposerFromRuntimeTruth(candidate);
       if (!expected.ok) return expected;
       if (expected.proposer !== proposer) {
