@@ -4,7 +4,8 @@
 // src/chain/seg_store.ts
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Block } from "./block.js";
+import { blockHash, validateBlockForAppend } from "./block.js";
+import type { Block } from "./block.js";
 
 
 // --- WAL replay metrics (v1; additive) ---
@@ -213,8 +214,17 @@ export class SegStore {
     const head = this.loadHeadNumber();
     if (head >= n) {
       const existing = this.loadBlock(n);
-      if (existing) return; // already persisted
+      if (existing) {
+        try {
+          if (blockHash(existing as any) === blockHash(b as any)) return; // already persisted
+        } catch {}
+        throw new Error("SegStore.saveBlock: conflicting existing block");
+      }
     }
+
+    const parent = n === 0 ? null : this.loadBlock(n - 1);
+    const valid = validateBlockForAppend(b, parent as any);
+    if (!valid.ok) throw new Error(`SegStore.saveBlock: invalid block: ${(valid as any).reason || "unknown"}`);
 
     const seg = this.segName(n);
     this.ensureSeg(seg);
