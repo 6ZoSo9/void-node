@@ -1,0 +1,58 @@
+{
+  "disabled_boundaries": {
+    "automatic_rewards_enabled": false,
+    "runtime_mutation_enabled": false,
+    "secret_handling_enabled": false,
+    "validator_admission_enabled": false,
+    "wallet_or_ledger_action_enabled": false
+  },
+  "id": "datanet-field-replication-multi-object-manifest-v1",
+  "manifest_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_V1_GREEN",
+  "multi_object_manifest": {
+    "aggregate_public_fields": [
+      "object_count",
+      "all_sha256_present",
+      "all_public_safe",
+      "all_private_details_redacted",
+      "all_runtime_fetches_green",
+      "aggregate_manifest_sha256"
+    ],
+    "minimum_object_count": 2,
+    "object_set_mode": "public_safe_candidate_manifest",
+    "per_object_public_fields": [
+      "object_id",
+      "sha256",
+      "bytes",
+      "public_summary_status",
+      "replication_status",
+      "redaction_status"
+    ],
+    "private_fields_forbidden_from_public_tree": [
+      "local receipt paths",
+      "tailnet addresses",
+      "hostnames",
+      "absolute local paths",
+      "server logs",
+      "private proof bundle contents"
+    ]
+  },
+  "next_lane_steps": [
+    "create a deterministic candidate object-set fixture",
+    "run per-object field replication receipts privately",
+    "generate a public-safe multi-object summary",
+    "runtime-smoke the public summary through public-node safe serve",
+    "close out with a public-safe terminal seal"
+  ],
+  "previous_terminal_final_seal": {
+    "main_commit": "75ccfaf1",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_REAL_TWO_BOX_BOUNDED_PUBLIC_SUMMARY_TERMINAL_FINAL_SEAL_RUNTIME_V1_GREEN",
+    "proof_sha256": "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da",
+    "source_bundle_sha256": "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2"
+  },
+  "private_details_redacted": true,
+  "proof_date": "2026-07-06",
+  "public_safe": true,
+  "purpose": "Define the next repeatable public-safe lane for multi-object DataNet field replication after the real two-box bounded public summary lane.",
+  "status": "green",
+  "title": "DataNet field replication multi-object manifest v1"
+}
