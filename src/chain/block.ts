@@ -1685,3 +1685,107 @@ export function assertLiveCanonicalChainStateApiResponseDomainSeparationBoundary
 
   return decision.marker;
 }
+
+
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1_BEGIN
+export const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1 = 'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1' as const;
+export const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_AUDIT_V1_GREEN = 'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_AUDIT_V1_GREEN' as const;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerAuthorityPolicyV1 = Readonly<{
+  boundary: typeof VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1;
+  enabled: boolean;
+  requiredDomain: string;
+  allowedSignerKeyIds: readonly string[];
+  revokedSignerKeyIds?: readonly string[];
+  requireSignatureBoundaryGreen: boolean;
+  requireDomainSeparationBoundaryGreen: boolean;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerAuthorityEnvelopeV1 = Readonly<{
+  boundary: typeof VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1;
+  domain: string;
+  signerKeyId: string;
+  signerPublicKey: string;
+  signatureBoundaryGreen: boolean;
+  domainSeparationBoundaryGreen: boolean;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerAuthorityDecisionV1 = Readonly<{
+  boundary: typeof VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1;
+  accepted: boolean;
+  reason: string;
+  signerKeyId: string;
+  marker?: typeof VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_AUDIT_V1_GREEN;
+}>;
+
+export function evaluateLiveCanonicalChainStateApiResponseSignerAuthorityBoundaryV1(
+  policy: VoidLiveCanonicalChainStateApiResponseSignerAuthorityPolicyV1,
+  envelope: VoidLiveCanonicalChainStateApiResponseSignerAuthorityEnvelopeV1,
+): VoidLiveCanonicalChainStateApiResponseSignerAuthorityDecisionV1 {
+  const deny = (reason: string): VoidLiveCanonicalChainStateApiResponseSignerAuthorityDecisionV1 => ({
+    boundary: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1,
+    accepted: false,
+    reason,
+    signerKeyId: envelope.signerKeyId,
+  });
+
+  if (policy.boundary !== VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1) {
+    return deny('policy_boundary_mismatch');
+  }
+
+  if (envelope.boundary !== VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1) {
+    return deny('envelope_boundary_mismatch');
+  }
+
+  if (!policy.enabled) {
+    return deny('signer_authority_boundary_disabled');
+  }
+
+  if (policy.requireSignatureBoundaryGreen && !envelope.signatureBoundaryGreen) {
+    return deny('signature_boundary_not_green');
+  }
+
+  if (policy.requireDomainSeparationBoundaryGreen && !envelope.domainSeparationBoundaryGreen) {
+    return deny('domain_separation_boundary_not_green');
+  }
+
+  const requiredDomain = policy.requiredDomain.trim();
+  const envelopeDomain = envelope.domain.trim();
+  if (requiredDomain.length === 0 || envelopeDomain.length === 0 || requiredDomain !== envelopeDomain) {
+    return deny('domain_mismatch');
+  }
+
+  const signerKeyId = envelope.signerKeyId.trim();
+  const signerPublicKey = envelope.signerPublicKey.trim();
+  if (signerKeyId.length === 0) {
+    return deny('missing_signer_key_id');
+  }
+
+  if (signerPublicKey.length === 0) {
+    return deny('missing_signer_public_key');
+  }
+
+  const allowedSignerKeyIds = policy.allowedSignerKeyIds.map((keyId) => keyId.trim()).filter((keyId) => keyId.length > 0);
+  const allowedSignerKeyIdSet = new Set(allowedSignerKeyIds);
+  if (allowedSignerKeyIds.length === 0 || allowedSignerKeyIdSet.size !== allowedSignerKeyIds.length) {
+    return deny('allowed_signer_key_ids_must_be_non_empty_and_unique');
+  }
+
+  const revokedSignerKeyIdSet = new Set((policy.revokedSignerKeyIds ?? []).map((keyId) => keyId.trim()).filter((keyId) => keyId.length > 0));
+  if (revokedSignerKeyIdSet.has(signerKeyId)) {
+    return deny('signer_key_revoked');
+  }
+
+  if (!allowedSignerKeyIdSet.has(signerKeyId)) {
+    return deny('signer_key_not_allowlisted');
+  }
+
+  return {
+    boundary: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1,
+    accepted: true,
+    reason: 'signer_authority_accepted',
+    signerKeyId,
+    marker: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_AUDIT_V1_GREEN,
+  };
+}
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1_END
