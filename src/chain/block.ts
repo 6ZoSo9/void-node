@@ -56,12 +56,12 @@ export function blockHeaderBytes(b: Pick<Block, "number" | "parentHash" | "times
 }
 
 export function nodeIdFromPubPEM(pubPEM: string): string {
-  return crypto.createHash("sha256").update(pubPEM).digest("hex").slice(0, 32);
+  return crypto.createHash("sha256").update(String(pubPEM || "")).digest("hex").slice(0, 32);
 }
 
 export function verifyBlockSignatureWithPubkey(candidate: any, pubPEM: string): BlockValidationResult {
-  const keyPem = String(pubPEM || "").trim();
-  if (!keyPem) return { ok: false, reason: "missing_proposer_pubkey" };
+  const keyPem = String(pubPEM || "");
+  if (!keyPem.trim()) return { ok: false, reason: "missing_proposer_pubkey" };
 
   const proposer = String(candidate?.proposer || "").trim();
   if (!proposer) return { ok: false, reason: "missing_proposer" };
@@ -76,6 +76,7 @@ export function verifyBlockSignatureWithPubkey(candidate: any, pubPEM: string): 
     return { ok: false, reason: "invalid_proposer_pubkey" };
   }
 
+  // Deliberately derive from the exact PEM string, matching loadKeypair()/node id semantics.
   const derivedNodeId = nodeIdFromPubPEM(keyPem);
   if (derivedNodeId !== proposer) {
     return { ok: false, reason: "proposer_pubkey_mismatch" };
@@ -150,8 +151,9 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
     return { ok: false, reason: "invalid_block_signature_shape" };
   }
 
-  const proposerPubkey = String(candidate.proposerPubkey || "").trim();
-  if (proposerPubkey) {
+  const proposerPubkey = String(candidate.proposerPubkey || "");
+  if (proposerPubkey.trim()) {
+    // Pass the exact PEM string through. Node ids are derived from the exact exported PEM.
     const signatureValid = verifyBlockSignatureWithPubkey(candidate, proposerPubkey);
     if (!signatureValid.ok) return signatureValid;
   }
