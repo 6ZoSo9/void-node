@@ -1,0 +1,55 @@
+{
+  "schema": "VOID_VALIDATE_BLOCK_FOR_APPEND_UNGUARDED_SAVEBLOCK_CONTEXT_PREFLIGHT_REPORT_V1",
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "nodeCoreSha256": "d49db904a2c92f0fbe6f9cb6be65029fd1dbef44c9d2ecb759098da2b4e9fbb8",
+  "blockSourceSha256": "ba2c4bfd1f0fc16e2ca3fc11a788a78cd8f70882e5fe9c926e978c0f7c3fdc9f",
+  "closureStatus": "CONTEXT_PREFLIGHT_BLOCKED",
+  "blockerFailures": [
+    "saveBlock-call-sites-found"
+  ],
+  "warningFailures": [],
+  "findings": [
+    {
+      "id": "node-core-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/node_core.ts"
+    },
+    {
+      "id": "block-source-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/chain/block.ts"
+    },
+    {
+      "id": "validateBlockForAppend-exported",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "validateBlockForAppend export is visible in src/chain/block.ts"
+    },
+    {
+      "id": "node-core-references-validateBlockForAppend",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/node_core.ts references validateBlockForAppend somewhere"
+    },
+    {
+      "id": "saveBlock-call-sites-found",
+      "ok": false,
+      "severity": "blocker",
+      "evidence": "saveBlock call sites=0"
+    }
+  ],
+  "saveBlockContexts": [],
+  "nextAction": "Patch each blocked saveBlock context so validateBlockForAppend executes before persistence and returns an explicit ok:false failure before saveBlock.",
+  "boundary": {
+    "staticSourceContextOnly": true,
+    "noPatchApplied": true,
+    "noForkChoiceClaim": true,
+    "noConsensusFinalityClaim": true,
+    "noWalletAuthority": true,
+    "noLedgerWrite": true,
+    "noValidatorAdmission": true,
+    "noAutonomousMutation": true
+  }
+}
