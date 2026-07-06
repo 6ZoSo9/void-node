@@ -27,7 +27,8 @@
     "datanet:field-replication:safe-serve-smoke": "bash tools/check_datanet_field_replication_safe_serve_runbook_discovery_runtime_v1.sh",
     "datanet:field-replication:proof-bundle": "node tools/datanet-field-replication-proof-bundle-v1.mjs",
     "datanet:field-replication:proof-bundle:public-summary": "node tools/datanet-field-replication-proof-bundle-public-summary-v1.mjs",
-    "datanet:field-replication:public-summary-smoke": "bash tools/check_datanet_field_replication_proof_bundle_public_summary_runtime_v1.sh"
+    "datanet:field-replication:public-summary-smoke": "bash tools/check_datanet_field_replication_proof_bundle_public_summary_runtime_v1.sh",
+    "datanet:field-replication:real-two-box-closeout-smoke": "bash tools/check_datanet_field_replication_real_two_box_bounded_public_summary_closeout_runtime_v1.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
