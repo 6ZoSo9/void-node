@@ -2692,3 +2692,110 @@ export function assertLiveCanonicalChainStateApiResponseQuorumCertificateBinding
 
   return true;
 }
+
+export const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_BOUNDARY_AUDIT_V1_GREEN =
+  'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_BOUNDARY_AUDIT_V1_GREEN' as const;
+
+export const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_PURPOSE_V1 =
+  'VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_BOUNDARY_V1' as const;
+
+export type VoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetInputV1 = Readonly<{
+  signerKeyIds: readonly string[];
+  quorumThreshold: number;
+  expectedSignerKeyIds?: readonly string[];
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetResultV1 =
+  | Readonly<{
+      accepted: true;
+      purpose: typeof VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_PURPOSE_V1;
+      quorumThreshold: number;
+      signerCount: number;
+      canonicalSignerKeyIds: readonly string[];
+      signerSetBindingPayload: string;
+    }>
+  | Readonly<{
+      accepted: false;
+      reason: string;
+      quorumThreshold: number;
+      signerCount: number;
+      canonicalSignerKeyIds: readonly string[];
+    }>;
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_KEY_ID_V1 = /^[a-z0-9][a-z0-9._:-]{2,127}$/u;
+
+export const voidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBindingPayloadV1 = (
+  canonicalSignerKeyIds: readonly string[],
+): string =>
+  canonicalSignerKeyIds
+    .map((signerKeyId) => `void-live-chain-state-api-response-quorum-certificate-signer-v1:${signerKeyId}`)
+    .join('\n');
+
+export const evaluateVoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBoundaryV1 = (
+  input: VoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetInputV1,
+): VoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetResultV1 => {
+  const signerKeyIds = input.signerKeyIds.map((signerKeyId) => `${signerKeyId}`);
+  const quorumThreshold = input.quorumThreshold;
+
+  const reject = (reason: string): VoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetResultV1 => ({
+    accepted: false,
+    reason,
+    quorumThreshold,
+    signerCount: signerKeyIds.length,
+    canonicalSignerKeyIds: [...signerKeyIds].sort(),
+  });
+
+  if (!Number.isSafeInteger(quorumThreshold) || quorumThreshold < 1) {
+    return reject('quorum threshold must be a positive safe integer');
+  }
+
+  if (signerKeyIds.length === 0) {
+    return reject('quorum certificate signer set is empty');
+  }
+
+  for (const signerKeyId of signerKeyIds) {
+    if (signerKeyId !== signerKeyId.trim()) {
+      return reject('signer key id must not contain surrounding whitespace');
+    }
+    if (!VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_KEY_ID_V1.test(signerKeyId)) {
+      return reject(`signer key id is not canonical: ${signerKeyId}`);
+    }
+  }
+
+  const distinctSignerKeyIds = new Set(signerKeyIds);
+  if (distinctSignerKeyIds.size !== signerKeyIds.length) {
+    return reject('quorum certificate signer set contains duplicate signer key ids');
+  }
+
+  const canonicalSignerKeyIds = [...signerKeyIds].sort();
+  for (let index = 0; index < signerKeyIds.length; index += 1) {
+    if (signerKeyIds[index] !== canonicalSignerKeyIds[index]) {
+      return reject('quorum certificate signer set must be canonical ascending lexicographic order');
+    }
+  }
+
+  if (quorumThreshold > canonicalSignerKeyIds.length) {
+    return reject('quorum threshold exceeds canonical signer set size');
+  }
+
+  if (input.expectedSignerKeyIds) {
+    const expectedSignerKeyIds = [...input.expectedSignerKeyIds].sort();
+    if (expectedSignerKeyIds.length !== canonicalSignerKeyIds.length) {
+      return reject('canonical signer set does not match expected signer set size');
+    }
+    for (let index = 0; index < expectedSignerKeyIds.length; index += 1) {
+      if (expectedSignerKeyIds[index] !== canonicalSignerKeyIds[index]) {
+        return reject('canonical signer set does not match expected signer set');
+      }
+    }
+  }
+
+  return {
+    accepted: true,
+    purpose: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_PURPOSE_V1,
+    quorumThreshold,
+    signerCount: canonicalSignerKeyIds.length,
+    canonicalSignerKeyIds,
+    signerSetBindingPayload: voidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBindingPayloadV1(canonicalSignerKeyIds),
+  };
+};
