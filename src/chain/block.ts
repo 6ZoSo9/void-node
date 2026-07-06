@@ -16,6 +16,7 @@ export type Block = {
   txs: Tx[];
   blobs: BlobRef[];
   proposer: string;         // nodeId
+  proposerPubkey?: string;   // optional SPKI PEM public key for self-authenticated block verification
   sig: string;              // 128-hex Ed25519 signature over header bytes
 };
 
@@ -39,6 +40,54 @@ export function blockHash(b: Block): string {
   };
   const json = JSON.stringify(header);
   return crypto.createHash("sha256").update(Buffer.from(json)).digest("hex");
+}
+
+
+export function blockHeaderBytes(b: Pick<Block, "number" | "parentHash" | "timestamp" | "txRoot" | "blobRoot" | "proposer">): Buffer {
+  const header = {
+    number: b.number,
+    parentHash: b.parentHash,
+    timestamp: b.timestamp,
+    txRoot: b.txRoot,
+    blobRoot: b.blobRoot,
+    proposer: b.proposer,
+  };
+  return Buffer.from(JSON.stringify(header));
+}
+
+export function nodeIdFromPubPEM(pubPEM: string): string {
+  return crypto.createHash("sha256").update(String(pubPEM || "")).digest("hex").slice(0, 32);
+}
+
+export function verifyBlockSignatureWithPubkey(candidate: any, pubPEM: string): BlockValidationResult {
+  const keyPem = String(pubPEM || "");
+  if (!keyPem.trim()) return { ok: false, reason: "missing_proposer_pubkey" };
+
+  const proposer = String(candidate?.proposer || "").trim();
+  if (!proposer) return { ok: false, reason: "missing_proposer" };
+
+  const sig = String(candidate?.sig || "").trim();
+  if (!isHex128(sig)) return { ok: false, reason: "invalid_block_signature_shape" };
+
+  let pub: crypto.KeyObject;
+  try {
+    pub = crypto.createPublicKey(keyPem);
+  } catch {
+    return { ok: false, reason: "invalid_proposer_pubkey" };
+  }
+
+  // Deliberately derive from the exact PEM string, matching loadKeypair()/node id semantics.
+  const derivedNodeId = nodeIdFromPubPEM(keyPem);
+  if (derivedNodeId !== proposer) {
+    return { ok: false, reason: "proposer_pubkey_mismatch" };
+  }
+
+  try {
+    const ok = crypto.verify(null, blockHeaderBytes(candidate), pub, Buffer.from(sig, "hex"));
+    return ok ? { ok: true } : { ok: false, reason: "block_signature_invalid" };
+  } catch {
+    return { ok: false, reason: "block_signature_invalid" };
+  }
 }
 
 
@@ -100,6 +149,13 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
   if (!proposer) return { ok: false, reason: "missing_proposer" };
   if (!isHex128(String(candidate.sig || "").trim())) {
     return { ok: false, reason: "invalid_block_signature_shape" };
+  }
+
+  const proposerPubkey = String(candidate.proposerPubkey || "");
+  if (proposerPubkey.trim()) {
+    // Pass the exact PEM string through. Node ids are derived from the exact exported PEM.
+    const signatureValid = verifyBlockSignatureWithPubkey(candidate, proposerPubkey);
+    if (!signatureValid.ok) return signatureValid;
   }
 
   if (!isHex64(String(candidate.parentHash || ""))) return { ok: false, reason: "invalid_parent_hash" };
