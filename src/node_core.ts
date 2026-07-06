@@ -7,7 +7,7 @@ import * as net from "node:net";
 import * as crypto from "node:crypto";
 
 import { Mempool } from "./chain/mempool.js";
-import { Block, computeRoots, blockHash } from "./chain/block.js";
+import { Block, computeRoots, blockHash, validateBlockForAppend } from "./chain/block.js";
 import { cidForBytes } from "./util/cid.js";
 import { ensureDir } from "./util/files.js";
 import { SegStore } from "./chain/seg_store.js";
@@ -406,20 +406,8 @@ export class Node {
             const hdr = JSON.parse(msg.data);
             const num = Number(hdr?.number);
             if (Number.isFinite(num)) {
-              const already = this.store.loadBlock(num);
-              if (!already) {
-                this.store.saveBlock({
-                  number: num,
-                  parentHash: String(hdr.parentHash || "").padStart(64, "0"),
-                  txRoot: String(hdr.txRoot || "").toLowerCase(),
-                  blobRoot: String(hdr.blobRoot || "").toLowerCase(),
-                  txs: [],
-                  blobs: [],
-                  proposer: String(hdr.proposer || this.id),
-                  sig: String(hdr.sig || ""),
-                  timestamp: Number.isFinite(hdr?.timestamp) ? Number(hdr.timestamp) : Date.now(),
-                } as any);
-              }
+              // Announcement only. Do not persist header-shaped peer data.
+              // Full block persistence must pass validateBlockForAppend() in pullOnce()/SegStore.
             }
           } else {
             // other topics: ignore for now
@@ -879,6 +867,27 @@ export class Node {
       const existingHasTxs = Array.isArray(existing?.txs) && existing.txs.length > 0;
 
       if (!existing) {
+        const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);
+        const valid = validateBlockForAppend(b, parentBlock as any);
+        if (!valid.ok) {
+          return {
+            ok: false,
+            imported,
+            alreadyHad,
+            filled,
+            reason: "invalid imported block",
+            invalidBlock: n,
+            invalidReason: (valid as any).reason || "unknown",
+            myHead,
+            theirHead,
+            from,
+            to,
+            got: Array.isArray(arr) ? arr.length : 0,
+            retried,
+            importedNums,
+          };
+        }
+
         this.store.saveBlock(b);
         imported++;
         importedNums.push(n);
@@ -906,6 +915,27 @@ export class Node {
       }
 
       if (!existingHasTxs && incomingHasTxs) {
+        const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);
+        const valid = validateBlockForAppend(b, parentBlock as any);
+        if (!valid.ok) {
+          return {
+            ok: false,
+            imported,
+            alreadyHad,
+            filled,
+            reason: "invalid imported fill block",
+            invalidBlock: n,
+            invalidReason: (valid as any).reason || "unknown",
+            myHead,
+            theirHead,
+            from,
+            to,
+            got: Array.isArray(arr) ? arr.length : 0,
+            retried,
+            importedNums,
+          };
+        }
+
         const merged = { ...existing, ...b, txs: b.txs };
         this.store.saveBlock(merged);
         filled++;
