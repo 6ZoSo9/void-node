@@ -1,0 +1,142 @@
+{
+  "schema": "VOID_VALIDATE_BLOCK_FOR_APPEND_IMPORT_VALIDATION_CLOSURE_PREFLIGHT_REPORT_V1",
+  "generatedAt": "2026-07-06T22:24:57.534Z",
+  "closureStatus": "STATIC_PREFLIGHT_BLOCKED",
+  "blockerFailures": [
+    "pullOnce-saveBlock-src/node_core.ts-1-guarded"
+  ],
+  "warningFailures": [
+    "pullOnce-saveBlock-src/node_core.ts-1-failure-reason"
+  ],
+  "findings": [
+    {
+      "id": "block-source-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/chain/block.ts present"
+    },
+    {
+      "id": "validateBlockForAppend-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "symbol found"
+    },
+    {
+      "id": "validateBlockForAppend-exported",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "exported function/const signature check"
+    },
+    {
+      "id": "validateBlockForAppend-body-extracted",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "body extracted (3803 bytes)"
+    },
+    {
+      "id": "parent-aware",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "body references parent/previous"
+    },
+    {
+      "id": "explicit-rejection-path",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "body has visible rejection path"
+    },
+    {
+      "id": "parent-hash-linkage",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "parent hash/linkage terms"
+    },
+    {
+      "id": "height-continuity",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "height continuity terms"
+    },
+    {
+      "id": "block-identity-hash",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "block identity/hash terms"
+    },
+    {
+      "id": "roots-commitments",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "root/commitment terms"
+    },
+    {
+      "id": "signature-proposer-authority",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "signature/proposer/authority terms"
+    },
+    {
+      "id": "broader-block-validation-delegation",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "broader validation delegation terms"
+    },
+    {
+      "id": "pullOnce-saveBlock-files-found",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/node_core.ts"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-1-guarded",
+      "ok": false,
+      "severity": "blocker",
+      "evidence": "validateBlockForAppend near saveBlock"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-1-failure-reason",
+      "ok": false,
+      "severity": "warn",
+      "evidence": "explicit failure reason near saveBlock"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-2-guarded",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "validateBlockForAppend near saveBlock"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-2-failure-reason",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "explicit failure reason near saveBlock"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-3-guarded",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "validateBlockForAppend near saveBlock"
+    },
+    {
+      "id": "pullOnce-saveBlock-src/node_core.ts-3-failure-reason",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "explicit failure reason near saveBlock"
+    },
+    {
+      "id": "peer-import-proof-script-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "peer import proof script present"
+    }
+  ],
+  "boundary": {
+    "staticSourceAuditOnly": true,
+    "noForkChoiceClaim": true,
+    "noConsensusFinalityClaim": true,
+    "noWalletAuthority": true,
+    "noLedgerWrite": true,
+    "noValidatorAdmission": true,
+    "noAutonomousMutation": true
+  }
+}
