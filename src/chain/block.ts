@@ -2028,3 +2028,145 @@ export function assertLiveCanonicalChainStateApiResponseSignerPolicyActivationWi
 
   return true;
 }
+
+// VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ROLLBACK_GUARD_BOUNDARY_V1_SOURCE
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardPolicyV1 = Readonly<{
+  signerPolicyId: string;
+  signerAuthorityVersion: string;
+  signerPolicySequence: number;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardResponseV1 = Readonly<{
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  signerPolicySequence?: number;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardLastAcceptedV1 = Readonly<{
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  signerPolicySequence?: number;
+}>;
+
+export type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardDecisionV1 = Readonly<{
+  accepted: boolean;
+  reason: string;
+  signerPolicyId?: string;
+  signerAuthorityVersion?: string;
+  signerPolicySequence?: number;
+  lastAcceptedSignerPolicyId?: string;
+  lastAcceptedSignerAuthorityVersion?: string;
+  lastAcceptedSignerPolicySequence?: number;
+}>;
+
+const VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ROLLBACK_GUARD_BOUNDARY_V1_SOURCE =
+  "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ROLLBACK_GUARD_BOUNDARY_V1_SOURCE";
+
+const isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1 = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardSequenceV1 = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+
+const voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1 = (
+  accepted: boolean,
+  reason: string,
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardResponseV1,
+  lastAccepted: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardLastAcceptedV1,
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardDecisionV1 => ({
+  accepted,
+  reason,
+  signerPolicyId: response.signerPolicyId,
+  signerAuthorityVersion: response.signerAuthorityVersion,
+  signerPolicySequence: response.signerPolicySequence,
+  lastAcceptedSignerPolicyId: lastAccepted.signerPolicyId,
+  lastAcceptedSignerAuthorityVersion: lastAccepted.signerAuthorityVersion,
+  lastAcceptedSignerPolicySequence: lastAccepted.signerPolicySequence,
+});
+
+export function getVoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardBoundarySourceMarkerV1(): string {
+  return VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ROLLBACK_GUARD_BOUNDARY_V1_SOURCE;
+}
+
+export function evaluateLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardPolicyV1,
+  lastAccepted: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardLastAcceptedV1 = {},
+): VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardDecisionV1 {
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(policy.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "missing_policy_signer_policy_id", response, lastAccepted);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(policy.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "missing_policy_signer_authority_version", response, lastAccepted);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardSequenceV1(policy.signerPolicySequence)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "invalid_policy_signer_policy_sequence", response, lastAccepted);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(response.signerPolicyId)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "missing_response_signer_policy_id", response, lastAccepted);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(response.signerAuthorityVersion)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "missing_response_signer_authority_version", response, lastAccepted);
+  }
+
+  if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardSequenceV1(response.signerPolicySequence)) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "missing_or_invalid_response_signer_policy_sequence", response, lastAccepted);
+  }
+
+  if (response.signerPolicyId !== policy.signerPolicyId) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "response_signer_policy_id_mismatch", response, lastAccepted);
+  }
+
+  if (response.signerAuthorityVersion !== policy.signerAuthorityVersion) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "response_signer_authority_version_mismatch", response, lastAccepted);
+  }
+
+  if (response.signerPolicySequence !== policy.signerPolicySequence) {
+    return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "response_signer_policy_sequence_mismatch", response, lastAccepted);
+  }
+
+  if (lastAccepted.signerPolicySequence !== undefined) {
+    if (!isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardSequenceV1(lastAccepted.signerPolicySequence)) {
+      return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "invalid_last_accepted_signer_policy_sequence", response, lastAccepted);
+    }
+
+    if (policy.signerPolicySequence < lastAccepted.signerPolicySequence) {
+      return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "signer_policy_sequence_regressed", response, lastAccepted);
+    }
+
+    if (policy.signerPolicySequence === lastAccepted.signerPolicySequence) {
+      if (
+        isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(lastAccepted.signerPolicyId) &&
+        lastAccepted.signerPolicyId !== policy.signerPolicyId
+      ) {
+        return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "same_sequence_signer_policy_id_changed", response, lastAccepted);
+      }
+
+      if (
+        isVoidLiveCanonicalChainStateSignerPolicyRollbackGuardNonEmptyStringV1(lastAccepted.signerAuthorityVersion) &&
+        lastAccepted.signerAuthorityVersion !== policy.signerAuthorityVersion
+      ) {
+        return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(false, "same_sequence_signer_authority_version_changed", response, lastAccepted);
+      }
+    }
+  }
+
+  return voidLiveCanonicalChainStateSignerPolicyRollbackGuardDecisionV1(true, "signer_policy_rollback_guard_accepted", response, lastAccepted);
+}
+
+export function assertLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardV1(
+  response: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardResponseV1,
+  policy: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardPolicyV1,
+  lastAccepted: VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardLastAcceptedV1 = {},
+): true {
+  const decision = evaluateLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardV1(response, policy, lastAccepted);
+  if (!decision.accepted) {
+    throw new Error(`VOID live canonical chain-state API response signer policy rollback guard rejected: ${decision.reason}`);
+  }
+
+  return true;
+}
