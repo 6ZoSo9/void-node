@@ -839,6 +839,152 @@ export function verifyValidatorLiveChainStateApiResponseSignature(
   }
 }
 
+
+export function validatorLiveChainStateApiResponseFreshnessRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_FRESHNESS_REQUIRED ||
+      env.VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_FRESHNESS_REQUIRED ||
+      env.VOID_REQUIRE_FRESH_LIVE_CHAIN_STATE_API_RESPONSE ||
+      env.VOID_REQUIRE_LIVE_CHAIN_FINALITY_API_FRESHNESS ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function validatorLiveChainStateApiResponseNumberFromEnv(keys: string[], fallback: number, env: NodeJS.ProcessEnv): number {
+  for (const k of keys) {
+    const raw = String(env[k] || "").trim();
+    if (!raw) continue;
+    return Number(raw);
+  }
+  return fallback;
+}
+
+export function validatorLiveChainStateApiResponseMaxAgeMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const ms = validatorLiveChainStateApiResponseNumberFromEnv(
+    [
+      "VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_MS",
+      "VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_MS",
+      "VOID_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_MS",
+      "VOID_CHAIN_FINALITY_API_RESPONSE_MAX_AGE_MS",
+    ],
+    Number.NaN,
+    env
+  );
+  if (Number.isFinite(ms)) return ms;
+  const seconds = validatorLiveChainStateApiResponseNumberFromEnv(
+    [
+      "VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_SECONDS",
+      "VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_SECONDS",
+      "VOID_LIVE_CHAIN_STATE_API_RESPONSE_MAX_AGE_SECONDS",
+      "VOID_CHAIN_FINALITY_API_RESPONSE_MAX_AGE_SECONDS",
+    ],
+    Number.NaN,
+    env
+  );
+  if (Number.isFinite(seconds)) return seconds * 1000;
+  return 120000;
+}
+
+export function validatorLiveChainStateApiResponseMaxFutureMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const ms = validatorLiveChainStateApiResponseNumberFromEnv(
+    [
+      "VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_MS",
+      "VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_MS",
+      "VOID_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_MS",
+      "VOID_CHAIN_FINALITY_API_RESPONSE_MAX_FUTURE_MS",
+    ],
+    Number.NaN,
+    env
+  );
+  if (Number.isFinite(ms)) return ms;
+  const seconds = validatorLiveChainStateApiResponseNumberFromEnv(
+    [
+      "VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_SECONDS",
+      "VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_SECONDS",
+      "VOID_LIVE_CHAIN_STATE_API_RESPONSE_MAX_FUTURE_SECONDS",
+      "VOID_CHAIN_FINALITY_API_RESPONSE_MAX_FUTURE_SECONDS",
+    ],
+    Number.NaN,
+    env
+  );
+  if (Number.isFinite(seconds)) return seconds * 1000;
+  return 5000;
+}
+
+function validatorLiveChainStateApiResponseTimestampRaw(response: any): any {
+  return (
+    response?.signed_at_ms ??
+    response?.signedAtMs ??
+    response?.timestamp_ms ??
+    response?.timestampMs ??
+    response?.signed_at ??
+    response?.signedAt ??
+    response?.timestamp ??
+    response?.finalized_at_ms ??
+    response?.finalizedAtMs ??
+    response?.finalized_at ??
+    response?.finalizedAt ??
+    response?.observed_at_ms ??
+    response?.observedAtMs ??
+    response?.observed_at ??
+    response?.observedAt ??
+    null
+  );
+}
+
+export function validatorLiveChainStateApiResponseTimestampMs(response: any): number | null {
+  const raw = validatorLiveChainStateApiResponseTimestampRaw(response);
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw) || raw <= 0) return Number.NaN;
+    return raw < 1000000000000 ? raw * 1000 : raw;
+  }
+  const text = String(raw).trim();
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0) return Number.NaN;
+    return n < 1000000000000 ? n * 1000 : n;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+export function verifyValidatorLiveChainStateApiResponseFreshness(
+  response: any,
+  env: NodeJS.ProcessEnv = process.env,
+  nowMs = Date.now()
+): BlockValidationResult {
+  if (!validatorLiveChainStateApiResponseSignatureRequiredFromEnv(env)) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_freshness_requires_signature" };
+  }
+  const tsMs = validatorLiveChainStateApiResponseTimestampMs(response);
+  if (tsMs === null) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_timestamp_missing" };
+  }
+  if (!Number.isFinite(tsMs)) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_timestamp_invalid" };
+  }
+  const maxAgeMs = validatorLiveChainStateApiResponseMaxAgeMsFromEnv(env);
+  if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_max_age_invalid" };
+  }
+  const maxFutureMs = validatorLiveChainStateApiResponseMaxFutureMsFromEnv(env);
+  if (!Number.isFinite(maxFutureMs) || maxFutureMs < 0) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_max_future_invalid" };
+  }
+  if (tsMs > nowMs + maxFutureMs) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_from_future" };
+  }
+  if (nowMs - tsMs > maxAgeMs) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_stale" };
+  }
+  return { ok: true };
+}
+
 export function expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(
   truth: any,
   env: NodeJS.ProcessEnv = process.env
@@ -864,6 +1010,10 @@ export function expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(
   if (validatorLiveChainStateApiResponseSignatureRequiredFromEnv(env)) {
     const responseSignatureValid = verifyValidatorLiveChainStateApiResponseSignature(response, env);
     if (!responseSignatureValid.ok) return responseSignatureValid;
+  }
+  if (validatorLiveChainStateApiResponseFreshnessRequiredFromEnv(env)) {
+    const responseFreshnessValid = verifyValidatorLiveChainStateApiResponseFreshness(response, env);
+    if (!responseFreshnessValid.ok) return responseFreshnessValid;
   }
 
   const epoch = String(
