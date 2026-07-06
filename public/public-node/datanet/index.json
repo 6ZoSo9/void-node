@@ -553,6 +553,26 @@
     "summary_runtime_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_V1_GREEN",
     "title": "DataNet field replication multi-object private receipts public-safe summary closeout v1"
   },
+  "field_replication_multi_object_private_receipts_public_safe_summary_terminal_final_seal_v1": {
+    "aggregate_receipts_sha256": "7f84d2219ccc10f7f1615a32fc2c5cad2ecab5b018c6b987ebaa45f42c883572",
+    "candidate_fixture_runtime_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_CANDIDATE_FIXTURE_RUNTIME_V1_GREEN",
+    "closeout_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_CLOSEOUT_V1_GREEN",
+    "closeout_runtime_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_CLOSEOUT_RUNTIME_V1_GREEN",
+    "current_main_audit_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_CLOSEOUT_RUNTIME_CURRENT_MAIN_AUDIT_GREEN",
+    "html": "/public-node/datanet/field-replication-multi-object-private-receipts-public-safe-summary-terminal-final-seal-v1.html",
+    "json": "/public-node/datanet/field-replication-multi-object-private-receipts-public-safe-summary-terminal-final-seal-v1.json",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_TERMINAL_FINAL_SEAL_V1_GREEN",
+    "multi_object_manifest_runtime_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_MANIFEST_RUNTIME_V1_GREEN",
+    "object_count": 2,
+    "private_details_redacted": true,
+    "public_safe": true,
+    "source_main_commit": "3d9cbe65",
+    "source_public_safe_candidate_sha256": "36dbffb3e0af5f338cc1ffaf5c254be1188caf8e772bb6a7bcbfa9c7db99d9bb",
+    "status": "green",
+    "summary_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_V1_GREEN",
+    "summary_runtime_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_RUNTIME_V1_GREEN",
+    "title": "DataNet field replication multi-object private receipts public-safe summary terminal final seal v1"
+  },
   "field_replication_multi_object_private_receipts_public_safe_summary_v1": {
     "aggregate_receipts_sha256": "7f84d2219ccc10f7f1615a32fc2c5cad2ecab5b018c6b987ebaa45f42c883572",
     "candidate_marker": "VOID_DATANET_FIELD_REPLICATION_MULTI_OBJECT_PRIVATE_RECEIPTS_PUBLIC_SAFE_SUMMARY_CANDIDATE_V1_GREEN",
