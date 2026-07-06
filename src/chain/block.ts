@@ -168,6 +168,16 @@ export function blockProposerAuthoritySourceFromEnv(env: NodeJS.ProcessEnv = pro
     raw === "live_chain" ||
     raw === "live-chain"
   ) return "signed_runtime_truth_live_chain_epoch_root";
+  if (
+    raw === "signed_runtime_truth_live_chain_api_epoch_root" ||
+    raw === "signed-runtime-truth-live-chain-api-epoch-root" ||
+    raw === "live_chain_api_epoch_root" ||
+    raw === "live-chain-api-epoch-root" ||
+    raw === "live_chain_api" ||
+    raw === "live-chain-api" ||
+    raw === "finality_api" ||
+    raw === "finality-api"
+  ) return "signed_runtime_truth_live_chain_api_epoch_root";
   return raw;
 }
 
@@ -696,6 +706,110 @@ export function verifyValidatorRuntimeTruthLiveChainEpochRoot(
   return { ok: true, root: actual };
 }
 
+
+export function validatorLiveChainStateApiResponseFileFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return String(
+    env.VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_FILE ||
+    env.VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_FILE ||
+    env.VOID_LIVE_CHAIN_STATE_API_RESPONSE_FILE ||
+    env.VOID_CHAIN_FINALITY_API_RESPONSE_FILE ||
+    ""
+  ).trim();
+}
+
+export function expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { root?: string } {
+  const file = validatorLiveChainStateApiResponseFileFromEnv(env);
+  if (!file) return { ok: false, reason: "missing_live_validator_chain_state_api_response_file" };
+  if (!fs.existsSync(file)) return { ok: false, reason: "live_validator_chain_state_api_response_file_missing" };
+
+  let response: any;
+  try {
+    response = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return { ok: false, reason: "invalid_live_validator_chain_state_api_response" };
+  }
+
+  if (!response || typeof response !== "object") {
+    return { ok: false, reason: "invalid_live_validator_chain_state_api_response" };
+  }
+
+  if (response.ok === false) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_not_ok" };
+  }
+
+  const epoch = String(
+    env.VOID_BLOCK_PROPOSER_EPOCH ??
+    env.VOID_VALIDATOR_RUNTIME_EPOCH ??
+    truth?.epoch ??
+    truth?.epochNumber ??
+    "0"
+  );
+
+  const entries = canonicalChainEpochRootEntries(response, epoch);
+  if (!entries.length) return { ok: false, reason: "live_validator_chain_state_api_epoch_root_missing" };
+
+  let sawUnfinalizedMatch = false;
+  let sawDifferentEpoch = false;
+
+  for (const { entry, fallbackEpoch } of entries) {
+    const entryEpoch = String(entry?.epoch ?? entry?.epochNumber ?? fallbackEpoch);
+    if (entryEpoch !== epoch) {
+      sawDifferentEpoch = true;
+      continue;
+    }
+
+    const root = canonicalChainEpochRootEntryRoot(entry);
+    if (!root) continue;
+    if (!isHex64(root)) return { ok: false, reason: "invalid_live_validator_chain_state_api_epoch_root" };
+
+    if (!canonicalChainEpochRootFinalized(response, entry)) {
+      sawUnfinalizedMatch = true;
+      continue;
+    }
+
+    return { ok: true, root };
+  }
+
+  if (sawUnfinalizedMatch) {
+    return { ok: false, reason: "live_validator_chain_state_api_epoch_root_not_finalized" };
+  }
+
+  if (sawDifferentEpoch) {
+    return { ok: false, reason: "live_validator_chain_state_api_epoch_mismatch" };
+  }
+
+  return { ok: false, reason: "live_validator_chain_state_api_epoch_root_missing" };
+}
+
+export function validatorRuntimeTruthLiveChainApiEpochRootRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const source = blockProposerAuthoritySourceFromEnv(env);
+  if (source === "signed_runtime_truth_live_chain_api_epoch_root") return true;
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_LIVE_CHAIN_API_EPOCH_ROOT_REQUIRED ||
+    env.VOID_REQUIRE_LIVE_CHAIN_API_VALIDATOR_EPOCH_ROOT ||
+    ""
+  ).trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function verifyValidatorRuntimeTruthLiveChainApiEpochRoot(
+  truth: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult & { root?: string } {
+  const expected = expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(truth, env);
+  if (!expected.ok) return expected;
+
+  const actual = validatorRuntimeTruthManifestBodyHash(truth);
+  if (actual !== expected.root) {
+    return { ok: false, reason: "validator_runtime_truth_live_chain_api_epoch_root_mismatch" };
+  }
+
+  return { ok: true, root: actual };
+}
+
 export function validatorRuntimeTruthSignatureRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   const source = blockProposerAuthoritySourceFromEnv(env);
   if (
@@ -703,7 +817,8 @@ export function validatorRuntimeTruthSignatureRequiredFromEnv(env: NodeJS.Proces
     source === "signed_runtime_truth_epoch_root" ||
     source === "signed_runtime_truth_chain_epoch_root" ||
     source === "signed_runtime_truth_canonical_chain_epoch_root" ||
-    source === "signed_runtime_truth_live_chain_epoch_root"
+    source === "signed_runtime_truth_live_chain_epoch_root" ||
+    source === "signed_runtime_truth_live_chain_api_epoch_root"
   ) return true;
   const raw = String(
     env.VOID_BLOCK_VALIDATOR_RUNTIME_TRUTH_SIGNATURE_REQUIRED ||
@@ -811,7 +926,10 @@ export function expectedBlockProposerFromRuntimeTruth(
     if (!signatureValid.ok) return signatureValid;
   }
 
-  if (validatorRuntimeTruthLiveChainEpochRootRequiredFromEnv(env)) {
+  if (validatorRuntimeTruthLiveChainApiEpochRootRequiredFromEnv(env)) {
+    const rootValid = verifyValidatorRuntimeTruthLiveChainApiEpochRoot(truth, env);
+    if (!rootValid.ok) return rootValid;
+  } else if (validatorRuntimeTruthLiveChainEpochRootRequiredFromEnv(env)) {
     const rootValid = verifyValidatorRuntimeTruthLiveChainEpochRoot(truth, env);
     if (!rootValid.ok) return rootValid;
   } else if (validatorRuntimeTruthCanonicalChainEpochRootRequiredFromEnv(env)) {
@@ -939,7 +1057,8 @@ export function validateBlockForAppend(candidate: any, parent: Block | null): Bl
       authoritySource === "signed_runtime_truth_epoch_root" ||
       authoritySource === "signed_runtime_truth_chain_epoch_root" ||
       authoritySource === "signed_runtime_truth_canonical_chain_epoch_root" ||
-      authoritySource === "signed_runtime_truth_live_chain_epoch_root"
+      authoritySource === "signed_runtime_truth_live_chain_epoch_root" ||
+      authoritySource === "signed_runtime_truth_live_chain_api_epoch_root"
     ) {
       const expected = expectedBlockProposerFromRuntimeTruth(candidate);
       if (!expected.ok) return expected;
