@@ -564,6 +564,24 @@
     "status": "green",
     "title": "DataNet field replication real two-box bounded public summary closeout v1"
   },
+  "field_replication_real_two_box_bounded_public_summary_terminal_final_seal_v1": {
+    "bounded_report": {
+      "artifacts_observed": 500,
+      "field_report_bounded": true,
+      "total_candidates_observed": 688,
+      "truncated": true
+    },
+    "html": "/public-node/datanet/field-replication-real-two-box-bounded-public-summary-terminal-final-seal-v1.html",
+    "json": "/public-node/datanet/field-replication-real-two-box-bounded-public-summary-terminal-final-seal-v1.json",
+    "marker": "VOID_DATANET_FIELD_REPLICATION_REAL_TWO_BOX_BOUNDED_PUBLIC_SUMMARY_TERMINAL_FINAL_SEAL_V1_GREEN",
+    "private_details_redacted": true,
+    "proof_sha256": "3bb7aa11db647ad9fc7dee0daba17f8a1339c007be5a5b6a23618a22d5bcb7da",
+    "public_safe": true,
+    "source_bundle_sha256": "03bf18824fee9baacc3d63c0fbe2e75b8f89d5f5bc1d15731d1f5459890634f2",
+    "stable_npm_alias": "npm run datanet:field-replication:real-two-box-closeout-smoke",
+    "status": "green",
+    "title": "DataNet field replication real two-box bounded public summary terminal final seal v1"
+  },
   "field_replication_safe_serve_runbook_v1": {
     "dangerous_authorities_enabled": {
       "automatic_rewards": false,
