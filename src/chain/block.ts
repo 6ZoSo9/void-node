@@ -717,6 +717,128 @@ export function validatorLiveChainStateApiResponseFileFromEnv(env: NodeJS.Proces
   ).trim();
 }
 
+
+export function validatorLiveChainStateApiResponseSignatureRequiredFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNATURE_REQUIRED ||
+      env.VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNATURE_REQUIRED ||
+      env.VOID_REQUIRE_SIGNED_LIVE_CHAIN_STATE_API_RESPONSE ||
+      env.VOID_REQUIRE_LIVE_CHAIN_FINALITY_API_SIGNATURE ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+export function trustedValidatorLiveChainStateApiResponseSignerPubkeyFromEnv(
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const file = String(
+    env.VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY_FILE ||
+      env.VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY_FILE ||
+      env.VOID_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY_FILE ||
+      env.VOID_CHAIN_FINALITY_API_RESPONSE_SIGNER_PUBKEY_FILE ||
+      ""
+  ).trim();
+  if (file) {
+    try {
+      return fs.readFileSync(file, "utf8");
+    } catch {
+      return "";
+    }
+  }
+  const raw = String(
+    env.VOID_BLOCK_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY ||
+      env.VOID_VALIDATOR_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY ||
+      env.VOID_LIVE_CHAIN_STATE_API_RESPONSE_SIGNER_PUBKEY ||
+      env.VOID_CHAIN_FINALITY_API_RESPONSE_SIGNER_PUBKEY ||
+      ""
+  );
+  return raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
+}
+
+function liveChainStateApiResponseSignatureBlock(response: any): any {
+  return (
+    response?.signature ??
+    response?.apiSignature ??
+    response?.api_signature ??
+    response?.responseSignature ??
+    response?.response_signature ??
+    response?.finalitySignature ??
+    response?.finality_signature ??
+    null
+  );
+}
+
+function liveChainStateApiResponseBodyWithoutSignature(response: any): any {
+  const body: any = {};
+  for (const k of Object.keys(response || {})) {
+    if (
+      k === "signature" ||
+      k === "apiSignature" ||
+      k === "api_signature" ||
+      k === "responseSignature" ||
+      k === "response_signature" ||
+      k === "finalitySignature" ||
+      k === "finality_signature"
+    ) {
+      continue;
+    }
+    body[k] = response[k];
+  }
+  return body;
+}
+
+export function validatorLiveChainStateApiResponseSigningBody(response: any): Buffer {
+  return Buffer.from(stableJsonStringify(liveChainStateApiResponseBodyWithoutSignature(response)));
+}
+
+export function validatorLiveChainStateApiResponseBodyHash(response: any): string {
+  return crypto.createHash("sha256").update(validatorLiveChainStateApiResponseSigningBody(response)).digest("hex");
+}
+
+export function verifyValidatorLiveChainStateApiResponseSignature(
+  response: any,
+  env: NodeJS.ProcessEnv = process.env
+): BlockValidationResult {
+  const sigBlock = liveChainStateApiResponseSignatureBlock(response);
+  if (!sigBlock || typeof sigBlock !== "object") {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signature_missing" };
+  }
+  const alg = String(sigBlock.alg || sigBlock.algorithm || "").trim().toLowerCase();
+  if (alg !== "ed25519") {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signature_alg_unsupported" };
+  }
+  const sig = String(sigBlock.sig || sigBlock.signature || "").trim();
+  if (!isHex128(sig)) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signature_shape_invalid" };
+  }
+  const signerPubkey = String(sigBlock.signer_pubkey || sigBlock.pubkey || sigBlock.publicKey || "");
+  if (!signerPubkey.trim()) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signer_pubkey_missing" };
+  }
+  const trustedPubkey = trustedValidatorLiveChainStateApiResponseSignerPubkeyFromEnv(env);
+  if (!trustedPubkey.trim()) {
+    return { ok: false, reason: "missing_live_validator_chain_state_api_response_trusted_signer" };
+  }
+  if (signerPubkey !== trustedPubkey) {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signer_mismatch" };
+  }
+  let pub: crypto.KeyObject;
+  try {
+    pub = crypto.createPublicKey(trustedPubkey);
+  } catch {
+    return { ok: false, reason: "invalid_live_validator_chain_state_api_response_trusted_signer" };
+  }
+  try {
+    const ok = crypto.verify(null, validatorLiveChainStateApiResponseSigningBody(response), pub, Buffer.from(sig, "hex"));
+    return ok ? { ok: true } : { ok: false, reason: "live_validator_chain_state_api_response_signature_invalid" };
+  } catch {
+    return { ok: false, reason: "live_validator_chain_state_api_response_signature_invalid" };
+  }
+}
+
 export function expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(
   truth: any,
   env: NodeJS.ProcessEnv = process.env
@@ -738,6 +860,10 @@ export function expectedValidatorRuntimeTruthEpochRootFromLiveChainApiResponse(
 
   if (response.ok === false) {
     return { ok: false, reason: "live_validator_chain_state_api_response_not_ok" };
+  }
+  if (validatorLiveChainStateApiResponseSignatureRequiredFromEnv(env)) {
+    const responseSignatureValid = verifyValidatorLiveChainStateApiResponseSignature(response, env);
+    if (!responseSignatureValid.ok) return responseSignatureValid;
   }
 
   const epoch = String(
