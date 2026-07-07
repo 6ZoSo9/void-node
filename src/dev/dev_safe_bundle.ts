@@ -10,6 +10,16 @@
  */
 import { SegStore } from "../chain/seg_store.js";
 
+function recordSmallEmptyCatchVisibilityFailure_src_dev_dev_safe_bundle_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/dev/dev_safe_bundle.ts",
+    scope,
+    message,
+  });
+}
+
+
 (function devSafeBundle(){
   const g:any = globalThis as any;
   if (g.__void_dev_safe_bundle_installed) return;
@@ -35,7 +45,7 @@ import { SegStore } from "../chain/seg_store.js";
             .map((t:any)=> (typeof t==="string") ? t : (t?.hash ?? null))
             .filter(Boolean);
           g.__void_last_seal = { number, count: hashes.length, hashes, at: Date.now() };
-        } catch {}
+        } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_dev_dev_safe_bundle_ts("empty-catch-1", err); }
         return orig.apply(this, args);
       };
 

@@ -3,6 +3,16 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { Wallet, JsonRpcProvider, formatEther } from "ethers";
 
+function recordSmallEmptyCatchVisibilityFailure_src_http_participant_wallet_native_v1_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/http/participant_wallet_native_v1.ts",
+    scope,
+    message,
+  });
+}
+
+
 const G: any = globalThis as any;
 const MARK = "__void_participant_wallet_native_v1";
 const UNLOCKED = new Map<string, { address: string; privateKey: string; unlockedAt: number }>();
@@ -44,7 +54,7 @@ async function readJson(req: any): Promise<any> {
     if (req && req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
       return req.body;
     }
-  } catch (_) {}
+  } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_http_participant_wallet_native_v1_ts("empty-catch-1", err); }
 
   const chunks: Buffer[] = [];
   for await (const ch of req) chunks.push(Buffer.isBuffer(ch) ? ch : Buffer.from(ch));

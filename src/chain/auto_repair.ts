@@ -15,6 +15,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
+function recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/chain/auto_repair.ts",
+    scope,
+    message,
+  });
+}
+
+
 type Meta = { from: number; to: number; bytes: number; createdAt: number; updatedAt: number };
 
 const SEG_SPAN = 10_000;
@@ -61,14 +71,14 @@ function readFrames(binPath: string): { offs: number[]; lastOff: number; totalBy
       try {
         const j = JSON.parse(buf.toString("utf8"));
         if (Number.isFinite(j?.number)) n = Number(j.number);
-      } catch {}
+      } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-1", err); }
       if (n > lastN) lastN = n;
       off = start + len;
       totalBytes = off;
       lastOff = off;
     }
   } finally {
-    try { fs.closeSync(fd); } catch {}
+    try { fs.closeSync(fd); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-2", err); }
   }
   return { offs, lastOff, totalBytes, lastN };
 }
@@ -135,7 +145,7 @@ export async function autoRepairDataDir(root: string, opts: { sparseEvery?: numb
         } catch {
           /* ignore */
         } finally {
-          try { fs.closeSync(fd); } catch {}
+          try { fs.closeSync(fd); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-3", err); }
         }
       }
       if (lines.length) fs.writeFileSync(idx, lines.join("\n") + "\n");
