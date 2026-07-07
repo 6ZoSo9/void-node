@@ -19813,7 +19813,7 @@ void_header3_last_mismatch ${lastMismatch}
           mirror.lastTickMs = Date.now();
         };
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19816:1", err); }
   }
   mount();
 })();
@@ -19836,7 +19836,7 @@ void_header3_last_mismatch ${lastMismatch}
         if (typeof m.lastTickMs==="number") s.lastTickMs = m.lastTickMs;
         if (typeof m.lastSeenHead==="number") s.lastSeenHead = m.lastSeenHead;
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19839:2", err); }
     return s;
   }
   function mount(){
@@ -19886,7 +19886,7 @@ void_header3_last_mismatch ${lastMismatch}
       if (Number.isFinite(n)){
         if (n !== lastHead){ lastHead = n; lastChange = now(); }
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19889:3", err); }
     setTimeout(poll, TICK);
   }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -19896,7 +19896,7 @@ void_header3_last_mismatch ${lastMismatch}
     app.get("/metrics/void/proposer", (_req:any, res:any)=>{
       // keep existing lines if the other shim wrote first
       let buf = "";
-      try{ buf = (res as any).body || ""; }catch{}
+      try{ buf = (res as any).body || ""; }catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19899:4", err); }
       const active = (now() - lastChange) <= WINDOW_MS ? 1 : 0;
       const lines = [];
       lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
@@ -19933,7 +19933,7 @@ void_header3_last_mismatch ${lastMismatch}
         const m = g.__void_proposer_auto.ms ?? g.__void_proposer_auto.intervalMs;
         if (m!=null) out.ms = Number(m);
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19936:5", err); }
     return out;
   }
 
@@ -19980,7 +19980,7 @@ void_header3_last_mismatch ${lastMismatch}
     G.__void_proposer_auto.enabled = !!val;
     G.__void_proposer_auto.ms = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
     G.__void_proposer_auto.intervalMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
-  } catch{} }
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19983:6", err); } }
 
   async function tick(){
     try {
@@ -20000,7 +20000,7 @@ void_header3_last_mismatch ${lastMismatch}
             head: Number(j && j.number)
           });
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20003:7", err); }
     } catch(e) { /* swallow */ }
   }
 
@@ -20015,7 +20015,7 @@ void_header3_last_mismatch ${lastMismatch}
     autoTimer = setInterval(tick, ms);
     try {
       if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:true, ms });
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20018:8", err); }
   }
   function stop(){
     const G:any = globalThis as any;
@@ -20028,7 +20028,7 @@ void_header3_last_mismatch ${lastMismatch}
     setGauge(0);
     try {
       if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:false, ms:Number(autoMs||0) });
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20031:9", err); }
   }
 
   function mount(){
@@ -20045,7 +20045,7 @@ void_header3_last_mismatch ${lastMismatch}
         G.__void_proposer_auto.ms = ms;
         G.__void_proposer_auto.intervalMs = ms;
         if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:true, ms });
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20048:10", err); }
       res.json({ok:true, auto:true, ms});
     });
     app.post("/proposer/auto/stop", (_req:any,res:any)=>{
@@ -20086,7 +20086,7 @@ void_header3_last_mismatch ${lastMismatch}
       out.push(`void_proposer_auto_ms ${Number.isFinite(ms) ? ms : 'NaN'}`);
       return out.join("\\n");
     };
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20089:11", err); }
 })();
 
 // ---------- Proposer exporter override (additive, safe, scope-free) ----------
@@ -20173,7 +20173,7 @@ void_header3_last_mismatch ${lastMismatch}
         const v = Number(process.env.PROPOSER_TICK_MS);
         if (Number.isFinite(v)) G.__void_metrics.proposerAutoMs = v;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20176:12", err); }
   }
   mount();
 })();
@@ -20213,7 +20213,7 @@ void_header3_last_mismatch ${lastMismatch}
         const v = Number(process.env.PROPOSER_TICK_MS);
         if (Number.isFinite(v)) G.__void_metrics.proposerAutoMs = v;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20216:13", err); }
   }
   mount();
 })();
@@ -20314,7 +20314,7 @@ void_header3_last_mismatch ${lastMismatch}
   }
 
   function tick(){
-    try { seq++; writeExporter(); } catch {}
+    try { seq++; writeExporter(); } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20317:14", err); }
     setTimeout(tick, TICK);
   }
 
@@ -20349,7 +20349,7 @@ void_header3_last_mismatch ${lastMismatch}
 
   // Inject our writer into whatever exporters object is passed.
   function inject(exp:any){
-    try { exp["proposer.v2.prom"] = buildWriter(); } catch {}
+    try { exp["proposer.v2.prom"] = buildWriter(); } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20352:15", err); }
   }
 
   // 1) Wrap the global property so any future assignment re-injects our writer.
@@ -20373,7 +20373,7 @@ void_header3_last_mismatch ${lastMismatch}
       const G:any = globalThis as any;
       G.__void_exporters = G.__void_exporters || {};
       inject(G.__void_exporters);
-    } catch {} setTimeout(poll, TICK); })();
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20376:16", err); } setTimeout(poll, TICK); })();
   }
 })();
 
@@ -20461,7 +20461,7 @@ void_header3_last_mismatch ${lastMismatch}
       G.__void_exporters = G.__void_exporters || {};
       // Always re-assign so we win even if someone else overwrote it.
       G.__void_exporters["proposer.v2.prom"] = makeWriter();
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20464:17", err); }
     setTimeout(rehook, TICK);
   }
   rehook();
@@ -83671,4 +83671,9 @@ function voidIndexEmptyCatchVisibilityWindow18001_18900V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow18901_19800V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_18901_19800_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow19801_20700V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_19801_20700_V1_VISIBLE", context, err);
 }
