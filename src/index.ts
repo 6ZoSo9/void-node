@@ -14060,7 +14060,7 @@ void_txroot_health ${ok ? 1 : 0}
           const txt = await r.text();
           const n = Number.parseInt((txt||"").trim(),10);
           if (Number.isFinite(n) && n >= 0) head = n;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow13501_14400V1("14063:1", err); }
         res.end(`# HELP void_head_number Latest persisted block number
 # TYPE void_head_number gauge
 void_head_number ${head}
@@ -14211,7 +14211,7 @@ void_head_v2_poll_slow_total ${slowt}
   };
 
   // lightweight heartbeat so Prom sees liveness even before first seal
-  setInterval(()=>{ try { g.__void_txroot_core2.heartbeat_total++; } catch {} }, 2000);
+  setInterval(()=>{ try { g.__void_txroot_core2.heartbeat_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow13501_14400V1("14214:2", err); } }, 2000);
 
   function getApp(){ return g.__void_http_app || g.app; }
   function attach(){
@@ -14340,7 +14340,7 @@ void_head_v2_poll_slow_total ${slowt}
   }
 
   // Heartbeat so Prom can see liveness on setter
-  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch {} }, 2000);
+  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow13501_14400V1("14343:3", err); } }, 2000);
 
   // Watch head; when a new block has a header.txRoot, bump counters once
   let lastChecked = -1;
@@ -14352,7 +14352,7 @@ void_head_v2_poll_slow_total ${slowt}
         const t = await getText(`/head.txt`);
         const n = t ? parseInt(t.trim(), 10) : NaN;
         if (Number.isFinite(n)) head = n;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow13501_14400V1("14355:4", err); }
 
       if (!Number.isFinite(head) || head < 0) return;
 
@@ -14376,7 +14376,7 @@ void_head_v2_poll_slow_total ${slowt}
         g.__void_txroot_setter.set_total = g.__void_txroot_core2.set_total;
       }
     } catch {
-      try { g.__void_txroot_setter.errors_total++; } catch {}
+      try { g.__void_txroot_setter.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow13501_14400V1("14379:5", err); }
     }
   }
   setInterval(tick, 1000);
@@ -83636,4 +83636,9 @@ function voidIndexEmptyCatchVisibilityWindow11701_12600V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow12601_13500V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_12601_13500_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow13501_14400V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_13501_14400_V1_VISIBLE", context, err);
 }
