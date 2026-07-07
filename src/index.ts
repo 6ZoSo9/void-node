@@ -37820,7 +37820,7 @@ try {
       console.log("[agent] pillar exporter mounted: /__void/metrics/agent_pillar.prom");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37823:1", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter (prom) v1 ----------------
 
@@ -37867,7 +37867,7 @@ try {
           function countUniqueIds(file:string, maxLines:number){
             const seen = new Set<string>();
             for (const l of readLines(file, maxLines)){
-              try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+              try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37870:2", err); }
             }
             return seen.size;
           }
@@ -37875,7 +37875,7 @@ try {
             const cutoff = nowMs() - leaseMs;
             let n=0;
             for (const l of readLines(file, maxLines)){
-              try{ const x=JSON.parse(l); const ts=Number(x.ts||0); const id=String(x.id||""); if (id && ts>=cutoff) n++; }catch{}
+              try{ const x=JSON.parse(l); const ts=Number(x.ts||0); const id=String(x.id||""); if (id && ts>=cutoff) n++; }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37878:3", err); }
             }
             return n;
           }
@@ -37935,7 +37935,7 @@ try {
       console.log("[agent] pillar exporter NEWLINES hotfix mounted");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37938:4", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter newline hotfix (v1) ----------------
 
@@ -37973,7 +37973,7 @@ try {
       function countUniqueIds(file:string, maxLines:number){
         const seen = new Set<string>();
         for (const l of readLines(file, maxLines)){
-          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37976:5", err); }
         }
         return seen.size;
       }
@@ -37987,7 +37987,7 @@ try {
             const ts=Number(x.ts||0);
             const id=String(x.id||"");
             if (id && ts>=cutoff) n++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("37990:6", err); }
         }
         return n;
       }
@@ -38058,7 +38058,7 @@ try {
       console.log("[agent] pillar exporter v2 mounted at /__void/metrics/agent_pillar2.prom");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38061:7", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter (prom) v2 ----------------
 
@@ -38081,7 +38081,7 @@ try {
       console.log("[agent.pick2.fingerprint] ready");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38084:8", err); }
 })();
 
 
@@ -38149,9 +38149,9 @@ try {
                   if (!(st === "completed" || st === "ok" || st === "done")) continue;
                   const jid = String(j?.job_id || j?.id || "").trim();
                   if (jid) doneTruth.add(jid);
-                }catch{}
+                }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38152:9", err); }
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38154:10", err); }
           };
           addCompletedTruth(FILE_RECEIPTS);
           addCompletedTruth(FILE_RECEIPTS_V1);
@@ -38170,7 +38170,7 @@ try {
           // done set (bounded)
           const done = new Set<string>();
           for (const l of safeLines(FILE_RESULTS).slice(-SCAN_MAX)){
-            try{ const x=JSON.parse(l); const id=String(x.id||""); if(id) done.add(id); }catch{}
+            try{ const x=JSON.parse(l); const id=String(x.id||""); if(id) done.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38173:11", err); }
           }
 
           // active lease set (bounded)
@@ -38182,7 +38182,7 @@ try {
               const ts=Number(x.ts||0);
               if (!id) continue;
               if (ts >= cutoffLease) active.add(id);
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38185:12", err); }
           }
 
           // FIFO scan over jobs.jsonl in file order, first eligible wins.
@@ -38212,14 +38212,14 @@ try {
               chosenId=id;
               chosenJob=x;
               break;
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38215:13", err); }
           }
 
           if (!chosenId) return res.json({ok:true, job:null, leaseMs:LEASE_MS, epochMs});
 
           const worker = (req.body?.worker || "anon").toString();
           const lease = {id: chosenId, worker, ts: nowMs(), leaseMs: LEASE_MS};
-          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch{}
+          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38222:14", err); }
           return res.json({ok:true, job: chosenJob, leaseMs:LEASE_MS, epochMs});
         }catch(e:any){
           return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -38229,7 +38229,7 @@ try {
       console.log("[agent.pick2.epochCutoff.v1] ready");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38232:15", err); }
 })();
 
 
@@ -38281,7 +38281,7 @@ try {
           const isPost  = !!layer.route.methods?.post;
           if (isPick2 && isPost) stack.splice(i,1);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38284:16", err); }
 
       app.get("/__void/agent/pick2_impl", (_req:any,res:any)=>{
         const root = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || process.env.VOID_AGENT_DIR || process.env.AGENT_DIR || "data");
@@ -38319,9 +38319,9 @@ try {
                   if (!(st === "completed" || st === "ok" || st === "done")) continue;
                   const jid = String(j?.job_id || j?.id || "").trim();
                   if (jid) doneTruth.add(jid);
-                }catch{}
+                }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38322:17", err); }
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38324:18", err); }
           };
           addCompletedTruth(FILE_RECEIPTS);
           addCompletedTruth(FILE_RECEIPTS_V1);
@@ -38425,7 +38425,7 @@ try {
               const x = JSON.parse(l);
               const id = rowId(x);
               if (id) done.add(id);
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38428:19", err); }
           }
 
           const active = new Set<string>();
@@ -38436,7 +38436,7 @@ try {
               const ts = Number(x.ts || 0);
               if (!id) continue;
               if (ts >= cutoffLease) active.add(id);
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38439:20", err); }
           }
 
           const latestById = new Map<string, any>();
@@ -38457,7 +38457,7 @@ try {
                 const prevRun = latestRunnableById.get(id);
                 if (!prevRun || rowTs(x) >= rowTs(prevRun)) latestRunnableById.set(id, x);
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38460:21", err); }
           }
 
           const requestedAccount = String(req.body?.account || "").trim();
@@ -83771,4 +83771,9 @@ function voidIndexEmptyCatchVisibilityWindow36001_36900V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow36901_37800V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_36901_37800_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow37801_38700V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_37801_38700_V1_VISIBLE", context, err);
 }
