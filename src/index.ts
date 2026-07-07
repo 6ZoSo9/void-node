@@ -33337,7 +33337,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
 
     mount("boot");
   } catch (e: any) {
-    try { console.log("[dev/headfile.v3] mount error:", String(e?.stack || e)); } catch {}
+    try { console.log("[dev/headfile.v3] mount error:", String(e?.stack || e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33340:1", err); }
   }
 })();
 
@@ -33415,20 +33415,20 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
           // prefer existing global helper if present
           const f = (g as any).__void_fetch_json;
           if (typeof f === "function") latest = await f("/blocks/latest/number");
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33418:2", err); }
         try {
           if (latest == null) {
             // last resort: read in-process fetch
             const r = await fetch("http://127.0.0.1:" + (process.env.HTTP_PORT || "4100") + "/blocks/latest/number");
             latest = await r.text();
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33425:3", err); }
         const n = Number(String(latest || "").trim());
         try {
           if (Number.isFinite(n)) {
             fs.mkdirSync(path.dirname(headFile), { recursive: true });
             fs.writeFileSync(headFile, String(n) + "\n");
-            try { fs.fsyncSync(fs.openSync(headFile, "r")); } catch {}
+            try { fs.fsyncSync(fs.openSync(headFile, "r")); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33431:4", err); }
           }
         } catch (e: any) {
           return res.status(500).json({ ok: false, err: String(e?.stack || e), snap: snapHeadFile() });
@@ -33458,7 +33458,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
       }
     }, 250);
   } catch (e: any) {
-    try { console.log("[dev/headfile.v4] outer error:", String(e?.stack || e)); } catch {}
+    try { console.log("[dev/headfile.v4] outer error:", String(e?.stack || e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33461:5", err); }
   }
 })();
 
@@ -33474,7 +33474,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     g.__void_txs_dedupe_before_save_v1_installed = true;
 
     const log = (...a: any[]) => {
-      try { console.log("[txs.dedupe.v1]", ...a); } catch {}
+      try { console.log("[txs.dedupe.v1]", ...a); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33477:6", err); }
     };
 
     // Best-effort: locate store
@@ -33594,7 +33594,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
               Array.isArray(block?.pendingTxs) ? block.pendingTxs.length :
               Array.isArray(block?.pending) ? block.pending.length :
               null;
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33597:7", err); }
           log("deduped before save", { dropped: droppedTotal });
         }
 
@@ -33607,7 +33607,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     (store.saveBlock as any).__void_txs_dedupe_wrapped_v1 = true;
     log("wrapped store.saveBlock (dedupe before persist) OK");
   } catch (e: any) {
-    try { console.log("[txs.dedupe.v1] install error:", String(e?.stack || e)); } catch {}
+    try { console.log("[txs.dedupe.v1] install error:", String(e?.stack || e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33610:8", err); }
   }
 })();
 
@@ -33624,7 +33624,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     if (g.__void_saveblock_args_tap_v1_installed) return;
     g.__void_saveblock_args_tap_v1_installed = true;
 
-    const log = (...a: any[]) => { try { console.log("[saveblock.args.tap.v1]", ...a); } catch {} };
+    const log = (...a: any[]) => { try { console.log("[saveblock.args.tap.v1]", ...a); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33627:9", err); } };
 
     const store =
       g.__void_store ||
@@ -33673,11 +33673,11 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
         try {
           const v = b?.[k];
           if (Array.isArray(v)) lens[k] = v.length;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33676:10", err); }
       };
       tryLen("txs"); tryLen("pendingTxs"); tryLen("pending"); tryLen("mempool"); tryLen("transactions"); tryLen("tx");
       let keys: string[] = [];
-      try { keys = Object.keys(b || {}).slice(0, 120).sort(); } catch {}
+      try { keys = Object.keys(b || {}).slice(0, 120).sort(); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33680:11", err); }
       return { keys, lens };
     };
 
@@ -33731,7 +33731,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       log("mounted /dev/saveblock.args.json + /dev/saveblock.args.full.json");
     }
   } catch (e: any) {
-    try { console.log("[saveblock.args.tap.v1] install error:", String(e?.stack || e)); } catch {}
+    try { console.log("[saveblock.args.tap.v1] install error:", String(e?.stack || e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33734:12", err); }
   }
 })();
 
@@ -33836,7 +33836,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       };
 
       (wrapped as any)[SYM] = true;
-      try { Object.defineProperty(wrapped, "name", { value: `txdedupe_${name}_v1` }); } catch {}
+      try { Object.defineProperty(wrapped, "name", { value: `txdedupe_${name}_v1` }); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33839:13", err); }
       obj[name] = wrapped;
       S.wraps++;
     }
@@ -33868,7 +33868,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
             let cur: any = n;
             for (const p of parts) cur = cur?.[p];
             if (cur) roots.push({ obj: cur, where: `__void_node.${path}` });
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33871:14", err); }
         }
       }
 
@@ -33890,7 +33890,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
               }
             }
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33893:15", err); }
       }
     }
 
@@ -33900,7 +33900,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     let ticks = 0;
     const iv = setInterval(() => {
       ticks++;
-      try { wrapAllLikelyTargets(); } catch {}
+      try { wrapAllLikelyTargets(); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33903:16", err); }
       if (Date.now() - t0 > 30_000 || ticks > 120) clearInterval(iv);
     }, 250);
 
@@ -33915,7 +33915,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       } else {
         console.log("[dev/txdedupe.v1] missing __void_http_app; status route not mounted");
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33918:17", err); }
 
     console.log("[txdedupe.lastchance.v1] installed:", { wraps: S.wraps, calls: S.calls });
   } catch (e: any) {
@@ -33923,7 +33923,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       const S: any = (globalThis as any).__void_txdup_lastchance_dedupe_v1_state || ((globalThis as any).__void_txdup_lastchance_dedupe_v1_state = {});
       S.errs = (S.errs || 0) + 1;
       S.last_err = String(e?.stack || e);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("33926:18", err); }
     console.log("[txdedupe.lastchance.v1] install error:", String(e?.stack || e));
   }
 })();
@@ -34056,7 +34056,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     }, 250);
 
     // One immediate try too
-    try { mountOnce((globalThis as any).__void_http_app); } catch {}
+    try { mountOnce((globalThis as any).__void_http_app); } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("34059:19", err); }
   } catch (e: any) {
     console.log("[txdedupe.status] mount v2 outer failed:", String(e?.message || e));
   }
@@ -34088,7 +34088,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       try {
         const fn = (globalThis as any).__VOID_asArr;
         if (typeof fn === "function") return fn(x) || [];
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("34091:20", err); }
       if (Array.isArray(x)) return x;
       if (x && Array.isArray(x.txs)) return x.txs;
       return [];
@@ -34171,7 +34171,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
             uniq: u.uniq,
             dup: u.dup,
           };
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow33301_34200V1("34174:21", err); }
         return orig(block, ...rest);
       };
 
@@ -83746,4 +83746,9 @@ function voidIndexEmptyCatchVisibilityWindow31501_32400V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow32401_33300V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_32401_33300_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow33301_34200V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_33301_34200_V1_VISIBLE", context, err);
 }
