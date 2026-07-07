@@ -22591,8 +22591,8 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (async function __voidLoadT
   const S:any = (G.__void_txroot_bundle_load_state ||= { entered:0, ok:false, okSpec:'', tries:[], ts:0 });
   S.entered = (S.entered||0) + 1;
   S.ts = Date.now();
-  if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch {}
-  if (G.__void_loaded_txroot_bundle_v5_v73) { try{ console.error('[diag-load] loader already-latched ok=', S.ok, 'spec=', S.okSpec||''); }catch{}; return; }
+  if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22594:1", err); }
+  if (G.__void_loaded_txroot_bundle_v5_v73) { try{ console.error('[diag-load] loader already-latched ok=', S.ok, 'spec=', S.okSpec||''); }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22595:2", err); }; return; }
   G.__void_loaded_txroot_bundle_v5_v73 = true;
   const tries = [
     './diag/txroot_forensics_bundle_v5_v73.js',
@@ -22604,20 +22604,20 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (async function __voidLoadT
       await import(spec as any);
       S.ok = true; S.okSpec = spec;
       S.tries.push({ spec, ok:true, at: Date.now() });
-      try { console.error('[diag-load] loader SUCCESS via', spec); } catch {}
+      try { console.error('[diag-load] loader SUCCESS via', spec); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22607:3", err); }
       return;
     } catch (e:any) {
       const msg = (e?.message||e);
       S.tries.push({ spec, ok:false, at: Date.now(), err: String(msg) });
-      try { console.error('[diag-load] loader FAIL via', spec, msg); } catch {}
+      try { console.error('[diag-load] loader FAIL via', spec, msg); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22612:4", err); }
     }
   }
-  try { console.error('[diag-load] loader DONE: all attempts failed'); } catch {}
+  try { console.error('[diag-load] loader DONE: all attempts failed'); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22615:5", err); }
 })();
 
 
 if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1" && process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
-  try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch {}
+  try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22620:6", err); }
 }
 
 // --------------- WAL v7.4 (Vector-7): INSTANCE ACCESSOR GUARD (last-wins) ---------------
@@ -22648,15 +22648,15 @@ const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
       let n = Number(block?.number ?? block?.header?.number ?? -1);
       if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
       let hash:any = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22651:7", err); } }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { wal.append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22653:8", err); }
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
+        try { wal.commit(n); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22656:9", err); }
         return out;
       } catch(e){
-        try { wal.commit(n); } catch {}
+        try { wal.commit(n); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22659:10", err); }
         throw e;
       }
     };
@@ -22762,11 +22762,11 @@ const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
       let n = Number(block?.number ?? block?.header?.number ?? -1);
       if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
       let hash = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch{} }
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22765:11", err); } }
       const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch{}; return out; }
-      catch(e){ try{ wal.commit(n);}catch{}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22767:12", err); }
+      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22768:13", err); }; return out; }
+      catch(e){ try{ wal.commit(n);}catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22769:14", err); }; throw e; }
     };
     (wrapped as any)[FLAG]=true;
     return wrapped;
@@ -22804,7 +22804,7 @@ const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       const wal = G.__void_wal_v1;
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal?.metricsProm?.() ?? ""; } catch {}
+      try { out += wal?.metricsProm?.() ?? ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22807:15", err); }
       const s = (app.locals && app.locals.store) || G.__void_store_instance;
       const wrapped = !!(s?.saveBlock && s.saveBlock[FLAG]);
       out += `# TYPE void_wal_synthetic_seq gauge
@@ -23097,7 +23097,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
       if (b instanceof Uint8Array) return Buffer.from(b).toString("hex");
       if (Buffer.isBuffer?.(b)) return b.toString("hex");
       if (typeof b === "object" && typeof (b as any).data !== "undefined") {
-        try { return Buffer.from((b as any).data).toString("hex"); } catch {}
+        try { return Buffer.from((b as any).data).toString("hex"); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23100:16", err); }
       }
       return String(b);
     };
@@ -23131,7 +23131,7 @@ async function load(){
           const { createHash } = require("node:crypto");
           return createHash;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23134:17", err); }
       const mod: any = await import("node:crypto"); // ESM path
       return mod.createHash;
     }
@@ -23158,7 +23158,7 @@ async function load(){
       });
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23161:18", err); }
 })();
 
 // ---------------- WAL v1 bootstrap (additive, safe) -------------------
@@ -23210,7 +23210,7 @@ const wal = new WALv1(getDataDir());
           }
           const body = req.body ?? {};
           await wal.append("tx", { dev:true, body, path:req.path, qs:req.query });
-        }catch(_){}
+        }catch (_) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23213:19", _); }
         next();
       });
     })();
@@ -23233,7 +23233,7 @@ const wal = new WALv1(getDataDir());
             txRoot: (blk?.header?.txRoot ?? blk?.txRoot ?? null),
           };
           await wal.append("block", meta);
-        }catch(_){}
+        }catch (_) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23236:20", _); }
         return await orig(...args);
       }
     })();
@@ -23254,7 +23254,7 @@ const wal = new WALv1(getDataDir());
       });
     })();
 
-  }catch(e){}
+  }catch (e) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23257:21", e); }
 })();
 // --- WAL pressure -> proposer slowdown (additive) ---
 (function walPressureController(){
@@ -23269,7 +23269,7 @@ const wal = new WALv1(getDataDir());
       const ms = Math.round(2000 + Math.max(0, Math.min(1, p)) * 4000);
       // best-effort: many builds have this endpoint
       await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/proposer/auto/start?ms=${ms}`, { method:"POST" }).catch(()=>{});
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23272:22", err); }
     setTimeout(tick, 1500);
   }
   function whenApp(){ const a:any = getApp(); if (!a) return setTimeout(whenApp, 500); tick(); }
@@ -23303,7 +23303,7 @@ const wal = new WALv1(getDataDir());
           res.status(429).json({ ok:false, error:"WAL over cap", pressure:p });
           return;
         }
-      } catch{}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23306:23", err); }
       next();
     });
   }
@@ -23375,7 +23375,7 @@ const wal = new WALv1(getDataDir());
       const port = process.env.HTTP_PORT || "4100";
       await fetch(`http://127.0.0.1:${port}/__void/wal/caps?bytes=${capBytes}&entries=${capEntries}`, {method:"POST"})
         .catch(()=>{});
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23378:24", err); }
   }
   later();
 })();
@@ -83686,4 +83686,9 @@ function voidIndexEmptyCatchVisibilityWindow20701_21600V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow21601_22500V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_21601_22500_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow22501_23400V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_22501_23400_V1_VISIBLE", context, err);
 }
