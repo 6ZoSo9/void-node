@@ -898,7 +898,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
         try { res.end?.(body + "\n"); } catch (err) { __voidIxCatch0900("898:25", err); }
         return;
       } catch {
-        try { res.statusCode = status; res.end?.("{\"ok\":false,\"error\":\"json_encode_failed\"}\n"); } catch {}
+        try { res.statusCode = status; res.end?.("{\"ok\":false,\"error\":\"json_encode_failed\"}\n"); } catch (err) { __voidIxCatch1800("901:1", err); }
       }
     }
 
@@ -911,7 +911,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
           sendJsonRaw(res, 503, out);
           return false;
         }
-      } catch {}
+      } catch (err) { __voidIxCatch1800("914:2", err); }
       return true;
     }
 
@@ -987,7 +987,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
       // The canonical count route is installed early enough already.
       try {
         S.count_route_promoted_total = Number(S.count_route_promoted_total || 0);
-      } catch {}
+      } catch (err) { __voidIxCatch1800("990:3", err); }
     }
 
     function sweep() {
@@ -1016,7 +1016,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
               S.skipped_post_total = Number(S.skipped_post_total || 0) + 1;
               return this;
             }
-          } catch {}
+          } catch (err) { __voidIxCatch1800("1019:4", err); }
           return origPost.call(this, pth, ...handlers);
         };
       }
@@ -1028,7 +1028,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
               S.skipped_use_total = Number(S.skipped_use_total || 0) + 1;
               return this;
             }
-          } catch {}
+          } catch (err) { __voidIxCatch1800("1031:5", err); }
           return origUse.call(this, pth, ...handlers);
         };
       }
@@ -1085,13 +1085,13 @@ mountLocalMultiboxRuntimeRouteV1(app);
       sweep();
       if (runs >= 240) clearInterval(timer);
     }, 250);
-    try { timer.unref?.(); } catch {}
+    try { timer.unref?.(); } catch (err) { __voidIxCatch1800("1088:6", err); }
 
-    setTimeout(() => { try { sweep(); } catch {} }, 0).unref?.();
+    setTimeout(() => { try { sweep(); } catch (err) { __voidIxCatch1800("1090:7", err); } }, 0).unref?.();
 
-    try { console.log("[txsubmit.canonical.cleanup.v1] armed late prune/count clamp"); } catch {}
+    try { console.log("[txsubmit.canonical.cleanup.v1] armed late prune/count clamp"); } catch (err) { __voidIxCatch1800("1092:8", err); }
   } catch (e:any) {
-    try { console.error("[txsubmit.canonical.cleanup.v1] install failed", String(e?.stack || e)); } catch {}
+    try { console.error("[txsubmit.canonical.cleanup.v1] install failed", String(e?.stack || e)); } catch (err) { __voidIxCatch1800("1094:9", err); }
   }
 })();
 
@@ -1167,7 +1167,7 @@ app.get("/nullfeed", (_req:any, res:any) => {
     return res.status(404).type("text/plain").send("not found");
   });
 
-  try { console.log("[security] public sensitive route guard v1 installed"); } catch {}
+  try { console.log("[security] public sensitive route guard v1 installed"); } catch (err) { __voidIxCatch1800("1170:10", err); }
 })();
 
 /* ---------- startup storage readiness gate v1 ---------- */
@@ -1223,7 +1223,7 @@ app.use((req:any, res:any, next:any) => {
   return requireStorageRepairGreen(req, res, next);
 });
 
-try { console.log("[security] startup storage readiness gate v1 installed"); } catch {}
+try { console.log("[security] startup storage readiness gate v1 installed"); } catch (err) { __voidIxCatch1800("1226:11", err); }
 
 // === VOID native website routes v1 ===
 // Serves first static website bundles from the VOID node.
@@ -1296,7 +1296,7 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       }
 
       let rootTxt = "";
-      try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch {}
+      try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch (err) { __voidIxCatch1800("1299:12", err); }
       if (rootTxt && rootTxt !== String(dn.content_root)) {
         throw new Error("datanet_root_mismatch");
       }
@@ -1328,7 +1328,7 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
           if (sha256 !== String(dn.content_root)) throw new Error("materialized_content_hash_mismatch");
 
           let rootTxt = "";
-          try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch {}
+          try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch (err) { __voidIxCatch1800("1331:13", err); }
           if (rootTxt && rootTxt !== String(dn.content_root)) throw new Error("materialized_root_mismatch");
 
           return {
@@ -1421,7 +1421,7 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
         const u = new URL(peer);
         const host = String(u.hostname || "").toLowerCase();
         if (host === "127.0.0.1" || host === "localhost" || host === "::1") return;
-      } catch {}
+      } catch (err) { __voidIxCatch1800("1424:14", err); }
       if (seen.has(peer)) return;
       seen.add(peer);
       out.push(peer);
@@ -1432,7 +1432,7 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
     try {
       const peers = peersReg && typeof peersReg.all === "function" ? peersReg.all() : [];
       for (const peer of Array.isArray(peers) ? peers : []) add(peer?.http);
-    } catch {}
+    } catch (err) { __voidIxCatch1800("1435:15", err); }
 
     return out;
   }
@@ -1594,7 +1594,7 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
     res.json(manifest("nullfeed"));
   });
 
-  try { console.log("[site] VOID native website routes v1 mounted: /site/voidchain /site/nullfeed"); } catch {}
+  try { console.log("[site] VOID native website routes v1 mounted: /site/voidchain /site/nullfeed"); } catch (err) { __voidIxCatch1800("1597:16", err); }
 })();
 
 
@@ -83594,4 +83594,6 @@ if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) 
 })();
 
 function __voidIxCatch0900(scope:string,err:unknown):void{const message=err instanceof Error?err.message:String(err);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0001_0900_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0001-0900",scope,message});}
+
+function __voidIxCatch1800(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0901_1800_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0901-1800",scope:s,message:m});}
 
