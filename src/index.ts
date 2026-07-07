@@ -10860,7 +10860,7 @@ if (
     try{
       const AC:any = (globalThis as any).AbortController;
       const ctrl = AC ? new AC() : null;
-      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("10863:1", err); } }, ms);
       const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
       clearTimeout(t);
       if (!r || !r.ok) return null;
@@ -10874,7 +10874,7 @@ if (
     try{
       const AC:any = (globalThis as any).AbortController;
       const ctrl = AC ? new AC() : null;
-      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("10877:2", err); } }, ms);
       const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
       clearTimeout(t);
       if (!r || !r.ok) return null;
@@ -10923,7 +10923,7 @@ if (
           }
           last = head;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("10926:3", err); }
       await new Promise(r => setTimeout(r, 500));
     }
   }
@@ -11067,14 +11067,14 @@ if (
           const __wrappedInner:any = function wrapped(...args:any[]) {
             return __origInner.apply(this, args as any);
           };
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11070:4", err); }
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11071:5", err); }
           __fn.__void_sticky_setInner(__wrappedInner);
         }
       }
       return __fn;
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11077:6", err); }
 
 
     if (!obj || typeof obj[fnName] !== "function") return false;
@@ -11105,7 +11105,7 @@ if (
         if (!block.header.txRoot || zero) block.header.txRoot = root;
         // also mirror at top-level if your schema exposes txRoot there
         if (!block.txRoot || zero) block.txRoot = block.header.txRoot;
-      }catch(_e){}
+      }catch (_e) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11108:7", _e); }
       // @ts-ignore - preserving original call site; this is bound at runtime
       return await orig.call(this, block, ...rest);
     });
@@ -11152,7 +11152,7 @@ import { computeTxRoot } from "./util/txroot.js";
           const len = (b?.txs?.length)||0;
           const r = (b?.txRoot)||"(none)";
           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11155:8", err); }
 
         return res;
       };
@@ -11170,9 +11170,9 @@ import { computeTxRoot } from "./util/txroot.js";
             ].join("\\n"));
           });
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11173:9", err); }
     })();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11175:10", err); }
 })();
 
 // ------------- [ADD] light shim to include txRoot in /blocks/:n/full2 -------------
@@ -11203,7 +11203,7 @@ import { computeTxRoot } from "./util/txroot.js";
         }
       });
     })();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11206:11", err); }
 })();
 
 // ---------------- [ADD] Hardened txroot counters (global, not tied to Metrics) ----------------
@@ -11249,12 +11249,12 @@ import { computeTxRoot } from "./util/txroot.js";
           if (c) { c.blocks += 1; c.txs += txsLen; }
           // Also try to bump node.metrics if present (best-effort, but not required)
           node?.metrics?.incSealed?.(txsLen);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11252:12", err); }
         return res;
       };
       (store as any).__txroot_counters_wrapped = true;
     })();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11257:13", err); }
 })();
 
 // ---------------- [ADD] Resilient txroot counter hook (watches saveBlock reassigns) ----------------
@@ -11287,7 +11287,7 @@ import { computeTxRoot } from "./util/txroot.js";
             if (c) { c.blocks += 1; c.txs += txsLen; }
             // Best-effort bump on Metrics if present
             (node?.metrics?.incSealed)?.(txsLen);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11290:14", err); }
           return res;
         };
         (wrapped as any).__txroot_counters_wrapped = true;
@@ -11305,7 +11305,7 @@ import { computeTxRoot } from "./util/txroot.js";
       // If there was an existing impl, re-assign it through our setter to ensure wrapping.
       if (currentImpl) { store.saveBlock = currentImpl; }
     })();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11308:15", err); }
 })();
 
 // ---------------- [ADD] TxRoot counters: periodic last-wins wrapper ----------------
@@ -11335,7 +11335,7 @@ import { computeTxRoot } from "./util/txroot.js";
             if (c) { c.blocks += 1; c.txs += n; }
             // Best-effort mirror into Metrics if present (safe no-op otherwise)
             (node?.metrics?.incSealed)?.(n);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11338:16", err); }
           return out;
         };
         (wrapped as any)[WRAP_SYM] = true;
@@ -11347,7 +11347,7 @@ import { computeTxRoot } from "./util/txroot.js";
       setInterval(wrapOnce, 500);
     }
     arm();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11350:17", err); }
 })();
 
 // ---------------- [ADD] TxRoot counters: clean-room last-wins wrapper + /metrics/txroot2 ----------------
@@ -11396,7 +11396,7 @@ import { computeTxRoot } from "./util/txroot.js";
             const n = (b?.txs?.length)||0;
             const c = (globalThis as any).__txroot_counters;
             if (c){ c.blocks += 1; c.txs += n; }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11399:18", err); }
           return out;
         };
         (wrapped as any)[WRAP_SYM] = true;
@@ -11433,7 +11433,7 @@ import { computeTxRoot } from "./util/txroot.js";
       }, 500);
     })();
 
-  }catch(e){}
+  }catch (e) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11436:19", e); }
 })();
 
 // ---------------- [ADD] /metrics/txroot2.json (JSON mirror for jq) ----------------
@@ -11453,7 +11453,7 @@ import { computeTxRoot } from "./util/txroot.js";
       });
       console.log("[txroot/v2] endpoint /metrics/txroot2.json ready");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11456:20", err); }
 })();
 
 // ---------------- [ADD] /blocks/latest/number.json (JSON mirror) ----------------
@@ -11490,7 +11490,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNum
       });
       console.log("[compat] endpoint /blocks/latest/number.json ready");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11493:21", err); }
 })();
 
 // ---------------- [ADD] /blocks/latest/number2.json (fetch-free JSON mirror) ----------------
@@ -11543,14 +11543,14 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNum
               const x = Number(v);
               if (Number.isFinite(x) && x >= 0) { n = x; break; }
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11546:22", err); }
 
           // 1) Preferred store view
           if (n < 0) {
             try{
               const head = await node.store.getHead?.();
               if (typeof head?.number === "number") n = head.number;
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11553:23", err); }
           }
 
           // 2) Fallback: node.headNumber if present
@@ -11568,7 +11568,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNum
       });
       console.log("[compat] endpoint /blocks/latest/number2.json ready (fetch-free)");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11571:24", err); }
 })();
 
 // ---------------- [ADD] /health/summary.json ----------------
@@ -11596,7 +11596,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installHealthSum
           try{
             const r = await fetch(base + "/follower/status");
             if (r.ok) drift = await r.json();
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11599:25", err); }
 
           res.json({
             ok: true,
@@ -11612,7 +11612,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installHealthSum
 
       console.log("[health] endpoint /health/summary.json ready");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11615:26", err); }
 })();
 
 // ---------------- Dev: /dev/blocks/:n/txroot (additive, no deps) ----------------
@@ -11640,8 +11640,8 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDe
         const { computeTxRoot } = await import("./util/txroot.js");
         const { root, leaves } = computeTxRoot(txs);
         res.json({ ok:true, number:n, txCount: txs.length, root, leaves });
-      } catch(e:any) {
-      }
+      } catch (e:any) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11643:27", undefined); }
+
     });
   }
   attach();
@@ -11675,8 +11675,8 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDe
         const { computeTxRoot } = await import("./util/txroot.js");
         const { root, leaves } = computeTxRoot(txs);
         res.json({ ok:true, number:n, txCount: txs.length, root, leaves });
-      } catch (e:any) {
-      }
+      } catch (e:any) { voidIndexEmptyCatchVisibilityWindow10801_11700V1("11678:28", undefined); }
+
     });
   }
   attach();
@@ -83621,4 +83621,9 @@ function voidIndexEmptyCatchVisibilityWindow9001_9900V1(context: string, err: un
 
 function voidIndexEmptyCatchVisibilityWindow9901_10800V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_9901_10800_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow10801_11700V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_10801_11700_V1_VISIBLE", context, err);
 }
