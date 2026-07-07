@@ -1,0 +1,404 @@
+# silent catch classification registry v1
+
+- generated_at: 1970-01-01T00:00:00.000Z
+- marker: VOID_SILENT_CATCH_CLASSIFICATION_REGISTRY_V1_GREEN
+- node_core_sha256: 5ed90513ec947e1f0c144ce87d6987b0c4384331569498b5467c24f577be188f
+- silent_catch_count: 14
+- side_effect_silent_catch_count: 0
+- import_side_effect_silent_catch_count: 0
+
+## Classification counts
+
+- cataloged-remaining-non-side-effect-silent-catch: 4
+- optional-block-load-probe: 3
+- optional-mempool-best-effort: 4
+- optional-network-or-notification-path: 3
+
+## Findings
+
+- [PASS] literal-silent-catch-baseline: actual=14, expected=14
+- [PASS] silent-catch-lines-match-baseline: actual=239,447,454,640,645,765,775,785,795,839,850,861,871,1020; expected=239,447,454,640,645,765,775,785,795,839,850,861,871,1020
+- [PASS] side-effect-silent-catches-remain-closed: sideEffectSilentCatchCount=0
+- [PASS] import-side-effect-silent-catches-remain-closed: importSideEffectSilentCatchCount=0
+- [PASS] no-blocked-classifications: blockedCount=0
+
+## Entries
+
+### silent-catch-01
+
+- file: src/node_core.ts
+- line: 239
+- text: `} catch {}`
+- classification: cataloged-remaining-non-side-effect-silent-catch
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+232:             for (const info of (arr || [])) {
+233:               if (!info) continue;
+234:               if (info.family === "IPv4" && !info.internal && info.address && !String(info.address).startsWith("127.")) {
+235:                 return String(info.address);
+236:               }
+237:             }
+238:           }
+239:         } catch {}
+240:         return "127.0.0.1";
+241:       })();
+242: 
+243:     await new Promise<void>((resolve) => this.server.listen(this.tcpPort, bindHost, resolve));
+244:     const addr = `${advertHost}:${(this.server.address() as net.AddressInfo).port}`;
+245:     this.listenAddrs.push(addr);
+246:     this.knownAddrs.add(addr);
+```
+
+### silent-catch-02
+
+- file: src/node_core.ts
+- line: 447
+- text: `try { (this.mempool as any).push?.(tx); } catch {}`
+- classification: optional-mempool-best-effort
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+440:   acceptTx(raw: any): boolean {
+441:     if (!raw || typeof raw !== "object") return false;
+442:     const h = String(raw.hash || "").toLowerCase();
+443:     if (!/^[0-9a-f]{64}$/.test(h)) return false;
+444:     if (this.txSeen.has(h)) return false;      // de-dupe globally
+445:     const tx = { hash: h, body: raw.body ?? {} };
+446:     this.txSeen.set(h, Date.now());
+447:     try { (this.mempool as any).push?.(tx); } catch {}
+448:     return true;
+449:   }
+450: 
+451:   private sendRaw(peer: Peer, msg: Msg) {
+452:     try {
+453:       peer.socket.write(encode(msg));
+454:     } catch {}
+```
+
+### silent-catch-03
+
+- file: src/node_core.ts
+- line: 454
+- text: `} catch {}`
+- classification: optional-mempool-best-effort
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+447:     try { (this.mempool as any).push?.(tx); } catch {}
+448:     return true;
+449:   }
+450: 
+451:   private sendRaw(peer: Peer, msg: Msg) {
+452:     try {
+453:       peer.socket.write(encode(msg));
+454:     } catch {}
+455:   }
+456:   private isKnownPeer(id: string): boolean {
+457:     return this.peers.has(id) && !id.startsWith("?-");
+458:   }
+459:   private isSelfAddress(addr: string): boolean {
+460:     return this.listenAddrs.includes(addr);
+461:   }
+```
+
+### silent-catch-04
+
+- file: src/node_core.ts
+- line: 640
+- text: `try { (this.mempool as any).clear(); } catch {}`
+- classification: optional-mempool-best-effort
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+633:         const r = (this.mempool as any).take(max);
+634:         if (Array.isArray(r)) return r;
+635:       }
+636:       if (typeof (this.mempool as any).peekAll === "function") {
+637:         const all = (this.mempool as any).peekAll();
+638:         if (Array.isArray(all)) {
+639:           if (typeof (this.mempool as any).clear === "function") {
+640:             try { (this.mempool as any).clear(); } catch {}
+641:           }
+642:           return all.slice(0, max);
+643:         }
+644:       }
+645:     } catch {}
+646:     return [];
+647:   }
+```
+
+### silent-catch-05
+
+- file: src/node_core.ts
+- line: 645
+- text: `} catch {}`
+- classification: optional-mempool-best-effort
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+638:         if (Array.isArray(all)) {
+639:           if (typeof (this.mempool as any).clear === "function") {
+640:             try { (this.mempool as any).clear(); } catch {}
+641:           }
+642:           return all.slice(0, max);
+643:         }
+644:       }
+645:     } catch {}
+646:     return [];
+647:   }
+648: 
+649:   async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number: number; txs: number }> {
+650:     const t0 = Date.now();
+651: 
+652:     const parent = this.store.loadHeadNumber();
+```
+
+### silent-catch-06
+
+- file: src/node_core.ts
+- line: 765
+- text: `} catch {}`
+- classification: optional-network-or-notification-path
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+758:       try {
+759:         const r: any = await fetch(`${base}/blocks/latest/number2.json`).catch(() => null);
+760:         if (r && r.ok) {
+761:           const j: any = await r.json().catch(() => null);
+762:           const n = Number(j?.number);
+763:           if (Number.isFinite(n) && n >= 0) return n;
+764:         }
+765:       } catch {}
+766: 
+767:       // 2) Fallback to /head
+768:       try {
+769:         const r: any = await fetch(`${base}/head`).catch(() => null);
+770:         if (r && r.ok) {
+771:           const j: any = await r.json().catch(() => null);
+772:           const n = Number(j?.head);
+```
+
+### silent-catch-07
+
+- file: src/node_core.ts
+- line: 775
+- text: `} catch {}`
+- classification: cataloged-remaining-non-side-effect-silent-catch
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+768:       try {
+769:         const r: any = await fetch(`${base}/head`).catch(() => null);
+770:         if (r && r.ok) {
+771:           const j: any = await r.json().catch(() => null);
+772:           const n = Number(j?.head);
+773:           if (Number.isFinite(n) && n >= 0) return n;
+774:         }
+775:       } catch {}
+776: 
+777:       // 3) Fallback demo summary
+778:       try {
+779:         const r: any = await fetch(`${base}/__void/demo/summary.json`).catch(() => null);
+780:         if (r && r.ok) {
+781:           const j: any = await r.json().catch(() => null);
+782:           const n = Number(j?.chain?.head);
+```
+
+### silent-catch-08
+
+- file: src/node_core.ts
+- line: 785
+- text: `} catch {}`
+- classification: cataloged-remaining-non-side-effect-silent-catch
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+778:       try {
+779:         const r: any = await fetch(`${base}/__void/demo/summary.json`).catch(() => null);
+780:         if (r && r.ok) {
+781:           const j: any = await r.json().catch(() => null);
+782:           const n = Number(j?.chain?.head);
+783:           if (Number.isFinite(n) && n >= 0) return n;
+784:         }
+785:       } catch {}
+786: 
+787:       // 4) Last resort legacy helper
+788:       try {
+789:         const r: any = await fetch(`${base}/api/health`).catch(() => null);
+790:         if (r && r.ok) {
+791:           const j: any = await r.json().catch(() => null);
+792:           const n = Number(j?.head);
+```
+
+### silent-catch-09
+
+- file: src/node_core.ts
+- line: 795
+- text: `} catch {}`
+- classification: optional-network-or-notification-path
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+788:       try {
+789:         const r: any = await fetch(`${base}/api/health`).catch(() => null);
+790:         if (r && r.ok) {
+791:           const j: any = await r.json().catch(() => null);
+792:           const n = Number(j?.head);
+793:           if (Number.isFinite(n) && n >= 0) return n;
+794:         }
+795:       } catch {}
+796: 
+797:       return -1;
+798:     };
+799: 
+800:     const theirHead = await readPeerHead();
+801: 
+802:     if (!(Number.isFinite(theirHead) && theirHead >= 0)) {
+```
+
+### silent-catch-10
+
+- file: src/node_core.ts
+- line: 839
+- text: `} catch {}`
+- classification: cataloged-remaining-non-side-effect-silent-catch
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+832:       try {
+833:         const st: any = this.store as any;
+834:         if (!Number.isFinite(n) || n < 0) return;
+835:         if (typeof st?.persistHeadAtomic === "function") {
+836:           st.persistHeadAtomic(n);
+837:           return;
+838:         }
+839:       } catch {}
+840:       try {
+841:         const fs = require("node:fs");
+842:         const path = require("node:path");
+843:         const base = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+844:         const hj = path.join(base, "heads.json");
+845:         const ht = path.join(base, "head.txt");
+846:         fs.writeFileSync(hj + ".tmp", JSON.stringify({ head: n, hash: "0x0" }) + "\n");
+```
+
+### silent-catch-11
+
+- file: src/node_core.ts
+- line: 850
+- text: `} catch {}`
+- classification: optional-block-load-probe
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+843:         const base = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+844:         const hj = path.join(base, "heads.json");
+845:         const ht = path.join(base, "head.txt");
+846:         fs.writeFileSync(hj + ".tmp", JSON.stringify({ head: n, hash: "0x0" }) + "\n");
+847:         fs.renameSync(hj + ".tmp", hj);
+848:         fs.writeFileSync(ht + ".tmp", String(n) + "\n");
+849:         fs.renameSync(ht + ".tmp", ht);
+850:       } catch {}
+851:     };
+852: 
+853:     const advanceContiguousHead = (startHead: number, maxSeen: number): number => {
+854:       let h = Number(startHead);
+855:       const maxN = Number(maxSeen);
+856:       if (!(Number.isFinite(h) && h >= -1)) h = -1;
+857:       if (!(Number.isFinite(maxN) && maxN >= 0)) return h;
+```
+
+### silent-catch-12
+
+- file: src/node_core.ts
+- line: 861
+- text: `try { blk = this.store.loadBlock(nxt); } catch {}`
+- classification: optional-block-load-probe
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+854:       let h = Number(startHead);
+855:       const maxN = Number(maxSeen);
+856:       if (!(Number.isFinite(h) && h >= -1)) h = -1;
+857:       if (!(Number.isFinite(maxN) && maxN >= 0)) return h;
+858:       while (h < maxN) {
+859:         const nxt = h + 1;
+860:         let blk: any = null;
+861:         try { blk = this.store.loadBlock(nxt); } catch {}
+862:         if (!blk || Number(blk?.number) !== nxt) break;
+863:         h = nxt;
+864:       }
+865:       if (h > startHead) {
+866:         persistHeadIfPossible(h);
+867:         try {
+868:           const st: any = this.store as any;
+```
+
+### silent-catch-13
+
+- file: src/node_core.ts
+- line: 871
+- text: `} catch {}`
+- classification: optional-block-load-probe
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+864:       }
+865:       if (h > startHead) {
+866:         persistHeadIfPossible(h);
+867:         try {
+868:           const st: any = this.store as any;
+869:           if (typeof st.headNumber === "number" || st.headNumber == null) st.headNumber = h;
+870:           if (typeof st.latestNumber === "number" || st.latestNumber == null) st.latestNumber = h;
+871:         } catch {}
+872:       }
+873:       return h;
+874:     };
+875: 
+876:     for (const b of arr) {
+877:       const n = Number(b?.number);
+878:       if (!Number.isFinite(n)) continue;
+```
+
+### silent-catch-14
+
+- file: src/node_core.ts
+- line: 1020
+- text: `} catch {}`
+- classification: optional-network-or-notification-path
+- sideEffectSilentCatch: false
+- importSideEffectSilentCatch: false
+
+```ts
+1013:   startFollower(peerHttp = "http://localhost:4100", intervalMs = 2000, opts?: { onImportBlock?: (b: Block) => void }) {
+1014:     let running = false;
+1015:     const tick = async () => {
+1016:       if (running) return;
+1017:       running = true;
+1018:       try {
+1019:         await this.pullOnce(peerHttp, opts);
+1020:       } catch {}
+1021:       running = false;
+1022:     };
+1023:     void tick();
+1024:     setInterval(tick, intervalMs).unref?.();
+1025:     return { ok: true, peerHttp, intervalMs };
+1026:   }
+1027: 
+```
+
