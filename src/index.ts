@@ -15922,7 +15922,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
     try {
       const app:any = getApp();
       if (app?.locals?.node) return app.locals.node;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("15925:1", err); }
     return undefined;
   }
   function getStore(){
@@ -15955,7 +15955,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
     try {
       if (Array.isArray(mp.txs) && mp.txs === arr) mp.txs.splice(0, take);
       else if (Array.isArray(node.pendingTxs) && node.pendingTxs === arr) node.pendingTxs.splice(0, take);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("15958:2", err); }
     return picked;
   }
 
@@ -16025,7 +16025,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
           });
         });
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("16028:3", err); }
   }
 
   // Defer until app/node exist
@@ -16052,7 +16052,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
     set(v:any){
       try {
         if (v && typeof v.injected === "number") bump(v.injected);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("16055:4", err); }
       if (origDesc?.set) origDesc.set.call(g, v); else g.__lastMile_info_value = v;
     }
   });
@@ -16093,19 +16093,19 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
       Object.defineProperty(g, "__lastMile_info", {
         configurable: true,
         get(){ return _v; },
-        set(v:any){ try{ if (v && typeof v.injected==="number") bump(v.injected); }catch{} _v=v; }
+        set(v:any){ try{ if (v && typeof v.injected==="number") bump(v.injected); }catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("16096:5", err); } _v=v; }
       });
     } else {
       Object.defineProperty(g, "__lastMile_info", {
         configurable: true,
         get(){ return orig.get ? orig.get.call(g) : (g as any).__lastMile_info_value; },
         set(v:any){
-          try{ if (v && typeof v.injected==="number") bump(v.injected); }catch{}
+          try{ if (v && typeof v.injected==="number") bump(v.injected); }catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("16103:6", err); }
           if (orig.set) orig.set.call(g, v); else (g as any).__lastMile_info_value = v;
         }
       });
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow15301_16200V1("16108:7", err); }
 
   function attach(){
     if (attached) return;
@@ -83646,4 +83646,9 @@ function voidIndexEmptyCatchVisibilityWindow13501_14400V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow14401_15300V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_14401_15300_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow15301_16200V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_15301_16200_V1_VISIBLE", context, err);
 }
