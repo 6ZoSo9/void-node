@@ -1,3 +1,12 @@
+function recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_DIAG_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/diag/fs_autoclose_guard_v1.ts",
+    scope,
+    message,
+  });
+}
+
 // [extracted:fs_autoclose_guard_v1]
 // Extracted from src/index.ts to reduce blob size. Runtime behavior should be identical.
 
@@ -16,7 +25,7 @@
     const reg = (__FR ? new __FR((info:any)=>{
       try {
         console.error("[fs-guard] GC closed FileHandle (missing .close) at", info?.stack || info);
-      } catch {}
+      } catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-1", err); }
     }) : { register(){} });
 
 
@@ -27,10 +36,10 @@
       const fh = await origOpen.apply(this, args);
       let closed = false;
       const oclose = fh.close.bind(fh);
-      fh.close = async (...cargs:any[]) => { try { closed = true; } catch {}; return oclose(...cargs); };
+      fh.close = async (...cargs:any[]) => { try { closed = true; } catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-2", err); }; return oclose(...cargs); };
       reg.register(fh, { stack }, fh);
       // safety: auto-close on process exit hooks (best-effort)
-      process.on('beforeExit', ()=>{ if (!closed) try{ oclose(); }catch{} });
+      process.on('beforeExit', ()=>{ if (!closed) try{ oclose(); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-3", err); } });
       return fh;
     };
 
@@ -43,11 +52,11 @@
         const t = setImmediate(()=>{
           const hasListener = s.listenerCount('data') + s.listenerCount('readable') + s.listenerCount('pipe') > 0;
           if (!hasListener && !s.destroyed){
-            try { s.resume && s.resume(); } catch {}
-            try { s.destroy && s.destroy(); } catch {}
+            try { s.resume && s.resume(); } catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-4", err); }
+            try { s.destroy && s.destroy(); } catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-5", err); }
           }
         });
-        s.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        s.once('close', ()=>{ try{ clearImmediate(t); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-6", err); } });
         return s;
       };
     }
@@ -55,7 +64,7 @@
     wrapStreamFactory('createWriteStream');
 
     console.error("[fs-autoclose] installed");
-  } catch(e) { try{ console.error("[fs-autoclose] failed", e); }catch{} }
+  } catch(e) { try{ console.error("[fs-autoclose] failed", e); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-7", err); } }
 })();
 
 // -------------------- HTTP AUTODRAIN (client sockets, v1) --------------------
@@ -74,7 +83,7 @@
         if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
         (agent as any).freeSocketTimeout = 2000;
         (agent as any).maxFreeSockets = 32;
-      }catch{}
+      }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-8", err); }
     }
     tuneAgent((http as any).globalAgent);
     tuneAgent((https as any).globalAgent);
@@ -87,9 +96,9 @@
           const t = setImmediate(()=>{
             if (res.destroyed) return;
             const hasConsumer = res.listenerCount('data')>0 || res.listenerCount('readable')>0;
-            if (!hasConsumer){ res.on('error', ()=>{}); try{ res.resume(); }catch{} }
+            if (!hasConsumer){ res.on('error', ()=>{}); try{ res.resume(); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-9", err); } }
           });
-          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-10", err); } });
         });
         return req;
       };
@@ -98,6 +107,6 @@
     wrapRequest(https);
 
     console.error("[http-autodrain] installed");
-  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch{} }
+  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch (err) { recordDiagEmptyHandlerVisibilityFailure_src_diag_fs_autoclose_guard_v1_ts("empty-handler-11", err); } }
 })();
 
