@@ -24310,7 +24310,7 @@ const wal = new WALv1(getDataDir());
       fs.mkdirSync(dir, {recursive:true});
       const fd = fs.openSync(file, "a");
       fs.writeSync(fd, JSON.stringify(rec)+"\n");
-      try{ fs.fdatasyncSync(fd); }catch{}
+      try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24313:1", err); }
       fs.closeSync(fd);
       (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
     }catch{
@@ -24324,7 +24324,7 @@ const wal = new WALv1(getDataDir());
     if ((app as any).__void_agent_receipts_compat_v2) return; (app as any).__void_agent_receipts_compat_v2 = true;
 
     // make sure JSON body parsing is active
-    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+    try { app.use(require("express").json({limit:"512kb"})); } catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24327:2", err); }
 
     // POST /agent/v0/receipt  body: {id, input?, output?}
     app.post("/agent/v0/receipt", (req:any, res:any)=>{
@@ -24368,7 +24368,7 @@ const wal = new WALv1(getDataDir());
           }
         }
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24371:3", err); }
   }
   prune();
 })();
@@ -24409,9 +24409,9 @@ const wal = new WALv1(getDataDir());
       if (!fs.existsSync(pathStr)) return out;
       for (const line of fs.readFileSync(pathStr, "utf8").split("\\n")){
         if (!line) continue;
-        try { out.push(JSON.parse(line)); } catch {}
+        try { out.push(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24412:4", err); }
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24414:5", err); }
     return out;
   }
 
@@ -24493,17 +24493,17 @@ const wal = new WALv1(getDataDir());
       if (fs.existsSync(resultsFile)){
         for (const line of fs.readFileSync(resultsFile,"utf8").split("\\n")){
           if (!line) continue;
-          try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch{}
+          try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24496:6", err); }
         }
       }
       if (fs.existsSync(receiptsFile)){
         for (const line of fs.readFileSync(receiptsFile,"utf8").split("\\n")){
           if (!line) continue;
-          try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch{}
+          try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24502:7", err); }
         }
       }
       for (const id of seen){ if (rmap.has(id)) covered++; }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24506:8", err); }
     const coverage = total>0 ? (covered/total) : 0;
     return {total, receipts, covered, coverage};
   }
@@ -24555,7 +24555,7 @@ const wal = new WALv1(getDataDir());
     fs.mkdirSync(dir, {recursive:true});
     const fd = fs.openSync(file, "a");
     fs.writeSync(fd, JSON.stringify(rec)+"\n");
-    try{ fs.fdatasyncSync(fd); }catch{}
+    try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24558:9", err); }
     fs.closeSync(fd);
     (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
   }
@@ -24564,7 +24564,7 @@ const wal = new WALv1(getDataDir());
   function mount(){
     const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
     if ((app as any).__void_agent_receipts_final) return; (app as any).__void_agent_receipts_final = true;
-    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+    try { app.use(require("express").json({limit:"512kb"})); } catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24567:10", err); }
 
     // 1) Prune older POST handlers for both paths so our final writer wins.
     try{
@@ -24667,14 +24667,14 @@ const wal = new WALv1(getDataDir());
         if (fs.existsSync(FILE_LEASES)){
           fs.readFileSync(FILE_LEASES,"utf8").split("\\n").forEach(l=>{
             if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch{}
+            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24670:11", err); }
           });
         }
         // collect done
         if (fs.existsSync(FILE_RESULTS)){
           fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").forEach(l=>{
             if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch{}
+            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24677:12", err); }
           });
         }
         // list jobs not done/not leased
@@ -24686,7 +24686,7 @@ const wal = new WALv1(getDataDir());
             if(seen.has(x.id)) return;
             seen.add(x.id);
             if(!done.has(x.id) && !leased.has(x.id)) queued.push(x.id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24689:13", err); }
         });
       }
     } finally { building = false; }
@@ -24789,7 +24789,7 @@ const wal = new WALv1(getDataDir());
           try{
             const r = await fetch(`http://127.0.0.1:${port}/__void/metrics/agent_wc_awards_v2.prom`);
             wcText = r.ok ? await r.text() : "";
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24792:14", err); }
 
           function promNum(name:string, txt:string){
             try{
@@ -24803,7 +24803,7 @@ const wal = new WALv1(getDataDir());
           try{
             const r = await fetch(`http://127.0.0.1:${port}/__void/metrics/agent_pillar4.prom`);
             pillarText = r.ok ? await r.text() : "";
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24806:15", err); }
 
           const jobs = promNum("void_agent_jobs_total", pillarText);
           const results = promNum("void_agent_results_total", pillarText);
@@ -24888,7 +24888,7 @@ const wal = new WALv1(getDataDir());
 
     })();
   }catch(e:any){
-    try{ console.warn("[demo] ai-status attach failed:", e?.message || e); }catch{}
+    try{ console.warn("[demo] ai-status attach failed:", e?.message || e); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24891:16", err); }
   }
 })();
 
@@ -24925,7 +24925,7 @@ const wal = new WALv1(getDataDir());
           const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch{}
+            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24928:17", err); }
           }
         }
         return res.json({ok:true, job});
@@ -24949,7 +24949,7 @@ const wal = new WALv1(getDataDir());
           const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch{}
+            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24952:18", err); }
           }
         }
         const rec = { id, output, outputHash, inputHash, ts: nowMs() };
@@ -24971,7 +24971,7 @@ const wal = new WALv1(getDataDir());
           const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch{}
+            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24974:19", err); }
           }
         }
         return res.json({ok:true, result: out});
@@ -25064,7 +25064,7 @@ const wal = new WALv1(getDataDir());
         const x = JSON.parse(l);
         const id = x[idKey] || x.job_id || x.id;
         if (id) s.add(String(id));
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("25067:20", err); }
     }
     return s;
   }
@@ -25078,7 +25078,7 @@ const wal = new WALv1(getDataDir());
         const ts = Number(x.ts||0);
         if (!id) continue;
         if (ts >= cutoff) m.set(id, ts); // keep only active lease
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("25081:21", err); }
     }
     return m;
   }
@@ -25088,7 +25088,7 @@ const wal = new WALv1(getDataDir());
         const x = JSON.parse(l);
         const xid = String(x.job_id || x.id || "");
         if (xid === id) return x;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("25091:22", err); }
     }
     return null;
   }
@@ -25102,7 +25102,7 @@ const wal = new WALv1(getDataDir());
         if (xid !== id) continue;
         if (!latest) latest = x;
         if (jobIsRunnable(x)) return x;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("25105:23", err); }
     }
     return latest;
   }
@@ -83696,4 +83696,9 @@ function voidIndexEmptyCatchVisibilityWindow22501_23400V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow23401_24300V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_23401_24300_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow24301_25200V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_24301_25200_V1_VISIBLE", context, err);
 }
