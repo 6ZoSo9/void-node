@@ -16241,7 +16241,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileInj
           g.__lastMile_injected_total = (g.__lastMile_injected_total || 0) + Math.max(delta, 0);
         }
         return res;
-      } catch (e){ try { console.error("[lastMileInjectedV2] error", e); } catch{}; throw e; }
+      } catch (e){ try { console.error("[lastMileInjectedV2] error", e); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16244:1", err); }; throw e; }
     };
     target.__lastMilePatchedV2 = true;
 
@@ -16259,7 +16259,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileInj
     }
 
     attached = true;
-    try { console.log("[lastMileInjectedV2] patch attached"); } catch {}
+    try { console.log("[lastMileInjectedV2] patch attached"); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16262:2", err); }
   }
   attach();
 })();
@@ -16289,7 +16289,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3(
         return res;
       };
       store.__lastMileV3Patched = true;
-      try { console.log("[lastMileV3] patch attached"); } catch {}
+      try { console.log("[lastMileV3] patch attached"); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16292:3", err); }
     }
 
     if (app && typeof app.get==="function" && !app.__lastMileV3Prom){
@@ -16326,7 +16326,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
         if (v && typeof v.injected === "number" && v.injected > 0) {
           g.__lastMile_block_txs_total = (g.__lastMile_block_txs_total||0) + v.injected;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16329:4", err); }
       if (desc?.set) desc.set.call(g, v); else backing = v;
     }
   });
@@ -16351,7 +16351,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
 
 // ---- LASTMILE v4: scrape-driven accumulator using local HTTP endpoints ----
 (function lastMileV4(){
-  if (String(process.env.VOID_LASTMILE_V4_DISABLE||"0")==="1") { try{ console.log("[lastMileV4] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_LASTMILE_V4_DISABLE||"0")==="1") { try{ console.log("[lastMileV4] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16354:5", err); } return; }
   if (String(process.env.VOID_LASTMILE_V4_DISABLE||"0")==="1") { console.log("[lastMileV4] disabled by env"); return; }
   const g:any = (globalThis as any);
   g.__lm_v4_total = g.__lm_v4_total || 0;
@@ -16397,7 +16397,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
             g.__lm_v4_last = { n:k, txs: txc };
             added += txc;
           }
-        } catch(e2){}
+        } catch (e2) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16400:6", e2); }
       }
     }
     return { latest, added, lastSeen: g.__lm_v4_last.n };
@@ -16410,7 +16410,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
     a.get("/__void/metrics/lastmile.v4.prom", async (_req:any,res:any)=>{
       try {
         await advanceToLatest();
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16413:7", err); }
 
       const total = g.__lm_v4_total || 0;
       const last = g.__lm_v4_last || { n:-1, txs:0 };
@@ -16566,13 +16566,13 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
     });
 
     a.__voidFeatureFlagsAPI = true;
-    try { console.log("[flags] API attached"); } catch {}
+    try { console.log("[flags] API attached"); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16569:8", err); }
   })();
 })();
 
 // ---- ABOUT + BASICS PROM (pure-additive, safe) ------------------------------
 (function voidAboutAndBasics(){
-  if (String(process.env.VOID_ABOUT_BASICS_DISABLE||"0")==="1") { try{ console.log("[voidAboutAndBasics] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_ABOUT_BASICS_DISABLE||"0")==="1") { try{ console.log("[voidAboutAndBasics] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16575:9", err); } return; }
   if (String(process.env.VOID_ABOUT_BASICS_DISABLE||"0")==="1") { console.log("[voidAboutAndBasics] disabled by env"); return; }
   let tries=0, attached=false;
   const RETRY=250, MAX=15000;
@@ -16683,7 +16683,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
     });
 
     a.__voidAboutBasics = true;
-    try { console.log("[about/basics] endpoints attached"); } catch {}
+    try { console.log("[about/basics] endpoints attached"); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16686:10", err); }
   })();
 })();
 // ---- fetch shim (ESM-safe, no deps) ----
@@ -16721,7 +16721,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
 })();
 // ---- BASICS exporter v2 (head + live txroot health + lastmile v4b), self-warming ----
 (function basicsExporterV2(){
-  if (String(process.env.VOID_BASICS_EXPORTER_V2_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_BASICS_EXPORTER_V2_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16724:11", err); } return; }
   if (String(process.env.VOID_BASICS_V2_DISABLE||"0")==="1") { console.log("[basicsExporterV2] disabled by env"); return; }
   let tries=0, attached=false; const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
@@ -16850,12 +16850,12 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
     });
 
     a.__voidBasicsExporterV2 = true;
-    try { console.log("[basics] exporter v2 attached"); } catch {}
+    try { console.log("[basics] exporter v2 attached"); } catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16853:12", err); }
   })();
 })();
 // ---- BASICS exporter v2b (new paths; leaves old ones intact) ----
 (function basicsExporterV2b(){
-  if (String(process.env.VOID_BASICS_EXPORTER_V2B_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2b] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_BASICS_EXPORTER_V2B_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2b] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16858:13", err); } return; }
   if (String(process.env.VOID_BASICS_V2B_DISABLE||"0")==="1") { console.log("[basicsExporterV2b] disabled by env"); return; }
   let tries=0, attached=false; const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
@@ -16963,12 +16963,12 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     });
 
     a.__voidBasicsExporterV2b = true;
-    try{ console.log("[basics] exporter v2b attached (/__void/metrics/void.basics.v2.prom, /__void/about2)"); }catch{}
+    try{ console.log("[basics] exporter v2b attached (/__void/metrics/void.basics.v2.prom, /__void/about2)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16966:14", err); }
   })();
 })();
 // [DEV-ONLY-BEGIN:ready-endpoints-v1]
 (function readyEndpointsV1_1(){
-  if (String(process.env.VOID_READY_ENDPOINTS_V1_DISABLE||"0")==="1") { try{ console.log("[readyEndpointsV1_1] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_READY_ENDPOINTS_V1_DISABLE||"0")==="1") { try{ console.log("[readyEndpointsV1_1] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16971:15", err); } return; }
   if (String(process.env.VOID_READY_ENDPOINTS_V1_DISABLE||"0")==="1") { console.log("[readyEndpointsV1_1] disabled by env"); return; }
   let tries=0, attached=false;
   const RETRY=250, MAX_TRIES=600; // ~150s
@@ -16995,14 +16995,14 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
       const t = await fetchText("http://localhost:4100/head.txt", 300);
       const n = Number(String(t || "").trim().split(/\s+/)[0]);
       if (Number.isFinite(n) && n >= 0) head = n;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16998:16", err); }
     if (head == null){
       try{
         const t = await fetchText("http://localhost:4100/blocks/latest/number2.json", 400);
         const j = JSON.parse(String(t || "{}"));
         const n = Number(j?.number);
         if (Number.isFinite(n) && n >= 0) head = n;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17005:17", err); }
     }
 
     // 2) fallback basics exporter only if stronger head truth missing
@@ -17014,7 +17014,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
       }
       const lv = parseGauge(t, "void_txroot_health_live");
       if (live == null && Number.isFinite(lv)) live = lv;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17017:18", err); }
 
     // 3) strongest txroot truth: explicit verify on current head
     if (head != null){
@@ -17022,7 +17022,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
         const t = await fetchText(`http://localhost:4100/blocks/${head}/txroot/verify2`, 500);
         const j = JSON.parse(String(t || "{}"));
         if (j && typeof j.match === "boolean") live = j.match ? 1 : 0;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17025:19", err); }
     }
 
     // 4) old fallback only if explicit verify unavailable
@@ -17035,7 +17035,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
           v = parseGauge(t, "void_txroot_health");
         }
         if (Number.isFinite(v)) live = v;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17038:20", err); }
     }
 
     // 5) lastmile seen
@@ -17043,7 +17043,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
       const lm = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 500);
       const sv = parseGauge(lm, "void_lastmile_last_seen_block");
       if (Number.isFinite(sv)) seen = sv;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17046:21", err); }
 
     return {head, live, seen};
   }
@@ -83651,4 +83651,9 @@ function voidIndexEmptyCatchVisibilityWindow14401_15300V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow15301_16200V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_15301_16200_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow16201_17100V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_16201_17100_V1_VISIBLE", context, err);
 }
