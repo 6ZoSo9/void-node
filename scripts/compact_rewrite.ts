@@ -2,6 +2,16 @@ import fs from "node:fs"
 import path from "node:path"
 import { SegStore } from "../src/chain/seg_store"
 
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_compact_rewrite_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/compact_rewrite.ts",
+    scope,
+    message,
+  });
+}
+
+
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const TMP_DIR  = `${DATA_DIR}_rewrite_tmp`
 
@@ -20,7 +30,7 @@ function scanAll(dir: string): any[] {
     if (len < 0 || pos + 4 + len > stat.size) break
     const body = Buffer.alloc(len)
     fs.readSync(fd, body, 0, len, pos + 4)
-    try { out.push(JSON.parse(body.toString("utf8"))) } catch {}
+    try { out.push(JSON.parse(body.toString("utf8"))) } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_compact_rewrite_ts("empty-handler-1", err); }
     pos += 4 + len
   }
   fs.closeSync(fd)

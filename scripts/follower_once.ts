@@ -1,5 +1,15 @@
 import { SegStore } from "../src/chain/seg_store"
 
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_follower_once_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/follower_once.ts",
+    scope,
+    message,
+  });
+}
+
+
 const SRC      = process.env.SRC || "http://127.0.0.1:4300"
 const DATA_DIR = process.env.DATA_DIR || "data_b"
 const CHUNK    = Number(process.env.CHUNK || 200)
@@ -28,21 +38,21 @@ async function getSourceHead(src: string): Promise<number> {
     const demo = await getJSON<any>(`${src}/__void/demo/summary.json`)
     const head = demo?.chain?.head
     if (Number.isFinite(head)) return Number(head)
-  } catch {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_follower_once_ts("empty-handler-1", err); }
 
   // 2) Fallback legacy helper
   try {
     const h = await getJSON<any>(`${src}/api/health`)
     const head = h?.head
     if (Number.isFinite(head)) return Number(head)
-  } catch {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_follower_once_ts("empty-handler-2", err); }
 
   // 3) Fallback current /health if a future build adds head there
   try {
     const h = await getJSON<any>(`${src}/health`)
     const head = h?.head
     if (Number.isFinite(head)) return Number(head)
-  } catch {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_follower_once_ts("empty-handler-3", err); }
 
   throw new Error(`could not resolve source head from ${src}`)
 }

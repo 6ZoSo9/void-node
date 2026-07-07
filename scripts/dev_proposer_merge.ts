@@ -3,6 +3,16 @@
  * Logs statuses; merges picked txs into block.payload.txs and block.txs
  */
 import http from "node:http";
+
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_dev_proposer_merge_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/dev_proposer_merge.ts",
+    scope,
+    message,
+  });
+}
+
 const HTTP_HOST = process.env.HTTP_HOST || "127.0.0.1";
 const HTTP_PORT = +(process.env.HTTP_PORT || "4100");
 let CAP = Number.isFinite(+process.env.VOID_TX_MERGE_CAP!) ? +process.env.VOID_TX_MERGE_CAP! : 3;
@@ -15,7 +25,7 @@ function httpDo(method:"GET"|"POST", path:string, body?:any): Promise<R>{
     const req = http.request(opts, (res)=>{
       let buf=""; res.setEncoding("utf8");
       res.on("data",(c)=>buf+=c);
-      res.on("end",()=>{ let json:any; try{ json=JSON.parse(buf||"{}"); }catch{}; resolve({status:res.statusCode||0, body:buf, json}); });
+      res.on("end",()=>{ let json:any; try{ json=JSON.parse(buf||"{}"); }catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_dev_proposer_merge_ts("empty-handler-1", err); }; resolve({status:res.statusCode||0, body:buf, json}); });
     });
     req.on("error",()=>resolve({status:-1, body:""}));
     if (method==="POST") req.end(payload); else req.end();
@@ -64,7 +74,7 @@ async function install(){
     ["../src/chain/seg_store.ts","saveBlock"],["../src/chain/seg_store.ts","appendBlock"],
     ["../src/chain/seg_store.js","saveBlock"],["../src/chain/seg_store.js","appendBlock"],
   ]){
-    try{ const mod:any = await import(spec); const Seg = mod?.SegStore; if (Seg && await hook(Seg.prototype, method)) ok=true; }catch{}
+    try{ const mod:any = await import(spec); const Seg = mod?.SegStore; if (Seg && await hook(Seg.prototype, method)) ok=true; }catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_dev_proposer_merge_ts("empty-handler-2", err); }
   }
   if (!ok) console.warn("[txmerge:v2.6] WARNING: no save path hooked");
   const getApp=()=> (globalThis as any).__void_http_app || (globalThis as any).app;
