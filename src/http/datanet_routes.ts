@@ -6,6 +6,16 @@ import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
 import { packFile } from "../datanet/pack.js";
 
+function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SEGSTORE_DATANET_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/http/datanet_routes.ts",
+    scope,
+    message,
+  });
+}
+
+
 function isHex64(s: string) {
   return /^[0-9a-fA-F]{64}$/.test(s);
 }
@@ -63,7 +73,7 @@ function normalizeLeavesFromManifest(man: any): string[] {
         const t = d.toLowerCase().replace(/^0x/, "").trim();
         if (isHex64(t)) return t;
       }
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-1", err); }
     return null;
   }
 
@@ -101,7 +111,7 @@ function normalizeLeavesFromManifest(man: any): string[] {
           const one = normHex64(vv);
           if (one) out.push(one);
         }
-      } catch {}
+      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-2", err); }
     }
   }
 
@@ -209,10 +219,10 @@ const router = express.Router();
     if (!a.__void_datanet_router_mounted_v1) {
       a.__void_datanet_router_mounted_v1 = true;
       app.use("/datanet/v1", router);
-      try { console.log("[datanet_routes] mounted at /datanet/v1"); } catch {}
+      try { console.log("[datanet_routes] mounted at /datanet/v1"); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-3", err); }
     }
   } catch (e: any) {
-    try { console.log("[datanet_routes] mount failed:", e?.message || String(e)); } catch {}
+    try { console.log("[datanet_routes] mount failed:", e?.message || String(e)); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-4", err); }
   }
   router.use(express.json({ limit: "10mb", type: ["application/json", "text/json", "application/*+json"] }));
 
@@ -355,9 +365,9 @@ const router = express.Router();
           const ts0 = Number(b?.ts_ms || Date.now());
           const src = `${root0}:${leaf0}:${idx0}:${bytes0}:${ts0}`;
           idRaw = createHash("sha256").update(src).digest("hex");
-          try { b.id = idRaw; } catch {}
-          if (!b.ts_ms) { try { b.ts_ms = ts0; } catch {} }
-        } catch {}
+          try { b.id = idRaw; } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-5", err); }
+          if (!b.ts_ms) { try { b.ts_ms = ts0; } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-6", err); } }
+        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-7", err); }
       }
       const id = idRaw.replace(/^0x/, "");
       // accept hex-ish ids (publish ids have been 32-hex; roots are 64-hex)
@@ -518,10 +528,10 @@ const router = express.Router();
                   );
 
                   if (priorKey === dedupeKey) { alreadyCredited = true; break; }
-                } catch {}
+                } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-8", err); }
               }
             }
-          } catch {}
+          } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-9", err); }
 
           if (!alreadyCredited) {
             const evt = {
@@ -542,7 +552,7 @@ const router = express.Router();
             fs.appendFileSync(ledgerFile2, JSON.stringify(evt) + "\n");
           }
         }
-      } catch {}
+      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-10", err); }
 
       const __m = __datanetReceiptsMetricsV1();
       __m.post_total++;
@@ -605,7 +615,7 @@ router.get("/receipts/status", (req, res) => {
             const t = Number(j?.ts_ms || 0);
             if (Number.isFinite(t) && t > last_ts_ms) last_ts_ms = t;
             if ((j?.ok|0) === 1 && Number.isFinite(t) && t > last_ok_ts_ms) last_ok_ts_ms = t;
-          } catch {}
+          } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-11", err); }
         }
       }
       res.json({ ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
