@@ -29731,14 +29731,14 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
       try{
         const on = String(req.query.on ?? "1");
         S.enabled = !(on === "0" || on === "false");
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("29734:1", err); }
       res.json({ ok:true, enabled:S.enabled });
     });
     app.post("/__void/metrics/commit-direct-autoprop.v1/interval", async (req:any,res:any)=>{
       try{
         const ms = Number(req.query.ms ?? "2000");
         if (Number.isFinite(ms) && ms >= 200 && ms <= 60000) S.interval_ms = ms;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("29741:2", err); }
       res.json({ ok:true, interval_ms:S.interval_ms });
     });
 
@@ -29851,7 +29851,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
     String(process.env.PROPOSER_AUTO || "0") === "0"
   ) {
-    try { console.error("[autoprop.v1.kicker] disabled by env"); } catch {}
+    try { console.error("[autoprop.v1.kicker] disabled by env"); } catch (err) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("29854:3", err); }
     return;
   }
   const G:any = (globalThis as any);
@@ -29998,7 +29998,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
     String(process.env.PROPOSER_AUTO || "0") === "0"
   ) {
-    try { console.error("[autoprop.v1.prom2.warmkick] disabled by env"); } catch {}
+    try { console.error("[autoprop.v1.prom2.warmkick] disabled by env"); } catch (err) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("30001:4", err); }
     return;
   }
   const G:any = (globalThis as any);
@@ -30011,7 +30011,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
   async function postT(url:string, ms:number){
     const ac = new AbortController();
     const t = setTimeout(()=>ac.abort(), ms);
-    try { await fetch(url, { method:"POST", signal: ac.signal } as any); } catch {}
+    try { await fetch(url, { method:"POST", signal: ac.signal } as any); } catch (err) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("30014:5", err); }
     finally { clearTimeout(t); }
   }
 
@@ -30351,7 +30351,7 @@ try {
     }
     if (__v_try >= 40) clearInterval(__v_t); // ~4s max
   }, 100);
-} catch (_e) {}
+} catch (_e) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("30354:6", _e); }
 /* __VOID_BLOCK_TXS_TRUTH_MINI v1 */
 
 
@@ -30496,7 +30496,7 @@ try {
   });
 
   console.log("[void] blocktxs_truth3 installed");
-} catch (_e) {}
+} catch (_e) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("30499:7", _e); }
 
 
 
@@ -83726,4 +83726,9 @@ function voidIndexEmptyCatchVisibilityWindow27901_28800V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow28801_29700V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_28801_29700_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow29701_30600V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_29701_30600_V1_VISIBLE", context, err);
 }
