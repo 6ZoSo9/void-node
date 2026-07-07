@@ -34206,8 +34206,8 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     try {
       const found = findSaveBlockTarget();
       if (found) wrapOnce(found.target, found.name);
-    } catch {}
-  } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34209:1", err); }
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34210:2", err); }
 })();
 
 // === __void_txdedupe_stats_wrap_v2__ ===
@@ -34539,7 +34539,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
           });
         });
         req.on("timeout", () => {
-          try { req.destroy(new Error("timeout")); } catch {}
+          try { req.destroy(new Error("timeout")); } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34542:3", err); }
         });
         req.on("error", (e: any) => reject(e));
       });
@@ -34589,7 +34589,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
                 }
               }
               state.full2_nfix_last = { at: Date.now(), n: body?.n ?? null };
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34592:4", err); }
             return _json(body);
           };
 
@@ -34693,7 +34693,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
       res.end(out);
     });
 
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34696:5", err); }
 })();
 
 /* __void_full3_truth_and_metrics_v2__ (bruteforce)
@@ -34940,7 +34940,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     };
     (fixed as any).__fixed_v1 = true;
     G.__void_getCreateHash = fixed;
-    try { console.error("[shim] __void_getCreateHash fixed_v1 installed"); } catch {}
+    try { console.error("[shim] __void_getCreateHash fixed_v1 installed"); } catch (err) { voidIndexEmptyCatchVisibilityWindow34201_35100V1("34943:6", err); }
   }
 })();
 
@@ -83751,4 +83751,9 @@ function voidIndexEmptyCatchVisibilityWindow32401_33300V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow33301_34200V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_33301_34200_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow34201_35100V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_34201_35100_V1_VISIBLE", context, err);
 }
