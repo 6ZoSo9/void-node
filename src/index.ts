@@ -5413,11 +5413,11 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
           if (mp1) return { mp: mp1, src: "node.mempool.txs" };
           const mp1b = n?.mempool?.pendingTxs;
           if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
-        }catch{}
+        }catch (err) { __voidIxCatch6300("5416:1", err); }
         try{
           const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
           if (mp2) return { mp: mp2, src: "global.mempool" };
-        }catch{}
+        }catch (err) { __voidIxCatch6300("5420:2", err); }
         try{
           g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
           return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
@@ -5469,12 +5469,12 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
         const c = Number(out?.count?.count);
         const g = Number(out?.global?.size);
         out.agree = (Number.isFinite(c) && Number.isFinite(g) && c === g) ? 1 : 0;
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5472:3", err); }
       return res.json(out);
     });
 
-    try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] mounted: /blocks/latest/number (truth), /mempool/count (truth), /mempool/truth.json; log filter pq/alias="+(process.env.VOID_LOG_FILTER_PQ !== "0")); }catch{}
-  }catch(e){}
+    try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] mounted: /blocks/latest/number (truth), /mempool/count (truth), /mempool/truth.json; log filter pq/alias="+(process.env.VOID_LOG_FILTER_PQ !== "0")); }catch (err) { __voidIxCatch6300("5476:4", err); }
+  }catch (err) { __voidIxCatch6300("5477:5", err); }
 })();
 
 
@@ -5545,8 +5545,8 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 
         // dynamic import packFile (tsx-friendly)
         let m: any = null;
-        try { m = await import("./datanet/pack.ts" as any); } catch {}
-        if (!m) { try { m = await import("./datanet/pack.js" as any); } catch {} }
+        try { m = await import("./datanet/pack.ts" as any); } catch (err) { __voidIxCatch6300("5548:6", err); }
+        if (!m) { try { m = await import("./datanet/pack.js" as any); } catch (err) { __voidIxCatch6300("5549:7", err); } }
         const packFile = (m && (m.packFile || m.default)) ? (m.packFile || m.default) : null;
         if (typeof packFile !== "function") {
           return res.status(500).json({ ok: false, error: "packFile_missing" });
@@ -5594,18 +5594,18 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
                 const srcChunkPath = path.join(outDir, fileName);
                 const dstChunkPath = path.join(canonicalChunksDir, `${leafHex}.bin`);
                 if (fs.existsSync(srcChunkPath)) fs.copyFileSync(srcChunkPath, dstChunkPath);
-              } catch {}
+              } catch (err) { __voidIxCatch6300("5597:8", err); }
             }
           }
-        } catch {}
+        } catch (err) { __voidIxCatch6300("5600:9", err); }
 
         return res.status(200).json(meta);
       } catch (e: any) {
         return res.status(500).json({ ok:false, error:"publish_throw", msg: e?.message || String(e) });
       }
     });
-    try { console.error("[datanet.publish_shim.v1] mounted: POST /datanet/v1/publish"); } catch {}
-  } catch {}
+    try { console.error("[datanet.publish_shim.v1] mounted: POST /datanet/v1/publish"); } catch (err) { __voidIxCatch6300("5607:10", err); }
+  } catch (err) { __voidIxCatch6300("5608:11", err); }
   // === [END DataNetPublishMvpIndexShimV1] ===
 
 /* === DATANET MVP mount (v1) ===
@@ -5625,18 +5625,18 @@ try {
             m && (m.registerDataNetRoutes || (m.default && m.default.registerDataNetRoutes));
           if (typeof fn === "function") {
             fn((globalThis as any).__void_http_app, { dataDir: process.env.DATA_DIR || "data" });
-            try { console.error("[datanet.mvp.v1] mounted"); } catch {}
+            try { console.error("[datanet.mvp.v1] mounted"); } catch (err) { __voidIxCatch6300("5628:12", err); }
           } else {
-            try { console.error("[datanet.mvp.v1] missing registerDataNetRoutes export"); } catch {}
+            try { console.error("[datanet.mvp.v1] missing registerDataNetRoutes export"); } catch (err) { __voidIxCatch6300("5630:13", err); }
           }
         })
         .catch((e: any) => {
-          try { console.error("[datanet.mvp.v1] mount failed", e && (e.stack || e)); } catch {}
+          try { console.error("[datanet.mvp.v1] mount failed", e && (e.stack || e)); } catch (err) { __voidIxCatch6300("5634:14", err); }
         });
     }
   }
 } catch (e: any) {
-  try { console.error("[datanet.mvp.v1] mount threw", e && (e.stack || e)); } catch {}
+  try { console.error("[datanet.mvp.v1] mount threw", e && (e.stack || e)); } catch (err) { __voidIxCatch6300("5639:15", err); }
 }
 /* === end DATANET MVP mount (v1) === */
 
@@ -5677,13 +5677,13 @@ try {
             const x = Number(v);
             if (Number.isFinite(x) && x > best) best = x;
           }
-        } catch {}
+        } catch (err) { __voidIxCatch6300("5680:16", err); }
 
         try {
           const st:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.store;
           const load = Number(st?.loadHeadNumber?.() ?? -1);
           if (Number.isFinite(load) && load > best) best = load;
-        } catch {}
+        } catch (err) { __voidIxCatch6300("5686:17", err); }
 
         if (best >= 0) return res.json({ number: best, __headfix: 'headfile.v1/max-live' });
       }
@@ -5699,15 +5699,15 @@ try {
                 return m;
               });
             }
-          } catch {}
+          } catch (err) { __voidIxCatch6300("5702:18", err); }
           return origSend.call(this, body);
         };
       }
-    } catch {}
+    } catch (err) { __voidIxCatch6300("5706:19", err); }
     return next();
   });
-  try { console.error('[headfix.early.v1] armed'); } catch {}
-} catch {}
+  try { console.error('[headfix.early.v1] armed'); } catch (err) { __voidIxCatch6300("5709:20", err); }
+} catch (err) { __voidIxCatch6300("5710:21", err); }
   (globalThis as any).__void_http_app = app
 
 /* [headfile.boot-repair.v1] */
@@ -5734,8 +5734,8 @@ try {
         try {
           const fd = fs.openSync(headFile, 'r');
           try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-        } catch {}
-      } catch {}
+        } catch (err) { __voidIxCatch6300("5737:22", err); }
+      } catch (err) { __voidIxCatch6300("5738:23", err); }
     };
 
     setTimeout(() => {
@@ -5746,7 +5746,7 @@ try {
           const st:any = (((g.__void_node || g.node) as any)?.store);
           const load = Number(st?.loadHeadNumber?.() ?? -1);
           if (Number.isFinite(load) && load > best) best = load;
-        } catch {}
+        } catch (err) { __voidIxCatch6300("5749:24", err); }
 
         try {
           const cands:any[] = [
@@ -5760,20 +5760,20 @@ try {
             const x = Number(v);
             if (Number.isFinite(x) && x > best) best = x;
           }
-        } catch {}
+        } catch (err) { __voidIxCatch6300("5763:25", err); }
 
         const disk = readHead();
         if (best >= 0 && best > disk) {
           writeHead(best);
-          try { console.error(`[headfile.boot-repair.v1] raised head.txt ${disk} -> ${best}`); } catch {}
+          try { console.error(`[headfile.boot-repair.v1] raised head.txt ${disk} -> ${best}`); } catch (err) { __voidIxCatch6300("5768:26", err); }
         } else {
-          try { console.error(`[headfile.boot-repair.v1] no repair needed disk=${disk} best=${best}`); } catch {}
+          try { console.error(`[headfile.boot-repair.v1] no repair needed disk=${disk} best=${best}`); } catch (err) { __voidIxCatch6300("5770:27", err); }
         }
       } catch (e:any) {
-        try { console.error('[headfile.boot-repair.v1] failed', String(e?.stack || e)); } catch {}
+        try { console.error('[headfile.boot-repair.v1] failed', String(e?.stack || e)); } catch (err) { __voidIxCatch6300("5773:28", err); }
       }
     }, 1500);
-  } catch {}
+  } catch (err) { __voidIxCatch6300("5776:29", err); }
 })();
 
 /* [number2.guard.fallback.v1b] */
@@ -5789,11 +5789,11 @@ try {
       try{
         const AC:any = (globalThis as any).AbortController;
         const ctrl = AC ? new AC() : null;
-        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { __voidIxCatch6300("5792:30", err); } }, ms);
         const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
         clearTimeout(t);
         if (r && r.ok) return await r.json().catch(()=>null);
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5796:31", err); }
       return null;
     }
 
@@ -5801,11 +5801,11 @@ try {
       try{
         const AC:any = (globalThis as any).AbortController;
         const ctrl = AC ? new AC() : null;
-        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { __voidIxCatch6300("5804:32", err); } }, ms);
         const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
         clearTimeout(t);
         if (r && r.ok) return String(await r.text().catch(()=>"" ));
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5808:33", err); }
       return null;
     }
 
@@ -5826,7 +5826,7 @@ try {
               const x = Number(v);
               if (Number.isFinite(x) && x >= 0) { n = x; break; }
             }
-          }catch{}
+          }catch (err) { __voidIxCatch6300("5829:34", err); }
         }
 
       // 1) best-effort in-proc cached head values
@@ -5842,7 +5842,7 @@ try {
           const x = Number(v);
           if (Number.isFinite(x) && x >= 0) { n = x; break; }
         }
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5845:35", err); }
 
       // 2) lastseal (in-proc truth) — avoid number.json loops
       if (!(Number.isFinite(n) && n >= 0)){
@@ -5871,8 +5871,8 @@ try {
       res.json({ number: (Number.isFinite(n) ? n : -1), __hardfix: "number2_guard_fallback_v1c_lite" });
     });
 
-    try{ console.error("[number2.guard.fallback.v1b] installed"); }catch{}
-  }catch{}
+    try{ console.error("[number2.guard.fallback.v1b] installed"); }catch (err) { __voidIxCatch6300("5874:36", err); }
+  }catch (err) { __voidIxCatch6300("5875:37", err); }
 })();
 /* [number2.guard.fallback.v1b] */
 
@@ -5936,8 +5936,8 @@ try {
         return res.status(500).json({ ok:false, err:"all attempts failed", state });
       });
 
-      try { console.log("[lazy-load] txroot bundle loader installed enabled=" + String(enabled)); } catch {}
-    } catch {}
+      try { console.log("[lazy-load] txroot bundle loader installed enabled=" + String(enabled)); } catch (err) { __voidIxCatch6300("5939:38", err); }
+    } catch (err) { __voidIxCatch6300("5940:39", err); }
   })();
 
 // === [jsonparse-diag.v1c] forced gate (anchor2) ===
@@ -5968,11 +5968,11 @@ try {
       try{
         const AC:any = (globalThis as any).AbortController;
         const ctrl = AC ? new AC() : null;
-        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { __voidIxCatch6300("5971:40", err); } }, ms);
         const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
         clearTimeout(t);
         if (r && r.ok) return await r.json().catch(()=>null);
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5975:41", err); }
       return null;
     }
 
@@ -5980,11 +5980,11 @@ try {
       try{
         const AC:any = (globalThis as any).AbortController;
         const ctrl = AC ? new AC() : null;
-        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch (err) { __voidIxCatch6300("5983:42", err); } }, ms);
         const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
         clearTimeout(t);
         if (r && r.ok) return String(await r.text().catch(()=>"" ));
-      }catch{}
+      }catch (err) { __voidIxCatch6300("5987:43", err); }
       return null;
     }
 
@@ -6003,7 +6003,7 @@ try {
           const n = Number(v);
           if (Number.isFinite(n) && n >= 0) return n;
         }
-      }catch{}
+      }catch (err) { __voidIxCatch6300("6006:44", err); }
       return -1;
     }
 
@@ -6038,9 +6038,9 @@ try {
         }
       });
 
-      try{ console.log(TAG + " mounted"); }catch{}
+      try{ console.log(TAG + " mounted"); }catch (err) { __voidIxCatch6300("6041:45", err); }
     })();
-  }catch{}
+  }catch (err) { __voidIxCatch6300("6043:46", err); }
 })();
 // === latest-number2.late-win.v1 END ===
 
@@ -6101,7 +6101,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
               block.txRoot = root;
             }
           }
-        } catch {}
+        } catch (err) { __voidIxCatch6300("6104:47", err); }
 
         if (!dry) {
           const store: any = node.store || null;
@@ -6130,7 +6130,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
                   fs.writeFileSync(headFile, String(n) + "\n", "utf8");
 
                   let heads:any = { head: -1, hash: "0x0" };
-                  try { heads = JSON.parse(fs.readFileSync(headsFile, "utf8") || "{}"); } catch {}
+                  try { heads = JSON.parse(fs.readFileSync(headsFile, "utf8") || "{}"); } catch (err) { __voidIxCatch6300("6133:48", err); }
                   heads.head = n;
                   heads.number = n;
                   if (!heads.hash) heads.hash = "0x0";
@@ -6145,9 +6145,9 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
                   G.__void_head_last = n;
                   G.__void_head = n;
                   G.__void_last_head = n;
-                } catch {}
+                } catch (err) { __voidIxCatch6300("6148:49", err); }
               }
-            } catch {}
+            } catch (err) { __voidIxCatch6300("6150:50", err); }
           } else if (store && typeof store.saveBlock === "function") {
             await store.saveBlock(block);
             commitUsed = "store.saveBlock";
@@ -6161,7 +6161,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
         try {
           const store2: any = node && node.store;
           headNow = store2 && typeof store2.loadHeadNumber === "function" ? store2.loadHeadNumber() : null;
-        } catch {}
+        } catch (err) { __voidIxCatch6300("6164:51", err); }
         return res.status(500).json({
           ok: false,
           dry,
@@ -6181,13 +6181,13 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
           (block && typeof block.number === "number" ? block.number : null) ??
           (block && block.header && typeof block.header.number === "number" ? block.header.number : null) ??
           null;
-      } catch {}
+      } catch (err) { __voidIxCatch6300("6184:52", err); }
 
       let headNow: any = null;
       try {
         const store3: any = node && node.store;
         headNow = store3 && typeof store3.loadHeadNumber === "function" ? store3.loadHeadNumber() : null;
-      } catch {}
+      } catch (err) { __voidIxCatch6300("6190:53", err); }
 
       return res.json({
         ok: true,
@@ -6289,7 +6289,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
       if (tryMount() || tries >= 24) clearInterval(timer);
     }, 250);
 
-  } catch {}
+  } catch (err) { __voidIxCatch6300("6292:54", err); }
 })();
  /* === [devroute.sealBlockOnce.v2] END === */
 
@@ -83604,3 +83604,5 @@ function __voidIxCatch3600(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch4500(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_3601_4500_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"3601-4500",scope:s,message:m});}
 
 function __voidIxCatch5400(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_4501_5400_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"4501-5400",scope:s,message:m});}
+
+function __voidIxCatch6300(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_5401_6300_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"5401-6300",scope:s,message:m});}
