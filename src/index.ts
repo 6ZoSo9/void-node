@@ -25218,7 +25218,7 @@ const wal = new WALv1(getDataDir());
       try{
         const x = JSON.parse(l);
         out.push(x);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25221:1", err); }
     }
     return out;
   }
@@ -25346,9 +25346,9 @@ const wal = new WALv1(getDataDir());
                 if (!(st === "completed" || st === "ok" || st === "done")) continue;
                 const jid = String(j?.job_id || j?.id || "").trim();
                 if (jid) doneTruth.add(jid);
-              }catch{}
+              }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25349:2", err); }
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25351:3", err); }
         };
         addCompletedTruth(FILE_RECEIPTS);
         addCompletedTruth(FILE_RECEIPTS_V1);
@@ -25423,9 +25423,9 @@ const wal = new WALv1(getDataDir());
                 if (!(st === "completed" || st === "ok" || st === "done")) continue;
                 const jid = String(j?.job_id || j?.id || "").trim();
                 if (jid) doneTruth.add(jid);
-              }catch{}
+              }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25426:4", err); }
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25428:5", err); }
         };
         addCompletedTruth(FILE_RECEIPTS);
         addCompletedTruth(FILE_RECEIPTS_V1);
@@ -25510,7 +25510,7 @@ const wal = new WALv1(getDataDir());
             if (!id) continue;
             if (done.has(id)) continue;
             if (ts >= cutoff) inflight++; else expired++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25513:6", err); }
         }
         const out = [
           "# HELP void_agent_leases_inflight leases younger than lease_ms and not done",
@@ -25706,7 +25706,7 @@ const wal = new WALv1(getDataDir());
                 String(obj?.receipt_id || "")
               ].filter(Boolean);
               if (ids.includes(id)) return { file, obj };
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25709:7", err); }
           }
         }
         return null;
@@ -25733,7 +25733,7 @@ const wal = new WALv1(getDataDir());
                 source_file: file
               });
               if (out.length >= 10) return out;
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25736:8", err); }
           }
         }
         return out;
@@ -25763,7 +25763,7 @@ const wal = new WALv1(getDataDir());
           };
 
           for (const file of jobFiles) appendJsonl(file, rec);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25766:9", err); }
       }
 
       function jobsSubmitCaptureV1(req:any, res:any, next:any){
@@ -25772,7 +25772,7 @@ const wal = new WALv1(getDataDir());
           const orig = res.json?.bind(res);
           if (typeof orig !== "function") return next();
           res.json = (body:any) => {
-            try { persistSubmittedJob(req, body); } catch {}
+            try { persistSubmittedJob(req, body); } catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25775:10", err); }
             return orig(body);
           };
           return next();
@@ -25868,13 +25868,13 @@ const wal = new WALv1(getDataDir());
           const layer = stack.splice(last, 1)[0];
           stack.splice(first, 0, layer);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25871:11", err); }
 
-      try { console.log("[jobs/readback] shim v1 mounted for /jobs/submit + /jobs/:id"); } catch {}
+      try { console.log("[jobs/readback] shim v1 mounted for /jobs/submit + /jobs/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25873:12", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25877:13", err); }
 })();
 // ---------------- [/ADD] Jobs submit/readback compatibility shim v1 ----------------
 
@@ -25888,7 +25888,7 @@ const wal = new WALv1(getDataDir());
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
 
   function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\\n").filter(l=>l.trim()) : []; }
-  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch{} } return s; }
+  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25891:14", err); } } return s; }
 
   function mount(){
     const app = (globalThis).__void_http_app || (globalThis as any).app;
@@ -26039,7 +26039,7 @@ const wal = new WALv1(getDataDir());
           const txs = Array.isArray(p?.txs) ? p.txs.length : 0;
           lastNum = n; lastTxs = txs; lastWasEmpty = txs === 0 ? 1 : 0;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("26042:15", err); }
       setTimeout(tick, TICK);
     }
     tick();
@@ -83701,4 +83701,9 @@ function voidIndexEmptyCatchVisibilityWindow23401_24300V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow24301_25200V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_24301_25200_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow25201_26100V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_25201_26100_V1_VISIBLE", context, err);
 }
