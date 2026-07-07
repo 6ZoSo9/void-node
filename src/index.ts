@@ -28030,8 +28030,8 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
 
   function pickBase(store:any){
     // Prefer a concrete commit method that should not call back into saveBlock wrappers.
-    try { if (store && typeof store.saveBlockCommit === "function") return { pick:"saveBlockCommit", fn: store.saveBlockCommit }; } catch {}
-    try { if (store && typeof store.saveBlock_WALv3 === "function") return { pick:"saveBlock_WALv3", fn: store.saveBlock_WALv3 }; } catch {}
+    try { if (store && typeof store.saveBlockCommit === "function") return { pick:"saveBlockCommit", fn: store.saveBlockCommit }; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28033:1", err); }
+    try { if (store && typeof store.saveBlock_WALv3 === "function") return { pick:"saveBlock_WALv3", fn: store.saveBlock_WALv3 }; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28034:2", err); }
     // Best-effort: find any other saveBlock* function on instance
     try {
       const names = Object.getOwnPropertyNames(store || {}).filter((n)=>/^saveBlock/.test(n) && n !== "saveBlock");
@@ -28039,7 +28039,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
         const fn = (store as any)[n];
         if (typeof fn === "function") return { pick:`own:${n}`, fn };
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28042:3", err); }
     // Prototype scan
     try {
       const p = Object.getPrototypeOf(store);
@@ -28050,7 +28050,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
           if (d && typeof (d as any).value === "function") return { pick:`proto:${n}`, fn: (d as any).value };
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28053:4", err); }
     return { pick:"", fn:null };
   }
 
@@ -28068,10 +28068,10 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
       return await baseFn.call(this, block);
     } as any;
 
-    try { (wrapped as any).__void_saveblock_finalized_v3b = true; } catch {}
-    try { (wrapped as any).__void_saveblock_base_pick = String(base.pick||""); } catch {}
-    try { (wrapped as any).__void_saveblock_base_name = String((baseFn as any).name||""); } catch {}
-    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3b", configurable: true }); } catch {}
+    try { (wrapped as any).__void_saveblock_finalized_v3b = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28071:5", err); }
+    try { (wrapped as any).__void_saveblock_base_pick = String(base.pick||""); } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28072:6", err); }
+    try { (wrapped as any).__void_saveblock_base_name = String((baseFn as any).name||""); } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28073:7", err); }
+    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3b", configurable: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28074:8", err); }
 
     // CRITICAL: define on the STORE OBJECT (own prop) to SHADOW any prototype accessor/tramp.
     let ownOk = false;
@@ -28109,7 +28109,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
           });
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28112:9", err); }
 
     // Snapshot descriptors + effective function
     const ownD:any = descInfo(store, "saveBlock");
@@ -28124,7 +28124,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
         effName = String(eff.name || "");
         effFinal = !!(eff.__void_saveblock_finalized_v3b);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28127:10", err); }
 
     S.basePick = String(base.pick||"");
     S.baseFnName = String((baseFn as any).name || "");
@@ -28239,7 +28239,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       if (Array.isArray(q) && q.length){
         while (out.length < max && q.length) out.push(q.shift());
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28242:11", err); }
 
     // 2) mempool.jsonl (best-effort)
     try {
@@ -28252,10 +28252,10 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           try {
             const j = JSON.parse(lines[i]);
             if (j && typeof j === "object") out.push(j);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28255:12", err); }
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28258:13", err); }
 
     // normalize to {data:string}
     const norm:any[] = [];
@@ -28269,9 +28269,9 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
   }
 
   async function headNum(node:any){
-    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
-    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
-    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28272:14", err); }
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28273:15", err); }
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28274:16", err); }
     return -1;
   }
 
@@ -28470,7 +28470,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const app:any = getApp();
       add(app && (app as any).__void_node, "app.__void_node");
       add(app && (app as any).node, "app.node");
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28473:17", err); }
     return out;
   }
 
@@ -28479,10 +28479,10 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
   }
 
   async function headNum(node:any){
-    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
-    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch {}
-    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
-    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28482:18", err); }
+    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28483:19", err); }
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28484:20", err); }
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28485:21", err); }
     return -1;
   }
 
@@ -28516,7 +28516,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       if (Array.isArray(q) && q.length){
         while (out.length < max && q.length) out.push(q.shift());
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28519:22", err); }
 
     // 2) mempool.jsonl (best-effort)
     try {
@@ -28529,10 +28529,10 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           try {
             const j = JSON.parse(lines[i]);
             if (j && typeof j === "object") out.push(j);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28532:23", err); }
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28535:24", err); }
 
     // normalize to {data:string}
     const norm:any[] = [];
@@ -28566,7 +28566,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       if (from < 0 && typeof headsN === "number" && headsN >= 0) from = headsN;
 
       // also capture any global head cache if present (debug only)
-      try { S.last_head_txt = String((G as any).__void_head_last_number ?? (G as any).__void_head_number ?? ""); } catch {}
+      try { S.last_head_txt = String((G as any).__void_head_last_number ?? (G as any).__void_head_number ?? ""); } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28569:25", err); }
 
       const txs = readJsonlTxs(Math.max(0, +max||0));
       const took = txs.length;
@@ -28744,9 +28744,9 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
 
   function headProbe(node:any){
     const o:any = { getHeadNumber:null, loadHeadNumber:null, headNumber:null, latestNumber:null, headsJson:null };
-    try { o.headNumber = (node?.store?.headNumber != null) ? node.store.headNumber : null; } catch {}
-    try { o.latestNumber = (node?.store?.latestNumber != null) ? node.store.latestNumber : null; } catch {}
-    try { /* async marker */ } catch {}
+    try { o.headNumber = (node?.store?.headNumber != null) ? node.store.headNumber : null; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28747:26", err); }
+    try { o.latestNumber = (node?.store?.latestNumber != null) ? node.store.latestNumber : null; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28748:27", err); }
+    try { /* async marker */ } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28749:28", err); }
     try {
       const p = require("node:path").join(dataDir(), "heads.json");
       const fs = require("node:fs");
@@ -28754,15 +28754,15 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         const j = JSON.parse(fs.readFileSync(p, "utf8"));
         o.headsJson = (j && typeof j.number === "number") ? j.number : null;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28757:29", err); }
     return o;
   }
 
   async function headNum(node:any){
-    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
-    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch {}
-    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
-    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28762:30", err); }
+    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28763:31", err); }
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28764:32", err); }
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28765:33", err); }
     try {
       const p = require("node:path").join(dataDir(), "heads.json");
       const fs = require("node:fs");
@@ -28770,7 +28770,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         const j = JSON.parse(fs.readFileSync(p, "utf8"));
         if (j && typeof j.number === "number") return j.number;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27901_28800V1("28773:34", err); }
     return -1;
   }
 
@@ -83716,4 +83716,9 @@ function voidIndexEmptyCatchVisibilityWindow26101_27000V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow27001_27900V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27001_27900_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow27901_28800V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27901_28800_V1_VISIBLE", context, err);
 }
