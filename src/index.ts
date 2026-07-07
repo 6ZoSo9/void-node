@@ -38782,7 +38782,7 @@ try {
             selected_stale_for_ms: chosen.stale_for_ms || 0,
             selected_score: chosen.score
           };
-          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch{}
+          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38785:1", err); }
 
           const outJob = {
             ...chosen.raw,
@@ -38808,7 +38808,7 @@ try {
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38811:2", err); }
 })();
 // ---------------- [ADD] Agent v0: prune + re-register /__void/agent/pick2_impl (v1) ----------------
 (function AgentV0Pick2ImplPruneV1(){
@@ -38846,7 +38846,7 @@ try {
           const isGet  = !!layer.route.methods?.get;
           if (isImpl && isGet) stack.splice(i,1);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38849:3", err); }
 
       // re-register last-wins with epoch awareness
       app.get("/__void/agent/pick2_impl", (_req:any,res:any)=>{
@@ -38861,7 +38861,7 @@ try {
       console.log("[agent.pick2.impl.prune.v1] ready");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38864:4", err); }
 })();
 
 
@@ -38905,7 +38905,7 @@ try {
               }
               return "";
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38908:5", err); }
         }
         return "";
       }catch{ return ""; }
@@ -38934,7 +38934,7 @@ try {
           const isPost = !!layer.route.methods?.post;
           if (isReceipt && isPost) stack.splice(i,1);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38937:6", err); }
 
       function handler(req:any,res:any){
         try{
@@ -38984,7 +38984,7 @@ try {
       console.log("[agent.receipt.canon.v1] mounted");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38987:7", err); }
 })();
 
 
@@ -39032,7 +39032,7 @@ try {
       function countUniqueIds(file:string, maxLines:number){
         const seen = new Set<string>();
         for (const l of readLines(file, maxLines)){
-          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39035:8", err); }
         }
         return seen.size;
       }
@@ -39047,7 +39047,7 @@ try {
             const ts=Number(x.ts||0);
             if (epochMs>0 && ts>0 && ts < epochMs) return;
             seen.add(id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39050:9", err); }
         }
         return seen.size;
       }
@@ -39061,7 +39061,7 @@ try {
             const ts=Number(x.ts||0);
             const id=String(x.id||"");
             if (id && ts>=cutoff) n++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39064:10", err); }
         }
         return n;
       }
@@ -39152,7 +39152,7 @@ try {
       console.log("[agent] pillar exporter v3 mounted at /__void/metrics/agent_pillar3.prom");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39155:11", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter (prom) v3 ----------------
 
@@ -39202,7 +39202,7 @@ try {
       function countUniqueIds(file:string, maxLines:number){
         const seen = new Set<string>();
         for (const l of readLines(file, maxLines)){
-          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39205:12", err); }
         }
         return seen.size;
       }
@@ -39218,7 +39218,7 @@ try {
             // Drop strictly pre-epoch if both epoch and ts are present
             if (epochMs>0 && ts>0 && ts < epochMs) continue;
             seen.add(id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39221:13", err); }
         }
         return seen.size;
       }
@@ -39232,7 +39232,7 @@ try {
             const ts=Number(x.ts||0);
             const id=String(x.id||"");
             if (id && ts>=cutoff) n++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39235:14", err); }
         }
         return n;
       }
@@ -39324,7 +39324,7 @@ try {
       console.log("[agent] pillar exporter v3 FIX mounted (same path /__void/metrics/agent_pillar3.prom)");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39327:15", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter v3 post-epoch FIX (v1) ----------------
 
@@ -39375,7 +39375,7 @@ try {
       function countUniqueIds(file:string, maxLines:number){
         const seen = new Set<string>();
         for (const l of readLines(file, maxLines)){
-          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39378:16", err); }
         }
         return seen.size;
       }
@@ -39390,7 +39390,7 @@ try {
             const ts=Number(x.ts||0);
             if (epochMs>0 && ts>0 && ts < epochMs) continue;
             seen.add(id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39393:17", err); }
         }
         return seen.size;
       }
@@ -39404,7 +39404,7 @@ try {
             const ts=Number(x.ts||0);
             const id=String(x.id||"");
             if (id && ts>=cutoff) n++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39407:18", err); }
         }
         return n;
       }
@@ -39427,7 +39427,7 @@ try {
               dropped++;
               continue;
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39430:19", err); }
           keep.push(layer);
         }
         if (dropped && r) r.stack = keep;
@@ -39523,7 +39523,7 @@ try {
       console.log("[agent] agent_pillar3.prom reinstalled (fixed post-epoch counters)");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39526:20", err); }
 })();
 // -------------- [/ADD] Agent v0: prune + reinstall agent_pillar3.prom (v1) ----------------
 
@@ -39566,7 +39566,7 @@ try {
             const x:any = JSON.parse(l);
             const id = String(x?.id || "");
             if (id) seen.add(id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39569:21", err); }
         }
         return seen.size;
       }
@@ -39580,7 +39580,7 @@ try {
             const ts = Number(x?.ts || 0);
             const id = String(x?.id || "");
             if (id && Number.isFinite(ts) && ts >= cutoff) n++;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("39583:22", err); }
         }
         return n;
       }
@@ -83776,4 +83776,9 @@ function voidIndexEmptyCatchVisibilityWindow36901_37800V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow37801_38700V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_37801_38700_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow38701_39600V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_38701_39600_V1_VISIBLE", context, err);
 }
