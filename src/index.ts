@@ -27008,7 +27008,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
         }
       };
       (proto.tramp as any).__void_override_v1 = 1;
-      try{ console.log("[tramp-override.v1] installed"); }catch{}
+      try{ console.log("[tramp-override.v1] installed"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27011:1", err); }
       return true;
     }
 
@@ -27020,7 +27020,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       if (tries < 400) setTimeout(tick, 50);
     };
     tick();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27023:2", err); }
 })();
 
 // [saveblock-numberfix.v1] normalize block.number before SegStore.saveBlock validation.
@@ -27040,7 +27040,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           if (Number.isFinite(n)) return n;
         }
         if (v && typeof v === "object" && typeof v.number !== "undefined") return asNum(v.number);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27043:3", err); }
       return null;
     }
 
@@ -27067,7 +27067,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       try{
         const n:any = getNode();
         if (n && (n.store || n._store)) return (n.store || n._store);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27070:4", err); }
       return null;
     }
 
@@ -27101,13 +27101,13 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
               (block as any).number = bnNum;
             }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27104:5", err); }
         return orig(block, ...rest);
       };
       wrapped.__void_numberfix_v1 = 1;
       store.saveBlock = wrapped;
 
-      try{ console.log("[saveblock-numberfix.v1] installed"); }catch{}
+      try{ console.log("[saveblock-numberfix.v1] installed"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27110:6", err); }
       return true;
     }
 
@@ -27119,7 +27119,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       if (tries < 400) setTimeout(tick, 50);
     };
     tick();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27122:7", err); }
 })();
 
 // [saveblock-numberfix.v2] prototype-level normalizer for SegStore.prototype.saveBlock (outermost).
@@ -27130,7 +27130,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
     if (G.__void_saveblock_numberfix_v2) return;
     G.__void_saveblock_numberfix_v2 = 1;
 
-    try{ console.log("[saveblock-numberfix.v2] init"); }catch{}
+    try{ console.log("[saveblock-numberfix.v2] init"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27133:8", err); }
 
     const asNum = (v:any): number|null => {
       try{
@@ -27140,7 +27140,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           if (Number.isFinite(n)) return n;
         }
         if (v && typeof v === "object" && typeof (v as any).number !== "undefined") return asNum((v as any).number);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27143:9", err); }
       return null;
     };
 
@@ -27155,7 +27155,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           const n = asNum(c);
           if (typeof n === "number") return n;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27158:10", err); }
       return null;
     };
 
@@ -27182,29 +27182,29 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
             if (k <= 6) {
               try{
                 console.warn("[saveblock-numberfix.v2] normalized block.number", { raw, bnNum, head });
-              }catch{}
+              }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27185:11", err); }
             }
           }
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27189:12", err); }
     };
 
     const patch = async () => {
       let mod:any = null;
-      try{ mod = await import("./chain/seg_store.js"); }catch{}
-      if (!mod) { try{ mod = await import("./chain/seg_store.js"); }catch{} }
+      try{ mod = await import("./chain/seg_store.js"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27194:13", err); }
+      if (!mod) { try{ mod = await import("./chain/seg_store.js"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27195:14", err); } }
       const SegStore:any = mod?.SegStore || mod?.default?.SegStore || mod?.default;
       if (!SegStore || !SegStore.prototype) {
-        try{ console.warn("[saveblock-numberfix.v2] SegStore not found; no patch"); }catch{}
+        try{ console.warn("[saveblock-numberfix.v2] SegStore not found; no patch"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27198:15", err); }
         return;
       }
       const cur:any = SegStore.prototype.saveBlock;
       if (typeof cur !== "function") {
-        try{ console.warn("[saveblock-numberfix.v2] SegStore.prototype.saveBlock missing"); }catch{}
+        try{ console.warn("[saveblock-numberfix.v2] SegStore.prototype.saveBlock missing"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27203:16", err); }
         return;
       }
       if (cur.__void_numberfix_v2) {
-        try{ console.log("[saveblock-numberfix.v2] already patched"); }catch{}
+        try{ console.log("[saveblock-numberfix.v2] already patched"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27207:17", err); }
         return;
       }
 
@@ -27216,12 +27216,12 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       wrapped.__void_numberfix_v2 = 1;
       SegStore.prototype.saveBlock = wrapped;
 
-      try{ console.log("[saveblock-numberfix.v2] installed (prototype)"); }catch{}
+      try{ console.log("[saveblock-numberfix.v2] installed (prototype)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27219:18", err); }
     };
 
     // run soon; no throws
     patch().catch(()=>{});
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27224:19", err); }
 })();
 
 // ===== DevTxRootShimsV1 (compat: /dev/txroot/:n.root and :n.json) =====
@@ -27299,7 +27299,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
 
   const app: any = g.__void_http_app;
   if (!app) {
-    try { console.log("[datanet.mount.v1] no app handle"); } catch {}
+    try { console.log("[datanet.mount.v1] no app handle"); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27302:20", err); }
     return;
   }
 
@@ -27331,10 +27331,10 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
   try {
     const want = String(process.env.VOID_DATANET_MOUNT_V2 || "0") === "1";
     if (!want) {
-      try { console.log("[datanet.mount.v2] gated off (set VOID_DATANET_MOUNT_V2=1 to enable)"); } catch {}
+      try { console.log("[datanet.mount.v2] gated off (set VOID_DATANET_MOUNT_V2=1 to enable)"); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27334:21", err); }
       return;
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27337:22", err); }
   const g: any = globalThis as any;
   if (g.__void_datanet_mount_v2_done) return;
   g.__void_datanet_mount_v2_done = true;
@@ -27343,10 +27343,10 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
   const dataDir = (process.env.DATA_DIR || "data").toString();
   try {
     console.log(`[datanet.mount.v2] begin app=${!!app} dataDir=${dataDir}`);
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27346:23", err); }
 
   if (!app) {
-    try { console.log("[datanet.mount.v2] no app handle -> abort"); } catch {}
+    try { console.log("[datanet.mount.v2] no app handle -> abort"); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27349:24", err); }
     return;
   }
 
@@ -27404,7 +27404,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
   const t0 = Date.now();
   const maxMs = Number(process.env.VOID_DATANET_MOUNT_RETRY_MS || 15000);
 
-  const log = (msg: string) => { try { console.log(msg); } catch {} };
+  const log = (msg: string) => { try { console.log(msg); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27407:25", err); } };
 
   const tick = () => {
     const app: any = g.__void_http_app;
@@ -27498,7 +27498,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
 
         // 1) if node.store was proxied, prefer the real store instance we can see.
         // (If node.store already points at the real thing, this is a no-op.)
-        try{ node.store = store; } catch {}
+        try{ node.store = store; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27501:26", err); }
 
         // 2) if saveBlock looks like a v7 trampoline/proxy, hard-rebind to the class prototype implementation.
         const cur:any = (store as any).saveBlock;
@@ -27511,13 +27511,13 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
             (store as any).saveBlock = bound;
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27514:27", err); }
     }
 
     // run immediately + keep repairing if later wrappers stomp saveBlock
     tick();
     setInterval(tick, 1000);
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27520:28", err); }
 })();
 
 // [saveblock.finalize.v1] stamp SegStore.prototype.saveBlock to avoid wrap storms / recursion loops
@@ -27552,7 +27552,7 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
           Symbol.for("__void_forensics_wrapped_v7"),
         ];
         for (const s of syms){
-          try { (fn as any)[s] = true; } catch {}
+          try { (fn as any)[s] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27555:29", err); }
         }
 
         // Common flags used by trampolines/wrappers (best-effort; harmless if unused)
@@ -27565,11 +27565,11 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
         ];
         for (const k of props){
           try { Object.defineProperty(fn, k, { value: true, configurable: true }); }
-          catch { try { (fn as any)[k] = true; } catch {} }
+          catch { try { (fn as any)[k] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27568:30", err); } }
         }
 
         // Also block re-attach attempts that key off prototype flags.
-        try { (proto as any).__void_txroot_metrics_sticky = true; } catch {}
+        try { (proto as any).__void_txroot_metrics_sticky = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27572:31", err); }
 
         g.__void_saveblock_finalize_v1_done = {
           ts: Date.now(),
@@ -27582,10 +27582,10 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
 
         console.log("[saveblock.finalize.v1] stamped SegStore.prototype.saveBlock (wrap storms mitigated)");
       } catch (e:any){
-        try { console.warn("[saveblock.finalize.v1] error", e?.message||e); } catch {}
+        try { console.warn("[saveblock.finalize.v1] error", e?.message||e); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27585:32", err); }
       }
     }, delay);
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27588:33", err); }
 })();
 }
 
@@ -27674,15 +27674,15 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") { ;(function saveBlockFinal
         );
       });
 
-      try { console.error("[saveblock.finalize.inspector.v1] mounted: /__void/metrics/saveblock.finalize.v1.(json|prom)"); } catch {}
+      try { console.error("[saveblock.finalize.inspector.v1] mounted: /__void/metrics/saveblock.finalize.v1.(json|prom)"); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27677:34", err); }
       return true;
     }
 
     (function poll(){
-      try{ if (mountOnce()) return; } catch {}
+      try{ if (mountOnce()) return; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27682:35", err); }
       setTimeout(poll, 300);
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27685:36", err); }
 })();
 }
 
@@ -27733,15 +27733,15 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUA
             const n = Number(n0);
             if (Number.isFinite(n) && n >= 0) {
               if (b && typeof b === "object") {
-                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
+                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27736:37", err); }
                 try {
                   if (b.header && typeof b.header === "object") {
                     if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
                   }
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27741:38", err); }
               }
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27744:39", err); }
 
           // Call through to the *previous* accessor getter result (tramp/latch), not proto.saveBlock (would recurse).
           let fn:any = null;
@@ -27754,20 +27754,20 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUA
         function outerGet(){
           return saveBlockFinalV2c;
         }
-        try{ Object.defineProperty(outerGet, OUTER_SYM, { value: true }); }catch{}
+        try{ Object.defineProperty(outerGet, OUTER_SYM, { value: true }); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27757:40", err); }
 
         // Expose sticky meta so your various wrapOnce/sticky.v1 helpers can safely wrap INNER via oldSet
-        try{ Object.defineProperty(saveBlockFinalV2c, "__void_saveblock_finalized_v1", { value: true }); }catch{}
-        try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_saveBlock", { value: true }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_saveblock_finalized_v1", { value: true }); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27760:41", err); }
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_saveBlock", { value: true }); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27761:42", err); }
         try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_getInner", { value: () => {
           try{ return (typeof oldGet === "function") ? oldGet.call(proto) : null; }catch{ return null; }
-        }}); }catch{}
+        }}); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27764:43", err); }
         try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_setInner", { value: (fn:any) => {
-          try{ if (typeof oldSet === "function" && typeof fn === "function" && fn !== saveBlockFinalV2c) oldSet.call(proto, fn); }catch{}
-        }}); }catch{}
+          try{ if (typeof oldSet === "function" && typeof fn === "function" && fn !== saveBlockFinalV2c) oldSet.call(proto, fn); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27766:44", err); }
+        }}); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27767:45", err); }
 
         // Keep tramp binders happy: pretend we're already a trampoline so they don't wrap us into recursion.
-        try{ Object.defineProperty(saveBlockFinalV2c, "__void_trampoline_v7", { value: "saveblock.finalize.v2c" }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_trampoline_v7", { value: "saveblock.finalize.v2c" }); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27770:46", err); }
 
         // Define OUTER accessor that delegates sets into the previous setter.
         Object.defineProperty(proto, "saveBlock", {
@@ -27777,17 +27777,17 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUA
           set: function(fn:any){
             try{
               if (typeof oldSet === "function") return oldSet.call(proto, fn);
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27780:47", err); }
             // best-effort fallback: ignore
           },
         });
         // spam-guard: once v2c is installed once per boot, stop re-install attempts
-        try{ if ((G as any).__void_saveblock_finalize_v2c_installed_once) return true; }catch{}
+        try{ if ((G as any).__void_saveblock_finalize_v2c_installed_once) return true; }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27785:48", err); }
 
 
         // Verify
         let nowFn:any = null;
-        try{ nowFn = proto.saveBlock; }catch{}
+        try{ nowFn = proto.saveBlock; }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27790:49", err); }
         const ok = !!(nowFn && (nowFn as any).__void_saveblock_finalized_v1);
         // v2c: mark installed_once + throttle log (prevents tick spam)
         try{
@@ -27796,7 +27796,7 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUA
             const t=Date.now(); const k="__void_sbfinal_v2c_log_ts"; const last=(G as any)[k]||0;
             if (t-last>60000){ (G as any)[k]=t; console.error("[saveblock.finalize.v2c] installed outer accessor"); }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27799:50", err); }
         G.__void_saveblock_finalize_v2c_outer = {
           ts: Date.now(),
           installed: ok,
@@ -27814,15 +27814,15 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUA
 
     let stableHits = 0;
     (function tick(){
-      try{ install().catch(()=>{}); }catch{}
+      try{ install().catch(()=>{}); }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27817:51", err); }
       try{
         if ((G as any).__void_saveblock_finalize_v2c_installed_once) stableHits++;
         else stableHits = 0;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27821:52", err); }
       if (stableHits >= 3) return; // stop after a few confirmed stable passes
       setTimeout(tick, 750);
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27825:53", err); }
 })();
 }
 
@@ -27840,7 +27840,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
   function pickBaseFn(store:any){
     try {
       if (store && typeof store.saveBlock_WALv3 === "function") return store.saveBlock_WALv3;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27843:54", err); }
     try {
       // pick any "saveBlock*" function that's not the current accessor/tramp
       const names = Object.getOwnPropertyNames(store || {}).filter((n)=>/^saveBlock/.test(n));
@@ -27848,7 +27848,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
         const fn = (store as any)[n];
         if (typeof fn === "function" && n !== "saveBlock") return fn;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27851:55", err); }
     try {
       // scan prototype for a concrete function (not accessor)
       const p = Object.getPrototypeOf(store);
@@ -27859,7 +27859,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
           if (d && typeof d.value === "function") return d.value;
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27862:56", err); }
     return null;
   }
 
@@ -27892,9 +27892,9 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
       }
     } as any;
 
-    try { (wrapped as any).__void_saveblock_finalized_v3 = true; } catch {}
-    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3", configurable: true }); } catch {}
-    try { (wrapped as any).__void_saveblock_base_name = String((base as any).name || ""); } catch {}
+    try { (wrapped as any).__void_saveblock_finalized_v3 = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27895:57", err); }
+    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3", configurable: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27896:58", err); }
+    try { (wrapped as any).__void_saveblock_base_name = String((base as any).name || ""); } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27897:59", err); }
 
     try {
       Object.defineProperty(proto, "saveBlock", {
@@ -83711,4 +83711,9 @@ function voidIndexEmptyCatchVisibilityWindow25201_26100V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow26101_27000V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_26101_27000_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow27001_27900V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27001_27900_V1_VISIBLE", context, err);
 }
