@@ -18377,7 +18377,7 @@ async function refreshBuyVoidSaleStateV1(){
       btn.disabled = true;
       btn.textContent = "Buy VOID Sold Out";
     }
-  } catch(e) {}
+  } catch (e) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18380:1", e); }
 }
 document.getElementById("buyCreateRequestBtn")?.addEventListener("click", createBuyVoidRequestV1);
 refreshBuyVoidSaleStateV1();
@@ -18550,7 +18550,7 @@ Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
       );
     });
 
-    try{ console.log("[ready] endpoints attached (/__void/ready.json, /__void/ready.prom)"); }catch{}
+    try{ console.log("[ready] endpoints attached (/__void/ready.json, /__void/ready.prom)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18553:2", err); }
   }
   attach();
 })();
@@ -18574,7 +18574,7 @@ Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
         const createHash = crypto && (crypto as any).createHash;
         if (typeof createHash === "function") return createHash;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18577:3", err); }
     // ESM path
     const mod: any = await import("node:crypto");
     return mod.createHash;
@@ -18586,7 +18586,7 @@ Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
   };
 
   // warm-up (best effort)
-  G.__void_getCreateHash().then(()=>{ try{ console.log("[esm-crypto-shim] createHash ready"); }catch{} }).catch(()=>{});
+  G.__void_getCreateHash().then(()=>{ try{ console.log("[esm-crypto-shim] createHash ready"); }catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18589:4", err); } }).catch(()=>{});
 })();
 // [ADDON-END:esm-crypto-shim.v1]
 
@@ -18607,7 +18607,7 @@ Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
         try {
           const r = await fetch(`${base}/__void/ready.json`, { cache: "no-store" } as any);
           if (r.ok) j = await r.json();
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18610:5", err); }
         const head  = Number(j?.head ?? -1);
         const seen  = Number((j?.lastmile_seen ?? j?.head) ?? -1);
         const gap   = Math.max(0, (Number.isFinite(head)&&Number.isFinite(seen)) ? (head - seen) : -1);
@@ -18710,21 +18710,21 @@ void_ready_exporter_timestamp_ms ${now}
       if (n && typeof n.headNumber === 'number' && Number.isFinite(n.headNumber) && n.headNumber >= 0) {
         vals.push(n.headNumber);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18713:6", err); }
 
     try {
       if (s && typeof s.getHeadNumber === 'function') {
         const h = await s.getHeadNumber();
         if (typeof h === 'number' && Number.isFinite(h) && h >= 0) vals.push(h);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18720:7", err); }
 
     try {
       if (s && typeof s.loadHeadNumber === 'function') {
         const h2 = await s.loadHeadNumber();
         if (typeof h2 === 'number' && Number.isFinite(h2) && h2 >= 0) vals.push(h2);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18727:8", err); }
 
     try {
       const r = await fetch('http://127.0.0.1:' + (process.env.HTTP_PORT || '4100') + '/blocks/latest/number2.json');
@@ -18732,7 +18732,7 @@ void_ready_exporter_timestamp_ms ${now}
         const j:any = await r.json();
         if (j && typeof j.number === 'number' && Number.isFinite(j.number) && j.number >= 0) vals.push(j.number);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18735:9", err); }
 
     return vals.length ? Math.max(...vals) : -1;
   }
@@ -18780,7 +18780,7 @@ void_ready_exporter_timestamp_ms ${now}
             block.txRoot = root;
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18783:10", err); }
 
       // Prefer stronger commit path when available
       if (typeof s.saveBlockCommit === "function") {
@@ -18837,8 +18837,8 @@ void_ready_exporter_timestamp_ms ${now}
           }
         }
 
-        try { console.log(`[rescue-seal] drained ${drained} picked tx mirror(s) after commit`); } catch {}
-      } catch {}
+        try { console.log(`[rescue-seal] drained ${drained} picked tx mirror(s) after commit`); } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18840:11", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18841:12", err); }
 
       try {
         const G:any = globalThis as any;
@@ -18848,7 +18848,7 @@ void_ready_exporter_timestamp_ms ${now}
         G.__void_head_last = nextNum;
         G.__void_head = nextNum;
         G.__void_last_head = nextNum;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18851:13", err); }
 
       try {
         const fs = require("node:fs");
@@ -18861,8 +18861,8 @@ void_ready_exporter_timestamp_ms ${now}
         try {
           const fd = fs.openSync(headFile, "r");
           try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-        } catch {}
-      } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18864:14", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18865:15", err); }
 
       lastSeal = { number: nextNum, at: Date.now() };
       return { ok:true, number: nextNum, taken };
@@ -18878,7 +18878,7 @@ void_ready_exporter_timestamp_ms ${now}
           top = st.split("\\n").slice(0, 25).join("\\n");
           G.__void_last_sealonce_stack_top = top;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18881:16", err); }
       try {
         if (msg.includes("Maximum call stack")) {
           const now = Date.now();
@@ -18888,11 +18888,11 @@ void_ready_exporter_timestamp_ms ${now}
             console.error("[sealOnce] " + msg);
             if (top) console.error("[sealOnce] stack_top:\\n" + top.slice(0, 12000));
             if (!top) {
-              try { console.error("[sealOnce.synthetic]", String(new Error("sealOnce synthetic").stack||"").split("\\n").slice(0,12).join("\\n")); } catch {}
+              try { console.error("[sealOnce.synthetic]", String(new Error("sealOnce synthetic").stack||"").split("\\n").slice(0,12).join("\\n")); } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18891:17", err); }
             }
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18001_18900V1("18895:18", err); }
       const out:any = { ok:false, taken:0, reason: msg };
       if (msg.includes("Maximum call stack") && top) out.stack_top = top;
       return out;
@@ -83661,4 +83661,9 @@ function voidIndexEmptyCatchVisibilityWindow16201_17100V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow17101_18000V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_17101_18000_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow18001_18900V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_18001_18900_V1_VISIBLE", context, err);
 }
