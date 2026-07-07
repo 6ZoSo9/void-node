@@ -1,6 +1,16 @@
 import fs from "node:fs"
 import path from "node:path"
 
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_audit_numbers_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/audit_numbers.ts",
+    scope,
+    message,
+  });
+}
+
+
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const seg = process.env.SEG || "00000000"
 const dir = path.join(DATA_DIR, "segments", seg)
@@ -23,7 +33,7 @@ while (pos + 4 <= stat.size) {
   try {
     const b = JSON.parse(body.toString("utf8"))
     if (typeof b?.number === "number") nums.push(b.number)
-  } catch {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_audit_numbers_ts("empty-handler-1", err); }
   pos += 4 + len
 }
 fs.closeSync(fd)

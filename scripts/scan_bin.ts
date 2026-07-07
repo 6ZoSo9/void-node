@@ -1,6 +1,16 @@
 import fs from "node:fs"
 import path from "node:path"
 
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_scan_bin_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/scan_bin.ts",
+    scope,
+    message,
+  });
+}
+
+
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const seg = "00000000"
 const dir = path.join(DATA_DIR, "segments", seg)
@@ -27,7 +37,7 @@ while (pos + 4 <= stat.size) {
       if (b.number > maxNum) maxNum = b.number
       count++
     }
-  } catch {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_scan_bin_ts("empty-handler-1", err); }
   pos += 4 + len
 }
 fs.closeSync(fd)

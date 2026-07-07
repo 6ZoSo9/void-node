@@ -2,6 +2,16 @@ import fs from "node:fs"
 import readline from "node:readline"
 import { SegStore } from "../src/chain/seg_store"
 
+function recordScriptsEmptyHandlerVisibilityFailure_scripts_import_file_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "scripts/import_file.ts",
+    scope,
+    message,
+  });
+}
+
+
 const DATA_DIR = process.env.DATA_DIR || "data_b"
 const IN = process.env.IN
 if (!IN || !fs.existsSync(IN)) { console.error("[import] set IN=<file.ndjson>"); process.exit(1) }
@@ -20,7 +30,7 @@ rl.on("line", (line) => {
       store.saveBlock(b)
       imported++
     }
-  } catch (_) {}
+  } catch (err) { recordScriptsEmptyHandlerVisibilityFailure_scripts_import_file_ts("empty-handler-1", err); }
 })
 rl.once("close", () => {
   console.log(`[import] done: ${imported} blocks -> ${DATA_DIR}, head=${store.loadHeadNumber()}`)
