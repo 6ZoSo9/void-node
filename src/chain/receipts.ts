@@ -5,6 +5,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+function recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/chain/receipts.ts",
+    scope,
+    message,
+  });
+}
+
+
 type Receipt = { h: string; n: number; o: number; ts: number };
 
 export class ReceiptsStore {
@@ -66,10 +76,10 @@ export class ReceiptsStore {
               this.mem.set(h, out);
               return out;
             }
-          } catch {}
+          } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts("empty-catch-1", err); }
         }
       }
-    } catch {}
+    } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts("empty-catch-2", err); }
     return { found: false };
   }
 
@@ -90,7 +100,7 @@ export class ReceiptsStore {
         totalBytes += st.size;
         totalLines += lines;
       }
-    } catch {}
+    } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts("empty-catch-3", err); }
     return { shards, totalBytes, totalLines };
   }
 
@@ -108,7 +118,7 @@ export class ReceiptsStore {
         removed++;
       }
       kept = files.length - removed;
-    } catch {}
+    } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts("empty-catch-4", err); }
     return { ok: true, keepLast: Math.max(1, Number(keepLast) || 1), removed, kept };
   }
 }

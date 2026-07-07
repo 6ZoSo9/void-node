@@ -6,6 +6,16 @@ import { globalEnqueueTx } from "../node_core.js";
 import { mempool } from "../mempool.js";
 import { txBuffer } from "../tx_buffer.js";
 
+function recordSmallEmptyCatchVisibilityFailure_src_http_tx_routes_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/http/tx_routes.ts",
+    scope,
+    message,
+  });
+}
+
+
 /**
  * NOTE:
  * - We rely on app-level express.json() already configured in index.ts.
@@ -17,8 +27,8 @@ export function registerTxRoutes(app: Express) {
   app.post("/tx/submit", (req: Request, res: Response) => {
     
     
-    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {} 
-  try { globalEnqueueTx(req.body ?? {}); } catch {}
+    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_http_tx_routes_ts("empty-catch-1", err); } 
+  try { globalEnqueueTx(req.body ?? {}); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_http_tx_routes_ts("empty-catch-2", err); }
   const b = (req as any).body ?? {};
     const id: string = (typeof b.id === "string" && b.id.length)
       ? b.id
@@ -38,7 +48,7 @@ export function registerTxRoutes(app: Express) {
   // Neutral path kept: POST /mempool/submit  (same behavior)
   app.post("/mempool/submit", (req: Request, res: Response) => {
     
-    try { globalEnqueueTx(req.body ?? {}); } catch {}
+    try { globalEnqueueTx(req.body ?? {}); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_http_tx_routes_ts("empty-catch-3", err); }
   const b = (req as any).body ?? {};
     const id: string = (typeof b.id === "string" && b.id.length)
       ? b.id
