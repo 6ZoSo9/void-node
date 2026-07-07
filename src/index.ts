@@ -12786,7 +12786,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function __void_txroot_v4
     try{
       const g:any = globalThis as any;
       g.__void_txroot_logHex = (x:any)=> (typeof x==='string'?x : (x?.hex || x?.toString?.() || String(x)));
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("12789:1", err); }
   }
 
   attach();
@@ -12831,7 +12831,7 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (async function attachTxroot
   let util:any = null;
   try {
     util = await import("./util/txroot.js");
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("12834:2", err); }
   const hasCanonical = !!util && (typeof util.computeTxRoot === "function" || typeof util.txroot === "function");
 
   // Fallback merkle (SHA-256) if canonical helper not available
@@ -12985,7 +12985,7 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreExporter
       (m as any).__void_txroot_import_seen = true;
       console.log("[txroot-hook] second-chance import available (dist layout).");
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("12988:3", err); }
 })();
 
 // ===== TXROOT CORE COUNTER WIRING (additive; pairs with exporter shim) =======
@@ -13185,9 +13185,9 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreStickyWr
         Object.defineProperty(wrapper, "__void_sticky_setInner", { value: (fn:any) => {
           try {
             if (typeof fn === "function" && fn !== wrapper) inner = fn;
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("13188:4", err); }
         }});
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("13190:5", err); }
 
 
       // Make saveBlock "sticky": any future assignment updates `inner`,
@@ -13382,7 +13382,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCoreV2(
 
 // ===== TXROOT CORE v2-synth (head watcher; additive, non-intrusive) =====
 if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCoreV2Synth(){
-  if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { try{ console.log("[txrootCoreV2Synth] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { try{ console.log("[txrootCoreV2Synth] disabled by env"); }catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("13385:6", err); } return; }
   if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { console.log("[txrootCoreV2Synth] disabled by env"); return; }
   // Share the same v2 counters
   const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
@@ -83631,4 +83631,9 @@ function voidIndexEmptyCatchVisibilityWindow10801_11700V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow11701_12600V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_11701_12600_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow12601_13500V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_12601_13500_V1_VISIBLE", context, err);
 }
