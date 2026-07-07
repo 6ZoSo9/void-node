@@ -36950,7 +36950,7 @@ try {
 
       app.get("/datanet/v1/fetch", __dn_fetch_impl_v2c);
       app.get("/datanet/v1/fetch/:id", __dn_fetch_impl_v2c);
-      try { console.error("[datanet.fetch_shim.v2c] mounted: GET /datanet/v1/fetch and /datanet/v1/fetch/:id"); } catch {}
+      try { console.error("[datanet.fetch_shim.v2c] mounted: GET /datanet/v1/fetch and /datanet/v1/fetch/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("36953:1", err); }
       return true;
     };
 
@@ -36959,14 +36959,14 @@ try {
       const iv = setInterval(() => {
         try {
           if (__dn_fetch_attach_v2c()) { clearInterval(iv); return; }
-          if (Date.now() - t0 > 15000) { clearInterval(iv); try{ console.error("[datanet.fetch_shim.v2c] attach timeout"); } catch{} }
+          if (Date.now() - t0 > 15000) { clearInterval(iv); try{ console.error("[datanet.fetch_shim.v2c] attach timeout"); } catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("36962:2", err); } }
         } catch {
           // keep trying until timeout
         }
       }, 50);
     }
   }
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("36969:3", err); }
 // === [END DataNetFetchShimV2] ===
 
 
@@ -36989,7 +36989,7 @@ try {
     // Prefer the real in-scope `app` if it exists (this file’s scope), else fall back.
     const APP:any = (typeof (globalThis as any).__void_http_app !== "undefined" && (globalThis as any).__void_http_app) ? (globalThis as any).__void_http_app : (typeof (app as any) !== "undefined" ? (app as any) : a);
     if (!APP || typeof APP.post !== "function") {
-      try{ console.warn("[mempool.unify.burst2.v1] no APP; not mounted"); }catch{}
+      try{ console.warn("[mempool.unify.burst2.v1] no APP; not mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("36992:4", err); }
       return;
     }
 
@@ -37000,14 +37000,14 @@ try {
       const r = await fetch(base + path, { method:"GET" });
       const txt = await r.text();
       let json:any = null;
-      try{ json = JSON.parse(txt); }catch{}
+      try{ json = JSON.parse(txt); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37003:5", err); }
       return { ok:r.ok, status:r.status, text:txt, json };
     }
     async function jPOST(path:string){
       const r = await fetch(base + path, { method:"POST" });
       const txt = await r.text();
       let json:any = null;
-      try{ json = JSON.parse(txt); }catch{}
+      try{ json = JSON.parse(txt); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37010:6", err); }
       return { ok:r.ok, status:r.status, text:txt, json };
     }
 
@@ -37066,9 +37066,9 @@ try {
       }
     });
 
-    try{ console.log("[mempool.unify.burst2.v1] mounted overrides: POST /tx/dev/burst2, GET /tx/dev/size, GET /mempool/truth2.json"); }catch{}
+    try{ console.log("[mempool.unify.burst2.v1] mounted overrides: POST /tx/dev/burst2, GET /tx/dev/size, GET /mempool/truth2.json"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37069:7", err); }
   }catch(e:any){
-    try{ console.warn("[mempool.unify.burst2.v1] mount failed:", e?.message||String(e)); }catch{}
+    try{ console.warn("[mempool.unify.burst2.v1] mount failed:", e?.message||String(e)); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37071:8", err); }
   }
 })();
 // ==============================================================================
@@ -37101,7 +37101,7 @@ try {
               const n = Number(t);
               if (Number.isFinite(n) && n >= 0) return n;
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37104:9", err); }
 
           // 2) heads.json (tolerant schema)
           try{
@@ -37117,7 +37117,7 @@ try {
                 if (typeof v === "number" && Number.isFinite(v) && v >= 0) return v;
               }
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37120:10", err); }
 
           return -1;
         }catch{ return -1; }
@@ -37132,7 +37132,7 @@ try {
           try{
             const head = await node?.store?.getHead?.();
             if (typeof head?.number === "number" && head.number >= 0) n = head.number;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37135:11", err); }
 
           // 2) node.headNumber
           if (n < 0 && typeof node?.headNumber === "number" && node.headNumber >= 0) n = node.headNumber;
@@ -37146,9 +37146,9 @@ try {
         }
       });
 
-      try{ console.log("[compat] endpoint /blocks/latest/number2.json v3 ready"); }catch{}
+      try{ console.log("[compat] endpoint /blocks/latest/number2.json v3 ready"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37149:12", err); }
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37151:13", err); }
 })();
 
 
@@ -37212,7 +37212,7 @@ try {
           try{
             const head = await node?.store?.getHead?.();
             if (typeof head?.number === "number" && head.number >= 0) n = head.number;
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37215:14", err); }
 
           // 2) disk
           if (n < 0) n = await readHeadFromDiskV4();
@@ -37226,9 +37226,9 @@ try {
         }
       });
 
-      try{ console.log("[compat] endpoint /blocks/latest/number2.json v4 ready"); }catch{}
+      try{ console.log("[compat] endpoint /blocks/latest/number2.json v4 ready"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37229:15", err); }
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37231:16", err); }
 })();
 
 
@@ -37274,15 +37274,15 @@ try {
         try{
           const h = await node?.store?.getHead?.();
           if (typeof h?.number === "number" && h.number >= 0) return h.number;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37277:17", err); }
         try{
           const n = Number(node?.headNumber);
           if (Number.isFinite(n) && n >= 0) return n;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37281:18", err); }
         try{
           const n = Number((g.__void_metrics||{}).headNumber);
           if (Number.isFinite(n) && n >= 0) return n;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37285:19", err); }
 
         try{
           const path:any = await import("node:path");
@@ -37303,22 +37303,22 @@ try {
             const n2 = await tryReadHeadsJson(d);
             if (n2 >= 0) return n2;
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37306:20", err); }
         return -1;
       }
 
       function safeSendJson(res:any, obj:any){
         try{
           if (res && typeof res.json === "function") return res.json(obj);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37313:21", err); }
         try{
           const body = JSON.stringify(obj);
           if (res && typeof res.setHeader === "function") res.setHeader("content-type","application/json; charset=utf-8");
           if (res && typeof res.end === "function") return res.end(body);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37318:22", err); }
         try{
           if (res && typeof res.send === "function") return res.send(obj);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37321:23", err); }
       }
 
       const PATH = "/blocks/latest/number2.json";
@@ -37347,12 +37347,12 @@ try {
           if (idx >= 0) {
             const layer = stack.splice(idx, 1)[0];
             stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5b stole route (moved to front)"); }catch{}
+            try{ console.log("[compat] number2.json v5b stole route (moved to front)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37350:24", err); }
           }
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37353:25", err); }
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37355:26", err); }
 })();
 
 // ---------------- [ADD] /blocks/latest/number2.json v5c (prefer head.txt disk first to match /head.txt) ----------------
@@ -37368,13 +37368,13 @@ try {
       (app as any).__latest_number_json_v5c = true;
 
       function safeSendJson(res:any, obj:any){
-        try{ if (res && typeof res.json === "function") return res.json(obj); }catch{}
+        try{ if (res && typeof res.json === "function") return res.json(obj); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37371:27", err); }
         try{
           const body = JSON.stringify(obj);
           if (res && typeof res.setHeader === "function") res.setHeader("content-type","application/json; charset=utf-8");
           if (res && typeof res.end === "function") return res.end(body);
-        }catch{}
-        try{ if (res && typeof res.send === "function") return res.send(obj); }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37376:28", err); }
+        try{ if (res && typeof res.send === "function") return res.send(obj); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37377:29", err); }
       }
 
       async function readHeadTxtFromCandidates(): Promise<number>{
@@ -37397,7 +37397,7 @@ try {
             const n = Number(t);
             if (Number.isFinite(n) && n >= 0) return n;
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37400:30", err); }
         return -1;
       }
 
@@ -37410,12 +37410,12 @@ try {
         try{
           const h = await node?.store?.getHead?.();
           if (typeof h?.number === "number" && h.number >= 0) return h.number;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37413:31", err); }
         // 3) fallback: node memory
         try{
           const n = Number(node?.headNumber);
           if (Number.isFinite(n) && n >= 0) return n;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37418:32", err); }
         return -1;
       }
 
@@ -37445,12 +37445,12 @@ try {
           if (idx>=0) {
             const layer = stack.splice(idx,1)[0];
             stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5c stole route (disk-first)"); }catch{}
+            try{ console.log("[compat] number2.json v5c stole route (disk-first)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37448:33", err); }
           }
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37451:34", err); }
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37453:35", err); }
 })();
 
 
@@ -37484,7 +37484,7 @@ try {
         try{
           fs.mkdirSync(AGENT_DIR, {recursive:true});
           fs.appendFileSync(FILE_JOBS, JSON.stringify(job) + "\n");
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37487:36", err); }
       }
 
       // Middleware: wrap res.json only for POST /agent/v0/job
@@ -37509,7 +37509,7 @@ try {
                 };
                 safeAppend(job);
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37512:37", err); }
             return orig(body);
           };
           return next();
@@ -37520,7 +37520,7 @@ try {
 
       console.log("[agent] __agent_v0_job_feeds_pick2_v1 installed");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37523:38", err); }
 })();
 
 
@@ -37561,7 +37561,7 @@ try {
     function setFromJsonl(file:string, idKey:string, maxLines:number){
       const s = new Set<string>();
       for (const l of readLines(file, maxLines)){
-        try{ const x = JSON.parse(l); const id = x[idKey]; if (id) s.add(String(id)); }catch{}
+        try{ const x = JSON.parse(l); const id = x[idKey]; if (id) s.add(String(id)); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37564:39", err); }
       }
       return s;
     }
@@ -37576,7 +37576,7 @@ try {
           const ts = Number(x.ts||0);
           if (!id) continue;
           if (ts >= cutoff) m.set(id, ts);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37579:40", err); }
       }
       return m;
     }
@@ -37591,9 +37591,9 @@ try {
           scanned++;
           if (scanned > maxLines) break;
           const l=lines[k];
-          try{ const x=JSON.parse(l); if (String(x.id||"")===id) return x; }catch{}
+          try{ const x=JSON.parse(l); if (String(x.id||"")===id) return x; }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37594:41", err); }
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37596:42", err); }
       return null;
     }
 
@@ -37630,9 +37630,9 @@ try {
                   if (!(st === "completed" || st === "ok" || st === "done")) continue;
                   const jid = String(j?.job_id || j?.id || "").trim();
                   if (jid) doneTruth.add(jid);
-                }catch{}
+                }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37633:43", err); }
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37635:44", err); }
           };
           addCompletedTruth(FILE_RECEIPTS);
           addCompletedTruth(FILE_RECEIPTS_V1);
@@ -37681,12 +37681,12 @@ try {
           const item = stack.splice(last,1)[0];
           stack.push(item);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37684:45", err); }
 
       console.log("[agent/pick2] fifo v2 mounted at /__void/agent/pick2_fifo_v2_debug (public /agent/v0/pick2 left to weighted route)");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37689:46", err); }
 })();
 // -------------- [/ADD] Agent v0: pick2 FIFO v2 ----------------
 
@@ -37718,7 +37718,7 @@ try {
     function countJsonl(file:string, maxLines:number){
       let n=0;
       for (const l of readLines(file, maxLines)){
-        try{ JSON.parse(l); n++; }catch{}
+        try{ JSON.parse(l); n++; }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37721:47", err); }
       }
       return n;
     }
@@ -37730,7 +37730,7 @@ try {
           const x=JSON.parse(l);
           const id=String(x.id||"");
           if (id) seen.add(id);
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37733:48", err); }
       }
       return seen.size;
     }
@@ -37745,7 +37745,7 @@ try {
           const id=String(x.id||"");
           if (!id) continue;
           if (ts >= cutoff) n++;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37748:49", err); }
       }
       return n;
     }
@@ -83766,4 +83766,9 @@ function voidIndexEmptyCatchVisibilityWindow35101_36000V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow36001_36900V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_36001_36900_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow36901_37800V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_36901_37800_V1_VISIBLE", context, err);
 }
