@@ -8102,7 +8102,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
     }
     try {
       (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.push?.({ ...(tx as any), hash });
-    } catch {}
+    } catch (err) { __voidIxCatch9000("8105:1", err); }
     metrics.inc("tx_submitted", 1);
     (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/tx", { ...(tx as any), hash });
     res.json({ ok: true });
@@ -8155,7 +8155,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       if (fs.existsSync(pinsPath)) {
         try {
           blobPins = new Set(JSON.parse(fs.readFileSync(pinsPath, "utf8")));
-        } catch {}
+        } catch (err) { __voidIxCatch9000("8158:2", err); }
       }
       for (const cid of fs.readdirSync(dir)) {
         if (cid === "pins.json") continue;
@@ -8254,7 +8254,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
           const port = args?.[0];
           const host = args?.[1];
           console.log(`[listenwrap.v1] call port=${String(port)} host=${String(host)} env.HTTP_PORT=${String(process.env.HTTP_PORT)} env.HTTP_HOST=${String(process.env.HTTP_HOST)}`);
-        } catch {}
+        } catch (err) { __voidIxCatch9000("8257:3", err); }
         const srv:any = __orig(...args);
         try {
           __g.__void_http_server = srv;
@@ -8263,12 +8263,12 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
           setTimeout(() => {
             try { console.log(`[listenwrap.v1] server.address()=${JSON.stringify(srv.address?.()||null)}`); } catch (e:any) { console.log(`[listenwrap.v1] address() err ${String(e?.message||e)}`); }
           }, 50).unref?.();
-        } catch {}
+        } catch (err) { __voidIxCatch9000("8266:4", err); }
         return srv;
       };
       console.log("[listenwrap.v1] installed");
     }
-  } catch {}
+  } catch (err) { __voidIxCatch9000("8271:5", err); }
   // ---- /DEBUG ----
 
   app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
@@ -8280,7 +8280,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       a.__void_ping_bound = true;
       a.get("/__void/ping", (_req:any,res:any)=>res.type("text/plain").send("pong\n"));
     }
-  } catch {}
+  } catch (err) { __voidIxCatch9000("8283:6", err); }
     console.log(`[void-node] http :${HTTP_PORT}`);
     console.log(`[void-node] bootstrap: ${[...mergedBootstrap].join(", ") || "(none)"}`);
     try {
@@ -8312,9 +8312,9 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
             if (!p?.http) continue;
             void upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
           }
-        } catch {}
+        } catch (err) { __voidIxCatch9000("8315:7", err); }
       }, 30_000).unref?.();
-    } catch {}
+    } catch (err) { __voidIxCatch9000("8317:8", err); }
   });
 
   /* --------------------------- utilities -------------------------- */
@@ -8343,7 +8343,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
       });
-    } catch {}
+    } catch (err) { __voidIxCatch9000("8346:9", err); }
   }
 
   async function runTsxScript(
@@ -8369,7 +8369,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         }
       );
       const t = setTimeout(() => {
-        try { child.kill("SIGKILL"); } catch {}
+        try { child.kill("SIGKILL"); } catch (err) { __voidIxCatch9000("8372:10", err); }
         resolve({ ok: false, code: null, stdout: "", stderr: "timeout", timedOut: true });
       }, timeoutMs);
       child.on("exit", () => clearTimeout(t));
@@ -8382,7 +8382,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       const r = peersReg.purgeStale(10 * 60 * 1000);
       if (r.removed) console.log(`[peers] purged ${r.removed}, remaining=${r.remaining}`);
       (metrics.gauges as any).peers_known = peersReg.count();
-    } catch {}
+    } catch (err) { __voidIxCatch9000("8385:11", err); }
   }, 2 * 60 * 1000).unref?.();
 }
 
@@ -8462,7 +8462,7 @@ import type {} from "express"; // type-only safety; no runtime impact
     });
 
     console.log("[diag] attached /blocks/latest/number");
-  } catch {}
+  } catch (err) { __voidIxCatch9000("8465:12", err); }
 })();
 
 // ---------------- Temporary diagnostics: latest block number ----------------
@@ -8485,7 +8485,7 @@ import type {} from "express"; // type-only safety; no runtime impact
     });
 
     console.log("[diag] attached /blocks/latest/number");
-  } catch {}
+  } catch (err) { __voidIxCatch9000("8488:13", err); }
 })();
 
 // ---------------- Late-bound diagnostics (attach when app exists) ----------------
@@ -83610,3 +83610,5 @@ function __voidIxCatch6300(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch7200(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_6301_7200_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"6301-7200",scope:s,message:m});}
 
 function __voidIxCatch8100(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_7201_8100_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"7201-8100",scope:s,message:m});}
+
+function __voidIxCatch9000(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_8101_9000_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"8101-9000",scope:s,message:m});}

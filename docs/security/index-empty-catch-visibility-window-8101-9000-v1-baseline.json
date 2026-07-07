@@ -1,0 +1,15 @@
+{
+  "marker": "VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_8101_9000_V1_FAILURE_VISIBLE",
+  "target": "src/index.ts",
+  "window": "8101-9000",
+  "line_window_min": 8101,
+  "line_window_max": 9000,
+  "line_based_window_exact_empty_catch_count_before": 13,
+  "line_based_total_exact_empty_catch_count_before": 1087,
+  "line_based_total_exact_empty_catch_count_after": 1074,
+  "index_measured_catch_context_count": 2563,
+  "expected_repo_empty_catch_count_before": 1086,
+  "expected_repo_empty_catch_count_after": 1073,
+  "observed_guard_inventory_drop": 13,
+  "note": "Observed after running generated-proof-excluded runtime error visibility guard on patched src/index.ts window 8101-9000."
+}
