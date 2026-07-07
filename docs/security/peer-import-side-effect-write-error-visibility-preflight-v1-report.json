@@ -1,0 +1,153 @@
+{
+  "schema": "VOID_PEER_IMPORT_SIDE_EFFECT_WRITE_ERROR_VISIBILITY_PREFLIGHT_REPORT_V1",
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "status": "STATIC_PREFLIGHT_WARNINGS",
+  "nodeCoreSha256": "d49db904a2c92f0fbe6f9cb6be65029fd1dbef44c9d2ecb759098da2b4e9fbb8",
+  "blockSourceSha256": "ba2c4bfd1f0fc16e2ca3fc11a788a78cd8f70882e5fe9c926e978c0f7c3fdc9f",
+  "silentCatchCount": 21,
+  "sideEffectSilentCatchCount": 7,
+  "importSideEffectSilentCatchCount": 4,
+  "localProductionSideEffectSilentCatchCount": 2,
+  "blockerFailures": [],
+  "warningFailures": [],
+  "findings": [
+    {
+      "id": "node-core-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/node_core.ts readable"
+    },
+    {
+      "id": "block-source-present",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/chain/block.ts readable"
+    },
+    {
+      "id": "validateBlockForAppend-exported",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "validateBlockForAppend export visible in src/chain/block.ts"
+    },
+    {
+      "id": "node-core-references-validateBlockForAppend",
+      "ok": true,
+      "severity": "blocker",
+      "evidence": "src/node_core.ts references validateBlockForAppend"
+    },
+    {
+      "id": "silent-catch-sites-discovered",
+      "ok": true,
+      "severity": "info",
+      "evidence": "catch {} matches=21"
+    },
+    {
+      "id": "side-effect-silent-catch-sites-discovered",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "txIndex/receipts/kidx catch contexts=7"
+    },
+    {
+      "id": "import-side-effect-silent-catch-sites-discovered",
+      "ok": true,
+      "severity": "warn",
+      "evidence": "import side-effect catch contexts=4"
+    },
+    {
+      "id": "local-production-side-effect-silent-catch-sites-discovered",
+      "ok": true,
+      "severity": "info",
+      "evidence": "local production side-effect catch contexts=2"
+    }
+  ],
+  "sideEffectContexts": [
+    {
+      "index": 6,
+      "line": 699,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": true,
+      "hasImportPersistenceNearby": false,
+      "hasLocalProductionNearby": true,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "681:       number,\n682:       parentHash,\n683:       timestamp: now,\n684:       txRoot: roots.txRoot,\n685:       blobRoot: roots.blobRoot,\n686:       txs,\n687:       blobs,\n688:       proposer: this.id,\n689:       proposerPubkey: this.pubPEM,\n690:       sig,\n691:     };\n692: \n693:     this.store.saveBlock(b);\n694: \n695:     if (b.txs?.length) {\n696:       try {\n697:         const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));\n698:         this.txIndex.putMany(refs);\n699:       } catch {}\n700:       try {\n701:         const shard = this.txIndex.shardForBlock(b.number);\n702:         await buildKidxForJsonl(shard.path);\n703:       } catch {}\n704:       try {\n705:         const anyReceipts: any = this.receipts as any;\n706:         const recs = b.txs.map((tx, i) => ({\n707:           h: tx.hash.toLowerCase(),\n708:           n: b.number,\n709:           o: i,\n710:           ts: b.timestamp ?? now,\n711:         }));\n712:         if (typeof anyReceipts.appendMany === \"function\") {\n713:           await anyReceipts.appendMany(recs);\n714:         } else if (typeof anyReceipts.append === \"function\") {\n715:           for (const r of recs) await anyReceipts.append(r);\n716:         }\n717:       } catch {}"
+    },
+    {
+      "index": 7,
+      "line": 703,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": true,
+      "hasImportPersistenceNearby": false,
+      "hasLocalProductionNearby": true,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "685:       blobRoot: roots.blobRoot,\n686:       txs,\n687:       blobs,\n688:       proposer: this.id,\n689:       proposerPubkey: this.pubPEM,\n690:       sig,\n691:     };\n692: \n693:     this.store.saveBlock(b);\n694: \n695:     if (b.txs?.length) {\n696:       try {\n697:         const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));\n698:         this.txIndex.putMany(refs);\n699:       } catch {}\n700:       try {\n701:         const shard = this.txIndex.shardForBlock(b.number);\n702:         await buildKidxForJsonl(shard.path);\n703:       } catch {}\n704:       try {\n705:         const anyReceipts: any = this.receipts as any;\n706:         const recs = b.txs.map((tx, i) => ({\n707:           h: tx.hash.toLowerCase(),\n708:           n: b.number,\n709:           o: i,\n710:           ts: b.timestamp ?? now,\n711:         }));\n712:         if (typeof anyReceipts.appendMany === \"function\") {\n713:           await anyReceipts.appendMany(recs);\n714:         } else if (typeof anyReceipts.append === \"function\") {\n715:           for (const r of recs) await anyReceipts.append(r);\n716:         }\n717:       } catch {}\n718:     }\n719: \n720:     this.publishJson(\"void/block\", {\n721:       number: b.number,"
+    },
+    {
+      "index": 8,
+      "line": 717,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": true,
+      "hasImportPersistenceNearby": false,
+      "hasLocalProductionNearby": false,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "699:       } catch {}\n700:       try {\n701:         const shard = this.txIndex.shardForBlock(b.number);\n702:         await buildKidxForJsonl(shard.path);\n703:       } catch {}\n704:       try {\n705:         const anyReceipts: any = this.receipts as any;\n706:         const recs = b.txs.map((tx, i) => ({\n707:           h: tx.hash.toLowerCase(),\n708:           n: b.number,\n709:           o: i,\n710:           ts: b.timestamp ?? now,\n711:         }));\n712:         if (typeof anyReceipts.appendMany === \"function\") {\n713:           await anyReceipts.appendMany(recs);\n714:         } else if (typeof anyReceipts.append === \"function\") {\n715:           for (const r of recs) await anyReceipts.append(r);\n716:         }\n717:       } catch {}\n718:     }\n719: \n720:     this.publishJson(\"void/block\", {\n721:       number: b.number,\n722:       hash: blockHash(b),\n723:       txRoot: b.txRoot,\n724:       blobRoot: b.blobRoot,\n725:       timestamp: b.timestamp,\n726:     });\n727: \n728:     const dt = Date.now() - t0;\n729:     this.onSealed?.(b, dt);\n730: \n731:     return { ok: true, number: b.number, txs: b.txs?.length ?? 0 };\n732:   }\n733: \n734:   /** follower: one-shot */\n735:   async pullOnce(peerHttp: string, hooks?: { onImportBlock?: (b: any) => void }) {"
+    },
+    {
+      "index": 17,
+      "line": 898,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": false,
+      "hasImportPersistenceNearby": true,
+      "hasLocalProductionNearby": false,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "880:             myHead,\n881:             theirHead,\n882:             from,\n883:             to,\n884:             got: Array.isArray(arr) ? arr.length : 0,\n885:             retried,\n886:             importedNums,\n887:           };\n888:         }\n889: \n890:         this.store.saveBlock(b);\n891:         imported++;\n892:         importedNums.push(n);\n893: \n894:         if (incomingHasTxs) {\n895:           try {\n896:             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));\n897:             this.txIndex.putMany(refs);\n898:           } catch {}\n899:           try {\n900:             const anyReceipts: any = this.receipts as any;\n901:             const recs = b.txs.map((tx: any, i: number) => ({\n902:               h: String(tx.hash).toLowerCase(),\n903:               n,\n904:               o: i,\n905:               ts: b.timestamp ?? Date.now(),\n906:             }));\n907:             if (typeof anyReceipts.appendMany === \"function\") await anyReceipts.appendMany(recs);\n908:             else if (typeof anyReceipts.append === \"function\") for (const r of recs) await anyReceipts.append(r);\n909:           } catch {}\n910:         }\n911: \n912:         hooks?.onImportBlock?.(b);\n913:         continue;\n914:       }\n915: \n916:       if (!existingHasTxs && incomingHasTxs) {"
+    },
+    {
+      "index": 18,
+      "line": 909,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": false,
+      "hasImportPersistenceNearby": true,
+      "hasLocalProductionNearby": false,
+      "hasExplicitFailureReturnNearby": true,
+      "context": "891:         imported++;\n892:         importedNums.push(n);\n893: \n894:         if (incomingHasTxs) {\n895:           try {\n896:             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));\n897:             this.txIndex.putMany(refs);\n898:           } catch {}\n899:           try {\n900:             const anyReceipts: any = this.receipts as any;\n901:             const recs = b.txs.map((tx: any, i: number) => ({\n902:               h: String(tx.hash).toLowerCase(),\n903:               n,\n904:               o: i,\n905:               ts: b.timestamp ?? Date.now(),\n906:             }));\n907:             if (typeof anyReceipts.appendMany === \"function\") await anyReceipts.appendMany(recs);\n908:             else if (typeof anyReceipts.append === \"function\") for (const r of recs) await anyReceipts.append(r);\n909:           } catch {}\n910:         }\n911: \n912:         hooks?.onImportBlock?.(b);\n913:         continue;\n914:       }\n915: \n916:       if (!existingHasTxs && incomingHasTxs) {\n917:         const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);\n918:         const valid = validateBlockForAppend(b, parentBlock as any);\n919:         if (!valid.ok) {\n920:           return {\n921:             ok: false,\n922:             imported,\n923:             alreadyHad,\n924:             filled,\n925:             reason: \"invalid imported fill block\",\n926:             invalidBlock: n,\n927:             invalidReason: (valid as any).reason || \"unknown\","
+    },
+    {
+      "index": 19,
+      "line": 946,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": false,
+      "hasImportPersistenceNearby": true,
+      "hasLocalProductionNearby": false,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "928:             myHead,\n929:             theirHead,\n930:             from,\n931:             to,\n932:             got: Array.isArray(arr) ? arr.length : 0,\n933:             retried,\n934:             importedNums,\n935:           };\n936:         }\n937: \n938:         const merged = { ...existing, ...b, txs: b.txs };\n939:         this.store.saveBlock(merged);\n940:         filled++;\n941:         importedNums.push(n);\n942: \n943:         try {\n944:           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));\n945:           this.txIndex.putMany(refs);\n946:         } catch {}\n947:         try {\n948:           const anyReceipts: any = this.receipts as any;\n949:           const recs = b.txs.map((tx: any, i: number) => ({\n950:             h: String(tx.hash).toLowerCase(),\n951:             n,\n952:             o: i,\n953:             ts: b.timestamp ?? Date.now(),\n954:           }));\n955:           if (typeof anyReceipts.appendMany === \"function\") await anyReceipts.appendMany(recs);\n956:           else if (typeof anyReceipts.append === \"function\") for (const r of recs) await anyReceipts.append(r);\n957:         } catch {}\n958: \n959:         hooks?.onImportBlock?.(b);\n960:         continue;\n961:       }\n962: \n963:       alreadyHad++;\n964:     }"
+    },
+    {
+      "index": 20,
+      "line": 957,
+      "hasTxIndexNearby": true,
+      "hasReceiptsNearby": true,
+      "hasKidxNearby": false,
+      "hasImportPersistenceNearby": true,
+      "hasLocalProductionNearby": false,
+      "hasExplicitFailureReturnNearby": false,
+      "context": "939:         this.store.saveBlock(merged);\n940:         filled++;\n941:         importedNums.push(n);\n942: \n943:         try {\n944:           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));\n945:           this.txIndex.putMany(refs);\n946:         } catch {}\n947:         try {\n948:           const anyReceipts: any = this.receipts as any;\n949:           const recs = b.txs.map((tx: any, i: number) => ({\n950:             h: String(tx.hash).toLowerCase(),\n951:             n,\n952:             o: i,\n953:             ts: b.timestamp ?? Date.now(),\n954:           }));\n955:           if (typeof anyReceipts.appendMany === \"function\") await anyReceipts.appendMany(recs);\n956:           else if (typeof anyReceipts.append === \"function\") for (const r of recs) await anyReceipts.append(r);\n957:         } catch {}\n958: \n959:         hooks?.onImportBlock?.(b);\n960:         continue;\n961:       }\n962: \n963:       alreadyHad++;\n964:     }\n965: \n966:     const maxSeen = Math.max(\n967:       Number.isFinite(theirHead) ? theirHead : -1,\n968:       ...((Array.isArray(arr) ? arr : []).map((x:any) => Number(x?.number)).filter((n:any) => Number.isFinite(n)))\n969:     );\n970:     const advancedHead = advanceContiguousHead(myHead, maxSeen);\n971: \n972:     return {\n973:       ok: true,\n974:       imported,\n975:       alreadyHad,"
+    }
+  ],
+  "boundary": {
+    "staticSourcePreflightOnly": true,
+    "noRuntimeErrorHandlingPatch": true,
+    "noForkChoiceClaim": true,
+    "noConsensusFinalityClaim": true,
+    "noWalletAuthority": true,
+    "noLedgerWrite": true,
+    "noValidatorAdmission": true,
+    "noSignerRotation": true,
+    "noAutonomousMutation": true
+  }
+}
