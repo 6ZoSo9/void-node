@@ -3,10 +3,10 @@
 - generated_at: 1970-01-01T00:00:00.000Z
 - status: GREEN
 - node_core_sha256: 24b1ff0bc65ac3e91b2101cdd31675b3de33c2323d08aacb98881b69b390a050
-- repo_catch_context_count: 2826
+- repo_catch_context_count: 2786
 - node_core_catch_context_count: 37
 - node_core_literal_empty_catch_count: 0
-- repo_literal_empty_catch_count: 1347
+- repo_literal_empty_catch_count: 1335
 
 ## Scope
 
@@ -37,10 +37,10 @@ This guard is intentionally bounded: it freezes the core node_core zero-empty-ca
 
 ## Findings
 
-- [PASS] repo-catch-inventory-baseline: repo catch context count=2826, expected=2826
+- [PASS] repo-catch-inventory-baseline: repo catch context count=2786, expected=2786
 - [PASS] node-core-catch-context-baseline: src/node_core.ts catch context count=37, expected=37
 - [PASS] node-core-literal-empty-catch-zero: src/node_core.ts literal empty catch count=0, expected=0
-- [PASS] repo-wide-literal-empty-catch-pressure-recorded: repo literal empty catch count=1347, expected>0 as bounded future cleanup inventory
+- [PASS] repo-wide-literal-empty-catch-pressure-recorded: repo literal empty catch count=1335, expected>0 as bounded future cleanup inventory
 - [PASS] catch-inventory-baseline-src/index.ts: src/index.ts catch context count=2542, expected=2542
 - [PASS] catch-inventory-baseline-src/node_core.ts: src/node_core.ts catch context count=37, expected=37
 - [PASS] catch-inventory-baseline-src/chain/seg_store.ts: src/chain/seg_store.ts catch context count=28, expected=28
