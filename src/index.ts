@@ -36011,7 +36011,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
               full3_layers: idxs.map((i) => ({ i })),
             });
           } catch (e: any) {
-            try { res.status(500).json({ ok: false, err: String(e?.message || e) }); } catch {}
+            try { res.status(500).json({ ok: false, err: String(e?.message || e) }); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36014:1", err); }
           }
         });
       }
@@ -36034,7 +36034,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
               ].join("\\n") + "\n"
             );
           } catch (e: any) {
-            try { res.status(500).end(`# err ${String(e?.message || e)}\n`); } catch {}
+            try { res.status(500).end(`# err ${String(e?.message || e)}\n`); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36037:2", err); }
           }
         });
       }
@@ -36067,7 +36067,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     }
 
     const passthru = function __void_full3_shadowed_passthru(req: any, _res: any, next: any) {
-      try { state.shadow_hits++; } catch {}
+      try { state.shadow_hits++; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36070:3", err); }
       return typeof next === "function" ? next() : undefined;
     };
     (passthru as any).__void_shadow_full3 = TAG;
@@ -36126,7 +36126,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       if (state.shadowed_total > 0) return;
       clearInterval(iv);
       note("give_up_timeout", { tries: state.tries });
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36129:4", err); }
   }, 10_000);
 })();
 
@@ -36203,9 +36203,9 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
           const origEnd  = res.end?.bind(res);
 
           const restore = () => {
-            try { if (origJson) res.json = origJson; } catch {}
-            try { if (origSend) res.send = origSend; } catch {}
-            try { if (origEnd)  res.end  = origEnd; } catch {}
+            try { if (origJson) res.json = origJson; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36206:5", err); }
+            try { if (origSend) res.send = origSend; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36207:6", err); }
+            try { if (origEnd)  res.end  = origEnd; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36208:7", err); }
           };
 
           if (origJson) {
@@ -36225,7 +36225,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
                       const parsed = JSON.parse(body);
                       const fixed = fixObj(parsed);
                       return origSend(JSON.stringify(fixed));
-                    } catch {}
+                    } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36228:8", err); }
                   }
                 } else if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
                   // some handlers pass objects to res.send
@@ -36254,7 +36254,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       }
     }
 
-    try { console.error(`[diag] ${TAG} attached wraps=${wrapped} layers=${layers.length}`); } catch {}
+    try { console.error(`[diag] ${TAG} attached wraps=${wrapped} layers=${layers.length}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36257:9", err); }
     return true;
   };
 
@@ -36264,7 +36264,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     tries++;
     if (tryAttach() || tries >= 200) {
       clearInterval(t as any);
-      try { console.error(`[diag] ${TAG} done tries=${tries}`); } catch {}
+      try { console.error(`[diag] ${TAG} done tries=${tries}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36267:10", err); }
     }
   }, 50);
 })();
@@ -36329,8 +36329,8 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
           const origSend = res.send?.bind(res);
 
           const restore = () => {
-            try { if (origJson) res.json = origJson; } catch {}
-            try { if (origSend) res.send = origSend; } catch {}
+            try { if (origJson) res.json = origJson; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36332:11", err); }
+            try { if (origSend) res.send = origSend; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36333:12", err); }
           };
 
           if (origJson) {
@@ -36346,7 +36346,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
                 if (typeof body === "string") {
                   const t = body.trim();
                   if (t.startsWith("{") && t.endsWith("}")) {
-                    try { return origSend(JSON.stringify(normalize(JSON.parse(body)))); } catch {}
+                    try { return origSend(JSON.stringify(normalize(JSON.parse(body)))); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36349:13", err); }
                   }
                 } else if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
                   return origSend(normalize(body));
@@ -36366,7 +36366,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       }
     }
 
-    try { console.error(`[diag] ${TAG} attached wraps=${wrapped} layers=${layers.length}`); } catch {}
+    try { console.error(`[diag] ${TAG} attached wraps=${wrapped} layers=${layers.length}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36369:14", err); }
     return true;
   };
 
@@ -36375,7 +36375,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     tries++;
     if (tryAttach() || tries >= 200) {
       clearInterval(t as any);
-      try { console.error(`[diag] ${TAG} done tries=${tries}`); } catch {}
+      try { console.error(`[diag] ${TAG} done tries=${tries}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36378:15", err); }
     }
   }, 50);
 })();
@@ -36453,7 +36453,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
         // fallback
         try {
           res.set?.("content-type", "application/json");
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36456:16", err); }
         return origSend ? origSend(JSON.stringify(out)) : origEnd(JSON.stringify(out));
       };
 
@@ -36502,7 +36502,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     };
 
     (w as any).__void_wrapped_persisted_len_from_sample_v1__ = true;
-    try { (w as any).__void_wrapped_from__ = (h as any).name || "anon"; } catch {}
+    try { (w as any).__void_wrapped_from__ = (h as any).name || "anon"; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36505:17", err); }
     return w;
   };
 
@@ -36521,7 +36521,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
         found++;
       }
     }
-    try { g.__void_persisted_len_from_sample_v1_state = { installedAt: Date.now(), found }; } catch {}
+    try { g.__void_persisted_len_from_sample_v1_state = { installedAt: Date.now(), found }; } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36524:18", err); }
   };
 
   // attach immediately; also retry briefly in case routes appear a hair later
@@ -36671,7 +36671,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       const shadow = function persistedShadow(req: any, res: any, next: any) {
         try {
           state.shadow_hits = Number(state.shadow_hits || 0) + 1;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36674:19", err); }
         // never end response here; let later handler run
         return typeof next === "function" ? next() : undefined;
       };
@@ -36737,7 +36737,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
 
   const app = G.__void_http_app; // must exist (we keep the global app hook)
   if (!app) {
-    try { console.error("[datanet.fetch_shim.v1] no global app hook (__void_http_app)"); } catch {}
+    try { console.error("[datanet.fetch_shim.v1] no global app hook (__void_http_app)"); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36740:20", err); }
     return;
   }
 
@@ -36856,9 +36856,9 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       }
     });
 
-    try { console.error("[datanet.fetch_shim.v1] mounted: GET /datanet/v1/(manifest|chunk|fetch)/:id"); } catch {}
+    try { console.error("[datanet.fetch_shim.v1] mounted: GET /datanet/v1/(manifest|chunk|fetch)/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36859:21", err); }
   }).catch((e: any) => {
-    try { console.error("[datanet.fetch_shim.v1] import failed:", e?.message || String(e)); } catch {}
+    try { console.error("[datanet.fetch_shim.v1] import failed:", e?.message || String(e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow36001_36900V1("36861:22", err); }
   });
 })();
 // === [END DataNetFetchShimV1] ===
@@ -83761,4 +83761,9 @@ function voidIndexEmptyCatchVisibilityWindow34201_35100V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow35101_36000V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_35101_36000_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow36001_36900V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_36001_36900_V1_VISIBLE", context, err);
 }
