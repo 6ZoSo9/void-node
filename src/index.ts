@@ -18908,7 +18908,7 @@ void_ready_exporter_timestamp_ms ${now}
         // Only try if we have pending txs OR your "fillInsteadOfSkip" policy will create non-empty
         // (your saveBlock wrappers enforce no-empty-if-queued anyway)
         if (mem.length > 0) await sealOnce();
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18911:1", err); }
     }, Math.max(500, ms|0 || 2000));
   }
   function stopAutoLoop(){ if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
@@ -18924,9 +18924,9 @@ void_ready_exporter_timestamp_ms ${now}
     try {
       const hasExisting = (app._router?.stack||[]).some((l:any)=> l?.route?.path && String(l.route.path).includes('/proposer/tick'));
       if (hasExisting) {
-        try { console.log("[rescue-v1] existing /proposer/tick detected; mounting unique rescue aliases only"); } catch {}
+        try { console.log("[rescue-v1] existing /proposer/tick detected; mounting unique rescue aliases only"); } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18927:2", err); }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18929:3", err); }
 
     // --- Routes ---
     app.get('/proposer/hook/status', (req:any,res:any)=>{
@@ -18952,7 +18952,7 @@ void_ready_exporter_timestamp_ms ${now}
     try {
       const st = String(e?.stack || "");
       if (st) top = st.split("\\n").slice(0, 25).join("\\n");
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18955:4", err); }
 
     const is_stack = msg.includes("Maximum call stack");
 
@@ -18967,7 +18967,7 @@ void_ready_exporter_timestamp_ms ${now}
           if (top) console.error("[proposer.tick] stack_top:\n" + top.slice(0, 12000));
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18970:5", err); }
 
     const out:any = { ok:false, taken:0, reason: msg };
     if (is_stack && top) out.stack_top = top;
@@ -19081,7 +19081,7 @@ void_ready_exporter_timestamp_ms ${now}
           return res.status(500).json({ok:false, error:String(e?.message||e)});
         }
       });
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19084:6", err); }
   }
   attach();
 })();
@@ -19121,7 +19121,7 @@ void_ready_exporter_timestamp_ms ${now}
             if ((globalThis as any).__void_txroot && typeof (globalThis as any).__void_txroot.compute === "function") {
               return String(await (globalThis as any).__void_txroot.compute(txs));
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19124:7", err); }
           try{
             // Try to call our own in-process route if it exists (no network stack assumptions)
             const appAny:any = getApp();
@@ -19129,7 +19129,7 @@ void_ready_exporter_timestamp_ms ${now}
               // Many builds mount a dev helper at /dev/txroot/:n; as a last resort, use header from blk if present.
               if (hdr && typeof hdr.txRoot === "string" && hdr.txRoot.length === 64) return hdr.txRoot;
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19132:8", err); }
           // Default empty-root (sha256 of empty string)—matches your system’s convention
           return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
         }
@@ -19191,14 +19191,14 @@ void_ready_exporter_timestamp_ms ${now}
           const p = await selfJson(`/dev/blocks/${n}/txs/persisted`);
           if (p && typeof p.len === "number") txCount = p.len >>> 0;
           else if (Array.isArray(p?.txs)) txCount = p.txs.length >>> 0;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19194:9", err); }
 
         // txRoot from dev txroot view
         let txRoot = "";
         try {
           const t = await selfJson(`/dev/txroot/${n}`);
           if (t && typeof t.root === "string" && t.root.length === 64) txRoot = t.root;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19201:10", err); }
 
         if (!txRoot) {
           // empty-root fallback (sha256(""))
@@ -19257,7 +19257,7 @@ void_ready_exporter_timestamp_ms ${now}
         lastMismatch = lastMatch ? lastMismatch : n;
         lastChecked  = n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19260:11", err); }
     setTimeout(poll, 1000);
   }
 
@@ -19357,7 +19357,7 @@ void_header3_last_mismatch ${lastMismatch}
       const nTxt = await fetch(base + "/blocks/latest/number2.json")
         .then(r=>r.ok?r.text():Promise.reject()).catch(()=>null);
       if (nTxt) {
-        try { const j = JSON.parse(nTxt); if (typeof j.number === "number") { push(j.number); return; } } catch {}
+        try { const j = JSON.parse(nTxt); if (typeof j.number === "number") { push(j.number); return; } } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19360:12", err); }
       }
       // 2) text fallback
       const txt = await fetch(base + "/head.txt").then(r=>r.ok?r.text():Promise.reject()).catch(()=>null);
@@ -19365,7 +19365,7 @@ void_header3_last_mismatch ${lastMismatch}
       // 3) JSON fallback
       const j = await fetch(base + "/head").then(r=>r.ok?r.json():Promise.reject()).catch(()=>null);
       if (j && typeof j.number === "number") { push(j.number); return; }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19368:13", err); }
   }
 
   function push(n:number){
@@ -19458,7 +19458,7 @@ void_header3_last_mismatch ${lastMismatch}
         // remove any GET handler registered for the same path
         return !(r.path === path && r.methods && r.methods.get);
       });
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19461:14", err); }
   }
 
   async function sampleHeadOnce(){
@@ -19468,7 +19468,7 @@ void_header3_last_mismatch ${lastMismatch}
       const nTxt = await fetch(base + "/blocks/latest/number2.json")
         .then(r=>r.ok?r.text():Promise.reject()).catch(()=>null);
       if (nTxt) {
-        try { const j = JSON.parse(nTxt); if (typeof j.number === "number") { push(j.number); return; } } catch {}
+        try { const j = JSON.parse(nTxt); if (typeof j.number === "number") { push(j.number); return; } } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19471:15", err); }
       }
       // 2) text fallback
       const txt = await fetch(base + "/head.txt").then(r=>r.ok?r.text():Promise.reject()).catch(()=>null);
@@ -19476,7 +19476,7 @@ void_header3_last_mismatch ${lastMismatch}
       // 3) JSON fallback
       const j = await fetch(base + "/head").then(r=>r.ok?r.json():Promise.reject()).catch(()=>null);
       if (j && typeof j.number === "number") { push(j.number); return; }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19479:16", err); }
   }
 
   function push(n:number){
@@ -19657,14 +19657,14 @@ void_header3_last_mismatch ${lastMismatch}
         const j:any = await r1.json().catch(()=>null);
         if (j && typeof j.number==="number") return j.number;
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19660:17", err); }
     try{
       const r2 = await fetch(base()+"/head.txt");
       if (r2.ok){ const n = parseInt((await r2.text()).trim(),10); if (!Number.isNaN(n)) return n; }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19664:18", err); }
     try{
       const r3 = await fetch(base()+"/head"); if (r3.ok){ const j:any = await r3.json().catch(()=>null); if (j && typeof j.number==="number") return j.number; }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19667:19", err); }
     return null;
   }
 
@@ -19678,7 +19678,7 @@ void_header3_last_mismatch ${lastMismatch}
       const m2 = txt.match(/void_txroot_header_heartbeat_total\s+(\d+)/);
       if (m1){ lastSetterLastSet = parseInt(m1[1],10); lastSetterSeenAt = now(); }
       if (m2){ lastSetterHB = parseInt(m2[1],10); lastSetterSeenAt = now(); }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19681:20", err); }
   }
 
   async function interveneIfNeeded(){
@@ -19690,13 +19690,13 @@ void_header3_last_mismatch ${lastMismatch}
     if (!(headIdle || headDelta === 0)) return;
 
     // Try gentle nudges first
-    try{ await fetch(base()+"/proposer/auto/start?ms=2000", { method:"POST" }); }catch{}
-    try{ await fetch(base()+"/blocks/empty-policy/set?enabled=true&fill=true", { method:"POST" }); }catch{}
-    try{ await fetch(base()+"/tx/merge/cap/set?enabled=true&max=2", { method:"POST" }); }catch{}
+    try{ await fetch(base()+"/proposer/auto/start?ms=2000", { method:"POST" }); }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19693:21", err); }
+    try{ await fetch(base()+"/blocks/empty-policy/set?enabled=true&fill=true", { method:"POST" }); }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19694:22", err); }
+    try{ await fetch(base()+"/tx/merge/cap/set?enabled=true&max=2", { method:"POST" }); }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19695:23", err); }
 
     // Optional tiny burst (helps break deadlock if mempool empty)
     if (ENABLE_BURST && (now() - lastInterveneAt) >= BURST_INTERVAL_MS){
-      try{ await fetch(base()+`/tx/dev/burst?n=${BURST_N}`, { method:"POST" }); }catch{}
+      try{ await fetch(base()+`/tx/dev/burst?n=${BURST_N}`, { method:"POST" }); }catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19699:24", err); }
     }
 
     lastInterveneAt = now();
@@ -19744,7 +19744,7 @@ void_header3_last_mismatch ${lastMismatch}
       try {
         mirror.auto = !!g.__void_proposer_auto.enabled;
         mirror.ms = Number(g.__void_proposer_auto.ms ?? g.__void_proposer_auto.intervalMs ?? mirror.ms);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19747:25", err); }
     }
   }
 
@@ -19773,7 +19773,7 @@ void_header3_last_mismatch ${lastMismatch}
         if (typeof (app as any).handle === "function") {
           // noop: local app router; we don't know internal stop handler; mirror only
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19776:26", err); }
       mirror.auto = false;
       res.json({ ok:true, auto:false });
     });
@@ -83666,4 +83666,9 @@ function voidIndexEmptyCatchVisibilityWindow17101_18000V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow18001_18900V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_18001_18900_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow18901_19800V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_18901_19800_V1_VISIBLE", context, err);
 }
