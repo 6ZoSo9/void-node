@@ -17142,9 +17142,9 @@ try {
 
   app.get("/__void/datanet/status", __datanetWcStatusV1);
   app.get("/__void/participant/datanet-wc/status", __datanetWcStatusV1);
-  try { console.log("[datanet.wc.status.v1] mounted /__void/datanet/status and /__void/participant/datanet-wc/status"); } catch {}
+  try { console.log("[datanet.wc.status.v1] mounted /__void/datanet/status and /__void/participant/datanet-wc/status"); } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17145:1", err); }
 } catch (e: any) {
-  try { console.error("[datanet.wc.status.v1] mount failed:", e?.message || String(e)); } catch {}
+  try { console.error("[datanet.wc.status.v1] mount failed:", e?.message || String(e)); } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17147:2", err); }
 }
 // === [END DataNetWcParticipantStatusV1] ===
 
@@ -17444,7 +17444,7 @@ small{color:#94a3b8}
             if (e && e.request_id && e.operator_status === "payment_verified") {
               verifiedIds.add(String(e.request_id));
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17447:3", err); }
         }
       }
 
@@ -17468,7 +17468,7 @@ small{color:#94a3b8}
               submitted_usdc_total += usdc;
               submitted_void_total += quoted;
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17471:4", err); }
         }
       }
 
@@ -17527,7 +17527,7 @@ small{color:#94a3b8}
           if (!j || !j.request_id || seen.has(j.request_id)) continue;
           seen.add(j.request_id);
           out.push(j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17530:5", err); }
       }
 
       out.sort((a:any,b:any)=>Number(b.created_at_ms||0)-Number(a.created_at_ms||0));
@@ -17561,7 +17561,7 @@ small{color:#94a3b8}
         try {
           const j:any = JSON.parse(line);
           if (j && j.request_id && j.operator_status) events.push(j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17564:6", err); }
       }
 
       events.sort((a:any,b:any)=>Number(b.marked_at_ms||0)-Number(a.marked_at_ms||0));
@@ -83656,4 +83656,9 @@ function voidIndexEmptyCatchVisibilityWindow15301_16200V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow16201_17100V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_16201_17100_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow17101_18000V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_17101_18000_V1_VISIBLE", context, err);
 }
