@@ -2,6 +2,14 @@ import { createHash } from "node:crypto";
 
 export type TxRootResult = { root: string; leaves: string[] };
 
+function recordTxrootCompatFallbackFailure(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_UTIL_TXROOT_EMPTY_CATCH_VISIBILITY_FAILURE_VISIBLE", {
+    scope,
+    message,
+  });
+}
+
 function sha256Hex(buf: Buffer): string {
   const h = createHash("sha256");
   h.update(buf);
@@ -47,10 +55,14 @@ export const txroot = (...args: any[]) => {
   try {
     // @ts-ignore -- these may or may not exist in this module; we probe safely
     if (typeof computeTxRoot === 'function') { /* @ts-ignore */ return (computeTxRoot as any)(...args); }
-  } catch {}
+  } catch (err) {
+    recordTxrootCompatFallbackFailure("computeTxRoot-compat-probe", err);
+  }
   try {
     // @ts-ignore
     if (typeof merkleRoot === 'function')   { /* @ts-ignore */ return (merkleRoot as any)(...args); }
-  } catch {}
+  } catch (err) {
+    recordTxrootCompatFallbackFailure("merkleRoot-compat-probe", err);
+  }
   throw new Error('[txroot compat] No computeTxRoot/merkleRoot available in util/txroot.ts');
 };
