@@ -3607,9 +3607,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] blocked submit API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] blocked submit API mounted"); } catch (err) { __voidIxCatch4500("3610:1", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] blocked submit API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] blocked submit API mount failed", e?.message || e); } catch (err) { __voidIxCatch4500("3612:2", err); }
   }
 })();
 
@@ -4221,12 +4221,12 @@ app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, 
           const lines = top.map((x:any)=>`${x[1]} ${x[0]}`).join("\\n") + "\n";
           fs.writeFileSync(LOG, lines, "utf8");
         }
-      } catch {}
+      } catch (err) { __voidIxCatch4500("4224:3", err); }
       next();
     });
     console.log("[inbound-path-tap.v1] installed log=%s", LOG);
   } catch (e:any) {
-    try { console.log("[inbound-path-tap.v1] failed:", e?.message || String(e)); } catch {}
+    try { console.log("[inbound-path-tap.v1] failed:", e?.message || String(e)); } catch (err) { __voidIxCatch4500("4229:4", err); }
   }
 })();
 (globalThis as any).__void_http_app = app;
@@ -83601,3 +83601,4 @@ function __voidIxCatch2700(s:string,e:unknown):void{const m=e instanceof Error?e
 
 function __voidIxCatch3600(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_2701_3600_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"2701-3600",scope:s,message:m});}
 
+function __voidIxCatch4500(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_3601_4500_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"3601-4500",scope:s,message:m});}
