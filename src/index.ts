@@ -1808,9 +1808,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-candidate] read-only API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-candidate] read-only API mounted"); } catch (err) { __voidIxCatch2700("1811:1", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-candidate] API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-candidate] API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("1813:2", err); }
   }
 })();
 
@@ -1979,9 +1979,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] draft API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] draft API mounted"); } catch (err) { __voidIxCatch2700("1982:3", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] draft API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] draft API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("1984:4", err); }
   }
 })();
 
@@ -2167,9 +2167,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] preflight API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] preflight API mounted"); } catch (err) { __voidIxCatch2700("2170:5", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] preflight API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] preflight API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("2172:6", err); }
   }
 })();
 
@@ -2295,9 +2295,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] wallet authority API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] wallet authority API mounted"); } catch (err) { __voidIxCatch2700("2298:7", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] wallet authority API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] wallet authority API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("2300:8", err); }
   }
 })();
 
@@ -2480,9 +2480,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] double-submit guard API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] double-submit guard API mounted"); } catch (err) { __voidIxCatch2700("2483:9", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] double-submit guard API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] double-submit guard API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("2485:10", err); }
   }
 })();
 
@@ -2695,9 +2695,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] live-submit readiness API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] live-submit readiness API mounted"); } catch (err) { __voidIxCatch2700("2698:11", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] live-submit readiness API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] live-submit readiness API mount failed", e?.message || e); } catch (err) { __voidIxCatch2700("2700:12", err); }
   }
 })();
 
@@ -83596,4 +83596,6 @@ if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) 
 function __voidIxCatch0900(scope:string,err:unknown):void{const message=err instanceof Error?err.message:String(err);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0001_0900_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0001-0900",scope,message});}
 
 function __voidIxCatch1800(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0901_1800_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0901-1800",scope:s,message:m});}
+
+function __voidIxCatch2700(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_1801_2700_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"1801-2700",scope:s,message:m});}
 
