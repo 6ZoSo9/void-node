@@ -2909,9 +2909,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] live-submit status API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] live-submit status API mounted"); } catch (err) { __voidIxCatch3600("2912:1", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] live-submit status API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] live-submit status API mount failed", e?.message || e); } catch (err) { __voidIxCatch3600("2914:2", err); }
   }
 })();
 
@@ -3400,9 +3400,9 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       });
     });
 
-    try { console.log("[mainnet0.validator-registration] submit-live skeleton API mounted"); } catch {}
+    try { console.log("[mainnet0.validator-registration] submit-live skeleton API mounted"); } catch (err) { __voidIxCatch3600("3403:3", err); }
   } catch (e:any) {
-    try { console.warn("[mainnet0.validator-registration] submit-live skeleton API mount failed", e?.message || e); } catch {}
+    try { console.warn("[mainnet0.validator-registration] submit-live skeleton API mount failed", e?.message || e); } catch (err) { __voidIxCatch3600("3405:4", err); }
   }
 })();
 
@@ -83598,4 +83598,6 @@ function __voidIxCatch0900(scope:string,err:unknown):void{const message=err inst
 function __voidIxCatch1800(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0901_1800_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0901-1800",scope:s,message:m});}
 
 function __voidIxCatch2700(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_1801_2700_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"1801-2700",scope:s,message:m});}
+
+function __voidIxCatch3600(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_2701_3600_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"2701-3600",scope:s,message:m});}
 
