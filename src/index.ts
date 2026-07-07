@@ -7275,7 +7275,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
                 const out = patchBody(s);
                 chunk = Buffer.from(out, "utf8");
               }
-            } catch {}
+            } catch (err) { __voidIxCatch8100("7278:1", err); }
             return origEnd(chunk as any, encoding as any, cb as any);
           };
         }
@@ -7286,12 +7286,12 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
     G.__void_seals_rate_clamp_pre_v2_logged = 1;
     /* hot-path log removed (accept-queue wedge) */
   }
-} catch {}
+} catch (err) { __voidIxCatch8100("7289:2", err); }
 
-      } catch {}
+      } catch (err) { __voidIxCatch8100("7291:3", err); }
       return next();
     });
-  } catch {}
+  } catch (err) { __voidIxCatch8100("7294:4", err); }
 })();
 
 
@@ -7357,7 +7357,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
     const deny = (_req: any, res: any) => {
       try {
         res.status(404).setHeader("content-type", "text/plain; charset=utf-8");
-      } catch {}
+      } catch (err) { __voidIxCatch8100("7360:5", err); }
       return res.end("not found");
     };
 
@@ -7438,7 +7438,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
   registerTxRoutes(app);
 
   // Dev routes (safe if not present)
-  try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
+  try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch (err) { __voidIxCatch8100("7441:6", err); }
 
   // [deleted legacy minimal txsubmit route]
 
@@ -7850,13 +7850,13 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
 
       let kidxRebuilt = 0;
       for (const p of touched) {
-        try { await buildKidxForJsonl(p); kidxRebuilt++; } catch {}
+        try { await buildKidxForJsonl(p); kidxRebuilt++; } catch (err) { __voidIxCatch8100("7853:7", err); }
       }
 
       let headAfter = headBefore;
       try {
         while (store?.loadBlock?.(headAfter + 1)) headAfter++;
-      } catch {}
+      } catch (err) { __voidIxCatch8100("7859:8", err); }
 
       let headAdvanced = 0;
       if (Number.isFinite(headAfter) && headAfter > headBefore) {
@@ -7867,7 +7867,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
           fs.writeFileSync(path.join(d, "head.txt"), String(headAfter) + "\n");
           fs.writeFileSync(path.join(d, "heads.json"), JSON.stringify({ number: headAfter, head: headAfter }, null, 2) + "\n");
           headAdvanced = headAfter - headBefore;
-        } catch {}
+        } catch (err) { __voidIxCatch8100("7870:9", err); }
       }
 
       if (conflicts > 0) {
@@ -7970,7 +7970,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
           const blk = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(r2.n);
           if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
           const tx = (blk as any).txs?.[r2.o];
-          try { metrics.inc("kidx_stale_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
+          try { metrics.inc("kidx_stale_rebuilds", 1); await rebuildKidxOnce(s.path); } catch (err) { __voidIxCatch8100("7973:10", err); }
           return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
         }
         continue;
@@ -7981,7 +7981,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         const blk = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(r.n);
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r.o];
-        try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
+        try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch (err) { __voidIxCatch8100("7984:11", err); }
         return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
       }
     }
@@ -8005,7 +8005,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       if (Array.isArray(txs) && txs.some((t: any) => String(t?.hash || "").toLowerCase() === hash)) {
         return res.json({ ok: true, status: "pending" });
       }
-    } catch {}
+    } catch (err) { __voidIxCatch8100("8008:12", err); }
     const r: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts.get(hash);
     if (r && r.found) {
       const { n, o, ts } = r;
@@ -8042,11 +8042,11 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
           if (mp1) return { mp: mp1, src: "node.mempool.txs" };
           const mp1b = n?.mempool?.pendingTxs;
           if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
-        }catch{}
+        }catch (err) { __voidIxCatch8100("8045:13", err); }
         try{
           const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
           if (mp2) return { mp: mp2, src: "global.mempool" };
-        }catch{}
+        }catch (err) { __voidIxCatch8100("8049:14", err); }
         try{
           g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
           return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
@@ -83608,3 +83608,5 @@ function __voidIxCatch5400(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch6300(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_5401_6300_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"5401-6300",scope:s,message:m});}
 
 function __voidIxCatch7200(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_6301_7200_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"6301-7200",scope:s,message:m});}
+
+function __voidIxCatch8100(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_7201_8100_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"7201-8100",scope:s,message:m});}
