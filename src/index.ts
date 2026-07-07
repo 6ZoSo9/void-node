@@ -20,13 +20,13 @@ import { createRequire } from 'node:module';
               console.error("[diag] EADDRINUSE listen args=", args);
               console.error(String(stack||""));
             }
-          }catch{}
+          }catch (err) { __voidIxCatch0900("23:1", err); }
         });
-      }catch{}
+      }catch (err) { __voidIxCatch0900("25:2", err); }
       return orig.apply(this, args as any);
     };
-    try{ console.log("[diag-eaddrinuse-listen.v1] installed"); }catch{}
-  }catch{}
+    try{ console.log("[diag-eaddrinuse-listen.v1] installed"); }catch (err) { __voidIxCatch0900("28:3", err); }
+  }catch (err) { __voidIxCatch0900("29:4", err); }
 })();
 
 import { createRequire as __voidCreateRequire } from "node:module";
@@ -130,7 +130,7 @@ process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "
           const req:any = (G as any).require;
           const crypto:any = (typeof req === "function") ? req("node:crypto") : null;
           if (crypto && typeof crypto.createHash === "function") return crypto.createHash;
-        }catch{}
+        }catch (err) { __voidIxCatch0900("133:5", err); }
         const mod:any = await import("node:crypto");
         const createHash = (mod && (mod as any).createHash) ? (mod as any).createHash
                         : (mod && (mod as any).default && (mod as any).default.createHash) ? (mod as any).default.createHash
@@ -141,9 +141,9 @@ process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "
     };
 
     // warm without recursion
-    try{ G.__void_getCreateHash().catch(()=>{}); }catch{}
-    try{ console.log("[crypto-hotfix.v1] installed"); }catch{}
-  }catch{}
+    try{ G.__void_getCreateHash().catch(()=>{}); }catch (err) { __voidIxCatch0900("144:6", err); }
+    try{ console.log("[crypto-hotfix.v1] installed"); }catch (err) { __voidIxCatch0900("145:7", err); }
+  }catch (err) { __voidIxCatch0900("146:8", err); }
 })();
 ;(function esmCryptoShimV2Early(){
   const G:any = globalThis as any;
@@ -160,7 +160,7 @@ process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "
         const createHash = crypto && (crypto as any).createHash;
         if (typeof createHash === "function") return createHash;
       }
-    } catch {}
+    } catch (err) { __voidIxCatch0900("163:9", err); }
     const mod: any = await import("node:crypto"); // ESM path
     return mod.createHash;
   }
@@ -361,7 +361,7 @@ console.log("[shim] published global node (post-construct)");
       if (http && selfAdvert.httpBase && selfAdvert.p2pListen) {
         void upsertRemotePeer(http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
       }
-    } catch {}
+    } catch (err) { __voidIxCatch0900("364:10", err); }
   };
 
   /* ---------- bootstrap dialing (placeholder; actual dialing lives in node_core) ---------- */
@@ -430,7 +430,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
       try {
         if (pth === ROUTE) return true;
         if (Array.isArray(pth)) return pth.includes(ROUTE);
-      } catch {}
+      } catch (err) { __voidIxCatch0900("433:11", err); }
       return false;
     }
 
@@ -460,7 +460,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
                 S.skipped_post_total = Number(S.skipped_post_total || 0) + 1;
                 if (!G.__void_canonical_tx_hotpath_v1_skip_post_log_once) {
                   G.__void_canonical_tx_hotpath_v1_skip_post_log_once = true;
-                  try { console.log("[txsubmit.canonical.v1] skipped legacy app.post(/tx/submit) mount"); } catch {}
+                  try { console.log("[txsubmit.canonical.v1] skipped legacy app.post(/tx/submit) mount"); } catch (err) { __voidIxCatch0900("463:12", err); }
                 }
                 return this;
               }
@@ -469,7 +469,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
               G.__void_tx_submit_mounted_v1 = true;
               S.allowed_post_total = Number(S.allowed_post_total || 0) + 1;
             }
-          } catch {}
+          } catch (err) { __voidIxCatch0900("472:13", err); }
           return origPost.call(this, pth, ...handlers);
         };
       }
@@ -481,11 +481,11 @@ mountLocalMultiboxRuntimeRouteV1(app);
               S.skipped_use_total = Number(S.skipped_use_total || 0) + 1;
               if (!G.__void_canonical_tx_hotpath_v1_skip_use_log_once) {
                 G.__void_canonical_tx_hotpath_v1_skip_use_log_once = true;
-                try { console.log("[txsubmit.canonical.v1] skipped legacy app.use(/tx/submit) mount"); } catch {}
+                try { console.log("[txsubmit.canonical.v1] skipped legacy app.use(/tx/submit) mount"); } catch (err) { __voidIxCatch0900("484:14", err); }
               }
               return this;
             }
-          } catch {}
+          } catch (err) { __voidIxCatch0900("488:15", err); }
           return origUse.call(this, pth, ...handlers);
         };
       }
@@ -559,7 +559,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
           return Array.isArray(a) ? a.length : -1;
         }
         if (typeof mp?.size === "function") return Number(mp.size());
-      } catch {}
+      } catch (err) { __voidIxCatch0900("562:16", err); }
       return -1;
     }
 
@@ -609,7 +609,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
           if (!(r.methods && r.methods.post)) continue;
           routes++;
           layers += Array.isArray(r.stack) ? r.stack.length : 0;
-        } catch {}
+        } catch (err) { __voidIxCatch0900("612:17", err); }
       }
 
       return { routes, layers };
@@ -748,9 +748,9 @@ mountLocalMultiboxRuntimeRouteV1(app);
       ].join("\n") + "\n");
     });
 
-    try { console.log("[txsubmit.canonical.v1] mounted authoritative POST /tx/submit"); } catch {}
+    try { console.log("[txsubmit.canonical.v1] mounted authoritative POST /tx/submit"); } catch (err) { __voidIxCatch0900("751:18", err); }
   } catch (e: any) {
-    try { console.error("[txsubmit.canonical.v1] install failed", String(e?.stack || e)); } catch {}
+    try { console.error("[txsubmit.canonical.v1] install failed", String(e?.stack || e)); } catch (err) { __voidIxCatch0900("753:19", err); }
   }
 })();
 
@@ -795,7 +795,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
       try {
         if (pth === ROUTE) return true;
         if (Array.isArray(pth)) return pth.includes(ROUTE);
-      } catch {}
+      } catch (err) { __voidIxCatch0900("798:20", err); }
       return false;
     }
 
@@ -846,7 +846,7 @@ mountLocalMultiboxRuntimeRouteV1(app);
       for (const layer of st) {
         if (!isPostTxSubmitLayer(layer)) continue;
         routes++;
-        try { layers += Array.isArray(layer?.route?.stack) ? layer.route.stack.length : 0; } catch {}
+        try { layers += Array.isArray(layer?.route?.stack) ? layer.route.stack.length : 0; } catch (err) { __voidIxCatch0900("849:21", err); }
         if (layerHasKeep(layer)) keep++;
         else legacy++;
       }
@@ -890,12 +890,12 @@ mountLocalMultiboxRuntimeRouteV1(app);
         if (res && typeof res.status === "function" && typeof res.json === "function") {
           return res.status(status).json(obj);
         }
-      } catch {}
+      } catch (err) { __voidIxCatch0900("893:22", err); }
       try {
         const body = JSON.stringify(obj);
-        try { res.statusCode = status; } catch {}
-        try { res.setHeader?.("content-type", "application/json; charset=utf-8"); } catch {}
-        try { res.end?.(body + "\n"); } catch {}
+        try { res.statusCode = status; } catch (err) { __voidIxCatch0900("896:23", err); }
+        try { res.setHeader?.("content-type", "application/json; charset=utf-8"); } catch (err) { __voidIxCatch0900("897:24", err); }
+        try { res.end?.(body + "\n"); } catch (err) { __voidIxCatch0900("898:25", err); }
         return;
       } catch {
         try { res.statusCode = status; res.end?.("{\"ok\":false,\"error\":\"json_encode_failed\"}\n"); } catch {}
@@ -83592,4 +83592,6 @@ if (!mountUsdcVoidBuyPoolAutomaticPaymentLivePathPublicStatusCardDiscoveryV1()) 
     if (typeof (timer as any).unref === "function") (timer as any).unref();
   }
 })();
+
+function __voidIxCatch0900(scope:string,err:unknown):void{const message=err instanceof Error?err.message:String(err);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_0001_0900_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"0001-0900",scope,message});}
 
