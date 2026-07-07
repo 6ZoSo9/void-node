@@ -23536,7 +23536,7 @@ const wal = new WALv1(getDataDir());
         if (!type) return res.status(400).json({ok:false, error:"type required"});
         const job:Job = { id: uuid(), ts: Date.now(), type, input, status:"queued" };
         S.q.push(job); S.map.set(job.id, job); S.metrics.submitted++;
-        try{ await walAppend({ op:"enqueue", job }); }catch{}
+        try{ await walAppend({ op:"enqueue", job }); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23539:1", err); }
         res.json({ ok:true, jobId: job.id, receipt: { id:job.id, ts:job.ts } });
       }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
     });
@@ -23553,7 +23553,7 @@ const wal = new WALv1(getDataDir());
         out.push({ ...j, output: undefined, error: undefined }); // copy, no secrets
         S.metrics.leased++;
       }
-      try{ await walAppend({ op:"lease", ids: out.map(j=>j.id) }); }catch{}
+      try{ await walAppend({ op:"lease", ids: out.map(j=>j.id) }); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23556:2", err); }
       res.json({ ok:true, jobs: out });
     });
 
@@ -23564,7 +23564,7 @@ const wal = new WALv1(getDataDir());
       const { ok, output, error } = req.body || {};
       if (ok){ j.status="done"; j.output=output; S.metrics.completed++; }
       else { j.status="error"; j.error=String(error||""); S.metrics.failed++; }
-      try{ await walAppend({ op:"finish", id:j.id, ok:!!ok }); }catch{}
+      try{ await walAppend({ op:"finish", id:j.id, ok:!!ok }); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23567:3", err); }
       res.json({ ok:true });
     });
 
@@ -23622,8 +23622,8 @@ const wal = new WALv1(getDataDir());
   const out = path.join(base, "agent", "results.jsonl");
   async function appendResult(line:string){
     try{ fs.mkdirSync(path.dirname(out), {recursive:true});
-      const fd = fs.openSync(out, "a"); fs.writeSync(fd, line+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
-    }catch{}
+      const fd = fs.openSync(out, "a"); fs.writeSync(fd, line+"\n"); try{ fs.fdatasyncSync(fd);}catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23625:4", err); } fs.closeSync(fd);
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23626:5", err); }
   }
   function wire(){
     const S = (G.__void_agent_state); if (!S || (globalThis as any).__void_agent_v0_persist_wired) return setTimeout(wire, 500);
@@ -23670,7 +23670,7 @@ const wal = new WALv1(getDataDir());
         const line = JSON.stringify(rec);
         const fd = fs.openSync(out, "a");
         fs.writeSync(fd, line+"\n");
-        try{ fs.fdatasyncSync(fd); }catch{}
+        try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23673:6", err); }
         fs.closeSync(fd);
         res.json({ok:true});
       }catch(e:any){
@@ -23709,22 +23709,22 @@ const wal = new WALv1(getDataDir());
   const MAX_RETRIES = Number(process.env.VOID_AGENT_MAX_RETRIES || "3");
   const DEFAULT_LEASE_MS = Number(process.env.VOID_AGENT_LEASE_MS || "30000");
 
-  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
+  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23712:7", err); } }
   function appendJSONL(file:string, obj:any){
     try{ ensureDir(); const fd = fs.openSync(file, "a");
 // === agent receipt persist who (v1) ===
   // Persist who (if provided) into receipts.jsonl lines for WC attribution.
   // Sources (in order): job.who (if present), req.body.who, req.query.who, x-void-who header.
   const __who = (() => {
-    try { const v:any = (typeof (job as any)?.who === "string" ? (job as any).who : undefined); if (typeof v === "string") return v; } catch {}
-    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string") return v; } catch {}
-    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string") return v; } catch {}
-    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string") return v; } catch {}
+    try { const v:any = (typeof (job as any)?.who === "string" ? (job as any).who : undefined); if (typeof v === "string") return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23719:8", err); }
+    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string") return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23720:9", err); }
+    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string") return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23721:10", err); }
+    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string") return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23722:11", err); }
     return undefined as any;
   })() as any;
   const __lineObj = (__who ? ({ ...(obj as any), who: __who }) : (obj as any));
-      fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
-    }catch{}
+      fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd);}catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23726:12", err); } fs.closeSync(fd);
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23727:13", err); }
   }
 
   function S(){ return (G.__void_agent_state ||= { q:[], map:new Map(), metrics:{submitted:0, leased:0, completed:0, failed:0}, _leases:new Map(), _retries:new Map() }); }
@@ -23739,7 +23739,7 @@ const wal = new WALv1(getDataDir());
           const rec = JSON.parse(line); if (rec && rec.id) done.add(rec.id);
         }
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23742:14", err); }
     try{
       if (fs.existsSync(jobsFile)){
         for (const line of fs.readFileSync(jobsFile, "utf8").split("\\n")){ if (!line.trim()) continue;
@@ -23748,7 +23748,7 @@ const wal = new WALv1(getDataDir());
           if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
         }
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23751:15", err); }
   }
 
   // Sweeper: return expired leases to queue
@@ -23870,7 +23870,7 @@ const wal = new WALv1(getDataDir());
               const rec = { id, ts: Date.now(), type: String(req.body?.type||"unknown"), input: (req.body?.input ?? null) };
               (res.locals ||= {}).__void_last_job = rec;
             }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23873:16", err); }
           return ret;
         });
       }
@@ -23886,7 +23886,7 @@ const wal = new WALv1(getDataDir());
   const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
   const dir = path.join(base, "agent");
   const jobsFile = path.join(dir, "jobs.jsonl");
-  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
+  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23889:17", err); } }
 
   function mount(){
     const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
@@ -23956,9 +23956,9 @@ const wal = new WALv1(getDataDir());
               status: "queued"
             };
             const fd = fs.openSync(jobsFile, "a");
-            fs.writeSync(fd, JSON.stringify(rec) + "\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+            fs.writeSync(fd, JSON.stringify(rec) + "\n"); try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23959:18", err); } fs.closeSync(fd);
           }
-        }catch{} // never break response flow
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23961:19", err); } // never break response flow
         return _json(body);
       };
       next();
@@ -23998,7 +23998,7 @@ const wal = new WALv1(getDataDir());
     if (!(base._leases instanceof Map))  base._leases  = new Map<string, number>();
     if (!(base._retries instanceof Map)) base._retries = new Map<string, number>();
     G.__void_agent_state = base; // publish back just in case
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24001:20", err); }
 })();
 // --- Agent v0: completion capture (middleware wrapping res.json) ---------------
 (function agentV0DoneCapture(){
@@ -24012,9 +24012,9 @@ const wal = new WALv1(getDataDir());
       fs.mkdirSync(path.dirname(out), {recursive:true});
       const fd = fs.openSync(out, "a");
       fs.writeSync(fd, JSON.stringify(rec) + "\n");
-      try{ fs.fdatasyncSync(fd); }catch{}
+      try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24015:21", err); }
       fs.closeSync(fd);
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24017:22", err); }
   }
 
   function getApp(){ return (G.__void_http_app || (G as any).app); }
@@ -24033,7 +24033,7 @@ const wal = new WALv1(getDataDir());
           const output = (body && body.output !== undefined) ? body.output : null;
           const error = (body && body.error  !== undefined) ? String(body.error) : null;
           append({ id, ts: Date.now(), ok, output, error });
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24036:23", err); }
         return _json(body);
       };
       next();
@@ -24097,7 +24097,7 @@ const wal = new WALv1(getDataDir());
             if (!obj || !obj.id) continue;
             // overwrite to keep the last occurrence for that id
             map.set(obj.id, obj);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24100:24", err); }
         }
         const items = Array.from(map.values()).sort((a:any,b:any)=> (a.ts||0)-(b.ts||0));
         const out = items.slice(Math.max(0, items.length - n));
@@ -24127,11 +24127,11 @@ const wal = new WALv1(getDataDir());
         const map = new Map<string, number>();
         if (fs.existsSync(file)){
           for (const line of fs.readFileSync(file, "utf8").split("\\n")){
-            if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch{}
+            if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24130:25", err); }
           }
         }
         uniq = map.size;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24134:26", err); }
       res.type("text/plain").end(
         "# HELP void_agent_results_unique total unique job results\n# TYPE void_agent_results_unique gauge\n"+
         `void_agent_results_unique ${uniq}\n`
@@ -24162,7 +24162,7 @@ const wal = new WALv1(getDataDir());
       fs.mkdirSync(dir, {recursive:true});
       const fd = fs.openSync(receiptsFile, "a");
       fs.writeSync(fd, JSON.stringify(rec)+"\n");
-      try{ fs.fdatasyncSync(fd); }catch{}
+      try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24165:27", err); }
       fs.closeSync(fd);
       met.receipts_total = (Number(met.receipts_total||0)+1);
     }catch{ met.receipts_errors = (Number(met.receipts_errors||0)+1); }
@@ -24226,7 +24226,7 @@ const wal = new WALv1(getDataDir());
     try {
       const express = require("express");
       app.use(express.json({ limit:"512kb" }));
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24229:28", err); }
 
     // 2) Compat route: POST /agent/v0/receipt  {id, input?, output?}
     //    Internally forwards to /agent/v0/receipt/:id to reuse main handler
@@ -24255,13 +24255,13 @@ const wal = new WALv1(getDataDir());
 // === agent receipt include who (v1) ===
   // Persist who into agent receipts.jsonl (sources: body.who, query.who, x-void-who).
   const __who = (() => {
-    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string" && v.length) return v; } catch {}
-    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string" && v.length) return v; } catch {}
-    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string" && v.length) return v; } catch {}
+    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string" && v.length) return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24258:29", err); }
+    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string" && v.length) return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24259:30", err); }
+    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string" && v.length) return v; } catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24260:31", err); }
     return undefined;
   })();
   const __lineObj = (__who ? ({ ...(rec as any), who: __who }) : (rec as any));
-        fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+        fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24264:32", err); } fs.closeSync(fd);
         (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
         return res.json({ ok:true, file, wrote:rec });
       }catch(e:any){ (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
@@ -83691,4 +83691,9 @@ function voidIndexEmptyCatchVisibilityWindow21601_22500V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow22501_23400V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_22501_23400_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow23401_24300V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_23401_24300_V1_VISIBLE", context, err);
 }
