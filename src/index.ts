@@ -11712,7 +11712,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDe
     if (!app || typeof app.get !== "function"){ if (++tries < 60) return setTimeout(attach, 500); return; }
     if (attached) return; attached = true;
     app.get("/dev/txroot/:n", handler);
-    try{ console.log("[txroot/route] /dev/txroot/:n ready"); }catch{}
+    try{ console.log("[txroot/route] /dev/txroot/:n ready"); }catch (err) { voidIndexEmptyCatchVisibilityWindow11701_12600V1("11715:1", err); }
   }
 
   attach();
@@ -11803,7 +11803,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function headerShimAndTxr
           const txs:any[] = Array.isArray((res?.txs ?? blk?.txs)) ? (res?.txs ?? blk?.txs) : [];
           // increment only when there were txs (i.e., non-empty root event)
           if (txs.length > 0) m.txrootUpdatesTotal++;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow11701_12600V1("11806:2", err); }
         return res;
       };
       console.log("[txroot/counter] wrapper installed");
@@ -11861,7 +11861,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function lastBlockMetrics
       let txCount=0;
       if(n>=0){
         try{ const r=await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/dev/txroot/${n}`);
-             const d=await r.json(); txCount = Number(d.txCount||0); }catch{}
+             const d=await r.json(); txCount = Number(d.txCount||0); }catch (err) { voidIndexEmptyCatchVisibilityWindow11701_12600V1("11864:3", err); }
       }
       const empty = txCount===0 ? 1 : 0;
       res.type("text/plain").send(
@@ -12213,7 +12213,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function driftExporterV4b
         );
       });
     })();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow11701_12600V1("12216:4", err); }
 })();
 
 // ---------------------- txRoot verifier v3 (JSON-safe) -----------------------
@@ -83626,4 +83626,9 @@ function voidIndexEmptyCatchVisibilityWindow9901_10800V1(context: string, err: u
 
 function voidIndexEmptyCatchVisibilityWindow10801_11700V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_10801_11700_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow11701_12600V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_11701_12600_V1_VISIBLE", context, err);
 }
