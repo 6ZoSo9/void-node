@@ -31529,7 +31529,7 @@ try {
 try {
   app.get('/__void/metrics/proposer.auto4.prom', (_req, res) => res.redirect(307, '/metrics/void/proposer.auto4.prom'));
   app.get('/__void/metrics/proposer-auto4.prom', (_req, res) => res.redirect(307, '/metrics/void/proposer.auto4.prom'));
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31532:1", err); }
 // --- /additive
       res.setHeader("content-type", "text/plain; version=0.0.4");
       res.end(prom());
@@ -31578,7 +31578,7 @@ try {
           const pr = (v as any).proposer;
           if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31581:2", err); }
       // de-dupe
       const seen = new Set<any>();
       const out:any[] = [];
@@ -31624,8 +31624,8 @@ try {
       });
     });
 
-    try{ console.log("[__void/dev/sealOnce.v1] mounted POST /__void/dev/sealOnce"); }catch{}
-  }catch{}
+    try{ console.log("[__void/dev/sealOnce.v1] mounted POST /__void/dev/sealOnce"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31627:3", err); }
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31628:4", err); }
 })();
 
 // ===== __void dev: sealOnce route v2 (GET+POST alias; additive) =====
@@ -31664,7 +31664,7 @@ try {
           const pr = (v as any).proposer;
           if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31667:5", err); }
       const seen = new Set<any>();
       const out:any[] = [];
       for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
@@ -31716,10 +31716,10 @@ try {
     // ALSO mount POST if it exists (some builds allow it)
     try{
       if (typeof (app as any).post === "function") (app as any).post("/__void/dev/sealOnce", handler);
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31719:6", err); }
 
-    try{ console.log("[__void/dev/sealOnce.v2] mounted GET /__void/dev/sealOnce (POST alias if supported)"); }catch{}
-  }catch{}
+    try{ console.log("[__void/dev/sealOnce.v2] mounted GET /__void/dev/sealOnce (POST alias if supported)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31721:7", err); }
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31722:8", err); }
 })();
 
 // ===== __void dev: sealOnce route v3 (UNDER /__void/dev/inspect/*) =====
@@ -31758,7 +31758,7 @@ try {
           const pr = (v as any).proposer;
           if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31761:9", err); }
       const seen = new Set<any>();
       const out:any[] = [];
       for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
@@ -31814,10 +31814,10 @@ try {
         (app as any).post("/__void/dev/inspect/sealOnce", handler);
         (app as any).post("/__void/dev/inspect/sealOnce.json", handler);
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31817:10", err); }
 
-    try{ console.log("[__void/dev/inspect/sealOnce.v3] mounted"); }catch{}
-  }catch{}
+    try{ console.log("[__void/dev/inspect/sealOnce.v3] mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31819:11", err); }
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31820:12", err); }
 })();
 
 // ===== __void dev: proposer scan route v2 (proto + non-enum + locals) =====
@@ -31931,8 +31931,8 @@ try {
 
       // include app and app.locals explicitly
       out.push(scanObject("__void_http_app", app));
-      try { out.push(scanObject("__void_http_app.locals", (app as any).locals)); } catch {}
-      try { out.push(scanObject("__void_http_app._router", (app as any)._router)); } catch {}
+      try { out.push(scanObject("__void_http_app.locals", (app as any).locals)); } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31934:13", err); }
+      try { out.push(scanObject("__void_http_app._router", (app as any)._router)); } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31935:14", err); }
 
       const keys = Object.keys(g).slice(0, 4000);
       for (const k of keys){
@@ -31960,8 +31960,8 @@ try {
       res.json({ ok:true, one: scanObject(name, v) });
     });
 
-    try{ console.error("[__void/dev/inspect/proposerScan2.v2] mounted"); }catch{}
-  }catch{}
+    try{ console.error("[__void/dev/inspect/proposerScan2.v2] mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31963:15", err); }
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31964:16", err); }
 })();
 // === head-surfaces-truthfix.v1 BEGIN ===
 if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
@@ -31984,9 +31984,9 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const s: any = (typeof __apiSegStore !== "undefined" ? (__apiSegStore as any) : null);
       if (s) candidates.push(s);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31987:17", err); }
     for (const k of ["__apiSegStore", "__void_apiSegStore", "__void_segstore", "__void_store", "__void_store_api"]) {
-      try { if (G[k]) candidates.push(G[k]); } catch {}
+      try { if (G[k]) candidates.push(G[k]); } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31989:18", err); }
     }
 
     const fnNames = [
@@ -32004,7 +32004,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
             const v = toInt(s[pn]);
             if (v !== null) return v;
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32007:19", err); }
       }
       // functions (sync/async)
       for (const fn of fnNames) {
@@ -32014,7 +32014,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
             const v = toInt(r && typeof r.then === "function" ? await r : r);
             if (v !== null) return v;
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32017:20", err); }
       }
     }
 
@@ -32047,7 +32047,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
           if (v2 !== null) return v2;
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32050:21", err); }
 
     return null;
   }
@@ -32210,13 +32210,13 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
     // (A) in-process candidates (best)
     const candidates: any[] = [];
     for (const k of ["__apiSegStore", "__void_apiSegStore", "__void_segstore", "__void_store", "__void_store_api"]) {
-      try { if (G[k]) candidates.push(G[k]); } catch {}
+      try { if (G[k]) candidates.push(G[k]); } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32213:22", err); }
     }
     try {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const s: any = (typeof __apiSegStore !== "undefined" ? (__apiSegStore as any) : null);
       if (s) candidates.push(s);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32219:23", err); }
 
     const fnNames = ["getHead","head","getHeadNumber","headNumber","latestNumber","getLatestNumber","lastNumber","getLastNumber","last","latest"];
     for (const s of candidates) {
@@ -32228,7 +32228,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
             out[`proc.${pn}`] = s[pn];
             if (v !== null) vals.push(v);
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32231:24", err); }
       }
       for (const fn of fnNames) {
         try {
@@ -32238,7 +32238,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
             out[`proc.${fn}()`] = v;
             if (v !== null) vals.push(v);
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32241:25", err); }
       }
     }
 
@@ -32280,7 +32280,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
           const v2 = toInt(j?.number ?? j?.head ?? j?.headNumber);
           out["http.blocks.latest.number.json"] = j;
           if (v2 !== null) vals.push(v2);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32283:26", err); }
       }
     }
 
@@ -32346,7 +32346,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
               const t = String(fs.readFileSync(f, "utf8") || "").trim();
               const n = Number(t);
               if (Number.isFinite(n) && n >= 0) h = n;
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("32349:27", err); }
           }
           if (!(Number.isFinite(h) && h >= 0)) {
             G[MARK].errors++; G[MARK].lastErr = "headTruth/headtxt invalid";
@@ -83736,4 +83736,9 @@ function voidIndexEmptyCatchVisibilityWindow29701_30600V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow30601_31500V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_30601_31500_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow31501_32400V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_31501_32400_V1_VISIBLE", context, err);
 }
