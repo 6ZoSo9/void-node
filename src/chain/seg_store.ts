@@ -7,6 +7,16 @@ import * as path from "node:path";
 import { blockHash, validateBlockForAppend } from "./block.js";
 import type { Block } from "./block.js";
 
+function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_SEGSTORE_DATANET_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
+    file: "src/chain/seg_store.ts",
+    scope,
+    message,
+  });
+}
+
+
 
 // --- WAL replay metrics (v1; additive) ---
 export type WalReplayMetrics = {
@@ -60,14 +70,14 @@ function atomicWriteText(p: string, text: string) {
   // Best-effort durability: fsync(tmp) then rename
   try {
     const fd = fs.openSync(tmp, "r");
-    try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
-  } catch {}
+    try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-1", err); } }
+  } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-2", err); }
   fs.renameSync(tmp, p);
   // Best-effort dir fsync so rename is durable
   try {
     const dfd = fs.openSync(dir, "r");
-    try { fs.fsyncSync(dfd); } finally { try { fs.closeSync(dfd); } catch {} }
-  } catch {}
+    try { fs.fsyncSync(dfd); } finally { try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-3", err); } }
+  } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-4", err); }
 }
 
 export class SegStore {
@@ -107,7 +117,7 @@ export class SegStore {
         const t = fs.readFileSync(path.join(this.root, "head.txt"), "utf8").trim();
         const n = Number(String(t).split(/\s+/)[0]);
         if (Number.isFinite(n)) txtHead = n;
-      } catch {}
+      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-5", err); }
 
       const cur = [jHead, jNum].filter((x) => Number.isFinite(x));
       const curHead = cur.length ? Math.max(...cur) : -1;
@@ -117,12 +127,12 @@ export class SegStore {
         j.number = txtHead;
         atomicWriteJson(this.headsFile, j);
       } else if (Number.isFinite(curHead) && curHead >= 0 && (!Number.isFinite(txtHead) || txtHead != curHead)) {
-        try { fs.writeFileSync(path.join(this.root, "head.txt"), String(curHead) + "\n"); } catch {}
+        try { fs.writeFileSync(path.join(this.root, "head.txt"), String(curHead) + "\n"); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-6", err); }
       }
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-7", err); }
 
     // Replay WAL best-effort on boot (keeps prior behavior if WAL absent).
-    try { this.replayWalAllBestEffort(); } catch {}
+    try { this.replayWalAllBestEffort(); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-8", err); }
   }
 
   loadHeadNumber(): number {
@@ -135,7 +145,7 @@ export class SegStore {
       const t = fs.readFileSync(path.join(this.root, "head.txt"), "utf8").trim();
       const n = Number(String(t).split(/\s+/)[0]);
       if (Number.isFinite(n)) txtHead = n;
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-9", err); }
 
     const cand = [jHead, jNum, txtHead].filter((x) => Number.isFinite(x));
     return cand.length ? Math.max(...cand) : -1;
@@ -148,7 +158,7 @@ export class SegStore {
     atomicWriteJson(this.headsFile, j);
     try {
       fs.writeFileSync(path.join(this.root, "head.txt"), String(n) + "\n");
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-10", err); }
   }
 
   private segBase(n: number) { return Math.floor(n / SEG_SPAN) * SEG_SPAN; }
@@ -217,7 +227,7 @@ export class SegStore {
       if (existing) {
         try {
           if (blockHash(existing as any) === blockHash(b as any)) return; // already persisted
-        } catch {}
+        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-11", err); }
         throw new Error("SegStore.saveBlock: conflicting existing block");
       }
     }
@@ -247,9 +257,9 @@ export class SegStore {
       // Best-effort fsync for WAL (don’t die if it fails)
       try {
         const fd = fs.openSync(this.walPath(seg), "r");
-        try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
-      } catch {}
-    } catch {}
+        try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-12", err); } }
+      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-13", err); }
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-14", err); }
   }
 
   private saveBlockCommit(b: Block) {
@@ -276,8 +286,8 @@ export class SegStore {
     // Best-effort durability: fsync blocks.bin and index/meta
     try {
       const fd = fs.openSync(bin, "r");
-      try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
-    } catch {}
+      try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-15", err); } }
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-16", err); }
   }
 
   loadBlock(n: number): Block | null {
@@ -294,7 +304,7 @@ export class SegStore {
         const ent = JSON.parse(line) as { n: number; off: number };
         if (Number.isFinite(ent.n) && ent.n <= n && ent.off >= 0) nearestOff = Math.max(nearestOff, ent.off);
       }
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-17", err); }
 
     const fd = fs.openSync(bin, "r");
     try {
@@ -315,7 +325,7 @@ export class SegStore {
     } catch {
       /* ignore */
     } finally {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-18", err); }
     }
     return null;
   }
@@ -335,7 +345,7 @@ export class SegStore {
 
     for (const f of files) {
       const seg = f.replace(/\.wal$/, "");
-      try { this.replayWalSegBestEffort(seg); } catch {}
+      try { this.replayWalSegBestEffort(seg); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-19", err); }
     }
   
     this._walReplayMetrics.replay_ms_last = Math.max(0, Date.now() - __wal_t0);
@@ -409,10 +419,10 @@ export class SegStore {
         atomicWriteText(wp, keep.join("\n") + "\n");
         try {
           const fd = fs.openSync(wp, "r");
-          try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
-        } catch {}
+          try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-20", err); } }
+        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-21", err); }
       }
-    } catch {}
+    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-22", err); }
 
     // Noisy logging avoided; callers can inspect head themselves.
     void maxApplied;
