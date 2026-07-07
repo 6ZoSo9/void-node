@@ -39605,7 +39605,7 @@ try {
             const ts = Number(x?.ts || 0);
             if (!id) continue;
             if (epochMs > 0 && Number.isFinite(ts) && ts >= epochMs) seen.add(id);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39608:1", err); }
         }
         return seen.size;
       }
@@ -39725,7 +39725,7 @@ try {
               try{
                 const j = JSON.parse(line);
                 if (j && typeof j === "object") out.push(j);
-              }catch{}
+              }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39728:2", err); }
             }
             return out;
           }
@@ -39808,7 +39808,7 @@ try {
       console.log("[agent] pillar exporter v4 mounted at /__void/metrics/agent_pillar4.prom");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39811:3", err); }
 })();
 // -------------- [/ADD] Agent v0: pillar exporter (prom) v4 REALNL fresh path ----------------
 
@@ -39835,9 +39835,9 @@ try {
           if (!txt) return out;
           for (const line of txt.split(/\r?\n/)){
             if (!line || !line.trim()) continue;
-            try{ out.push(JSON.parse(line)); }catch{}
+            try{ out.push(JSON.parse(line)); }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39838:4", err); }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39840:5", err); }
         return out;
       }
 
@@ -39919,7 +39919,7 @@ try {
       console.log("[agent] consistency guard mounted at /__void/metrics/agent_consistency.prom");
     }
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39922:6", err); }
 })();
 // -------------- [/ADD] Agent v0: consistency guard exporter v1 ----------------
 
@@ -39982,7 +39982,7 @@ try {
         if (ts > lastTsMs) lastTsMs = ts;
         if (ts >= win15) ids15.add(id);
         if (ts >= win5)  ids5.add(id);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("39985:7", err); }
     }
 
     // If we saw any new receipts in tail with ts > last_seen_ts_ms, bump awarded_total by the number of NEW unique IDs in 15m window.
@@ -40307,7 +40307,7 @@ try {
         const keep = gets[gets.length-1];
         r.stack = r.stack.filter((s:any)=> !(s && s.method==="get")).concat([keep]);
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("40310:8", err); }
   }
 
   function mount(){
@@ -40349,7 +40349,7 @@ try {
   function parseJSONLines(lines:string[]){
     const out:any[] = [];
     for (const l of lines){
-      try{ out.push(JSON.parse(l)); }catch{}
+      try{ out.push(JSON.parse(l)); }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("40352:9", err); }
     }
     return out;
   }
@@ -40478,7 +40478,7 @@ try {
       if (Array.isArray(mp1b)) return { arr: mp1b, src: "node.mempool.pendingTxs" };
       const mp2:any = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
       if (Array.isArray(mp2)) return { arr: mp2, src: "global.mempool" };
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("40481:10", err); }
     g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
     return { arr: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
   }
@@ -40492,7 +40492,7 @@ try {
     try{
       const store:any = g.__void_store || null;
       if (store) candidates.push(store);
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow39601_40500V1("40495:11", err); }
 
     try{
       const node:any = getNode();
@@ -83781,4 +83781,9 @@ function voidIndexEmptyCatchVisibilityWindow37801_38700V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow38701_39600V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_38701_39600_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow39601_40500V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_39601_40500_V1_VISIBLE", context, err);
 }
