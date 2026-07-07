@@ -24,6 +24,15 @@ function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<
   });
 }
 
+function recordMempoolBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_MEMPOOL_BEST_EFFORT_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
@@ -444,7 +453,7 @@ export class Node {
     if (this.txSeen.has(h)) return false;      // de-dupe globally
     const tx = { hash: h, body: raw.body ?? {} };
     this.txSeen.set(h, Date.now());
-    try { (this.mempool as any).push?.(tx); } catch {}
+    try { (this.mempool as any).push?.(tx); } catch (err) { recordMempoolBestEffortFailure("accept-tx-mempool-push", err, { txHash: h }); }
     return true;
   }
 
@@ -637,12 +646,14 @@ export class Node {
         const all = (this.mempool as any).peekAll();
         if (Array.isArray(all)) {
           if (typeof (this.mempool as any).clear === "function") {
-            try { (this.mempool as any).clear(); } catch {}
+            try { (this.mempool as any).clear(); } catch (err) { recordMempoolBestEffortFailure("take-tx-batch-mempool-clear", err, { max, available: all.length }); }
           }
           return all.slice(0, max);
         }
       }
-    } catch {}
+    } catch (err) {
+      recordMempoolBestEffortFailure("take-tx-batch-mempool-drain", err, { max });
+    }
     return [];
   }
 
