@@ -9906,7 +9906,7 @@ if (
             state.last = { number: Number(b?.number ?? -1), txsLen, when: Date.now() };
             state.count++;
             console.log(`[seal-tap2] saveBlock(#${state.last.number}) txs=${txsLen}`);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("9909:1", err); }
           return orig(b);
         };
         s.__void_save_tapped = true;
@@ -9989,7 +9989,7 @@ if (
         if (Array.isArray(gq)) sets.push(gq);
         if (Array.isArray(gq?.txs)) sets.push(gq.txs);
         if (Array.isArray(gq?.queue)) sets.push(gq.queue);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("9992:2", err); }
       // merge (preserve order), dedupe by JSON string (dev-safe)
       const out:any[] = [];
       const seen = new Set<string>();
@@ -10170,8 +10170,8 @@ if (
               if (want.has(toKey(arr[i]))) arr.splice(i,1);
             }
           }
-        }catch{}
-        try{ return typeof prev === "function" ? prev.call(n,b) : undefined; }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10173:3", err); }
+        try{ return typeof prev === "function" ? prev.call(n,b) : undefined; }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10174:4", err); }
       };
     }
 
@@ -10226,7 +10226,7 @@ if (
           if (Array.isArray(mp))       sets.push(mp);
         }
         if (Array.isArray(g?.__void_txq)) sets.push(g.__void_txq);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10229:5", err); }
       return sets;
     }
     function toKey(t:any){ try{ return typeof t==="string" ? t : JSON.stringify(t); }catch{ return String(t); } }
@@ -10294,7 +10294,7 @@ if (
             res.json({ active: state.active, injectedBlocks: state.injectedBlocks, injectedTxs: state.injectedTxs, lastBlock: state.lastBlock, lastCount: state.lastCount });
           });
           console.log("[tx-merge-all] active (saveBlock)");
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10297:6", err); }
       })();
     })();
   }catch(e){ console.warn("[tx-merge-all] install failed:", e); }
@@ -10319,13 +10319,13 @@ if (
         for (let i=0;i<count;i++) gq.push({ data:`dev-burst-${now}-${i}` });
 
         // try to move globals -> mempool immediately if our bridge exists
-        try{ await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||4100}/mempool/global/drain-now`,{method:"POST"}); }catch{}
+        try{ await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||4100}/mempool/global/drain-now`,{method:"POST"}); }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10322:7", err); }
         // nudge proposer candidates
         for (const k of ["tickNow","tick","propose","buildBlock","proposeBlock","sealNext"]){
           try{
             if (typeof (n[k])==="function"){ await Promise.resolve(n[k]()); break; }
             if (n.proposer && typeof n.proposer[k]==="function"){ await Promise.resolve(n.proposer[k]()); break; }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10328:8", err); }
         }
         res.json({ ok:true, enqueued: count });
       });
@@ -10397,7 +10397,7 @@ if (
     // With this hook, code inside that wrapper can call __VOID_PICK_LIMIT(max).
     // If you didn’t paste the exact earlier version, this still remains harmless.
     console.log("[tx-merge-cap] limiter ready");
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10400:9", err); }
 })();
 // --------------------------------------------------------------------------------
 
@@ -10416,7 +10416,7 @@ if (
       try{
         const cfg = (g as any).__VOID_INJECT_CAP;
         if (cfg && cfg.enabled) return Math.max(0, Number(cfg.maxPerBlock)||0);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10419:10", err); }
       return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
     }
 
@@ -10471,7 +10471,7 @@ if (
             state.enforcedBlocks++;
             state.lastBlock = Number(b?.number ?? -1);
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10474:11", err); }
         return orig(b);
       };
 
@@ -10517,7 +10517,7 @@ if (
       try{
         const capCfg = (globalThis as any).__VOID_INJECT_CAP;
         if (capCfg && capCfg.enabled) return Math.max(0, Number(capCfg.maxPerBlock)||0);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10520:12", err); }
       return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
     }
 
@@ -10563,13 +10563,13 @@ if (
                 for (const k of cands){
                   const f = (typeof (n as any)[k] === "function") ? (n as any)[k]
                          : (n?.proposer && typeof n.proposer[k] === "function") ? n.proposer[k] : null;
-                  if (f){ try{ f.call(n); }catch{} break; }
+                  if (f){ try{ f.call(n); }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10566:13", err); } break; }
                 }
-              }catch{}
+              }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10568:14", err); }
               return; // do not persist an empty block when queue has txs
             }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10572:15", err); }
         return orig(b);
       };
 
@@ -10759,7 +10759,7 @@ if (
             const full = await r.json();
             headerRoot = full?.header?.txRoot || full?.txRoot || undefined;
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10762:16", err); }
 
         const match = (headerRoot && headerRoot === computed) || false;
         devCounters.txroot_computed_total++;
@@ -10785,11 +10785,11 @@ if (
             try {
               const r = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
               if (r.ok) { const full = await r.json(); headerRoot = full?.header?.txRoot || full?.txRoot; }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10788:17", err); }
             devCounters.txroot_computed_total++;
             computed++;
             if (headerRoot && headerRoot !== root) { devCounters.txroot_mismatch_total++; mismatches++; }
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow9901_10800V1("10792:18", err); }
         }
         res.json({ ok:true, from, to, computed, mismatches });
       }catch(e:any){
@@ -83616,4 +83616,9 @@ function __voidIxCatch9000(s:string,e:unknown):void{const m=e instanceof Error?e
 
 function voidIndexEmptyCatchVisibilityWindow9001_9900V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_9001_9900_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow9901_10800V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_9901_10800_V1_VISIBLE", context, err);
 }
