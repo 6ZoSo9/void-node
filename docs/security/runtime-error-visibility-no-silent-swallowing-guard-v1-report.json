@@ -2,10 +2,10 @@
   "generated_at": "1970-01-01T00:00:00.000Z",
   "status": "GREEN",
   "node_core_sha256": "24b1ff0bc65ac3e91b2101cdd31675b3de33c2323d08aacb98881b69b390a050",
-  "repo_catch_context_count": 2826,
+  "repo_catch_context_count": 2786,
   "node_core_catch_context_count": 37,
   "node_core_literal_empty_catch_count": 0,
-  "repo_literal_empty_catch_count": 1347,
+  "repo_literal_empty_catch_count": 1335,
   "top_by_file": [
     {
       "file": "src/index.ts",
@@ -92,10 +92,6 @@
       "count": 3
     },
     {
-      "file": "scripts/prove_peer_import_side_effect_write_error_visibility_preflight.ts",
-      "count": 3
-    },
-    {
       "file": "src/http/follower_routes.ts",
       "count": 3
     },
@@ -108,71 +104,75 @@
       "count": 3
     },
     {
-      "file": "scripts/prove_block_proposer_authority_allowlist_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_block_signature_authority_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_block_signature_cryptographic_verification_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_canonical_chain_epoch_root_commitment_source_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_chain_derived_validator_epoch_root_source_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_live_canonical_chain_state_epoch_root_source_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_live_canonical_chain_state_finality_api_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_peer_block_import_validation_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_peer_import_side_effect_write_error_visibility_closure.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_signed_validator_runtime_truth_manifest_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_silent_catch_zero_terminal_final_seal.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_validator_runtime_truth_epoch_root_binding_boundary.ts",
-      "count": 2
-    },
-    {
-      "file": "scripts/prove_validator_runtime_truth_proposer_binding_boundary.ts",
-      "count": 2
-    },
-    {
       "file": "src/chain/txindex.ts",
       "count": 2
     },
     {
       "file": "src/http/blocks_extras.ts",
       "count": 2
+    },
+    {
+      "file": "src/http/dev_routes.ts",
+      "count": 2
+    },
+    {
+      "file": "src/util/txroot.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/audit_numbers.ts",
+      "count": 1
+    },
+    {
+      "file": "scripts/compact_rewrite.ts",
+      "count": 1
+    },
+    {
+      "file": "scripts/import_file.ts",
+      "count": 1
+    },
+    {
+      "file": "scripts/repair_meta.ts",
+      "count": 1
+    },
+    {
+      "file": "scripts/scan_bin.ts",
+      "count": 1
+    },
+    {
+      "file": "src/bootstrap/define_patch.ts",
+      "count": 1
+    },
+    {
+      "file": "src/crypto/keypair.ts",
+      "count": 1
+    },
+    {
+      "file": "src/hooks/txroot_enforcer.ts",
+      "count": 1
+    },
+    {
+      "file": "src/hooks/txroot_setter.ts",
+      "count": 1
+    },
+    {
+      "file": "src/http/harness_follower_status2.ts",
+      "count": 1
+    },
+    {
+      "file": "src/http/routes/index_build.ts",
+      "count": 1
+    },
+    {
+      "file": "src/http/workcredits_routes.ts",
+      "count": 1
     }
   ],
   "findings": [
     {
       "id": "repo-catch-inventory-baseline",
       "status": "PASS",
-      "detail": "repo catch context count=2826, expected=2826"
+      "detail": "repo catch context count=2786, expected=2786"
     },
     {
       "id": "node-core-catch-context-baseline",
@@ -187,7 +187,7 @@
     {
       "id": "repo-wide-literal-empty-catch-pressure-recorded",
       "status": "PASS",
-      "detail": "repo literal empty catch count=1347, expected>0 as bounded future cleanup inventory"
+      "detail": "repo literal empty catch count=1335, expected>0 as bounded future cleanup inventory"
     },
     {
       "id": "catch-inventory-baseline-src/index.ts",

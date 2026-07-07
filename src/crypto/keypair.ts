@@ -6,6 +6,15 @@ import * as crypto from "node:crypto";
 
 type LoadedFormat = "pem" | "raw-ed25519-seed";
 
+function recordCryptoKeypairBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_CRYPTO_KEYPAIR_EMPTY_CATCH_VISIBILITY_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 function normalizeRawSeed(text: string): Buffer | null {
   const s = text.trim();
 
@@ -65,7 +74,8 @@ export function loadKeypair(keyPath: string): {
 
   try {
     loaded = pemToKeypair(rawText);
-  } catch {
+  } catch (err) {
+    recordCryptoKeypairBestEffortFailure("pem-parse-fallback-to-raw-seed", err, { keyPath });
     loaded = null;
   }
 
