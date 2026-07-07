@@ -5171,7 +5171,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
           const st:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.store;
           const load = Number(st?.loadHeadNumber?.() ?? -1);
           if (Number.isFinite(load) && load > best) best = load;
-        } catch {}
+        } catch (err) { __voidIxCatch5400("5174:1", err); }
 
         if (best >= 0) return res.json({ number: best, __hardfix: "latest-number-json.safe.v1/max-live" });
         return res.json({ number: -1, __hardfix: "latest-number-json.safe.v1/none" });
@@ -5180,8 +5180,8 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
       }
     });
 
-    try{ console.error("[latest-number-json.safe.v1] installed"); }catch{}
-  }catch{}
+    try{ console.error("[latest-number-json.safe.v1] installed"); }catch (err) { __voidIxCatch5400("5183:2", err); }
+  }catch (err) { __voidIxCatch5400("5184:3", err); }
 })();
 /* [latest-number-json.safe.v1] */
 
@@ -5199,13 +5199,13 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 
   const nodeopts = String(process.env.NODE_OPTIONS || "");
   if (nodeopts.includes("datanet_receipts_persist_wrap_fetch_v4")) {
-    try { console.error("[fetch_receipts_native_v1] wrapper v4 detected in NODE_OPTIONS; native logger disabled"); } catch {}
+    try { console.error("[fetch_receipts_native_v1] wrapper v4 detected in NODE_OPTIONS; native logger disabled"); } catch (err) { __voidIxCatch5400("5202:4", err); }
     return;
   }
 
   const file0 = String(process.env.DATANET_RECEIPTS_FILE || "");
   if (!file0) {
-    try { console.error("[fetch_receipts_native_v1] DATANET_RECEIPTS_FILE empty; disabled"); } catch {}
+    try { console.error("[fetch_receipts_native_v1] DATANET_RECEIPTS_FILE empty; disabled"); } catch (err) { __voidIxCatch5400("5208:5", err); }
     return;
   }
 
@@ -5230,11 +5230,11 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
         const u = String(req?.originalUrl || req?.url || "");
         const m = u.match(/\/datanet\/v1\/fetch\/([0-9a-f]{16,64})/i);
         if (m && m[1]) return m[1];
-      } catch {}
+      } catch (err) { __voidIxCatch5400("5233:6", err); }
       try {
         const q = req?.query || {};
         if (q && typeof q.id === "string" && q.id.length) return q.id;
-      } catch {}
+      } catch (err) { __voidIxCatch5400("5237:7", err); }
       return "";
     };
 
@@ -5242,12 +5242,12 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
       try {
         const q = req?.query || {};
         if (q && typeof q.who === "string" && q.who.length) return q.who;
-      } catch {}
+      } catch (err) { __voidIxCatch5400("5245:8", err); }
       try {
         const u = String(req?.originalUrl || req?.url || "");
         const m = u.match(/[?&]who=([^&]+)/);
         if (m && m[1]) return decodeURIComponent(m[1]);
-      } catch {}
+      } catch (err) { __voidIxCatch5400("5250:9", err); }
       return "";
     };
 
@@ -5281,7 +5281,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
                 try {
                   const h = res.getHeader && res.getHeader("content-length");
                   if (h) bytes = parseInt(String(h), 10) || 0;
-                } catch {}
+                } catch (err) { __voidIxCatch5400("5284:10", err); }
 
                 const did = appendLine({
                   ts_ms: nowMs(),
@@ -5302,7 +5302,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
                 S.last_ts_ms = nowMs();
                 if (did) S.appends_ok++; else S.appends_fail++;
               } catch {
-                try { S.appends_fail++; } catch {}
+                try { S.appends_fail++; } catch (err) { __voidIxCatch5400("5305:11", err); }
               }
             });
           }
@@ -5333,12 +5333,12 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
           res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
           res.status(200).send(lines.join("\\n") + "\n");
         } catch {
-          try { res.status(200).send(""); } catch {}
+          try { res.status(200).send(""); } catch (err) { __voidIxCatch5400("5336:12", err); }
         }
       });
 
-      try { console.error("[fetch_receipts_native_v1] mounted (file=" + file0 + ")"); } catch {}
-    } catch {}
+      try { console.error("[fetch_receipts_native_v1] mounted (file=" + file0 + ")"); } catch (err) { __voidIxCatch5400("5340:13", err); }
+    } catch (err) { __voidIxCatch5400("5341:14", err); }
   })().catch(() => {});
 })();
 
@@ -5351,7 +5351,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
 
     const app:any = G.__void_http_app;
     if (!app || typeof app.get !== "function"){
-      try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] missing __void_http_app; not mounted"); }catch{}
+      try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] missing __void_http_app; not mounted"); }catch (err) { __voidIxCatch5400("5354:15", err); }
       return;
     }
 
@@ -5366,7 +5366,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
           return orig(...args);
         };
       }
-    }catch{}
+    }catch (err) { __voidIxCatch5400("5369:16", err); }
 
     const PORT = Number(process.env.HTTP_PORT || 4100);
 
@@ -5388,7 +5388,7 @@ app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.
             const x = Number(v);
             if (Number.isFinite(x) && x >= 0) return res.status(200).type("text/plain").send(String(x));
           }
-        } catch {}
+        } catch (err) { __voidIxCatch5400("5391:17", err); }
       }
       if (String(process.env.VOID_DISABLE_LATEST_NUMBER_TRUTH_ROUTE||"0")==="1") return res.status(503).type("text/plain").send("-1");
       try{
@@ -83602,3 +83602,5 @@ function __voidIxCatch2700(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch3600(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_2701_3600_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"2701-3600",scope:s,message:m});}
 
 function __voidIxCatch4500(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_3601_4500_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"3601-4500",scope:s,message:m});}
+
+function __voidIxCatch5400(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_4501_5400_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"4501-5400",scope:s,message:m});}
