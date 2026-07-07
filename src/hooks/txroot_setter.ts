@@ -15,6 +15,14 @@ G.__void_txroot_setter = G.__void_txroot_setter || {
   heartbeat_total: 0,
 };
 
+function recordTxrootSetterHeartbeatFailure(scope: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_HOOKS_TXROOT_SETTER_HEARTBEAT_EMPTY_CATCH_VISIBILITY_FAILURE_VISIBLE", {
+    scope,
+    message,
+  });
+}
+
 let __attached = false;
 
 export function attachTxrootSetter(p: { app: any; store?: any; log?: (...a: any[]) => void }) {
@@ -23,7 +31,13 @@ export function attachTxrootSetter(p: { app: any; store?: any; log?: (...a: any[
   const log = p.log || ((..._a:any[])=>{});
 
   // Heartbeat so Prom sees activity even before first seal
-  const iv = setInterval(() => { try { G.__void_txroot_setter.heartbeat_total++; } catch {} }, 2000);
+  const iv = setInterval(() => {
+    try {
+      G.__void_txroot_setter.heartbeat_total++;
+    } catch (err) {
+      recordTxrootSetterHeartbeatFailure("heartbeat-increment", err);
+    }
+  }, 2000);
   if (app?.on) app.on("close", () => clearInterval(iv));
 
   // Prom text endpoint
