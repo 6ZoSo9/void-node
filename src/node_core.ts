@@ -51,6 +51,15 @@ function recordImportHeadAdvanceBestEffortFailure(scope: string, err: unknown, m
   });
 }
 
+function recordRemainingRuntimeBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_REMAINING_RUNTIME_BEST_EFFORT_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
@@ -263,7 +272,9 @@ export class Node {
               }
             }
           }
-        } catch {}
+        } catch (err) {
+          recordRemainingRuntimeBestEffortFailure("lan-ip-discovery", err);
+        }
         return "127.0.0.1";
       })();
 
@@ -478,7 +489,9 @@ export class Node {
   private sendRaw(peer: Peer, msg: Msg) {
     try {
       peer.socket.write(encode(msg));
-    } catch {}
+    } catch (err) {
+      recordRemainingRuntimeBestEffortFailure("send-raw-socket-write", err, { peerId: String((peer as any)?.id ?? "") });
+    }
   }
   private isKnownPeer(id: string): boolean {
     return this.peers.has(id) && !id.startsWith("?-");
@@ -1060,7 +1073,9 @@ export class Node {
       running = true;
       try {
         await this.pullOnce(peerHttp, opts);
-      } catch {}
+      } catch (err) {
+        recordRemainingRuntimeBestEffortFailure("follower-periodic-pull", err, { peerHttp });
+      }
       running = false;
     };
     void tick();

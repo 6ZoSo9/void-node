@@ -46,7 +46,7 @@ const requiredScopes = [
 const findings: Finding[] = [
   { id: "import-head-advance-helper-present", status: source.includes(helper) ? "PASS" : "FAIL", detail: source.includes(helper) ? "helper present" : "helper missing" },
   { id: "import-head-advance-marker-present", status: source.includes(marker) ? "PASS" : "FAIL", detail: source.includes(marker) ? "marker present" : "marker missing" },
-  { id: "remaining-silent-catch-baseline-after-import-head-advance", status: literalCatchIndexes.length === 3 ? "PASS" : "FAIL", detail: `literal silent catches=${literalCatchIndexes.length}, expected=3` },
+  { id: "remaining-silent-catch-baseline-after-import-head-advance", status: literalCatchIndexes.length <= 3 ? "PASS" : "FAIL", detail: `literal silent catches=${literalCatchIndexes.length}, expected<=3` },
   { id: "import-head-advance-silent-catches-closed", status: importHeadSilentCatchIndexes.length === 0 ? "PASS" : "FAIL", detail: `import-head-advance silent catches=${importHeadSilentCatchIndexes.length}` },
   ...requiredScopes.map((scope): Finding => {
     const count = (source.match(new RegExp(scope, "g")) ?? []).length;

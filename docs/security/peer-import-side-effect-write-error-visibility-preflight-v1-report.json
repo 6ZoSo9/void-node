@@ -2,9 +2,9 @@
   "schema": "VOID_PEER_IMPORT_SIDE_EFFECT_WRITE_ERROR_VISIBILITY_PREFLIGHT_REPORT_V1",
   "generatedAt": "1970-01-01T00:00:00.000Z",
   "status": "STATIC_PREFLIGHT_WARNINGS",
-  "nodeCoreSha256": "2435c260eb28d03f36ddb55dd98e782ebf9231a303dcf57f706f1581012bed9b",
+  "nodeCoreSha256": "24b1ff0bc65ac3e91b2101cdd31675b3de33c2323d08aacb98881b69b390a050",
   "blockSourceSha256": "ba2c4bfd1f0fc16e2ca3fc11a788a78cd8f70882e5fe9c926e978c0f7c3fdc9f",
-  "silentCatchCount": 3,
+  "silentCatchCount": 0,
   "sideEffectSilentCatchCount": 0,
   "importSideEffectSilentCatchCount": 0,
   "localProductionSideEffectSilentCatchCount": 0,
@@ -40,9 +40,9 @@
     },
     {
       "id": "silent-catch-sites-discovered",
-      "ok": true,
+      "ok": false,
       "severity": "info",
-      "evidence": "catch {} matches=3"
+      "evidence": "catch {} matches=0"
     },
     {
       "id": "side-effect-silent-catch-sites-discovered",

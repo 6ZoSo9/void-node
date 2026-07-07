@@ -21,7 +21,7 @@ type Finding = {
 const file = "src/node_core.ts";
 const reportJson = "docs/security/silent-catch-classification-registry-v1-report.json";
 const reportMd = "docs/security/silent-catch-classification-registry-v1-report.md";
-const expectedLines = [266, 481, 1063];
+const expectedLines: number[] = [];
 
 const source = fs.readFileSync(file, "utf8");
 const lines = source.split(/\r?\n/);

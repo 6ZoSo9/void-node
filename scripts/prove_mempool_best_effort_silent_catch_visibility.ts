@@ -66,8 +66,8 @@ const findings: Finding[] = [
   },
   {
     id: "remaining-silent-catch-baseline-after-mempool",
-    status: literalCatchIndexes.length === 11 ? "PASS" : "FAIL",
-    detail: `literal silent catches=${literalCatchIndexes.length}, expected=11`,
+    status: literalCatchIndexes.length <= 11 ? "PASS" : "FAIL",
+    detail: `literal silent catches=${literalCatchIndexes.length}, expected<=11`,
   },
   {
     id: "mempool-silent-catches-closed",
