@@ -6377,7 +6377,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
       const out:any[] = [];
 
       out.push(scanObject("__void_http_app", app));
-      try{ out.push(scanObject("__void_http_app.locals", (app as any).locals)); }catch{}
+      try{ out.push(scanObject("__void_http_app.locals", (app as any).locals)); }catch (err) { __voidIxCatch7200("6380:1", err); }
 
       const keys = Object.keys(g).slice(0, 5000);
       for (const k of keys){
@@ -6407,8 +6407,8 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
       res.json({ ok:true, one: scanObject(name, v) });
     });
 
-    try{ console.error("[__void/dev/inspect/proposerScan2.v2.EARLY] mounted"); }catch{}
-  }catch{}
+    try{ console.error("[__void/dev/inspect/proposerScan2.v2.EARLY] mounted"); }catch (err) { __voidIxCatch7200("6410:2", err); }
+  }catch (err) { __voidIxCatch7200("6411:3", err); }
 })();
 
 // ===== __void dev: sealOnce2 via node.sealBlock (EARLY) =====
@@ -6443,7 +6443,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
           const n = Number(t);
           if (Number.isFinite(n)) return n;
         }
-      }catch{}
+      }catch (err) { __voidIxCatch7200("6446:4", err); }
       return -1;
     }
 
@@ -6523,9 +6523,9 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
       });
     });
 
-    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mounted"); }catch{}
+    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mounted"); }catch (err) { __voidIxCatch7200("6526:5", err); }
   }catch(e:any){
-    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mount err", e?.message||e); }catch{}
+    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mount err", e?.message||e); }catch (err) { __voidIxCatch7200("6528:6", err); }
   }
 })();
 
@@ -6609,7 +6609,7 @@ try {
 
         const orig = cur;
         const wrapped = function(this:any, ...args:any[]) {
-          try { bumpCall(label + "." + n, args); } catch {}
+          try { bumpCall(label + "." + n, args); } catch (err) { __voidIxCatch7200("6612:7", err); }
           return orig.apply(this, args);
         };
         (wrapped as any).__void_spy_wrapped = 1;
@@ -6687,7 +6687,7 @@ const top = entries.slice(0,40).reduce((acc:any,[k,v])=>{ acc[k]=v; return acc; 
       res.send(lines.join("\\n") + "\n");
     });
   }
-} catch {}
+} catch (err) { __voidIxCatch7200("6690:8", err); }
 // -------- /PROPOSER METHOD SPY v1 --------
 
 
@@ -6722,7 +6722,7 @@ try {
         const r = v.store.getHeadNumber();
         if (typeof r === "number") return r;
       }
-    } catch {}
+    } catch (err) { __voidIxCatch7200("6725:9", err); }
     return -1;
   }
 
@@ -6743,7 +6743,7 @@ try {
           pendingLen: (v.pending && Array.isArray(v.pending)) ? v.pending.length : -1,
         });
       }
-    } catch {}
+    } catch (err) { __voidIxCatch7200("6746:10", err); }
     out.sort((a,b)=> (b.headGuess|0) - (a.headGuess|0));
     return out;
   }
@@ -6825,7 +6825,7 @@ try {
         try {
           const node:any = p.node;
           mempoolLen = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs.length : -1;
-        } catch {}
+        } catch (err) { __voidIxCatch7200("6828:11", err); }
 
         res.json({ ok:true, handled:"txsubmit_debug2_v1", pickedKey:p.key, headGuess:p.headGuess, nonce, pushOk, mempoolLen });
       }
@@ -6844,7 +6844,7 @@ try {
       });
     });
   }
-} catch {}
+} catch (err) { __voidIxCatch7200("6847:12", err); }
 
 
 
@@ -6934,9 +6934,9 @@ try {
               const v:any = (g as any)[k];
               if (!v || typeof v !== "object") continue;
               if (v.mempool && Array.isArray(v.mempool.txs)) { g.__void_node = v; return v; }
-            } catch {}
+            } catch (err) { __voidIxCatch7200("6937:13", err); }
           }
-        } catch {}
+        } catch (err) { __voidIxCatch7200("6939:14", err); }
       }
       return null;
     };
@@ -7006,7 +7006,7 @@ try {
       wrapProto(m);
     }
   }
-} catch {}
+} catch (err) { __voidIxCatch7200("7009:15", err); }
 // -------- /SEGSTORE PROTO INJECT TXS v1 --------
 
 
@@ -7127,9 +7127,9 @@ try {
       const ok = tryWrap();
       if (ok) clearInterval(t);
     }, 250);
-    setTimeout(()=>{ try { clearInterval(t); } catch {} }, 15000);
+    setTimeout(()=>{ try { clearInterval(t); } catch (err) { __voidIxCatch7200("7130:16", err); } }, 15000);
   }
-} catch {}
+} catch (err) { __voidIxCatch7200("7132:17", err); }
 // -------- /SAVE BLOCK INJECT TXS v1 --------
 
 
@@ -7153,7 +7153,7 @@ try {
       try {
         // prefer live node head if present, fallback to store.loadHeadNumber
         head = Number(node?.store?.loadHeadNumber?.() ?? store?.loadHeadNumber?.() ?? -1);
-      } catch {}
+      } catch (err) { __voidIxCatch7200("7156:18", err); }
       if (!Number.isFinite(head) || head < 0) return { head, lastSeal: -1, txs: 0 };
 
       for (let i=0; i<scanBack; i++){
@@ -7163,7 +7163,7 @@ try {
           const b = store?.loadBlock?.(n);
           const txs = Array.isArray(b?.txs) ? b.txs.length : 0;
           if (txs > 0) return { head, lastSeal: n, txs };
-        } catch {}
+        } catch (err) { __voidIxCatch7200("7166:19", err); }
       }
       return { head, lastSeal: -1, txs: 0 };
     }
@@ -7192,9 +7192,9 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       );
     });
 
-    try{ console.log("[lastseal] exporter ready: /__void/diag/lastseal.json + /__void/metrics/lastseal.prom"); }catch{}
+    try{ console.log("[lastseal] exporter ready: /__void/diag/lastseal.json + /__void/metrics/lastseal.prom"); }catch (err) { __voidIxCatch7200("7195:20", err); }
   }
-} catch {}
+} catch (err) { __voidIxCatch7200("7197:21", err); }
 // -------- /LASTSEAL EXPORTER v1 --------
 
 
@@ -83606,3 +83606,5 @@ function __voidIxCatch4500(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch5400(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_4501_5400_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"4501-5400",scope:s,message:m});}
 
 function __voidIxCatch6300(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_5401_6300_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"5401-6300",scope:s,message:m});}
+
+function __voidIxCatch7200(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_6301_7200_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"6301-7200",scope:s,message:m});}
