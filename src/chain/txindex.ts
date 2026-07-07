@@ -7,6 +7,15 @@ import * as path from "node:path";
 
 type Ref = { h: string; n: number; o: number };
 
+function recordTxIndexBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_CHAIN_TXINDEX_EMPTY_CATCH_VISIBILITY_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 /**
  * Simple append-only tx index:
  *   index/tx-00000000.jsonl with refs {"h":hash,"n":block,"o":offset}
@@ -37,7 +46,9 @@ export class TxIndex {
         const base = Number(m[1]);
         out.push({ from: base, to: base + this.span - 1, path: path.join(this.dir, f) });
       }
-    } catch {}
+    } catch (err) {
+      recordTxIndexBestEffortFailure("list-shards-directory-scan", err, { dir: this.dir });
+    }
     out.sort((a, b) => a.from - b.from);
     return out;
   }
@@ -71,7 +82,9 @@ export class TxIndex {
         const r = JSON.parse(line) as Ref;
         if (r.h === needle) return { found: true, n: r.n, o: r.o };
       }
-    } catch {}
+    } catch (err) {
+      recordTxIndexBestEffortFailure("lookup-in-shard-read-parse", err, { file, hashHex: needle });
+    }
     return { found: false, n: -1, o: -1 };
   }
 }
