@@ -35110,7 +35110,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
 
   const a = getApp();
   if (!a) {
-    try { console.error(`[diag] ${TAG} no app handle`); } catch {}
+    try { console.error(`[diag] ${TAG} no app handle`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35113:1", err); }
     return;
   }
 
@@ -35136,7 +35136,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
     res.json({ ok: true, now: Date.now(), count: out.length, full3: out });
   });
 
-  try { console.error(`[diag] ${TAG} installed`); } catch {}
+  try { console.error(`[diag] ${TAG} installed`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35139:2", err); }
 })();
 
 /* __void_full3_status_inject_audit_v1__
@@ -35161,7 +35161,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
 
   const a = getApp();
   if (!a) {
-    try { console.error(`[diag] ${TAG} no app handle (globalThis.__void_http_app missing)`); } catch {}
+    try { console.error(`[diag] ${TAG} no app handle (globalThis.__void_http_app missing)`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35164:3", err); }
     return;
   }
 
@@ -35215,7 +35215,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
                   obj.__routes_audit = snap();
                   obj.__routes_audit_tag = TAG;
                 }
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35218:4", err); }
               return oldJson(obj);
             };
           }
@@ -35236,7 +35236,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
 
   try {
     console.log(`[diag] ${TAG} installed wraps=${wraps} errors=${errors}`);
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35239:5", err); }
 })();
 
 // === VOID_HARD_MINIMAL_BOOT_LATE_ADDITIVE_BEGIN ===
@@ -35317,11 +35317,11 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       });
 
       st.last = { at: Date.now(), where: "attach_ok" };
-      try { console.log(`[diag] ${TAG} attached`); } catch {}
+      try { console.log(`[diag] ${TAG} attached`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35320:6", err); }
     } catch (e: any) {
       st.errors++;
       st.last = { at: Date.now(), where: "attach_err", err: String(e?.message || e) };
-      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch {}
+      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35324:7", err); }
     }
   };
 
@@ -35333,7 +35333,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     if (st.tries < 200) setTimeout(tick, 25); // ~5s
     else {
       st.last = { at: Date.now(), where: "give_up_no_app" };
-      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch {}
+      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35336:8", err); }
     }
   };
 
@@ -35407,7 +35407,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       const passthru = function full3ShadowEarlyV1(_req: any, _res: any, next: any) {
         try {
           st.shadowed_hits = (st.shadowed_hits || 0) + 1;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35410:9", err); }
         try { return typeof next === "function" ? next() : undefined; } catch { return undefined; }
       };
       (passthru as any).__void_full3_shadowed_v1 = true;
@@ -35424,7 +35424,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       shadowedNow: shadowed,
       canonicalIndex: keep.i,
     };
-    try { console.log(`[diag] ${TAG} shadowed=${shadowed} routesFound=${layers.length} canonicalIndex=${keep.i}`); } catch {}
+    try { console.log(`[diag] ${TAG} shadowed=${shadowed} routesFound=${layers.length} canonicalIndex=${keep.i}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35427:10", err); }
   };
 
   const attach = (a: any) => {
@@ -35456,7 +35456,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
             const _end = res.end;
             let buf = "";
             res.end = function (chunk: any, enc?: any, cb?: any) {
-              try { if (chunk) buf += (typeof chunk === "string" ? chunk : chunk.toString("utf8")); } catch {}
+              try { if (chunk) buf += (typeof chunk === "string" ? chunk : chunk.toString("utf8")); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35459:11", err); }
               try {
                 const obj = JSON.parse(buf || "{}");
                 obj.__full3_dedupe = {
@@ -35494,7 +35494,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     } catch (e: any) {
       st.errors++;
       st.last = { at: Date.now(), where: "attach_err", err: String(e?.message || e) };
-      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch {}
+      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35497:12", err); }
     }
   };
 
@@ -35506,7 +35506,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     if (st.tries < 200) setTimeout(tick, 25);
     else {
       st.last = { at: Date.now(), where: "give_up_no_app" };
-      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch {}
+      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35509:13", err); }
     }
   };
 
@@ -35638,7 +35638,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
             };
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35641:14", err); }
 
       return handler(req, res, next);
     };
@@ -35670,11 +35670,11 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
       st.wrappedStatusLayers += wrappedCount;
       st.last = { at: Date.now(), where: "attach_ok", statusLayers: layers.length, wrappedNow: wrappedCount };
 
-      try { console.log(`[diag] ${TAG} attach_ok statusLayers=${layers.length} wrappedNow=${wrappedCount}`); } catch {}
+      try { console.log(`[diag] ${TAG} attach_ok statusLayers=${layers.length} wrappedNow=${wrappedCount}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35673:15", err); }
     } catch (e: any) {
       st.errors++;
       st.last = { at: Date.now(), where: "attach_err", err: String(e?.message || e) };
-      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch {}
+      try { console.error(`[diag] ${TAG} attach error`, e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35677:16", err); }
     }
   };
 
@@ -35686,7 +35686,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     if (st.tries < 200) setTimeout(tick, 25);
     else {
       st.last = { at: Date.now(), where: "give_up_no_app" };
-      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch {}
+      try { console.error(`[diag] ${TAG} gave up: no app handle`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35689:17", err); }
     }
   };
 
@@ -35835,12 +35835,12 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
                     // fallthrough
                   }
                 }
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35838:18", err); }
               return origEnd(chunk, encoding, cb);
             };
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35843:19", err); }
       return h(req, res, next);
     };
 
@@ -35882,12 +35882,12 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
         wrapped_now: did,
         wrapped_total: st.wrappedHandlers
       };
-      try { console.log(`[diag] ${TAG} attach_ok status_stack_len=${hit.route.stack.length} wrapped_now=${did}`); } catch {}
+      try { console.log(`[diag] ${TAG} attach_ok status_stack_len=${hit.route.stack.length} wrapped_now=${did}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35885:20", err); }
       return true;
     } catch (e: any) {
       st.errors++;
       st.last = { at: Date.now(), where: "attach_err", err: String(e?.message || e) };
-      try { console.error(`[diag] ${TAG} attach_err`, e?.message || e); } catch {}
+      try { console.error(`[diag] ${TAG} attach_err`, e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35890:21", err); }
       return false;
     }
   };
@@ -35899,7 +35899,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
     if (st.tries < 400) setTimeout(loop, 25);
     else {
       st.last = { at: Date.now(), where: "give_up", tries: st.tries };
-      try { console.error(`[diag] ${TAG} give_up tries=${st.tries}`); } catch {}
+      try { console.error(`[diag] ${TAG} give_up tries=${st.tries}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35902:22", err); }
     }
   };
 
@@ -35939,7 +35939,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
 
   const now = () => Date.now();
   const note = (where: string, extra: any = {}) => {
-    try { state.last = { at: now(), where, ...extra }; } catch {}
+    try { state.last = { at: now(), where, ...extra }; } catch (err) { voidIndexEmptyCatchVisibilityWindow35101_36000V1("35942:23", err); }
   };
 
   const getApp = (): any => {
@@ -83756,4 +83756,9 @@ function voidIndexEmptyCatchVisibilityWindow33301_34200V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow34201_35100V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_34201_35100_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow35101_36000V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_35101_36000_V1_VISIBLE", context, err);
 }
