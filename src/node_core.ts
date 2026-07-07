@@ -33,6 +33,15 @@ function recordMempoolBestEffortFailure(scope: string, err: unknown, meta: Recor
   });
 }
 
+function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_PEER_HEAD_PROBE_BEST_EFFORT_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
@@ -773,7 +782,9 @@ export class Node {
           const n = Number(j?.number);
           if (Number.isFinite(n) && n >= 0) return n;
         }
-      } catch {}
+      } catch (err) {
+        recordPeerHeadProbeFailure("peer-head-probe-latest-number2", err, { peerHttp: base });
+      }
 
       // 2) Fallback to /head
       try {
@@ -783,7 +794,9 @@ export class Node {
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
-      } catch {}
+      } catch (err) {
+        recordPeerHeadProbeFailure("peer-head-probe-head", err, { peerHttp: base });
+      }
 
       // 3) Fallback demo summary
       try {
@@ -793,7 +806,9 @@ export class Node {
           const n = Number(j?.chain?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
-      } catch {}
+      } catch (err) {
+        recordPeerHeadProbeFailure("peer-head-probe-demo-summary", err, { peerHttp: base });
+      }
 
       // 4) Last resort legacy helper
       try {
@@ -803,7 +818,9 @@ export class Node {
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
-      } catch {}
+      } catch (err) {
+        recordPeerHeadProbeFailure("peer-head-probe-api-health", err, { peerHttp: base });
+      }
 
       return -1;
     };
