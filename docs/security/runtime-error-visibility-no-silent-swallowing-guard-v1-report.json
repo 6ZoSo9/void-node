@@ -1,0 +1,269 @@
+{
+  "generated_at": "1970-01-01T00:00:00.000Z",
+  "status": "GREEN",
+  "node_core_sha256": "24b1ff0bc65ac3e91b2101cdd31675b3de33c2323d08aacb98881b69b390a050",
+  "repo_catch_context_count": 2826,
+  "node_core_catch_context_count": 37,
+  "node_core_literal_empty_catch_count": 0,
+  "repo_literal_empty_catch_count": 1356,
+  "top_by_file": [
+    {
+      "file": "src/index.ts",
+      "count": 2542
+    },
+    {
+      "file": "src/node_core.ts",
+      "count": 37
+    },
+    {
+      "file": "src/chain/seg_store.ts",
+      "count": 28
+    },
+    {
+      "file": "src/cli.ts",
+      "count": 20
+    },
+    {
+      "file": "src/http/datanet_routes.ts",
+      "count": 20
+    },
+    {
+      "file": "src/chain/block.ts",
+      "count": 13
+    },
+    {
+      "file": "src/diag/fs_autoclose_guard_v1.ts",
+      "count": 11
+    },
+    {
+      "file": "src/http/participant_wallet_native_v1.ts",
+      "count": 11
+    },
+    {
+      "file": "src/diag/fs_autoclose_guard_v2.ts",
+      "count": 10
+    },
+    {
+      "file": "scripts/check_store.ts",
+      "count": 8
+    },
+    {
+      "file": "src/local-multibox-runtime-route-v1.ts",
+      "count": 7
+    },
+    {
+      "file": "src/dev/dev_safe_bundle.ts",
+      "count": 6
+    },
+    {
+      "file": "scripts/follower_once.ts",
+      "count": 5
+    },
+    {
+      "file": "src/chain/auto_repair.ts",
+      "count": 5
+    },
+    {
+      "file": "src/bootstrap/proto_scrub.ts",
+      "count": 4
+    },
+    {
+      "file": "src/chain/receipts.ts",
+      "count": 4
+    },
+    {
+      "file": "src/diag-identify.ts",
+      "count": 4
+    },
+    {
+      "file": "src/http/routes/index_kidx_extras.ts",
+      "count": 4
+    },
+    {
+      "file": "src/http/workcredits-devnet.ts",
+      "count": 4
+    },
+    {
+      "file": "src/receipts.ts",
+      "count": 4
+    },
+    {
+      "file": "scripts/dev_proposer_merge.ts",
+      "count": 3
+    },
+    {
+      "file": "scripts/prove_peer_import_side_effect_write_error_visibility_preflight.ts",
+      "count": 3
+    },
+    {
+      "file": "src/http/follower_routes.ts",
+      "count": 3
+    },
+    {
+      "file": "src/http/p2p_routes.ts",
+      "count": 3
+    },
+    {
+      "file": "src/http/tx_routes.ts",
+      "count": 3
+    },
+    {
+      "file": "scripts/prove_block_proposer_authority_allowlist_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_block_signature_authority_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_block_signature_cryptographic_verification_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_canonical_chain_epoch_root_commitment_source_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_chain_derived_validator_epoch_root_source_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_live_canonical_chain_state_epoch_root_source_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_live_canonical_chain_state_finality_api_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_peer_block_import_validation_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_peer_import_side_effect_write_error_visibility_closure.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_signed_validator_runtime_truth_manifest_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_silent_catch_zero_terminal_final_seal.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_validator_runtime_truth_epoch_root_binding_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "scripts/prove_validator_runtime_truth_proposer_binding_boundary.ts",
+      "count": 2
+    },
+    {
+      "file": "src/chain/txindex.ts",
+      "count": 2
+    },
+    {
+      "file": "src/http/blocks_extras.ts",
+      "count": 2
+    }
+  ],
+  "findings": [
+    {
+      "id": "repo-catch-inventory-baseline",
+      "status": "PASS",
+      "detail": "repo catch context count=2826, expected=2826"
+    },
+    {
+      "id": "node-core-catch-context-baseline",
+      "status": "PASS",
+      "detail": "src/node_core.ts catch context count=37, expected=37"
+    },
+    {
+      "id": "node-core-literal-empty-catch-zero",
+      "status": "PASS",
+      "detail": "src/node_core.ts literal empty catch count=0, expected=0"
+    },
+    {
+      "id": "repo-wide-literal-empty-catch-pressure-recorded",
+      "status": "PASS",
+      "detail": "repo literal empty catch count=1356, expected>0 as bounded future cleanup inventory"
+    },
+    {
+      "id": "catch-inventory-baseline-src/index.ts",
+      "status": "PASS",
+      "detail": "src/index.ts catch context count=2542, expected=2542"
+    },
+    {
+      "id": "catch-inventory-baseline-src/node_core.ts",
+      "status": "PASS",
+      "detail": "src/node_core.ts catch context count=37, expected=37"
+    },
+    {
+      "id": "catch-inventory-baseline-src/chain/seg_store.ts",
+      "status": "PASS",
+      "detail": "src/chain/seg_store.ts catch context count=28, expected=28"
+    },
+    {
+      "id": "catch-inventory-baseline-src/http/datanet_routes.ts",
+      "status": "PASS",
+      "detail": "src/http/datanet_routes.ts catch context count=20, expected=20"
+    },
+    {
+      "id": "catch-inventory-baseline-src/cli.ts",
+      "status": "PASS",
+      "detail": "src/cli.ts catch context count=20, expected=20"
+    },
+    {
+      "id": "node-core-visibility-marker-VOID_PEER_IMPORT_SIDE_EFFECT_WRITE_FAILURE_VISIBLE",
+      "status": "PASS",
+      "detail": "marker present"
+    },
+    {
+      "id": "node-core-visibility-marker-VOID_MEMPOOL_BEST_EFFORT_FAILURE_VISIBLE",
+      "status": "PASS",
+      "detail": "marker present"
+    },
+    {
+      "id": "node-core-visibility-marker-VOID_PEER_HEAD_PROBE_BEST_EFFORT_FAILURE_VISIBLE",
+      "status": "PASS",
+      "detail": "marker present"
+    },
+    {
+      "id": "node-core-visibility-marker-VOID_IMPORT_HEAD_ADVANCE_BEST_EFFORT_FAILURE_VISIBLE",
+      "status": "PASS",
+      "detail": "marker present"
+    },
+    {
+      "id": "node-core-visibility-marker-VOID_REMAINING_RUNTIME_BEST_EFFORT_FAILURE_VISIBLE",
+      "status": "PASS",
+      "detail": "marker present"
+    },
+    {
+      "id": "proof-present-scripts/prove_silent_catch_zero_terminal_final_seal.ts",
+      "status": "PASS",
+      "detail": "proof present"
+    },
+    {
+      "id": "proof-present-scripts/prove_remaining_runtime_best_effort_silent_catch_visibility.ts",
+      "status": "PASS",
+      "detail": "proof present"
+    },
+    {
+      "id": "proof-present-scripts/prove_silent_catch_classification_registry.ts",
+      "status": "PASS",
+      "detail": "proof present"
+    },
+    {
+      "id": "proof-present-scripts/prove_peer_import_side_effect_write_error_visibility_preflight.ts",
+      "status": "PASS",
+      "detail": "proof present"
+    },
+    {
+      "id": "proof-present-scripts/prove_peer_import_side_effect_write_error_visibility_closure.ts",
+      "status": "PASS",
+      "detail": "proof present"
+    }
+  ],
+  "scope_note": "This guard is intentionally bounded: it freezes the core node_core zero-empty-catch and visible-failure boundary while recording repo-wide catch pressure for later bounded cleanup lanes."
+}
