@@ -9161,7 +9161,7 @@ if (
                 if (n.proposer && typeof n.proposer.tickNow === "function") n.proposer.tickNow();
                 else if (typeof n.tickNow === "function") n.tickNow();
                 else if (typeof n.wake === "function") n.wake();
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9164:1", err); }
               console.log(`[pq] mirrored ${toCopy} tx -> node.txQueue (total ${movedTotalPQ}, q=${pq.length})`);
             }
           }
@@ -9257,7 +9257,7 @@ if (
             try {
               const moved = pourQueueIntoMempool(n, 2000);
               if (moved > 0) console.log(`[hook] pre-${root? root+'.':''}${name}: poured ${moved} tx -> mempool (mp≈${getMP(n)?.size?.()})`);
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9260:2", err); }
             return orig(...args);
           };
           host[name].__void_hooked = true;
@@ -9346,9 +9346,9 @@ if (
         for (const k of cands){
           const f = (n && typeof n[k]==="function") ? n[k]
                   : (n?.proposer && typeof n.proposer[k]==="function") ? n.proposer[k] : null;
-          if (f){ try { f.call(n?.proposer ?? n); } catch {} break; }
+          if (f){ try { f.call(n?.proposer ?? n); } catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9349:3", err); } break; }
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9351:4", err); }
     }
 
     // Keep node.pendingTxs pointing at mempool.txs so the internal proposer sees them
@@ -9383,7 +9383,7 @@ if (
           // 3) Nudge proposer once in a while to pick up fresh pending
           if ((ticks % 8) === 0) nudge(n);
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9386:5", err); }
       finally { ticks++; setTimeout(loop, 250); }
     })();
 
@@ -9428,7 +9428,7 @@ if (
     // nothing to "patch" in-place safely; this is just a guard so future shims that
     // rely on nudge() keep working even if the earlier append had a stray shell fragment.
     console.log("[shim] nudge guard installed");
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9431:6", err); }
 })();
 // -------------------------------------------------------------------------------
 
@@ -9483,7 +9483,7 @@ if (
               console.log(`[tx-inject] injected ${moved.length} tx via ${key}() return wrapper`);
             }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9486:7", err); }
         return b;
       };
       n[key].__void_wrapped = true;
@@ -9503,7 +9503,7 @@ if (
         // pre: try a draft target
         let draft:any = n?._nextBlockDraft ?? null;
         if (!draft && typeof n.buildDraft === "function"){
-          try { draft = await n.buildDraft(); } catch {}
+          try { draft = await n.buildDraft(); } catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9506:8", err); }
           if (draft) n._nextBlockDraft = draft;
         }
         if (draft && Array.isArray(draft.txs) && draft.txs.length === 0){
@@ -9617,7 +9617,7 @@ if (
               console.log(`[tx-inject/store] injected ${moved.length} tx(s) into block #${block?.number ?? "?"}`);
             }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9620:9", err); }
         return await orig(block);
       };
       (n.store.append as any).__void_wrapped = true;
@@ -9678,7 +9678,7 @@ if (
               const src = ((s as any)[k]).toString();
               sig = src.split("\\n")[0].slice(0, 160);
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9681:10", err); }
           return { name:k, type:t, sig };
         });
         res.json({
@@ -9701,7 +9701,7 @@ if (
 
       console.log("[diag] attached /store/diag and /node/diag");
     })();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9704:11", err); }
 })();
 // -------------------------------------------------------------------------------
 
@@ -9769,7 +9769,7 @@ if (
                   }
                 }
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9772:12", err); }
             return await orig(...args);
           };
           (s[name] as any).__void_wrapped = true;
@@ -9836,8 +9836,8 @@ if (
             state.last = { number: (b?.number ?? null), txsLen, when: Date.now() };
             state.count++;
             console.log(`[seal-tap] sealed #${b?.number ?? "?"} txs=${txsLen}`);
-          }catch{}
-          try{ return typeof prev === "function" ? prev.call(n, b) : undefined; }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9839:13", err); }
+          try{ return typeof prev === "function" ? prev.call(n, b) : undefined; }catch (err) { voidIndexEmptyCatchVisibilityWindow9001_9900V1("9840:14", err); }
         };
         return true;
       }catch{ return false; }
@@ -83612,3 +83612,8 @@ function __voidIxCatch7200(s:string,e:unknown):void{const m=e instanceof Error?e
 function __voidIxCatch8100(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_7201_8100_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"7201-8100",scope:s,message:m});}
 
 function __voidIxCatch9000(s:string,e:unknown):void{const m=e instanceof Error?e.message:String(e);console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_8101_9000_V1_FAILURE_VISIBLE",{file:"src/index.ts",window:"8101-9000",scope:s,message:m});}
+
+
+function voidIndexEmptyCatchVisibilityWindow9001_9900V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_9001_9900_V1_VISIBLE", context, err);
+}
