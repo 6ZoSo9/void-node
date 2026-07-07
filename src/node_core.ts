@@ -15,6 +15,16 @@ import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
 
+function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_PEER_IMPORT_SIDE_EFFECT_WRITE_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
+
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
   privateKey: crypto.KeyObject;
@@ -696,11 +706,15 @@ export class Node {
       try {
         const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));
         this.txIndex.putMany(refs);
-      } catch {}
+      } catch (err) {
+        recordSideEffectWriteFailure("local-production-tx-index", err, { blockNumber: b.number, txCount: b.txs?.length ?? 0 });
+      }
       try {
         const shard = this.txIndex.shardForBlock(b.number);
         await buildKidxForJsonl(shard.path);
-      } catch {}
+      } catch (err) {
+        recordSideEffectWriteFailure("local-production-kidx", err, { blockNumber: b.number, txCount: b.txs?.length ?? 0 });
+      }
       try {
         const anyReceipts: any = this.receipts as any;
         const recs = b.txs.map((tx, i) => ({
@@ -714,7 +728,9 @@ export class Node {
         } else if (typeof anyReceipts.append === "function") {
           for (const r of recs) await anyReceipts.append(r);
         }
-      } catch {}
+      } catch (err) {
+        recordSideEffectWriteFailure("local-production-receipts", err, { blockNumber: b.number, txCount: b.txs?.length ?? 0 });
+      }
     }
 
     this.publishJson("void/block", {
@@ -895,7 +911,9 @@ export class Node {
           try {
             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
             this.txIndex.putMany(refs);
-          } catch {}
+          } catch (err) {
+            recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
+          }
           try {
             const anyReceipts: any = this.receipts as any;
             const recs = b.txs.map((tx: any, i: number) => ({
@@ -906,7 +924,9 @@ export class Node {
             }));
             if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
             else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
-          } catch {}
+          } catch (err) {
+            recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
+          }
         }
 
         hooks?.onImportBlock?.(b);
@@ -943,7 +963,9 @@ export class Node {
         try {
           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
           this.txIndex.putMany(refs);
-        } catch {}
+        } catch (err) {
+          recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
+        }
         try {
           const anyReceipts: any = this.receipts as any;
           const recs = b.txs.map((tx: any, i: number) => ({
@@ -954,7 +976,9 @@ export class Node {
           }));
           if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
           else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
-        } catch {}
+        } catch (err) {
+          recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
+        }
 
         hooks?.onImportBlock?.(b);
         continue;
