@@ -30645,7 +30645,7 @@ try {
       if (__void_truth2_state.tries > 200) clearInterval(__void_truth2_timer);
     }
   }, 250);
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("30648:1", err); }
 /* __VOID_PERSISTED_TRUTH_ENDPOINTS v2 DELAYED END */
 
 
@@ -30767,7 +30767,7 @@ try {
     try {
       const st = app && app._router && Array.isArray(app._router.stack) ? app._router.stack : null;
       if (st && st.length) st.unshift(st.pop());
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("30770:2", err); }
 
     app.get("/__void/diag/persisted_override.json", (_req: any, res: any) => {
       res.json({ ok: true, installed: true, tries: __void_persisted_override.tries, hits: __void_persisted_override.hits, last_err: __void_persisted_override.last_err || null });
@@ -30793,7 +30793,7 @@ try {
       if (__void_persisted_override.tries > 200) clearInterval(__void_persisted_override_timer);
     }
   }, 250);
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("30796:3", err); }
 /* __VOID_PERSISTED_ROUTE_OVERRIDE v1 END */
 
 
@@ -30933,7 +30933,7 @@ try {
     repin();
     // keep it pinned for a bit in case other code attaches routes after boot
     const pinTimer = setInterval(repin, 500);
-    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("30936:4", err); } }, 60_000);
 
     app.get("/__void/diag/persisted_override2.json", (_req: any, res: any) => {
       res.json({ ok: true, installed: true, tries: __void_po2.tries, hits: __void_po2.hits, pins: __void_po2.pins, last_pin_idx: __void_po2.last_pin_idx, last_err: __void_po2.last_err || null });
@@ -30959,7 +30959,7 @@ try {
       if (__void_po2.tries > 200) clearInterval(__void_po2_timer);
     }
   }, 250);
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("30962:5", err); }
 /* __VOID_PERSISTED_ROUTE_OVERRIDE v2 END */
 
 
@@ -31119,7 +31119,7 @@ try {
 
     repin();
     const pinTimer = setInterval(repin, 500);
-    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31122:6", err); } }, 60_000);
 
     app.get("/__void/diag/persisted_override3.json", (_req: any, res: any) => {
       res.json({
@@ -31159,7 +31159,7 @@ try {
       if (__void_po3.tries > 200) clearInterval(__void_po3_timer);
     }
   }, 250);
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31162:7", err); }
 /* __VOID_PERSISTED_ROUTE_OVERRIDE v3 END */
 
 
@@ -31185,14 +31185,14 @@ try {
 
   function __void_send_json4(res: any, code: number, obj: any) {
     const body = JSON.stringify(obj);
-    try { res.statusCode = code; } catch {}
-    try { if (typeof res.setHeader === "function") res.setHeader("Content-Type", "application/json"); } catch {}
-    try { if (typeof res.setHeader === "function") res.setHeader("Cache-Control", "no-store"); } catch {}
+    try { res.statusCode = code; } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31188:8", err); }
+    try { if (typeof res.setHeader === "function") res.setHeader("Content-Type", "application/json"); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31189:9", err); }
+    try { if (typeof res.setHeader === "function") res.setHeader("Cache-Control", "no-store"); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31190:10", err); }
     try {
       if (typeof res.end === "function") return res.end(body);
       // worst-case fallback:
       if (typeof res.send === "function") return res.send(body);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31195:11", err); }
   }
 
   function __void_seg_base4(n: number): number { return Math.floor(n / 10000) * 10000; }
@@ -31363,7 +31363,7 @@ try {
 
     repin();
     const pinTimer = setInterval(repin, 500);
-    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31366:12", err); } }, 60_000);
 
     __void_po4.installed = true;
   }
@@ -31385,7 +31385,7 @@ try {
       if (__void_po4.tries > 200) clearInterval(__void_po4_timer);
     }
   }, 250);
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31388:13", err); }
 /* __VOID_PERSISTED_ROUTE_OVERRIDE v4 END */
 
 
@@ -31447,11 +31447,11 @@ try {
     doTick().catch(()=>{});
     STATE.timer = setInterval(() => { doTick().catch(()=>{}); }, STATE.ms);
     // don't keep process alive just for this timer
-    try { (STATE.timer as any).unref?.(); } catch {}
+    try { (STATE.timer as any).unref?.(); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31450:14", err); }
   }
 
   function stop(){
-    try { if (STATE.timer) clearInterval(STATE.timer); } catch {}
+    try { if (STATE.timer) clearInterval(STATE.timer); } catch (err) { voidIndexEmptyCatchVisibilityWindow30601_31500V1("31454:15", err); }
     STATE.timer = null;
     STATE.enabled = false;
   }
@@ -83731,4 +83731,9 @@ function voidIndexEmptyCatchVisibilityWindow28801_29700V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow29701_30600V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_29701_30600_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow30601_31500V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_30601_31500_V1_VISIBLE", context, err);
 }
