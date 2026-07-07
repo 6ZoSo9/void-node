@@ -20758,7 +20758,7 @@ void_header3_last_mismatch ${lastMismatch}
         const url = "http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/proposer/auto/mark?enabled=1&ms=" + (Number.isFinite(ms)? ms : 2000);
         await fetch(url, { method:"POST" });
         rescues++;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("20761:1", err); }
     }
   }
 
@@ -20793,7 +20793,7 @@ void_header3_last_mismatch ${lastMismatch}
   const TICK = 400;
   const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   const GUARD = "__void_txroot_noop_setter_v3c";
-  function getSegStore(){ try { return (globalThis as any).SegStore || require?.("./chain/seg_store.js").SegStore; } catch{} }
+  function getSegStore(){ try { return (globalThis as any).SegStore || require?.("./chain/seg_store.js").SegStore; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("20796:2", err); } }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
   let metrics = {
@@ -21156,10 +21156,10 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUAR
           shared.source = "noop-setter-v3g";
         }
       } catch (e) {
-        try { (globalThis as any).__void_txroot_noop_metrics.errors_total++; } catch{}
+        try { (globalThis as any).__void_txroot_noop_metrics.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21159:3", err); }
       }
       try { return await orig.apply(this, args); }
-      finally { try { (globalThis as any).__void_txroot_noop_metrics.heartbeat++; } catch{} }
+      finally { try { (globalThis as any).__void_txroot_noop_metrics.heartbeat++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21162:4", err); } }
     };
 
     // Prom exporter (reuses existing path if mounted)
@@ -21249,13 +21249,13 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1") (function noopSetterV3h
         shared.debug_last_number = (typeof n==="number"?n:-1);
         shared.debug_last_pre_count = (typeof preCnt==="number"?preCnt:-2);
       } catch(e) {
-        try { shared.errors_total++; } catch {}
+        try { shared.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21252:5", err); }
       }
 
       let ret:any;
       try { ret = await orig.apply(this, args); }
-      catch(e){ try { shared.errors_total++; } catch{}; throw e; }
-      finally { try { shared.heartbeat++; } catch{} }
+      catch(e){ try { shared.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21257:6", err); }; throw e; }
+      finally { try { shared.heartbeat++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21258:7", err); } }
 
       try {
         // Prefer pre-save if explicitly 0; otherwise try post-save header view
@@ -21272,7 +21272,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1") (function noopSetterV3h
           if (n >= 0) shared.last_set_block = n;
           shared.source = "noop-setter-v3h";
         }
-      } catch(e) { try { shared.errors_total++; } catch{} }
+      } catch(e) { try { shared.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow20701_21600V1("21275:8", err); } }
 
       return ret;
     };
@@ -83676,4 +83676,9 @@ function voidIndexEmptyCatchVisibilityWindow18901_19800V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow19801_20700V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_19801_20700_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow20701_21600V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_20701_21600_V1_VISIBLE", context, err);
 }
