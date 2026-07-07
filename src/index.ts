@@ -14398,7 +14398,7 @@ void_head_v2_poll_slow_total ${slowt}
 
   function norm(x:any){ if (x==null) return null; return String(x).toLowerCase().replace(/^0x/,""); }
 
-  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch {} }, 2000);
+  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14401:1", err); } }, 2000);
 
   let lastChecked = -1;
   async function tick(){
@@ -14438,7 +14438,7 @@ void_head_v2_poll_slow_total ${slowt}
           return;
         }
       }
-    }catch{ try { g.__void_txroot_setter.errors_total++; } catch {} }
+    }catch{ try { g.__void_txroot_setter.errors_total++; } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14441:2", err); } }
   }
   setInterval(tick, 1000);
 })();
@@ -14462,7 +14462,7 @@ void_head_v2_poll_slow_total ${slowt}
     ];
 
     appAny.use(blocked, (_req:any, res:any)=> res.status(404).end());
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14465:3", err); }
 })();
 // --- SEALS_V3_BOOTSAFE_BEGIN ---
 // Boot-safe seals exporter (head-derived, no dev shims). Idempotent re-mount.
@@ -14505,7 +14505,7 @@ void_head_v2_poll_slow_total ${slowt}
           if (Number.isFinite(nnum)) return nnum;
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14508:4", err); }
 
     // Fallback: local HTTP (/blocks/latest/number) or /head.txt
     const port = (process.env.HTTP_PORT || "4100").trim();
@@ -14705,7 +14705,7 @@ void_seal_rate_1m ${rate1m()}
         const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
         if (Number.isFinite(v)) return v;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14708:5", err); }
 
     // 2) Lightweight local HTTP: /head.txt -> /blocks/latest/number
     const port = (process.env.HTTP_PORT || "4100").trim();
@@ -14778,7 +14778,7 @@ void_seal_rate_1m ${rate1m()}
         const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
         if (Number.isFinite(v)) return v;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14781:6", err); }
     try {
       const port = (process.env.HTTP_PORT || "4100").trim();
       const tryNum = async (u:string) => {
@@ -15030,7 +15030,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUAR
       const t = await httpText(`${BASE}/head.txt`);
       const n = parseInt(t.trim(), 10);
       if (Number.isFinite(n)) return n;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("15033:7", err); }
     const t2 = await httpText(`${BASE}/blocks/latest/number`);
     const n2 = parseInt(t2.trim(), 10);
     if (!Number.isFinite(n2)) throw new Error(`bad latest number: ${t2}`);
@@ -15148,7 +15148,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
       if (mod && typeof (mod as any).computeTxRoot === 'function') {
         return (mod as any).computeTxRoot(block?.txs ?? []);
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("15151:8", err); }
     // Fallback: hash JSON of each tx (stable stringify) → sha256 → merkle(sha256 hex)
     const txs = Array.isArray(block?.txs) ? block.txs : [];
     const leaves = txs.map(tx => sha256Hex(JSON.stringify(tx)));
@@ -15186,7 +15186,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
     if (installed) return;
     // Try to find SegStore and patch the prototype method
     let SegStoreMod:any = null;
-    try { SegStoreMod = await import('./chain/seg_store.js'); } catch {}
+    try { SegStoreMod = await import('./chain/seg_store.js'); } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("15189:9", err); }
     const SegStoreCtor:any = SegStoreMod?.SegStore;
     if (!SegStoreCtor || !SegStoreCtor.prototype || typeof SegStoreCtor.prototype.saveBlock !== "function") {
       setTimeout(install, 500); // retry until code is warm
@@ -83641,4 +83641,9 @@ function voidIndexEmptyCatchVisibilityWindow12601_13500V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow13501_14400V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_13501_14400_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow14401_15300V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_14401_15300_V1_VISIBLE", context, err);
 }
