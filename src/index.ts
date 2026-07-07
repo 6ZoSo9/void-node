@@ -21762,7 +21762,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUAR
 
     const orig = proto.saveBlock;
     proto.saveBlock = async function(...args:any[]){
-      try{ bumpShape(args); }catch{}
+      try{ bumpShape(args); }catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("21765:1", err); }
       return await orig.apply(this, args as any);
     };
 
@@ -21960,14 +21960,14 @@ if (process.env.VOID_TXROOT_FORENSICS_STICKY_DISABLE !== "1") if (process.env.VO
           const __wrappedInner:any = function wrapped(...args:any[]) {
             return __origInner.apply(this, args as any);
           };
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("21963:2", err); }
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("21964:3", err); }
           (__fn as any).__void_sticky_setInner(__wrappedInner);
         }
       }
       return __fn;
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("21970:4", err); }
 
 
     if (typeof fn !== 'function') return fn;
@@ -22057,7 +22057,7 @@ try {
           }
         }
       }
-    } catch(_e){}
+    } catch (_e) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22060:5", _e); }
     setTimeout(stickify, TICK);
   }
   stickify();
@@ -22097,14 +22097,14 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE
           const __wrappedInner:any = function wrapped(...args:any[]) {
             return __origInner.apply(this, args as any);
           };
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
-          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22100:6", err); }
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22101:7", err); }
           (__fn as any).__void_sticky_setInner(__wrappedInner);
         }
       }
       return __fn;
     }
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22107:8", err); }
 
 
     if (typeof fn !== 'function') return fn;
@@ -22173,7 +22173,7 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE
         g.SegStore = mod.SegStore; // cache globally for others
         return mod.SegStore.prototype;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22176:9", err); }
     return null;
   }
 
@@ -22191,7 +22191,7 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE
       try {
         const v = (g as any)[k];
         if (v && v.store && typeof v.store.saveBlock === 'function') return v;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22194:10", err); }
     }
     return null;
   }
@@ -22223,7 +22223,7 @@ try {
         node.store.saveBlock = wrapOnce(node.store.saveBlock);
         // console.log('[txroot/forensics/sticky-v2] bound node.store.saveBlock');
       }
-    } catch (_e) {}
+    } catch (_e) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22226:11", _e); }
     setTimeout(tick, TICK);
   }
   tick();
@@ -22263,7 +22263,7 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE
       const nm = String((fn as any)?.name || "");
       if (nm.includes("saveBlockFinalV2") || nm.includes("saveBlockFinalV2b")) return fn;
       if ((fn as any).__void_sticky_saveBlock || (fn as any).__void_saveblock_finalized_v1) return fn;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow21601_22500V1("22266:12", err); }
     const wrapped = function(this:any, ...args:any[]){
       const t0 = Date.now();
       forensic.calls_total++;
@@ -83681,4 +83681,9 @@ function voidIndexEmptyCatchVisibilityWindow19801_20700V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow20701_21600V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_20701_21600_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow21601_22500V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_21601_22500_V1_VISIBLE", context, err);
 }
