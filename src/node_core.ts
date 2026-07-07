@@ -42,6 +42,15 @@ function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<st
   });
 }
 
+function recordImportHeadAdvanceBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("VOID_IMPORT_HEAD_ADVANCE_BEST_EFFORT_FAILURE_VISIBLE", {
+    scope,
+    message,
+    ...meta,
+  });
+}
+
 
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
@@ -864,7 +873,9 @@ export class Node {
           st.persistHeadAtomic(n);
           return;
         }
-      } catch {}
+      } catch (err) {
+        recordImportHeadAdvanceBestEffortFailure("persist-head-atomic", err, { head: n });
+      }
       try {
         const fs = require("node:fs");
         const path = require("node:path");
@@ -875,7 +886,9 @@ export class Node {
         fs.renameSync(hj + ".tmp", hj);
         fs.writeFileSync(ht + ".tmp", String(n) + "\n");
         fs.renameSync(ht + ".tmp", ht);
-      } catch {}
+      } catch (err) {
+        recordImportHeadAdvanceBestEffortFailure("persist-head-filesystem", err, { head: n });
+      }
     };
 
     const advanceContiguousHead = (startHead: number, maxSeen: number): number => {
@@ -886,7 +899,7 @@ export class Node {
       while (h < maxN) {
         const nxt = h + 1;
         let blk: any = null;
-        try { blk = this.store.loadBlock(nxt); } catch {}
+        try { blk = this.store.loadBlock(nxt); } catch (err) { recordImportHeadAdvanceBestEffortFailure("advance-contiguous-head-load-block", err, { blockNumber: nxt }); }
         if (!blk || Number(blk?.number) !== nxt) break;
         h = nxt;
       }
@@ -896,7 +909,9 @@ export class Node {
           const st: any = this.store as any;
           if (typeof st.headNumber === "number" || st.headNumber == null) st.headNumber = h;
           if (typeof st.latestNumber === "number" || st.latestNumber == null) st.latestNumber = h;
-        } catch {}
+        } catch (err) {
+          recordImportHeadAdvanceBestEffortFailure("advance-contiguous-head-memory", err, { head: h, startHead, maxSeen: maxN });
+        }
       }
       return h;
     };

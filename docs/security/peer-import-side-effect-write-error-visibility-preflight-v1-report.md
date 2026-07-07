@@ -4,9 +4,9 @@
 - status: STATIC_PREFLIGHT_WARNINGS
 - blocker_failures: none
 - warning_failures: side-effect-silent-catch-sites-discovered, import-side-effect-silent-catch-sites-discovered
-- node_core_sha256: 3e6dc07cf9100106f6e8be5d62dc3aebc7429126c1d41138dc452c5f4170644a
+- node_core_sha256: 2435c260eb28d03f36ddb55dd98e782ebf9231a303dcf57f706f1581012bed9b
 - block_source_sha256: ba2c4bfd1f0fc16e2ca3fc11a788a78cd8f70882e5fe9c926e978c0f7c3fdc9f
-- silent_catch_count: 7
+- silent_catch_count: 3
 - side_effect_silent_catch_count: 0
 - import_side_effect_silent_catch_count: 0
 - local_production_side_effect_silent_catch_count: 0
@@ -17,7 +17,7 @@
 - [PASS] block-source-present (blocker): src/chain/block.ts readable
 - [PASS] validateBlockForAppend-exported (blocker): validateBlockForAppend export visible in src/chain/block.ts
 - [PASS] node-core-references-validateBlockForAppend (blocker): src/node_core.ts references validateBlockForAppend
-- [PASS] silent-catch-sites-discovered (info): catch {} matches=7
+- [PASS] silent-catch-sites-discovered (info): catch {} matches=3
 - [FAIL] side-effect-silent-catch-sites-discovered (warn): txIndex/receipts/kidx catch contexts=0
 - [FAIL] import-side-effect-silent-catch-sites-discovered (warn): import side-effect catch contexts=0
 - [FAIL] local-production-side-effect-silent-catch-sites-discovered (info): local production side-effect catch contexts=0
