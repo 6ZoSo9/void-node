@@ -26121,7 +26121,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
           }
           lastNum=n; lastTxs=txsLen; lastEmpty = txsLen===0 ? 1 : 0;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26124:1", err); }
       setTimeout(tick,TICK);
     }
     tick();
@@ -26327,7 +26327,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
       };
       (console?.log||(()=>{}))('[shim] SafeCryptoShim_NoRecurse installed');
     }
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26330:2", err); }
 })();
 // ---- ExposeNodeV1 (bind real node/store; tiny Prom + snapshot) ----
 (function ExposeNodeV1(){
@@ -26342,7 +26342,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         const s = n.store || (n.segStore || (n.SegStore && n.SegStore.instance));
         if (s) (globalThis as any).__void_store = s;
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26345:3", err); }
     setTimeout(tick, TICK);
   }
   tick();
@@ -26396,7 +26396,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
           const s = inst.store || inst.segStore || (inst.SegStore && inst.SegStore.instance);
           if (s) (globalThis).__void_store = s;
           (console?.log||(()=>{}))('[nodelatch] captured node+store');
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26399:4", err); }
         return inst;
       }
       Object.setPrototypeOf(WrappedNode, Orig);
@@ -26518,7 +26518,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
       if (block && block.header && typeof block.header.number === "number") return block.header.number;
       const h = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
       if (typeof h === "number") return h;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26521:5", err); }
     return -1;
   };
   (console?.log||(()=>{}))('[helper] getBlockNumberV1 ready');
@@ -26543,7 +26543,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
     s.saveBlock = async function(block:any, ...rest:any[]){
       // call through first so any earlier injectors still work; then capture
       const out = await cur(block, ...rest);
-      try { S.last_seen_block = typeof getN === "function" ? getN(block, n) : (block?.number ?? block?.header?.number ?? S.last_seen_block); } catch{}
+      try { S.last_seen_block = typeof getN === "function" ? getN(block, n) : (block?.number ?? block?.header?.number ?? S.last_seen_block); } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26546:6", err); }
       return out;
     };
     Object.defineProperty(s, "__void_lastmile_v123b_tuned", { value:true });
@@ -26596,15 +26596,15 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
 
     s.saveBlock = async function(block:any, ...rest:any[]){
       const t0 = Date.now();
-      try { MET.calls++; } catch{}
+      try { MET.calls++; } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26599:7", err); }
       try {
         const num = typeof getN === "function" ? getN(block, n) :
                     (typeof block?.number==="number" ? block.number :
                      (typeof block?.header?.number==="number" ? block.header.number : -1));
         MET.last_num = num;
-      } catch{}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26605:8", err); }
       const out = await orig(block, ...rest);
-      try { MET.last_ms = Math.max(0, Date.now()-t0); } catch{}
+      try { MET.last_ms = Math.max(0, Date.now()-t0); } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26607:9", err); }
       return out;
     };
     if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (console?.log||(()=>{}))('[forensics.v7b] instance tracer installed');
@@ -26628,7 +26628,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function HeadNumberP
       if (typeof nh === "number") return nh;
       const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
       if (typeof sm === "number") return sm;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26631:10", err); }
     return -1;
   }
 
@@ -26643,7 +26643,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function HeadNumberP
       try{
         const num = pick(block, n, s);
         if (num >= 0) (globalThis as any).__void_last_head_guess = num;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26646:11", err); }
       return out;
     };
     (console?.log||(()=>{}))('[head-probe] instance tracer installed');
@@ -26693,7 +26693,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function HeadNumberP
           if (typeof g === "number" && g >= 0) num = g;
         }
         if (num >= 0) S.last_seen_block = num;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26696:12", err); }
       return out;
     };
     (console?.log||(()=>{}))('[lastmile.v123b] now uses head-probe fallback');
@@ -26727,7 +26727,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       if (typeof nh === "number") return nh;
       const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
       if (typeof sm === "number") return sm;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26730:13", err); }
     return -1;
   }
 
@@ -26804,7 +26804,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           (globalThis as any).__void_last_head_guess = num; // keep the global in sync too
         }
         S.last_ms = Math.max(0, Date.now() - t0);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26807:14", err); }
       return out;
     };
     (s as any).__void_chain_latch_wrapped = s.saveBlock;
@@ -26815,7 +26815,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
 
     function healLoop(){
     let ok = false;
-    try { ok = !!bindOnce(); } catch {}
+    try { ok = !!bindOnce(); } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26818:15", err); }
     if (!ok) setTimeout(healLoop, TICK);
   }
 
@@ -26840,7 +26840,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       if (block?.header && typeof block.header.number === "number") return block.header.number;
       if (n?.heads && typeof n.heads.head === "number") return n.heads.head;
       if (s?.meta && typeof s.meta.head === "number") return s.meta.head;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26843:16", err); }
     return -1;
   }
 
@@ -26930,10 +26930,10 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           try{
             const n2 = pickNumberNow(block, node(), store());
             if (n2 >= 0) (S.last_number = n2, (globalThis as any).__void_last_head_guess = n2);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26933:17", err); }
         });
         S.last_ms = Math.max(0, Date.now() - t0);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26936:18", err); }
       return out;
     };
     (s as any).__void_chain_latch_wrapped_v11 = s.saveBlock;
@@ -26944,7 +26944,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
 
     function heal(){
     let ok = false;
-    try { ok = !!bindOuterMost(); } catch {}
+    try { ok = !!bindOuterMost(); } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26947:19", err); }
     if (!ok) setTimeout(heal, TICK);
   }
 
@@ -26958,7 +26958,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
 // [disabled-dupe-maininvoke]     // @ts-ignore
 // [disabled-dupe-maininvoke]     await __main__();
 // [disabled-dupe-maininvoke]   } catch (e: any) {
-// [disabled-dupe-maininvoke]     try { console.error("[void-node] fatal", e?.stack || e); } catch {}
+// [disabled-dupe-maininvoke]     try { console.error("[void-node] fatal", e?.stack || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26961:20", err); }
 // [disabled-dupe-maininvoke]     process.exitCode = 1;
 // [disabled-dupe-maininvoke]   }
 // [disabled-dupe-maininvoke] })();
@@ -26977,7 +26977,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
       try{
         const n = (G.__void_node || G.__voidNode || G.node || null);
         if (n && (n.store || n._store)) return (n.store || n._store);
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow26101_27000V1("26980:21", err); }
       return null;
     }
 
@@ -83706,4 +83706,9 @@ function voidIndexEmptyCatchVisibilityWindow24301_25200V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow25201_26100V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_25201_26100_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow26101_27000V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_26101_27000_V1_VISIBLE", context, err);
 }
