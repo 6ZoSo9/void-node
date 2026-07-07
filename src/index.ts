@@ -28845,7 +28845,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       if (Array.isArray(q) && q.length){
         while (out.length < max && q.length) out.push(q.shift());
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("28848:1", err); }
 
     // mempool.jsonl
     try {
@@ -28856,10 +28856,10 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         const txt = fs.readFileSync(p, "utf8");
         const lines = txt.split("\\n").filter(Boolean);
         for (let i=0; i<lines.length && out.length<max; i++){
-          try { const j = JSON.parse(lines[i]); if (j && typeof j === "object") out.push(j); } catch {}
+          try { const j = JSON.parse(lines[i]); if (j && typeof j === "object") out.push(j); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("28859:2", err); }
         }
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("28862:3", err); }
 
     return out;
   }
@@ -29046,8 +29046,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockIn
   function getApp(){ return G.__void_http_app || G.app; }
   function pickNode(){
     const cands:any[] = [];
-    try { if (G.__void_node) cands.push({tag:"__void_node", node:G.__void_node}); } catch {}
-    try { if (G.node) cands.push({tag:"node", node:G.node}); } catch {}
+    try { if (G.__void_node) cands.push({tag:"__void_node", node:G.__void_node}); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29049:4", err); }
+    try { if (G.node) cands.push({tag:"node", node:G.node}); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29050:5", err); }
     for (const c of cands){
       const n:any = c.node;
       if (n && n.store) return {tag:c.tag, node:n};
@@ -29110,7 +29110,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockIn
         S.after  = snapshot(store);
         return;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29113:6", err); }
 
     // capture before
     S.before = snapshot(store);
@@ -29222,7 +29222,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const j = readJson(hj);
       const n = Number(j && (j.number ?? j.n));
       if (Number.isFinite(n) && n >= 0) return { n, why:"heads.json" };
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29225:7", err); }
 
     // 2) scan segments/*/meta.json for max(to)
     try {
@@ -29237,7 +29237,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         if (Number.isFinite(to)) maxTo = Math.max(maxTo, to);
       }
       if (maxTo >= 0) return { n:maxTo, why:"segments/meta.json max(to)" };
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29240:8", err); }
 
     return { n:-1, why:"none" };
   }
@@ -29246,7 +29246,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const fs = require("node:fs");
     const path = require("node:path");
     const dir = path.dirname(p);
-    try { fs.mkdirSync(dir, { recursive:true }); } catch {}
+    try { fs.mkdirSync(dir, { recursive:true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29249:9", err); }
     const tmp = p + ".tmp." + process.pid + "." + Date.now();
     fs.writeFileSync(tmp, JSON.stringify(obj) + "\n");
     fs.renameSync(tmp, p);
@@ -29256,7 +29256,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const fs = require("node:fs");
     const path = require("node:path");
     const dir = path.dirname(p);
-    try { fs.mkdirSync(dir, { recursive:true }); } catch {}
+    try { fs.mkdirSync(dir, { recursive:true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29259:10", err); }
     const tmp = p + ".tmp." + process.pid + "." + Date.now();
     fs.writeFileSync(tmp, s);
     fs.renameSync(tmp, p);
@@ -29345,11 +29345,11 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         try {
           const j = JSON.parse(lines[i]);
           if (j && typeof j.data === "string") out.push({ data:j.data, ts:j.ts ?? Date.now(), _src:"mempool.jsonl" });
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29348:11", err); }
       }
       const keep = lines.slice(takeN);
       fs.writeFileSync(mp, keep.join("\\n") + (keep.length ? "\n" : ""));
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29352:12", err); }
     return out;
   }
 
@@ -29397,7 +29397,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
             blk.txRoot = root;
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29400:13", err); }
       try { S.last_blk_preview = JSON.stringify({number:blk.number, txs:txs.length, txRoot:String(blk?.header?.txRoot || blk?.txRoot || "")}).slice(0,200); } catch { S.last_blk_preview=""; }
 
       // commit: call saveBlockCommit if present; DO NOT call saveBlock (accessor recursion)
@@ -29517,7 +29517,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
         const n = Number(t);
         if (Number.isFinite(n) && n >= 0) return n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29520:14", err); }
 
     // 2) tolerate older heads.json shapes
     try {
@@ -29535,7 +29535,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
         const n = Number(v);
         if (Number.isFinite(n) && n >= 0) return n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29538:15", err); }
 
     return -1;
   }
@@ -29640,7 +29640,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
     String(process.env.PROPOSER_AUTO || "0") === "0"
   ) {
-    try { console.error("[void_commit_direct_autoprop_v1] disabled by env"); } catch {}
+    try { console.error("[void_commit_direct_autoprop_v1] disabled by env"); } catch (err) { voidIndexEmptyCatchVisibilityWindow28801_29700V1("29643:16", err); }
     return;
   }
   const G:any = (globalThis as any);
@@ -83721,4 +83721,9 @@ function voidIndexEmptyCatchVisibilityWindow27001_27900V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow27901_28800V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27901_28800_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow28801_29700V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_28801_29700_V1_VISIBLE", context, err);
 }
