@@ -69,8 +69,8 @@ const findings: Finding[] = [
   },
   {
     id: "remaining-silent-catch-baseline-after-peer-head-probe",
-    status: literalCatchIndexes.length === 7 ? "PASS" : "FAIL",
-    detail: `literal silent catches=${literalCatchIndexes.length}, expected=7`,
+    status: literalCatchIndexes.length <= 7 ? "PASS" : "FAIL",
+    detail: `literal silent catches=${literalCatchIndexes.length}, expected<=7`,
   },
   {
     id: "peer-head-probe-silent-catches-closed",
