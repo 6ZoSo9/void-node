@@ -106,9 +106,9 @@ const findings: Finding[] = [
     detail: `src/node_core.ts literal empty catch count=${nodeCoreLiteralEmptyCatchCount}, expected=0`,
   },
   {
-    id: "repo-wide-literal-empty-catch-pressure-recorded",
-    status: repoLiteralEmptyCatchCount > 0 ? "PASS" : "FAIL",
-    detail: `repo literal empty catch count=${repoLiteralEmptyCatchCount}, expected>0 as bounded future cleanup inventory`,
+    id: "repo-wide-literal-empty-catch-zero",
+    status: repoLiteralEmptyCatchCount === 0 ? "PASS" : "FAIL",
+    detail: `repo literal empty catch count=${repoLiteralEmptyCatchCount}, expected=0 after final empty-catch cleanup closure`,
   },
   ...Object.entries(expectedTopCounts).map(([file, expected]): Finding => {
     const actual = countByFile.get(file) ?? 0;

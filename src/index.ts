@@ -60037,7 +60037,7 @@ DATA_DIR=&quot;$PWD/data_a&quot; MAX_FILES=25 ops/mainnet0/public-node-local-dat
                 .map((name:string) => {
                   const file = path.join(localJobsDir, name);
                   let parsed:any = {};
-                  try { parsed = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+                  try { parsed = JSON.parse(fs.readFileSync(file, "utf8")); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60040:1", err); }
                   const dataset_id = String(parsed.dataset_id || name.replace(/\.txt$/, ""));
                   const who = String(parsed.who || parsed.account || "unknown");
                   const delta = String(parsed.delta || parsed.credit_delta || "10");
@@ -60050,7 +60050,7 @@ DATA_DIR=&quot;$PWD/data_a&quot; MAX_FILES=25 ops/mainnet0/public-node-local-dat
                 .sort((a:any,b:any) => Number(b.mtime_ms||0) - Number(a.mtime_ms||0))
                 .slice(0, 20);
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60053:2", err); }
           const serverProofsHtml = serverProofs.length
             ? "<h2>Recent proofs</h2>" + serverProofs.map((p:any, i:number) =>
                 "<div class='card'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_ITEM_V1 --><div class='muted'>#" + (i+1) + " · " + escProof(p.task_class) + "</div><b>" + escProof(p.dataset_id) + "</b><div><code>" + escProof(p.proof_href) + "</code></div><div class='row' style='margin-top:8px'><a class='btn' href='" + escProof(p.proof_href) + "'>Open verifier</a><button class='btn' data-copy='" + escProof(p.proof_href) + "'>Copy proof link</button><a class='btn' href='" + escProof(p.raw_href) + "'>Open raw JSON</a></div></div>"
@@ -60164,12 +60164,12 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
             "})();</script></body></html>"
           ].join("\\n");
 
-          try { if (res && typeof res.type === "function") res.type("html"); } catch {}
+          try { if (res && typeof res.type === "function") res.type("html"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60167:3", err); }
           return res.send(html);
         });
 
-        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-jobs/recent, /datanet/v1/local-job/:id and /datanet/view/:id"); } catch {}
-      } catch {}
+        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-jobs/recent, /datanet/v1/local-job/:id and /datanet/view/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60171:4", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60172:5", err); }
     })();
 
 // __void_public_bootstrap_gateway_routes_v1
@@ -60279,8 +60279,8 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
 </html>`);
     });
 
-    try { console.log("[public.bootstrap.gateway.v1] mounted"); } catch {}
-  } catch {}
+    try { console.log("[public.bootstrap.gateway.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60282:6", err); }
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60283:7", err); }
 })();
 
 // __void_datanet_materialized_public_status_routes_v1
@@ -60447,8 +60447,8 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
           }
         });
 
-        try { console.log("[datanet.materialized_public_status.v1] mounted: /datanet/materialized-status, /__void/datanet/materialized-status.json, /__void/datanet/materialized-status.md"); } catch {}
-      } catch {}
+        try { console.log("[datanet.materialized_public_status.v1] mounted: /datanet/materialized-status, /__void/datanet/materialized-status.json, /__void/datanet/materialized-status.md"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60450:8", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60451:9", err); }
     })();
 
 // __void_datanet_consumer_fetch_v1
@@ -60489,7 +60489,7 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
                   capabilities: ["blob", "tx", "block"],
                   source: "durable_env_peer_v1"
                 });
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60492:10", err); }
             }
           };
 
@@ -60510,7 +60510,7 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
                 peers.push(rp);
               }
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60513:11", err); }
 
           if (!Array.isArray(peers) || peers.length === 0) {
             try {
@@ -60531,11 +60531,11 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
                       http: "http://" + host + ":4100",
                       p2p: addr
                     });
-                  } catch {}
+                  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60534:12", err); }
                 }
                 if (mapped.length > 0) peers = mapped;
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60538:13", err); }
           }
 
           const tried = new Set<string>();
@@ -60564,7 +60564,7 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
                   if (host && host !== "127.0.0.1" && host !== "localhost") {
                     peerHttp = "http://" + host + ":4100";
                   }
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60567:14", err); }
               }
 
               if (!peerHttp) continue;
@@ -60598,15 +60598,15 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
                   materialized_at_ms: Date.now()
                 };
                 fs.writeFileSync(path.join(dir, id + ".provenance.json"), JSON.stringify(prov, null, 2) + "\n", "utf8");
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60601:15", err); }
 
               return { ok:true, source:"peer_materialized", file, plaintext, peer_http:peerHttp };
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60604:16", err); }
           }
 
           return { ok:false, error:"not_found", id, file };
         };
-        try { (globalThis as any).__void_materializeDatasetFromPeers = materializeDatasetFromPeers; } catch {}
+        try { (globalThis as any).__void_materializeDatasetFromPeers = materializeDatasetFromPeers; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60609:17", err); }
 
         APP.get("/datanet/v1/consume/:id", async (req:any, res:any) => {
           try {
@@ -60645,8 +60645,8 @@ APP.get("/wc-proof-viewer", (req:any, res:any) => {
           }
         });
 
-        try { console.log("[datanet.consumer_fetch.v1] mounted: GET /datanet/v1/consume/:id"); } catch {}
-      } catch {}
+        try { console.log("[datanet.consumer_fetch.v1] mounted: GET /datanet/v1/consume/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60648:18", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60649:19", err); }
     })();
 
     // __void_datanet_opening_view_v1
@@ -60734,7 +60734,7 @@ a{color:#93c5fd;text-decoration:none}
     const rr = await fetch(consumeApi, { credentials: "same-origin" });
     const txt = await rr.text();
     let obj = null;
-    try { obj = JSON.parse(txt); } catch {}
+    try { obj = JSON.parse(txt); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60737:20", err); }
     if (!rr.ok) {
       if (statusEl) statusEl.textContent = "Unable to open dataset on this node.";
       if (stageEl) stageEl.textContent = "Open failed";
@@ -60776,8 +60776,8 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
-        try { console.log("[datanet.opening_view.v1] mounted: GET /datanet/open/:id"); } catch {}
-      } catch {}
+        try { console.log("[datanet.opening_view.v1] mounted: GET /datanet/open/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60779:21", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60780:22", err); }
     })();
 
     // __void_datanet_consume_view_v1
@@ -60824,7 +60824,7 @@ a{color:#93c5fd;text-decoration:none}
                     const looksJson = trimmed.startsWith("{") && trimmed.endsWith("}");
                     let parsed:any = null;
                     if (looksJson) {
-                      try { parsed = JSON.parse(trimmed); } catch {}
+                      try { parsed = JSON.parse(trimmed); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60827:23", err); }
                     }
                     const isLocalNotFound =
                       Number(rr.status || 0) === 404 &&
@@ -60849,7 +60849,7 @@ a{color:#93c5fd;text-decoration:none}
             const sizeBytes = Buffer.byteLength(plaintext, "utf8");
             const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
             let parsed:any = null;
-            try { parsed = JSON.parse(plaintext); } catch {}
+            try { parsed = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60852:24", err); }
             const taskClass = String(parsed?.task_class || "");
             let receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
             let jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
@@ -60860,7 +60860,7 @@ a{color:#93c5fd;text-decoration:none}
                 if (!receiptId) receiptId = String(linked.receipt_id || "").trim();
                 if (!jobId) jobId = String(linked.job_id || "").trim();
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60863:25", err); }
 
             const consumeHref = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
             const rawHref = "/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
@@ -60959,8 +60959,8 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
-        try { console.log("[datanet.consume_view.v1] mounted: GET /datanet/consume-view/:id"); } catch {}
-      } catch {}
+        try { console.log("[datanet.consume_view.v1] mounted: GET /datanet/consume-view/:id"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60962:26", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("60963:27", err); }
     })();
 
 
@@ -60999,9 +60999,9 @@ a{color:#93c5fd;text-decoration:none}
                     if (!raw || seenLocalReceiptLines.has(raw)) continue;
                     seenLocalReceiptLines.add(raw);
                     localOut.push(JSON.parse(raw));
-                  } catch {}
+                  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61002:28", err); }
                 }
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61004:29", err); }
             }
 
             try {
@@ -61036,9 +61036,9 @@ a{color:#93c5fd;text-decoration:none}
                     name: null,
                     _raw: "wc_v1_ledger"
                   });
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61039:30", err); }
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61041:31", err); }
 
             localOut.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
             creditedOut.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
@@ -61140,7 +61140,7 @@ a{color:#93c5fd;text-decoration:none}
                   const jobId = String(r?.job_id || "");
                   if (rid) receiptsById[rid] = r;
                   if (jobId) receiptsByJobId[jobId] = r;
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61143:32", err); }
               }
 
               const runtimeReasonByJobId:any = {};
@@ -61160,7 +61160,7 @@ a{color:#93c5fd;text-decoration:none}
                   if (reason && accountKey && datasetKey && taskKey && !runtimeReasonByAccountDatasetTask[compositeKey]) {
                     runtimeReasonByAccountDatasetTask[compositeKey] = reason;
                   }
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61163:33", err); }
               }
 
               const persistedRecent:any[] = [];
@@ -61208,14 +61208,14 @@ a{color:#93c5fd;text-decoration:none}
                     ok: rr?.ok === undefined ? null : !!rr.ok,
                     status: rr?.status || j?.status || null
                   });
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61211:34", err); }
               }
 
               persistedRecent.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
               for (const item of persistedRecent.slice(0, Math.max(limit * 4, 100))) {
                 recentRunnerActivity.push(item);
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61218:35", err); }
 
             recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
 
@@ -61319,7 +61319,7 @@ a{color:#93c5fd;text-decoration:none}
                   __void_value_summary_latest_from_persisted_v1: true
                 };
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61322:36", err); }
 
             const latest_useful_dataset = buildLatestUsefulDataset(
               latest_publish_dataset,
@@ -61353,8 +61353,8 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
-        try { console.log("[network.value.summary.v1] mounted: GET /network/value-summary.json"); } catch {}
-      } catch {}
+        try { console.log("[network.value.summary.v1] mounted: GET /network/value-summary.json"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61356:37", err); }
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61357:38", err); }
     })();
 
     function runnerProofOwnedDatasetSet(account:string){
@@ -61374,7 +61374,7 @@ a{color:#93c5fd;text-decoration:none}
             if (String(obj?.kind || "") !== "datanet_publish") continue;
             const ds = String(obj?.dataset_id || "");
             if (ds) out.add(ds);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61377:39", err); }
         }
         return out;
       } catch {
@@ -61411,7 +61411,7 @@ a{color:#93c5fd;text-decoration:none}
           const datasetId = String(f).replace(/\.txt$/i, "");
           const fullPath = path.join(dir, f);
           let fileMtimeMs = 0;
-          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61414:40", err); }
           const last = Number((rt.verify_history_by_dataset[String(account)] || {})[datasetId] || 0);
           const basis = last > 0 ? last : fileMtimeMs;
           const age = basis > 0 ? (now - basis) : (2 * 60 * 60 * 1000);
@@ -61473,7 +61473,7 @@ a{color:#93c5fd;text-decoration:none}
           const datasetId = String(f).replace(/\.txt$/i, "");
           const fullPath = path.join(dir, f);
           let fileMtimeMs = 0;
-          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61476:41", err); }
           const last = Number((rt.redundancy_history_by_dataset[String(account)] || {})[datasetId] || 0);
           const basis = last > 0 ? last : fileMtimeMs;
           const age = basis > 0 ? (now - basis) : (8 * 60 * 60 * 1000);
@@ -62214,7 +62214,7 @@ a{color:#93c5fd;text-decoration:none}
       } finally {
         try {
           rt.inflight_by_account[String(account)] = false;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62217:42", err); }
       }
     }
 
@@ -62227,7 +62227,7 @@ a{color:#93c5fd;text-decoration:none}
       for (const account of accounts) {
         const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
         if (holdUntil > now) continue;
-        try { await wcRunnerSubmitOnce(String(account)); } catch {}
+        try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
       }
     }
 
@@ -62579,7 +62579,7 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    try { console.log("[wc-redeem-v1] mounted"); } catch {}
+    try { console.log("[wc-redeem-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62582:44", err); }
   }
 
   mount();
@@ -62760,7 +62760,7 @@ a{color:#93c5fd;text-decoration:none}
         if (account && String(j?.account || "") !== account) continue;
         if (jobId && String(j?.job_id || "") === jobId) return true;
         if (receiptId && String(j?.receipt_id || "") === receiptId) return true;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62763:45", err); }
     }
     return false;
   }
@@ -62788,9 +62788,9 @@ a{color:#93c5fd;text-decoration:none}
             if (String(e?.kind || "") !== "credit") continue;
             const rid = String(e?.receipt_id || e?.job_id || "");
             if (rid) cur.credited_ids[rid] = 1;
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62791:46", err); }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62793:47", err); }
       cur.ledger_loaded = true;
     }
 
@@ -62877,7 +62877,7 @@ a{color:#93c5fd;text-decoration:none}
       state.last_scan_ms = Date.now();
       return credited;
     } finally {
-      try { if (fd !== null) fs.closeSync(fd); } catch {}
+      try { if (fd !== null) fs.closeSync(fd); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62880:48", err); }
     }
   }
 
@@ -62994,11 +62994,11 @@ a{color:#93c5fd;text-decoration:none}
       (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1")
     ) {
       setInterval(() => {
-        try { scanOnce(); } catch {}
+        try { scanOnce(); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62997:49", err); }
       }, 3000).unref?.();
     }
 
-    try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch {}
+    try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63001:50", err); }
   }
 
   mount();
@@ -63023,7 +63023,7 @@ a{color:#93c5fd;text-decoration:none}
       const express = require("express");
       app.use(express.json({ limit: "2mb" }));
       (app as any).__void_jobs_and_datanet_worker_v1_json_ready = true;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63026:51", err); }
   }
 
   function safeStr(x:any, n:number){ return String(x ?? "").trim().slice(0,n); }
@@ -63110,7 +63110,7 @@ a{color:#93c5fd;text-decoration:none}
                 u.search = "";
                 u.hash = "";
                 addPeer(u.toString().replace(/\/+$/, ""), "");
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63113:52", err); }
             }
           };
 
@@ -63121,7 +63121,7 @@ a{color:#93c5fd;text-decoration:none}
           addEnvPeerBases(process.env.VOID_DATANET_SITE_BUNDLE_PEERS);
           addEnvPeerBases(process.env.VOID_DATANET_PEERS);
           addEnvPeerBases(process.env.VOID_DRIFT_PEER);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63124:53", err); }
 
         try {
           const publicBase = String(process.env.PUBLIC_HTTP_BASE || "").trim();
@@ -63135,7 +63135,7 @@ a{color:#93c5fd;text-decoration:none}
             if (publicBase && http === publicBase) continue;
             addPeer(http, String(peer?.p2p || "").trim());
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63138:54", err); }
 
         return out;
       })();
@@ -63177,7 +63177,7 @@ a{color:#93c5fd;text-decoration:none}
           ensureDirs();
           fs.writeFileSync(outPath, plaintext);
           return { ok:true, path:outPath, fetchedFrom:httpBase, fetchedHash };
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63180:55", err); }
       }
 
       return { ok:false, error:"dataset_not_found_remote" };
@@ -63259,11 +63259,11 @@ a{color:#93c5fd;text-decoration:none}
             continue;
           }
           out.push(jobId);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63262:56", err); }
       }
       return out;
     } finally {
-      try { if (fd !== null) fs.closeSync(fd); } catch {}
+      try { if (fd !== null) fs.closeSync(fd); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63266:57", err); }
     }
   }
 
@@ -63273,13 +63273,13 @@ a{color:#93c5fd;text-decoration:none}
       st.completed_job_ids[jobId] = 1;
       st.last_processed_job_id = jobId;
       st.last_tick_ms = Date.now();
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63276:58", err); }
   }
 
   function allJobs(){
     const out:any[] = [];
     for (const line of readLines(jobsFile())) {
-      try { out.push(JSON.parse(line)); } catch {}
+      try { out.push(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63282:59", err); }
     }
     return out;
   }
@@ -63326,7 +63326,7 @@ a{color:#93c5fd;text-decoration:none}
       try {
         const j = JSON.parse(line);
         if (String(j?.job_id || "") === jobId) out.push(j);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63329:60", err); }
     }
     return out;
   }
@@ -63360,7 +63360,7 @@ a{color:#93c5fd;text-decoration:none}
         if (account && String(j?.account || "") !== account) continue;
         if (jobId && String(j?.job_id || "") === jobId) return true;
         if (receiptId && String(j?.receipt_id || "") === receiptId) return true;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63363:61", err); }
     }
     return false;
   }
@@ -63450,13 +63450,13 @@ a{color:#93c5fd;text-decoration:none}
     };
 
     for (const line of readLines(receiptsFile())) {
-      try { consider(JSON.parse(line)); } catch {}
+      try { consider(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63453:62", err); }
     }
     for (const line of readLines(jobStateFile())) {
-      try { consider(JSON.parse(line)); } catch {}
+      try { consider(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63456:63", err); }
     }
     for (const line of readLines(jobsFile())) {
-      try { consider(JSON.parse(line)); } catch {}
+      try { consider(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63459:64", err); }
     }
 
     st.receipts_sig = sigReceipts;
@@ -63519,7 +63519,7 @@ a{color:#93c5fd;text-decoration:none}
 
 
       let parsedInput:any = null;
-      try { parsedInput = JSON.parse(plaintext); } catch {}
+      try { parsedInput = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63522:65", err); }
       const inputStaleMs = Number(parsedInput?.stale_for_ms || 0);
       const inputDifficultyBucket = String(parsedInput?.difficulty_bucket || "low");
       const inputNeedScore = Number(parsedInput?.network_need_score || 0);
@@ -63581,7 +63581,7 @@ a{color:#93c5fd;text-decoration:none}
         G[MARK].last_receipt_id = receiptId;
       } else if (kind === "datanet_fetch_verify") {
         let verifyInput:any = null;
-        try { verifyInput = JSON.parse(plaintext); } catch {}
+        try { verifyInput = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63584:66", err); }
         if (!verifyInput || typeof verifyInput !== "object") throw new Error("invalid_fetch_verify_input");
 
         const datasetId = safeStr(verifyInput.dataset_id || "", 160);
@@ -63656,7 +63656,7 @@ a{color:#93c5fd;text-decoration:none}
         G[MARK].last_receipt_id = receiptId;
       } else if (kind === "datanet_redundancy_check") {
         let checkInput:any = null;
-        try { checkInput = JSON.parse(plaintext); } catch {}
+        try { checkInput = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63659:67", err); }
         if (!checkInput || typeof checkInput !== "object") throw new Error("invalid_redundancy_check_input");
 
         const datasetId = safeStr(checkInput.dataset_id || "", 160);
@@ -63762,7 +63762,7 @@ a{color:#93c5fd;text-decoration:none}
             await processJob(jobId);
             markJobDone(jobId);
             G[MARK].last_job_id = jobId;
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63765:68", err); }
         }
         st.last_tick_ms = Date.now();
       } finally {
@@ -63899,7 +63899,7 @@ a{color:#93c5fd;text-decoration:none}
             const parsed = JSON.parse(plaintext || "{}");
             const parsedDatasetId = String(parsed?.dataset_id || parsed?.selected_dataset_id || "").trim();
             if (!normalizedDatasetId && parsedDatasetId) normalizedDatasetId = parsedDatasetId;
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63902:69", err); }
           if (!normalizedDatasetId) return res.status(400).json({ ok:false, error:"missing_dataset_id" });
           if (plaintextBytes > MAX_AGENT_PLAINTEXT_BYTES) return res.status(413).json({ ok:false, error:"payload_too_large" });
         }
@@ -64155,9 +64155,9 @@ a{color:#93c5fd;text-decoration:none}
                 sort_ts_ms: Number(r?.ts_ms || 0),
                 _raw: "datanet_v1"
               });
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64158:70", err); }
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64160:71", err); }
 
         const latestByJob = new Map<string, any>();
         for (const row of jobs) {
@@ -64245,9 +64245,9 @@ a{color:#93c5fd;text-decoration:none}
                 if (!raw || seenReceiptLines.has(raw)) continue;
                 seenReceiptLines.add(raw);
                 out.push(JSON.parse(raw));
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64248:72", err); }
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64250:73", err); }
         }
 
         try {
@@ -64286,9 +64286,9 @@ a{color:#93c5fd;text-decoration:none}
                 name: r?.name || null,
                 _raw: "datanet_v1"
               });
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64289:74", err); }
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64291:75", err); }
 
         if (account) {
           out = out.filter((r:any) => {
@@ -64321,7 +64321,7 @@ a{color:#93c5fd;text-decoration:none}
                 ts_ms: Number(e?.ts_ms || 0),
                 _synthetic: "wc_ledger_v1"
               });
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64324:76", err); }
           }
           out = synthetic;
         }
@@ -64368,7 +64368,7 @@ a{color:#93c5fd;text-decoration:none}
                   const obj = JSON.parse(line);
                   const ds = String(obj?.dataset_id || "");
                   if (ds) receiptIds.add(ds);
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64371:77", err); }
               }
             }
 
@@ -64499,7 +64499,7 @@ a{color:#93c5fd;text-decoration:none}
                 const obj = JSON.parse(line);
                 const ds = String(obj?.dataset_id || "");
                 if (ds) receiptIds.add(ds);
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64502:78", err); }
             }
           }
 
@@ -64586,7 +64586,7 @@ a{color:#93c5fd;text-decoration:none}
               const jobId = String(r?.job_id || "");
               if (rid) receiptsById[rid] = r;
               if (jobId) receiptsByJobId[jobId] = r;
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64589:79", err); }
           }
 
           const persistedRecent:any[] = [];
@@ -64622,14 +64622,14 @@ a{color:#93c5fd;text-decoration:none}
                 ok: rr?.ok === undefined ? null : !!rr.ok,
                 status: rr?.status || j?.status || null
               });
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64625:80", err); }
           }
 
           persistedRecent.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
           for (const item of persistedRecent.slice(0, 100)) {
             recentRunnerActivity.push(item);
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64632:81", err); }
 
         recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
 
@@ -64969,7 +64969,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     function setSavedPeer(v) {
-      try { localStorage.setItem("void_admin_datanet_peer_v1", String(v || "").trim()); } catch (_) {}
+      try { localStorage.setItem("void_admin_datanet_peer_v1", String(v || "").trim()); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64972:82", _); }
     }
 
     $("loadBtn").addEventListener("click", () => {
@@ -64995,7 +64995,7 @@ a{color:#93c5fd;text-decoration:none}
     });
 
     startWorker();
-    try { console.log("[jobs-and-datanet-worker-v1] mounted"); } catch {}
+    try { console.log("[jobs-and-datanet-worker-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("64998:83", err); }
   }
 
   mount();
@@ -65050,7 +65050,7 @@ a{color:#93c5fd;text-decoration:none}
                   const parsed = JSON.parse(plaintext || "{}");
                   const parsedDatasetId = String(parsed?.dataset_id || parsed?.selected_dataset_id || "").trim();
                   if (!normalizedDatasetId && parsedDatasetId) normalizedDatasetId = parsedDatasetId;
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65053:84", err); }
               }
               const meta:any = req.body?.meta || {};
               const line = {
@@ -65074,9 +65074,9 @@ a{color:#93c5fd;text-decoration:none}
                 _event: "jobs_submit_bridge_v1"
               };
               fs.appendFileSync(jobsFile(), JSON.stringify(line) + "\n");
-              try { G[MARK].last_job_id = jobId; } catch {}
+              try { G[MARK].last_job_id = jobId; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65077:85", err); }
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65079:86", err); }
           return _json(body);
         };
         return next();
@@ -65085,7 +65085,7 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    try { console.log("[jobs-submit-to-jobsv1-bridge-v1] mounted"); } catch {}
+    try { console.log("[jobs-submit-to-jobsv1-bridge-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65088:87", err); }
   }
 
   mount();
@@ -65192,7 +65192,7 @@ a{color:#93c5fd;text-decoration:none}
         try {
           const j = JSON.parse(lines[i]);
           if (String(j?.account || "") === account) return j;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65195:88", err); }
       }
       return null;
     }
@@ -65203,7 +65203,7 @@ a{color:#93c5fd;text-decoration:none}
         try {
           const j = JSON.parse(lines[i]);
           if (String(j?.account || "") === account) out.push(j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65206:89", err); }
       }
       return out;
     }
@@ -65278,7 +65278,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     mount();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65281:90", err); }
 })();
 
 
@@ -65362,7 +65362,7 @@ a{color:#93c5fd;text-decoration:none}
         try {
           const j = JSON.parse(lines[i]);
           if (String(j?.request_id || "") === requestId) return j;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65365:91", err); }
       }
       return null;
     }
@@ -65375,7 +65375,7 @@ a{color:#93c5fd;text-decoration:none}
           if (account && String(j?.account || "") !== account) continue;
           if (String(j?.status || "") !== "draft_ready") continue;
           out.push(j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65378:92", err); }
       }
       return out;
     }
@@ -65388,7 +65388,7 @@ a{color:#93c5fd;text-decoration:none}
           const qid = String(j?.queue_id || "");
           if (!qid) continue;
           out.set(qid, j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65391:93", err); }
       }
       return out;
     }
@@ -65544,7 +65544,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     mount();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65547:94", err); }
 })();
 
 
@@ -65732,7 +65732,7 @@ a{color:#93c5fd;text-decoration:none}
           const qid = String(j?.queue_id || "");
           if (!qid) continue;
           out.set(qid, j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65735:95", err); }
       }
       return out;
     }
@@ -65749,7 +65749,7 @@ a{color:#93c5fd;text-decoration:none}
           const wid = String(j?.watch_id || "");
           if (!wid) continue;
           out.set(wid, j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65752:96", err); }
       }
       return out;
     }
@@ -65784,7 +65784,7 @@ a{color:#93c5fd;text-decoration:none}
           const tag = String(j?.payment_tag || "");
           if (!tag) continue;
           out.set(tag, j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65787:97", err); }
       }
       return out;
     }
@@ -65796,7 +65796,7 @@ a{color:#93c5fd;text-decoration:none}
           const j = JSON.parse(lines[i]);
           if (paymentTag && String(j?.payment_tag || "") !== paymentTag) continue;
           out.push(j);
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65799:98", err); }
       }
       return out;
     }
@@ -66542,7 +66542,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     mount();
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("66545:99", err); }
 })();
 
 // [removed legacy participant-dashboard-v1 duplicate block]
@@ -68333,10 +68333,10 @@ a{color:#93c5fd;text-decoration:none}
             <summary><span>Advanced account shortcuts</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='dev-zoso'; try{localStorage.setItem('void_participant_account_v1','dev-zoso')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
-                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; try{localStorage.setItem('void_participant_account_v1','remote-user-1')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-1</button>
-                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; try{localStorage.setItem('void_participant_account_v1','remote-user-2')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-2</button>
-                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px dashed #6b7280; background:#111827; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; try{localStorage.setItem('void_participant_account_v1','remote-user-3')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">legacy: remote-user-3</button>
+                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='dev-zoso'; try{localStorage.setItem('void_participant_account_v1','dev-zoso')}catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("68336:100", _); } if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
+                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; try{localStorage.setItem('void_participant_account_v1','remote-user-1')}catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("68337:101", _); } if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-1</button>
+                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; try{localStorage.setItem('void_participant_account_v1','remote-user-2')}catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("68338:102", _); } if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-2</button>
+                <button type="button" style="padding:7px 11px; border-radius:999px; border:1px dashed #6b7280; background:#111827; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; try{localStorage.setItem('void_participant_account_v1','remote-user-3')}catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("68339:103", _); } if (window.refreshAll) window.refreshAll().catch(()=>{});">legacy: remote-user-3</button>
               </div>
             </div>
           </details>
@@ -69054,7 +69054,7 @@ a{color:#93c5fd;text-decoration:none}
                     var qs = new URLSearchParams(window.location.search || "");
                     var q = qs.get("account") || qs.get("participant") || qs.get("wallet");
                     if (isAddr(q)) return q;
-                  } catch(e) {}
+                  } catch (e) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69057:104", e); }
 
                   var ids = [
                     "participantAccount",
@@ -69088,7 +69088,7 @@ a{color:#93c5fd;text-decoration:none}
                       var mm = String(v||"").match(/0x[0-9a-fA-F]{40}/);
                       if (mm && isAddr(mm[0])) return mm[0];
                     }
-                  } catch(e) {}
+                  } catch (e) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69091:105", e); }
 
                   try {
                     var body = document.body ? document.body.innerText : "";
@@ -69096,7 +69096,7 @@ a{color:#93c5fd;text-decoration:none}
                     for (var a=0;a<all.length;a++){
                       if (isAddr(all[a])) return all[a];
                     }
-                  } catch(e) {}
+                  } catch (e) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69099:106", e); }
 
                   return "";
                 }
@@ -69638,7 +69638,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (!fetchOpts.signal && cacheable) {
             ctrl = new AbortController();
             fetchOpts.signal = ctrl.signal;
-            timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 7000);
+            timer = setTimeout(() => { try { ctrl.abort(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69641:107", _); } }, 7000);
           }
 
           const r = await fetch(url, fetchOpts);
@@ -69685,7 +69685,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const el = $("latestActionCard");
       if (el) el.textContent = String(msg || "");
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69688:108", _); }
   }
 
   function setWalletActivity(entry){
@@ -69742,8 +69742,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const stored = { kind, status, amount, unit, target, tx_hash: txHash, approve_tx_hash: approveTxHash, swap_tx_hash: swapTxHash, quoted_void: quotedVoid, note, ts_ms: Date.now() };
         localStorage.setItem("void_wallet_activity_v1", JSON.stringify(stored));
-      } catch (_) {}
-    } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69745:109", _); }
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69746:110", _); }
   }
 
   function loadRememberedWalletActivity(){
@@ -69752,7 +69752,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") setWalletActivity(parsed);
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69755:111", _); }
   }
 
   function shortDatasetPreviewCard(d){
@@ -69787,13 +69787,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       el.textContent = shortDatasetPreviewCard(out);
       try {
         el.title = typeof out === "object" ? JSON.stringify(out, null, 2) : String(out);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69790:112", err); }
     } catch (e) {
       const el = $(cardId);
       if (!el) return;
       el.style.display = "";
       el.textContent = "Dataset preview unavailable.";
-      try { el.title = String((e && e.message) || e || "preview_error"); } catch {}
+      try { el.title = String((e && e.message) || e || "preview_error"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69796:113", err); }
     }
   }
 
@@ -69870,11 +69870,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const qsAcct = String(window.__void_participant_account_qs || "").trim();
       if (qsAcct) return qsAcct;
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69873:114", _); }
     try {
       const remembered = String(localStorage.getItem("void_participant_account_v1") || "").trim();
       if (remembered) return remembered;
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69877:115", _); }
     return "";
   }
 
@@ -69900,7 +69900,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         .filter((x, i, a) => x && a.indexOf(x) === i)
         .slice(0, 12);
       localStorage.setItem("void_participant_accounts_v1", JSON.stringify(clean));
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69903:116", _); }
   }
 
   function rememberParticipantAccount(v){
@@ -69911,7 +69911,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const arr = getSavedParticipantAccounts().filter((x) => x !== s);
       arr.unshift(s);
       setSavedParticipantAccounts(arr);
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69914:117", _); }
   }
 
   function applyParticipantAccount(v){
@@ -69928,7 +69928,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const u = new URL(window.location.href);
       u.searchParams.set("account", s);
       history.replaceState(null, "", u.pathname + "?" + u.searchParams.toString() + u.hash);
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69931:118", _); }
   }
 
   function deleteParticipantAccount(v){
@@ -69947,7 +69947,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const current = String(resolveActiveParticipantAccount() || "").trim();
       if (current === s) {
         const fallback = next[0] || "zoso";
-        try { localStorage.setItem("void_participant_account_v1", fallback); } catch (_) {}
+        try { localStorage.setItem("void_participant_account_v1", fallback); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("69950:119", _); }
         const accountEl = $("account");
         if (accountEl) accountEl.value = fallback;
         const mgrEl = $("participantAccountManagerInput");
@@ -70031,7 +70031,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               u.hash = "#work";
               window.location.assign(u.toString());
             } catch (_) {
-              try { window.location.assign("/participant?account=" + encodeURIComponent(acct) + "#work"); } catch (_) {}
+              try { window.location.assign("/participant?account=" + encodeURIComponent(acct) + "#work"); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70034:120", _); }
             }
           });
 
@@ -70053,10 +70053,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           del.style.color = "#fca5a5";
           del.textContent = "🗑";
           del.addEventListener("click", async (ev) => {
-            try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+            try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70056:121", _); }
             const ok = deleteParticipantAccount(acct);
             if (!ok) return;
-            try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+            try { if (window.refreshAll) await window.refreshAll(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70059:122", _); }
           });
 
           wrap.appendChild(btn);
@@ -70066,7 +70066,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           list.appendChild(row);
         });
       });
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70069:123", _); }
   }
 
   function getBootstrapParticipantAccount(){
@@ -70116,7 +70116,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           cur = cur[part];
         }
         if (cur !== undefined && cur !== null && String(cur) !== "") return cur;
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70119:124", _); }
     }
     return null;
   }
@@ -70227,7 +70227,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (jobId) bits.push("Job: " + jobId + ".");
       bits.push("Safety: no wallet send, no WC→VOID swap, no Buy VOID fulfillment, no validator mutation.");
       if (detail) detail.textContent = bits.join(" ");
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70230:125", _); }
   }
 
 
@@ -70251,14 +70251,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             state: st
           };
         }
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70254:126", _); }
       await new Promise(r => setTimeout(r, 500));
     }
 
     let finalRedeemable = baseline;
     try {
       if (last && last.ok) finalRedeemable = Number(last.redeemable || 0);
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70261:127", _); }
 
     return {
       ok: false,
@@ -70276,7 +70276,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const w = String((ev && ev.wallet) || "").trim();
         if (isWalletAddr(w)) return w;
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70279:128", _); }
 
     if (isWalletAddr(connectedWallet)) return String(connectedWallet).trim();
     if (isWalletAddr(manualWallet)) return String(manualWallet).trim();
@@ -70543,7 +70543,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ].join("");
 
       host.parentNode.insertBefore(row, host.nextSibling);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70546:129", err); }
   }
 
   function switchTab(tab){
@@ -70553,9 +70553,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const pane = $("pane-" + tab);
     if (btn) btn.classList.add("active");
     if (pane) pane.classList.add("active");
-    try { document.body.setAttribute("data-active-tab", tab); } catch {}
-    try { localStorage.setItem("void_participant_tab", tab); } catch {}
-    try { history.replaceState(null, "", "#"+tab); } catch {}
+    try { document.body.setAttribute("data-active-tab", tab); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70556:130", err); }
+    try { localStorage.setItem("void_participant_tab", tab); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70557:131", err); }
+    try { history.replaceState(null, "", "#"+tab); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70558:132", err); }
   }
 
   async function refresh(){
@@ -70733,7 +70733,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const redeemedState = redeemed && redeemed.ok ? redeemed : null;
     const redeemedTotal = redeemState && Number.isFinite(Number(redeemState.redeemed)) ? Number(redeemState.redeemed) : 0;
     const redeemableTotal = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
-    try { globalThis.__void_last_redeem_state = redeemState || null; } catch (_) {}
+    try { globalThis.__void_last_redeem_state = redeemState || null; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70736:133", _); }
     const executionWalletVoid = connectedVoidBal !== "-" && Number.isFinite(Number(connectedVoidBal))
       ? Number(connectedVoidBal)
       : null;
@@ -70745,7 +70745,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const hasLocalWc = localTradeableWc > 0;
     const effectiveTradeableWc = hasLocalWc ? localTradeableWc : onchainTradeableWc;
     const tradeWcSource = hasLocalWc ? "local" : (hasOnchainWc ? "onchain" : "none");
-    try { globalThis.__void_last_onchain_wc = onchainTradeableWc; } catch (_) {}
+    try { globalThis.__void_last_onchain_wc = onchainTradeableWc; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70748:134", _); }
 
     const currentTradeDirection = (() => {
       try {
@@ -70947,7 +70947,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const wei = Number((validatorRegistrationGlobal && validatorRegistrationGlobal.minValidatorStakeWei) || 0);
         if (Number.isFinite(wei) && wei > 0) return String(Math.round(wei / 1e18)) + " VOID";
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("70950:135", _); }
       return "-";
     })();
 
@@ -71084,14 +71084,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (openDraftBtn && draftDetails && !openDraftBtn.dataset.voidDraftPreviewBound) {
         openDraftBtn.dataset.voidDraftPreviewBound = "1";
         openDraftBtn.addEventListener("click", () => {
-          try { draftDetails.open = true; } catch (_) {}
-          try { const preflightDetails = $("validatorRegistrationPreflightDetails"); if (preflightDetails) preflightDetails.open = true; } catch (_) {}
+          try { draftDetails.open = true; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71087:136", _); }
+          try { const preflightDetails = $("validatorRegistrationPreflightDetails"); if (preflightDetails) preflightDetails.open = true; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71088:137", _); }
           setLatestAction("Opened read-only validator registration draft and preflight preview. No transaction was sent.");
           setText(
             "validatorRegistrationButtonNote",
             "Draft preview opened. This button does not submit, broadcast, stake, or activate a validator."
           );
-          try { draftDetails.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
+          try { draftDetails.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71094:138", _); }
         });
       }
       const submitDisabledBtn = $("validatorRegistrationSubmitDisabledBtn");
@@ -71099,7 +71099,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         submitDisabledBtn.disabled = true;
         submitDisabledBtn.title = "Not live yet. Preview-only registration shell.";
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71102:139", _); }
 
 
     const localWcTruth = redeemState && Number.isFinite(Number(redeemState.redeemable))
@@ -71271,7 +71271,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const old = stakeNextPlanCopyBtn.textContent || "Copy Command";
           stakeNextPlanCopyBtn.textContent = "Copied";
           setTimeout(function(){
-            try { stakeNextPlanCopyBtn.textContent = old; } catch (_) {}
+            try { stakeNextPlanCopyBtn.textContent = old; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71274:140", _); }
           }, 1200);
         } catch (e) {
           alert(String((e && e.message) || e || "copy failed"));
@@ -71478,16 +71478,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         await loadLatestBuyVoidOperatorQueue();
         return false;
       };
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71481:141", _); }
 
     try {
       if (buyDraftBtn) {
         buyDraftBtn.onclick = function(ev){
-          try { if (ev && ev.preventDefault) ev.preventDefault(); } catch (_) {}
+          try { if (ev && ev.preventDefault) ev.preventDefault(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71486:142", _); }
           try { return (window).__voidCreateBuyVoidDraft(); } catch (_) { return false; }
         };
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71490:143", _); }
 
     await loadLatestBuyVoidDraft();
     await loadLatestBuyVoidOperatorQueue();
@@ -71512,7 +71512,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (priceSubLabel) priceSubLabel.textContent = currentTradeDirection === "wc_to_void"
           ? "how many WC it takes to get 1 VOID"
           : "how many WC 1 VOID can buy";
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71515:144", _); }
     };
 
     const tradeChartRangeMs = (() => {
@@ -71656,7 +71656,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if (meta) meta.textContent =
           'Compact market view from helper pool-history snapshots • Range ' + tradeChartRangeMs.key + ' • Retention 35d';
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71659:145", _); }
     };
 
     renderTradeDirectionUi();
@@ -71725,7 +71725,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : "Checking reward…"
         );
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71728:146", _); }
     topStripSet("topStripRelayer", relayerUp ? "Relayer: Ready" : "Relayer: Down", relayerUp ? "good" : "bad");
     topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
@@ -71765,7 +71765,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (label) label.textContent = "";
         }
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71768:147", _); }
 
     {
       const walletReady = !!wcAddr;
@@ -71821,7 +71821,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if ($("walletBalanceValue")) $("walletBalanceValue").textContent = String(localWcNow);
         if ($("walletMeta")) $("walletMeta").textContent = "Spendable participant-side WC on this node.";
         if ($("walletRedeemedSummary")) $("walletRedeemedSummary").textContent = "On-chain WC: " + String(onchainWcNow);
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71824:148", _); }
 
       try {
         const hideById = (id) => {
@@ -71855,7 +71855,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               }
             });
           }
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71858:149", _); }
         const hideMiniById = (id) => {
           const el = $(id);
           if (el && el.closest) {
@@ -71864,15 +71864,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }
         };
         hideMiniById("walletDebitedMini");
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71867:150", _); }
 
       if ($("tradeUseRedeemableBtn")) {
         $("tradeUseRedeemableBtn").onclick = function(ev){
-          try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
-          try { if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation(); } catch (_) {}
+          try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71871:151", _); }
+          try { if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71872:152", _); }
           try {
             if ($("tradeInputWc")) $("tradeInputWc").value = String(onchainTradeableWc > 0 ? onchainTradeableWc : 0);
-          } catch (_) {}
+          } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71875:153", _); }
           return false;
         };
       }
@@ -71930,10 +71930,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const jobIdFull = String(latestJob.job_id || "");
       const jobIdShort = jobIdFull.length > 26 ? (jobIdFull.slice(0, 10) + "…" + jobIdFull.slice(-6)) : jobIdFull;
       setText("latestJobMeta", jobIdShort + " | " + String(latestJob.kind || ""));
-      try { $("latestJobMeta").title = jobIdFull + " | " + String(latestJob.kind || ""); } catch {}
+      try { $("latestJobMeta").title = jobIdFull + " | " + String(latestJob.kind || ""); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71933:154", err); }
     } else {
       setText("latestJobMeta", "no jobs");
-      try { $("latestJobMeta").title = ""; } catch {}
+      try { $("latestJobMeta").title = ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("71936:155", err); }
     }
 
     const homeRunner = runnerStatus && runnerStatus.ok ? runnerStatus : null;
@@ -72055,7 +72055,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const v = totals && Number.isFinite(Number(totals.verify_wc)) ? Number(totals.verify_wc) : 0;
       const r = totals && Number.isFinite(Number(totals.redundancy_wc)) ? Number(totals.redundancy_wc) : 0;
       setText("wcRewardDiagTotals", String(p) + " / " + String(v) + " / " + String(r));
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72058:156", err); }
 
     const syncEl = $("syncGap");
     const gap = peer && typeof peer.head_gap === "number" ? peer.head_gap : null;
@@ -72134,17 +72134,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const receiptShort = receiptFull.length > 22 ? (receiptFull.slice(0, 8) + "…" + receiptFull.slice(-6)) : receiptFull;
       setText("ledgerLatestReason", reasonShort);
       setText("ledgerLatestReceipt", receiptShort);
-      try { $("ledgerLatestReason").title = reasonFull; } catch {}
-      try { $("ledgerLatestReceipt").title = receiptFull; } catch {}
+      try { $("ledgerLatestReason").title = reasonFull; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72137:157", err); }
+      try { $("ledgerLatestReceipt").title = receiptFull; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72138:158", err); }
       setText("ledgerTruthState", "local ledger");
-      try { $("ledgerTruthState").title = "derived from local participant activity on this node"; } catch {}
+      try { $("ledgerTruthState").title = "derived from local participant activity on this node"; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72140:159", err); }
     } else {
       setText("ledgerLatestReason", "-");
       setText("ledgerLatestReceipt", "-");
       setText("ledgerTruthState", "no events");
-      try { $("ledgerLatestReason").title = ""; } catch {}
-      try { $("ledgerLatestReceipt").title = ""; } catch {}
-      try { $("ledgerTruthState").title = ""; } catch {}
+      try { $("ledgerLatestReason").title = ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72145:160", err); }
+      try { $("ledgerLatestReceipt").title = ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72146:161", err); }
+      try { $("ledgerTruthState").title = ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72147:162", err); }
     }
 
     if ($("jobsWrap")) $("jobsWrap").innerHTML = jobsHtml;
@@ -72221,7 +72221,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }).join('') +
           '</tbody></table>';
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72224:163", _); }
     if ($("recentDatasetsWrapOverview")) $("recentDatasetsWrapOverview").innerHTML = recentDatasetsHtml;
 
     let datanetItems = [];
@@ -72333,7 +72333,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("datanetSortSelect").__void_bound_v1 = 1;
         $("datanetSortSelect").addEventListener("change", renderDatanetDatasets);
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72336:164", _); }
 
     if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
     if ($("redeemHistoryWrap")) $("redeemHistoryWrap").innerHTML = redeemedHtml;
@@ -72499,7 +72499,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             await navigator.clipboard.writeText(value);
             ok = true;
           }
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72502:165", _); }
         if (!ok) {
           try {
             const ta = document.createElement("textarea");
@@ -72512,7 +72512,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ta.select();
             ok = !!document.execCommand("copy");
             document.body.removeChild(ta);
-          } catch (_) {}
+          } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72515:166", _); }
         }
         const msg = ok ? String(label || "Copied.") : "Copy failed.";
             if (openStatus) openStatus.textContent = msg;
@@ -72528,10 +72528,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               try {
                 btn.textContent = original;
                 btn.disabled = false;
-              } catch (_) {}
+              } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72531:167", _); }
             }, ok ? 1200 : 1500);
           }
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72534:168", _); }
         return ok;
       };
       window.__void_copyText = copyText;
@@ -72680,7 +72680,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             $("latestDatasetActionCard").style.display = latestUsefulActionPath ? "" : "none";
             $("latestDatasetActionCard").style.cursor = latestUsefulActionPath ? "pointer" : "default";
             $("latestDatasetActionCard").title = latestUsefulActionPath ? latestUsefulBtnText : "";
-            $("latestDatasetActionCard").onclick = latestUsefulActionPath ? (() => { try { window.location.href = latestUsefulActionPath; } catch (_) {} }) : null;
+            $("latestDatasetActionCard").onclick = latestUsefulActionPath ? (() => { try { window.location.href = latestUsefulActionPath; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72683:169", _); } }) : null;
           }
           const latestUsefulDatasetShort =
             String(latestUsefulDatasetId).length > 28
@@ -72802,8 +72802,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             $("latestDatasetPreviewCard").title = "";
           }
         }
-      } catch {}
-    } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72805:170", err); }
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72806:171", err); }
 
     {
       const wcAddrShort = wcAddr ? (String(wcAddr).slice(0, 8) + "…" + String(wcAddr).slice(-6)) : "";
@@ -72848,7 +72848,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           " • Quoted Output: " + quoteText +
           " • Local helper/relayer trade: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72851:172", err); }
     }
 
     if (latestReceipt) {
@@ -72928,7 +72928,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           (resultFull ? (" • Result: " + resultFull) : "") +
           " • Dataset: " + dsFull +
           (outputPathFull ? (" • Output: " + outputPathFull) : "");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72931:173", err); }
 
       try {
         const btn = $("latestReceiptDatasetBtn");
@@ -72957,10 +72957,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             preview.title = "";
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72960:174", err); }
     } else {
       setText("proofSummaryCard", "No recent receipt yet for this account.");
-      try { $("proofSummaryCard").title = ""; } catch {}
+      try { $("proofSummaryCard").title = ""; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72963:175", err); }
       try {
         const btn = $("latestReceiptDatasetBtn");
         if (btn) {
@@ -72974,7 +72974,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           preview.textContent = "";
           preview.title = "";
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("72977:176", err); }
     }
   }
 
@@ -73029,9 +73029,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setWalletActivity({ kind:"send_wc", status:"failed", amount, unit:"WC", target:to, note:String((out && (out.note || out.error || out.reason)) || "Local WC transfer failed.") });
       }
       await refresh();
-      try { await new Promise(r => setTimeout(r, 1200)); } catch {}
+      try { await new Promise(r => setTimeout(r, 1200)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73032:177", err); }
       await refresh();
-      try { await new Promise(r => setTimeout(r, 1200)); } catch {}
+      try { await new Promise(r => setTimeout(r, 1200)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73034:178", err); }
       await refresh();
     } catch (e) {
       const err = String((e && e.message) || e);
@@ -73087,7 +73087,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ? "Connect Wallet"
             : (redeemableNow > 0 ? "Move WC to Trading" : "No WC Ready");
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73090:179", err); }
 
       if (useMax) {
         const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
@@ -73151,11 +73151,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
       await refresh();
       if (out && out.ok) {
-        try { switchTab("trading"); } catch (_) {}
+        try { switchTab("trading"); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73154:180", _); }
         try {
           const tradeBtn = $("tradeExecuteBtn");
           if (tradeBtn && typeof tradeBtn.focus === "function") tradeBtn.focus();
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73158:181", _); }
       }
     } catch (e) {
       const err = String((e && e.message) || e);
@@ -73361,7 +73361,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const st0 = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       redeemableBefore = st0 && st0.ok ? Number(st0.redeemable || 0) : 0;
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73364:182", _); }
 
     setPre("submitOut", { ok:true, submitting:true, account, redeemable_before: redeemableBefore });
 
@@ -73439,13 +73439,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   if ($("redeemTradeUseMaxBtn")) $("redeemTradeUseMaxBtn").addEventListener("click", (ev) => {
-    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73442:183", _); }
     try {
       const account = resolveActiveParticipantAccount();
       const redeemableNow = (globalThis.__void_last_redeem_state || null);
       const spendable = redeemableNow && Number.isFinite(Number(redeemableNow.redeemable)) ? Number(redeemableNow.redeemable) : 0;
       if ($("redeemTradeInputWc")) $("redeemTradeInputWc").value = String(spendable > 0 ? spendable : 0);
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73448:184", _); }
     return false;
   });
 
@@ -73461,7 +73461,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     let redeemableNow = null;
     try {
       redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73464:185", _); }
 
     const spendable = redeemableNow && redeemableNow.ok ? Number(redeemableNow.redeemable || 0) : 0;
 
@@ -73493,12 +73493,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const bridged = out.bridged_wc != null ? String(out.bridged_wc) : String(amount);
         const fee = out.fee_wc != null ? String(out.fee_wc) : "0";
         setText("redeemTradeSummary", "Bridge complete. " + bridged + " WC moved on-chain into the execution wallet. Fee: " + fee + " WC.");
-        try {} catch (_) {}
-        try { switchTab("trading"); } catch (_) {}
+        try {} catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73496:186", _); }
+        try { switchTab("trading"); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73497:187", _); }
       } else {
         setText("redeemTradeSummary", String((out && (out.note || out.error || out.reason)) || "Bridge failed."));
       }
-      try { await refresh(); } catch (_) {}
+      try { await refresh(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73501:188", _); }
     } catch (e) {
       setText("redeemTradeSummary", String((e && e.message) || e || "Redeem failed."));
     } finally {
@@ -73517,7 +73517,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       return;
     }
     applyParticipantAccount(v);
-    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+    try { if (window.refreshAll) await window.refreshAll(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73520:189", _); }
   });
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
@@ -73602,8 +73602,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setPre("tradeStateOut", nativeOut);
         setText("tradeOut", "Participant wallet WC→VOID swap submitted.");
         setLatestAction("Participant wallet WC→VOID swap submitted • approve " + shortApprove + " • swap " + shortSwap);
-        try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(nativeOut.swap_tx_hash || ""), approve_tx_hash:String(nativeOut.approve_tx_hash || ""), swap_tx_hash:String(nativeOut.swap_tx_hash || ""), quoted_void:quotedVoid }); } catch (_) {}
-        try { await refresh(); } catch (_) {}
+        try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(nativeOut.swap_tx_hash || ""), approve_tx_hash:String(nativeOut.approve_tx_hash || ""), swap_tx_hash:String(nativeOut.swap_tx_hash || ""), quoted_void:quotedVoid }); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73605:190", _); }
+        try { await refresh(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73606:191", _); }
         return;
       }
 
@@ -73684,15 +73684,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
       setText("tradeOut", "Wallet-signed WC→VOID swap submitted.");
       setLatestAction("WC→VOID swap submitted • approve " + shortApprove + " • swap " + shortSwap);
-      try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(swapHash || "") }); } catch (_) {}
+      try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(swapHash || "") }); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73687:192", _); }
 
-      try { await refresh(); } catch (_) {}
+      try { await refresh(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73689:193", _); }
     } catch (e) {
       const err = String((e && e.message) || e || "Trade failed.");
       setPre("tradeStateOut", { ok:false, error:err, mode:"wallet_signed_wc_to_void" });
       setText("tradeOut", err);
       setLatestAction("WC→VOID trade failed • " + err);
-      try { setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:err }); } catch (_) {}
+      try { setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:err }); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73695:194", _); }
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -73714,7 +73714,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ev.preventDefault();
           switchTab(tab);
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73717:195", err); }
     });
   });
 
@@ -73723,9 +73723,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const h = String((location && location.hash) || "").replace(/^#/, "").trim();
         if (h && ["overview","work","wallet","trading","receipts","datanet"].includes(h)) switchTab(h);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73726:196", err); }
     });
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73728:197", err); }
 
   if ($("account")) {
     try {
@@ -73734,13 +73734,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("account").value = initAcct;
         rememberParticipantAccount(initAcct);
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73737:198", _); }
     $("account").addEventListener("change", () => {
-      try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
+      try { rememberParticipantAccount($("account").value || ""); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73739:199", _); }
       refresh().catch(() => {});
     });
     $("account").addEventListener("blur", () => {
-      try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
+      try { rememberParticipantAccount($("account").value || ""); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73743:200", _); }
     });
   }
 
@@ -73755,10 +73755,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           u.searchParams.set("account", w);
           history.replaceState(null, "", u.toString());
           window.__void_participant_account_qs = w;
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73758:201", _); }
         await refresh();
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73761:202", _); }
   });
 
 
@@ -73808,7 +73808,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           return { datasetId, source };
         }
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73811:203", _); }
     return { datasetId, source };
   };
 
@@ -73837,7 +73837,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (navigator.clipboard && navigator.clipboard.readText) {
           pasted = String(await navigator.clipboard.readText() || "").trim();
         }
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73840:204", _); }
       if (!pasted) {
         renderOpenByIdStatus("", "", "", "Clipboard paste is unavailable here.");
         return;
@@ -73852,7 +73852,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {
       try {
         renderOpenByIdStatus("", "", "", "Clipboard paste is unavailable here.");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73855:205", err); }
     }
   });
 
@@ -73882,7 +73882,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (e) {
       try {
         renderOpenByIdStatus("", "", "", "Unable to open dataset by id or link.");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73885:206", err); }
     }
   });
 
@@ -73915,14 +73915,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         try {
           const datanetTab = $("tab-datanet");
           if (datanetTab && typeof datanetTab.click === "function") datanetTab.click();
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73918:207", _); }
         try {
           if (typeof openInput.focus === "function") openInput.focus();
           if (typeof openInput.select === "function") openInput.select();
-        } catch (_) {}
+        } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73922:208", _); }
       }
     }
-  } catch (_) {}
+  } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73925:209", _); }
 
 
 
@@ -73940,7 +73940,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
       const createRow = $("participantAccountCreateRowTop");
       if (createRow) createRow.style.display = "none";
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73943:210", _); }
   });
 
   function toggleParticipantSettingsDrawer(){
@@ -73950,7 +73950,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const open = drawer.style.display !== "none";
         drawer.style.display = open ? "none" : "";
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73953:211", _); }
   }
 
   if ($("participantTopSettingsBtn")) $("participantTopSettingsBtn").addEventListener("click", toggleParticipantSettingsDrawer);
@@ -73960,7 +73960,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (drawer) drawer.style.display = "none";
       const topBtn = $("participantTopSettingsBtn");
       if (topBtn) topBtn.setAttribute("aria-expanded", "false");
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73963:212", _); }
   });
 
   document.addEventListener("keydown", (ev) => {
@@ -73971,7 +73971,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       drawer.style.display = "none";
       const topBtn = $("participantTopSettingsBtn");
       if (topBtn) topBtn.setAttribute("aria-expanded", "false");
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73974:213", _); }
   });
 
   if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", () => {
@@ -73985,7 +73985,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         input.value = "";
         if (typeof input.focus === "function") input.focus();
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73988:214", _); }
   });
 
   if ($("participantAccountManagerCancelBtnTop")) $("participantAccountManagerCancelBtnTop").addEventListener("click", () => {
@@ -73994,7 +73994,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (createRow) createRow.style.display = "none";
       const input = $("participantAccountManagerInputTop");
       if (input) input.value = "";
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("73997:215", _); }
   });
 
   if ($("participantAccountManagerSaveBtnTop")) $("participantAccountManagerSaveBtnTop").addEventListener("click", async () => {
@@ -74009,12 +74009,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       return;
     }
     applyParticipantAccount(v);
-    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+    try { if (window.refreshAll) await window.refreshAll(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74012:216", _); }
     try {
       const createRow = $("participantAccountCreateRowTop");
       if (createRow) createRow.style.display = "none";
       if (input) input.value = "";
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74017:217", _); }
   });
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
@@ -74028,10 +74028,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
       await refresh();
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74031:218", err); }
   });
   if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async (ev) => {
-    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74034:219", _); }
     try {
       const dash = await j(LOCAL_HELPER_BASE + "/dashboard/" + encodeURIComponent(resolveActiveParticipantAccount()) + ".json");
       const onchain = (dash && dash.account && dash.account.balances && Number.isFinite(Number(dash.account.balances.wc)))
@@ -74039,20 +74039,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : 0;
       if ($("tradeInputWc")) $("tradeInputWc").value = String(onchain > 0 ? onchain : 0);
       await refresh();
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74042:220", _); }
     return false;
   });
   if ($("tradeDirWcToVoidBtn")) $("tradeDirWcToVoidBtn").addEventListener("click", async () => {
-    try { window.__voidTradeDirection = "wc_to_void"; } catch (_) {}
+    try { window.__voidTradeDirection = "wc_to_void"; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74046:221", _); }
     await refresh();
   });
   if ($("tradeDirVoidToWcBtn")) $("tradeDirVoidToWcBtn").addEventListener("click", async () => {
-    try { window.__voidTradeDirection = "void_to_wc"; } catch (_) {}
+    try { window.__voidTradeDirection = "void_to_wc"; } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74050:222", _); }
     await refresh();
   });
 
   const setTradeChartRange = async (key) => {
-    try { localStorage.setItem("void_trade_chart_range_v1", key); } catch (_) {}
+    try { localStorage.setItem("void_trade_chart_range_v1", key); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74055:223", _); }
     await refresh();
   };
   const markTradeChartRangeButtons = () => {
@@ -74073,7 +74073,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (!el) continue;
         el.className = active === key ? "btn btn-primary" : "btn";
       }
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74076:224", _); }
   };
   markTradeChartRangeButtons();
 
@@ -74088,7 +74088,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   let __voidTradeInputRefreshTimer = null;
   if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", () => {
-    try { if (__voidTradeInputRefreshTimer) clearTimeout(__voidTradeInputRefreshTimer); } catch (_) {}
+    try { if (__voidTradeInputRefreshTimer) clearTimeout(__voidTradeInputRefreshTimer); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74091:225", _); }
     __voidTradeInputRefreshTimer = setTimeout(() => {
       requestParticipantRefresh("trade_input").catch(() => {});
     }, 750);
@@ -74102,7 +74102,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const force = !!(opts && opts.force);
     try {
       if (!force && document && document.hidden) return;
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74105:226", _); }
 
     const now = Date.now();
     const minMs = force ? 0 : 12000;
@@ -74135,7 +74135,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   try {
     window.refreshAll = function(){ return requestParticipantRefresh("external", { force:true }); };
     window.refresh = window.refreshAll;
-  } catch (_) {}
+  } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74138:227", _); }
 
   await requestParticipantRefresh("initial", { force:true });
 
@@ -74152,7 +74152,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         });
         if (input) input.checked = !!(out && out.ok && out.enabled);
         setPre("submitOut", out);
-        try { wcReceiptDetailLinkUpdateFromResult(out, resolveActiveParticipantAccount()); } catch (_) {}
+        try { wcReceiptDetailLinkUpdateFromResult(out, resolveActiveParticipantAccount()); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74155:228", _); }
         await refresh();
       } catch (e) {
         if (input) input.checked = !nextEnabled;
@@ -74219,7 +74219,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       try {
         topStripSet("topStripRunner", runnerEnabled ? (runnerManualOnly ? "Runner: Manual" : "Runner: ON") : "Runner: OFF", runnerEnabled ? (runnerManualOnly ? "warn" : "good") : "warn");
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74222:229", _); }
 
       if ($("wcRunnerTickBtn")) {
         $("wcRunnerTickBtn").disabled = !runnerEnabled;
@@ -74247,7 +74247,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
             ? String(runnerStatus.last_result.job_id)
             : "";
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74250:230", err); }
       setText(
         "wcRunnerCooldownMini",
         runnerStatus && Number.isFinite(Number(runnerStatus.min_submit_gap_ms))
@@ -74377,7 +74377,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             preview.title = "";
           }
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74380:231", err); }
       setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
       setText(
         "wcRunnerJobsPerHourMini",
@@ -74411,8 +74411,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if ($("wcRunnerSafeModeInput")) $("wcRunnerSafeModeInput").checked = !!(runnerConfig && runnerConfig.ok && runnerConfig.safe_mode);
       if ($("wcRunnerGapInput") && runnerConfig && runnerConfig.ok) $("wcRunnerGapInput").value = String(Math.round(Number(runnerConfig.min_submit_gap_ms || 30000) / 1000));
       if ($("wcRunnerJobsPerHourInput") && runnerConfig && runnerConfig.ok) $("wcRunnerJobsPerHourInput").value = String(Number(runnerConfig.max_jobs_per_hour || 60));
-    } catch (_) {
-    } finally {
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74414:232", _); }
+ finally {
       __voidRunnerAutoRefreshBusy = false;
     }
   }
@@ -74422,20 +74422,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (document && document.hidden) return;
       const active = document && document.body && document.body.getAttribute("data-active-tab");
       if (active === "work") refreshRunnerPanelOnly().catch(() => {});
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74425:233", err); }
   }, 15000);
 
   let initialTab = null;
   try {
     const h = String((location && location.hash) || "").replace(/^#/, "").trim();
     if (h && ["overview","work","wallet","trading","receipts","datanet"].includes(h)) initialTab = h;
-  } catch {}
+  } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74432:234", err); }
 
   if (!initialTab) {
     try {
       const remembered = localStorage.getItem("void_participant_tab");
       if (remembered && ["overview","work","wallet","trading","receipts","datanet"].includes(remembered)) initialTab = remembered;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74438:235", err); }
   }
 
   switchTab(initialTab || "wallet");
@@ -74475,11 +74475,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function setStored(v){
-    try { localStorage.setItem(KEY, String(v || "").trim()); } catch (_) {}
+    try { localStorage.setItem(KEY, String(v || "").trim()); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74478:236", _); }
   }
 
   function clearStored(){
-    try { localStorage.removeItem(KEY); } catch (_) {}
+    try { localStorage.removeItem(KEY); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74482:237", _); }
   }
 
   function current(){
@@ -74554,9 +74554,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (disconnectBtn) disconnectBtn.style.display = valid(addr) ? "" : "none";
 
     try {
-      if (window.refreshAll && typeof window.refreshAll === "function") window.refreshAll().catch(function(){});
-      if (window.refresh && typeof window.refresh === "function") window.refresh().catch(function(){});
-    } catch (_) {}
+      if (window.refreshAll && typeof window.refreshAll === "function") window.refreshAll().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74557:238", undefined); });
+      if (window.refresh && typeof window.refresh === "function") window.refresh().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74558:239", undefined); });
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74559:240", _); }
   }
 
   async function connectWallet(){
@@ -74624,16 +74624,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   window.addEventListener("storage", function(){ rerender(); });
-  window.addEventListener("focus", function(){ refreshWalletSession().catch(function(){}); });
+  window.addEventListener("focus", function(){ refreshWalletSession().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74627:241", undefined); }); });
   document.addEventListener("visibilitychange", function(){
-    if (!document.hidden) refreshWalletSession().catch(function(){});
+    if (!document.hidden) refreshWalletSession().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74629:242", undefined); });
   });
 
   if (window.ethereum && window.ethereum.on) {
     try {
       window.ethereum.on("accountsChanged", function(){ rerender(); });
       window.ethereum.on("chainChanged", function(){ rerender(); });
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74636:243", _); }
   }
 
   if (document.readyState === "loading") {
@@ -74660,12 +74660,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         var qsAcct = String((window.__void_participant_account_qs || "")).trim();
         if (qsAcct) return qsAcct;
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74663:244", _); }
 
       try {
         var remembered = String(localStorage.getItem("void_participant_account_v1") || "").trim();
         if (remembered) return remembered;
-      } catch (_) {}
+      } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74668:245", _); }
 
       return "";
     } catch (_) { return ""; }
@@ -74679,7 +74679,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       var el = document.getElementById("voidParticipantWalletNativeState");
       if (el) el.textContent = String(msg || "");
-    } catch (_) {}
+    } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74682:246", _); }
   }
   async function j(url, opts){
     var res = await fetch(url, Object.assign({ headers:{ "content-type":"application/json" } }, opts || {}));
@@ -74779,7 +74779,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     a.download = account + ".participant-wallet.keystore.json";
     document.body.appendChild(a);
     a.click();
-    setTimeout(function(){ try { URL.revokeObjectURL(a.href); } catch(_){} try { a.remove(); } catch(_){} }, 500);
+    setTimeout(function(){ try { URL.revokeObjectURL(a.href); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74782:247", _); } try { a.remove(); } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74782:248", _); } }, 500);
     alert("Participant wallet keystore exported for " + account + ".");
   }
   function mount(){
@@ -74829,10 +74829,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     document.getElementById("voidParticipantWalletUnlockBtn").addEventListener("click", function(){ unlockWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
     document.getElementById("voidParticipantWalletLockBtn").addEventListener("click", function(){ lockWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
     document.getElementById("voidParticipantWalletExportBtn").addEventListener("click", function(){ exportWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
-    refreshNativeWalletState().catch(function(){});
+    refreshNativeWalletState().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74832:249", undefined); });
   }
-  window.addEventListener("focus", function(){ refreshNativeWalletState().catch(function(){}); });
-  document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshNativeWalletState().catch(function(){}); });
+  window.addEventListener("focus", function(){ refreshNativeWalletState().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74834:250", undefined); }); });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshNativeWalletState().catch (function() { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74835:251", undefined); }); });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount, { once:true }); else mount();
 })();
 </script>
@@ -74874,7 +74874,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       document.querySelector("main") ||
       document.body;
     if (target && card.parentNode !== target) target.insertBefore(card, target.firstChild);
-  } catch (_) {}
+  } catch (_) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74877:252", _); }
 })();
 </script>
 
@@ -74935,7 +74935,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     G[MARK].installed = true;
     G[MARK].removed = removed;
-    try { console.log("[participant-dashboard-steal-v1] mounted removed=" + removed + " tabs=overview,work,wallet,trading,receipts"); } catch {}
+    try { console.log("[participant-dashboard-steal-v1] mounted removed=" + removed + " tabs=overview,work,wallet,trading,receipts"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74938:253", err); }
   }
 
   mount();
@@ -74957,7 +74957,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     const r = await fetch(url, init);
     const t = await r.text();
     let j:any = null;
-    try { j = JSON.parse(t); } catch {}
+    try { j = JSON.parse(t); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("74960:254", err); }
     return { ok:r.ok, status:r.status, text:t, json:j, headers:r.headers };
   }
 
@@ -75044,7 +75044,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
     app.get("/__void/metrics/proposer.compat.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[mountMarker] }));
 
-    try{ console.error("[proposer.compat.v1] mounted: GET /proposer/status ; POST /proposer/commit ; POST /proposer/commit-now"); }catch{}
+    try{ console.error("[proposer.compat.v1] mounted: GET /proposer/status ; POST /proposer/commit ; POST /proposer/commit-now"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75047:255", err); }
   }
 
   mount();
@@ -75169,11 +75169,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[diag] attached /__void/diag/submit_path_truth.json + /__void/metrics/submit_path_truth.prom"); }catch{}
+      try{ console.log("[diag] attached /__void/diag/submit_path_truth.json + /__void/metrics/submit_path_truth.prom"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75172:256", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75176:257", err); }
 })();
 // -------- /submit path truth surface v1 --------
 
@@ -75217,7 +75217,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           S.cleared_total += before;
         }
         S.last_after = Array.isArray(qg) ? (qg.length|0) : 0;
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75220:258", err); }
     }
 
     if (
@@ -75277,8 +75277,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       });
     }
 
-    try{ console.log("[legacy-global-txqueue-noise] cleaner v1 installed"); }catch{}
-  }catch{}
+    try{ console.log("[legacy-global-txqueue-noise] cleaner v1 installed"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75280:259", err); }
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75281:260", err); }
 })();
 // -------- /LEGACY GLOBAL TX QUEUE NOISE CLEANER v1 --------
 
@@ -75787,7 +75787,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
       const stageFilePath = () => {
         const dir = path.join(process.cwd(), "runtime");
-        try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75790:261", err); }
         return path.join(dir, "upgrade-staged.v1.json");
       };
 
@@ -75926,7 +75926,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
       const runtimeDir = () => {
         const dir = path.join(process.cwd(), "runtime");
-        try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("75929:262", err); }
         return dir;
       };
 
@@ -76086,7 +76086,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     const cp = require("child_process");
 
     const runtimeDir = path.join(process.cwd(), "runtime");
-    try { fs.mkdirSync(runtimeDir, { recursive: true }); } catch {}
+    try { fs.mkdirSync(runtimeDir, { recursive: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76089:263", err); }
 
     const pendingPath = path.join(runtimeDir, "upgrade-apply-pending.v1.json");
     const statusPath = path.join(runtimeDir, "upgrade-boot-consumer-status.v1.json");
@@ -76102,7 +76102,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     };
 
     const writeStatus = (obj: any) => {
-      try { fs.writeFileSync(statusPath, JSON.stringify(obj, null, 2) + "\n", "utf8"); } catch {}
+      try { fs.writeFileSync(statusPath, JSON.stringify(obj, null, 2) + "\n", "utf8"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76105:264", err); }
     };
 
     const safeVersion = (v: string) =>
@@ -76196,9 +76196,9 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       const extractDir = path.join(liveRoot, targetVersion);
       const markerPath = path.join(extractDir, ".prepared.json");
 
-      try { fs.mkdirSync(liveRoot, { recursive: true }); } catch {}
-      try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
-      try { fs.mkdirSync(extractDir, { recursive: true }); } catch {}
+      try { fs.mkdirSync(liveRoot, { recursive: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76199:265", err); }
+      try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76200:266", err); }
+      try { fs.mkdirSync(extractDir, { recursive: true }); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76201:267", err); }
 
       try {
         cp.execFileSync("tar", ["-xzf", artifactPath, "-C", extractDir], {
@@ -76241,7 +76241,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
       try {
         fs.writeFileSync(markerPath, JSON.stringify(prepared, null, 2) + "\n", "utf8");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76244:268", err); }
 
       try {
         const consumed = {
@@ -76250,7 +76250,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           consumed_by: "upgrade-boot-consumer:v2"
         };
         fs.writeFileSync(pendingPath, JSON.stringify(consumed, null, 2) + "\n", "utf8");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76253:269", err); }
 
       writeStatus({
         ok: true,
@@ -76279,7 +76279,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
     run();
   } catch (e: any) {
-    try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch {}
+    try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76282:270", err); }
   }
 })();
 
@@ -76349,11 +76349,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[agent.pick2.weighted.v2.runtime-truth] ready"); }catch{}
+      try{ console.log("[agent.pick2.weighted.v2.runtime-truth] ready"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76352:271", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76356:272", err); }
 })();
 
 
@@ -76458,11 +76458,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[agent.pick2.v2.metrics] exporter ready: /__void/metrics/agent_pick2_v2.prom"); }catch{}
+      try{ console.log("[agent.pick2.v2.metrics] exporter ready: /__void/metrics/agent_pick2_v2.prom"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76461:273", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76465:274", err); }
 })();
 
 
@@ -76494,11 +76494,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[agent.pick2.v2.rejects] route ready: /__void/agent/pick2/rejects.v2"); }catch{}
+      try{ console.log("[agent.pick2.v2.rejects] route ready: /__void/agent/pick2/rejects.v2"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76497:275", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76501:276", err); }
 })();
 
 
@@ -76575,7 +76575,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           const fullPath = path.join(dir, f);
 
           let fileMtimeMs = 0;
-          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76578:277", err); }
 
           const verifyLast = Number((rt.verify_history_by_dataset[String(account)] || {})[datasetId] || 0);
           const verifyBasis = verifyLast > 0 ? verifyLast : fileMtimeMs;
@@ -76731,11 +76731,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try { console.log("[agent.candidates.v1] mounted: /__void/agent/candidates.v1 and /__void/metrics/agent_candidates.prom"); } catch {}
+      try { console.log("[agent.candidates.v1] mounted: /__void/agent/candidates.v1 and /__void/metrics/agent_candidates.prom"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76734:278", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76738:279", err); }
 })();
 
 
@@ -76784,7 +76784,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           try{
             const j = JSON.parse(line);
             if (j && typeof j === "object") out.push(j);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76787:280", err); }
         }
         return out;
       }
@@ -76937,11 +76937,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[agent.receipts.truth.v2] mounted"); }catch{}
+      try{ console.log("[agent.receipts.truth.v2] mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76940:281", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76944:282", err); }
 })();
 
 
@@ -76990,7 +76990,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           try{
             const j = JSON.parse(line);
             if (j && typeof j === "object") out.push(j);
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("76993:283", err); }
         }
         return out;
       }
@@ -77069,7 +77069,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             r.stack = r.stack.filter((s:any)=> !(s && s.method === "get"));
             if (!r.stack.length) stack.splice(i, 1);
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77072:284", err); }
       }
 
       pruneGet("/__void/metrics/agent_receipts.prom");
@@ -77154,11 +77154,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
 
-      try{ console.log("[agent.receipts.truth.v3] mounted"); }catch{}
+      try{ console.log("[agent.receipts.truth.v3] mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77157:285", err); }
     }
 
     mount();
-  }catch{}
+  }catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77161:286", err); }
 })();
 
 
@@ -77235,7 +77235,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       }
     });
 
-    try { console.error("[agent.candidates.freshness.v1] mounted"); } catch {}
+    try { console.error("[agent.candidates.freshness.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77238:287", err); }
     return true;
   };
 
@@ -77368,7 +77368,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       }
     });
 
-    try { console.error("[datanet.receipts.health.v1] mounted"); } catch {}
+    try { console.error("[datanet.receipts.health.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77371:288", err); }
     return true;
   };
 
@@ -77452,7 +77452,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       }
     });
 
-    try { console.error("[datanet.latest-useful-credit.v1] mounted"); } catch {}
+    try { console.error("[datanet.latest-useful-credit.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77455:289", err); }
     return true;
   };
 
@@ -77551,7 +77551,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       tries++;
       if (attach() || tries >= 400) clearInterval(t);
     }, 50);
-    try { (t as any).unref?.(); } catch {}
+    try { (t as any).unref?.(); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77554:290", err); }
   }
 })();
 // === [END WcRewardStatsFallbackRouteV1] ===
@@ -77653,7 +77653,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       }
     });
 
-    try { console.error("[participant.payout-summary.v1] mounted"); } catch {}
+    try { console.error("[participant.payout-summary.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77656:291", err); }
     return true;
   };
 
@@ -77777,7 +77777,7 @@ if (
                 state.injectedTxs += picked.length;
                 state.lastBlock = Number(block?.number ?? -1);
                 state.lastCount = picked.length;
-                try { console.log(`[terminal-saveblock] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch {}
+                try { console.log(`[terminal-saveblock] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77780:292", err); }
               }
             }
 
@@ -77807,18 +77807,18 @@ if (
       (store as any).__void_terminal_saveblock_fix_v1_wrapped = true;
       state.active = true;
       state.wraps++;
-      try { console.log("[terminal-saveblock] wrapped live store.saveBlock"); } catch {}
+      try { console.log("[terminal-saveblock] wrapped live store.saveBlock"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77810:293", err); }
       return true;
     }
 
     let tries = 0;
     (function tick(){
-      try { attachRoutes(); } catch {}
+      try { attachRoutes(); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77816:294", err); }
       if (attach()) return;
       if (++tries < 240) return setTimeout(tick, 500);
     })();
   }catch(e:any){
-    try { console.warn("[terminal-saveblock] init failed:", e?.message || e); } catch {}
+    try { console.warn("[terminal-saveblock] init failed:", e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77821:295", err); }
   }
 })();
 }
@@ -77910,7 +77910,7 @@ if (
                 state.injectedTxs += picked.length;
                 state.lastBlock = Number(block?.number ?? -1);
                 state.lastCount = picked.length;
-                try { console.log(`[terminal-saveblock-v2] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch {}
+                try { console.log(`[terminal-saveblock-v2] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77913:296", err); }
               }
             }
 
@@ -77956,7 +77956,7 @@ if (
         } else {
           state.suppressedWrapLogs = suppressed + 1;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77959:297", err); }
       return true;
     }
 
@@ -77971,7 +77971,7 @@ if (
     }, 1000);
 
   }catch(e:any){
-    try { console.warn("[terminal-saveblock-v2] init failed:", e?.message || e); } catch {}
+    try { console.warn("[terminal-saveblock-v2] init failed:", e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("77974:298", err); }
   }
 })();
 }
@@ -83811,4 +83811,9 @@ function voidIndexEmptyCatchVisibilityWindow43201_44100V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow44101_45000V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_44101_45000_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow59401_78300V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_59401_78300_V1_VISIBLE", context, err);
 }
