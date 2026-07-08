@@ -9,8 +9,21 @@
     const pid = process.pid;
     const host = (process.env.VOID_FORCE_LISTEN_HOST || "127.0.0.1");
     const port = Number(process.env.HTTP_PORT || 4100);
+    const VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1";
+    function recordVoidForceListenV5EmptyCatchVisibilityV1(site, err) {
+      try {
+        const g = globalThis;
+        const key = "__void_force_listen_v5_empty_catch_visibility_v1";
+        const bucket = Array.isArray(g[key]) ? g[key] : [];
+        bucket.push({ marker: VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+        while (bucket.length > 50) bucket.shift();
+        g[key] = bucket;
+      } catch (_visibilityRecordErr) {
+        /* VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+      }
+    }
 
-    const log = (...a) => { try { console.error("[force-listen.v5]", ...a); } catch {} };
+    const log = (...a) => { try { console.error("[force-listen.v5]", ...a); } catch (logErr) { recordVoidForceListenV5EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } };
     log("installed", { pid, host, port });
 
     const http = require("http");
@@ -41,7 +54,7 @@
             res.statusCode = 500;
             res.setHeader("content-type", "text/plain");
             res.end("force-listen.v5: handler threw\n");
-          } catch {}
+          } catch (handlerResponseErr) { recordVoidForceListenV5EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_HANDLER_ERROR_RESPONSE", handlerResponseErr); }
         }
       };
     }
@@ -76,7 +89,7 @@
       try {
         srv.listen({ host, port }, () => {
           let addr = null;
-          try { addr = srv.address(); } catch {}
+          try { addr = srv.address(); } catch (addressErr) { recordVoidForceListenV5EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_SERVER_ADDRESS", addressErr); }
           log("LISTENING", { pid, addr });
         });
       } catch (e) {
@@ -111,6 +124,6 @@
     }, intervalMs);
 
   } catch (e) {
-    try { console.error("[force-listen.v5] FATAL install error", String(e && e.stack || e)); } catch {}
+    try { console.error("[force-listen.v5] FATAL install error", String(e && e.stack || e)); } catch (fatalLogErr) { recordVoidForceListenV5EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_FATAL_INSTALL_LOG", fatalLogErr); }
   }
 })();
