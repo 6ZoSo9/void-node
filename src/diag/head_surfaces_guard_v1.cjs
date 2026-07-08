@@ -14,6 +14,20 @@ const PORT = Number(process.env.HTTP_PORT || 4100);
 const DATA_DIR = process.env.DATA_DIR || "data_a";
 const HEAD_PATH = path.join(process.cwd(), DATA_DIR, "head.txt");
 
+const VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1";
+function recordVoidHeadSurfacesGuardEmptyCatchVisibilityV1(site, err) {
+  try {
+    const g = globalThis;
+    const key = "__void_head_surfaces_guard_empty_catch_visibility_v1";
+    const bucket = Array.isArray(g[key]) ? g[key] : [];
+    bucket.push({ marker: VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+    while (bucket.length > 50) bucket.shift();
+    g[key] = bucket;
+  } catch (_visibilityRecordErr) {
+    /* VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+  }
+}
+
 let storeHead = null;
 let storeHeadTs = 0;
 let installed = false;
@@ -39,7 +53,7 @@ function writeHeadFile(n) {
   try {
     fs.mkdirSync(path.dirname(HEAD_PATH), { recursive: true });
     fs.writeFileSync(HEAD_PATH, String(n) + "\n");
-  } catch {}
+  } catch (writeErr) { recordVoidHeadSurfacesGuardEmptyCatchVisibilityV1("VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_SITE_WRITE_HEAD_FILE", writeErr); }
 }
 
 function setStoreHead(n, source) {
@@ -49,7 +63,7 @@ function setStoreHead(n, source) {
   storeHeadTs = Date.now();
   // keep head.txt consistent with store head
   writeHeadFile(n);
-  try { console.error(`[head_guard_v1] storeHead=${n} source=${source}`); } catch {}
+  try { console.error(`[head_guard_v1] storeHead=${n} source=${source}`); } catch (logErr) { recordVoidHeadSurfacesGuardEmptyCatchVisibilityV1("VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_SITE_STORE_HEAD_LOG", logErr); }
 }
 
 function httpGet(pathname, cb) {
@@ -122,7 +136,7 @@ try {
       get() { return _app; },
       set(v) {
         _app = v;
-        try { if (v && typeof v.use === "function") installEarlyMiddleware(v); } catch {}
+        try { if (v && typeof v.use === "function") installEarlyMiddleware(v); } catch (setterErr) { recordVoidHeadSurfacesGuardEmptyCatchVisibilityV1("VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_SITE_HTTP_APP_SETTER_INSTALL", setterErr); }
       }
     });
   } else {
@@ -130,4 +144,4 @@ try {
     const v = globalThis.__void_http_app;
     if (v && typeof v.use === "function") installEarlyMiddleware(v);
   }
-} catch {}
+} catch (hookErr) { recordVoidHeadSurfacesGuardEmptyCatchVisibilityV1("VOID_HEAD_SURFACES_GUARD_EMPTY_CATCH_VISIBILITY_V1_SITE_HTTP_APP_HOOK", hookErr); }
