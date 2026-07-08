@@ -10,7 +10,21 @@
   const fs = require("fs");
   const http = require("http");
 
-  function log(...a){ try{ console.error("[force-listen.v6]", ...a); }catch{} }
+  const VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidForceListenV6EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_force_listen_v6_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
+  function log(...a){ try{ console.error("[force-listen.v6]", ...a); }catch(logErr){ recordVoidForceListenV6EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } }
   function writeStatus(obj){
     try{
       const p = `/tmp/void-force-listen-v6.${process.pid}.json`;
@@ -62,7 +76,7 @@
           res.statusCode = 500;
           res.setHeader("content-type", "text/plain");
           res.end("handler_error\n");
-        }catch{}
+        }catch(handlerResponseErr){ recordVoidForceListenV6EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_SITE_HANDLER_ERROR_RESPONSE", handlerResponseErr); }
         log("handler threw", String(e && e.stack || e));
         return;
       }
@@ -70,7 +84,7 @@
         res.statusCode = 200;
         res.setHeader("content-type", "text/plain");
         res.end("ok_nohandler\n");
-      }catch{}
+      }catch(noHandlerResponseErr){ recordVoidForceListenV6EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_SITE_NO_HANDLER_RESPONSE", noHandlerResponseErr); }
     });
 
     server.on("error", (e) => {
@@ -102,6 +116,6 @@
     try{
       G.__void_force_listen_v6_server = server;
       G.__void_force_listen_v6_hostport = { host, port };
-    }catch{}
+    }catch(globalStoreErr){ recordVoidForceListenV6EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V6_EMPTY_CATCH_VISIBILITY_V1_SITE_GLOBAL_SERVER_STORE", globalStoreErr); }
   }, 250);
 })();
