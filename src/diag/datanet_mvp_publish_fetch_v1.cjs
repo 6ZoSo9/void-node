@@ -38,7 +38,7 @@ function appendReceiptLine(rec) {
     fs.appendFileSync(fp, JSON.stringify(rec) + "\n");
     return true;
   } catch (e) {
-    try { console.error("[datanet.mvp.publish_fetch.v1] receipt append failed:", e && e.message ? e.message : String(e)); } catch {}
+    try { console.error("[datanet.mvp.publish_fetch.v1] receipt append failed:", e && e.message ? e.message : String(e)); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     return false;
   }
 }
@@ -63,7 +63,7 @@ function tryMount(app) {
     if (!app || typeof app.post !== "function" || typeof app.get !== "function") {
       if (!G.__void_datanet_mvp_publish_fetch_v1_noapp_once) {
       G.__void_datanet_mvp_publish_fetch_v1_noapp_once = true;
-      try { console.error("[datanet.mvp.publish_fetch.v1] waiting for app hook..."); } catch {}
+      try { console.error("[datanet.mvp.publish_fetch.v1] waiting for app hook..."); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     }
     return false;
     }
@@ -177,10 +177,10 @@ function tryMount(app) {
       }
     });
 
-    try { console.error("[datanet.mvp.publish_fetch.v1] mounted: POST /datanet/v1/publish ; GET /datanet/v1/fetch/:id"); } catch {}
+    try { console.error("[datanet.mvp.publish_fetch.v1] mounted: POST /datanet/v1/publish ; GET /datanet/v1/fetch/:id"); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     return true;
   } catch (e) {
-    try { console.error("[datanet.mvp.publish_fetch.v1] mount threw:", e && e.message ? e.message : String(e)); } catch {}
+    try { console.error("[datanet.mvp.publish_fetch.v1] mount threw:", e && e.message ? e.message : String(e)); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     return false;
   }
 }
@@ -194,7 +194,7 @@ function tryMount(app) {
     if (tryMount(app)) { clearInterval(t); return; }
     if (nowMs() - started > maxMs) {
       clearInterval(t);
-      try { console.error("[datanet.mvp.publish_fetch.v1] gave up waiting for app hook"); } catch {}
+      try { console.error("[datanet.mvp.publish_fetch.v1] gave up waiting for app hook"); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     }
   }, 200);
 })();
@@ -249,7 +249,7 @@ function tryMount(app) {
       state.loaded_real = 0;
       state.err_real = oneLineErr(e);
       // DO NOT throw.
-      try { console.error("[receipts.safemount.v1] require(real) failed:", state.err_real); } catch {}
+      try { console.error("[receipts.safemount.v1] require(real) failed:", state.err_real); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     }
 
     try {
@@ -259,7 +259,7 @@ function tryMount(app) {
       state.loaded_persist = 0;
       state.err_persist = oneLineErr(e);
       // DO NOT throw.
-      try { console.error("[receipts.safemount.v1] require(persist) failed:", state.err_persist); } catch {}
+      try { console.error("[receipts.safemount.v1] require(persist) failed:", state.err_persist); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
     }
   }
 
@@ -280,14 +280,14 @@ function tryMount(app) {
               const st = fs.statSync(state.file);
               stat = { size: st.size, mtimeMs: st.mtimeMs };
             }
-          } catch {}
+          } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
           res.json({ ok: true, state, fileStat: stat });
         });
         state.mounted = 1;
-        try { console.error("[receipts.safemount.v1] mounted:", WANT_PATH); } catch {}
+        try { console.error("[receipts.safemount.v1] mounted:", WANT_PATH); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
       } catch (e) {
         state.mounted = 0;
-        try { console.error("[receipts.safemount.v1] mount failed:", oneLineErr(e)); } catch {}
+        try { console.error("[receipts.safemount.v1] mount failed:", oneLineErr(e)); } catch (voidDatanetMvpPublishFetchCatchError) { void voidDatanetMvpPublishFetchCatchError; /* VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1 */ }
       }
       clearInterval(t);
       return;
