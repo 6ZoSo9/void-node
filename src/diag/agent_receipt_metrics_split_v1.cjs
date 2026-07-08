@@ -14,6 +14,20 @@
   const EXPORT_PROM = "/__void/metrics/agent_receipts_split.prom";
   const EXPORT_JSON = "/__void/metrics/agent_receipts_split.json";
 
+  const VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_agent_receipt_metrics_split_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
   function met(){ return (G.__void_agent_metrics ||= {}); }
   function inc(k){ const m=met(); m[k] = Number(m[k]||0) + 1; }
 
@@ -55,7 +69,7 @@
         res.setHeader("content-type","text/plain; version=0.0.4; charset=utf-8");
         res.send(lines.join("\n")+"\n");
       });
-    }catch{}
+    }catch(exporterErr){ recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1("VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_SITE_MOUNT_EXPORTER", exporterErr); }
   }
 
   function attachMiddleware(app){
@@ -94,13 +108,13 @@
                   const m2 = p.match(/^\/agent\/v0\/receipt\/([^\/]+)$/);
                   if (m2) inc("receipts_write_total");
                 }
-              }catch{}
+              }catch(finishClassifyErr){ recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1("VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_SITE_FINISH_CLASSIFY", finishClassifyErr); }
             });
           }
-        }catch{}
+        }catch(middlewareErr){ recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1("VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_SITE_MIDDLEWARE_BODY", middlewareErr); }
         return next();
       });
-    }catch{}
+    }catch(attachErr){ recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1("VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_SITE_ATTACH_MIDDLEWARE", attachErr); }
   }
 
   function tryAttach(){
@@ -119,7 +133,7 @@
       const ok = tryAttach();
       if (ok || tries >= maxTries){
         clearInterval(t);
-        try{ console.error(`[agent_receipts_split_metrics_v2] done tries=${tries} ok=${!!ok}`); }catch{}
+        try{ console.error(`[agent_receipts_split_metrics_v2] done tries=${tries} ok=${!!ok}`); }catch(doneLogErr){ recordVoidAgentReceiptMetricsSplitEmptyCatchVisibilityV1("VOID_AGENT_RECEIPT_METRICS_SPLIT_EMPTY_CATCH_VISIBILITY_V1_SITE_DONE_LOG", doneLogErr); }
       }
     }catch{
       if (tries >= maxTries) clearInterval(t);
