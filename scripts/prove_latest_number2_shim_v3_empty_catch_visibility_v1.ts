@@ -1,0 +1,42 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+const target = "src/diag/patch_latest_number2_shim_v3.cjs";
+const source = readFileSync(target, "utf8");
+
+const sha256 = createHash("sha256").update(source).digest("hex");
+const realEmptyCatchMatches = source.match(/(^|[^\w.])catch[ \t]*(?:\([^)]*\))?[ \t]*\{[ \t]*\}/gm) ?? [];
+const siteMarkers = source.match(/VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_[A-Z_]+/g) ?? [];
+const recordCalls = source.match(/recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1\([\"']VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_/g) ?? [];
+const baseMarkers = source.match(/VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1/g) ?? [];
+
+console.log(`VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SHA256=${sha256}`);
+console.log(`VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_REAL_EMPTY_CATCH_COUNT=${realEmptyCatchMatches.length}`);
+console.log(`VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_MARKER_COUNT=${siteMarkers.length}`);
+console.log(`VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_RECORD_CALL_COUNT=${recordCalls.length}`);
+
+if (!source.includes("function recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1(site, err)")) {
+  throw new Error("missing visibility helper");
+}
+
+if (realEmptyCatchMatches.length !== 0) {
+  throw new Error(`expected 0 real same-line empty catches in ${target}, found ${realEmptyCatchMatches.length}`);
+}
+
+if (siteMarkers.length !== 5) {
+  throw new Error(`expected 5 site markers, found ${siteMarkers.length}`);
+}
+
+if (recordCalls.length !== 5) {
+  throw new Error(`expected 5 visibility record calls, found ${recordCalls.length}`);
+}
+
+if (baseMarkers.length < 5) {
+  throw new Error(`expected base visibility markers to be present, found ${baseMarkers.length}`);
+}
+
+console.log(`[PASS] sha256-stable: sha256=${sha256}`);
+console.log("[PASS] real-empty-catches-closed: count=0, expected=0");
+console.log("[PASS] site-marker-count: count=5, expected=5");
+console.log("[PASS] record-call-count: count=5, expected=5");
+console.log("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_GREEN");

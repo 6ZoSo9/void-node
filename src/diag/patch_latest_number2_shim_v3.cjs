@@ -8,6 +8,20 @@
 
   const G = globalThis;
 
+  const VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_latest_number2_shim_v3_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
   function readIntFile(p){
     try{
       const s = fs.readFileSync(p, "utf8");
@@ -44,7 +58,7 @@
           }
         );
         req.on("error", () => resolve(-1));
-        req.setTimeout(timeoutMs, () => { try{ req.destroy(); }catch{} resolve(-1); });
+        req.setTimeout(timeoutMs, () => { try{ req.destroy(); }catch(destroyErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_REQ_DESTROY", destroyErr); } resolve(-1); });
         req.end();
       }catch{
         resolve(-1);
@@ -80,7 +94,7 @@
         res.setHeader("content-type", "application/json; charset=utf-8");
         res.end(JSON.stringify({ ok: true, number: n }));
       }catch{
-        try{ return next(); }catch{}
+        try{ return next(); }catch(nextErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_NEXT_FALLBACK", nextErr); }
       }
     };
     fn.__void_number2_shim_v3 = true;
@@ -99,7 +113,7 @@
           return;
         }
       }
-    }catch{}
+    }catch(moveLayerErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_MOVE_LAYER_FRONT", moveLayerErr); }
   }
 
   function tryMount(app){
@@ -110,7 +124,7 @@
       app.use(h);
       moveLayerToFront(app);
       G.__void_number2_shim_v3_installed = true;
-      try{ console.error("[compat] number2 shim v3 installed (file-first, fallback /blocks/latest/number)"); }catch{}
+      try{ console.error("[compat] number2 shim v3 installed (file-first, fallback /blocks/latest/number)"); }catch(installedLogErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
       return true;
     }catch{
       return false;
@@ -137,7 +151,7 @@
     }
     if (tries > 200){ // ~10s
       clearInterval(t);
-      try{ console.error("[compat] number2 shim v3 gave up (no app found)"); }catch{}
+      try{ console.error("[compat] number2 shim v3 gave up (no app found)"); }catch(gaveUpLogErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_GAVE_UP_LOG", gaveUpLogErr); }
     }
   }, 50);
 })();
