@@ -1,7 +1,20 @@
 /* eslint-disable */
 (function () {
   const tag = `[finalhandler.hardstub.v5 pid=${process.pid}]`;
-  const log = (...a) => { try { console.error(tag, ...a); } catch (_) {} };
+  const VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidFinalhandlerHardstubV5EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_finalhandler_hardstub_v5_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+  const log = (...a) => { try { console.error(tag, ...a); } catch (logErr) { recordVoidFinalhandlerHardstubV5EmptyCatchVisibilityV1("VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } };
 
   try {
     const Module = require("module");
@@ -41,7 +54,7 @@
         };
       }
 
-      try { Object.defineProperty(guarded, "__void_hardstub_v5", { value: 1 }); } catch (_) {}
+      try { Object.defineProperty(guarded, "__void_hardstub_v5", { value: 1 }); } catch (guardedDefineErr) { recordVoidFinalhandlerHardstubV5EmptyCatchVisibilityV1("VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_GUARDED_MARKER_DEFINE", guardedDefineErr); }
       return guarded;
     }
 
@@ -87,12 +100,12 @@
         }
         return exp;
       };
-      try { Object.defineProperty(Module._load, "__void_fh_hook_v5", { value: 1 }); } catch (_) {}
+      try { Object.defineProperty(Module._load, "__void_fh_hook_v5", { value: 1 }); } catch (hookDefineErr) { recordVoidFinalhandlerHardstubV5EmptyCatchVisibilityV1("VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_MODULE_LOAD_HOOK_DEFINE", hookDefineErr); }
       log("Module._load hook armed");
     } else {
       log("Module._load hook already armed");
     }
   } catch (e) {
-    try { console.error(tag, "FATAL install error", (e && e.stack) ? e.stack : e); } catch (_) {}
+    try { console.error(tag, "FATAL install error", (e && e.stack) ? e.stack : e); } catch (fatalLogErr) { recordVoidFinalhandlerHardstubV5EmptyCatchVisibilityV1("VOID_FINALHANDLER_HARDSTUB_V5_EMPTY_CATCH_VISIBILITY_V1_SITE_FATAL_INSTALL_LOG", fatalLogErr); }
   }
 })();
