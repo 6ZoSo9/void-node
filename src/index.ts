@@ -44112,7 +44112,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 if (!rid && !jid) continue;
                 const ts = Number(r?.ts_ms || r?.ts || 0);
                 if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
-              } catch {}
+              } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44115:1", err); }
             }
 
             return best ? {
@@ -44123,7 +44123,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             return { receipt_id: null, job_id: null };
           }
         };
-        try { (globalThis as any).__void_findReceiptJobLinkage = findReceiptJobLinkage; } catch {}
+        try { (globalThis as any).__void_findReceiptJobLinkage = findReceiptJobLinkage; } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44126:2", err); }
 
         APP.get("/datanet/v1/local-job/:id", (req:any, res:any) => {
           try {
@@ -44146,7 +44146,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
 
             let parsed:any = null;
-            try { parsed = JSON.parse(plaintext); } catch {}
+            try { parsed = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44149:3", err); }
 
             let materialization_provenance_v1:any = null;
             let materialization_provenance_status_v1:any = {
@@ -44200,7 +44200,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 if (!receipt_id) receipt_id = linked.receipt_id || null;
                 if (!job_id) job_id = linked.job_id || null;
               }
-            } catch {}
+            } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44203:4", err); }
 
             return res.status(200).json({
               ok: true,
@@ -44287,7 +44287,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
       let parsed:any = null;
-      try { parsed = JSON.parse(plaintext); } catch {}
+      try { parsed = JSON.parse(plaintext); } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44290:5", err); }
       const taskClass = String(parsed?.task_class || "").trim();
       let receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
       let jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
@@ -44297,7 +44297,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           if (!receiptId) receiptId = String(linked.receipt_id || "").trim();
           if (!jobId) jobId = String(linked.job_id || "").trim();
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44300:6", err); }
       const consumeHref = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
       const rawHref = "/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
       const backHref = "/participant?account=" + encodeURIComponent(who) + "&open_dataset=" + encodeURIComponent(id) + "#datanet";
@@ -44478,7 +44478,7 @@ a{color:#93c5fd;text-decoration:none}
             const canonical = JSON.stringify(record, null, 2) + "\n";
             record.sha256 = crypto2.createHash("sha256").update(canonical).digest("hex");
             fs2.writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
-            try { fs2.utimesSync(file, new Date(Date.now() + 20 * 60 * 1000), new Date(Date.now() + 20 * 60 * 1000)); } catch {}
+            try { fs2.utimesSync(file, new Date(Date.now() + 20 * 60 * 1000), new Date(Date.now() + 20 * 60 * 1000)); } catch (err) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44481:7", err); }
             return res.status(303)
               .set("location", success_path)
               .set("cache-control", "no-store")
@@ -44586,7 +44586,7 @@ a{color:#93c5fd;text-decoration:none}
                   viewer_path: "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta),
                   raw_path: "/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who)
                 });
-              } catch (_) {}
+              } catch (_) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44589:8", _); }
             }
             return res.json({
               ok: true,
@@ -44752,8 +44752,8 @@ a{color:#93c5fd;text-decoration:none}
                     const jsonStrings:any[] = [];
                     collectJsonStringsForPublicRetrieval(parsed, jsonStrings, 0);
                     chunks.push(jsonStrings.join("\n"));
-                  } catch (_) {}
-                } catch (_) {}
+                  } catch (_) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44755:9", _); }
+                } catch (_) { voidIndexEmptyCatchVisibilityWindow44101_45000V1("44756:10", _); }
               }
 
               return chunks.join("\n");
@@ -83806,4 +83806,9 @@ function voidIndexEmptyCatchVisibilityWindow42301_43200V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow43201_44100V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_43201_44100_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow44101_45000V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_44101_45000_V1_VISIBLE", context, err);
 }
