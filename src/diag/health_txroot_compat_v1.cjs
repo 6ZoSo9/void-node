@@ -5,6 +5,20 @@
 */
 const http = require("http");
 
+const VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1";
+function recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1(site, err) {
+  try {
+    const g = globalThis;
+    const key = "__void_health_txroot_compat_v1_empty_catch_visibility_v1";
+    const bucket = Array.isArray(g[key]) ? g[key] : [];
+    bucket.push({ marker: VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+    while (bucket.length > 50) bucket.shift();
+    g[key] = bucket;
+  } catch (_visibilityRecordErr) {
+    /* VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+  }
+}
+
 (function install() {
   try {
     if (globalThis.__void_health_txroot_compat_v1__) return;
@@ -48,7 +62,7 @@ const http = require("http");
                     res.statusCode = 503;
                     res.setHeader("content-type", "text/plain");
                     res.end("txroot compat proxy: response error\n");
-                  } catch {}
+                  } catch (responseFallbackErr) { recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1("VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_RESPONSE_ERROR_FALLBACK", responseFallbackErr); }
                 }
               }
             );
@@ -58,17 +72,17 @@ const http = require("http");
                 res.statusCode = 503;
                 res.setHeader("content-type", "text/plain");
                 res.end("txroot compat proxy: upstream error\n");
-              } catch {}
+              } catch (upstreamFallbackErr) { recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1("VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_UPSTREAM_ERROR_FALLBACK", upstreamFallbackErr); }
             });
 
             preq.end();
             return true; // handled
           }
         }
-      } catch {}
+      } catch (requestInterceptErr) { recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1("VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_REQUEST_INTERCEPT", requestInterceptErr); }
       return origEmit.call(this, ev, ...args);
     };
 
-    try { console.error("[health_txroot_compat_v1] installed (txroot/txroot2 -> txroot3 proxy)"); } catch {}
-  } catch {}
+    try { console.error("[health_txroot_compat_v1] installed (txroot/txroot2 -> txroot3 proxy)"); } catch (installedLogErr) { recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1("VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
+  } catch (installErr) { recordVoidHealthTxrootCompatV1EmptyCatchVisibilityV1("VOID_HEALTH_TXROOT_COMPAT_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALL", installErr); }
 })();
