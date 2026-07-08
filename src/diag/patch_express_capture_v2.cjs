@@ -7,7 +7,21 @@
   if (G.__void_express_capture_v2_installed) return;
   G.__void_express_capture_v2_installed = true;
 
-  function log(...a){ try{ console.error("[express-capture.v2]", ...a); }catch{} }
+  const VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidExpressCaptureV2EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_express_capture_v2_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
+  function log(...a){ try{ console.error("[express-capture.v2]", ...a); }catch(logErr){ recordVoidExpressCaptureV2EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } }
 
   try{
     const path = require.resolve("express");
@@ -31,18 +45,18 @@
     // preserve properties commonly used off express fn
     try{
       Object.defineProperties(wrappedExpress, Object.getOwnPropertyDescriptors(orig));
-    }catch{}
+    }catch(copyDescriptorErr){ recordVoidExpressCaptureV2EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_COPY_DESCRIPTORS", copyDescriptorErr); }
     try{
       wrappedExpress.Router = orig.Router;
       wrappedExpress.json = orig.json;
       wrappedExpress.urlencoded = orig.urlencoded;
       wrappedExpress.static = orig.static;
-    }catch{}
+    }catch(copyCommonPropsErr){ recordVoidExpressCaptureV2EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_COPY_COMMON_PROPS", copyCommonPropsErr); }
 
     // override cache export so later imports get wrapper
     try{
       if (require.cache && require.cache[path]) require.cache[path].exports = wrappedExpress;
-    }catch{}
+    }catch(cacheExportErr){ recordVoidExpressCaptureV2EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_CACHE_EXPORT", cacheExportErr); }
 
     log("installed", { pid: process.pid, expressPath: path });
   } catch (e) {
