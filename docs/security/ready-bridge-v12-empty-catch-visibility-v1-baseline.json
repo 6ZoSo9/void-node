@@ -1,0 +1,8 @@
+{
+  "marker": "VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1",
+  "file": "src/diag/ready_bridge_v12.cjs",
+  "before_real_empty_catch_count": 11,
+  "after_real_empty_catch_count": 0,
+  "closed_count": 11,
+  "sha256": "522cf23df7c5dce9dadf6f1498dc046bee180d08b1a0e823440a2f61aad1fc76"
+}

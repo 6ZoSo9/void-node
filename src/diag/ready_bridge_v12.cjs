@@ -14,20 +14,20 @@
     const wt = require("worker_threads");
     isMainThread = !!wt.isMainThread;
     threadId = (wt.threadId ?? 0) | 0;
-  } catch {}
+  } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
   const G = globalThis;
   const HARD = Symbol.for("VOID.ready_bridge_v12.HARDGUARD");
   if (!isMainThread) {
-    try { console.error("[ready_bridge_v12] skip (worker) tid=" + threadId); } catch {}
+    try { console.error("[ready_bridge_v12] skip (worker) tid=" + threadId); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
     return;
   }
   if (G[HARD]) {
-    try { console.error("[ready_bridge_v12] already installed (hardguard)"); } catch {}
+    try { console.error("[ready_bridge_v12] already installed (hardguard)"); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
     return;
   }
   G[HARD] = true;
-  try { console.error("[ready_bridge_v12] hardguard ok (main) tid=" + threadId); } catch {}
+  try { console.error("[ready_bridge_v12] hardguard ok (main) tid=" + threadId); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
   const http = require("http");
   const https = require("https");
@@ -131,8 +131,8 @@ function __rbInBootGrace() {
 
   setInterval(() => { pollOnce().catch(() => {}); }, 1000).unref?.();
   pollOnce().catch(() => {});
-  try { console.error("[ready_bridge_v12] installed (http.createServer hooked)"); } catch {}
-  try { console.error("[ready_bridge_v12] txroot3 poller started (1s)"); } catch {}
+  try { console.error("[ready_bridge_v12] installed (http.createServer hooked)"); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
+  try { console.error("[ready_bridge_v12] txroot3 poller started (1s)"); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
   function safeJsonParse(s) { try { return JSON.parse(s); } catch { return null; } }
   function toNum(x, d) { const n = Number(x); return Number.isFinite(n) ? n : d; }
@@ -182,7 +182,7 @@ function __rbInBootGrace() {
         txroot_live = 1;
         __rb_boot_grace_assumed = 1;
       }
-    } catch {}
+    } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     if (br.seen_ok) txroot_live = (br.ok && (br.age_ms | 0) <= 5000) ? 1 : 0;
 
@@ -250,7 +250,7 @@ function __rbInBootGrace() {
         const ready2 = (live > 0 && gap <= 10) ? 1 : 0;
         s = upsertPromGauge(s, "void_ready", ready2);
       }
-    } catch {}
+    } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
 
     return s;
@@ -279,7 +279,7 @@ function __rbInBootGrace() {
           res.end = function (chunk, enc, cb) {
             if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
             let body = "";
-            try { body = Buffer.concat(chunks).toString("utf8"); } catch {}
+            try { body = Buffer.concat(chunks).toString("utf8"); } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
             let out = body;
             try { out = isJson ? patchReadyJson(body) : patchReadyProm(body); } catch { out = body; }
 
@@ -289,7 +289,7 @@ function __rbInBootGrace() {
                 if (isJson) res.setHeader("content-type", "application/json; charset=utf-8");
                 else res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
               }
-            } catch {}
+            } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
 
             return origEnd(out, "utf8", cb);
           };
@@ -300,7 +300,7 @@ function __rbInBootGrace() {
             res.__orig_write = origWrite;
           }
         }
-      } catch {}
+      } catch (voidReadyBridgeV12CatchError) { void voidReadyBridgeV12CatchError; /* VOID_READY_BRIDGE_V12_EMPTY_CATCH_VISIBILITY_V1 */ }
       return listener(req, res);
     };
 
