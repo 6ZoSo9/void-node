@@ -8,7 +8,7 @@
 const fs = require("fs");
 
 function log(msg) {
-  try { console.error(msg); } catch {}
+  try { console.error(msg); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 }
 
 (function main() {
@@ -31,7 +31,7 @@ function log(msg) {
       log(`[after-app-gate:v3l] skip (tsx wrapper pid=${pid})`);
       return;
     }
-  } catch {}
+  } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
   // fs-lock singleton per pid (stale lockfiles are harmless; your prune script can clean them)
   const lock = `/tmp/void-afterapp-gate.v3l.${pid}.lock`;
@@ -56,7 +56,7 @@ function log(msg) {
       const t = fs.readFileSync(waitMsFile, "utf8").trim();
       const n = Number(t);
       if (Number.isFinite(n) && n > 0) return n;
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
     return waitMsEnv;
   }
 
@@ -101,7 +101,7 @@ function log(msg) {
     const waitMs = readWaitMs();
 
     let app = null;
-    try { app = (globalThis && globalThis[gateKey]) ? globalThis[gateKey] : null; } catch {}
+    try { app = (globalThis && globalThis[gateKey]) ? globalThis[gateKey] : null; } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     if (app) {
       try { loadModulesOnce("app-seen"); } catch (e) { log(`[after-app-gate:v3l] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`); }
@@ -112,7 +112,7 @@ function log(msg) {
 
     if (dt >= waitMs) {
       // IMPORTANT: do NOT load on timeout
-      try { log(`[after-app-gate:v3l] timeout waiting for ${gateKey}; skip load pid=${pid} waitMs=${waitMs}`); } catch {}
+      try { log(`[after-app-gate:v3l] timeout waiting for ${gateKey}; skip load pid=${pid} waitMs=${waitMs}`); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       log(`[after-app-gate:v3l] done (stop polling) pid=${pid}`);
       clearInterval(timer);
       return;
@@ -124,7 +124,7 @@ function log(msg) {
   }, 250);
 
   // don't keep the process alive for this timer alone
-  try { timer.unref && timer.unref(); } catch {}
+  try { timer.unref && timer.unref(); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 })();
 
 /* === [wal-caps-fallback:v1] ================================================
@@ -168,10 +168,10 @@ function log(msg) {
         });
       });
 
-      try { console.error("[wal-caps-fallback:v1] mounted: GET /__void/wal/caps + GET /__void/afterapp/sentinel"); } catch {}
+      try { console.error("[wal-caps-fallback:v1] mounted: GET /__void/wal/caps + GET /__void/afterapp/sentinel"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return true;
     } catch (e) {
-      try { console.error("[wal-caps-fallback:v1] mount error:", e && (e.stack || e.message || e)); } catch {}
+      try { console.error("[wal-caps-fallback:v1] mount error:", e && (e.stack || e.message || e)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return false;
     }
   }
@@ -184,7 +184,7 @@ function log(msg) {
     if (tryMount() || tries > 400) {
       clearInterval(t);
       if (tries > 400) {
-        try { console.error("[wal-caps-fallback:v1] gave up waiting for __void_http_app"); } catch {}
+        try { console.error("[wal-caps-fallback:v1] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       }
     }
   }, 25);
@@ -240,7 +240,7 @@ function log(msg) {
                   return orig(out);
                 }
               }
-            } catch {}
+            } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
             return orig(body);
           };
 
@@ -250,10 +250,10 @@ function log(msg) {
         }
       });
 
-      try { console.error("[ready-txroot-gatefix:v1] mounted: /__void/ready.gatefix.status.json + middleware for GET /__void/ready.json"); } catch {}
+      try { console.error("[ready-txroot-gatefix:v1] mounted: /__void/ready.gatefix.status.json + middleware for GET /__void/ready.json"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return true;
     } catch (e) {
-      try { console.error("[ready-txroot-gatefix:v1] mount error:", e && (e.stack || e.message || e)); } catch {}
+      try { console.error("[ready-txroot-gatefix:v1] mount error:", e && (e.stack || e.message || e)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return false;
     }
   }
@@ -265,7 +265,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-txroot-gatefix:v1] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-txroot-gatefix:v1] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -338,7 +338,7 @@ function log(msg) {
           }
         });
       });
-      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
       req.on("error", (e) => {
         st.last_ok = 0;
         st.last_err = String(e && (e.code || e.message || e));
@@ -447,7 +447,7 @@ function log(msg) {
             };
             return next();
           }
-        } catch {}
+        } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
         return next();
       });
 
@@ -462,10 +462,10 @@ function log(msg) {
             let buf = "";
             const origWrite = res.write && res.write.bind(res);
             if (origWrite) {
-              res.write = (chunk, enc, cb) => { try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {} ; return true; };
+              res.write = (chunk, enc, cb) => { try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } ; return true; };
             }
             res.end = (chunk, enc, cb) => {
-              try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {}
+              try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
               return probeTxroot3(250).then((txOk) => {
                 // best effort: derive obj by querying /__void/ready.json externally is forbidden; instead:
                 // patch prom gauges based on txOk + last cached JSON if present
@@ -478,20 +478,20 @@ function log(msg) {
                 // - do NOT touch ready unless JSON middleware already fixed it (Prom scrape should match JSON scrape in practice)
                 const pseudo = patchReadyObj(baseObj, txOk);
                 const out = patchReadyProm(buf || "", pseudo);
-                try { if (!res.headersSent) { res.setHeader("Cache-Control","no-store"); } } catch {}
+                try { if (!res.headersSent) { res.setHeader("Cache-Control","no-store"); } } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
                 return origEnd(out, enc, cb);
               });
             };
             return next();
           }
-        } catch {}
+        } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
         return next();
       });
 
-      try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] mounted: /__void/ready.bridge2.status.json + patches for /__void/ready.(json|prom)"); } catch {}
+      try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] mounted: /__void/ready.bridge2.status.json + patches for /__void/ready.(json|prom)"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return true;
     } catch (e) {
-      try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] mount error:", e && (e.stack||e.message||e)); } catch {}
+      try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] mount error:", e && (e.stack||e.message||e)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return false;
     }
   }
@@ -503,7 +503,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v1] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -555,7 +555,7 @@ function log(msg) {
           catch { resolve({ ok: false, status: res.statusCode|0, body: "" }); }
         });
       });
-      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
       req.on("error", (e) => resolve({ ok:false, status:0, body:"", err:String(e && (e.code||e.message||e)) }));
       try { req.end(); } catch { resolve({ ok:false, status:0, body:"", err:"end" }); }
     });
@@ -686,7 +686,7 @@ function log(msg) {
             };
             return next();
           }
-        } catch {}
+        } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
         return next();
       });
 
@@ -701,26 +701,26 @@ function log(msg) {
             let buf = "";
             const origWrite = res.write && res.write.bind(res);
             if (origWrite) {
-              res.write = (chunk, enc, cb) => { try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {} ; return true; };
+              res.write = (chunk, enc, cb) => { try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } ; return true; };
             }
             res.end = (chunk, enc, cb) => {
-              try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {}
+              try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
               return probeTxroot3(250).then((txOk) => {
                 const out = patchReadyProm(buf || "", txOk);
-                try { if (!res.headersSent) { res.setHeader("Cache-Control","no-store"); } } catch {}
+                try { if (!res.headersSent) { res.setHeader("Cache-Control","no-store"); } } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
                 return origEnd(out, enc, cb);
               });
             };
             return next();
           }
-        } catch {}
+        } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
         return next();
       });
 
-      try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] mounted: /__void/ready.bridge2b.status.json + patches for /__void/ready.(json|prom)"); } catch {}
+      try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] mounted: /__void/ready.bridge2b.status.json + patches for /__void/ready.(json|prom)"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return true;
     } catch (e) {
-      try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] mount error:", e && (e.stack||e.message||e)); } catch {}
+      try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] mount error:", e && (e.stack||e.message||e)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return false;
     }
   }
@@ -732,7 +732,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v2] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -774,7 +774,7 @@ function log(msg) {
         res.on("data", (c) => { b += c; if (b.length > 64*1024) b = b.slice(0, 64*1024); });
         res.on("end", () => resolve({ ok: (res.statusCode|0) === 200, status: res.statusCode|0, body: b }));
       });
-      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
       req.on("error", (e) => resolve({ ok:false, status:0, body:"", err:String(e && (e.code||e.message||e)) }));
       try { req.end(); } catch { resolve({ ok:false, status:0, body:"", err:"end" }); }
     });
@@ -838,13 +838,13 @@ function log(msg) {
 
         let buf = "";
         res.write = (chunk, enc, cb) => {
-          try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {}
+          try { buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
           // IMPORTANT: still write through so we don't break streaming
           return origWrite(chunk, enc, cb);
         };
 
         res.end = (chunk, enc, cb) => {
-          try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch {}
+          try { if (chunk) buf += (typeof chunk==="string"?chunk:chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
           return probeTxroot3(250).then((txOk) => {
             try {
               const patched = patchReadyProm(buf || "", txOk);
@@ -852,9 +852,9 @@ function log(msg) {
               // So: only append if missing and we can safely add a trailer line.
               // Best-effort: write an extra line right before ending.
               if (!/^\s*void_txroot_live\b/m.test(buf || "")) {
-                try { origWrite("\nvoid_txroot_live " + String((!STRICT_TXROOT() && txOk===1)?1:0) + "\n"); } catch {}
+                try { origWrite("\nvoid_txroot_live " + String((!STRICT_TXROOT() && txOk===1)?1:0) + "\n"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
               }
-            } catch {}
+            } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
             try { return origEnd(chunk, enc, cb); } catch { return origEnd(); }
           });
         };
@@ -903,7 +903,7 @@ function log(msg) {
       const ok = bumpToTop(app);
       if (ok || n > 200) {
         clearInterval(t);
-        try { console.error("[ready-bridge-txroot3-lastmile-soft:v3-promfirst] prom patch top=" + String(ok)); } catch {}
+        try { console.error("[ready-bridge-txroot3-lastmile-soft:v3-promfirst] prom patch top=" + String(ok)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       }
     }, 25);
 
@@ -922,7 +922,7 @@ function log(msg) {
           note: "v3-promfirst forces prom wrapper to top of express stack; appends void_txroot_live if missing"
         });
       });
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     return true;
   }
@@ -934,7 +934,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v3-promfirst] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v3-promfirst] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -985,7 +985,7 @@ function log(msg) {
         res.on("data", (c) => { b += c; if (b.length > 64*1024) b = b.slice(0, 64*1024); });
         res.on("end", () => resolve({ ok: (res.statusCode|0) === 200, status: res.statusCode|0, body: b }));
       });
-      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
       req.on("error", (e) => resolve({ ok:false, status:0, body:"", err:String(e && (e.code||e.message||e)) }));
       try { req.end(); } catch { resolve({ ok:false, status:0, body:"", err:"end" }); }
     });
@@ -1062,8 +1062,8 @@ function log(msg) {
 
         if (origWrite) {
           res.write = (chunk, enc, cb) => {
-            try { buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch {}
-            try { if (typeof cb === "function") cb(); } catch {}
+            try { buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+            try { if (typeof cb === "function") cb(); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
             return true; // DO NOT write-through
           };
         }
@@ -1071,7 +1071,7 @@ function log(msg) {
         res.end = (chunk, enc, cb) => {
           if (ended) return;
           ended = true;
-          try { if (chunk) buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch {}
+          try { if (chunk) buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
           Promise.resolve(pTx).then((txOk) => {
             try {
@@ -1079,14 +1079,14 @@ function log(msg) {
               if (patched !== (buf || "")) state.patched++;
 
               // kill content-length so patched body is authoritative
-              try { res.removeHeader("Content-Length"); } catch {}
-              try { res.removeHeader("content-length"); } catch {}
-              try { res.setHeader("Cache-Control","no-store"); } catch {}
+              try { res.removeHeader("Content-Length"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+              try { res.removeHeader("content-length"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+              try { res.setHeader("Cache-Control","no-store"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
               // make sure content-type stays text/plain; if already set, keep it
               try {
                 const ct = res.getHeader && res.getHeader("Content-Type");
                 if (!ct) res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
-              } catch {}
+              } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
               return origEnd(patched, "utf8", cb);
             } catch {
@@ -1131,10 +1131,10 @@ function log(msg) {
           "void_readyprom_rewrite_v4_patched " + String(state.patched|0) + "\n"
         );
       });
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     state.mounted = 1;
-    try { console.error("[ready-bridge-txroot3-lastmile-soft:v4-readyprom-rewrite] mounted"); } catch {}
+    try { console.error("[ready-bridge-txroot3-lastmile-soft:v4-readyprom-rewrite] mounted"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
     return true;
   }
 
@@ -1150,7 +1150,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v4-readyprom-rewrite] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v4-readyprom-rewrite] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -1203,7 +1203,7 @@ function log(msg) {
         res.on("data", (c) => { b += c; if (b.length > 64*1024) b = b.slice(0, 64*1024); });
         res.on("end", () => resolve({ ok: (res.statusCode|0) === 200, status: res.statusCode|0, body: b }));
       });
-      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
       req.on("error", (e) => resolve({ ok:false, status:0, body:"", err:String(e && (e.code||e.message||e)) }));
       try { req.end(); } catch { resolve({ ok:false, status:0, body:"", err:"end" }); }
     });
@@ -1297,8 +1297,8 @@ function log(msg) {
 
         if (origWrite) {
           res.write = (chunk, enc, cb) => {
-            try { buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch {}
-            try { if (typeof cb === "function") cb(); } catch {}
+            try { buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+            try { if (typeof cb === "function") cb(); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
             return true;
           };
         }
@@ -1306,19 +1306,19 @@ function log(msg) {
         res.end = (chunk, enc, cb) => {
           if (ended) return;
           ended = true;
-          try { if (chunk) buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch {}
+          try { if (chunk) buf += (typeof chunk==="string" ? chunk : chunk.toString(enc||"utf8")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
           try {
             const patched = patchReadyPromBody(buf || "");
             if (patched !== (buf || "")) S.patched++;
 
-            try { res.removeHeader("Content-Length"); } catch {}
-            try { res.removeHeader("content-length"); } catch {}
-            try { res.setHeader("Cache-Control","no-store"); } catch {}
+            try { res.removeHeader("Content-Length"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+            try { res.removeHeader("content-length"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+            try { res.setHeader("Cache-Control","no-store"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
             try {
               const ct = res.getHeader && res.getHeader("Content-Type");
               if (!ct) res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
-            } catch {}
+            } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
             return origEnd(patched, "utf8", cb);
           } catch {
@@ -1346,7 +1346,7 @@ function log(msg) {
           S.reorder_ok = 1;
         }
       }
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     // diag
     try {
@@ -1369,10 +1369,10 @@ function log(msg) {
           source: "ready-bridge-txroot3-lastmile-soft:v5-readyprom-cachedpoll"
         });
       });
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
     S.mounted = 1;
-    try { console.error("[ready-bridge-txroot3-lastmile-soft:v5-readyprom-cachedpoll] mounted"); } catch {}
+    try { console.error("[ready-bridge-txroot3-lastmile-soft:v5-readyprom-cachedpoll] mounted"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
     return true;
   }
 
@@ -1388,7 +1388,7 @@ function log(msg) {
     tries++;
     if (tryMount() || tries > 400) {
       clearInterval(t);
-      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v5-readyprom-cachedpoll] gave up waiting for __void_http_app"); } catch {} }
+      if (tries > 400) { try { console.error("[ready-bridge-txroot3-lastmile-soft:v5-readyprom-cachedpoll] gave up waiting for __void_http_app"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }
     }
   }, 25);
 })();
@@ -1470,10 +1470,10 @@ function log(msg) {
           if ((S.poll_ok|0) === 1) {
             S.poll_last_uptime_ms = Math.floor((typeof process.uptime==="function" ? process.uptime() : 0) * 1000);
           }
-        }catch{}
+        }catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       }, 250);
     }
-  } catch {}
+  } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 })();
 
 /* === [ready-bridge-txroot3-lastmile-soft:v7-pollpath-hotfix] =================
@@ -1510,7 +1510,7 @@ function log(msg) {
       S.poll_path = GOOD;
       S.poll_path_fixed_v7 = 1;
     }
-  } catch {}
+  } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
   // v7 truth poller: independent of any other poll loop.
   if (G.__void_ready_bridge_v7_truth_poller) return;
@@ -1527,7 +1527,7 @@ function log(msg) {
   async function fetchJson(path) {
     const url = "http://127.0.0.1:4100" + path;
     const ctl = new AbortController();
-    const t = setTimeout(() => { try { ctl.abort(); } catch {} }, 650);
+    const t = setTimeout(() => { try { ctl.abort(); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } }, 650);
     try {
       const res = await fetch(url, { signal: ctl.signal, headers: { "accept": "application/json" }});
       const txt = await res.text();
@@ -1576,7 +1576,7 @@ function log(msg) {
         S.poll_ok = 0;
         S.poll_last_ok = 0;
         S.poll_err = "poll_exception";
-      } catch {}
+      } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
     } finally {
       inFlight = false;
     }
@@ -1659,7 +1659,7 @@ function log(msg) {
             });
           }
         );
-        req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
+        req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ } });
         req.on("error", (e) => resolve({ ok: 0, code: 0, ms: nowMs() - t0, err: (e && e.message) ? e.message : "err" }));
         req.end();
       });
@@ -1738,11 +1738,11 @@ function log(msg) {
           STATE.healthy = 0;
           STATE.latest = -1;
           STATE.path = "";
-        } catch {}
+        } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       });
       try {
         if (STATE.last_ts_ms > 0) STATE.age_ms = nowMs() - STATE.last_ts_ms;
-      } catch {}
+      } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
     }, INTERVAL_MS);
 
     // --- READY.PROM rewriter (no app required) ---
@@ -1776,7 +1776,7 @@ function log(msg) {
           STATE.hits++;
           return true;
         }
-      } catch {}
+      } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return ORIG_WRITE.call(this, chunk, enc, cb);
     };
 
@@ -1791,21 +1791,21 @@ function log(msg) {
           const patched = rewriteReadyProm(body);
           if (patched !== body) STATE.patched++;
 
-          try { this.setHeader("content-type", "text/plain; charset=utf-8"); } catch {}
-          try { this.setHeader("content-length", Buffer.byteLength(patched)); } catch {}
+          try { this.setHeader("content-type", "text/plain; charset=utf-8"); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
+          try { this.setHeader("content-length", Buffer.byteLength(patched)); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
 
           return ORIG_END.call(this, patched, "utf8", cb);
         }
-      } catch {}
+      } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
       return ORIG_END.call(this, chunk, enc, cb);
     };
 
     // tiny diag endpoint (no express; raw http) – just expose state on console via log
     try {
       console.error(`[ready-bridge-txroot3:v8] installed (port=${PORT})`);
-    } catch {}
+    } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
   } catch (e) {
-    try { console.error("[ready-bridge-txroot3:v8] failed:", e && e.message ? e.message : e); } catch {}
+    try { console.error("[ready-bridge-txroot3:v8] failed:", e && e.message ? e.message : e); } catch (voidDiagCatchError) { void voidDiagCatchError; /* VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1 */ }
   }
 })();
  /* END ready-bridge-txroot3:v8-autodiscover */
