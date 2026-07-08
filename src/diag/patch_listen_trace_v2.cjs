@@ -1,7 +1,20 @@
 /* eslint-disable */
 (function () {
   const tag = `[listen-trace.v2 pid=${process.pid}]`;
-  const log = (...a) => { try { console.error(tag, ...a); } catch (_) {} };
+  const VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidListenTraceV2EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_listen_trace_v2_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+  const log = (...a) => { try { console.error(tag, ...a); } catch (logErr) { recordVoidListenTraceV2EmptyCatchVisibilityV1("VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } };
 
   try {
     const net = require("net");
@@ -24,10 +37,10 @@
           if (typeof a === "string" && !host && a.includes(".")) host = a;
         }
         log(`${name} called`, { port, host, args0: args[0] });
-        try { log("stack", (new Error("listen-trace")).stack); } catch (_) {}
+        try { log("stack", (new Error("listen-trace")).stack); } catch (stackErr) { recordVoidListenTraceV2EmptyCatchVisibilityV1("VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_STACK_LOG", stackErr); }
         return orig.apply(this, arguments);
       }
-      try { Object.defineProperty(wrapped, "__void_listen_trace_v2", { value: 1 }); } catch (_) {}
+      try { Object.defineProperty(wrapped, "__void_listen_trace_v2", { value: 1 }); } catch (defineErr) { recordVoidListenTraceV2EmptyCatchVisibilityV1("VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_DEFINE_WRAPPED_MARKER", defineErr); }
       obj[name] = wrapped;
       log(`hooked ${name}`);
     }
@@ -45,7 +58,7 @@
       });
       s.listen({ host, port }, () => {
         log("port-probe OK (port is free + bind works)", { host, port });
-        try { s.close(); } catch (_) {}
+        try { s.close(); } catch (closeErr) { recordVoidListenTraceV2EmptyCatchVisibilityV1("VOID_LISTEN_TRACE_V2_EMPTY_CATCH_VISIBILITY_V1_SITE_PORT_PROBE_CLOSE", closeErr); }
       });
     }, 2000);
 
