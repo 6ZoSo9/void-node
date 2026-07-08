@@ -6,6 +6,20 @@
   const FLAG = "__void_headtxt_shim_v1_installed__";
   if (globalThis[FLAG]) return;
   globalThis[FLAG] = true;
+  const VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidHeadtxtShimJsEmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_headtxt_shim_js_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
 
   function decodeEnvEscapes(s) {
     // best-effort: systemd may escape spaces as \x20; we don't need full fidelity here
@@ -18,7 +32,7 @@
       for (const layer of st) {
         if (layer && layer.route && layer.route.path === path) return true;
       }
-    } catch {}
+    } catch (routeErr) { recordVoidHeadtxtShimJsEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_SITE_HAS_ROUTE_STACK", routeErr); }
     return false;
   }
 
@@ -45,7 +59,7 @@
           res.status(200).end(raw + "\n");
           return;
         }
-      } catch {}
+      } catch (headFileErr) { recordVoidHeadtxtShimJsEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_SITE_HEAD_FILE_READ", headFileErr); }
 
       // fallback: call the existing compat endpoint on the same listener port
       const localPort = (req && req.socket && req.socket.localPort) ? req.socket.localPort : (process.env.HTTP_PORT ? Number(process.env.HTTP_PORT) : 4100);
@@ -77,7 +91,7 @@
       });
 
       r.on("timeout", () => {
-        try { r.destroy(new Error("timeout")); } catch {}
+        try { r.destroy(new Error("timeout")); } catch (destroyErr) { recordVoidHeadtxtShimJsEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_SITE_REQUEST_DESTROY", destroyErr); }
       });
       r.on("error", () => res.status(500).end("0\n"));
       r.end();
@@ -86,7 +100,7 @@
     try {
       // eslint-disable-next-line no-console
       console.log("[headtxt_shim_v1] installed GET /head.txt");
-    } catch {}
+    } catch (logErr) { recordVoidHeadtxtShimJsEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_JS_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALL_LOG", logErr); }
   }
 
   install();
