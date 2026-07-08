@@ -5,7 +5,7 @@
   "repo_catch_context_count": 2786,
   "node_core_catch_context_count": 37,
   "node_core_literal_empty_catch_count": 0,
-  "repo_literal_empty_catch_count": 329,
+  "repo_literal_empty_catch_count": 306,
   "top_by_file": [
     {
       "file": "src/index.ts",
@@ -187,7 +187,7 @@
     {
       "id": "repo-wide-literal-empty-catch-pressure-recorded",
       "status": "PASS",
-      "detail": "repo literal empty catch count=329, expected>0 as bounded future cleanup inventory"
+      "detail": "repo literal empty catch count=306, expected>0 as bounded future cleanup inventory"
     },
     {
       "id": "catch-inventory-baseline-src/index.ts",
