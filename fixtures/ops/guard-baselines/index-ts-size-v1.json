@@ -2,7 +2,7 @@
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
   "reason": "baseline after adding read-only well-known pointer to local multibox runtime discovery closeout rollup; visibility-only, no mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
   "path": "src/index.ts",
-  "baseline_bytes": 3783673,
+  "baseline_bytes": 3785061,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {

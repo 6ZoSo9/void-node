@@ -41438,7 +41438,7 @@ try {
       }
     });
 
-    try { console.log("[datanet.publish_shim.peer_import.v1] mounted: POST /datanet/v1/import-from-peer"); } catch {}
+    try { console.log("[datanet.publish_shim.peer_import.v1] mounted: POST /datanet/v1/import-from-peer"); } catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41441:1", err); }
   }
 
   setTimeout(attach, 250);
@@ -41473,7 +41473,7 @@ try {
     app.get("/__void/datanet-demo/", (_req:any, res:any) => sendDemo(res));
 
     g.__void_datanet_demo_clean_path_v1_mounted = true;
-    try{ console.log("[datanet.demo.cleanpath] mounted at /datanet-demo"); }catch{}
+    try{ console.log("[datanet.demo.cleanpath] mounted at /datanet-demo"); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41476:2", err); }
   }
 
   setTimeout(attach, 250);
@@ -41612,7 +41612,7 @@ try {
       if (Array.isArray(mp1b)) return mp1b.length;
       const mp2:any = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
       if (Array.isArray(mp2)) return mp2.length;
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41615:3", err); }
     return 0;
   }
 
@@ -41640,7 +41640,7 @@ try {
         const x = Number(v);
         if (Number.isFinite(x) && x >= 0) return x;
       }
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41643:4", err); }
     return null;
   }
 
@@ -41751,7 +41751,7 @@ try {
     });
 
     g.__void_demo_summary_v1_mounted = true;
-    try{ console.log("[demo.summary.v1] mounted /__void/demo/summary.json"); }catch{}
+    try{ console.log("[demo.summary.v1] mounted /__void/demo/summary.json"); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41754:5", err); }
   }
 
   setTimeout(attach, 250);
@@ -41825,7 +41825,7 @@ try {
       await ensureDirs();
       const rec = { ts: Date.now(), kind, ...obj };
       await fsp.appendFile(receiptsFile(), JSON.stringify(rec) + "\n");
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41828:6", err); }
   }
 
   async function listJobs(){
@@ -41840,7 +41840,7 @@ try {
     for (const name of names.filter((x:string)=>x.endsWith(".json")).sort().reverse()){
       try{
         out.push(await readJson(path.join(jobsDir(), name)));
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41843:7", err); }
     }
     out.sort((a:any,b:any)=> Number(a?.created_at_ms||0) - Number(b?.created_at_ms||0));
     return out;
@@ -41874,7 +41874,7 @@ try {
         try{
           const st = await fsp.stat(receiptsFile());
           receipts_size = st.size;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("41877:8", err); }
         return res.json({
           ok: true,
           installed: true,
@@ -42002,7 +42002,7 @@ try {
       try{
         await ensureDirs();
         let txt = "";
-        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42005:9", err); }
         const lines = txt.trim() ? txt.trim().split(/\n+/).slice(-100) : [];
         const items = lines.map((x:string)=>{ try{ return JSON.parse(x); }catch{ return { raw:x }; } });
         return res.json({ ok:true, count: items.length, items });
@@ -42020,7 +42020,7 @@ try {
 
         try{
           let txt = "";
-          try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+          try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42023:10", err); }
           const lines = txt.trim() ? txt.trim().split(/\n+/) : [];
           for (const line of lines) {
             try{
@@ -42032,9 +42032,9 @@ try {
                 completedByReceipt.add(jid);
                 if (r?.dataset_id) datasetByReceipt.set(jid, String(r.dataset_id));
               }
-            }catch{}
+            }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42035:11", err); }
           }
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42037:12", err); }
 
         const canonicalJobs = jobs.map((j:any) => {
           const cj:any = { ...j };
@@ -42069,7 +42069,7 @@ try {
     });
 
     g.__void_agent_mini_loop_v1_mounted = true;
-    try{ console.log("[agent.mini-loop] mounted submit/pick/complete/receipts/summary"); }catch{}
+    try{ console.log("[agent.mini-loop] mounted submit/pick/complete/receipts/summary"); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42072:13", err); }
   }
 
   setTimeout(attach, 250);
@@ -42157,9 +42157,9 @@ try {
         const datasetId = job?.payload?.dataset_id || null;
         if (!datasetId) continue;
         let meta = null;
-        try{ meta = await datasetMeta(datasetId); }catch{}
+        try{ meta = await datasetMeta(datasetId); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42160:14", err); }
         return { job, dataset: meta };
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42162:15", err); }
     }
     return null;
   }
@@ -42252,7 +42252,7 @@ try {
         const datasetId = job?.payload?.dataset_id || null;
         let meta = null;
         if (datasetId) {
-          try{ meta = await datasetMeta(datasetId); }catch{}
+          try{ meta = await datasetMeta(datasetId); }catch (err) { voidIndexEmptyCatchVisibilityWindow41401_42300V1("42255:16", err); }
         }
         return res.json({
           ok: true,
@@ -83791,4 +83791,9 @@ function voidIndexEmptyCatchVisibilityWindow39601_40500V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow40501_41400V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_40501_41400_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow41401_42300V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_41401_42300_V1_VISIBLE", context, err);
 }
