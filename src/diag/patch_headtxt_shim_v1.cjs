@@ -8,6 +8,20 @@
 
   const http = require("http");
 
+  const VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidHeadtxtShimEmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_headtxt_shim_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
   function pickNumberFromUnknown(x) {
     if (typeof x === "number" && Number.isFinite(x)) return x;
     if (typeof x === "string") {
@@ -64,7 +78,7 @@
           for (const p of path) cur = cur?.[p];
           const n = pickNumberFromUnknown(cur);
           if (n != null) return n;
-        } catch {}
+        } catch (pathErr) { recordVoidHeadtxtShimEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_SITE_GLOBAL_PATH_LOOKUP", pathErr); }
       }
     }
 
@@ -82,7 +96,7 @@
         });
         req.on("error", () => resolve({ ok: false, status: 0, body: "" }));
         req.setTimeout(timeoutMs, () => {
-          try { req.destroy(); } catch {}
+          try { req.destroy(); } catch (destroyErr) { recordVoidHeadtxtShimEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_SITE_REQ_DESTROY", destroyErr); }
           resolve({ ok: false, status: 0, body: "" });
         });
       } catch {
@@ -120,7 +134,7 @@
         }
         n = pickNumberFromUnknown(j?.head?.number);
         if (n != null) return n;
-      } catch {}
+      } catch (jsonErr) { recordVoidHeadtxtShimEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_SITE_JSON_PARSE", jsonErr); }
     }
 
     return null;
@@ -141,7 +155,7 @@
           if (head == null) head = 0;
           res.status(200).send(String(head) + "\n");
         } catch (e) {
-          try { res.status(200).send("0\n"); } catch {}
+          try { res.status(200).send("0\n"); } catch (sendErr) { recordVoidHeadtxtShimEmptyCatchVisibilityV1("VOID_HEADTXT_SHIM_EMPTY_CATCH_VISIBILITY_V1_SITE_FALLBACK_SEND", sendErr); }
         }
       });
 
