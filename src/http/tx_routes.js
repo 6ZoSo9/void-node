@@ -1,4 +1,24 @@
 "use strict";
+
+const VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1";
+
+function recordVoidHttpTxRoutesEmptyCatchVisibilityV1(site, err) {
+    try {
+        const g = globalThis;
+        const key = "__void_http_tx_routes_empty_catch_visibility_v1";
+        const bucket = Array.isArray(g[key]) ? g[key] : [];
+        bucket.push({
+            marker: VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_MARKER,
+            site: String(site || "unknown"),
+            message: err && err.message ? String(err.message) : String(err || ""),
+        });
+        while (bucket.length > 50) bucket.shift();
+        g[key] = bucket;
+    }
+    catch (_visibilityRecordErr) {
+        /* VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+}
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 var __assign = (this && this.__assign) || function () {
@@ -32,11 +52,11 @@ function registerTxRoutes(app) {
             var q = globalThis.__void_tx_queue;
             console.log("[route] /tx/submit enq size=%s", Array.isArray(q) ? q.length : -1);
         }
-        catch (_d) { }
+        catch (_d) { recordVoidHttpTxRoutesEmptyCatchVisibilityV1('VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_SITE_35', _d); }
         try {
             (0, node_core_js_1.globalEnqueueTx)((_b = req.body) !== null && _b !== void 0 ? _b : {});
         }
-        catch (_e) { }
+        catch (_e) { recordVoidHttpTxRoutesEmptyCatchVisibilityV1('VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_SITE_39', _e); }
         var b = (_c = req.body) !== null && _c !== void 0 ? _c : {};
         var id = (typeof b.id === "string" && b.id.length)
             ? b.id
@@ -59,7 +79,7 @@ function registerTxRoutes(app) {
         try {
             (0, node_core_js_1.globalEnqueueTx)((_a = req.body) !== null && _a !== void 0 ? _a : {});
         }
-        catch (_f) { }
+        catch (_f) { recordVoidHttpTxRoutesEmptyCatchVisibilityV1('VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_SITE_62', _f); }
         var b = (_b = req.body) !== null && _b !== void 0 ? _b : {};
         var id = (typeof b.id === "string" && b.id.length)
             ? b.id
