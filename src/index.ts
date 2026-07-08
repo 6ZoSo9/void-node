@@ -42304,7 +42304,7 @@ try {
     });
 
     g.__void_agent_datanet_link_v1_mounted = true;
-    try{ console.log("[agent.datanet.link] mounted submit-for-dataset + integration routes"); }catch{}
+    try{ console.log("[agent.datanet.link] mounted submit-for-dataset + integration routes"); }catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42307:1", err); }
   }
 
   setTimeout(attach, 250);
@@ -42341,7 +42341,7 @@ try {
       let pkg:any = {};
       try{
         pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42344:2", err); }
       return {
         version: String(pkg?.version || process.env.VOID_VERSION || "0.0.0"),
         protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
@@ -42554,7 +42554,7 @@ try {
         } else if (process.env.VOID_SYSTEMD_UNIT) {
           current_service = String(process.env.VOID_SYSTEMD_UNIT);
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42557:3", err); }
 
       if (fs.existsSync(planPath)) {
         present = true;
@@ -42591,7 +42591,7 @@ try {
       });
     }
   });
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42594:4", err); }
 /* === /__void/update/plan-status.json === */
 
 
@@ -42799,7 +42799,7 @@ try {
       }
     });
   });
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42802:5", err); }
 /* === /__void update notification status v1 === */
 
 
@@ -42820,7 +42820,7 @@ try {
         });
       });
       req.on("timeout", () => {
-        try { req.destroy(new Error("timeout")); } catch {}
+        try { req.destroy(new Error("timeout")); } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42823:6", err); }
       });
       req.on("error", reject);
     });
@@ -42842,22 +42842,22 @@ try {
     try {
       localHealth = await __voidFetchJson(`${localBase}/health`);
       localOk = !!(localHealth && localHealth.ok);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42845:7", err); }
 
     try {
       mainHealth = await __voidFetchJson(`${mainBase}/health`);
       mainOk = !!(mainHealth && mainHealth.ok);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42850:8", err); }
 
     try {
       const localDemo = await __voidFetchJson(`${localBase}/__void/demo/summary.json`);
       localHead = (((localDemo || {}).chain || {}).head ?? null);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42855:9", err); }
 
     try {
       const mainDemo = await __voidFetchJson(`${mainBase}/__void/demo/summary.json`);
       mainHead = (((mainDemo || {}).chain || {}).head ?? null);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42860:10", err); }
 
     if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
       sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
@@ -42893,7 +42893,7 @@ try {
       head_gap: headGap,
     });
   });
-} catch {}
+} catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42896:11", err); }
 /* === /__void/peer-main-status.json === */
 
 
@@ -42938,7 +42938,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     });
 
     g.__void_version_upgrade_v0_mounted = true;
-    try{ console.log("[version.upgrade.v0] mounted /version and /upgrade/check"); }catch{}
+    try{ console.log("[version.upgrade.v0] mounted /version and /upgrade/check"); }catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42941:12", err); }
   }
 
   setTimeout(attach, 250);
@@ -42968,7 +42968,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     app.get("/welcome-file", (_req:any, res:any) => res.sendFile(participantFile));
 
     g.__void_participant_page_cleanpath_v1_mounted = true;
-    try{ console.log("[participant.page] mounted /participant and /welcome"); }catch{}
+    try{ console.log("[participant.page] mounted /participant and /welcome"); }catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("42971:13", err); }
   }
 
   setTimeout(attach, 250);
@@ -43027,7 +43027,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const n = Number(String(fs.readFileSync(ht, "utf8") || "").trim());
         if (Number.isFinite(n) && n >= 0) return n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43030:14", err); }
 
     try {
       const fs = require("node:fs");
@@ -43038,7 +43038,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const n = Number(j?.head ?? j?.number ?? j?.n ?? -1);
         if (Number.isFinite(n) && n >= 0) return n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43041:15", err); }
 
     return -1;
   }
@@ -43059,31 +43059,31 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const n = Number(v);
         if (Number.isFinite(n) && n >= 0) return n;
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43062:16", err); }
 
     const cands:any[] = [];
-    try { if (G.__void_node?.store) cands.push(G.__void_node.store); } catch {}
-    try { if (G.node?.store) cands.push(G.node.store); } catch {}
-    try { if (G.VOID_NODE?.store) cands.push(G.VOID_NODE.store); } catch {}
+    try { if (G.__void_node?.store) cands.push(G.__void_node.store); } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43065:17", err); }
+    try { if (G.node?.store) cands.push(G.node.store); } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43066:18", err); }
+    try { if (G.VOID_NODE?.store) cands.push(G.VOID_NODE.store); } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43067:19", err); }
     try {
       const app:any = getApp();
       if (app?.locals?.__void_node?.store) cands.push(app.locals.__void_node.store);
       if (app?.locals?.node?.store) cands.push(app.locals.node.store);
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43072:20", err); }
 
     for (const s of cands) {
       try {
         const n = Number(s?.loadHeadNumber?.());
         if (Number.isFinite(n) && n >= 0) return n;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43078:21", err); }
       try {
         const n = Number(s?.headNumber);
         if (Number.isFinite(n) && n >= 0) return n;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43082:22", err); }
       try {
         const n = Number(s?.latestNumber);
         if (Number.isFinite(n) && n >= 0) return n;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43086:23", err); }
     }
 
     return tolerantDiskHead();
@@ -43094,7 +43094,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const n:any = G.__void_node || G.node || G.VOID_NODE;
       if (Array.isArray(n?.mempool?.txs)) return n.mempool.txs.length;
       if (Array.isArray(n?.mempool?.pendingTxs)) return n.mempool.pendingTxs.length;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43097:24", err); }
     return 0;
   }
 
@@ -43194,7 +43194,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           rr.on("data", (c:string)=>data += c);
           rr.on("end", ()=>{ try { resolve(JSON.parse(data || "{}")); } catch (e) { reject(e); } });
         });
-        req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch {} });
+        req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch (err) { voidIndexEmptyCatchVisibilityWindow42301_43200V1("43197:25", err); } });
         req.on("error", reject);
       });
 
@@ -83796,4 +83796,9 @@ function voidIndexEmptyCatchVisibilityWindow40501_41400V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow41401_42300V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_41401_42300_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow42301_43200V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_42301_43200_V1_VISIBLE", context, err);
 }
