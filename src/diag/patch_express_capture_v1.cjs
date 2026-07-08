@@ -11,7 +11,21 @@
 const Module = require("module");
 const origLoad = Module._load;
 
-function log(...a){ try{ console.error("[express-capture.v1]", ...a); }catch{} }
+const VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1";
+function recordVoidExpressCaptureV1EmptyCatchVisibilityV1(site, err) {
+  try {
+    const g = globalThis;
+    const key = "__void_express_capture_v1_empty_catch_visibility_v1";
+    const bucket = Array.isArray(g[key]) ? g[key] : [];
+    bucket.push({ marker: VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+    while (bucket.length > 50) bucket.shift();
+    g[key] = bucket;
+  } catch (_visibilityRecordErr) {
+    /* VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+  }
+}
+
+function log(...a){ try{ console.error("[express-capture.v1]", ...a); }catch(logErr){ recordVoidExpressCaptureV1EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } }
 
 function wrapExpress(mod) {
   try {
@@ -26,14 +40,14 @@ function wrapExpress(mod) {
         const G = globalThis;
         if (G && !G.__void_http_app) G.__void_http_app = app;
         if (G) G.__void_http_app__captured_by = "express-capture.v1";
-      } catch {}
+      } catch (captureErr) { recordVoidExpressCaptureV1EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_CAPTURE_APP", captureErr); }
       return app;
     }
 
     // mark + copy props
-    try { wrappedExpress.__void_wrapped_express_capture_v1 = true; } catch {}
-    try { Object.assign(wrappedExpress, fn); } catch {}
-    try { wrappedExpress.default = wrappedExpress; } catch {}
+    try { wrappedExpress.__void_wrapped_express_capture_v1 = true; } catch (markerErr) { recordVoidExpressCaptureV1EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_WRAPPED_MARKER", markerErr); }
+    try { Object.assign(wrappedExpress, fn); } catch (assignErr) { recordVoidExpressCaptureV1EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_ASSIGN_PROPS", assignErr); }
+    try { wrappedExpress.default = wrappedExpress; } catch (defaultErr) { recordVoidExpressCaptureV1EmptyCatchVisibilityV1("VOID_EXPRESS_CAPTURE_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_DEFAULT_EXPORT", defaultErr); }
 
     // If module was function, return function. If module was object, preserve object shape.
     if (typeof mod === "function") return wrappedExpress;
