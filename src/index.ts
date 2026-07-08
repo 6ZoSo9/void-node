@@ -43213,11 +43213,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       let localOk = false, mainOk = false, sameNode:any = null;
       let localHead:any = liveHead(), mainHead:any = null, headGap:any = null;
 
-      try { localHealth = await getj(`${localBase}/health`); localOk = !!localHealth?.ok; } catch {}
+      try { localHealth = await getj(`${localBase}/health`); localOk = !!localHealth?.ok; } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43216:1", err); }
       try {
         mainHealth = await getj(`${mainBase}/health`);
         mainOk = !!mainHealth?.ok;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43220:2", err); }
 
       try {
         const md:any = await getj(`${mainBase}/__void/demo/summary.json`);
@@ -43226,7 +43226,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         try {
           const mh:any = await getj(`${mainBase}/head`);
           mainHead = mh?.head ?? null;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43229:3", err); }
       }
 
       if (mainHealth) {
@@ -43320,7 +43320,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             rr.on("data", (c:string)=>data += c);
             rr.on("end", ()=>{ try { resolve(JSON.parse(data || "{}")); } catch (e) { reject(e); } });
           });
-          r.on("timeout", ()=>{ try { r.destroy(new Error("timeout")); } catch {} });
+          r.on("timeout", ()=>{ try { r.destroy(new Error("timeout")); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43323:4", err); } });
           r.on("error", reject);
         });
 
@@ -43330,7 +43330,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           const pj:any = await getj(String(peerBase).replace(/\/+$/, "") + "/blocks/latest/number2.json");
           const n = Number(pj?.number);
           if (Number.isFinite(n) && n >= 0) head_peer = n;
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43333:5", err); }
 
         const drift =
           (typeof head_local === "number" && typeof head_peer === "number")
@@ -43349,7 +43349,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
-    try { console.log("[head-unify-truthfix.v1] mounted"); } catch {}
+    try { console.log("[head-unify-truthfix.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43352:6", err); }
   }
 
   mount();
@@ -43388,7 +43388,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const n:any = G.__void_node || G.node || G.VOID_NODE;
       const h = Number(n?.store?.loadHeadNumber?.());
       if (Number.isFinite(h) && h >= 0) return h;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43391:7", err); }
     try {
       const fs = require("node:fs");
       const path = require("node:path");
@@ -43396,7 +43396,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const j = JSON.parse(fs.readFileSync(path.join(d, "heads.json"), "utf8") || "{}");
       const h = Number(j?.head ?? j?.number ?? j?.n ?? -1);
       if (Number.isFinite(h) && h >= 0) return h;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43399:8", err); }
     return -1;
   }
 
@@ -43433,7 +43433,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           catch (e:any) { reject(e); }
         });
       });
-      req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43436:9", err); } });
       req.on("error", reject);
     });
   }
@@ -43450,7 +43450,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const j:any = await getJson(u, 1200);
         const n = Number(j?.number ?? j?.chain?.head ?? j?.head ?? -1);
         if (Number.isFinite(n) && n >= 0) return n;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43453:10", err); }
     }
     return null;
   }
@@ -43467,7 +43467,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       res.json({ ok:true, installed:true, local_head: localHead(), peers: localPeers(), listen: localListen() });
     });
 
-    try { console.log("[peer-main-status-robust.v1] mounted"); } catch {}
+    try { console.log("[peer-main-status-robust.v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43470:11", err); }
   }
 
   mount();
@@ -43490,7 +43490,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const express = require("express");
       app.use(express.json({ limit: "1mb" }));
       (app as any).__void_wc_ledger_v1_json_ready = true;
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43493:12", err); }
   }
 
   function safeAccount(x:any): string {
@@ -43542,7 +43542,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const j = JSON.parse(line);
         if (account && String(j?.account || "") !== account) continue;
         out.push(j);
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43545:13", err); }
     }
     return out;
   }
@@ -43665,7 +43665,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
-    try { console.log("[wc-ledger-v1] mounted"); } catch {}
+    try { console.log("[wc-ledger-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43668:14", err); }
   }
 
   mount();
@@ -43759,7 +43759,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           const amount = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
           if (Number.isFinite(amount) && amount > 0) debited += amount;
         }
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43762:15", err); }
     }
 
     for (const line of readLines(redeemedFile())) {
@@ -43768,7 +43768,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         if (String(j?.account || "") !== account) continue;
         const d = Number(j?.amount || 0);
         if (Number.isFinite(d) && d > 0) redeemed += d;
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43771:16", err); }
     }
 
     earned = wcRound(earned);
@@ -43806,7 +43806,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       if (hit && hit.sig === sig && Number(hit.expires_ms || 0) > now && hit.value) {
         return { ...hit.value, cached:true, cache_ttl_ms: REDEEM_CACHE_TTL_MS };
       }
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43809:17", err); }
 
     const value = scanRedeemState(account);
     try {
@@ -43815,7 +43815,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         expires_ms: now + REDEEM_CACHE_TTL_MS,
         value
       });
-    } catch {}
+    } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43818:18", err); }
 
     return value;
   }
@@ -43847,7 +43847,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const j = JSON.parse(line);
             if (String(j?.account || "") !== account) continue;
             events.push(j);
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43850:19", err); }
         }
         return res.json({ ok:true, ...redeemState(account), count: events.length, events: events.slice(-limit).reverse() });
       } catch (e:any) {
@@ -43890,7 +43890,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           updated_at_ms: Date.now(),
           accounts: GG.__void_wc_runner_state_v1 || {}
         }, null, 2) + "\n");
-      } catch {}
+      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43893:20", err); }
     }
 
     function setWcRunnerState(account:string, enabled:boolean){
@@ -43998,7 +43998,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               .map((name:any) => {
                 const full = path.join(dir, String(name));
                 let st:any = null;
-                try { st = fs.statSync(full); } catch {}
+                try { st = fs.statSync(full); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("44001:21", err); }
                 return { name: String(name), full, st };
               })
               .filter((x:any) => !!x.st)
@@ -44008,7 +44008,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const items = files.map((x:any) => {
               const datasetId = String(x.name).replace(/\.txt$/i, "");
               let plaintext = "";
-              try { plaintext = String(fs.readFileSync(x.full, "utf8") || ""); } catch {}
+              try { plaintext = String(fs.readFileSync(x.full, "utf8") || ""); } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("44011:22", err); }
               const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
               const preview = plaintext.length > 280 ? (plaintext.slice(0, 280) + "…") : plaintext;
               return {
@@ -44062,7 +44062,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                   const obj = JSON.parse(line);
                   const ds = String(obj?.dataset_id || "");
                   if (ds) receiptIds.add(ds);
-                } catch {}
+                } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("44065:23", err); }
               }
             }
 
@@ -83801,4 +83801,9 @@ function voidIndexEmptyCatchVisibilityWindow41401_42300V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow42301_43200V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_42301_43200_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow43201_44100V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_43201_44100_V1_VISIBLE", context, err);
 }
