@@ -42,6 +42,26 @@ exports.ReceiptsStore = void 0;
 // src/chain/receipts.ts
 var fs = require("node:fs");
 var path = require("node:path");
+
+var VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1";
+function recordVoidReceiptsEmptyCatchVisibilityV1(site, err) {
+    try {
+        var g = globalThis;
+        var key = "__void_receipts_empty_catch_visibility_v1";
+        var bucket = Array.isArray(g[key]) ? g[key] : [];
+        bucket.push({
+            marker: VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_MARKER,
+            site: String(site || "unknown"),
+            message: err && err.message ? String(err.message) : String(err || ""),
+        });
+        while (bucket.length > 50)
+            bucket.shift();
+        g[key] = bucket;
+    }
+    catch (_visibilityRecordErr) {
+        /* VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+}
 var ReceiptsStore = /** @class */ (function () {
     function ReceiptsStore(dir, opts) {
         if (opts === void 0) { opts = {}; }
@@ -124,11 +144,11 @@ var ReceiptsStore = /** @class */ (function () {
                             return out;
                         }
                     }
-                    catch (_b) { }
+                    catch (_b) { recordVoidReceiptsEmptyCatchVisibilityV1('VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_SITE_GET_JSON_PARSE_LINE', _b); }
                 }
             }
         }
-        catch (_c) { }
+        catch (_c) { recordVoidReceiptsEmptyCatchVisibilityV1('VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_SITE_GET_SCAN_OUTER', _c); }
         return { found: false };
     };
     /** Lightweight stats for observability endpoints. */
@@ -151,7 +171,7 @@ var ReceiptsStore = /** @class */ (function () {
                 totalLines += lines;
             }
         }
-        catch (_a) { }
+        catch (_a) { recordVoidReceiptsEmptyCatchVisibilityV1('VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_SITE_STATS_SCAN', _a); }
         return { shards: shards, totalBytes: totalBytes, totalLines: totalLines };
     };
     /** Garbage collect older shards; keep the most recent N. */
@@ -172,7 +192,7 @@ var ReceiptsStore = /** @class */ (function () {
             }
             kept = files.length - removed;
         }
-        catch (_a) { }
+        catch (_a) { recordVoidReceiptsEmptyCatchVisibilityV1('VOID_RECEIPTS_EMPTY_CATCH_VISIBILITY_V1_SITE_GC_SCAN', _a); }
         // Note: we do not prune the in-memory map; that’s fine for long-running nodes.
         return { ok: true, keepLast: Math.max(1, Number(keepLast) || 1), removed: removed, kept: kept };
     };
