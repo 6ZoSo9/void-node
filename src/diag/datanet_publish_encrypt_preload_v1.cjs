@@ -38,11 +38,11 @@
             const b = Buffer.from(c);
             total += b.length;
             if (total > maxBytes) {
-              try { req.destroy(); } catch {}
+              try { req.destroy(); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
               return resolve({ __too_large: true });
             }
             chunks.push(b);
-          } catch {}
+          } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
         });
         req.on("end", () => {
           try {
@@ -61,7 +61,7 @@
     });
   }
 
-  function mkdirp(p) { try { fs.mkdirSync(p, { recursive: true }); } catch {} }
+  function mkdirp(p) { try { fs.mkdirSync(p, { recursive: true }); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ } }
   function writeFileAtomic(filePath, dataBuf) {
     const tmp = filePath + ".tmp." + process.pid + "." + nowMs();
     fs.writeFileSync(tmp, dataBuf);
@@ -172,7 +172,7 @@
               };
               appendJsonlSafe(receiptsFile, receipt);
             }
-          } catch {}
+          } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
 
           // optional receipts hook (same semantics as mvp): requireWho gate
           const requireWho = (process.env.DATANET_RECEIPTS_REQUIRE_WHO || "").trim() === "1";
@@ -227,7 +227,7 @@
         }
       });
 
-      try { console.error("[datanet.publish.enc.preload.v1] mounted: POST /datanet/v1/publish.enc ; GET /datanet/v1/fetch.enc/:id"); } catch {}
+      try { console.error("[datanet.publish.enc.preload.v1] mounted: POST /datanet/v1/publish.enc ; GET /datanet/v1/fetch.enc/:id"); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
       return true;
     } catch {
       return false;
@@ -242,7 +242,7 @@
       if (tryMount(app)) { clearInterval(t); return; }
       if (nowMs() - started > maxMs) {
         clearInterval(t);
-        try { console.error("[datanet.publish.enc.preload.v1] gave up waiting for app hook"); } catch {}
+        try { console.error("[datanet.publish.enc.preload.v1] gave up waiting for app hook"); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
       }
     }, 200);
   })();
@@ -264,7 +264,7 @@ try {
       fs.appendFileSync(filePath, __void_safe_json(obj) + "\n", { encoding: "utf8" });
       return true;
     } catch (e) {
-      try { console.error("[datanet.nonenc.receipts.v1] append fail:", e && (e.stack||e.message||e)); } catch {}
+      try { console.error("[datanet.nonenc.receipts.v1] append fail:", e && (e.stack||e.message||e)); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
       return false;
     }
   }
@@ -302,7 +302,7 @@ try {
         // who: query wins; otherwise try JSON body (for clients that send {"who":...})
         const who_q = (req && req.query && req.query.who) ? String(req.query.who) : "";
         let who_b = "";
-        try { if (req && req.body && typeof req.body === "object" && req.body.who) who_b = String(req.body.who); } catch {}
+        try { if (req && req.body && typeof req.body === "object" && req.body.who) who_b = String(req.body.who); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
         const who = who_q || who_b || "";
 
         const method = (req && req.method) ? String(req.method) : "";
@@ -326,7 +326,7 @@ try {
                     else if (typeof Buffer !== "undefined" && Buffer.isBuffer && Buffer.isBuffer(chunk)) res.__void_bytes_sent += chunk.length;
                     else if (chunk && chunk.byteLength != null) res.__void_bytes_sent += chunk.byteLength;
                   }
-                } catch {}
+                } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
                 return _w(chunk, enc, cb);
               };
             }
@@ -339,12 +339,12 @@ try {
                     else if (typeof Buffer !== "undefined" && Buffer.isBuffer && Buffer.isBuffer(chunk)) res.__void_bytes_sent += chunk.length;
                     else if (chunk && chunk.byteLength != null) res.__void_bytes_sent += chunk.byteLength;
                   }
-                } catch {}
+                } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
                 return _e(chunk, enc, cb);
               };
             }
           }
-        } catch {}
+        } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
         const _json = res.json && res.json.bind(res);
         const _send = res.send && res.send.bind(res);
 
@@ -364,7 +364,7 @@ try {
             } else if (payload && typeof payload === "object") {
               j = payload;
             }
-          } catch {}
+          } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
 
           const ok = j && (j.ok === true || j.ok === 1);
           const id = j && (j.id ? String(j.id) : "");
@@ -383,7 +383,7 @@ try {
             } else if (payload && typeof payload === "object") {
               payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
             }
-          } catch {}
+          } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
 
 
           const ms = Math.max(0, __void_now_ms() - t0);
@@ -407,25 +407,25 @@ try {
         }
 
         if (_json) {
-          res.json = (body) => { try { logFromPayload(body); } catch {} return _json(body); };
+          res.json = (body) => { try { logFromPayload(body); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ } return _json(body); };
         }
         if (_send) {
-          res.send = (body) => { try { logFromPayload(body); } catch {} return _send(body); };
+          res.send = (body) => { try { logFromPayload(body); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ } return _send(body); };
         }
-      } catch {}
+      } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
       return next();
     });
 
-    try { console.error("[datanet.nonenc.receipts.v1] mounted: receipt logging for /datanet/v1/publish + /datanet/v1/fetch*"); } catch {}
+    try { console.error("[datanet.nonenc.receipts.v1] mounted: receipt logging for /datanet/v1/publish + /datanet/v1/fetch*"); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
     return true;
   }
 
   // attempt immediate install; also retry once shortly (boot order races)
   if (!__void_install()) {
-    setTimeout(() => { try { __void_install(); } catch {} }, 250);
-    setTimeout(() => { try { __void_install(); } catch {} }, 1500);
+    setTimeout(() => { try { __void_install(); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ } }, 250);
+    setTimeout(() => { try { __void_install(); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ } }, 1500);
   }
 } catch (e) {
-  try { console.error("[datanet.nonenc.receipts.v1] fatal:", e && (e.stack||e.message||e)); } catch {}
+  try { console.error("[datanet.nonenc.receipts.v1] fatal:", e && (e.stack||e.message||e)); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
 }
 /* __VOID_DATANET_NONENC_RECEIPTS_V1__ END */
