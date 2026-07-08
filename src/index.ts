@@ -40499,7 +40499,7 @@ try {
       if (node?.store) candidates.push(node.store);
       if (node?.segStore) candidates.push(node.segStore);
       if (node?.chain?.store) candidates.push(node.chain.store);
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40502:1", err); }
 
     for (const st of candidates){
       try{
@@ -40508,25 +40508,25 @@ try {
           const b = await st.getBlockByNumber(n);
           if (b) return b;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40511:2", err); }
       try{
         if (typeof st.getBlock === "function") {
           const b = await st.getBlock(n);
           if (b) return b;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40517:3", err); }
       try{
         if (typeof st.readBlock === "function") {
           const b = await st.readBlock(n);
           if (b) return b;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40523:4", err); }
       try{
         if (typeof st.loadBlock === "function") {
           const b = await st.loadBlock(n);
           if (b) return b;
         }
-      }catch{}
+      }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40529:5", err); }
     }
 
     return null;
@@ -40609,7 +40609,7 @@ try {
     });
 
     g.__void_reader_truthfix_v1_mounted = true;
-    try{ console.log("[reader.truthfix] mounted /mempool and /blocks/:n/full2 overrides"); }catch{}
+    try{ console.log("[reader.truthfix] mounted /mempool and /blocks/:n/full2 overrides"); }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40612:6", err); }
   }
 
   setTimeout(attach, 250);
@@ -40691,7 +40691,7 @@ try {
         ...obj
       };
       await fsp.appendFile(receiptsFile(), JSON.stringify(rec) + "\n");
-    }catch{}
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40694:7", err); }
   }
 
   function encryptTextWithPassphrase(text:string, passphrase:string){
@@ -40746,7 +40746,7 @@ try {
         try{
           const st = await fsp.stat(receiptsFile());
           receipts_size = st.size;
-        }catch{}
+        }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40749:8", err); }
         return res.json({
           ok: true,
           installed: true,
@@ -40865,7 +40865,7 @@ try {
       try{
         await ensureDirs();
         let txt = "";
-        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40868:9", err); }
         const lines = txt.trim() ? txt.trim().split(/\n+/).slice(-50) : [];
         const items = lines.map((x:string)=>{ try{ return JSON.parse(x); }catch{ return { raw:x }; } });
         return res.json({ ok:true, count: items.length, items });
@@ -40875,7 +40875,7 @@ try {
     });
 
     g.__void_datanet_mini_loop_v1_mounted = true;
-    try{ console.log("[datanet.mini-loop] mounted publish/fetch/verify/decrypt/receipts"); }catch{}
+    try{ console.log("[datanet.mini-loop] mounted publish/fetch/verify/decrypt/receipts"); }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40878:10", err); }
   }
 
   setTimeout(attach, 250);
@@ -40951,7 +40951,7 @@ try {
           try{
             const meta = await readJson(path.join(objectsDir(), name));
             items.push(summarize(meta));
-          }catch{}
+          }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40954:11", err); }
         }
         items.sort((a:any,b:any)=>(Number(b?.created_at_ms||0)-Number(a?.created_at_ms||0)));
         return res.json({
@@ -40993,7 +40993,7 @@ try {
     });
 
     g.__void_datanet_list_v1_mounted = true;
-    try{ console.log("[datanet.list.v1] mounted /datanet/list and /datanet/meta/:id"); }catch{}
+    try{ console.log("[datanet.list.v1] mounted /datanet/list and /datanet/meta/:id"); }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("40996:12", err); }
   }
 
   setTimeout(attach, 250);
@@ -41029,7 +41029,7 @@ try {
     app.get("/__void/demo/datanet/", (_req:any, res:any) => sendDemo(res));
 
     g.__void_datanet_demo_ui_alias_v1_mounted = true;
-    try{ console.log("[datanet.demo.ui] direct file routes mounted at /demo/datanet"); }catch{}
+    try{ console.log("[datanet.demo.ui] direct file routes mounted at /demo/datanet"); }catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41032:13", err); }
   }
 
   setTimeout(attach, 250);
@@ -41053,7 +41053,7 @@ try {
     const APP:any = getApp();
     if (!APP || typeof APP.get !== "function") {
       const t:any = setTimeout(attach, 500);
-      try { t.unref?.(); } catch {}
+      try { t.unref?.(); } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41056:14", err); }
       return;
     }
     if ((APP as any).__void_datanet_publish_shim_object_browser_route_v1_mounted) return;
@@ -41093,15 +41093,15 @@ try {
 
           try {
             if (fs.existsSync(metaPath)) meta = JSON.parse(String(fs.readFileSync(metaPath, "utf8") || "{}"));
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41096:15", err); }
 
           try {
             if (fs.existsSync(manifestPath)) manifest = JSON.parse(String(fs.readFileSync(manifestPath, "utf8") || "{}"));
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41100:16", err); }
 
           try {
             if (fs.existsSync(rootPath)) rootTxt = String(fs.readFileSync(rootPath, "utf8") || "").trim();
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41104:17", err); }
 
           const stat = fs.statSync(dir);
           const createdAt = String(meta.createdAt || manifest.createdAt || "");
@@ -41186,15 +41186,15 @@ try {
 
         try {
           if (fs.existsSync(metaPath)) meta = JSON.parse(String(fs.readFileSync(metaPath, "utf8") || "{}"));
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41189:18", err); }
 
         try {
           if (fs.existsSync(manifestPath)) manifest = JSON.parse(String(fs.readFileSync(manifestPath, "utf8") || "{}"));
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41193:19", err); }
 
         try {
           if (fs.existsSync(rootPath)) rootTxt = String(fs.readFileSync(rootPath, "utf8") || "").trim();
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41197:20", err); }
 
         const stat = fs.statSync(dir);
         const createdAt = String(meta.createdAt || manifest.createdAt || "");
@@ -41217,7 +41217,7 @@ try {
             previewTruncated = buf.length > maxPreview;
             previewText = buf.subarray(0, maxPreview).toString("utf8");
           }
-        } catch {}
+        } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41220:21", err); }
 
         return res.json({
           ok: true,
@@ -41257,7 +41257,7 @@ try {
       }
     });
 
-    try { console.log("[datanet.publish_shim.objects.v1] mounted: GET /datanet/v1/objects"); } catch {}
+    try { console.log("[datanet.publish_shim.objects.v1] mounted: GET /datanet/v1/objects"); } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41260:22", err); }
   }
 
   setTimeout(attach, 250);
@@ -41316,7 +41316,7 @@ try {
         const peerResp = await fetch(peerFetchUrl);
         const peerText = await peerResp.text();
         let peerJson:any = null;
-        try { peerJson = JSON.parse(peerText); } catch {}
+        try { peerJson = JSON.parse(peerText); } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41319:23", err); }
 
         if (!peerResp.ok || !peerJson || peerJson.ok !== true) {
           return res.status(502).json({
@@ -41345,7 +41345,7 @@ try {
 
         const publishText = await publishResp.text();
         let publishJson:any = null;
-        try { publishJson = JSON.parse(publishText); } catch {}
+        try { publishJson = JSON.parse(publishText); } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41348:24", err); }
 
         if (!publishResp.ok || !publishJson || publishJson.ok !== true) {
           return res.status(500).json({
@@ -41387,14 +41387,14 @@ try {
 
               copiedToRequestedId = true;
             }
-          } catch {}
+          } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41390:25", err); }
         }
 
         const localFetchUrl = selfBase + "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
         const localFetchResp = await fetch(localFetchUrl);
         const localFetchText = await localFetchResp.text();
         let localFetchJson:any = null;
-        try { localFetchJson = JSON.parse(localFetchText); } catch {}
+        try { localFetchJson = JSON.parse(localFetchText); } catch (err) { voidIndexEmptyCatchVisibilityWindow40501_41400V1("41397:26", err); }
 
         const localFetchOk = !!(localFetchResp.ok && localFetchJson && localFetchJson.ok === true);
         const idMatch = localId === id || copiedToRequestedId || String(publishJson.merkleRootHex || "").toLowerCase() === id.toLowerCase();
@@ -83786,4 +83786,9 @@ function voidIndexEmptyCatchVisibilityWindow38701_39600V1(context: string, err: 
 
 function voidIndexEmptyCatchVisibilityWindow39601_40500V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_39601_40500_V1_VISIBLE", context, err);
+}
+
+
+function voidIndexEmptyCatchVisibilityWindow40501_41400V1(context: string, err: unknown): void {
+  console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_40501_41400_V1_VISIBLE", context, err);
 }
