@@ -9,8 +9,22 @@
 
   const pid = (typeof process !== "undefined" && process && process.pid) ? process.pid : -1;
 
+  const VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidForceListenV4EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_force_listen_v4_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
   function now() { return Date.now(); }
-  function log(...a) { try { console.error("[force-listen.v4]", ...a); } catch {} }
+  function log(...a) { try { console.error("[force-listen.v4]", ...a); } catch (logErr) { recordVoidForceListenV4EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_SITE_LOG_WRITE", logErr); } }
 
   function getPort() {
     const p = (process && process.env && (process.env.HTTP_PORT || process.env.PORT)) ? String(process.env.HTTP_PORT || process.env.PORT) : "";
@@ -60,7 +74,7 @@
           G.__void_http_server = server;
           G.__void_force_listen_v4_bound = true;
           log("FORCED listen OK", { pid, host, port, reason });
-        } catch {}
+        } catch (listenOkStoreErr) { recordVoidForceListenV4EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_SITE_LISTEN_OK_STORE", listenOkStoreErr); }
       });
 
       return true;
@@ -78,11 +92,11 @@
     try {
       const orig = app.listen.bind(app);
       app.listen = function(...args) {
-        try { log("app.listen called", { pid, args0: args && args[0] }); } catch {}
+        try { log("app.listen called", { pid, args0: args && args[0] }); } catch (listenLogErr) { recordVoidForceListenV4EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_SITE_APP_LISTEN_LOG", listenLogErr); }
         return orig(...args);
       };
       app.__void_listen_wrapped_v4 = true;
-    } catch {}
+    } catch (wrapListenErr) { recordVoidForceListenV4EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V4_EMPTY_CATCH_VISIBILITY_V1_SITE_WRAP_LISTEN", wrapListenErr); }
   }
 
   log("installed", { pid, port: getPort(), host: getHost() });
