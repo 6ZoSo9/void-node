@@ -19173,11 +19173,9 @@ void_ready_exporter_timestamp_ms ${now}
     (app as any)[mountMarker] = true;
 
     async function selfJson(path:string){
-      // Node >=18 has global fetch
-      const base = `http://127.0.0.1:${process.env.HTTP_PORT || "4100"}`;
-      const r = await fetch(base + path);
-      if (!r.ok) throw new Error(`GET ${path} -> ${r.status}`);
-      return await r.json();
+      const r=await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`+path);
+      if(!r.ok){if(r.status===404&&path.startsWith("/dev/"))return null as any;throw new Error(`GET ${path} -> ${r.status}`);}
+      return r.json();
     }
 
     app.get("/blocks/:n/header3", async (req:any, res:any)=>{
@@ -19239,9 +19237,8 @@ void_ready_exporter_timestamp_ms ${now}
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
   async function selfJson(path:string){
-    const base = `http://127.0.0.1:${process.env.HTTP_PORT || "4100"}`;
-    const r = await fetch(base + path);
-    if (!r.ok) throw new Error(`GET ${path} -> ${r.status}`);
+    const r=await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`+path);
+    if(!r.ok){if(r.status===404&&path.startsWith("/dev/"))return null as any;throw new Error(`GET ${path} -> ${r.status}`);}
     return r.json();
   }
 
