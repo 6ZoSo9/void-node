@@ -23198,10 +23198,9 @@ const wal = new WALv1(getDataDir());
       // Express runs middleware in order; this mirrors bodies before core handlers.
 // [deleted legacy txsubmit literal mount]
 
-      // Optional: capture bursts/dev routes if they exist
       app.use("/tx/dev", async (req:any, res:any, next:any)=>{
         try{
-          if (wal.overCap()){
+          if(__voidWoV1(wal)){
             res.status(429).json({ ok:false, overCap:true, pressure:__voidWpV1(wal) });
             return;
           }
@@ -23252,6 +23251,7 @@ const wal = new WALv1(getDataDir());
 
   }catch (e) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23257:21", e); }
 })();
+function __voidWoV1(w:any){try{return !!w?.overCap?.call(w)}catch{return false}}
 function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(w):0);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0}
 (function walPressureController(){
   const G:any = globalThis as any;
