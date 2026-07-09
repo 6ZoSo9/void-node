@@ -9,6 +9,20 @@
   const http = require("http");
   const path = require("path");
 
+  const VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_datanet_receipts_real_v1_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
+
   function nowMs(){ return Date.now(); }
   function safeStr(x){ try { return (x===undefined||x===null) ? "" : String(x); } catch { return ""; } }
   function safeNum(x, d=0){ try { const n=Number(x); return Number.isFinite(n)?n:d; } catch { return d; } }
@@ -26,7 +40,7 @@
           const m = qs.match(/(?:^|&)(?:who|WHO)=([^&]*)/);
           if (m && m[1] != null) q2 = decodeURIComponent(String(m[1]).replace(/\+/g, "%20"));
         }
-      } catch (e) {}
+      } catch (whoQueryParseErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_WHO_QUERY_PARSE", whoQueryParseErr); }
 
       const pick = h || q || q2 || "";
       return safeStr(pick).trim();
@@ -139,7 +153,7 @@
                     if (take > 0) { bodyBufs.push(b.subarray(0, take)); bodyBytes += take; }
                   }
                 }
-              } catch {}
+              } catch (writeCaptureErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_WRITE_CAPTURE", writeCaptureErr); }
               return _write.apply(this, arguments);
             };
 
@@ -154,7 +168,7 @@
                     if (take > 0) { bodyBufs.push(b.subarray(0, take)); bodyBytes += take; }
                   }
                 }
-              } catch {}
+              } catch (endCaptureErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_END_CAPTURE", endCaptureErr); }
               return _end.apply(this, arguments);
             };
 
@@ -217,14 +231,14 @@
                   url: safeStr(req.originalUrl || req.url),
                   reason2
                 });
-              } catch {}
+              } catch (finishReceiptErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_FINISH_RECEIPT", finishReceiptErr); }
             });
           }
         }
-      } catch {}
+      } catch (requestWrapErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_REQUEST_WRAP", requestWrapErr); }
       return origEmit.apply(this, arguments);
     };
 
-    try { console.error("[datanet.receipts_real.v1.10] installed (ok from body, missing_who->deny)"); } catch {}
+    try { console.error("[datanet.receipts_real.v1.10] installed (ok from body, missing_who->deny)"); } catch (installedLogErr) { recordVoidDataNetReceiptsRealV1EmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_REAL_V1_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
   }
 })();
