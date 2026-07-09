@@ -8343,7 +8343,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
       });
-    } catch (err) { __voidIxCatch9000("8346:9", err); }
+    } catch (err) { if(!/fetch failed/.test(String((err as any)?.message||err))) __voidIxCatch9000("8346:9", err); }
   }
 
   async function runTsxScript(
