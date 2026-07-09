@@ -43744,27 +43744,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     let redeemed = 0;
 
     for (const line of readLines(ledgerFile())) {
-      try {
-        const j = JSON.parse(line);
-        if (String(j?.account || "") !== account) continue;
-
-        const d = Number(j?.delta || 0);
-        if (Number.isFinite(d) && d > 0) earned += d;
-
-        if (String(j?.kind || "") === "debit") {
-          const amount = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
-          if (Number.isFinite(amount) && amount > 0) debited += amount;
-        }
-      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43762:15", err); }
+      let j:any; try{ j=JSON.parse(line); }catch{ continue; }
+      if (String(j?.account || "") !== account) continue;
+      const d = Number(j?.delta || 0);
+      if (Number.isFinite(d) && d > 0) earned += d;
+      if (String(j?.kind || "") === "debit") {
+        const amount = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
+        if (Number.isFinite(amount) && amount > 0) debited += amount;
+      }
     }
 
     for (const line of readLines(redeemedFile())) {
-      try {
-        const j = JSON.parse(line);
-        if (String(j?.account || "") !== account) continue;
-        const d = Number(j?.amount || 0);
-        if (Number.isFinite(d) && d > 0) redeemed += d;
-      } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43771:16", err); }
+      let j:any; try{ j=JSON.parse(line); }catch{ continue; }
+      if (String(j?.account || "") !== account) continue;
+      const d = Number(j?.amount || 0);
+      if (Number.isFinite(d) && d > 0) redeemed += d;
     }
 
     earned = wcRound(earned);
@@ -61007,32 +61001,30 @@ a{color:#93c5fd;text-decoration:none}
                 "ledger.jsonl"
               );
               for (const line of readLines(datanetRawFile)) {
-                try {
-                  const r:any = JSON.parse(line);
-                  const receiptId = String(r?.receipt_id || r?.id || "").trim();
-                  const delta = Number(r?.delta ?? r?.wc_award ?? 0);
-                  if (!(delta > 0) || String(r?.kind || "") !== "credit") continue;
+                let r:any; try{ r=JSON.parse(line); }catch{ continue; }
+                const receiptId = String(r?.receipt_id || r?.id || "").trim();
+                const delta = Number(r?.delta ?? r?.wc_award ?? 0);
+                if (!(delta > 0) || String(r?.kind || "") !== "credit") continue;
 
-                  creditedOut.push({
-                    receipt_id: receiptId,
-                    job_id: r?.job_id || null,
-                    account: String(r?.account || ""),
-                    who: String(r?.account || ""),
-                    kind: "datanet_receipt",
-                    status: "credited",
-                    delta,
-                    reason: String(r?.reason || "datanet_receipt"),
-                    ts_ms: Number(r?.ts_ms || 0),
-                    dataset_id: r?.dataset_id || null,
-                    root: null,
-                    leaf: null,
-                    index: 0,
-                    bytes: 0,
-                    mime: null,
-                    name: null,
-                    _raw: "wc_v1_ledger"
-                  });
-                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61039:30", err); }
+                creditedOut.push({
+                  receipt_id: receiptId,
+                  job_id: r?.job_id || null,
+                  account: String(r?.account || ""),
+                  who: String(r?.account || ""),
+                  kind: "datanet_receipt",
+                  status: "credited",
+                  delta,
+                  reason: String(r?.reason || "datanet_receipt"),
+                  ts_ms: Number(r?.ts_ms || 0),
+                  dataset_id: r?.dataset_id || null,
+                  root: null,
+                  leaf: null,
+                  index: 0,
+                  bytes: 0,
+                  mime: null,
+                  name: null,
+                  _raw: "wc_v1_ledger"
+                });
               }
             } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("61041:31", err); }
 
