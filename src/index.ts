@@ -19254,7 +19254,7 @@ void_ready_exporter_timestamp_ms ${now}
         lastMismatch = lastMatch ? lastMismatch : n;
         lastChecked  = n;
       }
-    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19260:11", err); }
+    } catch (err) { const m=String((err as any)?.message||err); if(!/GET \/blocks\/.*\/header3 -> 503/.test(m)) voidIndexEmptyCatchVisibilityWindow18901_19800V1("19260:11", err); }
     setTimeout(poll, 1000);
   }
 
