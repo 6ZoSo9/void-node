@@ -43322,11 +43322,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         const head_local = liveHead();
         let head_peer:any = null;
-        try {
-          const pj:any = await getj(String(peerBase).replace(/\/+$/, "") + "/blocks/latest/number2.json");
-          const n = Number(pj?.number);
-          if (Number.isFinite(n) && n >= 0) head_peer = n;
-        } catch (err) { voidIndexEmptyCatchVisibilityWindow43201_44100V1("43333:5", err); }
+        const base = String(peerBase).replace(/\/+$/, "");
+        for (const path of ["/blocks/latest/number2.json","/blocks/latest/number.json","/head","/__void/ready.json"]) {
+          if (typeof head_peer === "number") break;
+          try {
+            const pj:any = await getj(base + path);
+            const n = Number(pj?.number ?? pj?.head);
+            if (Number.isFinite(n) && n >= 0) head_peer = n;
+          } catch {}
+        }
 
         const drift =
           (typeof head_local === "number" && typeof head_peer === "number")

@@ -857,7 +857,8 @@ export class Node {
     }
 
     const from = myHead + 1;
-    const to = theirHead;
+    const maxPull = Math.max(1, Number(process.env.VOID_FOLLOWER_PULL_LIMIT || 250) || 250);
+    const to = Math.min(theirHead, myHead + maxPull);
 
     const fetchRange = async (): Promise<any[]> =>
       await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
