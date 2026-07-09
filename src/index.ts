@@ -23205,7 +23205,7 @@ const wal = new WALv1(getDataDir());
       app.use("/tx/dev", async (req:any, res:any, next:any)=>{
         try{
           if (wal.overCap()){
-            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
+            res.status(429).json({ ok:false, overCap:true, pressure:__voidWpV1(wal) });
             return;
           }
           const body = req.body ?? {};
@@ -23246,8 +23246,7 @@ const wal = new WALv1(getDataDir());
       // GET /__void/wal/replay?limit=100 -> streams last N lines (unsafe for huge; dev only)
       app.get("/__void/wal/replay", async (_req:any, res:any)=>{
         try{
-          // very light: we only expose timing; full dump avoided for now
-          res.json({ ok:true, lastReplayMs: (G.__void_wal?.lastReplayMs ?? -1) });
+              res.json({ ok:true, lastReplayMs: (G.__void_wal?.lastReplayMs ?? -1) });
         }catch(e:any){
           res.status(500).json({ ok:false, error:String(e?.message||e) });
         }
@@ -23256,7 +23255,7 @@ const wal = new WALv1(getDataDir());
 
   }catch (e) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23257:21", e); }
 })();
-// --- WAL pressure -> proposer slowdown (additive) ---
+function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(w):0);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0}
 (function walPressureController(){
   const G:any = globalThis as any;
   function getApp(){ return (G.__void_http_app || (G as any).app); }
@@ -23264,10 +23263,8 @@ const wal = new WALv1(getDataDir());
     try{
       const wal:any = (G.__void_wal);
       if (!wal) return setTimeout(tick, 1500);
-      const p = wal.pressure();
-      // mild slope: 0..1 pressure -> 2000..6000ms
+      const p=__voidWpV1(wal);
       const ms = Math.round(2000 + Math.max(0, Math.min(1, p)) * 4000);
-      // best-effort: many builds have this endpoint
       await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/proposer/auto/start?ms=${ms}`, { method:"POST" }).catch(()=>{});
     }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("23272:22", err); }
     setTimeout(tick, 1500);
