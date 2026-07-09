@@ -12980,9 +12980,9 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreExporter
 // --- optional second-chance import path for dist/ layouts (additive) ---
 (async function txrootSecondChanceImport(){
   try {
-    const m = await import("./chain/seg_store.js");
-    if (m?.SegStore && !(m as any).__void_txroot_import_seen) {
-      (m as any).__void_txroot_import_seen = true;
+    const m=await import("./chain/seg_store.js"),G:any=globalThis as any;
+    if(m?.SegStore&&!G.__void_txroot_import_seen){
+      G.__void_txroot_import_seen=true;
       console.log("[txroot-hook] second-chance import available (dist layout).");
     }
   } catch (err) { voidIndexEmptyCatchVisibilityWindow12601_13500V1("12988:3", err); }
