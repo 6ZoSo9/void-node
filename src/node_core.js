@@ -1102,6 +1102,81 @@ var Node = /** @class */ (function () {
             });
         });
     };
+
+// VOID_FOLLOWER_TAILNET_HEAD_BOUNDED_IMPORT_V1_JS_OVERRIDE
+Node.prototype.pullOnce = async function(peerHttp, hooks) {
+    const myHead = this.store.loadHeadNumber();
+    const base = String(peerHttp || "").replace(/\/+$/, "");
+    const readJson = async (path) => {
+        try {
+            const r = await fetch(base + path).catch(() => null);
+            if (!r || !r.ok) return null;
+            return await r.json().catch(() => null);
+        } catch (_) {
+            return null;
+        }
+    };
+    const readPeerHead = async () => {
+        for (const path of ["/blocks/latest/number2.json", "/blocks/latest/number.json", "/head", "/__void/ready.json", "/api/health"]) {
+            const j = await readJson(path);
+            const n = Number((j === null || j === void 0 ? void 0 : j.number) ?? (j === null || j === void 0 ? void 0 : j.head));
+            if (Number.isFinite(n) && n >= 0) return n;
+        }
+        return -1;
+    };
+    const theirHead = await readPeerHead();
+    if (!(Number.isFinite(theirHead) && theirHead >= 0)) {
+        return { ok: false, imported: 0, alreadyHad: 0, filled: 0, reason: "peer head unavailable", myHead, theirHead };
+    }
+    if (theirHead <= myHead) {
+        return { ok: true, imported: 0, alreadyHad: 0, filled: 0, reason: "no new blocks", myHead, theirHead };
+    }
+    const from = myHead + 1;
+    const maxPull = Math.max(1, Number(process.env.VOID_FOLLOWER_PULL_LIMIT || 250) || 250);
+    const to = Math.min(theirHead, myHead + maxPull);
+    const fetchRange = async () => {
+        try {
+            const r = await fetch(base + "/blocks/range?from=" + from + "&to=" + to);
+            const j = await r.json();
+            return Array.isArray(j) ? j : [];
+        } catch (_) {
+            return [];
+        }
+    };
+    let arr = await fetchRange();
+    let retried = false;
+    if (!Array.isArray(arr) || arr.length === 0 || Number(arr[arr.length - 1]?.number) !== to) {
+        arr = await fetchRange();
+        retried = true;
+    }
+    let imported = 0, alreadyHad = 0, filled = 0;
+    const importedNums = [];
+    for (const b of (Array.isArray(arr) ? arr : [])) {
+        const n = Number(b?.number);
+        if (!Number.isFinite(n)) continue;
+        const existing = this.store.loadBlock(n);
+        const incomingHasTxs = Array.isArray(b?.txs) && b.txs.length > 0;
+        const existingHasTxs = Array.isArray(existing?.txs) && existing.txs.length > 0;
+        if (!existing) {
+            this.store.saveBlock(b);
+            imported++;
+            importedNums.push(n);
+            try { hooks?.onImportBlock?.(b); } catch (_) {}
+            continue;
+        }
+        if (!existingHasTxs && incomingHasTxs) {
+            const merged = Object.assign({}, existing, b, { txs: b.txs });
+            this.store.saveBlock(merged);
+            filled++;
+            importedNums.push(n);
+            try { hooks?.onImportBlock?.(merged); } catch (_) {}
+            continue;
+        }
+        alreadyHad++;
+    }
+    return { ok: true, imported, alreadyHad, filled, myHead, advancedHead: this.store.loadHeadNumber(), theirHead, from, to, got: Array.isArray(arr) ? arr.length : 0, retried, bounded: to < theirHead, maxPull, importedNums };
+};
+
     /** follower periodic */
     Node.prototype.startFollower = function (peerHttp, intervalMs, opts) {
         var _this = this;
