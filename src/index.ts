@@ -19870,13 +19870,13 @@ void_header3_last_mismatch ${lastMismatch}
   mount();
 })();
 
-// ---------- Proposer Activity Gauge (additive, safe) ----------
 (function proposerActivityGauge(){
   const TICK=2000, WINDOW_MS=10_000;
   let lastHead = -1, lastChange = 0;
   function now(){ return Date.now(); }
   async function poll(){
     try{
+      if(!getApp()) return setTimeout(poll,TICK);
       const r = await fetch('http://127.0.0.1:'+ (process.env.HTTP_PORT||'4100') +'/head.txt');
       const txt = await r.text();
       const n = Number((txt||'').trim());
