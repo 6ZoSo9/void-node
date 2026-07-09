@@ -10,6 +10,20 @@
 const fs = require("fs");
 const path = require("path");
 
+const VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1";
+function recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1(site, err) {
+  try {
+    const g = globalThis;
+    const key = "__void_datanet_receipts_persist_wrap_fetch_v4_finalrunner_quiet_empty_catch_visibility_v1";
+    const bucket = Array.isArray(g[key]) ? g[key] : [];
+    bucket.push({ marker: VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+    while (bucket.length > 50) bucket.shift();
+    g[key] = bucket;
+  } catch (_visibilityRecordErr) {
+    /* VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+  }
+}
+
 (function install() {
   const G = globalThis;
   if (G.__void_wrap_fetch_v4_safe_v1_installed) return;
@@ -17,7 +31,7 @@ const path = require("path");
 
   const origFetch = G.fetch;
   if (typeof origFetch !== "function") {
-    try { console.error("[wrap_fetch_v4_safe_v1] no global fetch; skipping"); } catch {}
+    try { console.error("[wrap_fetch_v4_safe_v1] no global fetch; skipping"); } catch (noFetchLogErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_NO_FETCH_LOG", noFetchLogErr); }
     return;
   }
 
@@ -29,7 +43,7 @@ const path = require("path");
   // best-effort ensure parent dir exists
   try {
     if (receiptsFile) fs.mkdirSync(path.dirname(receiptsFile), { recursive: true });
-  } catch {}
+  } catch (mkdirErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_MKDIR", mkdirErr); }
 
   // async append queue (never appendFileSync)
   const q = [];
@@ -45,7 +59,7 @@ const path = require("path");
       const chunk = q.splice(0, 200).join("");
       await fs.promises.appendFile(receiptsFile, chunk, "utf8");
     } catch (e) {
-      try { console.error("[wrap_fetch_v4_safe_v1] append failed:", (e && e.message) ? e.message : e); } catch {}
+      try { console.error("[wrap_fetch_v4_safe_v1] append failed:", (e && e.message) ? e.message : e); } catch (appendLogErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_APPEND_LOG", appendLogErr); }
     } finally {
       flushing = false;
     }
@@ -59,7 +73,7 @@ const path = require("path");
       // hard cap: 10k pending lines
       if (q.length >= 10000) { dropped++; return; }
       q.push(line);
-    } catch {}
+    } catch (enqueueErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_ENQUEUE", enqueueErr); }
   }
 
   function safeWhoFromHeaders(h) {
@@ -99,7 +113,7 @@ const path = require("path");
       else if (input && input.method) method = String(input.method).toUpperCase();
 
       headers = (init && init.headers) ? init.headers : (input && input.headers) ? input.headers : null;
-    } catch {}
+    } catch (fetchInputParseErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_FETCH_INPUT_PARSE", fetchInputParseErr); }
 
     const { path: p } = safePath(url);
 
@@ -152,5 +166,5 @@ const path = require("path");
 
   try {
     console.error("[wrap_fetch_v4_safe_v1] installed (lightweight). file=" + (receiptsFile || "<none>"));
-  } catch {}
+  } catch (installedLogErr) { recordVoidDataNetReceiptsPersistWrapFetchV4FinalrunnerQuietEmptyCatchVisibilityV1("VOID_DATANET_RECEIPTS_PERSIST_WRAP_FETCH_V4_FINALRUNNER_QUIET_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
 })();
