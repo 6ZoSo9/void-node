@@ -30469,9 +30469,11 @@ try {
     };
   }
 
-  app.get("/__void/diag/blocktxs_truth3/_ping.json", (_req: any, res: any) => res.json({ ok: true, installed: true }));
+  const a3:any=(globalThis as any).__void_http_app;
+  if(a3?.get){
+  a3.get("/__void/diag/blocktxs_truth3/_ping.json", (_req: any, res: any) => res.json({ ok: true, installed: true }));
 
-  app.get("/__void/diag/blocktxs_truth3/:n.json", (req: any, res: any) => {
+  a3.get("/__void/diag/blocktxs_truth3/:n.json", (req: any, res: any) => {
     try {
       const n = Number(req.params.n);
       if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
@@ -30488,8 +30490,8 @@ try {
       return res.status(500).json({ ok: false, err: String(e?.message || e) });
     }
   });
+  }
 
-  console.log("[void] blocktxs_truth3 installed");
 } catch (_e) { voidIndexEmptyCatchVisibilityWindow29701_30600V1("30499:7", _e); }
 
 
