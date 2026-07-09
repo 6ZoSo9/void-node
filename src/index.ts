@@ -23730,19 +23730,19 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     try{
       if (fs.existsSync(doneFile)){
         for (const line of fs.readFileSync(doneFile, "utf8").split("\\n")){ if (!line.trim()) continue;
-          const rec = JSON.parse(line); if (rec && rec.id) done.add(rec.id);
+          let rec:any; try{ rec=JSON.parse(line); }catch{ continue; } if (rec && rec.id) done.add(rec.id);
         }
       }
-    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23742:14", err); }
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23742:14-file", err); }
     try{
       if (fs.existsSync(jobsFile)){
         for (const line of fs.readFileSync(jobsFile, "utf8").split("\\n")){ if (!line.trim()) continue;
-          const j = JSON.parse(line);
+          let j:any; try{ j=JSON.parse(line); }catch{ continue; }
           if (!j || !j.id || done.has(j.id)) continue;
           if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
         }
       }
-    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23751:15", err); }
+    }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23751:15-file", err); }
   }
 
   // Sweeper: return expired leases to queue
