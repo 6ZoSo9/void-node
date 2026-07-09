@@ -11,8 +11,22 @@ try {
   const net = require('net');
 
   const G = globalThis;
+
+  const VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_MARKER = "VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1";
+  function recordVoidForceListenV7EmptyCatchVisibilityV1(site, err) {
+    try {
+      const g = globalThis;
+      const key = "__void_force_listen_v7_empty_catch_visibility_v1";
+      const bucket = Array.isArray(g[key]) ? g[key] : [];
+      bucket.push({ marker: VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_MARKER, site: String(site || "unknown"), message: err && err.message ? String(err.message) : String(err || "") });
+      while (bucket.length > 50) bucket.shift();
+      g[key] = bucket;
+    } catch (_visibilityRecordErr) {
+      /* VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_RECORD_FAILURE_SUPPRESSED */
+    }
+  }
   if (G.__void_force_listen_v7_installed) {
-    try { console.error('[force-listen.v7] already installed; skipping'); } catch {}
+    try { console.error('[force-listen.v7] already installed; skipping'); } catch (alreadyInstalledLogErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_ALREADY_INSTALLED_LOG", alreadyInstalledLogErr); }
     return;
   }
   G.__void_force_listen_v7_installed = true;
@@ -25,7 +39,7 @@ try {
     try {
       require('fs').writeFileSync(STATUS, JSON.stringify({ ts: Date.now(), pid: process.pid, host, port, ...obj }, null, 2));
       console.error('[force-listen.v7] status->', STATUS);
-    } catch {}
+    } catch (writeStatusErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_WRITE_STATUS", writeStatusErr); }
   }
 
   function probeHealth(timeoutMs = 600) {
@@ -39,7 +53,7 @@ try {
           resolve(ok);
         }
       );
-      req.on('timeout', () => { try { req.destroy(); } catch {} resolve(false); });
+      req.on('timeout', () => { try { req.destroy(); } catch (reqDestroyErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_REQ_DESTROY", reqDestroyErr); } resolve(false); });
       req.on('error', () => resolve(false));
     });
   }
@@ -47,8 +61,8 @@ try {
   function probePort(timeoutMs = 400) {
     return new Promise((resolve) => {
       const s = net.createConnection({ host, port });
-      const t = setTimeout(() => { try { s.destroy(); } catch {} resolve(false); }, timeoutMs);
-      s.once('connect', () => { clearTimeout(t); try { s.destroy(); } catch {} resolve(true); });
+      const t = setTimeout(() => { try { s.destroy(); } catch (socketTimeoutDestroyErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_SOCKET_TIMEOUT_DESTROY", socketTimeoutDestroyErr); } resolve(false); }, timeoutMs);
+      s.once('connect', () => { clearTimeout(t); try { s.destroy(); } catch (socketConnectDestroyErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_SOCKET_CONNECT_DESTROY", socketConnectDestroyErr); } resolve(true); });
       s.once('error', () => { clearTimeout(t); resolve(false); });
     });
   }
@@ -60,7 +74,7 @@ try {
     if (stopped) return;
     stopped = true;
     writeStatus({ ok: true, reason, ...extra });
-    try { console.error('[force-listen.v7] STOP', { reason, ...extra }); } catch {}
+    try { console.error('[force-listen.v7] STOP', { reason, ...extra }); } catch (stopLogErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_STOP_LOG", stopLogErr); }
   }
 
   async function tick(tries, maxTries) {
@@ -135,5 +149,5 @@ try {
     if (stopped) clearInterval(iv);
   }, 250);
 } catch (e) {
-  try { console.error('[force-listen.v7] FAILED', e && (e.stack || e.message || String(e))); } catch {}
+  try { console.error('[force-listen.v7] FAILED', e && (e.stack || e.message || String(e))); } catch (failedLogErr) { recordVoidForceListenV7EmptyCatchVisibilityV1("VOID_FORCE_LISTEN_V7_EMPTY_CATCH_VISIBILITY_V1_SITE_FAILED_LOG", failedLogErr); }
 }
