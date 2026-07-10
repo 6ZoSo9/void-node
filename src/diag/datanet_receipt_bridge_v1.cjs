@@ -1,4 +1,4 @@
-try{console.error("[datanet_receipt_bridge_v1] LOADED")}catch{}
+try{console.error("[datanet_receipt_bridge_v1] LOADED")}catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
 /* datanet_receipt_bridge_v1.cjs
    Purpose: emit /agent/v0/receipt on successful DataNet publish/fetch without touching core TS.
    Mechanism: wrap express() to wrap app.{post,get} registrations for the datanet routes, then on res.finish POST receipt JSON to localhost.
@@ -30,7 +30,7 @@ function postJSON(urlPath, obj) {
     req.on("error", () => {});
     req.write(body);
     req.end();
-  } catch {}
+  } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
 }
 
 function wrapHandler(kind, path, handler) {
@@ -45,7 +45,7 @@ function wrapHandler(kind, path, handler) {
 
     if (_json) {
       res.json = (obj) => {
-        try { captured = obj; } catch {}
+        try { captured = obj; } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_3_VISIBLE", __void_diag_pack3_err); }
         return _json(obj);
       };
     }
@@ -54,7 +54,7 @@ function wrapHandler(kind, path, handler) {
         try {
           if (obj && typeof obj === "object") captured = obj;
           else if (typeof obj === "string" && obj.startsWith("{")) captured = JSON.parse(obj);
-        } catch {}
+        } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_4_VISIBLE", __void_diag_pack3_err); }
         return _send(obj);
       };
     }
@@ -96,7 +96,7 @@ function wrapHandler(kind, path, handler) {
 
         // fire-and-forget
         postJSON("/agent/v0/receipt", receipt);
-      } catch {}
+      } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_5_VISIBLE", __void_diag_pack3_err); }
     });
 
     return handler(req, res, next);
@@ -120,7 +120,7 @@ function wrapApp(app) {
           const wrapped = handlers.map((h) => wrapHandler(kind, p, h));
           return orig(path, ...wrapped);
         }
-      } catch {}
+      } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_6_VISIBLE", __void_diag_pack3_err); }
       return orig(path, ...handlers);
     };
   }
@@ -132,7 +132,7 @@ try {
 
   function wrappedExpress(...args) {
     const app = real(...args);
-    try { wrapApp(app); } catch {}
+    try { wrapApp(app); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_7_VISIBLE", __void_diag_pack3_err); }
     return app;
   }
 
@@ -142,7 +142,7 @@ try {
   // replace require cache export
   require.cache[require.resolve("express")].exports = wrappedExpress;
 
-  try { console.error("[datanet_receipt_bridge_v1] armed"); } catch {}
+  try { console.error("[datanet_receipt_bridge_v1] armed"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPT_BRIDGE_V1_CJS_1_8_VISIBLE", __void_diag_pack3_err); }
 } catch {
   // if express isn't resolvable, do nothing
 }
