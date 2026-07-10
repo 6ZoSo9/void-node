@@ -32,7 +32,7 @@ function attachTxrootSetter(p) {
     var iv = setInterval(function () { try {
         G.__void_txroot_setter.heartbeat_total++;
     }
-    catch (_b) { } }, 2000);
+    catch (_b) { if(!globalThis.__void_txroot_setter_heartbeat_error_seen){globalThis.__void_txroot_setter_heartbeat_error_seen=true;console.warn("VOID_TXROOT_SETTER_HEARTBEAT_VISIBLE",_b&&_b.message?_b.message:_b);} } }, 2000);
     if (app === null || app === void 0 ? void 0 : app.on)
         app.on("close", function () { return clearInterval(iv); });
     // Prom text endpoint

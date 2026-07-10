@@ -77,7 +77,7 @@ var seg_store_js_1 = require("../chain/seg_store.js");
                         .filter(Boolean);
                     g.__void_last_seal = { number: number, count: hashes.length, hashes: hashes, at: Date.now() };
                 }
-                catch (_d) { }
+                catch (_d) { if(!g.__void_dev_safe_bundle_append_observe_error_seen){g.__void_dev_safe_bundle_append_observe_error_seen=true;console.warn("VOID_DEV_SAFE_BUNDLE_APPEND_OBSERVE_VISIBLE",_d&&_d.message?_d.message:_d);} }
                 return orig_1.apply(this, args);
             };
             S.__void_append_patched_dev_safe_bundle = true;

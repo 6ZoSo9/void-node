@@ -45,6 +45,7 @@ function fail(reason, extra = {}) {
 }
 
 let sourceReceiptPath = explicitReceipt;
+let receiptScanSkipErrors = 0;
 
 if (!sourceReceiptPath) {
   const receipts = walk(join(".void-field-trial", "datanet-field-object-trial"))
@@ -57,7 +58,11 @@ if (!sourceReceiptPath) {
         sourceReceiptPath = r.path;
         break;
       }
-    } catch {}
+    } catch (err) { receiptScanSkipErrors++; }
+  }
+
+  if (!sourceReceiptPath && receiptScanSkipErrors) {
+    console.warn("VOID_DATANET_FIELD_OBJECT_MIRROR_RECEIPT_SCAN_SKIP_VISIBLE", { skipped: receiptScanSkipErrors });
   }
 }
 
