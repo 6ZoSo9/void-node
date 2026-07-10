@@ -43320,30 +43320,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           r.on("error", reject);
         });
 
-        const head_local = liveHead();
-        let head_peer:any = null;
-        const base = String(peerBase).replace(/\/+$/, "");
-        for (const path of ["/blocks/latest/number2.json","/blocks/latest/number.json","/head","/__void/ready.json"]) {
-          if (typeof head_peer === "number") break;
-          try {
-            const pj:any = await getj(base + path);
-            const n = Number(pj?.number ?? pj?.head);
-            if (Number.isFinite(n) && n >= 0) head_peer = n;
-          } catch {}
+        const head_local=liveHead();
+        let head_peer:any=null,he:any=null;
+        const base=String(peerBase).replace(/\/+$/,"");
+        for(const path of ["/blocks/latest/number2.json","/blocks/latest/number.json","/head","/__void/ready.json"]) {
+          if(typeof head_peer==="number")break;
+          try{
+            const pj:any=await getj(base+path);
+            const n=Number(pj?.number??pj?.head);
+            if(Number.isFinite(n)&&n>=0)head_peer=n;
+          }catch(err){he=err;}
         }
+        if(typeof head_peer!=="number"&&he)voidIndexEmptyCatchVisibilityWindow43201_44100V1("43332:5",he);
 
-        const drift =
-          (typeof head_local === "number" && typeof head_peer === "number")
-            ? (head_peer - head_local)
-            : null;
-
-        return res.json({
-          ok:true,
-          peer: peerBase,
-          drift,
-          head_local,
-          head_peer
-        });
+        const drift=(typeof head_local==="number"&&typeof head_peer==="number")?(head_peer-head_local):null;
+        return res.json({ok:true,peer:peerBase,drift,head_local,head_peer});
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
