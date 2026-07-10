@@ -490,14 +490,14 @@ var Node = /** @class */ (function () {
         try {
             (_c = (_b = this.mempool).push) === null || _c === void 0 ? void 0 : _c.call(_b, tx);
         }
-        catch (_d) { }
+        catch (_d) { if(!globalThis.__void_node_core_mempool_push_seen){globalThis.__void_node_core_mempool_push_seen=true;console.warn("VOID_NODE_CORE_MEMPOOL_PUSH_VISIBLE",_d&&_d.message?_d.message:_d);} }
         return true;
     };
     Node.prototype.sendRaw = function (peer, msg) {
         try {
             peer.socket.write(encode(msg));
         }
-        catch (_a) { }
+        catch (_a) { if(!globalThis.__void_node_core_send_raw_seen){globalThis.__void_node_core_send_raw_seen=true;console.warn("VOID_NODE_CORE_SEND_RAW_VISIBLE",_a&&_a.message?_a.message:_a);} }
     };
     Node.prototype.isKnownPeer = function (id) {
         return this.peers.has(id) && !id.startsWith("?-");
@@ -781,13 +781,13 @@ var Node = /** @class */ (function () {
                         try {
                             this.mempool.clear();
                         }
-                        catch (_a) { }
+                        catch (_a) { if(!globalThis.__void_node_core_mempool_clear_seen){globalThis.__void_node_core_mempool_clear_seen=true;console.warn("VOID_NODE_CORE_MEMPOOL_CLEAR_VISIBLE",_a&&_a.message?_a.message:_a);} }
                     }
                     return all.slice(0, max);
                 }
             }
         }
-        catch (_b) { }
+        catch (_b) { if(!globalThis.__void_node_core_take_tx_batch_seen){globalThis.__void_node_core_take_tx_batch_seen=true;console.warn("VOID_NODE_CORE_TAKE_TX_BATCH_VISIBLE",_b&&_b.message?_b.message:_b);} }
         return [];
     };
     Node.prototype.sealBlock = function (opts) {
@@ -846,7 +846,7 @@ var Node = /** @class */ (function () {
                             refs = b.txs.map(function (tx, i) { return ({ h: tx.hash.toLowerCase(), n: b.number, o: i }); });
                             this.txIndex.putMany(refs);
                         }
-                        catch (_h) { }
+                        catch (_h) { if(!globalThis.__void_node_core_seal_txindex_put_seen){globalThis.__void_node_core_seal_txindex_put_seen=true;console.warn("VOID_NODE_CORE_SEAL_TXINDEX_PUT_VISIBLE",_h&&_h.message?_h.message:_h);} }
                         _g.label = 1;
                     case 1:
                         _g.trys.push([1, 3, , 4]);
@@ -976,7 +976,7 @@ var Node = /** @class */ (function () {
                                             refs = b.txs.map(function (tx, i) { return ({ h: String(tx.hash).toLowerCase(), n: n, o: i }); });
                                             this_2.txIndex.putMany(refs);
                                         }
-                                        catch (_l) { }
+                                        catch (_l) { if(!globalThis.__void_node_core_pull_txindex_put_seen){globalThis.__void_node_core_pull_txindex_put_seen=true;console.warn("VOID_NODE_CORE_PULL_TXINDEX_PUT_VISIBLE",_l&&_l.message?_l.message:_l);} }
                                         _k.label = 1;
                                     case 1:
                                         _k.trys.push([1, 8, , 9]);
@@ -1026,7 +1026,7 @@ var Node = /** @class */ (function () {
                                             refs = b.txs.map(function (tx, i) { return ({ h: String(tx.hash).toLowerCase(), n: n, o: i }); });
                                             this_2.txIndex.putMany(refs);
                                         }
-                                        catch (_m) { }
+                                        catch (_m) { if(!globalThis.__void_node_core_pull_fill_txindex_put_seen){globalThis.__void_node_core_pull_fill_txindex_put_seen=true;console.warn("VOID_NODE_CORE_PULL_FILL_TXINDEX_PUT_VISIBLE",_m&&_m.message?_m.message:_m);} }
                                         _k.label = 11;
                                     case 11:
                                         _k.trys.push([11, 18, , 19]);
@@ -1161,7 +1161,7 @@ Node.prototype.pullOnce = async function(peerHttp, hooks) {
             this.store.saveBlock(b);
             imported++;
             importedNums.push(n);
-            try { hooks?.onImportBlock?.(b); } catch (_) {}
+            try { hooks?.onImportBlock?.(b); } catch (_) { if(!globalThis.__void_node_core_override_import_hook_seen){globalThis.__void_node_core_override_import_hook_seen=true;console.warn("VOID_NODE_CORE_OVERRIDE_IMPORT_HOOK_VISIBLE",_&&_.message?_.message:_);} }
             continue;
         }
         if (!existingHasTxs && incomingHasTxs) {
@@ -1169,7 +1169,7 @@ Node.prototype.pullOnce = async function(peerHttp, hooks) {
             this.store.saveBlock(merged);
             filled++;
             importedNums.push(n);
-            try { hooks?.onImportBlock?.(merged); } catch (_) {}
+            try { hooks?.onImportBlock?.(merged); } catch (_) { if(!globalThis.__void_node_core_override_fill_hook_seen){globalThis.__void_node_core_override_fill_hook_seen=true;console.warn("VOID_NODE_CORE_OVERRIDE_FILL_HOOK_VISIBLE",_&&_.message?_.message:_);} }
             continue;
         }
         alreadyHad++;
