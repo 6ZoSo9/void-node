@@ -46,7 +46,7 @@ function wrapPostHandlers(app, path) {
             return;
           }
         } catch (_) {
-          try { res.status(400).json({ ok: false, error: "missing_who" }); } catch (_) {}
+          try { res.status(400).json({ ok: false, error: "missing_who" }); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_AGENT_RECEIPT_REQUIRE_WHO_V1_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
           return;
         }
         return h(req, res, next);
@@ -77,7 +77,7 @@ function wrapPostHandlers(app, path) {
 
     // stop once we've wrapped at least one handler for each path (or after enough tries)
     if ((w1 > 0 && w2 > 0) || tries > 2000) {
-      try { console.error(`[agent_receipt_require_who_v1] wrapped new=${w1} id=${w2} tries=${tries}`); } catch (_) {}
+      try { console.error(`[agent_receipt_require_who_v1] wrapped new=${w1} id=${w2} tries=${tries}`); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_AGENT_RECEIPT_REQUIRE_WHO_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
       clearInterval(t);
     }
   }, 5);

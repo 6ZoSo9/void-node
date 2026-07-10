@@ -55,14 +55,14 @@ function mountOnce() {
               body = Buffer.from(s2, "utf8");
             }
           }
-        } catch (_) {}
+        } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_AGENT_RECEIPT_NEW_UNIQUEID_V1_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
         return _send(body);
       };
-    } catch (_) {}
+    } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_AGENT_RECEIPT_NEW_UNIQUEID_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
     return next();
   });
 
-  try { console.error("[agent_receipt_new_uniqueid_v1] mounted"); } catch (_) {}
+  try { console.error("[agent_receipt_new_uniqueid_v1] mounted"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_AGENT_RECEIPT_NEW_UNIQUEID_V1_CJS_1_3_VISIBLE", __void_diag_pack3_err); }
   return true;
 }
 

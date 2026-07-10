@@ -33,11 +33,11 @@
           res.status(400).json({ ok: false, error: "missing_who" });
           return;
         }
-      } catch {}
+      } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
       next();
     });
 
-    try { console.error("[datanet.require_who.v1] mounted"); } catch {}
+    try { console.error("[datanet.require_who.v1] mounted"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
     return true;
   }
 
@@ -45,7 +45,7 @@
     try {
       const app = G.__void_http_app;
       if (mount(app)) return;
-    } catch {}
+    } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_3_VISIBLE", __void_diag_pack3_err); }
     setTimeout(tick, 250);
   }
 

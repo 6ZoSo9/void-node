@@ -24,11 +24,11 @@ if (G.__dn_require_who_400_v2) {
 
         const who = String((req.query && req.query.who) || "");
         if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
-      } catch {}
+      } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_REQUIRE_WHO_400_V2_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
       next();
     });
 
-    try { console.error("[dn_require_who_400_v2] mounted (safe app.use)"); } catch {}
+    try { console.error("[dn_require_who_400_v2] mounted (safe app.use)"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_REQUIRE_WHO_400_V2_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
     return true;
   }
 

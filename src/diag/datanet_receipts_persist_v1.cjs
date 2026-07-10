@@ -184,7 +184,7 @@ function mountOnce() {
     }
   });
 
-  try { console.error("[datanet_receipts_persist_v1] mounted: /datanet/v1/metrics/receipts.persist.prom"); } catch {}
+  try { console.error("[datanet_receipts_persist_v1] mounted: /datanet/v1/metrics/receipts.persist.prom"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPTS_PERSIST_V1_CJS_26_1_VISIBLE", __void_diag_pack3_err); }
   return true;
 }
 
