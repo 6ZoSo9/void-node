@@ -39,14 +39,14 @@ http.createServer = function patchedCreateServer(...args) {
             const out = patchPromBody(s);
             if (out !== s) {
               const b2 = Buffer.from(out, "utf8");
-              try { res.setHeader("content-length", String(b2.length)); } catch {}
+              try { res.setHeader("content-length", String(b2.length)); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_FORCE_OFF_V1_CJS_1_1_VISIBLE", __void_diag_pack2_err); }
               return _end.call(this, b2, "utf8", cb);
             }
           }
-        } catch {}
+        } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_FORCE_OFF_V1_CJS_1_2_VISIBLE", __void_diag_pack2_err); }
         return _end.call(this, chunk, encoding, cb);
       };
-    } catch {}
+    } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_FORCE_OFF_V1_CJS_1_3_VISIBLE", __void_diag_pack2_err); }
   });
   return srv;
 };

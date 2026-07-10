@@ -35,7 +35,7 @@ function fetchText(url, timeoutMs) {
       res.on('end', () => resolve({ status: res.statusCode || 0, headers: res.headers || {}, body: data }));
     });
     req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { try { req.destroy(new Error('timeout')); } catch {} });
+    req.setTimeout(timeoutMs, () => { try { req.destroy(new Error('timeout')); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PATCH_PROPOSER_TRUTHFIX_V1_JS_1_1_VISIBLE", __void_diag_pack2_err); } });
     req.end();
   });
 }

@@ -22,7 +22,7 @@ function fetchText(url, timeoutMs) {
       res.on('end', () => resolve({ status: res.statusCode || 0, headers: res.headers || {}, body: data }));
     });
     req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { try { req.destroy(new Error('timeout')); } catch {} });
+    req.setTimeout(timeoutMs, () => { try { req.destroy(new Error('timeout')); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PATCH_PROPOSER_TRUTHFIX_V2_JS_1_1_VISIBLE", __void_diag_pack2_err); } });
     req.end();
   });
 }
@@ -195,8 +195,8 @@ function wrapExpressExport(exp) {
 
   function wrappedExpress(...args) {
     const app = exp(...args);
-    try { if (!globalThis.__void_http_app) globalThis.__void_http_app = app; } catch {}
-    try { mount(app); } catch {}
+    try { if (!globalThis.__void_http_app) globalThis.__void_http_app = app; } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PATCH_PROPOSER_TRUTHFIX_V2_JS_20_2_VISIBLE", __void_diag_pack2_err); }
+    try { mount(app); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PATCH_PROPOSER_TRUTHFIX_V2_JS_20_3_VISIBLE", __void_diag_pack2_err); }
     return app;
   }
   Object.assign(wrappedExpress, exp);
