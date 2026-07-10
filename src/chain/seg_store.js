@@ -137,7 +137,7 @@ var SegStore = /** @class */ (function () {
                     nearestOff = Math.max(nearestOff, ent.off);
             }
         }
-        catch (_b) { }
+        catch (_b) { if(!globalThis.__void_chain_seg_store_index_parse_seen){globalThis.__void_chain_seg_store_index_parse_seen=true;console.warn("VOID_CHAIN_SEG_STORE_INDEX_PARSE_VISIBLE",_b&&_b.message?_b.message:_b);} }
         var fd = fs.openSync(bin, "r");
         try {
             var st = fs.fstatSync(fd);
@@ -164,7 +164,7 @@ var SegStore = /** @class */ (function () {
             try {
                 fs.closeSync(fd);
             }
-            catch (_d) { }
+            catch (_d) { if(!globalThis.__void_chain_seg_store_close_seen){globalThis.__void_chain_seg_store_close_seen=true;console.warn("VOID_CHAIN_SEG_STORE_CLOSE_VISIBLE",_d&&_d.message?_d.message:_d);} }
         }
         return null;
     };

@@ -95,7 +95,7 @@ function readFrames(binPath) {
                 if (Number.isFinite(j === null || j === void 0 ? void 0 : j.number))
                     n = Number(j.number);
             }
-            catch (_a) { }
+            catch (_a) { if(!globalThis.__void_chain_auto_repair_scan_parse_seen){globalThis.__void_chain_auto_repair_scan_parse_seen=true;console.warn("VOID_CHAIN_AUTO_REPAIR_SCAN_PARSE_VISIBLE",_a&&_a.message?_a.message:_a);} }
             if (n > lastN)
                 lastN = n;
             off = start + len;
@@ -107,7 +107,7 @@ function readFrames(binPath) {
         try {
             fs.closeSync(fd);
         }
-        catch (_b) { }
+        catch (_b) { if(!globalThis.__void_chain_auto_repair_close_seen){globalThis.__void_chain_auto_repair_close_seen=true;console.warn("VOID_CHAIN_AUTO_REPAIR_CLOSE_VISIBLE",_b&&_b.message?_b.message:_b);} }
     }
     return { offs: offs, lastOff: lastOff, totalBytes: totalBytes, lastN: lastN };
 }
@@ -176,7 +176,7 @@ function autoRepairDataDir(root_1) {
                             try {
                                 fs.closeSync(fd);
                             }
-                            catch (_g) { }
+                            catch (_g) { if(!globalThis.__void_chain_auto_repair_index_close_seen){globalThis.__void_chain_auto_repair_index_close_seen=true;console.warn("VOID_CHAIN_AUTO_REPAIR_INDEX_CLOSE_VISIBLE",_g&&_g.message?_g.message:_g);} }
                         }
                     }
                     if (lines.length)
