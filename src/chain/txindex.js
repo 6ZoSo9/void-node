@@ -35,7 +35,7 @@ var TxIndex = /** @class */ (function () {
                 out.push({ from: base, to: base + this.span - 1, path: path.join(this.dir, f) });
             }
         }
-        catch (_b) { }
+        catch (_b) { if(!(_b&&_b.code==="ENOENT")&&!globalThis.__void_chain_txindex_list_shards_seen){globalThis.__void_chain_txindex_list_shards_seen=true;console.warn("VOID_CHAIN_TXINDEX_LIST_SHARDS_VISIBLE",_b&&_b.message?_b.message:_b);} }
         out.sort(function (a, b) { return a.from - b.from; });
         return out;
     };
@@ -78,7 +78,7 @@ var TxIndex = /** @class */ (function () {
                     return { found: true, n: r.n, o: r.o };
             }
         }
-        catch (_a) { }
+        catch (_a) { if(!(_a&&_a.code==="ENOENT")&&!globalThis.__void_chain_txindex_lookup_shard_seen){globalThis.__void_chain_txindex_lookup_shard_seen=true;console.warn("VOID_CHAIN_TXINDEX_LOOKUP_SHARD_VISIBLE",_a&&_a.message?_a.message:_a);} }
         return { found: false, n: -1, o: -1 };
     };
     return TxIndex;
