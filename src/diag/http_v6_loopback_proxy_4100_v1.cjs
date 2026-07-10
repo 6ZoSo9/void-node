@@ -51,14 +51,14 @@ const server = http.createServer((req, res) => {
       res.statusCode = 502;
       res.setHeader("content-type", "text/plain; charset=utf-8");
       res.end("v6proxy upstream error: " + (e && e.message ? e.message : String(e)));
-    } catch {}
+    } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_HTTP_V6_LOOPBACK_PROXY_4100_V1_CJS_1_1_VISIBLE", __void_diag_pack4_err); }
   });
 
   req.pipe(upstream);
 });
 
 server.on("clientError", (_err, socket) => {
-  try { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); } catch {}
+  try { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_HTTP_V6_LOOPBACK_PROXY_4100_V1_CJS_3_2_VISIBLE", __void_diag_pack4_err); }
 });
 
 server.listen(LISTEN_PORT, LISTEN_HOST, () => {

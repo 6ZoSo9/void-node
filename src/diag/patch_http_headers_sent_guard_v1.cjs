@@ -17,7 +17,7 @@
         if (self.__void_hsg_v1_logged) return;
         self.__void_hsg_v1_logged = 1;
         console.error(msg);
-      }catch{}
+      }catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_HTTP_HEADERS_SENT_GUARD_V1_CJS_1_1_VISIBLE", __void_diag_pack4_err); }
     }
 
     if (typeof origSetHeader === "function") {
@@ -59,6 +59,6 @@
       };
     }
 
-    try{ console.error("[headerssent-guard.v1] installed"); }catch{}
-  }catch{}
+    try{ console.error("[headerssent-guard.v1] installed"); }catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_HTTP_HEADERS_SENT_GUARD_V1_CJS_1_2_VISIBLE", __void_diag_pack4_err); }
+  }catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_HTTP_HEADERS_SENT_GUARD_V1_CJS_1_3_VISIBLE", __void_diag_pack4_err); }
 })();

@@ -6,7 +6,7 @@
 
 (function () {
   function log(...a) {
-    try { console.error("[finalhandler.guard.v2]", ...a); } catch {}
+    try { console.error("[finalhandler.guard.v2]", ...a); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_GUARD_V2_JS_1_1_VISIBLE", __void_diag_pack4_err); }
   }
 
   function wrapFinalhandler(orig) {
@@ -50,7 +50,7 @@
       Module._load = function (request, parent, isMain) {
         const exp = origLoad.apply(this, arguments);
         if (request === "finalhandler") {
-          try { return wrapFinalhandler(exp); } catch {}
+          try { return wrapFinalhandler(exp); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_GUARD_V2_JS_1_2_VISIBLE", __void_diag_pack4_err); }
         }
         return exp;
       };
@@ -70,7 +70,7 @@
     }
 
     // Force-load once so future requires see wrapped export
-    try { require("finalhandler"); } catch {}
+    try { require("finalhandler"); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_GUARD_V2_JS_1_3_VISIBLE", __void_diag_pack4_err); }
     log("loaded");
   } catch (e) {
     log("failed to install", e && (e.stack || e.message) || e);

@@ -4,6 +4,6 @@
  */
 try {
   process.on('SIGUSR2', () => {
-    try { console.error('[sigusr2.ignore] SIGUSR2 received -> ignored'); } catch {}
+    try { console.error('[sigusr2.ignore] SIGUSR2 received -> ignored'); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_IGNORE_SIGUSR2_V1_CJS_1_1_VISIBLE", __void_diag_pack4_err); }
   });
-} catch {}
+} catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_IGNORE_SIGUSR2_V1_CJS_1_2_VISIBLE", __void_diag_pack4_err); }
