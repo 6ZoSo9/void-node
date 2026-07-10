@@ -29,7 +29,7 @@ function tcpConnectCap(host, port, capMs) {
     const finish = (err) => {
       if (done) return;
       done = true;
-      try { sock.destroy(); } catch {}
+      try { sock.destroy(); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_SELFCALL_PROBE_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
       resolve({ ok: err ? 0 : 1, host, port, ms: capMs, dt_ms: nowMs()-started, err: err ? String(err.message || err) : null });
     };
     const t = setTimeout(() => finish(new Error("tcp_timeout")), capMs);
@@ -81,7 +81,7 @@ function mount(app){
     }));
   });
 
-  try { console.error("[selfcall.probe.v1 hardcap-v3] mounted: /__void/dev/selfcall/probe"); } catch {}
+  try { console.error("[selfcall.probe.v1 hardcap-v3] mounted: /__void/dev/selfcall/probe"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_SELFCALL_PROBE_V1_CJS_1_2_VISIBLE", __void_diag_pack5_err); }
   return true;
 }
 
@@ -96,5 +96,5 @@ try {
     }, 100);
     int.unref?.();
   }
-} catch {}
+} catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_SELFCALL_PROBE_V1_CJS_1_3_VISIBLE", __void_diag_pack5_err); }
 module.exports = { mount };

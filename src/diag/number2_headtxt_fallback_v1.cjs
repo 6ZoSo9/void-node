@@ -18,7 +18,7 @@ function safeReadHeadTxt() {
     const s = fs.readFileSync(p, "utf8").trim();
     const n = Number(s);
     if (Number.isFinite(n) && n >= 0) return n;
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_NUMBER2_HEADTXT_FALLBACK_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
   return null;
 }
 
@@ -41,13 +41,13 @@ function install() {
               return origJson({ ...body, number: h, __hardfix: "number2_headtxt_fallback_v1" });
             }
           }
-        } catch {}
+        } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_NUMBER2_HEADTXT_FALLBACK_V1_CJS_1_2_VISIBLE", __void_diag_pack5_err); }
         return origJson(body);
       };
 
       return next();
     });
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_NUMBER2_HEADTXT_FALLBACK_V1_CJS_1_3_VISIBLE", __void_diag_pack5_err); }
 }
 
 install();

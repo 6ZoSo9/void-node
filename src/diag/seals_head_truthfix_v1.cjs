@@ -34,7 +34,7 @@
     for (const d of cands){
       try {
         if (fs.existsSync(path.join(d, "heads.json"))) return d;
-      } catch {}
+      } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_SEALS_HEAD_TRUTHFIX_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
     }
     return cands[0] || cwd;
   }
@@ -124,5 +124,5 @@
     }
   };
 
-  try { console.error("[seals_head_truthfix_v1] installed: appends void_seal_head_* to /metrics/void/seals"); } catch {}
+  try { console.error("[seals_head_truthfix_v1] installed: appends void_seal_head_* to /metrics/void/seals"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_SEALS_HEAD_TRUTHFIX_V1_CJS_8_2_VISIBLE", __void_diag_pack5_err); }
 })();

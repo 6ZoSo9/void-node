@@ -52,7 +52,7 @@ void_txroot3_age_seconds ${ageS}
             res.setHeader("Cache-Control","no-store");
             res.end(body);
           } catch {
-            try { res.statusCode = 200; res.end(""); } catch {}
+            try { res.statusCode = 200; res.end(""); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_TXROOT3_LIVEPROM_INTERCEPT_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
           }
         };
 
@@ -95,6 +95,6 @@ void_txroot3_age_seconds ${ageS}
         return true; // handled
       }
     }
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_TXROOT3_LIVEPROM_INTERCEPT_V1_CJS_1_2_VISIBLE", __void_diag_pack5_err); }
   return origEmit.call(this, ev, req, res);
 };
