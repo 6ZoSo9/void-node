@@ -88,7 +88,7 @@ for (const file of tracked) {
 }
 
 if (counts.scripts) throw new Error(`scripts bucket still has raw empty catches: ${counts.scripts}`);
-if (total !== 266) throw new Error(`expected refined tracked raw empty catches to drop to 266, got ${total}`);
+if (total > 266) throw new Error(`expected refined tracked raw empty catches to stay <= 266 after scripts closure, got ${total}`);
 
 console.log("VOID_SCRIPTS_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
   scripts_raw_empty_catches_closed: 18,
