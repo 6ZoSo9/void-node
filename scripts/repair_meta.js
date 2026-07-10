@@ -32,7 +32,12 @@ while (pos + 4 <= stat.size) {
                 maxNum = b.number;
         }
     }
-    catch (_a) { }
+    catch (_a) {
+        if (!globalThis.__void_scripts_repair_meta_parse_seen) {
+            globalThis.__void_scripts_repair_meta_parse_seen = true;
+            console.warn("[repair_meta] VOID_SCRIPTS_REPAIR_META_PARSE_VISIBLE", _a && _a.message ? _a.message : _a);
+        }
+    }
     pos += 4 + len;
 }
 node_fs_1.default.closeSync(fd);

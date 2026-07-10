@@ -33,7 +33,12 @@ while (pos + 4 <= stat.size) {
             count++;
         }
     }
-    catch (_a) { }
+    catch (_a) {
+        if (!globalThis.__void_scripts_scan_bin_parse_seen) {
+            globalThis.__void_scripts_scan_bin_parse_seen = true;
+            console.warn("[scan_bin] VOID_SCRIPTS_SCAN_BIN_PARSE_VISIBLE", _a && _a.message ? _a.message : _a);
+        }
+    }
     pos += 4 + len;
 }
 node_fs_1.default.closeSync(fd);

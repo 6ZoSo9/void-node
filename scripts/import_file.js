@@ -24,7 +24,12 @@ rl.on("line", function (line) {
             imported++;
         }
     }
-    catch (_) { }
+    catch (_) {
+        if (!globalThis.__void_scripts_import_file_parse_seen) {
+            globalThis.__void_scripts_import_file_parse_seen = true;
+            console.warn("[import_file] VOID_SCRIPTS_IMPORT_FILE_PARSE_VISIBLE", _ && _.message ? _.message : _);
+        }
+    }
 });
 rl.once("close", function () {
     console.log("[import] done: ".concat(imported, " blocks -> ").concat(DATA_DIR, ", head=").concat(store.loadHeadNumber()));

@@ -27,7 +27,12 @@ while (pos + 4 <= stat.size) {
         if (typeof (b === null || b === void 0 ? void 0 : b.number) === "number")
             nums.push(b.number);
     }
-    catch (_a) { }
+    catch (_a) {
+        if (!globalThis.__void_scripts_audit_numbers_parse_seen) {
+            globalThis.__void_scripts_audit_numbers_parse_seen = true;
+            console.warn("[audit_numbers] VOID_SCRIPTS_AUDIT_NUMBERS_PARSE_VISIBLE", _a && _a.message ? _a.message : _a);
+        }
+    }
     pos += 4 + len;
 }
 node_fs_1.default.closeSync(fd);

@@ -68,7 +68,12 @@ function httpDo(method, path, body) {
             res.on("end", function () { var json; try {
                 json = JSON.parse(buf || "{}");
             }
-            catch (_a) { } ; resolve({ status: res.statusCode || 0, body: buf, json: json }); });
+            catch (_a) {
+                if (!globalThis.__void_scripts_dev_proposer_merge_json_seen) {
+                    globalThis.__void_scripts_dev_proposer_merge_json_seen = true;
+                    console.warn("[dev_proposer_merge] VOID_SCRIPTS_DEV_PROPOSER_MERGE_JSON_VISIBLE", _a && _a.message ? _a.message : _a);
+                }
+            } ; resolve({ status: res.statusCode || 0, body: buf, json: json }); });
         });
         req.on("error", function () { return resolve({ status: -1, body: "" }); });
         if (method === "POST")

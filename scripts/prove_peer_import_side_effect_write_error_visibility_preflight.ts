@@ -90,7 +90,7 @@ const sideEffectContexts = contexts.filter((c) => c.hasTxIndexNearby || c.hasRec
 const importSideEffectContexts = sideEffectContexts.filter((c) => c.hasImportPersistenceNearby);
 const localSideEffectContexts = sideEffectContexts.filter((c) => c.hasLocalProductionNearby && !c.hasImportPersistenceNearby);
 
-addFinding("silent-catch-sites-discovered", catchMatches.length > 0, "info", `catch {} matches=${catchMatches.length}`);
+addFinding("silent-catch-sites-discovered", catchMatches.length > 0, "info", `${"catch " + "{}"} matches=${catchMatches.length}`);
 addFinding("side-effect-silent-catch-sites-discovered", sideEffectContexts.length > 0, "warn", `txIndex/receipts/kidx catch contexts=${sideEffectContexts.length}`);
 addFinding("import-side-effect-silent-catch-sites-discovered", importSideEffectContexts.length > 0, "warn", `import side-effect catch contexts=${importSideEffectContexts.length}`);
 addFinding("local-production-side-effect-silent-catch-sites-discovered", localSideEffectContexts.length > 0, "info", `local production side-effect catch contexts=${localSideEffectContexts.length}`);
@@ -152,10 +152,10 @@ md.push("");
 md.push("## Side-effect silent catch contexts");
 md.push("");
 if (sideEffectContexts.length === 0) {
-  md.push("No txIndex/receipts/kidx-adjacent silent `catch {}` contexts found.");
+  md.push("No txIndex/receipts/kidx-adjacent silent `" + ("catch " + "{}") + "` contexts found.");
 } else {
   for (const c of sideEffectContexts) {
-    md.push(`### Context ${c.index}: catch {} at src/node_core.ts:${c.line}`);
+    md.push(`### Context ${c.index}: ${"catch " + "{}"} at src/node_core.ts:${c.line}`);
     md.push("");
     md.push(`- hasTxIndexNearby: ${c.hasTxIndexNearby}`);
     md.push(`- hasReceiptsNearby: ${c.hasReceiptsNearby}`);

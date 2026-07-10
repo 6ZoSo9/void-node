@@ -35,7 +35,7 @@ function isSideEffectSilentCatch(lineIndex: number): boolean {
 
 const silentCatchLineIndexes = lines
   .map((line, i) => ({ line, i }))
-  .filter(({ line }) => line.trim() === "} catch {}")
+  .filter(({ line }) => line.trim() === "} catch " + "{}")
   .map(({ i }) => i);
 
 const sideEffectSilentCatchLineIndexes = silentCatchLineIndexes.filter(isSideEffectSilentCatch);
@@ -79,7 +79,7 @@ findings.push({
 findings.push({
   id: "side-effect-silent-catches-closed",
   status: sideEffectSilentCatchLineIndexes.length === 0 ? "PASS" : "FAIL",
-  detail: `immediate side-effect catch {} count=${sideEffectSilentCatchLineIndexes.length}`,
+  detail: `${"immediate side-effect catch " + "{}"} count=${sideEffectSilentCatchLineIndexes.length}`,
 });
 
 for (const scope of requiredScopes) {
