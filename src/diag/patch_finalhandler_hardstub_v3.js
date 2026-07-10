@@ -28,7 +28,7 @@ function wrapFinalhandler(orig) {
   // preserve any enumerable props
   try {
     for (const k of Object.keys(orig)) guardedFinalhandler[k] = orig[k];
-  } catch {}
+  } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_1_VISIBLE", __void_diag_pack1_err); }
   return guardedFinalhandler;
 }
 
@@ -36,7 +36,7 @@ function tryPatchCacheByResolved(resolved) {
   try {
     const m = require.cache[resolved];
     if (m && m.exports) m.exports = wrapFinalhandler(m.exports);
-  } catch {}
+  } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_2_VISIBLE", __void_diag_pack1_err); }
 }
 
 let installed = false;
@@ -44,7 +44,7 @@ let logged = false;
 function logOnce(msg) {
   if (logged) return;
   logged = true;
-  try { console.error(msg); } catch {}
+  try { console.error(msg); } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_3_VISIBLE", __void_diag_pack1_err); }
 }
 
 try {
@@ -61,7 +61,7 @@ try {
       if (isFinalhandlerRequest(request)) {
         // resolve real module first
         let resolved = null;
-        try { resolved = Module._resolveFilename("finalhandler", parent, isMain); } catch {}
+        try { resolved = Module._resolveFilename("finalhandler", parent, isMain); } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_4_VISIBLE", __void_diag_pack1_err); }
         // if already in cache, patch immediately
         if (resolved) tryPatchCacheByResolved(resolved);
 
@@ -72,7 +72,7 @@ try {
           try {
             const m = require.cache[resolved];
             if (m) m.exports = wrapped;
-          } catch {}
+          } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_5_VISIBLE", __void_diag_pack1_err); }
         }
         if (!installed) {
           installed = true;
@@ -89,8 +89,8 @@ try {
   try {
     const resolvedNow = Module._resolveFilename("finalhandler", module);
     tryPatchCacheByResolved(resolvedNow);
-  } catch {}
+  } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_6_VISIBLE", __void_diag_pack1_err); }
 
 } catch (e) {
-  try { console.error("[finalhandler.hardstub.v3] install failed:", e && (e.stack || e.message || String(e))); } catch {}
+  try { console.error("[finalhandler.hardstub.v3] install failed:", e && (e.stack || e.message || String(e))); } catch (__void_diag_pack1_err) { __voidSrcDiagPack1Visible("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1_PATCH_FINALHANDLER_HARDSTUB_V3_JS_1_7_VISIBLE", __void_diag_pack1_err); }
 }
