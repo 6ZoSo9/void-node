@@ -38,7 +38,7 @@
               if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
               const body0 = Buffer.concat(chunks).toString("utf8");
               const body = body0.replace(/^(void_proposer_auto_ms(?:_v2)?) NaN$/gm, "$1 0");
-              try { res.setHeader("content-length", Buffer.byteLength(body)); } catch {}
+              try { res.setHeader("content-length", Buffer.byteLength(body)); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_1_VISIBLE", __void_diag_pack2_err); }
               return _end.call(this, body, "utf8", cb);
             } catch (e) {
               return _end.call(this, chunk, enc, cb);
@@ -51,14 +51,14 @@
         }
       });
 
-      try { console.error("[proposer_ms_nan_fix_v1] installed"); } catch {}
-    } catch (e) {}
+      try { console.error("[proposer_ms_nan_fix_v1] installed"); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_2_VISIBLE", __void_diag_pack2_err); }
+    } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_3_VISIBLE", __void_diag_pack2_err); }
   }
 
   // If already set, install now.
   try {
     if (G.__void_http_app) return install(G.__void_http_app);
-  } catch {}
+  } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_4_VISIBLE", __void_diag_pack2_err); }
 
   // Otherwise, intercept the assignment that index.ts does right after `const app = express();`
   try {
@@ -68,10 +68,10 @@
       get() { return G.__void_http_app_value; },
       set(v) {
         G.__void_http_app_value = v;
-        try { install(v); } catch {}
+        try { install(v); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_5_VISIBLE", __void_diag_pack2_err); }
         // Convert into a normal value prop so the rest of the codebase sees it normally.
-        try { Object.defineProperty(G, "__void_http_app", { value: v, writable: true, configurable: true }); } catch {}
+        try { Object.defineProperty(G, "__void_http_app", { value: v, writable: true, configurable: true }); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_6_VISIBLE", __void_diag_pack2_err); }
       }
     });
-  } catch (e) {}
+  } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PROPOSER_MS_NAN_FIX_V1_CJS_1_7_VISIBLE", __void_diag_pack2_err); }
 })();

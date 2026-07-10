@@ -3,15 +3,17 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const targets = [
-  "src/diag/patch_express_capture_v3.cjs",
-  "src/diag/patch_express_handle_guard_v1.js",
-  "src/diag/patch_express_handle_guard_v2.cjs",
-  "src/diag/patch_finalhandler_hardstub_v3.cjs",
-  "src/diag/patch_finalhandler_hardstub_v3.js",
+  "src/diag/patch_force_listen_v1.cjs",
+  "src/diag/patch_force_listen_v3.cjs",
+  "src/diag/proposer_ms_nan_fix_v1.cjs",
+  "src/diag/proposer_force_off_v1.cjs",
+  "src/diag/patch_proposer_truthfix_v2.js",
+  "src/diag/patch_proposer_truthfix_v1.js",
+  "src/diag/patch_proposer_truthproxy_v1.cjs",
 ];
 
-const expectedClosed = 39;
-const markerPrefix = "VOID_SRC_DIAG_EXPRESS_FINALHANDLER_PACK1";
+const expectedClosed = 30;
+const markerPrefix = "VOID_SRC_DIAG_FORCE_PROPOSER_PACK2";
 const rawEmpty = /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
 
 for (const target of targets) {
@@ -22,7 +24,7 @@ for (const target of targets) {
     const line = src.slice(0, first.index).split("\n").length;
     throw new Error(`raw empty catch still present at ${target}:${line}`);
   }
-  if (!src.includes("__voidSrcDiagPack1Visible")) {
+  if (!src.includes("__voidSrcDiagPack2Visible")) {
     throw new Error(`missing helper in ${target}`);
   }
 }
@@ -68,13 +70,13 @@ for (const file of tracked) {
 
 if (counts.scripts) throw new Error(`scripts bucket reopened: ${counts.scripts}`);
 if (counts.ops) throw new Error(`ops bucket reopened: ${counts.ops}`);
-if ((counts.src_diag || 0) > 108) throw new Error(`expected src_diag bucket to stay <= 108 after pack1 closure, got ${counts.src_diag || 0}`);
-if (total > 227) throw new Error(`expected refined tracked raw empty catches to stay <= 227 after pack1 closure, got ${total}`);
+if ((counts.src_diag || 0) !== 78) throw new Error(`expected src_diag bucket to drop to 78, got ${counts.src_diag || 0}`);
+if (total !== 197) throw new Error(`expected refined tracked raw empty catches to drop to 197, got ${total}`);
 
-console.log("VOID_SRC_DIAG_EXPRESS_FINALHANDLER_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
+console.log("VOID_SRC_DIAG_FORCE_PROPOSER_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
   targets,
-  src_diag_pack1_raw_empty_catches_closed: expectedClosed,
-  raw_empty_catches_in_pack1_targets: 0,
+  src_diag_pack2_raw_empty_catches_closed: expectedClosed,
+  raw_empty_catches_in_pack2_targets: 0,
   repo_wide_refined_tracked_raw_empty_catches: total,
   buckets: counts,
   markerPrefix,

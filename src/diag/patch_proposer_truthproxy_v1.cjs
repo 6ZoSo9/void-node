@@ -12,7 +12,7 @@ const BASE = process.env.VOID_HTTP_BASE || 'http://localhost:4100';
 
 function once(fn) {
   let done = false;
-  return (...args) => { if (done) return; done = true; try { fn(...args); } catch {} };
+  return (...args) => { if (done) return; done = true; try { fn(...args); } catch (__void_diag_pack2_err) { __voidSrcDiagPack2Visible("VOID_SRC_DIAG_FORCE_PROPOSER_PACK2_PATCH_PROPOSER_TRUTHPROXY_V1_CJS_1_1_VISIBLE", __void_diag_pack2_err); } };
 }
 
 async function getText(url) {
