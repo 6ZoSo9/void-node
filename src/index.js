@@ -277,7 +277,7 @@ function __main__() {
                                         try {
                                             child.kill("SIGKILL");
                                         }
-                                        catch (_b) { }
+                                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_280_1_VISIBLE", __void_index_js_pack1_err); }
                                         resolve({ ok: false, code: null, stdout: "", stderr: "timeout", timedOut: true });
                                     }, timeoutMs);
                                     child.on("exit", function () { return clearTimeout(t); });
@@ -342,7 +342,7 @@ function __main__() {
                                 void upsertRemotePeer(http, (globalThis.__void_node || globalThis.node).id, selfAdvert.httpBase, selfAdvert.p2pListen);
                             }
                         }
-                        catch (_c) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_345_2_VISIBLE", __void_index_js_pack1_err); }
                     };
                     env = (0, env_js_1.loadEnv)();
                     mergedBootstrap = new Set(__spreadArray(__spreadArray([], BOOTSTRAP_RAW, true), (env.BOOTSTRAP_ADDRS || []), true));
@@ -466,7 +466,7 @@ function __main__() {
                         if (typeof dev_routes_js_1.registerDevRoutes === "function")
                             (0, dev_routes_js_1.registerDevRoutes)(app, node);
                     }
-                    catch (_f) { }
+                    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_469_3_VISIBLE", __void_index_js_pack1_err); }
                     MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
                     app.post("/tx/submit", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
                         var q, tx, err_1;
@@ -479,11 +479,11 @@ function __main__() {
                                         q = globalThis.__void_tx_queue;
                                         console.log("[route] /tx/submit enq size=%s", Array.isArray(q) ? q.length : -1);
                                     }
-                                    catch (_g) { }
+                                    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_482_4_VISIBLE", __void_index_js_pack1_err); }
                                     try {
                                         (0, node_core_js_1.globalEnqueueTx)((_c = req.body) !== null && _c !== void 0 ? _c : {});
                                     }
-                                    catch (_h) { }
+                                    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_486_5_VISIBLE", __void_index_js_pack1_err); }
                                     _f.label = 1;
                                 case 1:
                                     _f.trys.push([1, 4, , 5]);
@@ -1246,7 +1246,7 @@ function __main__() {
                                 return res.json({ ok: true, status: "pending" });
                             }
                         }
-                        catch (_f) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1249_6_VISIBLE", __void_index_js_pack1_err); }
                         var r = (globalThis.__void_node || globalThis.node).receipts.get(hash);
                         if (r && r.found) {
                             var n = r.n, o = r.o, ts = r.ts;
@@ -1296,7 +1296,7 @@ function __main__() {
                         try {
                             (_c = (_b = (globalThis.__void_node || globalThis.node).mempool) === null || _b === void 0 ? void 0 : _b.push) === null || _c === void 0 ? void 0 : _c.call(_b, __assign(__assign({}, tx), { hash: hash }));
                         }
-                        catch (_d) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1299_7_VISIBLE", __void_index_js_pack1_err); }
                         metrics.inc("tx_submitted", 1);
                         (globalThis.__void_node || globalThis.node).publishJson("void/tx", __assign(__assign({}, tx), { hash: hash }));
                         res.json({ ok: true });
@@ -1363,7 +1363,7 @@ function __main__() {
                                 try {
                                     blobPins = new Set(JSON.parse(fs.readFileSync(pinsPath, "utf8")));
                                 }
-                                catch (_c) { }
+                                catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1366_8_VISIBLE", __void_index_js_pack1_err); }
                             }
                             for (var _i = 0, _d = fs.readdirSync(dir); _i < _d.length; _i++) {
                                 var cid = _d[_i];
@@ -1407,7 +1407,7 @@ function __main__() {
                                 a.get("/__void/ping", function (_req, res) { return res.type("text/plain").send("pong\n"); });
                             }
                         }
-                        catch (_h) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1410_9_VISIBLE", __void_index_js_pack1_err); }
                         console.log("[void-node] http :".concat(HTTP_PORT));
                         console.log("[void-node] bootstrap: ".concat(__spreadArray([], mergedBootstrap, true).join(", ") || "(none)"));
                         try {
@@ -1438,10 +1438,10 @@ function __main__() {
                                         void upsertRemotePeer(p.http, (globalThis.__void_node || globalThis.node).id, selfAdvert.httpBase, selfAdvert.p2pListen);
                                     }
                                 }
-                                catch (_b) { }
+                                catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1441_10_VISIBLE", __void_index_js_pack1_err); }
                             }, 30000)).unref) === null || _g === void 0 ? void 0 : _g.call(_f);
                         }
-                        catch (_j) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1444_11_VISIBLE", __void_index_js_pack1_err); }
                     });
                     // periodic purge of stale peers (every 2 minutes, older than 10 minutes)
                     (_c = (_b = setInterval(function () {
@@ -1451,7 +1451,7 @@ function __main__() {
                                 console.log("[peers] purged ".concat(r.removed, ", remaining=").concat(r.remaining));
                             metrics.gauges.peers_known = peersReg.count();
                         }
-                        catch (_b) { }
+                        catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1454_12_VISIBLE", __void_index_js_pack1_err); }
                     }, 2 * 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
                     return [2 /*return*/];
             }
@@ -1523,7 +1523,7 @@ __main__().catch(function (e) {
         }); });
         console.log("[diag] attached /blocks/latest/number");
     }
-    catch (_b) { }
+    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1526_13_VISIBLE", __void_index_js_pack1_err); }
 })();
 // ---------------- Temporary diagnostics: latest block number ----------------
 (function attachLatestNumber() {
@@ -1560,7 +1560,7 @@ __main__().catch(function (e) {
         }); });
         console.log("[diag] attached /blocks/latest/number");
     }
-    catch (_b) { }
+    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_1563_14_VISIBLE", __void_index_js_pack1_err); }
 })();
 // ---------------- Late-bound diagnostics (attach when app exists) ----------------
 (function lateAttachDiag() {
@@ -2371,7 +2371,7 @@ __main__().catch(function (e) {
                 res.set("Deprecation", "true");
                 res.set("Link", '</blocks/:n/txs/raw2>; rel="alternate"');
             }
-            catch (_b) { }
+            catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2374_15_VISIBLE", __void_index_js_pack1_err); }
             next();
         });
         console.log("[diag] set legacy headers for /blocks/:n/full");
@@ -2459,7 +2459,7 @@ __main__().catch(function (e) {
                 if (ok)
                     console.log("[bridge] moved %d tx(s) into node.mempool (size≈%s)", ok, String(sizeOfMempool()));
             }
-            catch (_b) { }
+            catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2462_16_VISIBLE", __void_index_js_pack1_err); }
         }, 500);
         // late-diag routes: attach once app exists
         (function attachDiag() {
@@ -2491,7 +2491,7 @@ __main__().catch(function (e) {
                 });
                 console.log("[diag] attached /mempool/node/size and /mempool/node/ingest-now");
             }
-            catch (_b) { }
+            catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2494_17_VISIBLE", __void_index_js_pack1_err); }
         })();
     }
     catch (e) {
@@ -2597,7 +2597,7 @@ __main__().catch(function (e) {
                     return true;
                 }
             }
-            catch (_b) { }
+            catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2600_18_VISIBLE", __void_index_js_pack1_err); }
             return false;
         }
         if (!bindNow()) {
@@ -2610,7 +2610,7 @@ __main__().catch(function (e) {
             })();
         }
     }
-    catch (_b) { }
+    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2613_19_VISIBLE", __void_index_js_pack1_err); }
 })();
 // ---------------------------------------------------------------------------------------
 // ---------------- [ADD] robust mempool size probe (no assumptions) --------------
@@ -2655,7 +2655,7 @@ __main__().catch(function (e) {
             console.log("[diag] attached /mempool/node/size2 (robust)");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack1_err) { __voidSrcIndexJsPack1Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020_2658_20_VISIBLE", __void_index_js_pack1_err); }
 })();
 // -------------------------------------------------------------------------------
 // ---------------- [ADD] global → node.mempool drain bridge + diags --------------

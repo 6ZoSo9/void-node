@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const target = "src/diag/preload_gate_bundle_afterapp_v3.cjs";
+const target = "src/index.js";
 const rawEmptyCatch = /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
-const markerPrefix = "VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6";
-const expectedClosed = 17;
+const markerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020";
+const expectedClosed = 20;
 
 function read(file: string): string {
   return fs.readFileSync(path.resolve(file), "utf8");
@@ -50,11 +50,11 @@ function refinedTrackedRawCounts(): { total: number; buckets: Record<string, num
   return { total, buckets };
 }
 
-const targetRaw = countRaw(target);
+const remainingInTarget = countRaw(target);
 const markers = countMarkers(target);
 
-if (targetRaw !== 0) {
-  throw new Error(`expected zero raw empty catches in preload bundle target, got ${targetRaw}`);
+if (remainingInTarget !== 99) {
+  throw new Error(`expected src/index.js raw empty catches to drop to 99, got ${remainingInTarget}`);
 }
 
 if (markers !== expectedClosed) {
@@ -63,22 +63,22 @@ if (markers !== expectedClosed) {
 
 const { total, buckets } = refinedTrackedRawCounts();
 
-if (total > 119) {
-  throw new Error(`expected refined tracked raw empty catches to stay <= 119 after src_diag closure, got ${total}`);
+if (total !== 99) {
+  throw new Error(`expected refined tracked raw empty catches to drop to 99, got ${total}`);
 }
 
 if ((buckets.src_diag || 0) !== 0) {
-  throw new Error(`expected src_diag bucket to drop to 0, got ${buckets.src_diag || 0}`);
+  throw new Error(`expected src_diag bucket to remain 0, got ${buckets.src_diag || 0}`);
 }
 
-if ((buckets.src_index_js || 0) > 119) {
-  throw new Error(`expected src_index_js bucket to stay <= 119 after src_diag closure, got ${buckets.src_index_js || 0}`);
+if ((buckets.src_index_js || 0) !== 99) {
+  throw new Error(`expected src_index_js bucket to drop to 99, got ${buckets.src_index_js || 0}`);
 }
 
-console.log("VOID_SRC_DIAG_PRELOAD_BUNDLE_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
+console.log("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0001_0020_V1_GREEN", JSON.stringify({
   target,
-  src_diag_pack6_raw_empty_catches_closed: expectedClosed,
-  raw_empty_catches_in_pack6_target: targetRaw,
+  src_index_js_window_0001_0020_raw_empty_catches_closed: expectedClosed,
+  src_index_js_remaining_raw_empty_catches: remainingInTarget,
   repo_wide_refined_tracked_raw_empty_catches: total,
   buckets,
   markerPrefix,
