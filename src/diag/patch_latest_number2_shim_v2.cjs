@@ -35,7 +35,7 @@ function install(app) {
         res.end(JSON.stringify({ number: n }));
         return;
       }
-    } catch {}
+    } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V2_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
     return next();
   };
 
@@ -46,13 +46,13 @@ function install(app) {
       const layer = app._router.stack.pop();
       app._router.stack.unshift(layer);
     }
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V2_CJS_1_2_VISIBLE", __void_diag_pack5_err); }
 
   try {
     const dataDir = process.env.DATA_DIR || 'data_a';
     const p = path.join(process.cwd(), dataDir, 'head.txt');
     console.error(`[number2-shim.v2] installed headFile=${p}`);
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V2_CJS_1_3_VISIBLE", __void_diag_pack5_err); }
   return true;
 }
 

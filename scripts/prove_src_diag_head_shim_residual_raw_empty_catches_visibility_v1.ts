@@ -3,20 +3,22 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const targets = [
-  "src/diag/patch_finalhandler_guard_v2.js",
-  "src/diag/patch_finalhandler_hardstub_v4.js",
-  "src/diag/patch_http_headers_sent_guard_v1.cjs",
-  "src/diag/http_v6_loopback_proxy_4100_v1.cjs",
-  "src/diag/patch_express_handle_guard_v2.js",
-  "src/diag/patch_express_handle_guard_v3.cjs",
-  "src/diag/patch_ignore_sigusr2_v1.cjs",
-  "src/diag/patch_http_headers_sent_rescue_v2.cjs",
-  "src/diag/patch_listen_trace_v1.js",
+  "src/diag/number2_headtxt_fallback_v1.cjs",
+  "src/diag/patch_latest_number2_shim_v1.cjs",
+  "src/diag/patch_latest_number2_shim_v2.cjs",
+  "src/diag/selfcall_probe_v1.cjs",
+  "src/diag/patch_latest_number2_fix_v2.cjs",
+  "src/diag/seals_head_truthfix_v1.cjs",
+  "src/diag/seals_head_truthfix_v1.js",
+  "src/diag/txroot3_liveprom_intercept_v1.cjs",
+  "src/diag/datanet_mvp_v1.cjs",
+  "src/diag/patch_eventloop_heartbeat_v1.cjs",
+  "src/diag/ready_bridge_v3.cjs",
 ];
 
 const rawEmptyCatch = /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
-const markerPrefix = "VOID_SRC_DIAG_HTTP_GUARD_PACK4";
-const expectedClosed = 19;
+const markerPrefix = "VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5";
+const expectedClosed = 23;
 
 function read(file: string): string {
   return fs.readFileSync(path.resolve(file), "utf8");
@@ -26,7 +28,7 @@ function countRaw(file: string): number {
   return Array.from(read(file).matchAll(rawEmptyCatch)).length;
 }
 
-function markerCount(file: string): number {
+function countMarkers(file: string): number {
   return Array.from(read(file).matchAll(new RegExp(markerPrefix + "[A-Z0-9_]*_VISIBLE", "g"))).length;
 }
 
@@ -47,8 +49,8 @@ function refinedTrackedRawCounts(): { total: number; buckets: Record<string, num
 
     let bucket = "other";
     if (file.startsWith("src/diag/")) bucket = "src_diag";
-    else if (file === "src/index.ts") bucket = "src_index_ts";
     else if (file === "src/index.js") bucket = "src_index_js";
+    else if (file === "src/index.ts") bucket = "src_index_ts";
     else if (file.startsWith("scripts/")) bucket = "scripts";
     else if (file.startsWith("ops/")) bucket = "ops";
     else if (file.startsWith("src/chain/")) bucket = "src_chain";
@@ -66,35 +68,41 @@ let markers = 0;
 
 for (const target of targets) {
   targetRaw += countRaw(target);
-  markers += markerCount(target);
+  markers += countMarkers(target);
 }
 
 if (targetRaw !== 0) {
-  throw new Error(`expected zero raw empty catches in pack4 targets, got ${targetRaw}`);
+  throw new Error(`expected zero raw empty catches in pack5 targets, got ${targetRaw}`);
 }
 
 if (markers !== expectedClosed) {
   throw new Error(`expected ${expectedClosed} ${markerPrefix} visibility markers, got ${markers}`);
 }
 
-const { total, buckets } = refinedTrackedRawCounts();
-
-if (total > 159) {
-  throw new Error(`expected refined tracked raw empty catches to stay <= 159 after pack4 closure, got ${total}`);
+const preloadRemaining = countRaw("src/diag/preload_gate_bundle_afterapp_v3.cjs");
+if (preloadRemaining !== 17) {
+  throw new Error(`expected preload bundle to remain at 17 raw empty catches, got ${preloadRemaining}`);
 }
 
-if ((buckets.src_diag || 0) > 40) {
-  throw new Error(`expected src_diag bucket to stay <= 40 after pack4 closure, got ${buckets.src_diag || 0}`);
+const { total, buckets } = refinedTrackedRawCounts();
+
+if (total !== 136) {
+  throw new Error(`expected refined tracked raw empty catches to drop to 136, got ${total}`);
+}
+
+if ((buckets.src_diag || 0) !== 17) {
+  throw new Error(`expected src_diag bucket to drop to 17, got ${buckets.src_diag || 0}`);
 }
 
 if ((buckets.src_index_js || 0) !== 119) {
   throw new Error(`expected src_index_js bucket to remain 119, got ${buckets.src_index_js || 0}`);
 }
 
-console.log("VOID_SRC_DIAG_HTTP_GUARD_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
+console.log("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
   targets,
-  src_diag_pack4_raw_empty_catches_closed: expectedClosed,
-  raw_empty_catches_in_pack4_targets: targetRaw,
+  src_diag_pack5_raw_empty_catches_closed: expectedClosed,
+  raw_empty_catches_in_pack5_targets: targetRaw,
+  preload_bundle_remaining_raw_empty_catches: preloadRemaining,
   repo_wide_refined_tracked_raw_empty_catches: total,
   buckets,
   markerPrefix,

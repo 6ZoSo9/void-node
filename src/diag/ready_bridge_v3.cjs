@@ -72,7 +72,7 @@ function mountOnce() {
     return next();
   });
 
-  try { console.error("[ready_bridge_v3] mounted (minimal robust)"); } catch {}
+  try { console.error("[ready_bridge_v3] mounted (minimal robust)"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_READY_BRIDGE_V3_CJS_4_1_VISIBLE", __void_diag_pack5_err); }
   return true;
 }
 

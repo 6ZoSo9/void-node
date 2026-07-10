@@ -20,7 +20,7 @@ function httpGetText(url, timeoutMs) {
     });
     req.on("error", reject);
     req.setTimeout(timeoutMs, () => {
-      try { req.destroy(new Error("timeout")); } catch {}
+      try { req.destroy(new Error("timeout")); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); }
     });
     req.end();
   });
@@ -50,7 +50,7 @@ function mountOnce(app) {
       }
     });
 
-    try { console.error("[patch_latest_number2_shim_v1] mounted /blocks/latest/number2.json"); } catch {}
+    try { console.error("[patch_latest_number2_shim_v1] mounted /blocks/latest/number2.json"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V1_CJS_1_2_VISIBLE", __void_diag_pack5_err); }
   } catch (e) {
     return false;
   }
@@ -75,7 +75,7 @@ function mountOnce(app) {
     }
     if (tries >= maxTries) {
       clearInterval(timer);
-      try { console.error("[patch_latest_number2_shim_v1] app not found; giving up"); } catch {}
+      try { console.error("[patch_latest_number2_shim_v1] app not found; giving up"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_SHIM_V1_CJS_1_3_VISIBLE", __void_diag_pack5_err); }
     }
   }, 500);
 })();

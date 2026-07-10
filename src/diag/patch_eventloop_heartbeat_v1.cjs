@@ -1,7 +1,7 @@
 /* eslint-disable */
 (function () {
   const tag = `[eventloop.heartbeat.v1 pid=${process.pid}]`;
-  const log = (...a) => { try { console.error(tag, ...a); } catch (_) {} };
+  const log = (...a) => { try { console.error(tag, ...a); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_EVENTLOOP_HEARTBEAT_V1_CJS_1_1_VISIBLE", __void_diag_pack5_err); } };
 
   try {
     log("installed", { now: Date.now() });

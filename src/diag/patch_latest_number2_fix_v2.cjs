@@ -62,9 +62,9 @@ function install() {
       }
       while (moved.length) s.unshift(moved.pop());
     }
-  } catch {}
+  } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_FIX_V2_CJS_2_1_VISIBLE", __void_diag_pack5_err); }
 
-  try { console.error("[number2-fix.v2] installed"); } catch {}
+  try { console.error("[number2-fix.v2] installed"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_PATCH_LATEST_NUMBER2_FIX_V2_CJS_2_2_VISIBLE", __void_diag_pack5_err); }
   return true;
 }
 
