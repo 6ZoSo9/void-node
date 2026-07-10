@@ -94,8 +94,8 @@ if ((buckets.src_diag || 0) > 17) {
   throw new Error(`expected src_diag bucket to stay <= 17 after pack5 closure, got ${buckets.src_diag || 0}`);
 }
 
-if ((buckets.src_index_js || 0) !== 119) {
-  throw new Error(`expected src_index_js bucket to remain 119, got ${buckets.src_index_js || 0}`);
+if ((buckets.src_index_js || 0) > 119) {
+  throw new Error(`expected src_index_js bucket to stay <= 119 after src_diag closure, got ${buckets.src_index_js || 0}`);
 }
 
 console.log("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
