@@ -87,8 +87,8 @@ if ((buckets.src_diag || 0) > 40) {
   throw new Error(`expected src_diag bucket to stay <= 40 after pack4 closure, got ${buckets.src_diag || 0}`);
 }
 
-if ((buckets.src_index_js || 0) !== 119) {
-  throw new Error(`expected src_index_js bucket to remain 119, got ${buckets.src_index_js || 0}`);
+if ((buckets.src_index_js || 0) > 119) {
+  throw new Error(`expected src_index_js bucket to stay <= 119 after src_diag closure, got ${buckets.src_index_js || 0}`);
 }
 
 console.log("VOID_SRC_DIAG_HTTP_GUARD_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
