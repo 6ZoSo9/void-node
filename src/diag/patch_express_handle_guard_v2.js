@@ -14,7 +14,7 @@ let logged = false;
 function logOnce(msg) {
   if (logged) return;
   logged = true;
-  try { console.error(msg); } catch {}
+  try { console.error(msg); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_EXPRESS_HANDLE_GUARD_V2_JS_1_1_VISIBLE", __void_diag_pack4_err); }
 }
 
 try {
@@ -40,5 +40,5 @@ try {
     logOnce("[express-handle-guard.v2] installed");
   }
 } catch (e) {
-  try { console.error("[express-handle-guard.v2] install failed:", e && (e.stack || e.message || String(e))); } catch {}
+  try { console.error("[express-handle-guard.v2] install failed:", e && (e.stack || e.message || String(e))); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_EXPRESS_HANDLE_GUARD_V2_JS_1_2_VISIBLE", __void_diag_pack4_err); }
 }

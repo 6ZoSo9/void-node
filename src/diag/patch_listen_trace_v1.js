@@ -7,7 +7,7 @@
 
 let logged = 0;
 function log(msg) {
-  try { console.error(msg); } catch {}
+  try { console.error(msg); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_LISTEN_TRACE_V1_JS_1_1_VISIBLE", __void_diag_pack4_err); }
 }
 
 function shortStack() {

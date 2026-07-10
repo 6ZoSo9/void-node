@@ -69,8 +69,8 @@ for (const file of tracked) {
 
 if (counts.scripts) throw new Error(`scripts bucket reopened: ${counts.scripts}`);
 if (counts.ops) throw new Error(`ops bucket reopened: ${counts.ops}`);
-if ((counts.src_diag || 0) !== 59) throw new Error(`expected src_diag bucket to drop to 59, got ${counts.src_diag || 0}`);
-if (total !== 178) throw new Error(`expected refined tracked raw empty catches to drop to 178, got ${total}`);
+if ((counts.src_diag || 0) > 59) throw new Error(`expected src_diag bucket to stay <= 59 after pack3 closure, got ${counts.src_diag || 0}`);
+if (total > 178) throw new Error(`expected refined tracked raw empty catches to stay <= 178 after pack3 closure, got ${total}`);
 
 console.log("VOID_SRC_DIAG_DATANET_RECEIPT_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
   targets,

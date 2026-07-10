@@ -2,7 +2,7 @@
 (function () {
   try {
     const tag = `[finalhandler.hardstub.v4 pid=${process.pid}]`;
-    const log = (...a) => { try { console.error(tag, ...a); } catch (_) {} };
+    const log = (...a) => { try { console.error(tag, ...a); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_HARDSTUB_V4_JS_1_1_VISIBLE", __void_diag_pack4_err); } };
 
     const path = require("path");
     const Module = require("module");
@@ -45,7 +45,7 @@
         };
       }
 
-      try { Object.defineProperty(guarded, "__void_hardstub_v4", { value: 1 }); } catch (_) {}
+      try { Object.defineProperty(guarded, "__void_hardstub_v4", { value: 1 }); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_HARDSTUB_V4_JS_1_2_VISIBLE", __void_diag_pack4_err); }
       return guarded;
     }
 
@@ -86,7 +86,7 @@
         }
         return exp;
       };
-      try { Object.defineProperty(Module._load, "__void_fh_hook_v4", { value: 1 }); } catch (_) {}
+      try { Object.defineProperty(Module._load, "__void_fh_hook_v4", { value: 1 }); } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_FINALHANDLER_HARDSTUB_V4_JS_1_3_VISIBLE", __void_diag_pack4_err); }
       log("Module._load hook armed");
     } else {
       log("Module._load hook already armed");

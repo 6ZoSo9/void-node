@@ -25,7 +25,7 @@ function logOncePerSecond(msg, extra) {
   try {
     if (extra) console.error(msg, extra);
     else console.error(msg);
-  } catch {}
+  } catch (__void_diag_pack4_err) { __voidSrcDiagPack4Visible("VOID_SRC_DIAG_HTTP_GUARD_PACK4_PATCH_HTTP_HEADERS_SENT_RESCUE_V2_CJS_1_1_VISIBLE", __void_diag_pack4_err); }
 }
 
 function patchHttpOutgoing() {
