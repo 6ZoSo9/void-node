@@ -58,7 +58,7 @@ function sendErr(res, status, err) {
     }
     res.end(JSON.stringify({ ok: false, error: message }) + "\n");
   } catch (_) {
-    try { res.end(); } catch (_) {}
+    try { res.end(); } catch (_) { console.error("VOID_OPS_WC_DEVNET_HTTP_SEND_ERROR_END_VISIBLE", _ && _.message ? _.message : _); }
   }
 }
 
@@ -282,7 +282,12 @@ function readPoolHistorySnapshots() {
             void_per_wc: voidPerWc
           }
         });
-      } catch (_) {}
+      } catch (_) {
+        if (!globalThis.__void_ops_wc_devnet_http_recent_proof_seen) {
+          globalThis.__void_ops_wc_devnet_http_recent_proof_seen = true;
+          console.warn("VOID_OPS_WC_DEVNET_HTTP_RECENT_PROOF_PARSE_VISIBLE", _ && _.message ? _.message : _);
+        }
+      }
     }
     return out.slice(-20000);
   } catch (_) {
@@ -320,7 +325,7 @@ async function buildAccountJsonNative(addr) {
       ];
       let baseDir = null;
       for (const c of baseCandidates) {
-        try { if (fs.existsSync(c)) { baseDir = c; break; } } catch {}
+        try { if (fs.existsSync(c)) { baseDir = c; break; } } catch (e) { if (!globalThis.__void_ops_wc_devnet_http_base_dir_seen) { globalThis.__void_ops_wc_devnet_http_base_dir_seen = true; console.warn("VOID_OPS_WC_DEVNET_HTTP_BASE_DIR_CHECK_VISIBLE", c, e && e.message ? e.message : e); } }
       }
       if (!baseDir) return { earned: 0, redeemed: 0, redeemable: 0, count: 0, ledger_file: null, redeemed_file: null };
 
@@ -343,7 +348,12 @@ async function buildAccountJsonNative(addr) {
           const d = Number(j?.delta || 0);
           if (Number.isFinite(d) && d > 0) earned += d;
           count++;
-        } catch {}
+        } catch (e) {
+          if (!globalThis.__void_ops_wc_devnet_http_ledger_line_seen) {
+            globalThis.__void_ops_wc_devnet_http_ledger_line_seen = true;
+            console.warn("VOID_OPS_WC_DEVNET_HTTP_LEDGER_LINE_PARSE_VISIBLE", e && e.message ? e.message : e);
+          }
+        }
       }
 
       let redeemedAmt = 0;
@@ -353,7 +363,12 @@ async function buildAccountJsonNative(addr) {
           if (String(j?.account || "") !== String(account || "")) continue;
           const d = Number(j?.amount || 0);
           if (Number.isFinite(d) && d > 0) redeemedAmt += d;
-        } catch {}
+        } catch (e) {
+          if (!globalThis.__void_ops_wc_devnet_http_redeemed_line_seen) {
+            globalThis.__void_ops_wc_devnet_http_redeemed_line_seen = true;
+            console.warn("VOID_OPS_WC_DEVNET_HTTP_REDEEMED_LINE_PARSE_VISIBLE", e && e.message ? e.message : e);
+          }
+        }
       }
 
       const earnedRounded = wcRound(earned);
@@ -1073,11 +1088,11 @@ function renderHtmlUi() {
   }
 
   function setStored(v){
-    try { localStorage.setItem(KEY, String(v || "").trim()); } catch (_) {}
+    try { localStorage.setItem(KEY, String(v || "").trim()); } catch (_) { if (window.console && console.warn) console.warn("VOID_OPS_WC_DEVNET_HTTP_WALLET_STORAGE_SET_VISIBLE", _ && _.message ? _.message : _); }
   }
 
   function clearStored(){
-    try { localStorage.removeItem(KEY); } catch (_) {}
+    try { localStorage.removeItem(KEY); } catch (_) { if (window.console && console.warn) console.warn("VOID_OPS_WC_DEVNET_HTTP_WALLET_STORAGE_CLEAR_VISIBLE", _ && _.message ? _.message : _); }
   }
 
   function current(){
@@ -1154,7 +1169,7 @@ function renderHtmlUi() {
     try {
       if (window.refreshAll && typeof window.refreshAll === "function") window.refreshAll().catch(function(){});
       if (window.refresh && typeof window.refresh === "function") window.refresh().catch(function(){});
-    } catch (_) {}
+    } catch (_) { if (window.console && console.warn) console.warn("VOID_OPS_WC_DEVNET_HTTP_WALLET_RERENDER_VISIBLE", _ && _.message ? _.message : _); }
   }
 
   async function connectWallet(){
@@ -1252,7 +1267,7 @@ function renderHtmlUi() {
         rerender();
       });
       window.ethereum.on("chainChanged", function(){ rerender(); });
-    } catch (_) {}
+    } catch (_) { if (window.console && console.warn) console.warn("VOID_OPS_WC_DEVNET_HTTP_WALLET_EVENTS_VISIBLE", _ && _.message ? _.message : _); }
   }
 
   if (document.readyState === "loading") {

@@ -188,7 +188,12 @@ async function resolveAddresses(wallet) {
   if (!voidToken && pool) {
     try {
       voidToken = firstToken(await castCall(pool, 'voidToken()(address)', []));
-    } catch {}
+    } catch (e) {
+      if (!globalThis.__void_ops_wc_relayer_void_token_seen) {
+        globalThis.__void_ops_wc_relayer_void_token_seen = true;
+        console.warn("VOID_OPS_WC_RELAYER_VOID_TOKEN_VISIBLE", e && e.message ? e.message : e);
+      }
+    }
   }
 
   return {

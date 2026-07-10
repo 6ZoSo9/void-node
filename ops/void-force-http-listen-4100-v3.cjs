@@ -22,7 +22,7 @@
   function isPortOpen(cb) {
     const s = net.createConnection({ host, port });
     let done = false;
-    const finish = (open) => { if (done) return; done = true; try { s.destroy(); } catch {} cb(open); };
+    const finish = (open) => { if (done) return; done = true; try { s.destroy(); } catch (e) { console.error('[force-http-listen:v3] VOID_OPS_FORCE_HTTP_LISTEN_V3_SOCKET_DESTROY_VISIBLE', e && e.message ? e.message : e); } cb(open); };
     s.once('connect', () => finish(true));
     s.once('error', () => finish(false));
     s.setTimeout(200, () => finish(false));

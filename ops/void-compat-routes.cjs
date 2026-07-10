@@ -9,7 +9,7 @@ function getJsonOnce(path, cb) {
     (res) => {
       let buf = '';
       res.setEncoding('utf8');
-      res.on('data', (c) => { buf += c; if (buf.length > 256 * 1024) { try { req.destroy(); } catch {} } });
+      res.on('data', (c) => { buf += c; if (buf.length > 256 * 1024) { try { req.destroy(); } catch (e) { console.warn('[compat-routes:v1] VOID_OPS_COMPAT_ROUTES_DESTROY_OVERFLOW_VISIBLE', e && e.message ? e.message : e); } } });
       res.on('end', () => {
         try {
           const j = JSON.parse(buf || '{}');
@@ -21,7 +21,7 @@ function getJsonOnce(path, cb) {
     }
   );
   req.on('error', (e) => cb(e, null, 0));
-  req.on('timeout', () => { try { req.destroy(new Error('timeout')); } catch {} });
+  req.on('timeout', () => { try { req.destroy(new Error('timeout')); } catch (e) { console.warn('[compat-routes:v1] VOID_OPS_COMPAT_ROUTES_TIMEOUT_DESTROY_VISIBLE', e && e.message ? e.message : e); } });
   req.end();
 }
 
@@ -68,7 +68,12 @@ function waitForApp() {
     try {
       const app = g.__void_http_app;
       if (attach(app)) return;
-    } catch {}
+    } catch (e) {
+      if (!globalThis.__void_ops_compat_routes_attach_seen) {
+        globalThis.__void_ops_compat_routes_attach_seen = true;
+        console.warn('[compat-routes:v1] VOID_OPS_COMPAT_ROUTES_ATTACH_VISIBLE', e && e.message ? e.message : e);
+      }
+    }
     if (Date.now() - start > maxMs) {
       console.log('[compat-routes:v1] gave up waiting for __void_http_app (30s)');
       return;
