@@ -1855,7 +1855,7 @@ function log(msg) {
           }));
           return;
         }
-      }catch(_){}
+      }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1858_1_VISIBLE", __void_diag_preload_bundle_pack6_err); }
       return next();
     });
 
@@ -1867,9 +1867,9 @@ function log(msg) {
         st.splice(st.length - 1, 1);
         st.unshift(layer);
       }
-    }catch(_){}
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1870_2_VISIBLE", __void_diag_preload_bundle_pack6_err); }
 
-    try{ console.error("[ready-bridge-route-park:v1] active; parked=" + PARK.size); }catch(_){}
+    try{ console.error("[ready-bridge-route-park:v1] active; parked=" + PARK.size); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1872_3_VISIBLE", __void_diag_preload_bundle_pack6_err); }
     return true;
   }
 
@@ -1877,7 +1877,7 @@ function log(msg) {
   const t = setInterval(() => {
     tries++;
     if (mount()) { clearInterval(t); return; }
-    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-bridge-route-park:v1] gave up waiting for app"); }catch(_){} }
+    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-bridge-route-park:v1] gave up waiting for app"); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1880_4_VISIBLE", __void_diag_preload_bundle_pack6_err); } }
   }, 250);
 })();
 
@@ -1907,7 +1907,7 @@ function log(msg) {
       const s = fs.readFileSync(TEXTFILE, "utf8");
       const m = s.match(/^\s*void_txroot_live_current\s+([0-9.]+)\s*$/m);
       if (m) v = Number(m[1]) >= 1 ? 1 : 0;
-    }catch(_){}
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1910_5_VISIBLE", __void_diag_preload_bundle_pack6_err); }
     last = { ts: now, v };
     return v;
   }
@@ -1945,10 +1945,10 @@ function log(msg) {
         res.send = function(body){
           try{
             if (typeof body === "string") body = patchBody(body);
-          }catch(_){}
+          }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1948_6_VISIBLE", __void_diag_preload_bundle_pack6_err); }
           return _send(body);
         };
-      }catch(_){}
+      }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1951_7_VISIBLE", __void_diag_preload_bundle_pack6_err); }
       return next();
     });
 
@@ -1960,7 +1960,7 @@ function log(msg) {
         st.splice(st.length - 1, 1);
         st.unshift(layer);
       }
-    }catch(_){}
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1963_8_VISIBLE", __void_diag_preload_bundle_pack6_err); }
 
     // status endpoint
     try{
@@ -1975,9 +1975,9 @@ function log(msg) {
           note: "If live is null, exporter file missing/unreadable; ready.prom left untouched."
         });
       });
-    }catch(_){}
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1978_9_VISIBLE", __void_diag_preload_bundle_pack6_err); }
 
-    try{ console.error("[ready-prom-txroot-live-from-textfile:v10] active textfile=" + TEXTFILE); }catch(_){}
+    try{ console.error("[ready-prom-txroot-live-from-textfile:v10] active textfile=" + TEXTFILE); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1980_10_VISIBLE", __void_diag_preload_bundle_pack6_err); }
     return true;
   }
 
@@ -1985,7 +1985,7 @@ function log(msg) {
   const t = setInterval(() => {
     tries++;
     if (mount()) { clearInterval(t); return; }
-    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-prom-txroot-live-from-textfile:v10] gave up waiting for app"); }catch(_){} }
+    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-prom-txroot-live-from-textfile:v10] gave up waiting for app"); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_1988_11_VISIBLE", __void_diag_preload_bundle_pack6_err); } }
   }, 250);
 })();
 
@@ -2051,7 +2051,7 @@ function log(msg) {
           return;
         }
         COUNTS.passed++;
-      }catch(_){}
+      }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2054_12_VISIBLE", __void_diag_preload_bundle_pack6_err); }
       return next();
     };
 
@@ -2067,8 +2067,8 @@ function log(msg) {
             r.stack.unshift(layer);
           }
         }
-      }catch(_){}
-    }catch(_){}
+      }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2070_13_VISIBLE", __void_diag_preload_bundle_pack6_err); }
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2071_14_VISIBLE", __void_diag_preload_bundle_pack6_err); }
 
     // status endpoint
     try{
@@ -2080,9 +2080,9 @@ function log(msg) {
           counts: COUNTS
         });
       });
-    }catch(_){}
+    }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2083_15_VISIBLE", __void_diag_preload_bundle_pack6_err); }
 
-    try{ console.error("[ready-bridge-killswitch:v11] active"); }catch(_){}
+    try{ console.error("[ready-bridge-killswitch:v11] active"); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2085_16_VISIBLE", __void_diag_preload_bundle_pack6_err); }
     return true;
   }
 
@@ -2090,6 +2090,6 @@ function log(msg) {
   const t = setInterval(() => {
     tries++;
     if (mount()) { clearInterval(t); return; }
-    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-bridge-killswitch:v11] gave up waiting for app"); }catch(_){} }
+    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-bridge-killswitch:v11] gave up waiting for app"); }catch (__void_diag_preload_bundle_pack6_err) { __voidSrcDiagPreloadBundleVisible("VOID_SRC_DIAG_PRELOAD_BUNDLE_PACK6_2093_17_VISIBLE", __void_diag_preload_bundle_pack6_err); } }
   }, 250);
 })();
