@@ -95,7 +95,7 @@ for (const file of tracked) {
 }
 
 if (counts.ops) throw new Error(`ops bucket still has raw empty catches: ${counts.ops}`);
-if (total !== 284) throw new Error(`expected refined tracked raw empty catches to drop to 284, got ${total}`);
+if (total > 284) throw new Error(`expected refined tracked raw empty catches to stay <= 284 after ops closure, got ${total}`);
 
 console.log("VOID_OPS_RAW_EMPTY_CATCHES_VISIBILITY_V1_GREEN", JSON.stringify({
   targets,

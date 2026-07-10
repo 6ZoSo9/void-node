@@ -25,7 +25,12 @@ function scanAll(dir) {
         try {
             out.push(JSON.parse(body.toString("utf8")));
         }
-        catch (_a) { }
+        catch (_a) {
+            if (!globalThis.__void_scripts_compact_rewrite_parse_seen) {
+                globalThis.__void_scripts_compact_rewrite_parse_seen = true;
+                console.warn("[compact_rewrite] VOID_SCRIPTS_COMPACT_REWRITE_PARSE_VISIBLE", _a && _a.message ? _a.message : _a);
+            }
+        }
         pos += 4 + len;
     }
     node_fs_1.default.closeSync(fd);

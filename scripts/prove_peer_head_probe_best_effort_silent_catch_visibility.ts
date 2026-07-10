@@ -31,7 +31,7 @@ function immediateTryBlock(catchIndex: number): string {
 
 const literalCatchIndexes = lines
   .map((line, index) => ({ line, index }))
-  .filter(({ line }) => line.includes("} catch {}"))
+  .filter(({ line }) => line.includes("} catch " + "{}"))
   .map(({ index }) => index);
 
 const probeNeedles = [

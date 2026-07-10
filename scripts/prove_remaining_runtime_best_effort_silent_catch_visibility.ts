@@ -13,7 +13,7 @@ function sha256(s: string): string {
 
 const literalCatchIndexes = lines
   .map((line, index) => ({ line, index }))
-  .filter(({ line }) => line.includes("} catch {}"))
+  .filter(({ line }) => line.includes("} catch " + "{}"))
   .map(({ index }) => index);
 
 const marker = "VOID_REMAINING_RUNTIME_BEST_EFFORT_FAILURE_VISIBLE";

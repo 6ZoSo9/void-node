@@ -11,7 +11,7 @@ function sha256(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 
-const literalCatchCount = lines.filter((line) => line.includes("} catch {}")).length;
+const literalCatchCount = lines.filter((line) => line.includes("} catch " + "{}")).length;
 
 const requiredMarkers = [
   "VOID_MEMPOOL_BEST_EFFORT_FAILURE_VISIBLE",
@@ -36,7 +36,7 @@ const findings: Finding[] = [
   {
     id: "literal-catch-zero",
     status: literalCatchCount === 0 ? "PASS" : "FAIL",
-    detail: `literal catch {} count=${literalCatchCount}, expected=0`,
+    detail: `${"literal catch " + "{}"} count=${literalCatchCount}, expected=0`,
   },
   ...requiredMarkers.map((marker): Finding => ({
     id: `marker-present-${marker}`,

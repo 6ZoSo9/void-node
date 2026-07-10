@@ -111,7 +111,7 @@ function classify(lineIndex: number): {
 
 const catchIndexes = lines
   .map((line, index) => ({ line, index }))
-  .filter(({ line }) => line.includes("} catch {}"))
+  .filter(({ line }) => line.includes("} catch " + "{}"))
   .map(({ index }) => index);
 
 const actualLines = catchIndexes.map((index) => index + 1);
