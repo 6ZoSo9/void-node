@@ -20,7 +20,12 @@ function wrap(mod, name){
           }
         }
       }
-    } catch {}
+    } catch (e) {
+      if (!globalThis.__void_ops_headtrio_http_tap_runtime_seen) {
+        globalThis.__void_ops_headtrio_http_tap_runtime_seen = true;
+        console.error("[http.tap.headtrio] VOID_OPS_HEADTRIO_HTTP_TAP_RUNTIME_VISIBLE", e && e.message ? e.message : e);
+      }
+    }
     return orig.apply(this, args);
   };
 }

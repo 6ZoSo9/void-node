@@ -13,7 +13,7 @@ function probePort(port, host, timeoutMs = 250) {
     const finish = (ok) => {
       if (done) return;
       done = true;
-      try { s.destroy(); } catch {}
+      try { s.destroy(); } catch (e) { console.error('[force-http-listen] VOID_OPS_FORCE_HTTP_LISTEN_V1_SOCKET_DESTROY_VISIBLE', e && e.message ? e.message : e); }
       resolve(ok);
     };
 
@@ -37,12 +37,12 @@ async function tryForceListenOnce() {
 
     const srv = app.listen(PORT, HOST, () => {
       // one-line log only
-      try { console.error(`[force-http-listen] bound ${HOST}:${PORT}`); } catch {}
+      try { console.error(`[force-http-listen] bound ${HOST}:${PORT}`); } catch (logErr) { process.stderr.write('[force-http-listen] VOID_OPS_FORCE_HTTP_LISTEN_V1_BOUND_LOG_VISIBLE '+String(logErr && logErr.message ? logErr.message : logErr)+'\n'); }
     });
 
     globalThis.__void_force_http_server = srv;
   } catch (e) {
-    try { console.error('[force-http-listen] error:', (e && e.message) ? e.message : e); } catch {}
+    try { console.error('[force-http-listen] error:', (e && e.message) ? e.message : e); } catch (logErr) { process.stderr.write('[force-http-listen] VOID_OPS_FORCE_HTTP_LISTEN_V1_ERROR_LOG_VISIBLE '+String(logErr && logErr.message ? logErr.message : logErr)+'\n'); }
   }
 }
 
@@ -57,7 +57,7 @@ const iv = setInterval(async () => {
   if (up || tries >= MAX_TRIES) {
     clearInterval(iv);
     if (!up) {
-      try { console.error(`[force-http-listen] gave_up after ${tries} tries (still not listening)`); } catch {}
+      try { console.error(`[force-http-listen] gave_up after ${tries} tries (still not listening)`); } catch (logErr) { process.stderr.write('[force-http-listen] VOID_OPS_FORCE_HTTP_LISTEN_V1_GAVE_UP_LOG_VISIBLE '+String(logErr && logErr.message ? logErr.message : logErr)+'\n'); }
     }
   }
 }, 500);
