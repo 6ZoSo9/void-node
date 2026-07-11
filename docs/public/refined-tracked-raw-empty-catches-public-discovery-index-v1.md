@@ -22,3 +22,11 @@ The refined tracked raw-empty-catch cleanup campaign is terminal-sealed and prot
 ## Operator meaning
 
 This public discovery index makes the zero state easy to find from the public docs tree. The terminal seal remains the canonical campaign record; the CI workflow prevents the refined tracked raw-empty-catch count from regressing above zero.
+
+## Root README link closeout
+
+The root README discovery path is closed out and CI-protected.
+
+- Closeout marker: `VOID_REFINED_TRACKED_RAW_EMPTY_CATCHES_ROOT_README_LINK_CLOSEOUT_V1`
+- Closeout Markdown: `docs/public/refined-tracked-raw-empty-catches-root-readme-link-closeout-v1.md`
+- Closeout JSON: `docs/public/refined-tracked-raw-empty-catches-root-readme-link-closeout-v1.json`
