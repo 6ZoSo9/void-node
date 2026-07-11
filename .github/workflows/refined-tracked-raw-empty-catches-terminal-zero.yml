@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prove root README public discovery link remains green
+        run: npx tsx scripts/prove_refined_tracked_raw_empty_catches_root_readme_public_discovery_link_v1.ts
+
       - name: Prove terminal final seal remains green
         run: npx tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
 
