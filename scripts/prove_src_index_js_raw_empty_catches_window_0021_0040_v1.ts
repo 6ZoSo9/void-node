@@ -4,7 +4,8 @@ import { execFileSync } from "node:child_process";
 
 const target = "src/index.js";
 const rawEmptyCatch = /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
-const markerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020";
+const markerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040";
+const priorMarkerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020";
 const expectedClosed = 20;
 
 function read(file: string): string {
@@ -15,8 +16,8 @@ function countRaw(file: string): number {
   return Array.from(read(file).matchAll(rawEmptyCatch)).length;
 }
 
-function countMarkers(file: string): number {
-  return Array.from(read(file).matchAll(new RegExp(markerPrefix + "[A-Z0-9_]*_VISIBLE", "g"))).length;
+function countMarkers(prefix: string): number {
+  return Array.from(read(target).matchAll(new RegExp(prefix + "[A-Z0-9_]*_VISIBLE", "g"))).length;
 }
 
 function trackedFiles(): string[] {
@@ -51,36 +52,43 @@ function refinedTrackedRawCounts(): { total: number; buckets: Record<string, num
 }
 
 const remainingInTarget = countRaw(target);
-const markers = countMarkers(target);
+const markers = countMarkers(markerPrefix);
+const priorMarkers = countMarkers(priorMarkerPrefix);
 
-if (remainingInTarget > 99) {
-  throw new Error(`expected src/index.js raw empty catches to stay <= 99 after window 0001-0020, got ${remainingInTarget}`);
+if (remainingInTarget !== 79) {
+  throw new Error(`expected src/index.js raw empty catches to drop to 79, got ${remainingInTarget}`);
 }
 
 if (markers !== expectedClosed) {
   throw new Error(`expected ${expectedClosed} ${markerPrefix} visibility markers, got ${markers}`);
 }
 
+if (priorMarkers !== 20) {
+  throw new Error(`expected prior window 0001-0020 marker count to remain 20, got ${priorMarkers}`);
+}
+
 const { total, buckets } = refinedTrackedRawCounts();
 
-if (total > 99) {
-  throw new Error(`expected refined tracked raw empty catches to stay <= 99 after window 0001-0020, got ${total}`);
+if (total !== 79) {
+  throw new Error(`expected refined tracked raw empty catches to drop to 79, got ${total}`);
 }
 
 if ((buckets.src_diag || 0) !== 0) {
   throw new Error(`expected src_diag bucket to remain 0, got ${buckets.src_diag || 0}`);
 }
 
-if ((buckets.src_index_js || 0) > 99) {
-  throw new Error(`expected src_index_js bucket to stay <= 99 after window 0001-0020, got ${buckets.src_index_js || 0}`);
+if ((buckets.src_index_js || 0) !== 79) {
+  throw new Error(`expected src_index_js bucket to drop to 79, got ${buckets.src_index_js || 0}`);
 }
 
-console.log("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0001_0020_V1_GREEN", JSON.stringify({
+console.log("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0021_0040_V1_GREEN", JSON.stringify({
   target,
-  src_index_js_window_0001_0020_raw_empty_catches_closed: expectedClosed,
+  src_index_js_window_0021_0040_raw_empty_catches_closed: expectedClosed,
   src_index_js_remaining_raw_empty_catches: remainingInTarget,
   repo_wide_refined_tracked_raw_empty_catches: total,
   buckets,
   markerPrefix,
   markerCount: markers,
+  priorMarkerPrefix,
+  priorMarkerCount: priorMarkers,
 }));
