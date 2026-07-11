@@ -1,0 +1,16 @@
+{
+  "buckets": {},
+  "campaign": "refined_tracked_raw_empty_catches_visibility_cleanup",
+  "marker": "VOID_REFINED_TRACKED_RAW_EMPTY_CATCHES_PUBLIC_DISCOVERY_INDEX_V1",
+  "repo_wide_refined_tracked_raw_empty_catches": 0,
+  "status": "public_discovery_index",
+  "summary": "Public discovery index for the refined tracked raw-empty-catch terminal final seal and zero-regression CI guard.",
+  "terminal_final_seal_json": "docs/security/refined-tracked-raw-empty-catches-terminal-final-seal-v1.json",
+  "terminal_final_seal_marker": "VOID_REFINED_TRACKED_RAW_EMPTY_CATCHES_TERMINAL_FINAL_SEAL_V1",
+  "terminal_final_seal_md": "docs/security/refined-tracked-raw-empty-catches-terminal-final-seal-v1.md",
+  "terminal_final_seal_proof": "scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts",
+  "version": 1,
+  "zero_guard_exact_main": "6951549de9b41b8da81165acec164f557951bdf0",
+  "zero_guard_tag": "ckpt-refined-tracked-raw-empty-catches-terminal-zero-guard-v1-post-merge-exact-green-20260711-083850",
+  "zero_guard_workflow": ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml"
+}
