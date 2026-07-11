@@ -1,0 +1,36 @@
+name: refined-tracked-raw-empty-catches-terminal-zero
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: refined tracked raw empty catches remain zero
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove terminal final seal remains green
+        run: npx tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+
+      - name: Prove final src/index.js zero window remains green
+        run: npx tsx scripts/prove_src_index_js_raw_empty_catches_window_0101_0119_v1.ts
+
+      - name: Prove src_diag remains closed
+        run: npx tsx scripts/prove_src_diag_preload_bundle_raw_empty_catches_visibility_v1.ts
