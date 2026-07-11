@@ -2898,7 +2898,7 @@ __main__().catch(function (e) {
                                 else if (typeof n.wake === "function")
                                     n.wake();
                             }
-                            catch (_b) { }
+                            catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_2901_1_VISIBLE", __void_index_js_pack2_err); }
                             console.log("[pq] mirrored ".concat(toCopy, " tx -> node.txQueue (total ").concat(movedTotalPQ_1, ", q=").concat(pq.length, ")"));
                         }
                     }
@@ -3013,7 +3013,7 @@ __main__().catch(function (e) {
                             if (moved > 0)
                                 console.log("[hook] pre-".concat(root ? root + '.' : '').concat(name_1, ": poured ").concat(moved, " tx -> mempool (mp\u2248").concat((_c = (_b = getMP(n)) === null || _b === void 0 ? void 0 : _b.size) === null || _c === void 0 ? void 0 : _c.call(_b), ")"));
                         }
-                        catch (_d) { }
+                        catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3016_2_VISIBLE", __void_index_js_pack2_err); }
                         return orig_1.apply(void 0, args);
                     };
                     host[name_1].__void_hooked = true;
@@ -3123,12 +3123,12 @@ __main__().catch(function (e) {
                         try {
                             f.call((_b = n === null || n === void 0 ? void 0 : n.proposer) !== null && _b !== void 0 ? _b : n);
                         }
-                        catch (_c) { }
+                        catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3126_3_VISIBLE", __void_index_js_pack2_err); }
                         break;
                     }
                 }
             }
-            catch (_d) { }
+            catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3131_4_VISIBLE", __void_index_js_pack2_err); }
         }
         // Keep node.pendingTxs pointing at mempool.txs so the internal proposer sees them
         var movedFromPQ_1 = 0, rebinds_1 = 0, ticks_3 = 0;
@@ -3179,7 +3179,7 @@ __main__().catch(function (e) {
                         nudge(n);
                 }
             }
-            catch (_d) { }
+            catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3182_5_VISIBLE", __void_index_js_pack2_err); }
             finally {
                 ticks_3++;
                 setTimeout(loop, 250);
@@ -3240,7 +3240,7 @@ __main__().catch(function (e) {
         // rely on nudge() keep working even if the earlier append had a stray shell fragment.
         console.log("[shim] nudge guard installed");
     }
-    catch (_b) { }
+    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3243_6_VISIBLE", __void_index_js_pack2_err); }
 })();
 // -------------------------------------------------------------------------------
 // --------------- [ADD] block tx-injection wrappers + diags ---------------------
@@ -3314,7 +3314,7 @@ __main__().catch(function (e) {
                                         }
                                     }
                                 }
-                                catch (_c) { }
+                                catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3317_7_VISIBLE", __void_index_js_pack2_err); }
                                 return [2 /*return*/, b];
                         }
                     });
@@ -3511,7 +3511,7 @@ __main__().catch(function (e) {
                                         }
                                     }
                                 }
-                                catch (_d) { }
+                                catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3514_8_VISIBLE", __void_index_js_pack2_err); }
                                 return [4 /*yield*/, orig(block)];
                             case 1: return [2 /*return*/, _c.sent()];
                         }
@@ -3592,7 +3592,7 @@ __main__().catch(function (e) {
                             sig = src.split("\n")[0].slice(0, 160);
                         }
                     }
-                    catch (_b) { }
+                    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3595_9_VISIBLE", __void_index_js_pack2_err); }
                     return { name: k, type: t, sig: sig };
                 });
                 res.json({
@@ -3614,7 +3614,7 @@ __main__().catch(function (e) {
             console.log("[diag] attached /store/diag and /node/diag");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3617_10_VISIBLE", __void_index_js_pack2_err); }
 })();
 // -------------------------------------------------------------------------------
 // --------------- [ADD] universal store write wrapper (auto-detect) --------------
@@ -3700,7 +3700,7 @@ __main__().catch(function (e) {
                                                 }
                                             }
                                         }
-                                        catch (_d) { }
+                                        catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3703_11_VISIBLE", __void_index_js_pack2_err); }
                                         return [4 /*yield*/, orig_2.apply(void 0, args)];
                                     case 1: return [2 /*return*/, _c.sent()];
                                 }
@@ -3788,11 +3788,11 @@ __main__().catch(function (e) {
                         state_5.count++;
                         console.log("[seal-tap] sealed #".concat((_c = b === null || b === void 0 ? void 0 : b.number) !== null && _c !== void 0 ? _c : "?", " txs=").concat(txsLen));
                     }
-                    catch (_d) { }
+                    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3791_12_VISIBLE", __void_index_js_pack2_err); }
                     try {
                         return typeof prev_1 === "function" ? prev_1.call(n, b) : undefined;
                     }
-                    catch (_f) { }
+                    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3795_13_VISIBLE", __void_index_js_pack2_err); }
                 };
                 return true;
             }
@@ -3881,7 +3881,7 @@ __main__().catch(function (e) {
                         state_6.count++;
                         console.log("[seal-tap2] saveBlock(#".concat(state_6.last.number, ") txs=").concat(txsLen));
                     }
-                    catch (_c) { }
+                    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3884_14_VISIBLE", __void_index_js_pack2_err); }
                     return orig_3(b);
                 };
                 s.__void_save_tapped = true;
@@ -3992,7 +3992,7 @@ __main__().catch(function (e) {
                 if (Array.isArray(gq === null || gq === void 0 ? void 0 : gq.queue))
                     sets.push(gq.queue);
             }
-            catch (_f) { }
+            catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_3995_15_VISIBLE", __void_index_js_pack2_err); }
             // merge (preserve order), dedupe by JSON string (dev-safe)
             var out = [];
             var seen = new Set();
@@ -4219,11 +4219,11 @@ __main__().catch(function (e) {
                         }
                     }
                 }
-                catch (_b) { }
+                catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_4222_16_VISIBLE", __void_index_js_pack2_err); }
                 try {
                     return typeof prev === "function" ? prev.call(n, b) : undefined;
                 }
-                catch (_c) { }
+                catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_4226_17_VISIBLE", __void_index_js_pack2_err); }
             };
         }
         // Attach once app+node exist
@@ -4294,7 +4294,7 @@ __main__().catch(function (e) {
                 if (Array.isArray(g_15 === null || g_15 === void 0 ? void 0 : g_15.__void_txq))
                     sets.push(g_15.__void_txq);
             }
-            catch (_f) { }
+            catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_4297_18_VISIBLE", __void_index_js_pack2_err); }
             return sets;
         }
         function toKey(t) { try {
@@ -4387,7 +4387,7 @@ __main__().catch(function (e) {
                     });
                     console.log("[tx-merge-all] active (saveBlock)");
                 }
-                catch (_b) { }
+                catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_4390_19_VISIBLE", __void_index_js_pack2_err); }
             })();
         })();
     }
@@ -4547,7 +4547,7 @@ __main__().catch(function (e) {
         // If you didn’t paste the exact earlier version, this still remains harmless.
         console.log("[tx-merge-cap] limiter ready");
     }
-    catch (_b) { }
+    catch (__void_index_js_pack2_err) { __voidSrcIndexJsPack2Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040_4550_20_VISIBLE", __void_index_js_pack2_err); }
 })();
 // --------------------------------------------------------------------------------
 // -------- [ADD] hard cap at saveBlock regardless of upstream injectors ---------
