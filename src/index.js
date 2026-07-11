@@ -4567,7 +4567,7 @@ __main__().catch(function (e) {
                 if (cfg && cfg.enabled)
                     return Math.max(0, Number(cfg.maxPerBlock) || 0);
             }
-            catch (_b) { }
+            catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4570_1_VISIBLE", __void_index_js_pack3_err); }
             return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
         }
         // Canonical source: mempool.txs (we aliased pending/pendingTxs to this earlier)
@@ -4631,7 +4631,7 @@ __main__().catch(function (e) {
                         state_9.lastBlock = Number((_b = b === null || b === void 0 ? void 0 : b.number) !== null && _b !== void 0 ? _b : -1);
                     }
                 }
-                catch (_c) { }
+                catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4634_2_VISIBLE", __void_index_js_pack3_err); }
                 return orig(b);
             };
             s.__void_cap_enforced = true;
@@ -4681,7 +4681,7 @@ __main__().catch(function (e) {
                 if (capCfg && capCfg.enabled)
                     return Math.max(0, Number(capCfg.maxPerBlock) || 0);
             }
-            catch (_b) { }
+            catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4684_3_VISIBLE", __void_index_js_pack3_err); }
             return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
         }
         function mempoolTxs(n) {
@@ -4740,17 +4740,17 @@ __main__().catch(function (e) {
                                         try {
                                             f.call(n);
                                         }
-                                        catch (_d) { }
+                                        catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4743_4_VISIBLE", __void_index_js_pack3_err); }
                                         break;
                                     }
                                 }
                             }
-                            catch (_f) { }
+                            catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4748_5_VISIBLE", __void_index_js_pack3_err); }
                             return; // do not persist an empty block when queue has txs
                         }
                     }
                 }
-                catch (_g) { }
+                catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_4753_6_VISIBLE", __void_index_js_pack3_err); }
                 return orig(b);
             };
             s.__void_no_empty_policy_applied = true;
@@ -5757,7 +5757,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     r = (b === null || b === void 0 ? void 0 : b.txRoot) || "(none)";
                                     console.log("[txroot] sealed #".concat(n, " txs=").concat(len, " txRoot=").concat(r));
                                 }
-                                catch (_j) { }
+                                catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5760_7_VISIBLE", __void_index_js_pack3_err); }
                                 return [2 /*return*/, res];
                         }
                     });
@@ -5778,10 +5778,10 @@ var txroot_js_1 = require("./util/txroot.js");
                     });
                 }
             }
-            catch (_f) { }
+            catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5781_8_VISIBLE", __void_index_js_pack3_err); }
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5784_9_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ------------- [ADD] light shim to include txRoot in /blocks/:n/full2 -------------
 (function augmentFull2TxRoot() {
@@ -5830,7 +5830,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }); });
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5833_10_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] Hardened txroot counters (global, not tied to Metrics) ----------------
 (function installTxRootCountersShim() {
@@ -5894,7 +5894,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     // Also try to bump node.metrics if present (best-effort, but not required)
                                     (_d = (_c = node === null || node === void 0 ? void 0 : node.metrics) === null || _c === void 0 ? void 0 : _c.incSealed) === null || _d === void 0 ? void 0 : _d.call(_c, txsLen);
                                 }
-                                catch (_g) { }
+                                catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5897_11_VISIBLE", __void_index_js_pack3_err); }
                                 return [2 /*return*/, res];
                         }
                     });
@@ -5903,7 +5903,7 @@ var txroot_js_1 = require("./util/txroot.js");
             store.__txroot_counters_wrapped = true;
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5906_12_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] Resilient txroot counter hook (watches saveBlock reassigns) ----------------
 (function installTxRootResilientHook() {
@@ -5950,7 +5950,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                         // Best-effort bump on Metrics if present
                                         (_d = ((_c = node === null || node === void 0 ? void 0 : node.metrics) === null || _c === void 0 ? void 0 : _c.incSealed)) === null || _d === void 0 ? void 0 : _d.call(_c, txsLen);
                                     }
-                                    catch (_g) { }
+                                    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5953_13_VISIBLE", __void_index_js_pack3_err); }
                                     return [2 /*return*/, res];
                             }
                         });
@@ -5972,7 +5972,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_5975_14_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] TxRoot counters: periodic last-wins wrapper ----------------
 (function installTxRootCountersWatchdog() {
@@ -6014,7 +6014,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                         // Best-effort mirror into Metrics if present (safe no-op otherwise)
                                         (_d = ((_c = node === null || node === void 0 ? void 0 : node.metrics) === null || _c === void 0 ? void 0 : _c.incSealed)) === null || _d === void 0 ? void 0 : _d.call(_c, n);
                                     }
-                                    catch (_g) { }
+                                    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6017_15_VISIBLE", __void_index_js_pack3_err); }
                                     return [2 /*return*/, out];
                             }
                         });
@@ -6029,7 +6029,7 @@ var txroot_js_1 = require("./util/txroot.js");
         }
         arm();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6032_16_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] TxRoot counters: clean-room last-wins wrapper + /metrics/txroot2 ----------------
 (function installTxRootCountersCleanRoom() {
@@ -6088,7 +6088,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                             c.txs += n;
                                         }
                                     }
-                                    catch (_d) { }
+                                    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6091_17_VISIBLE", __void_index_js_pack3_err); }
                                     return [2 /*return*/, out];
                             }
                         });
@@ -6133,7 +6133,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }, 500);
         })();
     }
-    catch (e) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6136_18_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] /metrics/txroot2.json (JSON mirror for jq) ----------------
 (function installTxRootJsonMirror() {
@@ -6157,7 +6157,7 @@ var txroot_js_1 = require("./util/txroot.js");
             console.log("[txroot/v2] endpoint /metrics/txroot2.json ready");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6160_19_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] /blocks/latest/number.json (JSON mirror) ----------------
 (function installLatestNumberJson() {
@@ -6232,7 +6232,7 @@ var txroot_js_1 = require("./util/txroot.js");
             console.log("[compat] endpoint /blocks/latest/number.json ready");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack3_err) { __voidSrcIndexJsPack3Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060_6235_20_VISIBLE", __void_index_js_pack3_err); }
 })();
 // ---------------- [ADD] /blocks/latest/number2.json (fetch-free JSON mirror) ----------------
 (function installLatestNumberJsonV2() {
