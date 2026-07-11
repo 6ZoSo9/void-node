@@ -392,3 +392,7 @@ This is read-only discovery/status documentation only; it does not enable mutati
 More detail: [`docs/public/local-multibox-runtime-verification-path-v1.md`](docs/public/local-multibox-runtime-verification-path-v1.md)
 <!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_END -->
 
+## Public verification indexes
+
+- [Refined tracked raw empty catches public discovery index v1](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md)
+
