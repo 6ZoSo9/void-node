@@ -647,7 +647,15 @@ export class Node {
   startProposer(intervalMs = 5000) {
     if (this.proposerTimer) return { ok: false, error: "already running" };
     const ms = Math.max(300, Number(intervalMs) || 5000);
-    this.proposerTimer = setInterval(() => { void this.sealBlock(); }, ms);
+    this.proposerTimer = setInterval(() => {
+      void this.sealBlock().catch((err) => {
+        recordRemainingRuntimeBestEffortFailure(
+          "proposer-interval-seal",
+          err,
+          { intervalMs: ms },
+        );
+      });
+    }, ms);
     return { ok: true, intervalMs: ms };
   }
   stopProposer() {
@@ -742,7 +750,7 @@ export class Node {
       sig,
     };
 
-    this.store.saveBlock(b);
+    await this.store.saveBlock(b);
 
     if (b.txs?.length) {
       try {
