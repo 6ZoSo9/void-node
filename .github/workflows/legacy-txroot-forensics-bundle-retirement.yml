@@ -1,0 +1,27 @@
+name: Legacy txroot forensics bundle retirement
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  retirement-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove legacy txroot forensics bundle remains retired
+        run: npx tsx scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts

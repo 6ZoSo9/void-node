@@ -5877,68 +5877,9 @@ try {
 /* [number2.guard.fallback.v1b] */
 
 
-  // [__void_txroot_bundle_lazy_loader_after_app_hook_v1]
-  ;(function __voidTxrootBundleLazyLoaderAfterAppHookV1(){
-    try {
-      const G:any = (globalThis as any);
-      const appAny:any = (G.__void_http_app as any);
-      if (!appAny || typeof appAny.get !== "function") return;
-
-      if ((appAny as any).__voidTxrootBundleLazyLoaderInstalledV1) return;
-      (appAny as any).__voidTxrootBundleLazyLoaderInstalledV1 = true;
-
-      const state:any = (G.__void_txroot_bundle_lazy_state ||= {
-        installed:true, loaded:false, loading:false, ok:false, okSpec:"",
-        tries:[], ts_install: Date.now(), ts_load:0
-      });
-
-      // enable only if explicitly turned on (default OFF)
-      const enabled = (process.env.VOID_TXROOT_BUNDLE_LAZY || "").trim() === "1";
-      state.enabled = enabled;
-
-      appAny.get("/__void/diag/txroot_bundle_lazy/state.json", (_:any,res:any) => {
-        res.json({ ok:true, state });
-      });
-
-      appAny.post("/__void/diag/txroot_bundle_lazy/load", async (_:any,res:any) => {
-        if (!enabled) return res.status(403).json({ ok:false, err:"disabled (set VOID_TXROOT_BUNDLE_LAZY=1)" });
-        if (state.loaded) return res.json({ ok:true,
-          key_b64: b64(key),
-          nonce_b64: b64(nonce), already:true, state });
-        if (state.loading) return res.status(409).json({ ok:false, err:"already loading", state });
-
-        state.loading = true;
-        state.ts_load = Date.now();
-
-        const tries = [
-          "./diag/txroot_forensics_bundle_v5_v73.js",
-          "./diag/txroot_forensics_bundle_v5_v73.ts",
-          "./diag/txroot_forensics_bundle_v5_v73",
-        ];
-
-        for (const spec of tries) {
-          try {
-            await import(spec as any);
-            state.loaded = true;
-            state.ok = true;
-            state.okSpec = spec;
-            state.tries.push({ spec, ok:true, at: Date.now() });
-            state.loading = false;
-            return res.json({ ok:true, state });
-          } catch (e:any) {
-            const msg = (e?.message || e);
-            state.tries.push({ spec, ok:false, at: Date.now(), err: String(msg) });
-          }
-        }
-
-        state.loading = false;
-        state.ok = false;
-        return res.status(500).json({ ok:false, err:"all attempts failed", state });
-      });
-
-      try { console.log("[lazy-load] txroot bundle loader installed enabled=" + String(enabled)); } catch (err) { __voidIxCatch6300("5939:38", err); }
-    } catch (err) { __voidIxCatch6300("5940:39", err); }
-  })();
+  // [VOID_LEGACY_TXROOT_FORENSICS_BUNDLE_RETIREMENT_V1]
+  // The deleted legacy txroot/WAL bundle and its disabled lazy-load API were
+  // retired after confirming that no current workflow or runtime consumer uses them.
 
 // === [jsonparse-diag.v1c] forced gate (anchor2) ===
 try {
@@ -22579,43 +22520,8 @@ if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE
   tick();
   observeHeadTick();
 })();
-// ===== txroot forensics: hard trampoline v5 + inspector (additive) =====
-// [__void_extracted_txroot_forensics_bundle_v5_v73] extracted to src/diag/txroot_forensics_bundle_v5_v73.ts
-
-// [__void_loaded_txroot_bundle_v5_v73] ensure extracted bundle executes (side-effects)
-if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (async function __voidLoadTxrootBundleV5V73(){
-  const G:any = (globalThis as any);
-  const S:any = (G.__void_txroot_bundle_load_state ||= { entered:0, ok:false, okSpec:'', tries:[], ts:0 });
-  S.entered = (S.entered||0) + 1;
-  S.ts = Date.now();
-  if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22594:1", err); }
-  if (G.__void_loaded_txroot_bundle_v5_v73) { try{ console.error('[diag-load] loader already-latched ok=', S.ok, 'spec=', S.okSpec||''); }catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22595:2", err); }; return; }
-  G.__void_loaded_txroot_bundle_v5_v73 = true;
-  const tries = [
-    './diag/txroot_forensics_bundle_v5_v73.js',
-    './diag/txroot_forensics_bundle_v5_v73.ts',
-    './diag/txroot_forensics_bundle_v5_v73',
-  ];
-  for (const spec of tries) {
-    try {
-      await import(spec as any);
-      S.ok = true; S.okSpec = spec;
-      S.tries.push({ spec, ok:true, at: Date.now() });
-      try { console.error('[diag-load] loader SUCCESS via', spec); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22607:3", err); }
-      return;
-    } catch (e:any) {
-      const msg = (e?.message||e);
-      S.tries.push({ spec, ok:false, at: Date.now(), err: String(msg) });
-      try { console.error('[diag-load] loader FAIL via', spec, msg); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22612:4", err); }
-    }
-  }
-  try { console.error('[diag-load] loader DONE: all attempts failed'); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22615:5", err); }
-})();
-
-
-if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1" && process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
-  try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch (err) { voidIndexEmptyCatchVisibilityWindow22501_23400V1("22620:6", err); }
-}
+// Legacy extracted txroot-forensics loaders retired.
+// Current txroot observability and WAL v7.4+ remain active below.
 
 // --------------- WAL v7.4 (Vector-7): INSTANCE ACCESSOR GUARD (last-wins) ---------------
 if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function walV74InstanceAccessor(){

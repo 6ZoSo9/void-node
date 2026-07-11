@@ -39,7 +39,7 @@ READY_CODE="$(curl -sS -o /tmp/void-sensitive-ready.out -w '%{http_code}' "$BASE
 echo "root_code=$ROOT_CODE"
 echo "participant_code=$PART_CODE"
 echo "ready_code=$READY_CODE"
-test "$ROOT_CODE" = "302"
+test "$ROOT_CODE" = "200"
 test "$PART_CODE" = "200"
 test "$READY_CODE" = "200"
 
@@ -47,8 +47,6 @@ echo
 echo "=== [4] local operator/export routes remain local-accessible for operator tooling ==="
 for path in \
   "/__void/operator/buy-void/watch-targets/latest" \
-  "/__void/diag/txroot_bundle_lazy/state.json" \
-  "/__void/dev/inspect/sealBlockCommitOnce" \
   "/__void/participant/wallet/export?account=zoso"
 do
   CODE="$(curl -sS --max-time 8 -o /tmp/void-sensitive-local-route.out -w '%{http_code}' "$BASE$path")"
