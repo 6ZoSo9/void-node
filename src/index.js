@@ -17705,7 +17705,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 };
             }
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_17708_1_VISIBLE", __void_index_js_pack6_err); }
     }
     mount();
 })();
@@ -17732,7 +17732,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     s.lastSeenHead = m.lastSeenHead;
             }
         }
-        catch (_c) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_17735_2_VISIBLE", __void_index_js_pack6_err); }
         return s;
     }
     function mount() {
@@ -17827,7 +17827,7 @@ var txroot_js_1 = require("./util/txroot.js");
             try {
                 buf = res.body || "";
             }
-            catch (_b) { }
+            catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_17830_3_VISIBLE", __void_index_js_pack6_err); }
             var active = (now() - lastChange) <= WINDOW_MS ? 1 : 0;
             var lines = [];
             lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
@@ -17885,7 +17885,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     out.ms = Number(m);
             }
         }
-        catch (_c) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_17888_4_VISIBLE", __void_index_js_pack6_err); }
         return out;
     }
     function getApp() { return globalThis.__void_http_app || globalThis.app; }
@@ -17935,7 +17935,7 @@ var txroot_js_1 = require("./util/txroot.js");
             globalThis.__void_metrics.proposerAutoEnabled = (val ? 1 : 0);
             globalThis.__void_metrics.proposerAutoMs = Number.isFinite(autoMs || NaN) ? autoMs : NaN;
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_17938_5_VISIBLE", __void_index_js_pack6_err); }
     }
     function tick() {
         return __awaiter(this, void 0, void 0, function () {
@@ -18026,7 +18026,7 @@ var txroot_js_1 = require("./util/txroot.js");
             return out.join("\n");
         };
     }
-    catch (_b) { }
+    catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18029_6_VISIBLE", __void_index_js_pack6_err); }
 })();
 // ---------- Proposer exporter override (additive, safe, scope-free) ----------
 (function ProposerExporterOverrideV3() {
@@ -18116,7 +18116,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     G.__void_metrics.proposerAutoMs = v;
             }
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18119_7_VISIBLE", __void_index_js_pack6_err); }
     }
     mount();
 })();
@@ -18158,7 +18158,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     G.__void_metrics.proposerAutoMs = v;
             }
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18161_8_VISIBLE", __void_index_js_pack6_err); }
     }
     mount();
 })();
@@ -18264,7 +18264,7 @@ var txroot_js_1 = require("./util/txroot.js");
             seq++;
             writeExporter();
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18267_9_VISIBLE", __void_index_js_pack6_err); }
         setTimeout(tick, TICK);
     }
     // Start after exporters likely exist, but keep trying anyway.
@@ -18296,7 +18296,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             exp["proposer.v2.prom"] = buildWriter();
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18299_10_VISIBLE", __void_index_js_pack6_err); }
     }
     // 1) Wrap the global property so any future assignment re-injects our writer.
     try {
@@ -18321,7 +18321,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 G.__void_exporters = G.__void_exporters || {};
                 inject(G.__void_exporters);
             }
-            catch (_b) { }
+            catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18324_11_VISIBLE", __void_index_js_pack6_err); }
             setTimeout(poll, TICK_1);
         })();
     }
@@ -18402,7 +18402,7 @@ var txroot_js_1 = require("./util/txroot.js");
             // Always re-assign so we win even if someone else overwrote it.
             G.__void_exporters["proposer.v2.prom"] = makeWriter();
         }
-        catch (_b) { }
+        catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18405_12_VISIBLE", __void_index_js_pack6_err); }
         setTimeout(rehook, TICK);
     }
     rehook();
@@ -18761,7 +18761,7 @@ var txroot_js_1 = require("./util/txroot.js");
     function getSegStore() { try {
         return globalThis.SegStore || (require === null || require === void 0 ? void 0 : require("./chain/seg_store.js").SegStore);
     }
-    catch (_b) { } }
+    catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_18764_13_VISIBLE", __void_index_js_pack6_err); } }
     function getApp() { return globalThis.__void_http_app || globalThis.app; }
     var metrics = {
         set_total: 0,
@@ -19233,7 +19233,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                 try {
                                     globalThis.__void_txroot_noop_metrics.errors_total++;
                                 }
-                                catch (_d) { }
+                                catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19236_14_VISIBLE", __void_index_js_pack6_err); }
                             }
                             _c.label = 1;
                         case 1:
@@ -19244,7 +19244,7 @@ var txroot_js_1 = require("./util/txroot.js");
                             try {
                                 globalThis.__void_txroot_noop_metrics.heartbeat++;
                             }
-                            catch (_f) { }
+                            catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19247_15_VISIBLE", __void_index_js_pack6_err); }
                             return [7 /*endfinally*/];
                         case 4: return [2 /*return*/];
                     }
@@ -19361,7 +19361,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                 try {
                                     shared.errors_total++;
                                 }
-                                catch (_c) { }
+                                catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19364_16_VISIBLE", __void_index_js_pack6_err); }
                             }
                             _b.label = 1;
                         case 1:
@@ -19375,14 +19375,14 @@ var txroot_js_1 = require("./util/txroot.js");
                             try {
                                 shared.errors_total++;
                             }
-                            catch (_d) { }
+                            catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19378_17_VISIBLE", __void_index_js_pack6_err); }
                             ;
                             throw e_111;
                         case 4:
                             try {
                                 shared.heartbeat++;
                             }
-                            catch (_f) { }
+                            catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19385_18_VISIBLE", __void_index_js_pack6_err); }
                             return [7 /*endfinally*/];
                         case 5:
                             try {
@@ -19408,7 +19408,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                 try {
                                     shared.errors_total++;
                                 }
-                                catch (_g) { }
+                                catch (__void_index_js_pack6_err) { __voidSrcIndexJsPack6Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0101_0119_19411_19_VISIBLE", __void_index_js_pack6_err); }
                             }
                             return [2 /*return*/, ret];
                     }
