@@ -6325,7 +6325,7 @@ var txroot_js_1 = require("./util/txroot.js");
             console.log("[compat] endpoint /blocks/latest/number2.json ready (fetch-free)");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_6328_1_VISIBLE", __void_index_js_pack4_err); }
 })();
 // ---------------- [ADD] /health/summary.json ----------------
 (function installHealthSummaryJson() {
@@ -6393,7 +6393,7 @@ var txroot_js_1 = require("./util/txroot.js");
             console.log("[health] endpoint /health/summary.json ready");
         })();
     }
-    catch (_b) { }
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_6396_2_VISIBLE", __void_index_js_pack4_err); }
 })();
 // ---------------- Dev: /dev/blocks/:n/txroot (additive, no deps) ----------------
 (function registerTxRootDevRoute() {
@@ -6551,7 +6551,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[txroot/route] /dev/txroot/:n ready");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_6554_3_VISIBLE", __void_index_js_pack4_err); }
     }
     attach();
 })();
@@ -6635,7 +6635,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 try {
                     console.log("[follower/status] route ready");
                 }
-                catch (_c) { }
+                catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_6638_4_VISIBLE", __void_index_js_pack4_err); }
                 return [2 /*return*/];
             });
         });
@@ -6865,7 +6865,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                         if (txs.length > 0)
                                             m.txrootUpdatesTotal++;
                                     }
-                                    catch (_f) { }
+                                    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_6868_5_VISIBLE", __void_index_js_pack4_err); }
                                     return [2 /*return*/, res];
                             }
                         });
@@ -8602,7 +8602,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 }
             });
         }
-        catch (_b) { }
+        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_8605_6_VISIBLE", __void_index_js_pack4_err); }
         // 2) Collision-proof verifier (unique path)
         app.get("/__void/txroot/v4/verify/:n", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
             var n, _b, header, persisted, txRootOf, txs, expected, headerTxRoot, match, e_48;
@@ -10268,7 +10268,7 @@ var txroot_js_1 = require("./util/txroot.js");
             var g = globalThis;
             g.__void_txroot_logHex = function (x) { var _b; return (typeof x === 'string' ? x : ((x === null || x === void 0 ? void 0 : x.hex) || ((_b = x === null || x === void 0 ? void 0 : x.toString) === null || _b === void 0 ? void 0 : _b.call(x)) || String(x))); };
         }
-        catch (_b) { }
+        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_10271_7_VISIBLE", __void_index_js_pack4_err); }
     }
     attach();
 })();
@@ -12117,7 +12117,7 @@ var txroot_js_1 = require("./util/txroot.js");
     setInterval(function () { try {
         g.__void_txroot_core2.heartbeat_total++;
     }
-    catch (_b) { } }, 2000);
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12120_8_VISIBLE", __void_index_js_pack4_err); } }, 2000);
     function getApp() { return g.__void_http_app || g.app; }
     function attach() {
         var app = getApp();
@@ -12302,7 +12302,7 @@ var txroot_js_1 = require("./util/txroot.js");
     setInterval(function () { try {
         g.__void_txroot_setter.heartbeat_total++;
     }
-    catch (_b) { } }, 2000);
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12305_9_VISIBLE", __void_index_js_pack4_err); } }, 2000);
     // Watch head; when a new block has a header.txRoot, bump counters once
     var lastChecked = -1;
     function tick() {
@@ -12356,7 +12356,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         try {
                             g.__void_txroot_setter.errors_total++;
                         }
-                        catch (_f) { }
+                        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12359_10_VISIBLE", __void_index_js_pack4_err); }
                         return [3 /*break*/, 7];
                     case 7: return [2 /*return*/];
                 }
@@ -12413,7 +12413,7 @@ var txroot_js_1 = require("./util/txroot.js");
     setInterval(function () { try {
         g.__void_txroot_setter.heartbeat_total++;
     }
-    catch (_b) { } }, 2000);
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12416_11_VISIBLE", __void_index_js_pack4_err); } }, 2000);
     var lastChecked = -1;
     function tick() {
         return __awaiter(this, void 0, void 0, function () {
@@ -12474,7 +12474,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         try {
                             g.__void_txroot_setter.errors_total++;
                         }
-                        catch (_h) { }
+                        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12477_12_VISIBLE", __void_index_js_pack4_err); }
                         return [3 /*break*/, 8];
                     case 8: return [2 /*return*/];
                 }
@@ -12502,7 +12502,7 @@ var txroot_js_1 = require("./util/txroot.js");
         ];
         appAny.use(blocked, function (_req, res) { return res.status(404).end(); });
     }
-    catch (_b) { }
+    catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12505_13_VISIBLE", __void_index_js_pack4_err); }
 })();
 // --- SEALS_V3_BOOTSAFE_BEGIN ---
 // Boot-safe seals exporter (head-derived, no dev shims). Idempotent re-mount.
@@ -12773,7 +12773,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     return [2 /*return*/, v];
                             }
                         }
-                        catch (_j) { }
+                        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12776_14_VISIBLE", __void_index_js_pack4_err); }
                         port = (process.env.HTTP_PORT || "4100").trim();
                         tryFetchNum = function (url) { return __awaiter(_this, void 0, void 0, function () {
                             var r, t, n;
@@ -12886,7 +12886,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     return [2 /*return*/, v];
                             }
                         }
-                        catch (_k) { }
+                        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_12889_15_VISIBLE", __void_index_js_pack4_err); }
                         _j.label = 1;
                     case 1:
                         _j.trys.push([1, 5, , 6]);
@@ -14352,7 +14352,7 @@ var txroot_js_1 = require("./util/txroot.js");
             if ((_b = app === null || app === void 0 ? void 0 : app.locals) === null || _b === void 0 ? void 0 : _b.node)
                 return app.locals.node;
         }
-        catch (_c) { }
+        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_14355_16_VISIBLE", __void_index_js_pack4_err); }
         return undefined;
     }
     function getStore() {
@@ -14391,7 +14391,7 @@ var txroot_js_1 = require("./util/txroot.js");
             else if (Array.isArray(node.pendingTxs) && node.pendingTxs === arr)
                 node.pendingTxs.splice(0, take);
         }
-        catch (_b) { }
+        catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_14394_17_VISIBLE", __void_index_js_pack4_err); }
         return picked;
     }
     function ensureArrays(block) {
@@ -14477,7 +14477,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         });
                     }
                 }
-                catch (_c) { }
+                catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_14480_18_VISIBLE", __void_index_js_pack4_err); }
                 return [2 /*return*/];
             });
         });
@@ -14511,7 +14511,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 if (v && typeof v.injected === "number")
                     bump(v.injected);
             }
-            catch (_b) { }
+            catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_14514_19_VISIBLE", __void_index_js_pack4_err); }
             if (origDesc === null || origDesc === void 0 ? void 0 : origDesc.set)
                 origDesc.set.call(g, v);
             else
@@ -14564,7 +14564,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     if (v && typeof v.injected === "number")
                         bump(v.injected);
                 }
-                catch (_b) { } _v_1 = v; }
+                catch (__void_index_js_pack4_err) { __voidSrcIndexJsPack4Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080_14567_20_VISIBLE", __void_index_js_pack4_err); } _v_1 = v; }
             });
         }
         else {
