@@ -4,11 +4,12 @@ import { execFileSync } from "node:child_process";
 
 const target = "src/index.js";
 const rawEmptyCatch = /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
-const markerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080";
+const markerPrefix = "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100";
 const priorMarkerPrefixes = [
   "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0001_0020",
   "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0021_0040",
   "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0041_0060",
+  "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0061_0080",
 ];
 const expectedClosed = 20;
 
@@ -59,8 +60,8 @@ const remainingInTarget = countRaw(target);
 const markers = countMarkers(markerPrefix);
 const priorMarkerCounts = priorMarkerPrefixes.map((prefix) => [prefix, countMarkers(prefix)] as const);
 
-if (remainingInTarget > 39) {
-  throw new Error(`expected src/index.js raw empty catches to stay <= 39 after window 0061-0080, got ${remainingInTarget}`);
+if (remainingInTarget !== 19) {
+  throw new Error(`expected src/index.js raw empty catches to drop to 19, got ${remainingInTarget}`);
 }
 
 if (markers !== expectedClosed) {
@@ -75,21 +76,21 @@ for (const [prefix, count] of priorMarkerCounts) {
 
 const { total, buckets } = refinedTrackedRawCounts();
 
-if (total > 39) {
-  throw new Error(`expected refined tracked raw empty catches to stay <= 39 after window 0061-0080, got ${total}`);
+if (total !== 19) {
+  throw new Error(`expected refined tracked raw empty catches to drop to 19, got ${total}`);
 }
 
 if ((buckets.src_diag || 0) !== 0) {
   throw new Error(`expected src_diag bucket to remain 0, got ${buckets.src_diag || 0}`);
 }
 
-if ((buckets.src_index_js || 0) > 39) {
-  throw new Error(`expected src_index_js bucket to stay <= 39 after window 0061-0080, got ${buckets.src_index_js || 0}`);
+if ((buckets.src_index_js || 0) !== 19) {
+  throw new Error(`expected src_index_js bucket to drop to 19, got ${buckets.src_index_js || 0}`);
 }
 
-console.log("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0061_0080_V1_GREEN", JSON.stringify({
+console.log("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0081_0100_V1_GREEN", JSON.stringify({
   target,
-  src_index_js_window_0061_0080_raw_empty_catches_closed: expectedClosed,
+  src_index_js_window_0081_0100_raw_empty_catches_closed: expectedClosed,
   src_index_js_remaining_raw_empty_catches: remainingInTarget,
   repo_wide_refined_tracked_raw_empty_catches: total,
   buckets,

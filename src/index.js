@@ -14576,7 +14576,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         if (v && typeof v.injected === "number")
                             bump(v.injected);
                     }
-                    catch (_b) { }
+                    catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14579_1_VISIBLE", __void_index_js_pack5_err); }
                     if (orig_7.set)
                         orig_7.set.call(g, v);
                     else
@@ -14585,7 +14585,7 @@ var txroot_js_1 = require("./util/txroot.js");
             });
         }
     }
-    catch (_b) { }
+    catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14588_2_VISIBLE", __void_index_js_pack5_err); }
     function attach() {
         if (attached)
             return;
@@ -14783,7 +14783,7 @@ var txroot_js_1 = require("./util/txroot.js");
                             try {
                                 console.error("[lastMileInjectedV2] error", e_97);
                             }
-                            catch (_f) { }
+                            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14786_3_VISIBLE", __void_index_js_pack5_err); }
                             ;
                             throw e_97;
                         case 3: return [2 /*return*/];
@@ -14806,7 +14806,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[lastMileInjectedV2] patch attached");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14809_4_VISIBLE", __void_index_js_pack5_err); }
     }
     attach();
 })();
@@ -14852,7 +14852,7 @@ var txroot_js_1 = require("./util/txroot.js");
             try {
                 console.log("[lastMileV3] patch attached");
             }
-            catch (_b) { }
+            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14855_5_VISIBLE", __void_index_js_pack5_err); }
         }
         if (app && typeof app.get === "function" && !app.__lastMileV3Prom) {
             app.get("/__void/metrics/lastmile.v3.prom", function (_req, res) {
@@ -14884,7 +14884,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     g.__lastMile_block_txs_total = (g.__lastMile_block_txs_total || 0) + v.injected;
                 }
             }
-            catch (_b) { }
+            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_14887_6_VISIBLE", __void_index_js_pack5_err); }
             if (desc === null || desc === void 0 ? void 0 : desc.set)
                 desc.set.call(g, v);
             else
@@ -15268,7 +15268,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[flags] API attached");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_15271_7_VISIBLE", __void_index_js_pack5_err); }
     })();
 })();
 // ---- ABOUT + BASICS PROM (pure-additive, safe) ------------------------------
@@ -15441,7 +15441,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[about/basics] endpoints attached");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_15444_8_VISIBLE", __void_index_js_pack5_err); }
     })();
 })();
 // ---- fetch shim (ESM-safe, no deps) ----
@@ -15733,7 +15733,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[basics] exporter v2 attached");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_15736_9_VISIBLE", __void_index_js_pack5_err); }
     })();
 })();
 // ---- BASICS exporter v2b (new paths; leaves old ones intact) ----
@@ -15949,7 +15949,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[basics] exporter v2b attached (/__void/metrics/void.basics.v2.prom, /__void/about2)");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_15952_10_VISIBLE", __void_index_js_pack5_err); }
     })();
 })();
 // [DEV-ONLY-BEGIN:ready-endpoints-v1]
@@ -16092,7 +16092,7 @@ var txroot_js_1 = require("./util/txroot.js");
         try {
             console.log("[ready] endpoints attached (/__void/ready.json, /__void/ready.prom)");
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16095_11_VISIBLE", __void_index_js_pack5_err); }
     }
     attach();
 })();
@@ -16136,7 +16136,7 @@ var txroot_js_1 = require("./util/txroot.js");
     G.__void_getCreateHash().then(function () { try {
         console.log("[esm-crypto-shim] createHash ready");
     }
-    catch (_b) { } }).catch(function () { });
+    catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16139_12_VISIBLE", __void_index_js_pack5_err); } }).catch(function () { });
 })();
 // [ADDON-END:esm-crypto-shim.v1]
 // ---------------- Ready Details Prom Exporter (fetch-based, additive, idempotent) -----
@@ -16413,7 +16413,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         return [2 /*return*/];
                     }
                 }
-                catch (_d) { }
+                catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16416_13_VISIBLE", __void_index_js_pack5_err); }
                 // --- Routes ---
                 app.get('/proposer/hook/status', function (req, res) {
                     var n = getNode();
@@ -16584,7 +16584,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         });
                     }); });
                 }
-                catch (_d) { }
+                catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16587_14_VISIBLE", __void_index_js_pack5_err); }
                 return [2 /*return*/];
             });
         });
@@ -16634,7 +16634,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                                     return [2 /*return*/, hdr_1.txRoot];
                                             }
                                         }
-                                        catch (_f) { }
+                                        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16637_15_VISIBLE", __void_index_js_pack5_err); }
                                         // Default empty-root (sha256 of empty string)—matches your system’s convention
                                         return [2 /*return*/, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"];
                                 }
@@ -16975,7 +16975,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     return [2 /*return*/];
                                 }
                             }
-                            catch (_d) { }
+                            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_16978_16_VISIBLE", __void_index_js_pack5_err); }
                         }
                         return [4 /*yield*/, fetch(base + "/head.txt").then(function (r) { return r.ok ? r.text() : Promise.reject(); }).catch(function () { return null; })];
                     case 3:
@@ -17141,7 +17141,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 return !(r.path === path && r.methods && r.methods.get);
             });
         }
-        catch (_b) { }
+        catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_17144_17_VISIBLE", __void_index_js_pack5_err); }
     }
     function sampleHeadOnce() {
         return __awaiter(this, void 0, void 0, function () {
@@ -17165,7 +17165,7 @@ var txroot_js_1 = require("./util/txroot.js");
                                     return [2 /*return*/];
                                 }
                             }
-                            catch (_d) { }
+                            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_17168_18_VISIBLE", __void_index_js_pack5_err); }
                         }
                         return [4 /*yield*/, fetch(base + "/head.txt").then(function (r) { return r.ok ? r.text() : Promise.reject(); }).catch(function () { return null; })];
                     case 3:
@@ -17618,7 +17618,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 mirror.auto = !!g.__void_proposer_auto.enabled;
                 mirror.ms = Number((_c = (_b = g.__void_proposer_auto.ms) !== null && _b !== void 0 ? _b : g.__void_proposer_auto.intervalMs) !== null && _c !== void 0 ? _c : mirror.ms);
             }
-            catch (_d) { }
+            catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_17621_19_VISIBLE", __void_index_js_pack5_err); }
         }
     }
     function observeHead() {
@@ -17650,7 +17650,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         // noop: local app router; we don't know internal stop handler; mirror only
                     }
                 }
-                catch (_c) { }
+                catch (__void_index_js_pack5_err) { __voidSrcIndexJsPack5Visible("VOID_SRC_INDEX_JS_RAW_EMPTY_CATCH_WINDOW_0081_0100_17653_20_VISIBLE", __void_index_js_pack5_err); }
                 mirror.auto = false;
                 res.json({ ok: true, auto: false });
                 return [2 /*return*/];
