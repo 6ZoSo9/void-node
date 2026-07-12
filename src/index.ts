@@ -6025,6 +6025,31 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
         if (!node) throw new Error("no node global found");
         if (typeof node.sealBlock !== "function") throw new Error("node.sealBlock missing");
 
+        // [VOID_SEAL_BLOCK_COMMIT_ONCE_TRUE_DRY_RUN_V1]
+        // A dry inspection must not invoke sealBlock(), because sealBlock persists.
+        if (dry) {
+          let headNow: any = null;
+          try {
+            const store: any = node.store || null;
+            headNow =
+              store && typeof store.loadHeadNumber === "function"
+                ? store.loadHeadNumber()
+                : null;
+          } catch (err) {
+            __voidIxCatch6300("seal-block-commit-once-dry-head", err);
+          }
+
+          return res.json({
+            ok: true,
+            dry: true,
+            allowEmpty,
+            ms: Date.now() - t0,
+            commitUsed: null,
+            number: null,
+            headNow,
+          });
+        }
+
         block = await node.sealBlock({ allowEmptyOnce: allowEmpty });
 
         try {
