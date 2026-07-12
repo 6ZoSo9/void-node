@@ -25,3 +25,6 @@ jobs:
 
       - name: Prove sealBlockCommitOnce mutation method guard
         run: npx tsx scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts
+
+      - name: Prove sealBlockOnce mutation method and confirmation guard
+        run: npx tsx scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts

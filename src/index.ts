@@ -6242,50 +6242,56 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
     function tryMount(){
       try {
         const app = (globalThis as any).__void_http_app;
-        if (!app || typeof app.get !== "function") return false;
+        if (
+          !app ||
+          typeof app.get !== "function" ||
+          typeof app.post !== "function"
+        ) return false;
 
         // avoid double-mount
         (globalThis as any).__void_devroute_sealBlockOnce_v2_mounted ??= 0;
         if ((globalThis as any).__void_devroute_sealBlockOnce_v2_mounted === 1) return true;
         (globalThis as any).__void_devroute_sealBlockOnce_v2_mounted = 1;
 
-        app.get(ROUTE, async (req: any, res: any) => {
+        const sealBlockOnceHandlerV3 = async (req: any, res: any) => {
           try {
             const G: any = globalThis as any;
             const node = G.__void_node || G.node || G.VOID_NODE || null;
-
-            if (!node) {
-              return res.status(500).json({ ok: false, err: "no node global found", tried: ["__void_node","node","VOID_NODE"] });
-            }
+            if (!node) return res.status(500).json({
+              ok: false,
+              err: "no node global found",
+              tried: ["__void_node", "node", "VOID_NODE"],
+            });
 
             const fn = (node as any).sealBlock;
-            if (typeof fn !== "function") {
-              return res.status(500).json({ ok: false, err: "node.sealBlock is not a function", have: Object.keys(node || {}).slice(0, 60) });
-            }
+            if (typeof fn !== "function") return res.status(500).json({
+              ok: false,
+              err: "node.sealBlock is not a function",
+              have: Object.keys(node || {}).slice(0, 60),
+            });
 
             const arity = fn.length;
             const sig = String(fn).slice(0, 260);
-
-            const dry = String(req?.query?.dry ?? "") === "1";
-            const mode = String(req?.query?.mode ?? "auto"); // auto|undef|obj
-
+            const dry = String(req?.query?.dry ?? "1") !== "0";
+            const mode = String(req?.query?.mode ?? "auto");
             if (dry) return res.json({ ok: true, dry: true, arity, sig });
 
             async function callWith(arg: any, label: string) {
               try {
                 const t0 = Date.now();
                 const out = await fn.call(node, arg);
-                const dt = Date.now() - t0;
-                return { ok: true, label, dt_ms: dt, out };
+                return { ok: true, label, dt_ms: Date.now() - t0, out };
               } catch (e: any) {
                 return { ok: false, label, err: e?.message || String(e) };
               }
             }
 
             const attempts: any[] = [];
-            if (mode === "undef") attempts.push(await callWith(undefined, "sealBlock(undefined)"));
-            else if (mode === "obj") attempts.push(await callWith({}, "sealBlock({})"));
-            else {
+            if (mode === "undef") {
+              attempts.push(await callWith(undefined, "sealBlock(undefined)"));
+            } else if (mode === "obj") {
+              attempts.push(await callWith({}, "sealBlock({})"));
+            } else {
               attempts.push(await callWith(undefined, "sealBlock(undefined)"));
               if (!attempts[0]?.ok) attempts.push(await callWith({}, "sealBlock({})"));
             }
@@ -6296,6 +6302,39 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
           } catch (e: any) {
             return res.status(500).json({ ok: false, err: e?.message || String(e) });
           }
+        };
+
+        // [VOID_SEAL_BLOCK_ONCE_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
+        app.get(ROUTE, async (req: any, res: any) => {
+          const requestedDry = String(req?.query?.dry ?? "1") !== "0";
+          if (!requestedDry) {
+            res.setHeader("Allow", "GET, POST");
+            return res.status(405).json({
+              ok: false,
+              error: "mutation_requires_post",
+              dry: false,
+              method: "GET",
+              requiredMethod: "POST",
+            });
+          }
+          return sealBlockOnceHandlerV3(req, res);
+        });
+
+        app.post(ROUTE, async (req: any, res: any) => {
+          const requestedDry = String(req?.query?.dry ?? "1") !== "0";
+          if (!requestedDry) {
+            const confirmation = String(
+              req?.query?.confirm ?? req?.body?.confirm ?? "",
+            );
+            if (confirmation !== "sealBlockOnce") return res.status(428).json({
+              ok: false,
+              error: "explicit_confirmation_required",
+              dry: false,
+              method: "POST",
+              requiredConfirmation: "sealBlockOnce",
+            });
+          }
+          return sealBlockOnceHandlerV3(req, res);
         });
 
         console.log("[devroute.sealBlockOnce.v2] mounted at " + ROUTE);
