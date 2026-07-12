@@ -6197,6 +6197,28 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
     appAny.post(
       sealBlockCommitOncePathV4,
       async (req: any, res: any) => {
+        const requestedDry =
+          (req?.query?.dry ?? "1") !== "0";
+
+        if (!requestedDry) {
+          // [VOID_SEAL_BLOCK_COMMIT_ONCE_EXPLICIT_CONFIRMATION_V1]
+          const confirmation = String(
+            req?.query?.confirm ??
+            req?.body?.confirm ??
+            "",
+          );
+
+          if (confirmation !== "sealBlockCommitOnce") {
+            return res.status(428).json({
+              ok: false,
+              error: "explicit_confirmation_required",
+              dry: false,
+              method: "POST",
+              requiredConfirmation: "sealBlockCommitOnce",
+            });
+          }
+        }
+
         return sealBlockCommitOnceHandlerV4(req, res);
       },
     );

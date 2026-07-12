@@ -66,6 +66,32 @@ if (!postBlock.includes("sealBlockCommitOnceHandlerV4(req, res)")) {
   throw new Error("POST registration does not delegate to the shared handler");
 }
 
+for (const required of [
+  "[VOID_SEAL_BLOCK_COMMIT_ONCE_EXPLICIT_CONFIRMATION_V1]",
+  "req?.query?.confirm",
+  "req?.body?.confirm",
+  'confirmation !== "sealBlockCommitOnce"',
+  "res.status(428)",
+  'error: "explicit_confirmation_required"',
+  'method: "POST"',
+  'requiredConfirmation: "sealBlockCommitOnce"',
+]) {
+  if (!postBlock.includes(required)) {
+    throw new Error(`POST confirmation guard missing: ${required}`);
+  }
+}
+
+const confirmationPos = postBlock.indexOf(
+  "[VOID_SEAL_BLOCK_COMMIT_ONCE_EXPLICIT_CONFIRMATION_V1]",
+);
+const delegatePos = postBlock.indexOf(
+  "sealBlockCommitOnceHandlerV4(req, res)",
+);
+
+if (!(confirmationPos >= 0 && confirmationPos < delegatePos)) {
+  throw new Error("explicit confirmation guard does not precede mutation handler");
+}
+
 console.log(
   `${marker}_GREEN`,
   JSON.stringify({
@@ -73,6 +99,10 @@ console.log(
     blockedStatus: 405,
     postMutationLanePresent: true,
     plainPostDefaultsDry: true,
+    unconfirmedMutationBlocked: true,
+    wrongConfirmationBlocked: true,
+    confirmationStatus: 428,
+    requiredConfirmation: "sealBlockCommitOnce",
     remoteSensitiveRouteGuardStillApplies: source.includes(
       'path.startsWith("/__void/dev/")',
     ),
