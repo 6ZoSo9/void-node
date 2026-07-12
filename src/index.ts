@@ -6473,97 +6473,151 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
   }catch (err) { __voidIxCatch7200("6411:3", err); }
 })();
 
-// ===== __void dev: sealOnce2 via node.sealBlock (EARLY) =====
-;(function __voidDevSealOnce2_SealBlock_EARLY(){
-  try{
+// ===== __void dev: guarded sealOnce2 via node.sealBlock =====
+;(function __voidDevSealOnce2GuardedV3(){
+  try {
     const g:any = globalThis as any;
-    const app:any = (g.__void_http_app || (g as any).app);
-    if (!app || typeof app.get !== "function") return;
-    if ((app as any).__void_dev_sealonce2_sealblock_early) return;
-    (app as any).__void_dev_sealonce2_sealblock_early = true;
+    const app:any = g.__void_http_app || g.app;
+    if (
+      !app ||
+      typeof app.get !== "function" ||
+      typeof app.post !== "function"
+    ) return;
+    if ((app as any).__void_dev_sealonce2_guarded_v3) return;
+    (app as any).__void_dev_sealonce2_guarded_v3 = true;
+
+    const sealOnce2PathV3 = "/__void/dev/inspect/sealOnce2";
 
     function pickNode(){
-      const keys = ["__void_node","node","VOID_NODE","VOIDNODE","__voidNode"];
-      for (const k of keys) {
-        const v:any = (g as any)[k];
-        if (v && typeof v === "object") return { key:k, node:v };
+      for (const key of [
+        "__void_node",
+        "node",
+        "VOID_NODE",
+        "VOIDNODE",
+        "__voidNode",
+      ]) {
+        const node:any = g[key];
+        if (node && typeof node === "object") {
+          return { key, node };
+        }
       }
       return { key:"(none)", node:null as any };
     }
 
     async function getHead(){
-      try{
-        const base = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
-        const r1 = await (globalThis as any).fetch(base + "/blocks/latest/number2.json").catch(()=>null);
-        if (r1 && r1.ok) {
-          const j:any = await r1.json().catch(()=>null);
-          if (j && typeof j.number === "number") return j.number;
+      try {
+        const base =
+          "http://127.0.0.1:" +
+          String(process.env.HTTP_PORT || "4100");
+        const latest = await g.fetch(
+          base + "/blocks/latest/number2.json",
+        ).catch(()=>null);
+        if (latest?.ok) {
+          const data:any = await latest.json().catch(()=>null);
+          if (typeof data?.number === "number") return data.number;
         }
-        const r2 = await (globalThis as any).fetch(base + "/head.txt").catch(()=>null);
-        if (r2 && r2.ok) {
-          const t = String(await r2.text().catch(()=>"" )).trim();
-          const n = Number(t);
-          if (Number.isFinite(n)) return n;
+        const head = await g.fetch(base + "/head.txt").catch(()=>null);
+        if (head?.ok) {
+          const value = Number(
+            String(await head.text().catch(()=>"")).trim(),
+          );
+          if (Number.isFinite(value)) return value;
         }
-      }catch (err) { __voidIxCatch7200("6446:4", err); }
+      } catch (err) {
+        __voidIxCatch7200("sealOnce2:getHead:v3", err);
+      }
       return -1;
     }
 
-    app.get("/__void/dev/inspect/sealOnce2", async (_req:any, res:any)=>{
-      const pick = pickNode();
-      const node:any = pick.node;
-      const nodeKey = pick.key;
-
+    const sealOnce2HandlerV3 = async (req:any, res:any) => {
+      const picked = pickNode();
+      const node:any = picked.node;
       const head0 = await getHead();
-      const t0 = Date.now();
+      const dry = String(req?.query?.dry ?? "1") !== "0";
 
-      const tried:any[] = [];
-      const record = (via:string, err:any)=> tried.push({ via, err: String(err?.message || err || "") });
-
-      if (!node) {
-        return res.status(500).json({ ok:false, err:"no node found on globals", head_before:head0, tried });
+      if (dry) {
+        return res.json({
+          ok:true,
+          dry:true,
+          node_key:picked.key,
+          head:head0,
+          sealBlockAvailable:
+            !!node && typeof node.sealBlock === "function",
+        });
       }
 
-      const fn:any = (node as any).sealBlock;
+      const tried:any[] = [];
+      const record = (via:string, err:any) => {
+        tried.push({
+          via,
+          err:String(err?.message || err || ""),
+        });
+      };
+
+      if (!node) {
+        return res.status(500).json({
+          ok:false,
+          err:"no node found on globals",
+          head_before:head0,
+          tried,
+        });
+      }
+
+      const fn:any = node.sealBlock;
       if (typeof fn !== "function") {
-        return res.status(500).json({ ok:false, err:"node has no sealBlock()", node_key:nodeKey, head_before:head0, tried });
+        return res.status(500).json({
+          ok:false,
+          err:"node has no sealBlock()",
+          node_key:picked.key,
+          head_before:head0,
+          tried,
+        });
       }
 
       const patterns:any[] = [
         { tag:"{}", args:[{}] },
-        { tag:"{manual:true}", args:[{ manual:true, source:"http" }] },
+        {
+          tag:"{manual:true}",
+          args:[{ manual:true, source:"http" }],
+        },
         { tag:"undefined", args:[undefined] },
         { tag:"null", args:[null] },
         { tag:"0", args:[0] },
         { tag:"'once'", args:["once"] },
       ];
 
+      const t0 = Date.now();
       let used = "(none)";
       let ret:any = null;
       let ok = false;
 
-      for (const ptn of patterns) {
-        try{
-          const out = fn.apply(node, ptn.args);
-          ret = (out && typeof out.then === "function") ? await out : out;
-          used = ptn.tag;
+      for (const pattern of patterns) {
+        try {
+          const out = fn.apply(node, pattern.args);
+          ret =
+            out && typeof out.then === "function"
+              ? await out
+              : out;
+          used = pattern.tag;
           ok = true;
           break;
-        }catch(e:any){
-          record(`${nodeKey}.sealBlock(${ptn.tag})`, e);
+        } catch (err:any) {
+          record(
+            `${picked.key}.sealBlock(${pattern.tag})`,
+            err,
+          );
         }
       }
 
-      const ms = Date.now() - t0;
-      // tiny settle time so head endpoint can advance
-      await new Promise(r=>setTimeout(r, 150));
+      await new Promise(resolve=>setTimeout(resolve, 150));
       const head1 = await getHead();
+      const ms = Date.now() - t0;
 
-      if (!ok){
+      if (!ok) {
         return res.status(500).json({
           ok:false,
           err:"sealBlock failed for all argument patterns",
-          node_key:nodeKey,
+          node_key:picked.key,
           head_before:head0,
           head_after:head1,
           ms,
@@ -6573,26 +6627,309 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
 
       return res.json({
         ok:true,
-        node_key:nodeKey,
+        node_key:picked.key,
         used,
         head_before:head0,
         head_after:head1,
-        advanced: (head1 >= 0 && head0 >= 0) ? (head1 - head0) : null,
+        advanced:
+          head1 >= 0 && head0 >= 0
+            ? head1 - head0
+            : null,
         ms,
-        ret_type: (ret === null) ? "null" : typeof ret,
+        ret_type:ret === null ? "null" : typeof ret,
         ret,
         tried,
       });
+    };
+
+    // [VOID_SEAL_ONCE2_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
+    app.get(sealOnce2PathV3, async (req:any, res:any) => {
+      const dry = String(req?.query?.dry ?? "1") !== "0";
+      if (!dry) {
+        res.setHeader("Allow", "GET, POST");
+        return res.status(405).json({
+          ok:false,
+          error:"mutation_requires_post",
+          dry:false,
+          method:"GET",
+          requiredMethod:"POST",
+        });
+      }
+      return sealOnce2HandlerV3(req, res);
     });
 
-    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mounted"); }catch (err) { __voidIxCatch7200("6526:5", err); }
-  }catch(e:any){
-    try{ console.error("[__void/dev/inspect/sealOnce2.sealBlock.EARLY] mount err", e?.message||e); }catch (err) { __voidIxCatch7200("6528:6", err); }
+    app.post(sealOnce2PathV3, async (req:any, res:any) => {
+      const dry = String(req?.query?.dry ?? "1") !== "0";
+      if (!dry) {
+        const confirmation = String(
+          req?.query?.confirm ??
+          req?.body?.confirm ??
+          "",
+        );
+        if (confirmation !== "sealOnce2") {
+          return res.status(428).json({
+            ok:false,
+            error:"explicit_confirmation_required",
+            dry:false,
+            method:"POST",
+            requiredConfirmation:"sealOnce2",
+          });
+        }
+      }
+      return sealOnce2HandlerV3(req, res);
+    });
+
+    console.error(
+      "[__void/dev/inspect/sealOnce2.guarded.v3] mounted",
+    );
+  } catch (err:any) {
+    try {
+      console.error(
+        "[__void/dev/inspect/sealOnce2.guarded.v3] mount err",
+        err?.message || err,
+      );
+    } catch (nested) {
+      __voidIxCatch7200("sealOnce2:mount:v3", nested);
+    }
   }
 })();
 
 
+// ===== __void dev: canonical guarded sealOnce route family =====
+;(function __voidDevSealOnceGuardedV4(){
+  try {
+    const g:any = globalThis as any;
+    const app:any = g.__void_http_app || g.app;
+    if (
+      !app ||
+      typeof app.get !== "function" ||
+      typeof app.post !== "function"
+    ) return;
+    if ((app as any).__void_dev_sealonce_guarded_v4) return;
+    (app as any).__void_dev_sealonce_guarded_v4 = true;
 
+    const sealOncePathsV4 = [
+      "/__void/dev/sealOnce",
+      "/__void/dev/inspect/sealOnce",
+      "/__void/dev/inspect/sealOnce.json",
+    ];
+
+    async function tryCall(
+      label:string,
+      obj:any,
+      key:string,
+      args:any[],
+    ){
+      if (!obj) return { ok:false, label, err:"no obj" };
+      const fn:any = obj[key];
+      if (typeof fn !== "function") {
+        return { ok:false, label, err:"no fn" };
+      }
+      try {
+        const out = fn.apply(obj, args);
+        const ret =
+          out && typeof out.then === "function"
+            ? await out
+            : out;
+        return { ok:true, label, ret };
+      } catch (err:any) {
+        return {
+          ok:false,
+          label,
+          err:String(err?.message || err),
+        };
+      }
+    }
+
+    function discoverNodes(){
+      const candidates:any[] = [];
+      for (const key of [
+        "__void_node",
+        "__voidNode",
+        "node",
+        "VOID_NODE",
+        "__voidChain",
+        "__void_chain",
+        "CHAIN",
+        "chain",
+      ]) {
+        const value = g[key];
+        if (value && typeof value === "object") {
+          candidates.push(value);
+        }
+      }
+
+      try {
+        for (const key of Object.keys(g)) {
+          const value = g[key];
+          if (!value || typeof value !== "object") continue;
+          if (
+            typeof value.sealOnce === "function" ||
+            typeof value.proposeOnce === "function"
+          ) candidates.push(value);
+          const proposer = value.proposer;
+          if (
+            proposer &&
+            (
+              typeof proposer.sealOnce === "function" ||
+              typeof proposer.proposeOnce === "function" ||
+              typeof proposer.tickOnce === "function" ||
+              typeof proposer.tick === "function" ||
+              typeof proposer.step === "function"
+            )
+          ) candidates.push(value);
+        }
+      } catch (err) {
+        voidIndexEmptyCatchVisibilityWindow31501_32400V1(
+          "sealOnce:discover:v4",
+          err,
+        );
+      }
+
+      return [...new Set(candidates)];
+    }
+
+    const patterns:[
+      string,
+      (node:any)=>any,
+      string,
+      any[],
+    ][] = [
+      ["node.sealOnce()", node=>node, "sealOnce", []],
+      ["node.proposeOnce()", node=>node, "proposeOnce", []],
+      ["node.tickOnce()", node=>node, "tickOnce", []],
+      ["node.seal()", node=>node, "seal", []],
+      ["node.propose()", node=>node, "propose", []],
+      [
+        "node.proposer.sealOnce()",
+        node=>node?.proposer,
+        "sealOnce",
+        [],
+      ],
+      [
+        "node.proposer.proposeOnce()",
+        node=>node?.proposer,
+        "proposeOnce",
+        [],
+      ],
+      [
+        "node.proposer.tickOnce()",
+        node=>node?.proposer,
+        "tickOnce",
+        [],
+      ],
+      [
+        "node.proposer.tick()",
+        node=>node?.proposer,
+        "tick",
+        [],
+      ],
+      [
+        "node.proposer.step()",
+        node=>node?.proposer,
+        "step",
+        [],
+      ],
+    ];
+
+    const sealOnceHandlerV4 = async (req:any, res:any) => {
+      const nodes = discoverNodes();
+      const dry = String(req?.query?.dry ?? "1") !== "0";
+
+      if (dry) {
+        return res.json({
+          ok:true,
+          dry:true,
+          route:String(req?.path || req?.url || ""),
+          node_candidates:nodes.length,
+          patterns:patterns.map(([label])=>label),
+        });
+      }
+
+      const tried:any[] = [];
+      for (const node of nodes) {
+        for (const [label, select, key, args] of patterns) {
+          const result = await tryCall(
+            label,
+            select(node),
+            key,
+            args,
+          );
+          if (result.ok) {
+            return res.json({
+              ok:true,
+              via:result.label,
+              ret:result.ret ?? null,
+              tried:tried.slice(0, 24),
+            });
+          }
+          tried.push({
+            via:result.label,
+            err:result.err,
+          });
+          if (tried.length > 64) tried.shift();
+        }
+      }
+
+      return res.status(500).json({
+        ok:false,
+        err:
+          "route exists but no callable seal/propose " +
+          "function was found on known globals",
+        tried:tried.slice(0, 24),
+      });
+    };
+
+    // [VOID_SEAL_ONCE_FAMILY_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
+    for (const path of sealOncePathsV4) {
+      app.get(path, async (req:any, res:any) => {
+        const dry = String(req?.query?.dry ?? "1") !== "0";
+        if (!dry) {
+          res.setHeader("Allow", "GET, POST");
+          return res.status(405).json({
+            ok:false,
+            error:"mutation_requires_post",
+            dry:false,
+            method:"GET",
+            requiredMethod:"POST",
+          });
+        }
+        return sealOnceHandlerV4(req, res);
+      });
+
+      app.post(path, async (req:any, res:any) => {
+        const dry = String(req?.query?.dry ?? "1") !== "0";
+        if (!dry) {
+          const confirmation = String(
+            req?.query?.confirm ??
+            req?.body?.confirm ??
+            "",
+          );
+          if (confirmation !== "sealOnce") {
+            return res.status(428).json({
+              ok:false,
+              error:"explicit_confirmation_required",
+              dry:false,
+              method:"POST",
+              requiredConfirmation:"sealOnce",
+            });
+          }
+        }
+        return sealOnceHandlerV4(req, res);
+      });
+    }
+
+    console.log(
+      "[__void/dev/sealOnce.guarded.v4] mounted " +
+      sealOncePathsV4.join(","),
+    );
+  } catch (err) {
+    voidIndexEmptyCatchVisibilityWindow31501_32400V1(
+      "sealOnce:mount:v4",
+      err,
+    );
+  }
+})();
 
 
 // ===== __void dev: sealOnce route v4b (after app hook) =====
@@ -31562,285 +31899,6 @@ try {
   }
 
   attach();
-})();
-
-// ===== __void dev: sealOnce route v1 (additive) =====
-;(function __voidDevSealOnceRouteV1(){
-  try{
-    const g:any = globalThis as any;
-    const app:any = g.__void_http_app || g.app;
-    if (!app || typeof app.post !== "function") return;
-    if ((app as any).__void_dev_sealonce_v1) return;
-    (app as any).__void_dev_sealonce_v1 = true;
-
-    async function tryCall(label:string, obj:any, key:string, args:any[]){
-      if (!obj) return { ok:false, label, err:"no obj" };
-      const fn:any = obj[key];
-      if (typeof fn !== "function") return { ok:false, label, err:"no fn" };
-      try{
-        const out = fn.apply(obj, args);
-        const val = (out && typeof out.then === "function") ? await out : out;
-        return { ok:true, label, ret: val };
-      }catch(e:any){
-        return { ok:false, label, err:String(e?.message||e) };
-      }
-    }
-
-    function discoverNodes(){
-      const cand:any[] = [];
-      for (const k of ["__void_node","__voidNode","node","VOID_NODE","__voidChain","__void_chain","CHAIN","chain"]) {
-        const v = (g as any)[k];
-        if (v && typeof v === "object") cand.push(v);
-      }
-      // scan globals lightly for “node-ish” objects
-      try{
-        for (const k of Object.keys(g)) {
-          const v = (g as any)[k];
-          if (!v || typeof v !== "object") continue;
-          if (typeof (v as any).sealOnce === "function" || typeof (v as any).proposeOnce === "function") cand.push(v);
-          const pr = (v as any).proposer;
-          if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31581:2", err); }
-      // de-dupe
-      const seen = new Set<any>();
-      const out:any[] = [];
-      for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
-      return out;
-    }
-
-    app.post("/__void/dev/sealOnce", async (_req:any, res:any)=>{
-      const tried:any[] = [];
-      const nodes = discoverNodes();
-
-      const patterns:[string,(n:any)=>any,string,any[]][] = [
-        ["node.sealOnce()", (n)=>n, "sealOnce", []],
-        ["node.proposeOnce()", (n)=>n, "proposeOnce", []],
-        ["node.tickOnce()", (n)=>n, "tickOnce", []],
-        ["node.seal()", (n)=>n, "seal", []],
-        ["node.propose()", (n)=>n, "propose", []],
-
-        ["node.proposer.sealOnce()", (n)=>n?.proposer, "sealOnce", []],
-        ["node.proposer.proposeOnce()", (n)=>n?.proposer, "proposeOnce", []],
-        ["node.proposer.tickOnce()", (n)=>n?.proposer, "tickOnce", []],
-        ["node.proposer.tick()", (n)=>n?.proposer, "tick", []],
-        ["node.proposer.step()", (n)=>n?.proposer, "step", []],
-      ];
-
-      for (const n of nodes){
-        for (const [label, sel, key, args] of patterns){
-          const target = sel(n);
-          const r = await tryCall(label, target, key, args);
-          if (r.ok){
-            return res.json({ ok:true, via:r.label, ret:r.ret ?? null, tried: tried.slice(0,24) });
-          } else {
-            tried.push({ via:r.label, err:r.err });
-            if (tried.length > 64) tried.shift();
-          }
-        }
-      }
-
-      return res.status(500).json({
-        ok:false,
-        err:"route exists but no callable seal/propose function was found on known globals",
-        tried: tried.slice(0,24),
-      });
-    });
-
-    try{ console.log("[__void/dev/sealOnce.v1] mounted POST /__void/dev/sealOnce"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31627:3", err); }
-  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31628:4", err); }
-})();
-
-// ===== __void dev: sealOnce route v2 (GET+POST alias; additive) =====
-;(function __voidDevSealOnceRouteV2(){
-  try{
-    const g:any = globalThis as any;
-    const app:any = g.__void_http_app || g.app;
-    if (!app || typeof app.get !== "function") return;
-    if ((app as any).__void_dev_sealonce_v2) return;
-    (app as any).__void_dev_sealonce_v2 = true;
-
-    async function tryCall(label:string, obj:any, key:string, args:any[]){
-      if (!obj) return { ok:false, label, err:"no obj" };
-      const fn:any = obj[key];
-      if (typeof fn !== "function") return { ok:false, label, err:"no fn" };
-      try{
-        const out = fn.apply(obj, args);
-        const val = (out && typeof out.then === "function") ? await out : out;
-        return { ok:true, label, ret: val };
-      }catch(e:any){
-        return { ok:false, label, err:String(e?.message||e) };
-      }
-    }
-
-    function discoverNodes(){
-      const cand:any[] = [];
-      for (const k of ["__void_node","__voidNode","node","VOID_NODE","__voidChain","__void_chain","CHAIN","chain"]) {
-        const v = (g as any)[k];
-        if (v && typeof v === "object") cand.push(v);
-      }
-      try{
-        for (const k of Object.keys(g)) {
-          const v = (g as any)[k];
-          if (!v || typeof v !== "object") continue;
-          if (typeof (v as any).sealOnce === "function" || typeof (v as any).proposeOnce === "function") cand.push(v);
-          const pr = (v as any).proposer;
-          if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31667:5", err); }
-      const seen = new Set<any>();
-      const out:any[] = [];
-      for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
-      return out;
-    }
-
-    async function handler(_req:any, res:any){
-      const tried:any[] = [];
-      const nodes = discoverNodes();
-
-      const patterns:[string,(n:any)=>any,string,any[]][] = [
-        ["node.sealOnce()", (n)=>n, "sealOnce", []],
-        ["node.proposeOnce()", (n)=>n, "proposeOnce", []],
-        ["node.tickOnce()", (n)=>n, "tickOnce", []],
-        ["node.seal()", (n)=>n, "seal", []],
-        ["node.propose()", (n)=>n, "propose", []],
-
-        ["node.proposer.sealOnce()", (n)=>n?.proposer, "sealOnce", []],
-        ["node.proposer.proposeOnce()", (n)=>n?.proposer, "proposeOnce", []],
-        ["node.proposer.tickOnce()", (n)=>n?.proposer, "tickOnce", []],
-        ["node.proposer.tick()", (n)=>n?.proposer, "tick", []],
-        ["node.proposer.step()", (n)=>n?.proposer, "step", []],
-      ];
-
-      for (const n of nodes){
-        for (const [label, sel, key, args] of patterns){
-          const target = sel(n);
-          const r = await tryCall(label, target, key, args);
-          if (r.ok){
-            return res.json({ ok:true, via:r.label, ret:r.ret ?? null, tried: tried.slice(0,24) });
-          } else {
-            tried.push({ via:r.label, err:r.err });
-            if (tried.length > 64) tried.shift();
-          }
-        }
-      }
-
-      return res.status(500).json({
-        ok:false,
-        err:"route exists but no callable seal/propose function was found on known globals",
-        post_present: (typeof (app as any).post === "function"),
-        tried: tried.slice(0,24),
-      });
-    }
-
-    // ALWAYS mount GET (your environment clearly supports GET dev routes)
-    app.get("/__void/dev/sealOnce", handler);
-
-    // ALSO mount POST if it exists (some builds allow it)
-    try{
-      if (typeof (app as any).post === "function") (app as any).post("/__void/dev/sealOnce", handler);
-    }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31719:6", err); }
-
-    try{ console.log("[__void/dev/sealOnce.v2] mounted GET /__void/dev/sealOnce (POST alias if supported)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31721:7", err); }
-  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31722:8", err); }
-})();
-
-// ===== __void dev: sealOnce route v3 (UNDER /__void/dev/inspect/*) =====
-;(function __voidDevSealOnceRouteV3(){
-  try{
-    const g:any = globalThis as any;
-    const app:any = g.__void_http_app || g.app;
-    if (!app || typeof app.get !== "function") return;
-    if ((app as any).__void_dev_sealonce_v3) return;
-    (app as any).__void_dev_sealonce_v3 = true;
-
-    async function tryCall(label:string, obj:any, key:string, args:any[]){
-      if (!obj) return { ok:false, label, err:"no obj" };
-      const fn:any = obj[key];
-      if (typeof fn !== "function") return { ok:false, label, err:"no fn" };
-      try{
-        const out = fn.apply(obj, args);
-        const val = (out && typeof out.then === "function") ? await out : out;
-        return { ok:true, label, ret: val };
-      }catch(e:any){
-        return { ok:false, label, err:String(e?.message||e) };
-      }
-    }
-
-    function discoverNodes(){
-      const cand:any[] = [];
-      for (const k of ["__void_node","__voidNode","node","VOID_NODE","__voidChain","__void_chain","CHAIN","chain"]) {
-        const v = (g as any)[k];
-        if (v && typeof v === "object") cand.push(v);
-      }
-      try{
-        for (const k of Object.keys(g)) {
-          const v = (g as any)[k];
-          if (!v || typeof v !== "object") continue;
-          if (typeof (v as any).sealOnce === "function" || typeof (v as any).proposeOnce === "function") cand.push(v);
-          const pr = (v as any).proposer;
-          if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31761:9", err); }
-      const seen = new Set<any>();
-      const out:any[] = [];
-      for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
-      return out;
-    }
-
-    async function handler(_req:any, res:any){
-      const tried:any[] = [];
-      const nodes = discoverNodes();
-
-      const patterns:[string,(n:any)=>any,string,any[]][] = [
-        ["node.sealOnce()", (n)=>n, "sealOnce", []],
-        ["node.proposeOnce()", (n)=>n, "proposeOnce", []],
-        ["node.tickOnce()", (n)=>n, "tickOnce", []],
-        ["node.seal()", (n)=>n, "seal", []],
-        ["node.propose()", (n)=>n, "propose", []],
-
-        ["node.proposer.sealOnce()", (n)=>n?.proposer, "sealOnce", []],
-        ["node.proposer.proposeOnce()", (n)=>n?.proposer, "proposeOnce", []],
-        ["node.proposer.tickOnce()", (n)=>n?.proposer, "tickOnce", []],
-        ["node.proposer.tick()", (n)=>n?.proposer, "tick", []],
-        ["node.proposer.step()", (n)=>n?.proposer, "step", []],
-      ];
-
-      for (const n of nodes){
-        for (const [label, sel, key, args] of patterns){
-          const target = sel(n);
-          const r = await tryCall(label, target, key, args);
-          if (r.ok){
-            return res.json({ ok:true, via:r.label, ret:r.ret ?? null, tried: tried.slice(0,24) });
-          } else {
-            tried.push({ via:r.label, err:r.err });
-            if (tried.length > 64) tried.shift();
-          }
-        }
-      }
-
-      return res.status(500).json({
-        ok:false,
-        err:"route exists but no callable seal/propose function was found on known globals",
-        post_present: (typeof (app as any).post === "function"),
-        tried: tried.slice(0,24),
-      });
-    }
-
-    // Under the prefix that already works for you:
-    app.get("/__void/dev/inspect/sealOnce", handler);
-    app.get("/__void/dev/inspect/sealOnce.json", handler);
-
-    // Optional POST alias (may still be filtered; fine)
-    try{
-      if (typeof (app as any).post === "function") {
-        (app as any).post("/__void/dev/inspect/sealOnce", handler);
-        (app as any).post("/__void/dev/inspect/sealOnce.json", handler);
-      }
-    }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31817:10", err); }
-
-    try{ console.log("[__void/dev/inspect/sealOnce.v3] mounted"); }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31819:11", err); }
-  }catch (err) { voidIndexEmptyCatchVisibilityWindow31501_32400V1("31820:12", err); }
 })();
 
 // ===== __void dev: proposer scan route v2 (proto + non-enum + locals) =====
