@@ -6010,7 +6010,13 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
     if ((appAny as any).__voidSealBlockCommitOnceV3Installed) return;
     (appAny as any).__voidSealBlockCommitOnceV3Installed = true;
 
-    appAny.get("/__void/dev/inspect/sealBlockCommitOnce", async (req: any, res: any) => {
+    const sealBlockCommitOncePathV4 =
+      "/__void/dev/inspect/sealBlockCommitOnce";
+
+    const sealBlockCommitOnceHandlerV4 = async (
+      req: any,
+      res: any,
+    ) => {
       const G: any = globalThis as any;
       const node: any = G.__void_node || G.node || G.VOID_NODE || null;
 
@@ -6164,7 +6170,36 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
         number,
         headNow,
       });
-    });
+    };
+
+    // [VOID_SEAL_BLOCK_COMMIT_ONCE_MUTATION_METHOD_GUARD_V1]
+    appAny.get(
+      sealBlockCommitOncePathV4,
+      async (req: any, res: any) => {
+        const requestedDry =
+          (req?.query?.dry ?? "1") !== "0";
+
+        if (!requestedDry) {
+          res.setHeader("Allow", "GET, POST");
+          return res.status(405).json({
+            ok: false,
+            error: "mutation_requires_post",
+            dry: false,
+            method: "GET",
+            requiredMethod: "POST",
+          });
+        }
+
+        return sealBlockCommitOnceHandlerV4(req, res);
+      },
+    );
+
+    appAny.post(
+      sealBlockCommitOncePathV4,
+      async (req: any, res: any) => {
+        return sealBlockCommitOnceHandlerV4(req, res);
+      },
+    );
 
     console.log("[dev] mounted sealBlockCommitOnce.v3");
   } catch (e: any) {
