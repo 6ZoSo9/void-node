@@ -19,3 +19,6 @@ jobs:
 
       - name: Prove proposer seal rejection containment
         run: npx tsx scripts/prove_proposer_seal_rejection_containment_v1.ts
+
+      - name: Prove sealBlockCommitOnce true dry run
+        run: npx tsx scripts/prove_seal_block_commit_once_true_dry_run_v1.ts
