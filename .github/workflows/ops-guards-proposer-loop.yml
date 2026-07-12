@@ -28,3 +28,6 @@ jobs:
 
       - name: Prove sealBlockOnce mutation method and confirmation guard
         run: npx tsx scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts
+
+      - name: Prove remaining sealOnce mutation method and confirmation guards
+        run: npx tsx scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts
