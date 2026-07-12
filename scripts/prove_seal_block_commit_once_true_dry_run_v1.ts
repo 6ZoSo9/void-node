@@ -5,20 +5,24 @@ const source = fs.readFileSync("src/index.ts", "utf8");
 
 const markerText = `[${marker}]`;
 const markerPos = source.indexOf(markerText);
-const routePos = source.indexOf(
-  'appAny.get("/__void/dev/inspect/sealBlockCommitOnce"',
+const pathPos = source.indexOf(
+  '"/__void/dev/inspect/sealBlockCommitOnce"',
 );
-const dryPos = source.indexOf("if (dry) {", routePos);
+const handlerPos = source.indexOf(
+  "const sealBlockCommitOnceHandlerV4",
+);
+const dryPos = source.indexOf("if (dry) {", handlerPos);
 const sealPos = source.indexOf(
   "block = await node.sealBlock({ allowEmptyOnce: allowEmpty });",
-  routePos,
+  handlerPos,
 );
 
 if (markerPos < 0) throw new Error("true dry-run marker missing");
-if (routePos < 0) throw new Error("sealBlockCommitOnce route missing");
+if (pathPos < 0) throw new Error("sealBlockCommitOnce path missing");
+if (handlerPos < 0) throw new Error("sealBlockCommitOnce handler missing");
 if (dryPos < 0) throw new Error("dry-run guard missing");
 if (sealPos < 0) throw new Error("sealBlock call missing");
-if (!(routePos < dryPos && dryPos < sealPos)) {
+if (!(handlerPos < dryPos && dryPos < sealPos)) {
   throw new Error("dry-run guard does not return before sealBlock");
 }
 
