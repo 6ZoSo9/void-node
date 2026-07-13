@@ -381,6 +381,93 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
 
 const app = express();
+
+// === wc-mutation-containment-v1 BEGIN ===
+;(() => {
+  const __voidWcContainmentApp:any = app as any;
+  if (__voidWcContainmentApp.__void_wc_mutation_containment_v1) return;
+  __voidWcContainmentApp.__void_wc_mutation_containment_v1 = true;
+
+  const __voidWcMutationRules: Record<string,string> = {
+    "/wc/runner/set": "wcRunnerSet",
+    "/wc/runner/config": "wcRunnerConfig",
+    "/wc/runner/tick": "wcRunnerTick",
+    "/wc/redeem": "wcRedeem",
+    "/wc/send": "wcSend",
+    "/jobs/submit": "jobsSubmit",
+    "/__void/jobs-and-datanet-worker/run-once": "jobsWorkerRunOnce"
+  };
+
+  function __voidWcLoopbackOnly(req:any): boolean {
+    const remote = String(
+      req?.socket?.remoteAddress ||
+      req?.connection?.remoteAddress ||
+      req?.ip ||
+      ""
+    ).trim().toLowerCase();
+    return (
+      remote === "127.0.0.1" ||
+      remote === "::1" ||
+      remote === "::ffff:127.0.0.1" ||
+      remote === "localhost"
+    );
+  }
+
+  __voidWcContainmentApp.use((req:any, res:any, next:any) => {
+    const method = String(req?.method || "").toUpperCase();
+    const pathnameRaw = String(req?.path || req?.url || "").split("?")[0];
+    const pathname = (
+      pathnameRaw.length > 1
+        ? pathnameRaw.replace(/\/+$/, "")
+        : pathnameRaw
+    ).toLowerCase();
+    const requiredConfirmation = __voidWcMutationRules[pathname];
+
+    if (method !== "POST" || !requiredConfirmation) return next();
+
+    if (!__voidWcLoopbackOnly(req)) {
+      return res.status(403).json({
+        ok: false,
+        error: "loopback_required",
+        method,
+        path: pathname,
+        mutation: false
+      });
+    }
+
+    const query = req?.query && typeof req.query === "object" ? req.query : {};
+    const dryRaw = query.dry;
+    const dry = dryRaw === undefined
+      ? true
+      : !["0", "false", "no"].includes(String(dryRaw).trim().toLowerCase());
+
+    if (dry) {
+      return res.status(200).json({
+        ok: true,
+        dry: true,
+        mutated: false,
+        method,
+        path: pathname,
+        requiredConfirmation
+      });
+    }
+
+    const confirmation = String(query.confirm || "");
+    if (confirmation !== requiredConfirmation) {
+      return res.status(428).json({
+        ok: false,
+        error: "explicit_confirmation_required",
+        dry: false,
+        method,
+        path: pathname,
+        requiredConfirmation
+      });
+    }
+
+    return next();
+  });
+})();
+// === wc-mutation-containment-v1 END ===
 mountLocalMultiboxRuntimeRouteV1(app);
 
 

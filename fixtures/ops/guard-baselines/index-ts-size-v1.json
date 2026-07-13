@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline after adding read-only well-known pointer to local multibox runtime discovery closeout rollup; visibility-only, no mutation, wallet, money, validator, WC self-serve, or public mesh behavior",
+  "reason": "baseline after adding Work Credits mutation containment v1: loopback-only, dry-by-default, explicit-confirmation-gated WC and job mutation routes; caller-controlled DataNet receipt WC issuance removed; no WC activation, backfill, transfer, redemption, WC-to-VOID settlement, or Buy VOID fulfillment",
   "path": "src/index.ts",
-  "baseline_bytes": 3811497,
+  "baseline_bytes": 3813707,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
