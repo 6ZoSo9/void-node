@@ -16322,6 +16322,18 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
       };
     }
 
+    function dryPickStatus(){
+      const h = findMempool();
+      return {
+        ok:true,
+        picked:[] as any[],
+        dry:true,
+        max:0,
+        mempoolAvailable:!!h,
+        mempoolLength:h ? h.arr.length : null,
+      };
+    }
+
     const pickPathV2 = "/__void/dev/pick";
 
     // [VOID_DEV_PICK_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
@@ -16339,12 +16351,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         });
       }
 
-      const out = await pick(0);
-      res.status(out.ok?200:500).json({
-        ...out,
-        dry:true,
-        max:0,
-      });
+      return res.json(dryPickStatus());
     });
 
     app.post(pickPathV2, async (req:any,res:any)=>{
@@ -16363,10 +16370,14 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         });
       }
 
+      if (request.max === 0) {
+        return res.json(dryPickStatus());
+      }
+
       const out = await pick(request.max);
       res.status(out.ok?200:500).json({
         ...out,
-        dry:request.max===0,
+        dry:false,
         max:request.max,
       });
     });
