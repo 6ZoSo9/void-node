@@ -19171,6 +19171,25 @@ void_ready_exporter_timestamp_ms ${now}
   tick();
 })();
 
+// [VOID_PROPOSER_AUTO_START_MUTATION_CONFIRMATION_GUARD_V1]
+function __voidAutoReqV1(req:any,res:any){
+  const fallback=Math.max(500,Number(process.env.PROPOSER_TICK_MS||2000)||2000);
+  const ms=Math.max(500,Number(req.query?.ms??req.body?.ms??fallback)||fallback);
+  if(String(req.query?.dry??req.body?.dry??"1")!=="0"){
+    res.json({ok:true,dry:true,started:false,ms}); return null;
+  }
+  const c=String(req.query?.confirm??req.body?.confirm??"");
+  if(c!=="proposerAutoStart"){
+    res.status(428).json({ok:false,error:"explicit_confirmation_required",dry:false,method:"POST",requiredConfirmation:"proposerAutoStart"}); return null;
+  }
+  return ms;
+}
+function __voidAutoStopV1(){
+  const G:any=globalThis as any;
+  for(const f of [G.__voidStopAutoRescueV1,G.__voidStopAutoSwitchV2])
+    if(typeof f==="function")f();
+}
+
 // ---------------------- Proposer Rescue Harness v1 (additive) ----------------------
 // Purpose: if the normal dev-proposer hook didn't attach, provide minimal /proposer/*
 // endpoints and a safe auto-loop to seal blocks using the existing saveBlock wrappers.
@@ -19404,6 +19423,8 @@ void_ready_exporter_timestamp_ms ${now}
   }
   function stopAutoLoop(){ if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
 
+  (globalThis as any).__voidStopAutoRescueV1=stopAutoLoop;
+
   async function attach(){
     if (attached) return;
     const app:any = getApp();
@@ -19583,19 +19604,14 @@ void_ready_exporter_timestamp_ms ${now}
     }
 
     app.post('/proposer/auto/start', (req:any,res:any)=>{
-      const ms =
-        (
-          req.query?.ms
-            ? Number(req.query.ms)
-            : Number(process.env.PROPOSER_TICK_MS || 2000)
-        ) || 2000;
-      startAutoLoop(ms);
-      res.json({ ok:true, auto:true, ms });
+      const ms=__voidAutoReqV1(req,res); if(ms===null)return;
+      __voidAutoStopV1(); startAutoLoop(ms);
+      res.json({ok:true,auto:true,ms});
     });
 
     app.post('/proposer/auto/stop', (_req:any,res:any)=>{
-      stopAutoLoop();
-      res.json({ ok:true, auto:false });
+      stopAutoLoop(); __voidAutoStopV1();
+      res.json({ok:true,auto:false});
     });
 
     attached = true;
@@ -20632,26 +20648,20 @@ void_header3_last_mismatch ${lastMismatch}
     } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20031:9", err); }
   }
 
+  (globalThis as any).__voidStopAutoSwitchV2=stop;
+
   function mount(){
     const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
     if ((app as any).__void_proposer_auto_v2) return; (app as any).__void_proposer_auto_v2 = true;
 
     app.post("/proposer/auto/start", (req:any,res:any)=>{
-      const G:any = globalThis as any;
-      const ms = Number(req.query.ms ?? 2000);
-      start(ms);
-      try {
-        G.__void_proposer_auto = G.__void_proposer_auto || {};
-        G.__void_proposer_auto.enabled = true;
-        G.__void_proposer_auto.ms = ms;
-        G.__void_proposer_auto.intervalMs = ms;
-        if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:true, ms });
-      } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20048:10", err); }
-      res.json({ok:true, auto:true, ms});
+      const ms=__voidAutoReqV1(req,res); if(ms===null)return;
+      __voidAutoStopV1(); start(ms);
+      res.json({ok:true,auto:true,ms});
     });
     app.post("/proposer/auto/stop", (_req:any,res:any)=>{
-      stop();
-      res.json({ok:true, auto:false});
+      stop(); __voidAutoStopV1();
+      res.json({ok:true,auto:false});
     });
 
     // exporter bridge (piggybacks your existing /metrics/void/proposer.v2.prom writer)

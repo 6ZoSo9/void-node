@@ -1,4 +1,6 @@
 "use strict";
+// [VOID_TRACKED_SRC_INDEX_JS_RUNTIME_RETIREMENT_V1]
+throw new Error("src/index.js is a retired tracked legacy artifact; use src/index.ts or dist/index.js");
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {

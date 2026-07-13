@@ -12,3 +12,5 @@ jobs:
           if [ "$c" -ne 1 ]; then
             echo "Expected exactly one autostart ExecStartPost drop-in, found $c"; exit 1
           fi
+      - name: Prove proposer auto-start mutation guard
+        run: npx tsx scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts

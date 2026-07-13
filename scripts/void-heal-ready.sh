@@ -19,7 +19,7 @@ fi
 
 echo "[heal] NOT READY (inc=$INC bit=$BIT) -> nudge"
 # Safe, idempotent nudges:
-curl -fsS -X POST "$BASE/proposer/auto/start?ms=2000" >/dev/null || true
+curl -fsS -X POST "$BASE/proposer/auto/start?ms=2000&dry=0&confirm=proposerAutoStart" >/dev/null || true
 curl -fsS -X POST "$BASE/blocks/empty-policy/set?enabled=true&fill=true" >/dev/null || true
 curl -fsS -X POST "$BASE/tx/merge/cap/set?enabled=true&max=2" >/dev/null || true
 curl -fsS -X POST "$BASE/tx/dev/burst?n=4" >/dev/null || true
