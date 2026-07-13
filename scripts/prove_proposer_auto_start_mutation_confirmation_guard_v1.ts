@@ -135,14 +135,12 @@ for (const [name, block, startCall] of [
   }
 }
 
-for (const [name, block, localStop] of [
-  ["rescue", firstStopBlock, "stopAutoLoop()"],
-  ["switch", secondStopBlock, "stop()"],
+for (const [name, block] of [
+  ["rescue", firstStopBlock],
+  ["switch", secondStopBlock],
 ] as const) {
-  for (const required of [localStop, "__voidAutoStopV1()"]) {
-    if (!block.includes(required)) {
-      throw new Error(`${name} stop route missing: ${required}`);
-    }
+  if (!block.includes("__voidAutoStopV1()")) {
+    throw new Error(`${name} stop route missing shared stop helper`);
   }
 }
 
@@ -235,6 +233,11 @@ if (!workflow.includes(
 )) {
   throw new Error("autostart workflow lacks focused proof");
 }
+if (!workflow.includes(
+  "prove_proposer_auto_stop_shadow_route_v1.ts",
+)) {
+  throw new Error("autostart workflow lacks shadow-stop proof");
+}
 
 console.log(
   `${marker}_GREEN`,
@@ -246,8 +249,8 @@ console.log(
     autonomousInternalCallersDry:2,
     autonomousInternalReenableClosed:true,
     shellCallersConfirmed:5,
-    stopRoutesStopAllKnownLoops:true,
-    splitControlStateClosed:true,
+    primaryStopRoutesGuarded:2,
+    shadowStopRouteCoveredByFocusedProof:true,
     proposerTickDefaultPreserved:true,
     trackedLegacyCopyRetiredFailClosed:true,
     bootEnvironmentTrackedAsSeparateBoundary:true,

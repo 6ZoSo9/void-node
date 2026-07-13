@@ -266,7 +266,7 @@ for (const required of [
   "app.post('/proposer/auto/start'",
   "startAutoLoop(ms)",
   "app.post('/proposer/auto/stop'",
-  "stopAutoLoop()",
+  "__voidAutoStopV1()",
 ]) {
   if (!familyBlock.includes(required)) {
     throw new Error(

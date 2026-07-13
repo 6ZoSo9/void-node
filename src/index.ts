@@ -19188,6 +19188,8 @@ function __voidAutoStopV1(){
   const G:any=globalThis as any;
   for(const f of [G.__voidStopAutoRescueV1,G.__voidStopAutoSwitchV2])
     if(typeof f==="function")f();
+  G.__void_proposer_auto = G.__void_proposer_auto || {};
+  G.__void_proposer_auto.enabled = false;
 }
 
 // ---------------------- Proposer Rescue Harness v1 (additive) ----------------------
@@ -19610,7 +19612,7 @@ function __voidAutoStopV1(){
     });
 
     app.post('/proposer/auto/stop', (_req:any,res:any)=>{
-      stopAutoLoop(); __voidAutoStopV1();
+      __voidAutoStopV1();
       res.json({ok:true,auto:false});
     });
 
@@ -20382,15 +20384,9 @@ void_header3_last_mismatch ${lastMismatch}
       res.json({ ok:true, auto: !!mirror.auto, ms: isFinite(mirror.ms)? Number(mirror.ms) : null, lastTickMs: mirror.lastTickMs || null, lastSeenHead: mirror.lastSeenHead });
     });
 
-    // Stop: call the existing stop route if present, else just flip our mirror
-    app.post("/proposer/auto/stop", async (_req:any, res:any)=>{
-      let ok=false;
-      try {
-        // If the canonical stop route exists in this build, proxy to it:
-        if (typeof (app as any).handle === "function") {
-          // noop: local app router; we don't know internal stop handler; mirror only
-        }
-      } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19776:26", err); }
+    // Stop every registered proposer auto loop, even if this shim shadows later routes.
+    app.post("/proposer/auto/stop", (_req:any, res:any)=>{
+      __voidAutoStopV1();
       mirror.auto = false;
       res.json({ ok:true, auto:false });
     });
@@ -20422,13 +20418,15 @@ void_header3_last_mismatch ${lastMismatch}
     try {
       const g:any = (globalThis as any);
       if (!g.__void_proposer_notify) {
-        g.__void_proposer_notify = (ev:any)=>{
+        const notify:any = (ev:any)=>{
           if (!ev) return;
           if (typeof ev.auto === "boolean") mirror.auto = ev.auto;
           if (typeof ev.ms === "number") mirror.ms = ev.ms;
           if (typeof ev.head === "number") mirror.lastSeenHead = ev.head;
-          mirror.lastTickMs = Date.now();
+          if (ev.tick === true) mirror.lastTickMs = Date.now();
         };
+        notify.__mirror = mirror;
+        g.__void_proposer_notify = notify;
       }
     } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("19816:1", err); }
   }
@@ -20614,7 +20612,8 @@ void_header3_last_mismatch ${lastMismatch}
           G.__void_proposer_notify({
             auto: true,
             ms: Number(autoMs||0),
-            head: Number(j && j.number)
+            head: Number(j && j.number),
+            tick: true
           });
         }
       } catch (err) { voidIndexEmptyCatchVisibilityWindow19801_20700V1("20003:7", err); }
@@ -20660,7 +20659,7 @@ void_header3_last_mismatch ${lastMismatch}
       res.json({ok:true,auto:true,ms});
     });
     app.post("/proposer/auto/stop", (_req:any,res:any)=>{
-      stop(); __voidAutoStopV1();
+      __voidAutoStopV1();
       res.json({ok:true,auto:false});
     });
 
