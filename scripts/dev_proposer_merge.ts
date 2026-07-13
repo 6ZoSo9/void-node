@@ -1,5 +1,5 @@
 /* dev_proposer_merge.ts — v2.6
- * Priority: __void/dev/pick (GET,POST) -> /tx/dev/pick (GET,POST)
+ * Priority: __void/dev/pick (confirmed POST) -> /tx/dev/pick (GET,POST)
  * Logs statuses; merges picked txs into block.payload.txs and block.txs
  */
 import http from "node:http";
@@ -35,7 +35,7 @@ function httpDo(method:"GET"|"POST", path:string, body?:any): Promise<R>{
 let lastProbe=0;
 async function tryPickOnce(max:number){
   const probes = [
-    {name:"void-pick", path:`/__void/dev/pick?max=${max}`},
+    {name:"void-pick", path:`/__void/dev/pick?max=${max}&confirm=voidDevPick`},
     {name:"dev-pick",  path:`/tx/dev/pick?max=${max}`},
   ];
   let picked:any[] = []; let from="none"; let statuses:any = {};

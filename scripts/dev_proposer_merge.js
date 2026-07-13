@@ -46,7 +46,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 /* dev_proposer_merge.ts — v2.6
- * Priority: __void/dev/pick (GET,POST) -> /tx/dev/pick (GET,POST)
+ * Priority: __void/dev/pick (confirmed POST) -> /tx/dev/pick (GET,POST)
  * Logs statuses; merges picked txs into block.payload.txs and block.txs
  */
 var node_http_1 = require("node:http");
@@ -91,7 +91,7 @@ function tryPickOnce(max) {
             switch (_c.label) {
                 case 0:
                     probes = [
-                        { name: "void-pick", path: "/__void/dev/pick?max=".concat(max) },
+                        { name: "void-pick", path: "/__void/dev/pick?max=".concat(max, "&confirm=voidDevPick") },
                         { name: "dev-pick", path: "/tx/dev/pick?max=".concat(max) },
                     ];
                     picked = [];

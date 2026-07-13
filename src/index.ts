@@ -14860,7 +14860,22 @@ void_head_v2_poll_slow_total ${slowt}
       "/__void/metrics"         // ad-hoc prom text exporters
     ];
 
-    appAny.use(blocked, (_req:any, res:any)=> res.status(404).end());
+    const localGuardedAllow = new Set([
+      "/__void/dev/pick",
+      "/__void/dev/picker/diag",
+    ]);
+
+    // [VOID_DEV_PICK_SOFT_GATE_LOCAL_ALLOW_V1]
+    appAny.use(blocked, (req:any, res:any, next:any)=>{
+      const path = String(
+        req?.originalUrl ||
+        req?.url ||
+        "",
+      ).split("?")[0];
+
+      if (localGuardedAllow.has(path)) return next();
+      return res.status(404).end();
+    });
   } catch (err) { voidIndexEmptyCatchVisibilityWindow14401_15300V1("14465:3", err); }
 })();
 // --- SEALS_V3_BOOTSAFE_BEGIN ---
@@ -16274,20 +16289,86 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
       return {ok:true, picked};
     }
 
-    function parseMax(req:any){
-      const qv = req.query?.max ?? req.query?.n ?? req.query?.count;
-      const bv = (()=>{ try{ return JSON.parse(req?.body||"null")?.max; }catch{ return undefined; } })();
-      const v = Number(qv ?? bv ?? 0);
-      return Number.isFinite(v) && v>=0 ? v : 0;
+    function parsePickRequest(req:any){
+      let body:any = req?.body ?? null;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body || "null");
+        } catch (err) {
+          voidIndexEmptyCatchVisibilityWindow15301_16200V1(
+            "dev-pick:parse-body:v2",
+            err,
+          );
+          body = null;
+        }
+      }
+
+      const qv =
+        req.query?.max ??
+        req.query?.n ??
+        req.query?.count;
+      const value = Number(qv ?? body?.max ?? 0);
+
+      return {
+        max:
+          Number.isFinite(value) && value >= 0
+            ? value
+            : 0,
+        confirmation: String(
+          req.query?.confirm ??
+          body?.confirm ??
+          "",
+        ),
+      };
     }
 
-    app.get("/__void/dev/pick", async (req:any,res:any)=>{
-      const out = await pick(parseMax(req));
-      res.status(out.ok?200:500).json(out);
+    const pickPathV2 = "/__void/dev/pick";
+
+    // [VOID_DEV_PICK_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
+    app.get(pickPathV2, async (req:any,res:any)=>{
+      const request = parsePickRequest(req);
+
+      if (request.max > 0) {
+        res.setHeader("Allow", "GET, POST");
+        return res.status(405).json({
+          ok:false,
+          error:"mutation_requires_post",
+          method:"GET",
+          requiredMethod:"POST",
+          max:request.max,
+        });
+      }
+
+      const out = await pick(0);
+      res.status(out.ok?200:500).json({
+        ...out,
+        dry:true,
+        max:0,
+      });
     });
-    app.post("/__void/dev/pick", async (req:any,res:any)=>{
-      const out = await pick(parseMax(req));
-      res.status(out.ok?200:500).json(out);
+
+    app.post(pickPathV2, async (req:any,res:any)=>{
+      const request = parsePickRequest(req);
+
+      if (
+        request.max > 0 &&
+        request.confirmation !== "voidDevPick"
+      ) {
+        return res.status(428).json({
+          ok:false,
+          error:"explicit_confirmation_required",
+          method:"POST",
+          max:request.max,
+          requiredConfirmation:"voidDevPick",
+        });
+      }
+
+      const out = await pick(request.max);
+      res.status(out.ok?200:500).json({
+        ...out,
+        dry:request.max===0,
+        max:request.max,
+      });
     });
 
     // tiny diag
@@ -26304,9 +26385,27 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       /^\/__void\/txroot4\/observer\.prom$/,
     ];
 
+    const guardedLocalDevAllow = new Set([
+      "/__void/dev/pick",
+      "/__void/dev/picker/diag",
+    ]);
+
+    // [VOID_DEV_PICK_KILL_SWITCH_LOCAL_ALLOW_V1]
     app.use((req:any, res:any, next:any) => {
-      const p = req.path || "";
-      for (const rx of deny) if (rx.test(p)) { res.status(404).end(); return; }
+      const p = String(req?.path || "").split("?")[0];
+
+      if (guardedLocalDevAllow.has(p)) {
+        next();
+        return;
+      }
+
+      for (const rx of deny) {
+        if (rx.test(p)) {
+          res.status(404).end();
+          return;
+        }
+      }
+
       next();
     });
 
