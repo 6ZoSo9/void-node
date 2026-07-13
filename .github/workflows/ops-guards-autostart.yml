@@ -14,3 +14,5 @@ jobs:
           fi
       - name: Prove proposer auto-start mutation guard
         run: npx tsx scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts
+      - name: Prove proposer auto-stop shadow route closure
+        run: npx tsx scripts/prove_proposer_auto_stop_shadow_route_v1.ts
