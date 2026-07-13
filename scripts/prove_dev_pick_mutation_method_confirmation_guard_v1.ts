@@ -131,8 +131,7 @@ for (const required of [
   'error:"mutation_requires_post"',
   'method:"GET"',
   'requiredMethod:"POST"',
-  "const out = await pick(0)",
-  "dry:true",
+  "return res.json(dryPickStatus())",
 ]) {
   if (!getBlock.includes(required)) {
     throw new Error(`GET guard missing: ${required}`);
@@ -141,6 +140,7 @@ for (const required of [
 
 if (
   getBlock.includes("pick(request.max)") ||
+  getBlock.includes("pick(0)") ||
   getBlock.includes("arr.splice(")
 ) {
   throw new Error("GET route can reach destructive pick");
@@ -153,11 +153,77 @@ for (const required of [
   'error:"explicit_confirmation_required"',
   'method:"POST"',
   'requiredConfirmation:"voidDevPick"',
+  "if (request.max === 0)",
+  "return res.json(dryPickStatus())",
   "const out = await pick(request.max)",
 ]) {
   if (!postBlock.includes(required)) {
     throw new Error(`POST guard missing: ${required}`);
   }
+}
+
+const dryStatusPos = source.indexOf(
+  "function dryPickStatus()",
+);
+const dryStatusEnd = source.indexOf(
+  'const pickPathV2 = "/__void/dev/pick"',
+  dryStatusPos,
+);
+
+if (
+  dryStatusPos < 0 ||
+  dryStatusEnd < 0 ||
+  dryStatusPos >= dryStatusEnd
+) {
+  throw new Error("dry pick status boundary is missing");
+}
+
+const dryStatusBlock = source.slice(
+  dryStatusPos,
+  dryStatusEnd,
+);
+
+for (const required of [
+  "const h = findMempool()",
+  "ok:true",
+  "picked:[] as any[]",
+  "dry:true",
+  "max:0",
+  "mempoolAvailable:!!h",
+  "mempoolLength:h ? h.arr.length : null",
+]) {
+  if (!dryStatusBlock.includes(required)) {
+    throw new Error(`dry status missing: ${required}`);
+  }
+}
+
+if (
+  dryStatusBlock.includes("await pick(") ||
+  dryStatusBlock.includes("arr.splice(")
+) {
+  throw new Error("dry status can mutate mempool");
+}
+
+const postDryPos = postBlock.indexOf(
+  "if (request.max === 0)",
+);
+const postConfirmPos = postBlock.indexOf(
+  'request.confirmation !== "voidDevPick"',
+);
+const postPickPos = postBlock.indexOf(
+  "const out = await pick(request.max)",
+);
+
+if (
+  postDryPos < 0 ||
+  postConfirmPos < 0 ||
+  postPickPos < 0 ||
+  postConfirmPos >= postDryPos ||
+  postDryPos >= postPickPos
+) {
+  throw new Error(
+    "POST dry branch does not precede destructive pick",
+  );
 }
 
 for (const [name, caller] of [
@@ -191,6 +257,8 @@ console.log(
     getPositiveMaxBlocked:true,
     blockedStatus:405,
     getZeroMaxReadOnly:true,
+    dryModeIndependentOfMempool:true,
+    postZeroMaxReadOnly:true,
     postPositiveMaxConfirmationRequired:true,
     confirmationStatus:428,
     requiredConfirmation:"voidDevPick",
