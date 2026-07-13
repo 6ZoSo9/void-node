@@ -13,7 +13,7 @@ curl -fsS "$BASE/blocks/latest/number2.json" && echo || true
 curl -fsS "$BASE/metrics/void/head" 2>/dev/null | sed -n '1,5p' || true
 
 echo -e "\n== proposer auto status =="
-curl -fsS -X POST "$BASE/proposer/auto/start?ms=2000" | jq . >/dev/null || true
+curl -fsS -X POST "$BASE/proposer/auto/start?ms=2000&dry=0&confirm=proposerAutoStart" | jq . >/dev/null || true
 (curl -fsS "$BASE/proposer/auto/status" 2>/dev/null | jq .) || echo "{"ok":false,"note":"status route not mounted"}"
 
 echo -e "\n== empty-block policy =="

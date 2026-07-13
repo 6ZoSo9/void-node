@@ -16,7 +16,7 @@ if [ "$HEAD0" != "$HEAD1" ]; then log "head moved ($HEAD0->$HEAD1); no nudge"; e
 
 log "flat ($HEAD0->$HEAD1); nudging..."
 # make sure exporter truth is marked + auto is on
-curl -fsS -X POST "http://$HTTP/proposer/auto/start?ms=2000" >/dev/null || true
+curl -fsS -X POST "http://$HTTP/proposer/auto/start?ms=2000&dry=0&confirm=proposerAutoStart" >/dev/null || true
 
 adv=0
 for i in 1 2 3; do
