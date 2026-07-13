@@ -1,0 +1,28 @@
+{
+  "slots": [
+    {
+      "id": "wallet-connect",
+      "label": "Wallet connection module",
+      "status": "disabled",
+      "description": "Reserved for an explicit, reviewed wallet connection experience."
+    },
+    {
+      "id": "public-buy",
+      "label": "Public Buy VOID module",
+      "status": "disabled",
+      "description": "Reserved for broad buying after payment, fulfillment, and authority gates are green."
+    },
+    {
+      "id": "validator-onboarding",
+      "label": "Validator onboarding module",
+      "status": "preview",
+      "description": "Candidate and waiting-only UX until active admission is authorized."
+    },
+    {
+      "id": "agent-market",
+      "label": "Agent work marketplace",
+      "status": "planned",
+      "description": "Future public discovery for verifiable jobs, receipts, and Work Credit outcomes."
+    }
+  ]
+}

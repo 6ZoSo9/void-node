@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "sourcePrototype": "VOID Public UI Lab v5",
+  "sourceSha256": "fa92812a059cb2f4b614f5e161e9f91ef1472fb9a720dc7f2d12260b68a80446",
+  "targetRepository": "6ZoSo9/void-node",
+  "targetPath": "docs/public/void-public-gateway-foundation-v1",
+  "integrationBox": "Precision",
+  "runtimeImpact": "none",
+  "routeChanges": [],
+  "sourceChanges": [],
+  "forbiddenInThisPR": [
+    "root route replacement",
+    "participant route replacement",
+    "public-node route replacement",
+    "wallet execution",
+    "ledger writes",
+    "automatic fulfillment",
+    "active validator admission",
+    "operator or admin routes",
+    "private RPC",
+    "signer or secret access"
+  ],
+  "nextPRs": [
+    "public gateway static shell",
+    "read-only runtime adapter",
+    "block explorer",
+    "route and proof discovery",
+    "public mutation-boundary proofs"
+  ]
+}
