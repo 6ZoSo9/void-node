@@ -450,24 +450,11 @@ const router = express.Router();
       const bytes = bytes_actual;
       const ok = (b.ok === false) ? 0 : 1;
 
-      // Explicit WC eligibility gate:
-      // - receipts may still be recorded for diagnostic/non-award flows
-      // - WC only bridges when caller explicitly marks acceptance
-      const wc_eligible = (
-        b?.ok === true ||
-        b?.accepted === true ||
-        b?.verified === true
-      ) ? 1 : 0;
-
-      // WC award policy (v1): if caller didn't provide wc_award, award 1 WC per 4KiB (cap).
-      const wcIn0 = Number(b.wc_award || 0);
-      let wc_award = (Number.isFinite(wcIn0) && wcIn0 >= 0 && wcIn0 <= 1_000_000) ? Math.floor(wcIn0) : 0;
-      if (!wc_award) {
-        const base = Math.floor((bytes_actual || 0) / 4096);
-        wc_award = Math.min(1_000_000, Math.max(0, base));
-        if (wc_eligible === 1 && (bytes_actual || 0) > 0 && wc_award < 1) wc_award = 1;
-      }
-      if (wc_eligible !== 1) wc_award = 0;
+      // VOID_DATANET_RECEIPT_ONLY_NO_WC_MUTATION_V1
+      // Public receipt ingestion records validated DataNet evidence only.
+      // Caller-controlled ok/accepted/verified/wc_award fields never authorize WC issuance.
+      const wc_eligible = 0;
+      const wc_award = 0;
 
       const now = Date.now();
       const rec = {
@@ -490,69 +477,8 @@ const router = express.Router();
         wc_award,
       };
 
-      // Bridge DataNet receipt WC into the canonical wc_v1 ledger consumed by /wc/*
-      try {
-        if (wc_eligible === 1 && Number.isFinite(wc_award) && wc_award > 0 && account) {
-          const wcDir2 = path.join(baseDir, "wc_v1");
-          const ledgerFile2 = path.join(wcDir2, "ledger.jsonl");
-          fs.mkdirSync(wcDir2, { recursive: true });
-
-          const dedupeKey = [
-            String(account),
-            String(rootIn),
-            String(leafIn),
-            String(idxIn),
-            String(plain_sha ? plain_sha.toLowerCase() : "")
-          ].join(":");
-
-          let alreadyCredited = false;
-          try {
-            if (fs.existsSync(ledgerFile2)) {
-              const prior = String(fs.readFileSync(ledgerFile2, "utf8") || "").split("\n");
-              for (const line of prior) {
-                const t = String(line || "").trim();
-                if (!t) continue;
-                try {
-                  const j = JSON.parse(t);
-                  if (String(j?.kind || "") !== "credit") continue;
-                  if (String(j?.account || j?.who || j?.owner || "") !== String(account)) continue;
-
-                  const priorKey = String(
-                    j?.dedupe_key || [
-                      String(j?.account || ""),
-                      String(j?.root || ""),
-                      String(j?.leaf || ""),
-                      String(j?.index ?? ""),
-                      String(j?.plain_sha256 || "")
-                    ].join(":")
-                  );
-
-                  if (priorKey === dedupeKey) { alreadyCredited = true; break; }
-                } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-8", err); }
-              }
-            }
-          } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-9", err); }
-
-          if (!alreadyCredited) {
-            const evt = {
-              kind: "credit",
-              account: String(account),
-              who: String(account),
-              delta: Math.floor(Number(wc_award) || 0),
-              reason: "datanet_receipt",
-              job_id: null,
-              receipt_id: String(rec.id),
-              root: String(rootIn),
-              leaf: String(leafIn),
-              index: Number(idxIn),
-              plain_sha256: String(plain_sha ? plain_sha.toLowerCase() : ""),
-              dedupe_key: dedupeKey,
-              ts_ms: now,
-            };
-            fs.appendFileSync(ledgerFile2, JSON.stringify(evt) + "\n");
-          }
-        }
-      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-10", err); }
+      // VOID_DATANET_RECEIPT_WC_BRIDGE_DISABLED_V1
+      // Receipt ingestion is evidence-only. No WC ledger mutation path exists here.
 
       const __m = __datanetReceiptsMetricsV1();
       __m.post_total++;
