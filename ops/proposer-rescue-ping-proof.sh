@@ -29,7 +29,7 @@ for i in $(seq 1 12); do
   if [ "$MP" = "0" ] && [ "$QS" = "0" ]; then
     break
   fi
-  curl -fsS -X POST "$BASE/__void/rescue/proposer/seal-now" || true
+  curl -fsS -X POST "$BASE/__void/rescue/proposer/seal-now?dry=0&confirm=proposerSealOnce" || true
   sleep 1
 done
 
@@ -130,7 +130,7 @@ if [ "$SKIP_SEAL" = "1" ]; then
   echo "sealed_taken=$SEALED_TAKEN"
 else
   SEAL_JSON="$(mktemp)"
-  post_json_to_file "$BASE/__void/rescue/proposer/seal-now" "$SEAL_JSON"
+  post_json_to_file "$BASE/__void/rescue/proposer/seal-now?dry=0&confirm=proposerSealOnce" "$SEAL_JSON"
   cat "$SEAL_JSON"; echo
 
   SEALED_NUMBER="$(python3 - "$SEAL_JSON" <<'PY'

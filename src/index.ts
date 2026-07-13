@@ -19431,59 +19431,172 @@ void_ready_exporter_timestamp_ms ${now}
       });
     });
 
-    app.post('/proposer/tick', async (req:any,res:any)=>{
-  /* [tick.stacktop.v4] */
-  const G:any = globalThis as any;
-  try {
-    const r:any = await sealOnce();
-    return res.json(r);
-  } catch (e:any) {
-    const msg = String(e?.message || e || "");
-    let top = "";
-    try {
-      const st = String(e?.stack || "");
-      if (st) top = st.split("\\n").slice(0, 25).join("\\n");
-    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18955:4", err); }
+    const proposerSealOncePathsV1 = [
+      "/proposer/tick",
+      "/proposer/seal-now",
+      "/dev/proposer/seal",
+      "/__void/rescue/proposer/seal-now",
+      "/__void/rescue/proposer/tick",
+    ];
 
-    const is_stack = msg.includes("Maximum call stack");
+    function proposerSealDryStatusV1(req:any) {
+      const n = getNode();
+      const mem =
+        n &&
+        n.mempool &&
+        Array.isArray(n.mempool.txs)
+          ? n.mempool.txs
+          : null;
 
-    // throttled journald log (once/5s)
-    try {
-      if (is_stack) {
-        const now = Date.now();
-        const last = Number(G.__void_tick_last_stacklog_ms || 0);
-        if (!last || (now - last) > 5000) {
-          G.__void_tick_last_stacklog_ms = now;
-          console.error("[proposer.tick] " + msg);
-          if (top) console.error("[proposer.tick] stack_top:\n" + top.slice(0, 12000));
+      return {
+        ok:true,
+        dry:true,
+        route:String(req?.path || req?.url || ""),
+        sealOnceAvailable:true,
+        mempoolAvailable:Array.isArray(mem),
+        mempoolLength:Array.isArray(mem) ? mem.length : null,
+        auto:Boolean(autoTimer),
+        lastSeal,
+      };
+    }
+
+    async function runProposerSealOnceV1(
+      _req:any,
+      res:any,
+    ) {
+      const G:any = globalThis as any;
+      try {
+        const r:any = await sealOnce();
+        return res.json(r);
+      } catch (e:any) {
+        const msg = String(e?.message || e || "");
+        let top = "";
+        try {
+          const st = String(e?.stack || "");
+          if (st) {
+            top = st
+              .split("\\n")
+              .slice(0, 25)
+              .join("\\n");
+          }
+        } catch (err) {
+          voidIndexEmptyCatchVisibilityWindow18901_19800V1(
+            "proposer-seal-once:stack:v1",
+            err,
+          );
         }
+
+        const is_stack = msg.includes(
+          "Maximum call stack",
+        );
+
+        try {
+          if (is_stack) {
+            const now = Date.now();
+            const last = Number(
+              G.__void_tick_last_stacklog_ms || 0,
+            );
+            if (!last || now - last > 5000) {
+              G.__void_tick_last_stacklog_ms = now;
+              console.error("[proposer.tick] " + msg);
+              if (top) {
+                console.error(
+                  "[proposer.tick] stack_top:\\n" +
+                  top.slice(0, 12000),
+                );
+              }
+            }
+          }
+        } catch (err) {
+          voidIndexEmptyCatchVisibilityWindow18901_19800V1(
+            "proposer-seal-once:log:v1",
+            err,
+          );
+        }
+
+        const out:any = {
+          ok:false,
+          taken:0,
+          reason:msg,
+        };
+        if (is_stack && top) out.stack_top = top;
+        return res.status(500).json(out);
       }
-    } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("18970:5", err); }
+    }
 
-    const out:any = { ok:false, taken:0, reason: msg };
-    if (is_stack && top) out.stack_top = top;
-    return res.status(500).json(out);
-  }
-});
+    // [VOID_PROPOSER_SEAL_ONCE_MUTATION_METHOD_CONFIRMATION_GUARD_V1]
+    for (const path of proposerSealOncePathsV1) {
+      app.get(path, async (req:any, res:any) => {
+        const dry = String(
+          req?.query?.dry ??
+          req?.body?.dry ??
+          "1",
+        ) !== "0";
 
-    app.post('/proposer/seal-now', async (req:any,res:any)=>{
-      const r = await sealOnce(); res.json(r);
-    });
+        if (!dry) {
+          res.setHeader("Allow", "GET, POST");
+          return res.status(405).json({
+            ok:false,
+            error:"mutation_requires_post",
+            dry:false,
+            method:"GET",
+            requiredMethod:"POST",
+          });
+        }
+
+        return res.json(
+          proposerSealDryStatusV1(req),
+        );
+      });
+
+      app.post(path, async (req:any, res:any) => {
+        const dry = String(
+          req?.query?.dry ??
+          req?.body?.dry ??
+          "1",
+        ) !== "0";
+
+        if (dry) {
+          return res.json(
+            proposerSealDryStatusV1(req),
+          );
+        }
+
+        const confirmation = String(
+          req?.query?.confirm ??
+          req?.body?.confirm ??
+          "",
+        );
+
+        if (confirmation !== "proposerSealOnce") {
+          return res.status(428).json({
+            ok:false,
+            error:"explicit_confirmation_required",
+            dry:false,
+            method:"POST",
+            requiredConfirmation:"proposerSealOnce",
+          });
+        }
+
+        return runProposerSealOnceV1(req, res);
+      });
+    }
 
     app.post('/proposer/auto/start', (req:any,res:any)=>{
-      const ms = (req.query?.ms ? Number(req.query.ms) : Number(process.env.PROPOSER_TICK_MS || 2000)) || 2000;
+      const ms =
+        (
+          req.query?.ms
+            ? Number(req.query.ms)
+            : Number(process.env.PROPOSER_TICK_MS || 2000)
+        ) || 2000;
       startAutoLoop(ms);
       res.json({ ok:true, auto:true, ms });
     });
 
-    app.post('/proposer/auto/stop', (req:any,res:any)=>{
-      stopAutoLoop(); res.json({ ok:true, auto:false });
+    app.post('/proposer/auto/stop', (_req:any,res:any)=>{
+      stopAutoLoop();
+      res.json({ ok:true, auto:false });
     });
-
-    // Optional rescue aliases that do not collide with older proposer mounts
-    app.get('/dev/proposer/seal', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
-    app.post('/__void/rescue/proposer/seal-now', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
-    app.post('/__void/rescue/proposer/tick', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
 
     attached = true;
 
@@ -20474,7 +20587,7 @@ void_header3_last_mismatch ${lastMismatch}
     try {
       const G:any = globalThis as any;
       const port = String(process.env.HTTP_PORT || "4100");
-      const r:any = await fetch("http://127.0.0.1:" + port + "/proposer/tick", { method:"POST" }).catch(()=>null);
+      const r:any = await fetch("http://127.0.0.1:" + port + "/proposer/tick?dry=0&confirm=proposerSealOnce", { method:"POST" }).catch(()=>null);
       const j:any = r ? await r.json().catch(()=>null) : null;
       try {
         G.__void_proposer_auto = G.__void_proposer_auto || {};
@@ -31884,7 +31997,7 @@ try {
 
   async function doTick(){
     const port = String(process.env.HTTP_PORT || "4100");
-    const url = `http://127.0.0.1:${port}/proposer/tick`;
+    const url = `http://127.0.0.1:${port}/proposer/tick?dry=0&confirm=proposerSealOnce`;
     STATE.lastTickTs = Date.now();
     try {
       const r = await fetch(url, { method: "POST" } as any);

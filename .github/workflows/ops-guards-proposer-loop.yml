@@ -34,3 +34,5 @@ jobs:
 
       - name: Prove dev pick mutation method and confirmation guard
         run: npx tsx scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts
+      - name: Prove proposer sealOnce mutation guard
+        run: npx tsx scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts
