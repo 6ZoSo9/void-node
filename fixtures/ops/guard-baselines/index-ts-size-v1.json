@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "baseline after adding Work Credits mutation containment v1: loopback-only, dry-by-default, explicit-confirmation-gated WC and job mutation routes; caller-controlled DataNet receipt WC issuance removed; no WC activation, backfill, transfer, redemption, WC-to-VOID settlement, or Buy VOID fulfillment",
+  "reason": "Updated for deny-by-default manual Work Credits production canary v1: exact account, dataset and input hash allowlist; fixed 1 WC award; one-award account/global caps; separate canary ledger.",
   "path": "src/index.ts",
-  "baseline_bytes": 3813707,
+  "baseline_bytes": 3819278,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
