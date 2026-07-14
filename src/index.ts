@@ -63685,73 +63685,207 @@ a{color:#93c5fd;text-decoration:none}
     return out;
   }
 
-  function wcLedgerFile(){
-    const path = require("node:path");
-    return path.join(dataDir(), "wc_v1", "ledger.jsonl");
+  const WC_PRODUCTION_CANARY_MARKER = "VOID_WC_PRODUCTION_CANARY_V1";
+  const WC_PRODUCTION_CANARY_MANUAL_ONLY = true;
+  const WC_PRODUCTION_CANARY_TASK_CLASS = "datanet_fetch_verify";
+  const WC_PRODUCTION_CANARY_FIXED_AWARD_WC = 1;
+  const WC_PRODUCTION_CANARY_PER_ACCOUNT_AWARD_CAP = 1;
+  const WC_PRODUCTION_CANARY_GLOBAL_AWARD_CAP = 1;
+
+  function wcProductionCanaryEnabled(){
+    return String(process.env.VOID_WC_PRODUCTION_CANARY_ENABLED || "") === "1";
   }
 
-  function ensureWcLedgerDir(){
+  function wcProductionCanaryAccount(){
+    return safeStr(process.env.VOID_WC_PRODUCTION_CANARY_ACCOUNT || "", 128);
+  }
+
+  function wcProductionCanaryDatasetId(){
+    return safeStr(process.env.VOID_WC_PRODUCTION_CANARY_DATASET_ID || "", 160);
+  }
+
+  function wcProductionCanaryInputSha256(){
+    const raw = safeStr(process.env.VOID_WC_PRODUCTION_CANARY_INPUT_SHA256 || "", 64).toLowerCase();
+    return /^[0-9a-f]{64}$/.test(raw) ? raw : "";
+  }
+
+  function wcProductionCanaryLedgerFile(){
+    const path = require("node:path");
+    return path.join(dataDir(), "wc_v1", "production-canary-ledger-v1.jsonl");
+  }
+
+  function ensureWcProductionCanaryLedgerDir(){
     const fs = require("node:fs");
     const path = require("node:path");
-    fs.mkdirSync(path.dirname(wcLedgerFile()), { recursive:true });
+    fs.mkdirSync(path.dirname(wcProductionCanaryLedgerFile()), { recursive:true });
   }
 
-  function workerReceiptReward(receipt:any){
-    const kind = String(receipt?.kind || "").toLowerCase();
-    if (kind.includes("redundancy_check")) return 2;
-    if (kind.includes("fetch_verify") || kind.includes("verify")) return 3;
-    if (kind.includes("publish")) return 10;
-    if (kind.includes("datanet")) return 10;
-    return 1;
-  }
+  function wcProductionCanaryLedgerState(){
+    const entries:any[] = [];
+    let malformed = 0;
+    let unexpected = 0;
 
-  function workerAlreadyCredited(account:string, jobId:string, receiptId:string){
-    const file = wcLedgerFile();
-    for (const line of readLines(file)) {
+    for (const line of readLines(wcProductionCanaryLedgerFile())) {
       try {
         const j:any = JSON.parse(line);
-        if (String(j?.kind || "") !== "credit") continue;
-        if (account && String(j?.account || "") !== account) continue;
-        if (jobId && String(j?.job_id || "") === jobId) return true;
-        if (receiptId && String(j?.receipt_id || "") === receiptId) return true;
-      } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63363:61", err); }
+        const valid =
+          String(j?.kind || "") === "credit" &&
+          String(j?.reason || "") === "wc_production_canary_v1" &&
+          Number(j?.delta) === WC_PRODUCTION_CANARY_FIXED_AWARD_WC &&
+          String(j?.reward_meta?.source || "") === "wc_production_canary_v1";
+
+        if (!valid) {
+          unexpected += 1;
+          continue;
+        }
+        entries.push(j);
+      } catch {
+        malformed += 1;
+      }
     }
-    return false;
+
+    return { entries, malformed, unexpected };
+  }
+
+  function wcProductionCanaryAccountHash(account:string){
+    if (!account) return null;
+    const crypto = require("node:crypto");
+    return crypto.createHash("sha256").update(account, "utf8").digest("hex");
+  }
+
+  function setWcProductionCanaryDecision(decision:any){
+    G[MARK].last_credit_decision = {
+      marker: WC_PRODUCTION_CANARY_MARKER,
+      at_ms: Date.now(),
+      manual_only: WC_PRODUCTION_CANARY_MANUAL_ONLY,
+      ...decision
+    };
   }
 
   function creditWorkerReceiptOnce(receipt:any){
     const fs = require("node:fs");
-    ensureWcLedgerDir();
 
-    const account = safeStr(receipt?.account || receipt?.who || "zoso", 128) || "zoso";
+    if (!wcProductionCanaryEnabled()) {
+      setWcProductionCanaryDecision({ credited:false, reason:"canary_disabled" });
+      return null;
+    }
+
+    const configuredAccount = wcProductionCanaryAccount();
+    const configuredDatasetId = wcProductionCanaryDatasetId();
+    const configuredInputSha256 = wcProductionCanaryInputSha256();
+
+    if (!configuredAccount || !configuredDatasetId || !configuredInputSha256) {
+      setWcProductionCanaryDecision({ credited:false, reason:"canary_configuration_incomplete" });
+      return null;
+    }
+
+    const account = safeStr(receipt?.account || receipt?.who || "", 128);
     const jobId = safeStr(receipt?.job_id || "", 160);
-    const receiptId = safeStr(receipt?.receipt_id || receipt?.id || jobId, 180);
-    if (!receiptId) return null;
+    const receiptId = safeStr(receipt?.receipt_id || receipt?.id || "", 180);
+    const kind = String(receipt?.kind || "").trim();
+    const status = String(receipt?.status || "").trim().toLowerCase();
+    const datasetId = safeStr(receipt?.dataset_id || "", 160);
+    const inputHash = safeStr(receipt?.input_hash || "", 64).toLowerCase();
+    const fetchedInputHash = safeStr(receipt?.output?.fetched_input_hash || "", 64).toLowerCase();
+    const outputHash = safeStr(receipt?.output_hash || "", 128);
 
-    const status = String(receipt?.status || "").toLowerCase();
-    if (status && !/ok|success|credited|complete|done/.test(status)) return null;
-    if (workerAlreadyCredited(account, jobId, receiptId)) return null;
+    const deny = (reason:string) => {
+      setWcProductionCanaryDecision({
+        credited:false,
+        reason,
+        account_match: account === configuredAccount,
+        dataset_match: datasetId === configuredDatasetId,
+        input_hash_match: inputHash === configuredInputSha256,
+        task_class: kind || null,
+        job_id: jobId || null,
+        receipt_id: receiptId || null
+      });
+      return null;
+    };
 
-    const delta = Math.max(1, Number(receipt?.wc_award || receipt?.delta || workerReceiptReward(receipt)) || 1);
+    if (account !== configuredAccount) return deny("account_not_allowlisted");
+    if (kind !== WC_PRODUCTION_CANARY_TASK_CLASS) return deny("task_class_not_allowlisted");
+    if (status !== "completed") return deny("receipt_not_completed");
+    if (datasetId !== configuredDatasetId) return deny("dataset_not_allowlisted");
+    if (inputHash !== configuredInputSha256) return deny("input_hash_not_allowlisted");
+    if (receipt?.output?.verified !== true) return deny("receipt_output_not_verified");
+    if (!fetchedInputHash || fetchedInputHash !== inputHash) return deny("verified_input_hash_mismatch");
+    if (!jobId || !receiptId || !outputHash) return deny("receipt_truth_incomplete");
+
+    const job:any = latestJobById(jobId);
+    if (!job) return deny("job_truth_missing");
+    if (safeStr(job?.account || "", 128) !== configuredAccount) return deny("job_account_mismatch");
+    if (String(job?.kind || "") !== WC_PRODUCTION_CANARY_TASK_CLASS) return deny("job_task_class_mismatch");
+    if (safeStr(job?.dataset_id || job?.selected_dataset_id || "", 160) !== configuredDatasetId) {
+      return deny("job_dataset_mismatch");
+    }
+    if (!hasCompletedTruth(jobId)) return deny("job_not_completed");
+
+    const state = wcProductionCanaryLedgerState();
+    if (state.malformed > 0) return deny("canary_ledger_malformed");
+    if (state.unexpected > 0) return deny("canary_ledger_unexpected_entry");
+
+    for (const entry of state.entries) {
+      if (String(entry?.job_id || "") === jobId) return deny("duplicate_job");
+      if (String(entry?.receipt_id || "") === receiptId) return deny("duplicate_receipt");
+    }
+
+    const accountAwards = state.entries.filter(
+      (entry:any) => String(entry?.account || "") === configuredAccount
+    ).length;
+
+    if (state.entries.length >= WC_PRODUCTION_CANARY_GLOBAL_AWARD_CAP) {
+      return deny("global_award_cap_reached");
+    }
+    if (accountAwards >= WC_PRODUCTION_CANARY_PER_ACCOUNT_AWARD_CAP) {
+      return deny("account_award_cap_reached");
+    }
+
+    ensureWcProductionCanaryLedgerDir();
+
     const entry:any = {
       kind: "credit",
-      account,
-      delta,
+      account: configuredAccount,
+      delta: WC_PRODUCTION_CANARY_FIXED_AWARD_WC,
       ts_ms: Number(receipt?.ts_ms || Date.now()),
-      reason: "receipt_auto_credit",
-      receipt_kind: String(receipt?.kind || "unknown"),
+      reason: "wc_production_canary_v1",
+      receipt_kind: WC_PRODUCTION_CANARY_TASK_CLASS,
       receipt_id: receiptId,
-      job_id: jobId || null,
+      job_id: jobId,
+      dataset_id: configuredDatasetId,
+      input_hash: configuredInputSha256,
+      output_hash: outputHash,
       reward_meta: {
-        source: "earn_run_once_worker_credit_v1",
-        bounded_one_shot: true,
+        source: "wc_production_canary_v1",
+        manual_only: WC_PRODUCTION_CANARY_MANUAL_ONLY,
+        fixed_award_wc: WC_PRODUCTION_CANARY_FIXED_AWARD_WC,
+        per_account_award_cap: WC_PRODUCTION_CANARY_PER_ACCOUNT_AWARD_CAP,
+        global_award_cap: WC_PRODUCTION_CANARY_GLOBAL_AWARD_CAP,
         policy: "useful_verifiable_only"
       }
     };
 
-    fs.appendFileSync(wcLedgerFile(), JSON.stringify(entry) + "\n");
+    fs.appendFileSync(
+      wcProductionCanaryLedgerFile(),
+      JSON.stringify(entry) + "\n",
+      { encoding:"utf8", flag:"a" }
+    );
+
+    setWcProductionCanaryDecision({
+      credited:true,
+      reason:"credited",
+      account_match:true,
+      dataset_match:true,
+      input_hash_match:true,
+      task_class:WC_PRODUCTION_CANARY_TASK_CLASS,
+      job_id:jobId,
+      receipt_id:receiptId,
+      delta:WC_PRODUCTION_CANARY_FIXED_AWARD_WC
+    });
+
     return entry;
   }
+
 
   function completedTruthCache(){
     const st:any = G[MARK].completed_truth_v1 || (G[MARK].completed_truth_v1 = {
@@ -64145,6 +64279,47 @@ a{color:#93c5fd;text-decoration:none}
     G[MARK].installed = true;
     ensureExpressJson(app);
     ensureDirs();
+
+    app.get("/__void/diag/wc-production-canary-v1.json", (_req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        const configuredAccount = wcProductionCanaryAccount();
+        const configuredDatasetId = wcProductionCanaryDatasetId();
+        const configuredInputSha256 = wcProductionCanaryInputSha256();
+        const state = wcProductionCanaryLedgerState();
+
+        return res.json({
+          ok:true,
+          marker:WC_PRODUCTION_CANARY_MARKER,
+          enabled:wcProductionCanaryEnabled(),
+          manual_only:WC_PRODUCTION_CANARY_MANUAL_ONLY,
+          configured:
+            !!configuredAccount &&
+            !!configuredDatasetId &&
+            !!configuredInputSha256,
+          account_configured:!!configuredAccount,
+          account_sha256:wcProductionCanaryAccountHash(configuredAccount),
+          dataset_id:configuredDatasetId || null,
+          input_sha256:configuredInputSha256 || null,
+          task_class:WC_PRODUCTION_CANARY_TASK_CLASS,
+          fixed_award_wc:WC_PRODUCTION_CANARY_FIXED_AWARD_WC,
+          per_account_award_cap:WC_PRODUCTION_CANARY_PER_ACCOUNT_AWARD_CAP,
+          global_award_cap:WC_PRODUCTION_CANARY_GLOBAL_AWARD_CAP,
+          ledger_file:wcProductionCanaryLedgerFile(),
+          ledger_exists:fs.existsSync(wcProductionCanaryLedgerFile()),
+          awards_total:state.entries.length,
+          malformed_entries:state.malformed,
+          unexpected_entries:state.unexpected,
+          last_credit_decision:G[MARK].last_credit_decision || null,
+          automatic_runner_activation:false,
+          generic_credit_route:false,
+          wc_to_void:false,
+          money_movement:false
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
 
     app.post("/__void/jobs-and-datanet-worker/run-once", async (req:any, res:any) => {
       try {
