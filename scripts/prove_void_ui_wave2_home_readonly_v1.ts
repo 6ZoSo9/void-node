@@ -43,6 +43,7 @@ for (const file of [
   "ADAPTER_CONTRACT.md",
   "ACCEPTANCE_CRITERIA.md",
   "VISUAL_APPROVAL.md",
+  "READINESS_HONESTY.md",
   "source-manifest.json",
 ]) {
   if (!fs.existsSync(path.join(docsDir, file))) {
@@ -280,6 +281,84 @@ for (const [relative, expected] of Object.entries(repositoryHashes)) {
 
   if (actual !== expected) {
     fail(`Wave 2 repository hash mismatch: ${relative}`);
+  }
+}
+
+const readinessModule = read(
+  path.join(root, "src/ui/void_app_wave2_home_readonly_v1.ts")
+);
+
+for (const marker of [
+  "const operationalReady =",
+  "readyBody.ready === true",
+  "readyBody.txroot_live === 1",
+  "readyReasons.length === 0",
+  'health: operationalReady ? "healthy" : "degraded"',
+  "ready: operationalReady",
+]) {
+  if (!readinessModule.includes(marker)) {
+    fail(`Wave 2.1 readiness honesty source marker missing: ${marker}`);
+  }
+}
+
+const readinessClient = read(
+  path.join(root, "public/void-app-wave1-v1/assets/js/home-live.js")
+);
+
+for (const marker of [
+  "const ready = network.ready === true;",
+  "operational readiness is degraded",
+  "data-home-ready-value",
+]) {
+  if (!readinessClient.includes(marker)) {
+    fail(`Wave 2.1 readiness client marker missing: ${marker}`);
+  }
+}
+
+const readinessDoc = read(
+  path.join(docsDir, "READINESS_HONESTY.md")
+);
+
+for (const marker of [
+  "txroot_live === 1",
+  "reasons` is empty",
+  "No source route was added or removed",
+]) {
+  if (!readinessDoc.includes(marker)) {
+    fail(`Wave 2.1 readiness documentation marker missing: ${marker}`);
+  }
+}
+
+const readinessApprovalManifest = JSON.parse(
+  read(path.join(docsDir, "source-manifest.json"))
+);
+
+const readinessApproval =
+  readinessApprovalManifest.wave2_1_readiness_honesty?.visual_approval;
+
+if (
+  readinessApproval?.approved !== true ||
+  readinessApproval?.approved_by !== "ZoSo" ||
+  readinessApproval?.surface !== "/app/#/home" ||
+  readinessApproval?.source_node !== "Nimo" ||
+  readinessApproval?.expected_summary_health !== "degraded" ||
+  readinessApproval?.expected_summary_ready !== false
+) {
+  fail("Wave 2.1 visual approval provenance is missing or incorrect");
+}
+
+const readinessApprovalDoc = read(
+  path.join(docsDir, "READINESS_HONESTY.md")
+);
+
+for (const marker of [
+  "Approved for staging and PR preparation",
+  "looks good",
+  "Network: DEGRADED",
+  "Readiness: Not ready",
+]) {
+  if (!readinessApprovalDoc.includes(marker)) {
+    fail(`Wave 2.1 visual approval evidence missing: ${marker}`);
   }
 }
 console.log("VOID_UI_WAVE2_HOME_READONLY_V1_GREEN");

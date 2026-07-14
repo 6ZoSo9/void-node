@@ -65,12 +65,13 @@ const applySnapshot = (snapshot) => {
   const sources = snapshot.sources || {};
 
   const healthy = network.health === 'healthy';
+  const ready = network.ready === true;
   const meshAligned = network.peer_count === network.expected_peer_count;
 
   setChip(
     document.querySelector('[data-home-state-chip]'),
-    healthy ? 'positive' : 'warning',
-    healthy ? 'Node ready' : 'Node degraded'
+    ready ? 'positive' : 'warning',
+    ready ? 'Node ready' : 'Node degraded'
   );
 
   setText(
@@ -79,9 +80,11 @@ const applySnapshot = (snapshot) => {
   );
   setText(
     '[data-home-summary]',
-    account.selected
-      ? 'Live network and account context are available through read-only adapters.'
-      : 'The node is live. Wallet and Work Credit values remain hidden until an account is deliberately selected.'
+    ready
+      ? account.selected
+        ? 'Live network and account context are available through read-only adapters.'
+        : 'The node is ready. Wallet and Work Credit values remain hidden until an account is deliberately selected.'
+      : 'The node is reachable, but operational readiness is degraded. Wallet and Work Credit values remain hidden.'
   );
 
   setText('[data-home-network-state]', healthy ? 'HEALTHY' : 'DEGRADED');
@@ -107,7 +110,7 @@ const applySnapshot = (snapshot) => {
   );
   setText(
     '[data-home-ready-value]',
-    sources.ready?.status === 200 ? 'Ready' : 'Not ready'
+    ready ? 'Ready' : 'Not ready'
   );
   setText(
     '[data-home-peers-value]',
@@ -125,7 +128,7 @@ const applySnapshot = (snapshot) => {
   setText('[data-node-footer-name]', node.label || node.hostname || 'Local node');
   setText(
     '[data-node-footer-meta]',
-    `${sources.ready?.status === 200 ? 'Ready' : 'Not ready'} · ${network.peer_count ?? 0} peers`
+    `${ready ? 'Ready' : 'Not ready'} · ${network.peer_count ?? 0} peers`
   );
 
   const headerDot = document.querySelector('[data-network-context-dot]');

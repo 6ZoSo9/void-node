@@ -39,17 +39,18 @@
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "f8a52fe3da975bc03bd2f612462436456b662731cbb30bfc25c50d75c8fcf0bb",
     "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
+    "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
     "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
     "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "dd0e1b525943f1e016ab21e66abcfb209ad6caa1c57904cc0b569e41c9b56fdb",
     "public/void-app-wave1-v1/assets/css/views.css": "6ce482ad695100dba45eaaadc0bb851e65e5dbec110ea6192461269356bb809a",
-    "public/void-app-wave1-v1/assets/js/home-live.js": "26a7bbf35f4716a409ed586c79759f711d958864913fd008d8352ed27f35800e",
+    "public/void-app-wave1-v1/assets/js/home-live.js": "c8a8e8a27afead045d3c9dbf62564143c1cd0a17ca2d4785c312764042c2453a",
     "public/void-app-wave1-v1/assets/js/views.js": "e3a4c3b7ab016c9b329bbd84b83715c99e3cc5bd7a3f49613c6d240d9d06a1ce",
     "public/void-app-wave1-v1/index.html": "0de3e9c84fcb8d77fc1019f5cef37d9d4d0b5b4de6feb0565de245ef22ae045f",
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "f0b7b3e148a5240f96407083dc53f60de2b32171e84335cd33a6ad4a5ec552cd",
     "src/index.ts": "ef66044c92d6c25d781822c89b11020bc5a838982f9249613a14b8ca59af0f53",
     "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
-    "src/ui/void_app_wave2_home_readonly_v1.ts": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "8d955a2e0ab0e3b60a4029cf307a8462a9bf0ce4522e287cd434d56e793485dc"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
   "repository_hashes_refreshed_date": "2026-07-14",
@@ -63,5 +64,29 @@
     "resolution": "Removed the server-side browser cache option and added the explicit Cache-Control: no-store request header. The browser Home client retains its own cache: no-store option.",
     "module": "src/ui/void_app_wave2_home_readonly_v1.ts",
     "module_sha256": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+  },
+  "wave2_1_readiness_honesty": {
+    "applied": true,
+    "date": "2026-07-14",
+    "branch": "fix/void-ui-wave2-1-readiness-honesty-v1",
+    "summary_ready_requires": {
+      "all_source_http_200": true,
+      "raw_ready_true": true,
+      "txroot_live": 1,
+      "empty_reasons": true
+    },
+    "raw_source_payload_preserved": true,
+    "authority_added": false,
+    "visual_approval": {
+      "approved": true,
+      "approved_by": "ZoSo",
+      "approved_date": "2026-07-14",
+      "surface": "/app/#/home",
+      "source_node": "Nimo",
+      "expected_summary_health": "degraded",
+      "expected_summary_ready": false,
+      "receipt": "/home/zoso/void-precision-smoke/void-ui-wave2-home-visual-20260714T204351Z.txt",
+      "receipt_sha256": "6386c4c84838a0a4a5baab67362fd3bb146e0e3c8ff2810c3e357fe39581d3c2"
+    }
   }
 }

@@ -213,11 +213,31 @@ if (!G[INSTALL_MARK]) {
       fetchJson(base, "/p2p/peers"),
     ]);
 
-    const isReady =
+    const sourceAvailability =
       health.status === 200 &&
       ready.status === 200 &&
       head.status === 200 &&
       peers.status === 200;
+
+    const readyBody =
+      ready.body !== null &&
+      typeof ready.body === "object" &&
+      !Array.isArray(ready.body)
+        ? (ready.body as Record<string, unknown>)
+        : {};
+
+    const readyReasons = Array.isArray(readyBody.reasons)
+      ? readyBody.reasons.filter(
+          (reason): reason is string =>
+            typeof reason === "string" && reason.length > 0
+        )
+      : [];
+
+    const operationalReady =
+      sourceAvailability &&
+      readyBody.ready === true &&
+      readyBody.txroot_live === 1 &&
+      readyReasons.length === 0;
 
     return {
       ok: true,
@@ -228,8 +248,8 @@ if (!G[INSTALL_MARK]) {
       source_base: base,
       node: nodeIdentity(),
       network: {
-        health: isReady ? "healthy" : "degraded",
-        ready: ready.status === 200,
+        health: operationalReady ? "healthy" : "degraded",
+        ready: operationalReady,
         chain_head: chainHead(head.body),
         peer_count: peerCount(peers.body),
         expected_peer_count: 2,
