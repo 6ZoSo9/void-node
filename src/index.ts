@@ -43969,39 +43969,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     G[MARK].installed = true;
     ensureExpressJson(app);
 
-    app.post("/wc/credit", (req:any, res:any) => {
-      try {
-        const account = safeAccount(req.body?.account);
-        const delta = Number(req.body?.delta);
-        const reason = safeReason(req.body?.reason || "manual_credit");
-        const jobId = safeId(req.body?.job_id);
-        const receiptId = safeId(req.body?.receipt_id);
-
-        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
-        if (!(Number.isFinite(delta) && delta > 0)) return res.status(400).json({ ok:false, error:"invalid_delta" });
-
-        if ((jobId || receiptId) && hasCreditForJob(account, jobId, receiptId)) {
-          const bal = balanceOf(account);
-          return res.json({ ok:true, dedup:true, account, balance: bal.balance, count: bal.count });
-        }
-
-        const evt = {
-          kind: "credit",
-          account,
-          delta,
-          reason,
-          job_id: jobId || null,
-          receipt_id: receiptId || null,
-          ts_ms: nowMs(),
-        };
-        appendJsonl(ledgerFile(), evt);
-        const bal = balanceOf(account);
-        return res.json({ ok:true, event: evt, balance: bal.balance, count: bal.count });
-      } catch (e:any) {
-        return res.status(500).json({ ok:false, error:String(e?.message || e) });
-      }
-    });
-
     app.get("/wc/balance", (req:any, res:any) => {
       try {
         const account = safeAccount(req.query?.account);
