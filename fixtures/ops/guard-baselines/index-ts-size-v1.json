@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Updated for deny-by-default manual Work Credits production canary v1: exact account, dataset and input hash allowlist; fixed 1 WC award; one-award account/global caps; separate canary ledger.",
+  "reason": "Updated for read-only Work Credits production visibility v1: separate production balance and ledger GET routes; no legacy balance import, redemption, transfer, automatic earning, WC-to-VOID, or money movement.",
   "path": "src/index.ts",
-  "baseline_bytes": 3819278,
+  "baseline_bytes": 3822881,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
