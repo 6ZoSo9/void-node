@@ -84457,3 +84457,7 @@ function voidIndexEmptyCatchVisibilityWindow59401_78300V1(context: string, err: 
 // === void-app-wave1-foundation-v1-loader BEGIN ===
 require("./ui/void_app_wave1_foundation_v1");
 // === void-app-wave1-foundation-v1-loader END ===
+
+// === void-app-wave2-home-readonly-v1-loader BEGIN ===
+require("./ui/void_app_wave2_home_readonly_v1");
+// === void-app-wave2-home-readonly-v1-loader END ===

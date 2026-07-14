@@ -57,3 +57,21 @@
 .color-token--overlay { background: var(--void-surface-overlay); }
 
 .type-display { font-size: var(--void-text-40); line-height: var(--void-leading-tight); font-weight: 780; letter-spacing: -0.04em; }
+
+
+/* Wave 2 live read-only Home */
+.home-live-grid .hero-actions {
+  align-items: center;
+}
+.home-updated {
+  color: var(--void-text-muted);
+  font-family: var(--void-font-mono);
+  font-size: var(--void-text-11);
+}
+.home-live-grid [data-home-health-value],
+.home-live-grid [data-home-ready-value],
+.home-live-grid [data-home-peers-value],
+.home-live-grid [data-home-head-value],
+.home-live-grid [data-home-mesh-value] {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_UI_WAVE2_HOME_READONLY_SOURCE_V1",
+  "base": "1149c5fe22c6cc4eea7f19d33e19b4fe0aca6262",
+  "branch": "feat/void-ui-wave2-home-readonly-v1",
+  "home_route": "/__void/ui/wave2/home.json",
+  "frontend_fetch_routes": [
+    "/__void/ui/wave2/home.json"
+  ],
+  "source_routes": [
+    "/health",
+    "/__void/ready.json",
+    "/blocks/latest/number2.json",
+    "/p2p/peers"
+  ],
+  "read_only": true,
+  "account_selected": false,
+  "balances_available": false,
+  "route_replacements": [],
+  "mutation_capabilities": [],
+  "payload_sha256": {
+    "home-live.js": "26a7bbf35f4716a409ed586c79759f711d958864913fd008d8352ed27f35800e",
+    "void_app_wave2_home_readonly_v1.ts": "b0bb57d6d17006843ed0592137511d7a7279ab5ea1e6d6faad3819d6dc0848c6",
+    "prove_void_ui_wave2_home_readonly_v1.ts": "7ad6745d0c1bc5e6f2daa25cdafff11769b025899e431d6b76e8f24e795c188f",
+    "home-view-fragment.txt": "93808d3c81349ba0282ec05fbce7227c825b238ca12bb3dbdca13af7d271e719",
+    "README.md": "e56b85934f27cc8020f5d8b81ce62fca49038f04e4abe64805c482d206f9c5ff",
+    "ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
+    "ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3"
+  },
+  "visual_approval": {
+    "approved": true,
+    "approved_by": "ZoSo",
+    "approved_date": "2026-07-14",
+    "surface": "/app/#/home",
+    "receipt": "/home/zoso/void-precision-smoke/void-ui-wave2-home-visual-20260714T180144Z.txt",
+    "receipt_sha256": "964f5d6977702ed3aa60f6dd7416f4845a9b3dd8d4e64cf4cbb9dadeffb237ff"
+  },
+  "payload_hashes_are_source_bundle_only": true,
+  "repository_hashes": {
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "f8a52fe3da975bc03bd2f612462436456b662731cbb30bfc25c50d75c8fcf0bb",
+    "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
+    "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
+    "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
+    "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
+    "fixtures/ops/guard-baselines/index-ts-size-v1.json": "dd0e1b525943f1e016ab21e66abcfb209ad6caa1c57904cc0b569e41c9b56fdb",
+    "public/void-app-wave1-v1/assets/css/views.css": "6ce482ad695100dba45eaaadc0bb851e65e5dbec110ea6192461269356bb809a",
+    "public/void-app-wave1-v1/assets/js/home-live.js": "26a7bbf35f4716a409ed586c79759f711d958864913fd008d8352ed27f35800e",
+    "public/void-app-wave1-v1/assets/js/views.js": "e3a4c3b7ab016c9b329bbd84b83715c99e3cc5bd7a3f49613c6d240d9d06a1ce",
+    "public/void-app-wave1-v1/index.html": "0de3e9c84fcb8d77fc1019f5cef37d9d4d0b5b4de6feb0565de245ef22ae045f",
+    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "f0b7b3e148a5240f96407083dc53f60de2b32171e84335cd33a6ad4a5ec552cd",
+    "src/index.ts": "ef66044c92d6c25d781822c89b11020bc5a838982f9249613a14b8ca59af0f53",
+    "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+  },
+  "repository_hashes_refreshed_after_visual_approval": true,
+  "repository_hashes_refreshed_date": "2026-07-14",
+  "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave2_home_readonly_v1.ts",
+  "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest creates an unstable self-reference. The proof is verified by semantic guards, TypeScript execution, and the terminal green marker.",
+  "repository_hashes_refreshed_after_self_reference_fix": true,
+  "ci_noemit_compatibility_fix": {
+    "date": "2026-07-14",
+    "pr": 611,
+    "failure": "TS2353: RequestInit.cache is not accepted by the repository noEmit type environment",
+    "resolution": "Removed the server-side browser cache option and added the explicit Cache-Control: no-store request header. The browser Home client retains its own cache: no-store option.",
+    "module": "src/ui/void_app_wave2_home_readonly_v1.ts",
+    "module_sha256": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+  }
+}

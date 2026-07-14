@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#07090d">
-  <meta name="description" content="VOID Wave 1 application-shell and design-system review prototype">
-  <title>VOID App Shell — Wave 1 Foundation</title>
+  <meta name="description" content="VOID Wave 2 live read-only Home and unified application shell">
+  <title>VOID App — Read-only Home</title>
   <link rel="stylesheet" href="./assets/css/main.css">
 </head>
 <body>
   <a class="skip-link" href="#app-main">Skip to main content</a>
 
   <div class="prototype-banner" role="status">
-    <span>WAVE 1 FOUNDATION PREVIEW</span>
-    <span>No live data · No feature actions · No route replacement</span>
+    <span>WAVE 2 READ-ONLY HOME</span>
+    <span>Live local truth · no mutations · no route replacement</span>
   </div>
 
   <div class="app-shell" id="app-shell">
@@ -31,9 +31,9 @@
 
       <div class="header-center">
         <button class="context-chip" type="button" data-action="open-network" aria-label="Open network status">
-          <span class="status-dot status-dot--positive" aria-hidden="true"></span>
-          <span class="context-chip__label">Mainnet-0</span>
-          <span class="context-chip__meta">3 nodes · block 1,856,587</span>
+          <span class="status-dot status-dot--warning" data-network-context-dot aria-hidden="true"></span>
+          <span class="context-chip__label" data-network-context-label>Checking network</span>
+          <span class="context-chip__meta" data-network-context-meta>Loading local node truth</span>
         </button>
       </div>
 
@@ -47,10 +47,10 @@
           <span class="indicator" aria-hidden="true"></span>
         </button>
         <button class="account-control" type="button" data-action="open-account" aria-label="Open account menu">
-          <span class="account-avatar" aria-hidden="true">ZS</span>
+          <span class="account-avatar" aria-hidden="true">—</span>
           <span class="account-copy">
-            <strong>ZoSo</strong>
-            <small>0x8c99…bed7</small>
+            <strong>No account</strong>
+            <small>Select in Wallet</small>
           </span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
         </button>
@@ -101,7 +101,7 @@
         </a>
         <div class="node-footer">
           <span class="status-dot status-dot--positive" aria-hidden="true"></span>
-          <div><strong>Precision</strong><small>Connected · 14 ms</small></div>
+          <div><strong data-node-footer-name>Local node</strong><small data-node-footer-meta>Loading status</small></div>
         </div>
       </div>
     </aside>
@@ -137,9 +137,9 @@
   <aside class="drawer drawer--right" id="notification-drawer" aria-labelledby="notification-title" aria-modal="true" role="dialog" hidden>
     <div class="drawer-header"><div><span class="eyebrow">Global</span><h2 id="notification-title">Notifications</h2></div><button class="icon-button" type="button" data-action="close-overlay" aria-label="Close notifications"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <div class="drawer-body">
-      <div class="notification-card notification-card--info"><span class="status-icon">i</span><div><strong>Foundation preview</strong><p>All values are representative. No live actions are connected.</p><small>Now</small></div></div>
-      <div class="notification-card notification-card--positive"><span class="status-icon">✓</span><div><strong>Network aligned</strong><p>Three visible nodes report the same head.</p><small>2 minutes ago</small></div></div>
-      <div class="notification-card"><span class="status-icon">•</span><div><strong>Design review ready</strong><p>Desktop and mobile shell states are available.</p><small>Today</small></div></div>
+      <div class="notification-card notification-card--info"><span class="status-icon">i</span><div><strong>Read-only Home</strong><p>Live node truth is loaded through one exact local adapter.</p><small>Now</small></div></div>
+      <div class="notification-card notification-card--positive"><span class="status-icon">✓</span><div><strong>Mutation boundary intact</strong><p>The Home view cannot send, credit, fulfill, stake, or write.</p><small>Wave 2</small></div></div>
+      <div class="notification-card"><span class="status-icon">•</span><div><strong>Account not selected</strong><p>Balances remain unavailable instead of being simulated.</p><small>Current state</small></div></div>
     </div>
   </aside>
 
@@ -161,5 +161,6 @@
 
   <div class="toast-region" aria-live="polite" aria-atomic="true" id="toast-region"></div>
   <script type="module" src="./assets/js/app.js"></script>
+  <script type="module" src="./assets/js/home-live.js"></script>
 </body>
 </html>
