@@ -84453,3 +84453,7 @@ function voidIndexEmptyCatchVisibilityWindow44101_45000V1(context: string, err: 
 function voidIndexEmptyCatchVisibilityWindow59401_78300V1(context: string, err: unknown): void {
   console.warn("VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_59401_78300_V1_VISIBLE", context, err);
 }
+
+// === void-app-wave1-foundation-v1-loader BEGIN ===
+require("./ui/void_app_wave1_foundation_v1");
+// === void-app-wave1-foundation-v1-loader END ===

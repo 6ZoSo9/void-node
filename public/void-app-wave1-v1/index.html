@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#07090d">
+  <meta name="description" content="VOID Wave 1 application-shell and design-system review prototype">
+  <title>VOID App Shell — Wave 1 Foundation</title>
+  <link rel="stylesheet" href="./assets/css/main.css">
+</head>
+<body>
+  <a class="skip-link" href="#app-main">Skip to main content</a>
+
+  <div class="prototype-banner" role="status">
+    <span>WAVE 1 FOUNDATION PREVIEW</span>
+    <span>No live data · No feature actions · No route replacement</span>
+  </div>
+
+  <div class="app-shell" id="app-shell">
+    <header class="app-header" aria-label="Global header">
+      <a class="brand" href="#/home" aria-label="VOID Home">
+        <span class="brand-glyph" aria-hidden="true">
+          <svg viewBox="0 0 40 40" role="img">
+            <path d="M7 8h9l4 12 4-12h9L24 33h-8L7 8Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="brand-word">VOID</span>
+        <span class="brand-product">App</span>
+      </a>
+
+      <div class="header-center">
+        <button class="context-chip" type="button" data-action="open-network" aria-label="Open network status">
+          <span class="status-dot status-dot--positive" aria-hidden="true"></span>
+          <span class="context-chip__label">Mainnet-0</span>
+          <span class="context-chip__meta">3 nodes · block 1,856,587</span>
+        </button>
+      </div>
+
+      <div class="header-actions">
+        <button class="icon-button" type="button" data-action="open-command" aria-label="Open command menu" aria-expanded="false" aria-controls="command-menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+          <span class="shortcut">⌘K</span>
+        </button>
+        <button class="icon-button has-indicator" type="button" data-action="open-notifications" aria-label="Open notifications" aria-expanded="false" aria-controls="notification-drawer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></svg>
+          <span class="indicator" aria-hidden="true"></span>
+        </button>
+        <button class="account-control" type="button" data-action="open-account" aria-label="Open account menu">
+          <span class="account-avatar" aria-hidden="true">ZS</span>
+          <span class="account-copy">
+            <strong>ZoSo</strong>
+            <small>0x8c99…bed7</small>
+          </span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <aside class="sidebar" aria-label="Primary navigation">
+      <nav class="primary-nav" id="primary-nav">
+        <a class="nav-item" href="#/home" data-route="home">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v10h-6v-6H9v6H3V11Z"/></svg></span>
+          <span>Home</span>
+        </a>
+        <a class="nav-item" href="#/wallet" data-route="wallet">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h15a3 3 0 0 1 3 3v9H6a3 3 0 0 1-3-3V6Zm0 3h18m-5 4h2"/></svg></span>
+          <span>Wallet</span>
+        </a>
+        <a class="nav-item" href="#/earn" data-route="earn">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m13 2-8 11h6l-1 9 9-12h-6V2Z"/></svg></span>
+          <span>Earn</span>
+        </a>
+        <a class="nav-item" href="#/data" data-route="data">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+          <span>Data</span>
+        </a>
+        <a class="nav-item" href="#/buy" data-route="buy">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 8H8L6 3H3m6 16h.01M18 19h.01"/></svg></span>
+          <span>Buy</span>
+        </a>
+        <a class="nav-item" href="#/validate" data-route="validate">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V7l-8-4Zm-3 9 2 2 4-5"/></svg></span>
+          <span>Validate</span>
+        </a>
+        <a class="nav-item" href="#/network" data-route="network">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="m10.7 7.2-4.4 8.6m7-8.6 4.4 8.6M7.5 18h9"/></svg></span>
+          <span>Network</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="utility-link" type="button" data-action="open-advanced" aria-expanded="false" aria-controls="advanced-drawer">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3h4v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21v4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
+          <span>Advanced</span>
+        </button>
+        <a class="utility-link" href="#/foundation" data-route="foundation">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"/></svg></span>
+          <span>UI Foundation</span>
+          <span class="review-tag">Review</span>
+        </a>
+        <div class="node-footer">
+          <span class="status-dot status-dot--positive" aria-hidden="true"></span>
+          <div><strong>Precision</strong><small>Connected · 14 ms</small></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="app-main" id="app-main" tabindex="-1">
+      <div id="view-root" aria-live="polite"></div>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+      <a href="#/home" data-route="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8v10h-6v-6H9v6H3V11Z"/></svg><span>Home</span></a>
+      <a href="#/wallet" data-route="wallet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h15a3 3 0 0 1 3 3v9H6a3 3 0 0 1-3-3V6Zm0 3h18m-5 4h2"/></svg><span>Wallet</span></a>
+      <a href="#/earn" data-route="earn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 11h6l-1 9 9-12h-6V2Z"/></svg><span>Earn</span></a>
+      <a href="#/data" data-route="data"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Data</span></a>
+      <button type="button" data-action="open-mobile-more" aria-expanded="false" aria-controls="mobile-more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>More</span></button>
+    </nav>
+  </div>
+
+  <div class="overlay" id="overlay" hidden></div>
+
+  <aside class="drawer drawer--right" id="advanced-drawer" aria-labelledby="advanced-title" aria-modal="true" role="dialog" hidden>
+    <div class="drawer-header"><div><span class="eyebrow">Restricted area</span><h2 id="advanced-title">Advanced</h2></div><button class="icon-button" type="button" data-action="close-overlay" aria-label="Close Advanced"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="drawer-body">
+      <div class="authority-banner"><span class="status-dot status-dot--warning"></span><div><strong>Operator boundary</strong><p>Diagnostics and guarded operations stay outside normal participant flows.</p></div></div>
+      <div class="settings-list">
+        <button type="button"><span><strong>Records</strong><small>Receipts, proofs, and durable references</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+        <button type="button"><span><strong>Diagnostics</strong><small>Health, API, and runtime inspection</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+        <button type="button"><span><strong>Operator tools</strong><small>Guarded maintenance and node controls</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+        <button type="button"><span><strong>Developer</strong><small>Raw contracts and local debugging</small></span><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="drawer drawer--right" id="notification-drawer" aria-labelledby="notification-title" aria-modal="true" role="dialog" hidden>
+    <div class="drawer-header"><div><span class="eyebrow">Global</span><h2 id="notification-title">Notifications</h2></div><button class="icon-button" type="button" data-action="close-overlay" aria-label="Close notifications"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="drawer-body">
+      <div class="notification-card notification-card--info"><span class="status-icon">i</span><div><strong>Foundation preview</strong><p>All values are representative. No live actions are connected.</p><small>Now</small></div></div>
+      <div class="notification-card notification-card--positive"><span class="status-icon">✓</span><div><strong>Network aligned</strong><p>Three visible nodes report the same head.</p><small>2 minutes ago</small></div></div>
+      <div class="notification-card"><span class="status-icon">•</span><div><strong>Design review ready</strong><p>Desktop and mobile shell states are available.</p><small>Today</small></div></div>
+    </div>
+  </aside>
+
+  <aside class="sheet" id="mobile-more" aria-labelledby="mobile-more-title" aria-modal="true" role="dialog" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="drawer-header"><h2 id="mobile-more-title">More</h2><button class="icon-button" type="button" data-action="close-overlay" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <nav class="mobile-more-grid">
+      <a href="#/buy" data-route="buy"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 8H8L6 3H3m6 16h.01M18 19h.01"/></svg></span><span>Buy</span></a>
+      <a href="#/validate" data-route="validate"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V7l-8-4Zm-3 9 2 2 4-5"/></svg></span><span>Validate</span></a>
+      <a href="#/network" data-route="network"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="m10.7 7.2-4.4 8.6m7-8.6 4.4 8.6M7.5 18h9"/></svg></span><span>Network</span></a>
+      <button type="button" data-action="open-advanced" aria-expanded="false" aria-controls="advanced-drawer"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M4 12h2m12 0h2M12 4v2m0 12v2"/></svg></span><span>Advanced</span></button>
+    </nav>
+  </aside>
+
+  <div class="command-menu" id="command-menu" role="dialog" aria-modal="true" aria-labelledby="command-title" hidden>
+    <div class="command-input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg><input id="command-search" type="search" placeholder="Go to a destination or action" aria-labelledby="command-title"><kbd>Esc</kbd></div>
+    <div class="command-results"><h2 id="command-title">Navigate</h2><a href="#/home">Home <span>Overview and next action</span></a><a href="#/wallet">Wallet <span>Balances and activity</span></a><a href="#/earn">Earn <span>Work and verification</span></a><a href="#/data">Data <span>Datasets and retrieval</span></a><a href="#/network">Network <span>Nodes, blocks, proofs</span></a></div>
+  </div>
+
+  <div class="toast-region" aria-live="polite" aria-atomic="true" id="toast-region"></div>
+  <script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>
