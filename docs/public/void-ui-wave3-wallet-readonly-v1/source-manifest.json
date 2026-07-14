@@ -1,0 +1,36 @@
+{
+  "marker": "VOID_UI_WAVE3_WALLET_READONLY_V1",
+  "base": "c2441e3514d47006c3256158f694a8f2dbc8c056",
+  "branch": "feat/void-ui-wave3-wallet-readonly-v1",
+  "route": "/app/#/wallet",
+  "adapter_route": "/__void/ui/wave3/wallet.json",
+  "status_route": "/__void/ui/wave3-wallet-v1/status.json",
+  "account_input_kind": "participant_account_id",
+  "account_rule": "^[A-Za-z0-9._:-]{1,128}$",
+  "loopback_only": true,
+  "get_head_only": true,
+  "fixed_source_routes": [
+    "/__void/participant/wallet/status",
+    "/wc/balance",
+    "/wc/production/balance"
+  ],
+  "sanitized_source_bodies": true,
+  "void_balance_available": false,
+  "ledger_wc_spendability_claimed": false,
+  "production_wc_spendable": false,
+  "authority_added": false,
+  "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
+  "repository_hashes": {
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "0d51a252b1afdd0a2050cca664ba07ebc9ab8d78b85ea391a66892a3e8ec6d24",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "54430de46be6793db5ad6010761e389cae4c6c847030797ef93ac3910a39ac34",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
+    "public/void-app-wave1-v1/assets/css/views.css": "d0d23d01c3e8ffbe33d3d4ee0ff67906b18abc37af69db0bbf69afa72575d4f3",
+    "public/void-app-wave1-v1/assets/js/views.js": "01f2b824e33f25dd2c6c886c921699d2bd863d912b340e22fae1cad2a8c0fcb6",
+    "public/void-app-wave1-v1/assets/js/wallet-live.js": "6a4585aa27fe4b7501ea5bafba7a9c111e099e09e1129cc4cba3ba2f31e7ac84",
+    "public/void-app-wave1-v1/index.html": "087082868c66522d28f2b0abee9022c76889e75425f6459b7c38587679b1f868",
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "1f8d1b981942ffcd132f22cfa0a43c99dbb91ddf400c1447be55bfc6e1de0ec4",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "37aee26dc54a92a100169b28d2a5900e8e174e99b824a385e43f0363b6f433d6"
+  }
+}

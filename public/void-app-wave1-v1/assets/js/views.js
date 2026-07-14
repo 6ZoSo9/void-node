@@ -127,7 +127,7 @@ export const views = {
       </div>
     </div>`,
 
-  wallet: () => placeholderView('Wallet', 'Balances, identity, sends, swaps, and activity will migrate here without changing existing wallet authority.', 'Review wallet structure', ['Balance group', 'Wallet identity', 'Activity and receipts']),
+  wallet: () => walletView(),
   earn: () => placeholderView('Earn', 'Approved work, manual execution, jobs, verification, and Work Credit results will live in a dedicated workflow.', 'Review earning structure', ['Available work', 'Job status', 'Verification result']),
   data: () => placeholderView('Data', 'Publish, retrieve, verify, share, and manage datasets from one consistent data workspace.', 'Review data structure', ['Dataset table', 'Publish workflow', 'Verification state']),
   buy: () => placeholderView('Buy', 'Quotes, payment instructions, request status, and history will be presented as one guided purchase flow.', 'Review purchase structure', ['Quote summary', 'Payment review', 'Fulfillment status']),
@@ -135,6 +135,117 @@ export const views = {
   network: () => networkView(),
   foundation: () => foundationView(),
 };
+
+function walletView() {
+  return `
+    ${pageHeader({
+      eyebrow: 'Read-only account context',
+      title: 'Wallet',
+      purpose: 'Inspect one participant account, its local wallet identity, and separated Work Credit balances without connecting, unlocking, signing, or sending.',
+    })}
+    <div class="dashboard-grid wallet-live-grid">
+      <section class="surface hero-surface span-12" aria-labelledby="wallet-context-title">
+        <div class="hero-content">
+          <span class="status-chip status-chip--info" data-wallet-state-chip>No account loaded</span>
+          <h2 id="wallet-context-title">Load an account ID</h2>
+          <p data-wallet-message>Enter an account ID to load read-only context.</p>
+          <form class="wallet-account-form" data-wallet-account-form>
+            <div class="form-field wallet-account-field">
+              <label for="wallet-account-id">Account ID</label>
+              <input
+                class="input"
+                id="wallet-account-id"
+                name="account"
+                type="text"
+                maxlength="128"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="zoso or 0x…"
+                pattern="[A-Za-z0-9._:-]{1,128}"
+                data-wallet-account-input
+              >
+              <small>Exact participant account key. No browser wallet connection occurs.</small>
+            </div>
+            <div class="wallet-account-actions">
+              <button class="button button--primary" type="submit" data-wallet-load>
+                Load account
+                ${icon('m9 18 6-6-6-6')}
+              </button>
+              <button class="button button--tertiary" type="button" data-wallet-clear>Clear</button>
+            </div>
+          </form>
+        </div>
+        <aside class="hero-aside" aria-label="Wallet safety boundary">
+          <div class="signal-line"><span>Connection</span><strong>NONE</strong></div>
+          <div class="signal-line"><span>Signing</span><strong>DISABLED</strong></div>
+          <div class="signal-line"><span>Mode</span><strong>READ-ONLY</strong></div>
+        </aside>
+      </section>
+
+      <section class="span-12" aria-label="Wallet balances">
+        <div class="balance-strip">
+          <article class="balance-tile">
+            <div class="balance-tile__top"><span class="balance-tile__label">VOID</span><span class="status-chip">Unavailable</span></div>
+            <strong class="balance-tile__value" data-wallet-void-balance>—</strong>
+            <span class="balance-tile__meta">No verified read-only VOID balance source yet</span>
+          </article>
+          <article class="balance-tile">
+            <div class="balance-tile__top"><span class="balance-tile__label">Ledger WC</span><span class="status-chip">Accounting</span></div>
+            <strong class="balance-tile__value" data-wallet-ledger-wc>—</strong>
+            <span class="balance-tile__meta" data-wallet-ledger-meta>No account loaded</span>
+          </article>
+          <article class="balance-tile balance-tile--production">
+            <div class="balance-tile__top"><span class="balance-tile__label">Production WC</span><span class="status-chip status-chip--info">Non-spendable</span></div>
+            <strong class="balance-tile__value" data-wallet-production-wc>—</strong>
+            <span class="balance-tile__meta" data-wallet-production-meta>No account loaded</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="surface panel span-7" aria-labelledby="wallet-identity-title">
+        <div class="panel-header">
+          <div class="panel-header__copy">
+            <span class="eyebrow">Local identity</span>
+            <h2 id="wallet-identity-title">Wallet status</h2>
+            <p>Sanitized status only. Keystores, keys, exports, and raw records are never returned.</p>
+          </div>
+        </div>
+        <dl class="wallet-facts">
+          <div><dt>Account ID</dt><dd class="mono" data-wallet-account-id>—</dd></div>
+          <div><dt>Wallet address</dt><dd class="mono" data-wallet-address>—</dd></div>
+          <div><dt>Local wallet</dt><dd data-wallet-local-status>Not checked</dd></div>
+          <div><dt>Lock state</dt><dd data-wallet-lock-state>Not checked</dd></div>
+          <div><dt>Native gas</dt><dd data-wallet-native-gas>—</dd></div>
+        </dl>
+      </section>
+
+      <section class="surface panel span-5" aria-labelledby="wallet-boundary-title">
+        <div class="panel-header">
+          <div class="panel-header__copy">
+            <span class="eyebrow">Protected boundary</span>
+            <h2 id="wallet-boundary-title">No authority</h2>
+            <p>This view cannot create, import, unlock, export, send, swap, settle, or write a ledger.</p>
+          </div>
+        </div>
+        <div class="activity-list">
+          <div class="activity-row"><div class="activity-copy"><strong>Browser wallet</strong><small>No injected provider requested</small></div><div class="activity-value">Not connected</div></div>
+          <div class="activity-row"><div class="activity-copy"><strong>Transactions</strong><small>No signing or broadcast path</small></div><div class="activity-value">Disabled</div></div>
+          <div class="activity-row"><div class="activity-copy"><strong>Work Credits</strong><small>Separated accounting visibility</small></div><div class="activity-value">Read-only</div></div>
+        </div>
+      </section>
+
+      <section class="surface panel span-12" aria-labelledby="wallet-source-title">
+        <details class="wallet-source-details">
+          <summary id="wallet-source-title">Advanced source status</summary>
+          <dl class="wallet-source-grid">
+            <div><dt>Wallet status</dt><dd data-wallet-source-status>Not checked</dd></div>
+            <div><dt>Ledger WC</dt><dd data-wallet-source-ledger>Not checked</dd></div>
+            <div><dt>Production WC</dt><dd data-wallet-source-production>Not checked</dd></div>
+          </dl>
+        </details>
+      </section>
+    </div>`;
+}
 
 function placeholderView(title, purpose, primaryLabel, blocks) {
   return `
