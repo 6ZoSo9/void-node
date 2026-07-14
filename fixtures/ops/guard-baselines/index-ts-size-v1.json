@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Updated for the approved additive VOID Wave 1 application-shell loader. The loopback-only /app foundation contains no API calls or feature logic and does not replace root, participant, public-node, wallet, ledger, fulfillment, or validator routes.",
+  "reason": "Updated for the additive VOID Wave 2 typed read-only Home adapter loader. The Home client fetches one exact same-origin GET endpoint; the adapter reads four fixed loopback GET routes and exposes no participant mutation, wallet send, ledger write, fulfillment, validator mutation, operator mutation, or money movement.",
   "path": "src/index.ts",
-  "baseline_bytes": 3823032,
+  "baseline_bytes": 3823192,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {

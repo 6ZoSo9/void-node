@@ -15,46 +15,116 @@ const pageHeader = ({ eyebrow, title, purpose, primary, secondary }) => `
 
 export const views = {
   home: () => `
-    ${pageHeader({ eyebrow: 'Participant workspace', title: 'Good morning, ZoSo.', purpose: 'One clear place to understand your account, the network, and your next useful action.', primary: { label: 'Continue setup', toast: 'Setup flow is intentionally not connected in Wave 1.' }, secondary: { label: 'View activity', toast: 'Activity view is a foundation placeholder.' } })}
-    <div class="dashboard-grid">
-      <section class="surface hero-surface span-12" aria-labelledby="home-next-title">
-        <div class="hero-content">
-          <span class="status-chip status-chip--info"><span class="status-dot status-dot--positive"></span> Foundation state</span>
-          <h2 id="home-next-title">Finish securing your local wallet</h2>
-          <p>The shell recommends one next action at a time. Supporting detail stays visible without competing for attention.</p>
-          <div class="hero-actions"><button class="button button--primary" type="button" data-demo-toast="Wallet setup is not connected in this foundation preview.">Open Wallet setup${icon('m9 18 6-6-6-6')}</button><button class="button button--tertiary" type="button" data-demo-toast="Help content previewed.">Why this matters</button></div>
+    <div data-home-view>
+      <header class="page-header">
+        <div class="page-header__copy">
+          <span class="eyebrow">Live read-only overview</span>
+          <h1>System overview</h1>
+          <p>Current node and network truth, without account or mutation authority.</p>
         </div>
-        <aside class="hero-aside" aria-label="Current system signal">
-          <div class="signal-line"><span>Network</span><strong>HEALTHY</strong></div>
-          <div class="signal-line"><span>Account</span><strong>0x8c99…bed7</strong></div>
-          <div class="signal-line"><span>Node</span><strong>PRECISION</strong></div>
-        </aside>
-      </section>
+        <div class="page-actions">
+          <a class="button button--secondary" href="#/network">Open Network</a>
+          <button class="button button--primary" type="button" data-home-refresh>
+            Refresh
+            ${icon('M4 12a8 8 0 0 1 13.7-5.6L20 9m0-5v5h-5M20 12a8 8 0 0 1-13.7 5.6L4 15m0 5v-5h5')}
+          </button>
+        </div>
+      </header>
 
-      <section class="span-12" aria-label="Balance snapshot">
-        <div class="balance-strip">
-          <article class="balance-tile"><div class="balance-tile__top"><span class="balance-tile__label">VOID</span><span class="status-chip">Wallet</span></div><strong class="balance-tile__value">—</strong><span class="balance-tile__meta">Available after wallet connection</span></article>
-          <article class="balance-tile"><div class="balance-tile__top"><span class="balance-tile__label">Spendable WC</span><span class="status-chip">Local</span></div><strong class="balance-tile__value">0</strong><span class="balance-tile__meta">Participant-ledger balance</span></article>
-          <article class="balance-tile balance-tile--production"><div class="balance-tile__top"><span class="balance-tile__label">Production WC</span><span class="status-chip status-chip--info">Read-only</span></div><strong class="balance-tile__value">1</strong><span class="balance-tile__meta">Verified · not spendable or redeemable</span></article>
-        </div>
-      </section>
+      <div class="dashboard-grid home-live-grid">
+        <section class="surface hero-surface span-12" aria-labelledby="home-next-title">
+          <div class="hero-content">
+            <span class="status-chip status-chip--info" data-home-state-chip>Loading live state</span>
+            <h2 id="home-next-title" data-home-next-title>Reading local node truth</h2>
+            <p data-home-summary>The Home view is waiting for the exact read-only adapter.</p>
+            <div class="hero-actions">
+              <a class="button button--primary" href="#/wallet">
+                Open Wallet
+                ${icon('m9 18 6-6-6-6')}
+              </a>
+              <small class="home-updated" data-home-last-updated>Not updated yet</small>
+            </div>
+          </div>
+          <aside class="hero-aside" aria-label="Current system signal">
+            <div class="signal-line"><span>Network</span><strong data-home-network-state>LOADING</strong></div>
+            <div class="signal-line"><span>Account</span><strong data-home-account-state>NOT SELECTED</strong></div>
+            <div class="signal-line"><span>Node</span><strong data-home-node-state>LOCAL NODE</strong></div>
+          </aside>
+        </section>
 
-      <section class="surface panel span-7" aria-labelledby="activity-title">
-        <div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Recent</span><h2 id="activity-title">Activity</h2><p>One feed across wallet, work, data, and network events.</p></div><button class="button button--tertiary" type="button" data-demo-toast="Full activity route is not connected.">View all</button></div>
-        <div class="activity-list">
-          <div class="activity-row"><span class="activity-icon">${icon('M12 3 4 7v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V7l-8-4Zm-3 9 2 2 4-5')}</span><div class="activity-copy"><strong>Production work verified</strong><small>DataNet fetch matched the expected input hash</small></div><div class="activity-value">+1 WC<br><small>Today</small></div></div>
-          <div class="activity-row"><span class="activity-icon">${icon('M4 5v14h16V5H4Zm4 4h8m-8 4h5')}</span><div class="activity-copy"><strong>Dataset published</strong><small>65 bytes · local DataNet record</small></div><div class="activity-value">Verified<br><small>Today</small></div></div>
-          <div class="activity-row"><span class="activity-icon">${icon('M5 12h14M12 5l7 7-7 7')}</span><div class="activity-copy"><strong>Network aligned</strong><small>Precision, Nimo, and Alienware report the same head</small></div><div class="activity-value">1,856,587<br><small>Now</small></div></div>
-        </div>
-      </section>
+        <section class="span-12" aria-label="Balance availability">
+          <div class="balance-strip">
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">VOID</span><span class="status-chip">Wallet</span></div>
+              <strong class="balance-tile__value" data-home-void-balance>—</strong>
+              <span class="balance-tile__meta" data-home-balance-note>Select an account to load balances</span>
+            </article>
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">Spendable WC</span><span class="status-chip">Account</span></div>
+              <strong class="balance-tile__value" data-home-spendable-wc>—</strong>
+              <span class="balance-tile__meta">Unavailable without account context</span>
+            </article>
+            <article class="balance-tile balance-tile--production">
+              <div class="balance-tile__top"><span class="balance-tile__label">Production WC</span><span class="status-chip status-chip--info">Read-only</span></div>
+              <strong class="balance-tile__value" data-home-production-wc>—</strong>
+              <span class="balance-tile__meta">No account selected</span>
+            </article>
+          </div>
+        </section>
 
-      <section class="surface panel span-5" aria-labelledby="network-title">
-        <div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Live signal</span><h2 id="network-title">Network</h2><p>High-level health only. Detailed diagnostics live in Network or Advanced.</p></div><span class="status-chip status-chip--positive"><span class="status-dot status-dot--positive"></span> Healthy</span></div>
-        <div class="health-row health-row--single">
-          <article class="health-card"><div class="health-card__top"><strong>Precision</strong><span class="status-chip status-chip--positive">Primary</span></div><dl><div><dt>Head</dt><dd>1,856,587</dd></div><div><dt>Peers</dt><dd>2 / 2</dd></div></dl></article>
-          <article class="health-card"><div class="health-card__top"><strong>Mesh</strong><span class="status-chip status-chip--positive">Aligned</span></div><dl><div><dt>Nodes</dt><dd>3</dd></div><div><dt>Drift</dt><dd>0</dd></div></dl></article>
-        </div>
-      </section>
+        <section class="surface panel span-7" aria-labelledby="current-state-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Exact adapter</span>
+              <h2 id="current-state-title">Current state</h2>
+              <p>Four fixed local GET sources. No cached or invented product data.</p>
+            </div>
+          </div>
+          <div class="activity-list">
+            <div class="activity-row">
+              <span class="activity-icon">${icon('M12 3 4 7v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V7l-8-4Zm-3 9 2 2 4-5')}</span>
+              <div class="activity-copy"><strong>HTTP health</strong><small>Local node process and request surface</small></div>
+              <div class="activity-value" data-home-health-value>Loading</div>
+            </div>
+            <div class="activity-row">
+              <span class="activity-icon">${icon('m5 12 4 4L19 6')}</span>
+              <div class="activity-copy"><strong>Readiness</strong><small>Late routes and operational readiness</small></div>
+              <div class="activity-value" data-home-ready-value>Loading</div>
+            </div>
+            <div class="activity-row">
+              <span class="activity-icon">${icon('M5 12h14M12 5l7 7-7 7')}</span>
+              <div class="activity-copy"><strong>Peer mesh</strong><small>Current connected peers reported by this node</small></div>
+              <div class="activity-value" data-home-peers-value>—</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="surface panel span-5" aria-labelledby="network-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Live signal</span>
+              <h2 id="network-title">Network</h2>
+              <p>High-level truth only. Detailed proofs remain in Network.</p>
+            </div>
+          </div>
+          <div class="health-row health-row--single">
+            <article class="health-card">
+              <div class="health-card__top"><strong data-home-node-name>Local node</strong><span class="status-chip status-chip--info">Current</span></div>
+              <dl>
+                <div><dt>Head</dt><dd data-home-head-value>—</dd></div>
+                <div><dt>Peers</dt><dd data-home-peers-value>—</dd></div>
+              </dl>
+            </article>
+            <article class="health-card">
+              <div class="health-card__top"><strong>Mesh</strong><span class="status-chip">Read-only</span></div>
+              <dl>
+                <div><dt>Expected</dt><dd>2 peers</dd></div>
+                <div><dt>State</dt><dd data-home-mesh-value>Loading</dd></div>
+              </dl>
+            </article>
+          </div>
+        </section>
+      </div>
     </div>`,
 
   wallet: () => placeholderView('Wallet', 'Balances, identity, sends, swaps, and activity will migrate here without changing existing wallet authority.', 'Review wallet structure', ['Balance group', 'Wallet identity', 'Activity and receipts']),

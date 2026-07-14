@@ -241,7 +241,7 @@ for (const marker of [
   'const STATUS_ROUTE = "/__void/ui/wave1-foundation-v1/status.json"',
   'const ROUTE_MARKER = "VOID_UI_WAVE1_REPOSITORY_FOUNDATION_V1"',
   '"Content-Security-Policy"',
-  "connect-src 'none'",
+  "connect-src 'self'",
   '"X-Frame-Options"',
   '"Permissions-Policy"',
   '"Cross-Origin-Opener-Policy"',
