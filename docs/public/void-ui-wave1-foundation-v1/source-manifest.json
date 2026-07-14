@@ -24,10 +24,10 @@
     "prototype/assets/css/main.css": "e914d3d9200d0301a2824112af6c0bfc86e8d3858ad45c31ec6b30e2dfb66e7a",
     "prototype/assets/css/responsive.css": "61e420cf90f923d73c35e9c19a9ba6ecdceef87e9bb152b6b475dc34be2415cd",
     "prototype/assets/css/tokens.css": "c96311ac1530ac93a58aac4a1ac2dc6a38e7dfb1d87c6d25521431c0700bb4e2",
-    "prototype/assets/css/views.css": "6ce482ad695100dba45eaaadc0bb851e65e5dbec110ea6192461269356bb809a",
+    "prototype/assets/css/views.css": "d0d23d01c3e8ffbe33d3d4ee0ff67906b18abc37af69db0bbf69afa72575d4f3",
     "prototype/assets/js/app.js": "ec2817b5491eb0e8fd234a474201279847ca86d1293021c8c9626654c8648cac",
-    "prototype/assets/js/views.js": "e3a4c3b7ab016c9b329bbd84b83715c99e3cc5bd7a3f49613c6d240d9d06a1ce",
-    "prototype/index.html": "0de3e9c84fcb8d77fc1019f5cef37d9d4d0b5b4de6feb0565de245ef22ae045f",
+    "prototype/assets/js/views.js": "01f2b824e33f25dd2c6c886c921699d2bd863d912b340e22fae1cad2a8c0fcb6",
+    "prototype/index.html": "087082868c66522d28f2b0abee9022c76889e75425f6459b7c38587679b1f868",
     "screenshots/desktop-advanced-drawer-1440x900.png": "320256fbd39a10ba03278be817e0cc59a573954efe0c5b2ce7beaccef9256e04",
     "screenshots/desktop-foundation-1280x800.png": "354ce77fee57197b4c813c3125cc51e539af9bb818b8c04d162061666b7f05d3",
     "screenshots/desktop-home-1440x900.png": "6e4dc3eae6c4888712c3776b6a1f32fde163f4f45eb9e3c93eecafff0a410e35",
@@ -40,5 +40,12 @@
   "repository_hashes_refreshed_after_whitespace_cleanup": true,
   "repository_hashes_refreshed_date": "2026-07-14",
   "wave2_home_readonly_transition": true,
-  "wave2_home_readonly_transition_date": "2026-07-14"
+  "wave2_home_readonly_transition_date": "2026-07-14",
+  "wave3_wallet_readonly_transition": {
+    "date": "2026-07-14",
+    "route": "/app/#/wallet",
+    "client": "public/void-app-wave1-v1/assets/js/wallet-live.js",
+    "adapter": "src/ui/void_app_wave3_wallet_readonly_v1.ts",
+    "authority_added": false
+  }
 }

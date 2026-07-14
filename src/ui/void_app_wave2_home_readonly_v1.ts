@@ -1,3 +1,4 @@
+import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
 
 const G: any = globalThis as any;

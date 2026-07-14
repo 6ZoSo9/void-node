@@ -75,3 +75,20 @@
 .home-live-grid [data-home-mesh-value] {
   font-variant-numeric: tabular-nums;
 }
+.wallet-live-grid { align-items: start; }
+.wallet-account-form { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 1rem; align-items: end; margin-top: 1.35rem; }
+.wallet-account-field { min-width: 0; }
+.wallet-account-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.wallet-facts, .wallet-source-grid { display: grid; gap: 0; margin: 0; }
+.wallet-facts > div, .wallet-source-grid > div { display: grid; grid-template-columns: minmax(8rem,.7fr) minmax(0,1.3fr); gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--void-border-subtle); }
+.wallet-facts > div:last-child, .wallet-source-grid > div:last-child { border-bottom: 0; }
+.wallet-facts dt, .wallet-source-grid dt { color: var(--void-text-muted); font-size: var(--void-text-12); font-weight: 700; }
+.wallet-facts dd, .wallet-source-grid dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
+.wallet-source-details summary { cursor: pointer; font-weight: 760; }
+.wallet-source-details[open] summary { margin-bottom: .75rem; }
+@media (max-width: 760px) {
+  .wallet-account-form { grid-template-columns: 1fr; }
+  .wallet-account-actions .button { flex: 1 1 auto; }
+  .wallet-facts > div, .wallet-source-grid > div { grid-template-columns: 1fr; gap: .3rem; }
+  .wallet-facts dd, .wallet-source-grid dd { text-align: left; }
+}
