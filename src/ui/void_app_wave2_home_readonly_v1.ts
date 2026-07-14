@@ -134,8 +134,8 @@ if (!G[INSTALL_MARK]) {
         headers: {
           Accept: "application/json",
           "User-Agent": "void-ui-wave2-home-readonly-v1",
+          "Cache-Control": "no-store",
         },
-        cache: "no-store",
         signal: controller.signal,
       });
 

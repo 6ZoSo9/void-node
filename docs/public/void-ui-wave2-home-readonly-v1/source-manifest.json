@@ -49,11 +49,19 @@
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "f0b7b3e148a5240f96407083dc53f60de2b32171e84335cd33a6ad4a5ec552cd",
     "src/index.ts": "ef66044c92d6c25d781822c89b11020bc5a838982f9249613a14b8ca59af0f53",
     "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
-    "src/ui/void_app_wave2_home_readonly_v1.ts": "b0bb57d6d17006843ed0592137511d7a7279ab5ea1e6d6faad3819d6dc0848c6"
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
   "repository_hashes_refreshed_date": "2026-07-14",
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave2_home_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest creates an unstable self-reference. The proof is verified by semantic guards, TypeScript execution, and the terminal green marker.",
-  "repository_hashes_refreshed_after_self_reference_fix": true
+  "repository_hashes_refreshed_after_self_reference_fix": true,
+  "ci_noemit_compatibility_fix": {
+    "date": "2026-07-14",
+    "pr": 611,
+    "failure": "TS2353: RequestInit.cache is not accepted by the repository noEmit type environment",
+    "resolution": "Removed the server-side browser cache option and added the explicit Cache-Control: no-store request header. The browser Home client retains its own cache: no-store option.",
+    "module": "src/ui/void_app_wave2_home_readonly_v1.ts",
+    "module_sha256": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+  }
 }
