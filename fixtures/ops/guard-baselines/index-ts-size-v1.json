@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Updated for the additive VOID Wave 2 typed read-only Home adapter loader. The Home client fetches one exact same-origin GET endpoint; the adapter reads four fixed loopback GET routes and exposes no participant mutation, wallet send, ledger write, fulfillment, validator mutation, operator mutation, or money movement.",
+  "reason": "Updated for the readiness runtime HTTP-port correction. Internal readiness probes now derive their loopback base from HTTP_PORT or VOID_HTTP_PORT, and empty head responses are rejected instead of being coerced to zero.",
   "path": "src/index.ts",
-  "baseline_bytes": 3823192,
+  "baseline_bytes": 3823344,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
@@ -12,13 +12,13 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "well-known read-only runtime closeout rollup link",
+    "baseline_update_reason": "readiness runtime HTTP-port correction and empty-response head guard",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
     "well_known_public_node_card_index_link_only": true,
     "well_known_runtime_closeout_rollup_link_only": true
   },
-  "previous_baseline_bytes": 3713863,
-  "note": "Updated for index empty-catch visibility window 8101-9000 after minimized helper/calls."
+  "previous_baseline_bytes": 3823192,
+  "note": "Raised by exactly 152 bytes for PR #615 readiness correctness; focused proof and TypeScript build required."
 }
