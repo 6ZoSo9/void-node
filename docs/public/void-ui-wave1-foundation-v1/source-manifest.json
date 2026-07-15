@@ -24,10 +24,10 @@
     "prototype/assets/css/main.css": "e914d3d9200d0301a2824112af6c0bfc86e8d3858ad45c31ec6b30e2dfb66e7a",
     "prototype/assets/css/responsive.css": "61e420cf90f923d73c35e9c19a9ba6ecdceef87e9bb152b6b475dc34be2415cd",
     "prototype/assets/css/tokens.css": "c96311ac1530ac93a58aac4a1ac2dc6a38e7dfb1d87c6d25521431c0700bb4e2",
-    "prototype/assets/css/views.css": "d0d23d01c3e8ffbe33d3d4ee0ff67906b18abc37af69db0bbf69afa72575d4f3",
+    "prototype/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
     "prototype/assets/js/app.js": "ec2817b5491eb0e8fd234a474201279847ca86d1293021c8c9626654c8648cac",
-    "prototype/assets/js/views.js": "01f2b824e33f25dd2c6c886c921699d2bd863d912b340e22fae1cad2a8c0fcb6",
-    "prototype/index.html": "087082868c66522d28f2b0abee9022c76889e75425f6459b7c38587679b1f868",
+    "prototype/assets/js/views.js": "b357d91134aff2d5b9ce5fc95c4db61ac8d6eafa91cb01272328952182e635fe",
+    "prototype/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "screenshots/desktop-advanced-drawer-1440x900.png": "320256fbd39a10ba03278be817e0cc59a573954efe0c5b2ce7beaccef9256e04",
     "screenshots/desktop-foundation-1280x800.png": "354ce77fee57197b4c813c3125cc51e539af9bb818b8c04d162061666b7f05d3",
     "screenshots/desktop-home-1440x900.png": "6e4dc3eae6c4888712c3776b6a1f32fde163f4f45eb9e3c93eecafff0a410e35",
@@ -46,6 +46,14 @@
     "route": "/app/#/wallet",
     "client": "public/void-app-wave1-v1/assets/js/wallet-live.js",
     "adapter": "src/ui/void_app_wave3_wallet_readonly_v1.ts",
+    "authority_added": false
+  },
+  "wave4_earn_readonly_transition": {
+    "date": "2026-07-15",
+    "route": "/app/#/earn",
+    "client": "public/void-app-wave1-v1/assets/js/earn-live.js",
+    "adapter": "src/ui/void_app_wave4_earn_readonly_v1.ts",
+    "history_limit": 5,
     "authority_added": false
   }
 }

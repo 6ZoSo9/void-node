@@ -1,3 +1,4 @@
+import "./void_app_wave4_earn_readonly_v1.js";
 import * as os from "node:os";
 
 const G: any = globalThis as any;

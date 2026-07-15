@@ -128,7 +128,7 @@ export const views = {
     </div>`,
 
   wallet: () => walletView(),
-  earn: () => placeholderView('Earn', 'Approved work, manual execution, jobs, verification, and Work Credit results will live in a dedicated workflow.', 'Review earning structure', ['Available work', 'Job status', 'Verification result']),
+  earn: () => earnView(),
   data: () => placeholderView('Data', 'Publish, retrieve, verify, share, and manage datasets from one consistent data workspace.', 'Review data structure', ['Dataset table', 'Publish workflow', 'Verification state']),
   buy: () => placeholderView('Buy', 'Quotes, payment instructions, request status, and history will be presented as one guided purchase flow.', 'Review purchase structure', ['Quote summary', 'Payment review', 'Fulfillment status']),
   validate: () => placeholderView('Validate', 'Staking readiness, candidate status, and validator onboarding will be separated from operator controls.', 'Review validation structure', ['Readiness checklist', 'Candidate status', 'Admission proof']),
@@ -244,6 +244,202 @@ function walletView() {
           </dl>
         </details>
       </section>
+    </div>`;
+}
+
+function earnView() {
+  return `
+    <div data-earn-view>
+      ${pageHeader({
+        eyebrow: 'Read-only earning context',
+        title: 'Earn',
+        purpose: 'Inspect useful-work policy, Work Credit accounting, recent jobs, and verification receipts without executing work or changing account state.',
+      })}
+
+      <div class="dashboard-grid earn-live-grid">
+        <section class="surface hero-surface span-12" aria-labelledby="earn-context-title">
+          <div class="hero-content">
+            <span class="status-chip status-chip--info" data-earn-state-chip>No account loaded</span>
+            <h2 id="earn-context-title">Load a participant account</h2>
+            <p data-earn-message>Enter a participant account ID to inspect earning state.</p>
+
+            <form class="earn-account-form" data-earn-account-form>
+              <div class="form-field earn-account-field">
+                <label for="earn-account-id">Account ID</label>
+                <input
+                  class="input"
+                  id="earn-account-id"
+                  name="account"
+                  type="text"
+                  maxlength="128"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="zoso or 0x…"
+                  pattern="[A-Za-z0-9._:-]{1,128}"
+                  data-earn-account-input
+                >
+                <small>Read-only participant key. No work is submitted and no runner state changes.</small>
+              </div>
+
+              <div class="earn-account-actions">
+                <button class="button button--primary" type="submit" data-earn-load>
+                  Load Earn state
+                  ${icon('m9 18 6-6-6-6')}
+                </button>
+                <button class="button button--tertiary" type="button" data-earn-clear>Clear</button>
+              </div>
+            </form>
+          </div>
+
+          <aside class="hero-aside" aria-label="Earn safety boundary">
+            <div class="signal-line"><span>Earning</span><strong data-earn-status>NOT CHECKED</strong></div>
+            <div class="signal-line"><span>Background</span><strong data-earn-background>NOT CHECKED</strong></div>
+            <div class="signal-line"><span>Authority</span><strong>READ-ONLY</strong></div>
+          </aside>
+        </section>
+
+        <section class="span-12" aria-label="Work Credit accounting">
+          <div class="balance-strip earn-accounting-strip">
+            <article class="balance-tile">
+              <div class="balance-tile__top">
+                <span class="balance-tile__label">Earned WC</span>
+                <span class="status-chip">Accounting</span>
+              </div>
+              <strong class="balance-tile__value" data-earn-earned-wc>—</strong>
+              <span class="balance-tile__meta" data-earn-earned-meta>No account loaded</span>
+            </article>
+
+            <article class="balance-tile">
+              <div class="balance-tile__top">
+                <span class="balance-tile__label">Redeemable WC</span>
+                <span class="status-chip status-chip--info">Visibility only</span>
+              </div>
+              <strong class="balance-tile__value" data-earn-redeemable-wc>—</strong>
+              <span class="balance-tile__meta" data-earn-redeemable-meta>No action in this view</span>
+            </article>
+
+            <article class="balance-tile balance-tile--production">
+              <div class="balance-tile__top">
+                <span class="balance-tile__label">Production WC</span>
+                <span class="status-chip status-chip--info">Non-spendable</span>
+              </div>
+              <strong class="balance-tile__value" data-earn-production-wc>—</strong>
+              <span class="balance-tile__meta" data-earn-production-meta>Separate canary accounting</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="surface panel span-5" aria-labelledby="earn-posture-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Current posture</span>
+              <h2 id="earn-posture-title">Earning policy</h2>
+              <p>Account-specific visibility without runner controls.</p>
+            </div>
+          </div>
+
+          <dl class="earn-facts">
+            <div><dt>Account ID</dt><dd class="mono" data-earn-account-id>—</dd></div>
+            <div><dt>Approved work</dt><dd data-earn-approved-work>Not checked</dd></div>
+            <div><dt>Policy</dt><dd data-earn-policy>Not checked</dd></div>
+            <div><dt>Safe mode</dt><dd data-earn-safe-mode>Not checked</dd></div>
+            <div><dt>WC last hour</dt><dd data-earn-last-hour>—</dd></div>
+            <div><dt>Last credit</dt><dd data-earn-last-credit>No credit loaded</dd></div>
+            <div><dt>Credit time</dt><dd data-earn-last-credit-time>—</dd></div>
+          </dl>
+        </section>
+
+        <section class="surface panel span-7" aria-labelledby="earn-work-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Policy selection</span>
+              <h2 id="earn-work-title">Available work</h2>
+              <p>The node's current useful-work selection is shown without a Run Once or submit action.</p>
+            </div>
+            <span class="status-chip status-chip--info">Execution disabled</span>
+          </div>
+
+          <div class="activity-list">
+            <div class="activity-row">
+              <div class="activity-copy">
+                <strong data-earn-task-label>No task selected</strong>
+                <small data-earn-task-reason>Load an account to inspect policy selection.</small>
+              </div>
+              <div class="activity-value">Read-only</div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-copy">
+                <strong>Difficulty</strong>
+                <small>Sanitized policy bucket</small>
+              </div>
+              <div class="activity-value" data-earn-task-difficulty>—</div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-copy">
+                <strong>Network need</strong>
+                <small>Bounded selection score</small>
+              </div>
+              <div class="activity-value" data-earn-task-need>—</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="surface panel span-6" aria-labelledby="earn-jobs-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Bounded history</span>
+              <h2 id="earn-jobs-title">Recent jobs</h2>
+              <p>Five sanitized account jobs. Inputs and metadata remain hidden.</p>
+            </div>
+            <span class="status-chip"><span data-earn-jobs-count>0</span> shown</span>
+          </div>
+
+          <div class="earn-history-list" data-earn-jobs-list></div>
+          <div class="earn-empty-state" data-earn-jobs-empty>No recent jobs loaded.</div>
+        </section>
+
+        <section class="surface panel span-6" aria-labelledby="earn-receipts-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Verification results</span>
+              <h2 id="earn-receipts-title">Recent receipts</h2>
+              <p>Five sanitized account receipts. Roots, leaves, and raw payloads stay hidden.</p>
+            </div>
+            <span class="status-chip"><span data-earn-receipts-count>0</span> shown</span>
+          </div>
+
+          <div class="earn-history-list" data-earn-receipts-list></div>
+          <div class="earn-empty-state" data-earn-receipts-empty>No verification receipts loaded.</div>
+        </section>
+
+        <section class="surface panel span-12" aria-labelledby="earn-advanced-title">
+          <details class="earn-source-details">
+            <summary id="earn-advanced-title">Advanced read-only details</summary>
+
+            <div class="earn-advanced-grid">
+              <dl class="earn-source-grid">
+                <div><dt>Runner status</dt><dd data-earn-source-runner>Not checked</dd></div>
+                <div><dt>Reward summary</dt><dd data-earn-source-reward>Not checked</dd></div>
+                <div><dt>Redeemable accounting</dt><dd data-earn-source-redeemable>Not checked</dd></div>
+                <div><dt>Production WC</dt><dd data-earn-source-production>Not checked</dd></div>
+                <div><dt>Jobs</dt><dd data-earn-source-jobs>Not checked</dd></div>
+                <div><dt>Receipts</dt><dd data-earn-source-receipts>Not checked</dd></div>
+                <div><dt>DataNet/WC</dt><dd data-earn-source-datanet>Not checked</dd></div>
+              </dl>
+
+              <dl class="earn-source-grid">
+                <div><dt>DataNet</dt><dd data-earn-datanet-status>Not checked</dd></div>
+                <div><dt>Node receipt records</dt><dd data-earn-datanet-records>—</dd></div>
+                <div><dt>Account WC events</dt><dd data-earn-account-events>—</dd></div>
+                <div><dt>Job execution</dt><dd>Disabled</dd></div>
+                <div><dt>Reward award</dt><dd>Disabled</dd></div>
+                <div><dt>Ledger write</dt><dd>Disabled</dd></div>
+                <div><dt>Money movement</dt><dd>Disabled</dd></div>
+              </dl>
+            </div>
+          </details>
+        </section>
+      </div>
     </div>`;
 }
 
