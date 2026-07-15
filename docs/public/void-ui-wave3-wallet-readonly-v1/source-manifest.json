@@ -21,16 +21,28 @@
   "authority_added": false,
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "0d51a252b1afdd0a2050cca664ba07ebc9ab8d78b85ea391a66892a3e8ec6d24",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "54430de46be6793db5ad6010761e389cae4c6c847030797ef93ac3910a39ac34",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "43813323f0dd9360f37e82cd04e8dc63a775e0a7cfac39ed01dc1fa20eefe29d",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "ca3e2a2f1bd64beb962f944bfc277e11c18fae2409ef86570e358923a39d2d29",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
-    "public/void-app-wave1-v1/assets/css/views.css": "d0d23d01c3e8ffbe33d3d4ee0ff67906b18abc37af69db0bbf69afa72575d4f3",
-    "public/void-app-wave1-v1/assets/js/views.js": "01f2b824e33f25dd2c6c886c921699d2bd863d912b340e22fae1cad2a8c0fcb6",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
+    "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
+    "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "f3df832a2164c8eec9840573e2c4d8f14d878152452a45154fb2cfb548e5790e",
+    "public/void-app-wave1-v1/assets/js/views.js": "b357d91134aff2d5b9ce5fc95c4db61ac8d6eafa91cb01272328952182e635fe",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6a4585aa27fe4b7501ea5bafba7a9c111e099e09e1129cc4cba3ba2f31e7ac84",
-    "public/void-app-wave1-v1/index.html": "087082868c66522d28f2b0abee9022c76889e75425f6459b7c38587679b1f868",
+    "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "1f8d1b981942ffcd132f22cfa0a43c99dbb91ddf400c1447be55bfc6e1de0ec4",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "37aee26dc54a92a100169b28d2a5900e8e174e99b824a385e43f0363b6f433d6"
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
+  },
+  "wave4_earn_readonly_transition": {
+    "date": "2026-07-15",
+    "route": "/app/#/earn",
+    "adapter_route": "/__void/ui/wave4/earn.json",
+    "history_limit": 5,
+    "authority_added": false
   }
 }
