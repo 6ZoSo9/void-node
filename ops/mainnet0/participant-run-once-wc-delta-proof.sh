@@ -27,14 +27,18 @@ print("[ok] ready")
 PY
 
 curl -fsS --max-time 8 -H 'content-type: application/json' \
-  -X POST http://127.0.0.1:4100/wc/runner/set \
+  -X POST http://127.0.0.1:4100/wc/runner/set?dry=0&confirm=wcRunnerSet \
   --data "{\"account\":\"$ACCOUNT\",\"enabled\":true}" > "$OUT/set.json"
 
 curl -fsS --max-time 8 "http://127.0.0.1:4100/wc/redeemable?account=$ACCOUNT" > "$OUT/before.json"
 
 curl -fsS --max-time 30 -H 'content-type: application/json' \
-  -X POST http://127.0.0.1:4100/wc/runner/tick \
+  -X POST http://127.0.0.1:4100/wc/runner/tick?dry=0&confirm=wcRunnerTick \
   --data "{\"account\":\"$ACCOUNT\"}" > "$OUT/tick.json"
+
+curl -fsS --max-time 20 -H 'content-type: application/json' \
+  -X POST "http://127.0.0.1:4100/wc/scan-receipts?dry=0&confirm=wcScanReceipts" \
+  --data '{}' > "$OUT/scan.json"
 
 sleep 2
 curl -fsS --max-time 8 "http://127.0.0.1:4100/wc/redeemable?account=$ACCOUNT" > "$OUT/after.json"

@@ -85,6 +85,7 @@ import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
 import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
+import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 
 
 // __VOID_TS_DECLARES_V1__
@@ -392,6 +393,8 @@ const app = express();
     "/wc/runner/set": "wcRunnerSet",
     "/wc/runner/config": "wcRunnerConfig",
     "/wc/runner/tick": "wcRunnerTick",
+    "/wc/scan-receipts": "wcScanReceipts",
+    "/__void/operator/wc-public-capability-v1/issue": "wcPublicCapabilityIssue",
     "/wc/redeem": "wcRedeem",
     "/wc/send": "wcSend",
     "/jobs/submit": "jobsSubmit",
@@ -62450,13 +62453,8 @@ a{color:#93c5fd;text-decoration:none}
           }
         };
 
-        const runnerSubmitBase =
-          String(
-            process.env.PUBLIC_HTTP_BASE ||
-            process.env.HTTP_ADVERTISE ||
-            `http://127.0.0.1:${port}`
-          ).replace(/\/$/, "");
-        const r = await fetch(`${runnerSubmitBase}/jobs/submit`, {
+        const runnerSubmitBase = `http://127.0.0.1:${port}`;
+        const r = await fetch(`${runnerSubmitBase}/jobs/submit?dry=0&confirm=jobsSubmit`, {
           method: "POST",
           headers: { "content-type":"application/json" },
           body: JSON.stringify(payload)
@@ -62467,7 +62465,7 @@ a{color:#93c5fd;text-decoration:none}
         let workerOut:any = null;
         if (out && out.ok && out.job && out.job.job_id) {
           try {
-            const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=${encodeURIComponent(account)}&job_id=${encodeURIComponent(String(out.job.job_id))}`, {
+            const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=${encodeURIComponent(account)}&job_id=${encodeURIComponent(String(out.job.job_id))}&dry=0&confirm=jobsWorkerRunOnce`, {
               method: "POST"
             });
             workerOut = await wr.json().catch(() => ({ ok:false, error:"non_json_worker_run_once" }));
