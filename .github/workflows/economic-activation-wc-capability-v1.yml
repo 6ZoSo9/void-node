@@ -1,0 +1,44 @@
+name: Economic Activation WC Capability v1
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  wc-capability-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove economic activation WC capability
+        run: npx tsx scripts/prove_economic_activation_wc_capability_v1.ts
+
+      - name: Prove economic activation WC capability runtime
+        run: npx tsx scripts/prove_economic_activation_wc_capability_runtime_v1.ts
+
+      - name: Prove WC mutation containment
+        run: npx tsx scripts/prove_wc_mutation_containment_v1.ts
+
+      - name: Prove WC production canary regression
+        run: npx tsx scripts/prove_wc_production_canary_v1.ts
+
+      - name: Guard index.ts size and markers
+        run: |
+          chmod +x tools/check_index_size.sh
+          tools/check_index_size.sh
+
+      - name: Build
+        run: npm run build

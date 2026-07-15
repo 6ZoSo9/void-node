@@ -53,9 +53,9 @@ if (!creditBlock.includes("delta: WC_PRODUCTION_CANARY_FIXED_AWARD_WC")) {
 }
 if (creditBlock.includes('"ledger.jsonl"')) fail("legacy WC ledger is referenced by canary credit");
 
-const runnerSubmitAnchor = 'const r = await fetch(`${runnerSubmitBase}/jobs/submit`, {';
+const runnerSubmitAnchor = 'const r = await fetch(`${runnerSubmitBase}/jobs/submit?dry=0&confirm=jobsSubmit`, {';
 const runnerWorkerAnchor = 'const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=';
-if (!source.includes(runnerSubmitAnchor) || !source.includes(runnerWorkerAnchor)) {
+if (!source.includes(runnerSubmitAnchor) || !source.includes(runnerWorkerAnchor) || !source.includes('&dry=0&confirm=jobsWorkerRunOnce')) {
   fail("automatic runner dry-by-default anchors changed unexpectedly");
 }
 
