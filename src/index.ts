@@ -17567,25 +17567,33 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 
   async function readInputs(){
     let head:any = null, live:any = null, seen:any = null;
+    const port = String(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+    const base = `http://127.0.0.1:${port}`;
 
     // 1) strongest head truth first
     try{
-      const t = await fetchText("http://localhost:4100/head.txt", 300);
-      const n = Number(String(t || "").trim().split(/\s+/)[0]);
-      if (Number.isFinite(n) && n >= 0) head = n;
+      const t = await fetchText(`${base}/head.txt`, 300);
+      const raw = String(t || "").trim();
+      if (raw) {
+        const n = Number(raw.split(/\s+/)[0]);
+        if (Number.isFinite(n) && n >= 0) head = n;
+      }
     }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("16998:16", err); }
     if (head == null){
       try{
-        const t = await fetchText("http://localhost:4100/blocks/latest/number2.json", 400);
-        const j = JSON.parse(String(t || "{}"));
-        const n = Number(j?.number);
-        if (Number.isFinite(n) && n >= 0) head = n;
+        const t = await fetchText(`${base}/blocks/latest/number2.json`, 400);
+        const raw = String(t || "").trim();
+        if (raw) {
+          const j = JSON.parse(raw);
+          const n = Number(j?.number);
+          if (Number.isFinite(n) && n >= 0) head = n;
+        }
       }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17005:17", err); }
     }
 
     // 2) fallback basics exporter only if stronger head truth missing
     try{
-      const t = await fetchText("http://localhost:4100/__void/metrics/void.basics.v2.prom", 500);
+      const t = await fetchText(`${base}/__void/metrics/void.basics.v2.prom`, 500);
       if (head == null) {
         const h = parseGauge(t, "void_head_number");
         if (Number.isFinite(h) && h >= 0) head = h;
@@ -17597,7 +17605,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     // 3) strongest txroot truth: explicit verify on current head
     if (head != null){
       try{
-        const t = await fetchText(`http://localhost:4100/blocks/${head}/txroot/verify2`, 500);
+        const t = await fetchText(`${base}/blocks/${head}/txroot/verify2`, 500);
         const j = JSON.parse(String(t || "{}"));
         if (j && typeof j.match === "boolean") live = j.match ? 1 : 0;
       }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17025:19", err); }
@@ -17606,10 +17614,10 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     // 4) old fallback only if explicit verify unavailable
     if (live == null){
       try{
-        let t = await fetchText("http://localhost:4100/health/txroot3?format=prom", 300);
+        let t = await fetchText(`${base}/health/txroot3?format=prom`, 300);
         let v = parseGauge(t, "void_txroot_health");
         if (v == null) {
-          t = await fetchText("http://localhost:4100/health/txroot3/live.prom", 300);
+          t = await fetchText(`${base}/health/txroot3/live.prom`, 300);
           v = parseGauge(t, "void_txroot_health");
         }
         if (Number.isFinite(v)) live = v;
@@ -17618,7 +17626,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 
     // 5) lastmile seen
     try{
-      const lm = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 500);
+      const lm = await fetchText(`${base}/__void/metrics/lastmile.v4b.prom`, 500);
       const sv = parseGauge(lm, "void_lastmile_last_seen_block");
       if (Number.isFinite(sv)) seen = sv;
     }catch (err) { voidIndexEmptyCatchVisibilityWindow16201_17100V1("17046:21", err); }
