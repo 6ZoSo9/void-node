@@ -13,16 +13,26 @@ const moduleText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_public_earning_pilot_v1.ts"),
   "utf8",
 );
+const capabilityText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_public_capability_v1.ts"),
+  "utf8",
+);
 const acceptanceText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_verified_receipt_acceptance_v1.ts"),
   "utf8",
 );
 
 need(
-  indexText.includes(
+  capabilityText.includes(
+    'import "./wc_public_earning_pilot_v1.js"; // VOID_WC_PUBLIC_EARNING_PILOT_V1',
+  ),
+  "capability bootstrap import missing",
+);
+need(
+  !indexText.includes(
     'import "./economic/wc_public_earning_pilot_v1.js"; // VOID_WC_PUBLIC_EARNING_PILOT_V1',
   ),
-  "index import missing",
+  "index import must remain absent",
 );
 
 for (const marker of [

@@ -3,6 +3,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { acceptVerifiedReceiptOnce } from "./wc_verified_receipt_acceptance_v1.js";
+import "./wc_public_earning_pilot_v1.js"; // VOID_WC_PUBLIC_EARNING_PILOT_V1
 
 /**
  * VOID_WC_PUBLIC_CAPABILITY_V1
