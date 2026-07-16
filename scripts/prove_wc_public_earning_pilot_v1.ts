@@ -1,0 +1,213 @@
+import fs from "node:fs";
+import path from "node:path";
+
+function need(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(`VOID_WC_PUBLIC_EARNING_PILOT_V1_FAIL: ${message}`);
+  }
+}
+
+const root = process.cwd();
+const indexText = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
+const moduleText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_public_earning_pilot_v1.ts"),
+  "utf8",
+);
+const capabilityText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_public_capability_v1.ts"),
+  "utf8",
+);
+const acceptanceText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_verified_receipt_acceptance_v1.ts"),
+  "utf8",
+);
+
+need(
+  capabilityText.includes(
+    'import "./wc_public_earning_pilot_v1.js"; // VOID_WC_PUBLIC_EARNING_PILOT_V1',
+  ),
+  "capability bootstrap import missing",
+);
+need(
+  !indexText.includes(
+    'import "./economic/wc_public_earning_pilot_v1.js"; // VOID_WC_PUBLIC_EARNING_PILOT_V1',
+  ),
+  "index import must remain absent",
+);
+
+for (const marker of [
+  "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+  'VOID_WC_PUBLIC_EARNING_PILOT_TASK =\n  "datanet_fetch_verify"',
+  "VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3",
+  '"/wc/public-earning-pilot-v1/operator/issue"',
+  '"/wc/public-earning-pilot-v1/execute-local"',
+  '"/wc/public-earning-pilot-v1/submit-result"',
+  '"/wc/public-earning-pilot-v1/status"',
+  "executor_node_id",
+  "executor_http_base",
+  "expected_input_hash",
+  "token_sha256",
+  "capability_token_returned_once: true",
+  "ed25519",
+  "nodeIdFromPubPEM",
+  ".sign(null",
+  "crypto.verify",
+  "executor_signature_invalid",
+  "remote_health_node_id_mismatch",
+  "/health",
+  "/jobs/",
+  "/receipts",
+  "remote_job_verified: true",
+  "remote_receipt_verified: true",
+  "remote_job_expected_input_hash_mismatch",
+  "remote_job_capability_ticket_mismatch",
+  "remote_job_executor_node_mismatch",
+  "remote_receipt_timestamp_invalid",
+  "remote_receipt_timestamp_mismatch",
+  "local_receipt_timestamp_invalid",
+  "receipt_timestamp_bound_to_ticket_window: true",
+  "stale_ticket_lock_recovery: true",
+  "receipt_timestamp_before_ticket",
+  "receipt_timestamp_after_ticket",
+  "stale_lock_recovered",
+  "acquirePilotTicketLock",
+  "releasePilotTicketLock",
+  "persistImportedRemoteTruthOnce",
+  "remote_executor_provenance",
+  "acceptVerifiedReceiptOnce",
+  'source: "wc_public_earning_pilot_v1"',
+  "canonical_wc_delta_mismatch",
+  "capability_already_used",
+  "ticket_inflight",
+  "participant_selected_award: false",
+  "automatic_background_loop: false",
+  "generic_credit_route: false",
+  "wc_to_void: false",
+  "wallet_send: false",
+  "buy_void_fulfillment: false",
+  "money_movement: false",
+]) {
+  need(moduleText.includes(marker), `missing marker: ${marker}`);
+}
+
+need(
+  moduleText.includes(
+    '`${localBase}/jobs/submit?dry=0&confirm=jobsSubmit`',
+  ),
+  "local executor does not use confirmed jobs submit",
+);
+need(
+  moduleText.includes(
+    "&dry=0&confirm=jobsWorkerRunOnce",
+  ),
+  "local executor does not use confirmed worker run-once",
+);
+need(
+  moduleText.includes("executor_node_binding_mismatch"),
+  "local executor node binding missing",
+);
+need(
+  moduleText.includes("executor_key_node_binding_mismatch"),
+  "local executor key binding missing",
+);
+need(
+  moduleText.includes('["executor_node_id", envelope.executor_node_id, record.executor_node_id]'),
+  "coordinator ticket executor binding missing",
+);
+need(
+  moduleText.includes('["dataset_id", envelope.dataset_id, record.dataset_id]'),
+  "coordinator ticket dataset binding missing",
+);
+need(
+  moduleText.includes('["expected_input_hash", envelope.expected_input_hash, record.expected_input_hash]'),
+  "coordinator ticket input-hash binding missing",
+);
+need(
+  moduleText.includes("const earliestAllowed = Number(record.issued_at_ms || 0) - skewMs"),
+  "receipt lower timestamp bound missing",
+);
+need(
+  moduleText.includes("Number(record.expires_at_ms || 0) + skewMs"),
+  "receipt upper ticket-expiry timestamp bound missing",
+);
+need(
+  moduleText.includes("ageMs > ticketLockStaleMs()"),
+  "stale ticket lock age gate missing",
+);
+need(
+  moduleText.includes("export function assertRemoteJobTruth("),
+  "remote job truth validator is not proof-callable",
+);
+need(
+  moduleText.includes("export function assertRemoteReceiptTruth("),
+  "remote receipt truth validator is not proof-callable",
+);
+need(
+  moduleText.includes("plaintext.capability_ticket_id"),
+  "remote job is not bound to capability ticket",
+);
+need(
+  moduleText.includes("plaintext.executor_node_id"),
+  "remote job is not bound to executor node",
+);
+need(
+  moduleText.includes("plaintext.expected_input_hash"),
+  "remote job is not bound to expected input hash",
+);
+need(
+  moduleText.includes("receiptTsMs !== envelope.receipt_ts_ms"),
+  "persisted remote receipt timestamp is not envelope-bound",
+);
+need(
+  moduleText.includes("const receiptTs = Math.trunc(Number(receipt.ts_ms || 0))"),
+  "local executor receipt timestamp is not persisted-truth-only",
+);
+need(
+  !moduleText.includes("Number(receipt.ts_ms || Date.now())"),
+  "local executor still synthesizes a receipt timestamp",
+);
+
+need(!moduleText.includes("req?.body?.delta"), "participant-selected delta accepted");
+need(!moduleText.includes("req.body.delta"), "participant-selected delta accepted");
+need(!moduleText.includes("req?.body?.wc_award"), "participant-selected award accepted");
+need(!moduleText.includes('app.post("/wc/credit"'), "generic credit route introduced");
+need(!moduleText.includes("catch {"), "new module contains empty catch");
+
+need(
+  acceptanceText.includes(
+    "VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC = 3",
+  ),
+  "canonical fixed award changed",
+);
+need(
+  acceptanceText.includes('duplicate_guard: ["receipt_id", "job_id"]'),
+  "canonical exact-once duplicate guard missing",
+);
+need(
+  acceptanceText.includes("persisted_receipt_verified: true"),
+  "canonical persisted receipt verification missing",
+);
+need(
+  acceptanceText.includes("persisted_job_verified: true"),
+  "canonical persisted job verification missing",
+);
+need(
+  acceptanceText.includes("persisted_completion_verified: true"),
+  "canonical persisted completion verification missing",
+);
+
+const signIndex = moduleText.indexOf("const envelope = verifyPilotResultEnvelope(");
+const healthIndex = moduleText.indexOf("`${record.executor_http_base}/health`");
+const jobIndex = moduleText.indexOf("`${record.executor_http_base}/jobs/");
+const receiptIndex = moduleText.indexOf("`${record.executor_http_base}/receipts`");
+const importIndex = moduleText.indexOf("const imported = persistImportedRemoteTruthOnce(");
+const acceptanceIndex = moduleText.indexOf("const acceptance = await acceptVerifiedReceiptOnce");
+
+need(signIndex >= 0, "signature verification anchor missing");
+need(healthIndex > signIndex, "remote health must follow signature verification");
+need(jobIndex > healthIndex, "remote job verification must follow health");
+need(receiptIndex > jobIndex, "remote receipt verification must follow job");
+need(importIndex > receiptIndex, "remote truth import must follow verification");
+need(acceptanceIndex > importIndex, "canonical acceptance must follow import");
+
+console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");
