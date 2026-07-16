@@ -1,0 +1,35 @@
+name: WC Public Earning Participant CLI v1
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  participant-cli-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove participant CLI
+        run: |
+          chmod +x ops/mainnet0/wc-public-earning-participant-v1.sh
+          npx tsx scripts/prove_wc_public_earning_participant_cli_v1.ts
+
+      - name: Guard index.ts size and markers
+        run: |
+          chmod +x tools/check_index_size.sh
+          tools/check_index_size.sh
+
+      - name: Build
+        run: npm run build
