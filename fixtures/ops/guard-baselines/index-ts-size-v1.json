@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Updated for economic activation WC capability v1. The index adds only the capability module import, protected mutation rules, and exact confirmed loopback calls; full capability logic remains outside src/index.ts.",
+  "reason": "Lowered for verified-receipt acceptance repair. The retired phantom /wc/scan-receipts containment entry was removed; capability crediting now uses a separate in-process, duplicate-safe acceptance module.",
   "path": "src/index.ts",
-  "baseline_bytes": 3823458,
+  "baseline_bytes": 3823415,
   "old_hard_limit_bytes": 2097152,
   "max_lines": 100000,
   "policy": {
@@ -12,13 +12,13 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "economic activation WC capability v1 minimal index wiring",
+    "baseline_update_reason": "remove retired scanner containment and use external acceptance module",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
     "well_known_public_node_card_index_link_only": true,
     "well_known_runtime_closeout_rollup_link_only": true
   },
-  "previous_baseline_bytes": 3823344,
-  "note": "Raised by exactly 114 bytes for account-bound, task-bound, expiring, single-use WC capability activation. Static/runtime proofs, canonical containment, canary regression, and TypeScript build are required."
+  "previous_baseline_bytes": 3823458,
+  "note": "Lowered by exactly 43 bytes. No route body was added to src/index.ts; verified-receipt acceptance and failed-ticket recovery remain outside index."
 }

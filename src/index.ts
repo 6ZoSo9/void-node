@@ -393,7 +393,6 @@ const app = express();
     "/wc/runner/set": "wcRunnerSet",
     "/wc/runner/config": "wcRunnerConfig",
     "/wc/runner/tick": "wcRunnerTick",
-    "/wc/scan-receipts": "wcScanReceipts",
     "/__void/operator/wc-public-capability-v1/issue": "wcPublicCapabilityIssue",
     "/wc/redeem": "wcRedeem",
     "/wc/send": "wcSend",
