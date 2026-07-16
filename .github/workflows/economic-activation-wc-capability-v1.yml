@@ -29,6 +29,9 @@ jobs:
       - name: Prove economic activation WC capability runtime
         run: npx tsx scripts/prove_economic_activation_wc_capability_runtime_v1.ts
 
+      - name: Prove verified receipt acceptance and failed-ticket recovery
+        run: npx tsx scripts/prove_wc_verified_receipt_acceptance_v1.ts
+
       - name: Prove WC mutation containment
         run: npx tsx scripts/prove_wc_mutation_containment_v1.ts
 

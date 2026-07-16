@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
+import { acceptVerifiedReceiptOnce } from "./wc_verified_receipt_acceptance_v1.js";
 
 /**
  * VOID_WC_PUBLIC_CAPABILITY_V1
@@ -13,8 +14,9 @@ import path from "node:path";
  * - one public Run Once request using that ticket
  *
  * Internal authority:
- * - canonical loopback-only runner/config/tick/job/worker/receipt-scan routes
- * - canonical WC reward policy and canonical ledger remain authoritative
+ * - canonical loopback-only runner/config/tick/job/worker routes
+ * - in-process verified-receipt acceptance with a server-controlled 3 WC award
+ * - canonical WC ledger remains authoritative
  *
  * Explicitly absent:
  * - participant-selected WC amount
@@ -305,7 +307,7 @@ function publicStatus(accountRaw: unknown): JsonObject {
       runner_config: "/wc/runner/config",
       runner_set: "/wc/runner/set",
       runner_tick: "/wc/runner/tick",
-      receipt_scan: "/wc/scan-receipts",
+      receipt_acceptance: "in_process_verified_receipt_acceptance_v1",
       balance: "/wc/redeemable",
     },
     automatic_background_loop: false,
@@ -507,23 +509,29 @@ async function runCapability(req: any, res: any): Promise<any> {
       throw new Error("receipt_account_mismatch");
     }
 
-    const scan = await fetchJson(
-      `${base}/wc/scan-receipts?dry=0&confirm=wcScanReceipts`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      },
-      30_000,
-    );
+    const acceptance = await acceptVerifiedReceiptOnce(receipt, {
+      expectedAccount: account,
+      expectedJobId: String(receipt.job_id || ""),
+      expectedReceiptId: String(receipt.receipt_id || ""),
+      capabilityTicketId: parsed.ticketId,
+      source: "wc_public_capability_v1",
+    });
+
+    if (
+      acceptance?.credited !== true ||
+      acceptance?.duplicate === true ||
+      Number(acceptance?.award_wc || 0) !== 3
+    ) {
+      throw new Error("verified_receipt_acceptance_failed");
+    }
 
     const after = await fetchJson(`${base}/wc/redeemable?account=${encodedAccount}`, undefined, 10_000);
     const beforeRedeemable = Number(before?.redeemable || 0);
     const afterRedeemable = Number(after?.redeemable || 0);
     const delta = Math.round((afterRedeemable - beforeRedeemable) * 1e9) / 1e9;
 
-    if (!(delta > 0)) {
-      throw new Error("canonical_wc_delta_missing");
+    if (delta !== Number(acceptance.award_wc || 0)) {
+      throw new Error("canonical_wc_delta_mismatch");
     }
 
     const disableResult = await disableRunner();
@@ -571,7 +579,9 @@ async function runCapability(req: any, res: any): Promise<any> {
         config_ok: config?.ok === true,
         runner_enabled: setResult?.enabled === true,
         tick_outcome: tick?.outcome || null,
-        scan_credited: Number(scan?.credited || 0),
+        acceptance_credited: acceptance?.credited === true,
+        acceptance_duplicate: acceptance?.duplicate === true,
+        acceptance_award_wc: Number(acceptance?.award_wc || 0),
         runner_disabled: disableResult?.enabled === false,
       },
       automatic_background_loop: false,
