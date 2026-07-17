@@ -1,0 +1,64 @@
+name: signed-operator-provenance-canary-seal-and-onboarding-v1
+
+on:
+  pull_request:
+    paths:
+      - 'docs/public/operator-provenance/**'
+      - 'ops/public/operator-onboarding-v1/**'
+      - 'scripts/prove_signed_operator_provenance_canary_seal_and_onboarding_v1.py'
+      - '.github/workflows/signed-operator-provenance-canary-seal-and-onboarding-v1.yml'
+  push:
+    paths:
+      - 'docs/public/operator-provenance/**'
+      - 'ops/public/operator-onboarding-v1/**'
+      - 'scripts/prove_signed_operator_provenance_canary_seal_and_onboarding_v1.py'
+      - '.github/workflows/signed-operator-provenance-canary-seal-and-onboarding-v1.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static proof and syntax
+        run: |
+          python3 scripts/prove_signed_operator_provenance_canary_seal_and_onboarding_v1.py
+          python3 -m py_compile \
+            ops/public/operator-onboarding-v1/void-public-node-operator-enroll-v1.py \
+            ops/public/operator-onboarding-v1/void-public-node-operator-review-v1.py
+      - name: End-to-end submission and review
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          python3 ops/public/operator-onboarding-v1/void-public-node-operator-enroll-v1.py \
+            --operator-id ci-operator \
+            --node-key ci-node \
+            --label 'CI public node' \
+            --operator-label 'CI Operator' \
+            --region-label 'Test region' \
+            --description 'Read-only signed operator submission test' \
+            --key-dir "$tmp/keys" \
+            --output-dir "$tmp/out" > "$tmp/enroll.json"
+          bundle="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["bundle"])' "$tmp/enroll.json")"
+          python3 ops/public/operator-onboarding-v1/void-public-node-operator-review-v1.py \
+            --bundle "$bundle" \
+            --output "$tmp/review.json"
+          python3 - "$bundle" "$tmp/tampered" <<'PY'
+import json
+import pathlib
+import sys
+import zipfile
+
+bundle = pathlib.Path(sys.argv[1])
+out = pathlib.Path(sys.argv[2])
+out.mkdir()
+with zipfile.ZipFile(bundle) as archive:
+    archive.extractall(out)
+path = out / "operator-manifest-v1.json"
+value = json.loads(path.read_text())
+value["node"]["description"] = "tampered"
+path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+PY
+          if python3 ops/public/operator-onboarding-v1/void-public-node-operator-review-v1.py --bundle "$tmp/tampered"; then
+            echo 'tampered bundle unexpectedly passed' >&2
+            exit 1
+          fi
