@@ -1,0 +1,30 @@
+name: wc-public-earning-participant-cli-false-default-v1
+
+on:
+  push:
+    paths:
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts"
+      - ".github/workflows/wc-public-earning-participant-cli-false-default-v1.yml"
+  pull_request:
+    paths:
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts"
+      - ".github/workflows/wc-public-earning-participant-cli-false-default-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  participant-cli-false-default-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
+      - run: npx tsx scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts

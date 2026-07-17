@@ -373,7 +373,7 @@ jq -e \
    .remote_executor == true and
    .local_node_id == $executor and
    (.transport_mode // "inbound_fetch") == $transport and
-   (.coordinator_inbound_fetch // true) == ($transport == "inbound_fetch") and
+   ((if has("coordinator_inbound_fetch") then .coordinator_inbound_fetch else true end) == ($transport == "inbound_fetch")) and
    (.participant_outbound_bundle // false) == ($transport == "outbound_bundle") and
    .ticket_id == $ticket and
    .dataset_id == $dataset and
@@ -382,7 +382,7 @@ jq -e \
    .coordinator.remote_executor == true and
    .coordinator.executor_node_id == $executor and
    (.coordinator.transport_mode // "inbound_fetch") == $transport and
-   (.coordinator.coordinator_inbound_fetch // true) == ($transport == "inbound_fetch") and
+   ((if ((.coordinator | type) == "object" and (.coordinator | has("coordinator_inbound_fetch"))) then .coordinator.coordinator_inbound_fetch else true end) == ($transport == "inbound_fetch")) and
    (.coordinator.participant_outbound_bundle // false) == ($transport == "outbound_bundle") and
    .coordinator.ticket_id == $ticket and
    .coordinator.account == $account and
