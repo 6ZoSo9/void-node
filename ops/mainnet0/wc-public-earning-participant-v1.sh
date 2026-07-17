@@ -18,7 +18,7 @@ Usage:
 Example:
   ops/mainnet0/wc-public-earning-participant-v1.sh \
     ~/Downloads/void-wc-ticket.json \
-    http://100.122.245.125:4100 \
+    https://public-void-gateway.example \
     9d89483769e469e0473b489dc50dba96
 
 The command validates the ticket, local executor identity, trusted coordinator
