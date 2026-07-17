@@ -1,0 +1,41 @@
+name: public-earn-gateway-v1
+
+on:
+  push:
+    paths:
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_public_earn_gateway_v1.mjs"
+      - "docs/public/public-earn-gateway-v1.md"
+      - ".github/workflows/public-earn-gateway-v1.yml"
+  pull_request:
+    paths:
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_public_earn_gateway_v1.mjs"
+      - "docs/public/public-earn-gateway-v1.md"
+      - ".github/workflows/public-earn-gateway-v1.yml"
+
+jobs:
+  public-earn-gateway-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Check adapter and participant CLI syntax
+        run: |
+          node --check ops/public/public-seed-adapter-v1.mjs
+          bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
+      - name: Prove bounded public earn gateway
+        run: node scripts/prove_public_earn_gateway_v1.mjs
+      - name: Preserve participant earning contracts
+        run: |
+          npx tsx scripts/prove_wc_public_earning_participant_cli_v1.ts
+          npx tsx scripts/prove_wc_public_earning_outbound_participant_v1.ts
+      - name: Build
+        run: npm run build
