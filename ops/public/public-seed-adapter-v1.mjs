@@ -155,6 +155,20 @@ function safeFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// VOID_PUBLIC_EARN_GATEWAY_CAPABILITY_FORWARDING_V1
+function validatedEarnCapabilityAuthorization(value) {
+  if (typeof value !== "string") return null;
+  const match =
+    /^Bearer (wcep1\.([0-9a-f]{32})\.[A-Za-z0-9_-]{43})$/.exec(
+      value.trim(),
+    );
+  if (!match) return null;
+  return {
+    header: `Bearer ${match[1]}`,
+    ticketId: match[2],
+  };
+}
+
 function publicEarnEnabled() {
   return /^http:\/\/[^\s/]+(?::\d+)?$/.test(EARN_UPSTREAM);
 }
@@ -378,6 +392,17 @@ async function proxyEarnSubmit(req, res) {
     writeJson(req, res, 429, { ok: false, error: "public_earn_rate_limited" }, { "retry-after": "60" });
     return;
   }
+  const capability = validatedEarnCapabilityAuthorization(
+    req.headers.authorization,
+  );
+  if (!capability) {
+    writeJson(req, res, 401, {
+      ok: false,
+      error: "earning_capability_authorization_required",
+    });
+    return;
+  }
+
   const contentType = String(req.headers["content-type"] || "").toLowerCase();
   if (!contentType.startsWith("application/json")) {
     writeJson(req, res, 415, { ok: false, error: "application_json_required" });
@@ -395,10 +420,20 @@ async function proxyEarnSubmit(req, res) {
     throw error;
   }
 
+  let parsedBody;
   try {
-    JSON.parse(body.toString("utf8"));
+    parsedBody = JSON.parse(body.toString("utf8"));
   } catch {
     writeJson(req, res, 400, { ok: false, error: "invalid_json" });
+    return;
+  }
+
+  const bodyTicketId = safeString(parsedBody?.ticket?.ticket_id, 64);
+  if (bodyTicketId !== capability.ticketId) {
+    writeJson(req, res, 401, {
+      ok: false,
+      error: "earning_capability_ticket_mismatch",
+    });
     return;
   }
 
@@ -411,6 +446,7 @@ async function proxyEarnSubmit(req, res) {
         "content-type": "application/json",
         "content-length": String(body.length),
         "user-agent": "void-public-earn-gateway-v1",
+        authorization: capability.header,
       },
       body,
     },
