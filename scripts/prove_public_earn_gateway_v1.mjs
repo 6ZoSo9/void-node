@@ -138,6 +138,21 @@ async function main() {
       }
 
       if (req.method === "POST" && req.url === "/wc/public-earning-pilot-v1/submit-result") {
+        const authorization = String(req.headers.authorization || "");
+        if (
+          !/^Bearer wcep1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/.test(
+            authorization,
+          )
+        ) {
+          res.writeHead(401, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: "missing_or_invalid_capability",
+            }),
+          );
+          return;
+        }
         res.writeHead(200, {
           "content-type": "application/json",
           "set-cookie": "secret=1",
@@ -242,47 +257,162 @@ async function main() {
     ticket: { ticket_id: "1".repeat(32) },
     proof_bundle: { result: "verified" },
   };
-  const submit = await json(`${base}/wc/public-earning-pilot-v1/submit-result`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: "Bearer must-not-forward",
-      cookie: "must-not-forward=1",
+  const validCapability =
+    `wcep1.${"1".repeat(32)}.${"A".repeat(43)}`;
+  const validAuthorization = `Bearer ${validCapability}`;
+
+  const missingCallsBefore = earnRequests.length;
+  const missingAuthorization = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
+  assert.equal(missingAuthorization.response.status, 401);
+  assert.equal(
+    missingAuthorization.body.error,
+    "earning_capability_authorization_required",
+  );
+  assert.equal(earnRequests.length, missingCallsBefore);
+
+  for (const malformed of [
+    "Basic abc",
+    "Bearer must-not-forward",
+    `Bearer wcep1.${"1".repeat(31)}.${"A".repeat(43)}`,
+    `Bearer wcep1.${"1".repeat(32)}.${"A".repeat(42)}`,
+    `${validAuthorization} trailing`,
+  ]) {
+    const callsBefore = earnRequests.length;
+    const rejected = await json(
+      `${base}/wc/public-earning-pilot-v1/submit-result`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: malformed,
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    assert.equal(rejected.response.status, 401);
+    assert.equal(
+      rejected.body.error,
+      "earning_capability_authorization_required",
+    );
+    assert.equal(earnRequests.length, callsBefore);
+  }
+
+  const mismatchCallsBefore = earnRequests.length;
+  const mismatchedTicket = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: validAuthorization,
+      },
+      body: JSON.stringify({
+        ...payload,
+        ticket: { ticket_id: "2".repeat(32) },
+      }),
+    },
+  );
+  assert.equal(mismatchedTicket.response.status, 401);
+  assert.equal(
+    mismatchedTicket.body.error,
+    "earning_capability_ticket_mismatch",
+  );
+  assert.equal(earnRequests.length, mismatchCallsBefore);
+
+  const submit = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: validAuthorization,
+        cookie: "must-not-forward=1",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
   assert.equal(submit.response.status, 200);
   assert.equal(submit.body.ok, true);
   assert.equal(submit.body.wc.delta, 3);
   assert.equal(submit.response.headers.has("set-cookie"), false);
   assert.equal(submit.response.headers.has("location"), false);
+  assert.equal(
+    JSON.stringify(submit.body).includes(validCapability),
+    false,
+  );
+
   const forwarded = earnRequests.at(-1);
   assert.equal(forwarded.method, "POST");
-  assert.equal(forwarded.url, "/wc/public-earning-pilot-v1/submit-result");
+  assert.equal(
+    forwarded.url,
+    "/wc/public-earning-pilot-v1/submit-result",
+  );
   assert.deepEqual(JSON.parse(forwarded.raw), payload);
-  assert.equal(forwarded.headers.authorization, undefined);
+  assert.equal(
+    forwarded.headers.authorization,
+    validAuthorization,
+  );
   assert.equal(forwarded.headers.cookie, undefined);
-  assert.equal(forwarded.headers["content-type"], "application/json");
+  assert.equal(
+    forwarded.headers["content-type"],
+    "application/json",
+  );
 
-  const wrongContentType = await json(`${base}/wc/public-earning-pilot-v1/submit-result`, {
-    method: "POST",
-    headers: { "content-type": "text/plain" },
-    body: "{}",
+  const readCallsBefore = earnRequests.length;
+  const authenticatedHealth = await json(`${base}/health`, {
+    headers: { authorization: validAuthorization },
   });
+  assert.equal(authenticatedHealth.response.status, 200);
+  assert.equal(earnRequests.length, readCallsBefore + 1);
+  const forwardedHealth = earnRequests.at(-1);
+  assert.equal(forwardedHealth.method, "GET");
+  assert.equal(forwardedHealth.url, "/health");
+  assert.equal(forwardedHealth.headers.authorization, undefined);
+
+  const wrongContentType = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        authorization: validAuthorization,
+      },
+      body: "{}",
+    },
+  );
   assert.equal(wrongContentType.response.status, 415);
 
-  const invalidJson = await json(`${base}/wc/public-earning-pilot-v1/submit-result`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{",
-  });
+  const invalidJson = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: validAuthorization,
+      },
+      body: "{",
+    },
+  );
   assert.equal(invalidJson.response.status, 400);
 
-  const oversized = await json(`${base}/wc/public-earning-pilot-v1/submit-result`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload: "x".repeat(70 * 1024) }),
-  });
+  const oversized = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: validAuthorization,
+      },
+      body: JSON.stringify({ payload: "x".repeat(70 * 1024) }),
+    },
+  );
   assert.equal(oversized.response.status, 413);
 
   const publicIssueGet = await json(`${base}/wc/public-earning-pilot-v1/operator/issue`);

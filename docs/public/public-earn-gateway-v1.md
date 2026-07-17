@@ -34,7 +34,7 @@ The gateway does not issue tickets. It does not accept participant-selected Work
 
 The internet-facing adapter receives the bounded request and forwards only the exact earning routes to a separately configured coordinator upstream. The coordinator upstream address is never emitted by the adapter status or response surfaces.
 
-The result route requires JSON, has bounded request and response sizes, uses an upstream timeout, strips cookies and authorization headers, rejects redirects, and applies an in-memory submission rate limit. The capability ticket and coordinator remain responsible for account, task, dataset, executor, expiry, signature, single-use, and duplicate-credit enforcement.
+The result route requires JSON, has bounded request and response sizes, uses an upstream timeout, strips cookies and every caller header except one strictly validated `Bearer wcep1.<32-hex-ticket-id>.<43-base64url-secret>` capability on the exact submit route, rejects redirects, and applies an in-memory submission rate limit. Missing, malformed, or ticket-mismatched capability authorization is rejected before the coordinator is contacted. Authorization is never forwarded on read routes or any non-submit route. The capability ticket and coordinator remain responsible for account, task, dataset, executor, expiry, signature, single-use, and duplicate-credit enforcement.
 
 ## Participant flow
 
