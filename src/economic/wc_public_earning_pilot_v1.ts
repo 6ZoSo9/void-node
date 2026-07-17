@@ -16,6 +16,8 @@ export const VOID_WC_PUBLIC_EARNING_PILOT_TASK =
   "datanet_fetch_verify";
 export const VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3;
 
+export type PilotTransportMode = "inbound_fetch" | "outbound_bundle";
+
 const OPERATOR_ISSUE_ROUTE =
   "/wc/public-earning-pilot-v1/operator/issue";
 const LOCAL_EXECUTE_ROUTE =
@@ -27,6 +29,10 @@ const PUBLIC_STATUS_ROUTE =
 const GLOBAL_MARK = "__void_wc_public_earning_pilot_v1";
 
 type JsonObject = Record<string, any>;
+
+function isJsonObject(raw: unknown): raw is JsonObject {
+  return Boolean(raw) && typeof raw === "object" && !Array.isArray(raw);
+}
 
 function recordPilotBestEffortFailure(
   scope: string,
@@ -49,6 +55,7 @@ export interface PilotTicketRecord {
   task_class: string;
   executor_node_id: string;
   executor_http_base: string;
+  transport_mode?: PilotTransportMode;
   dataset_id: string;
   expected_input_hash: string;
   token_sha256: string;
@@ -71,6 +78,7 @@ export interface PilotResultEnvelope {
   executor_node_id: string;
   executor_pubkey: string;
   executor_http_base: string;
+  transport_mode: PilotTransportMode;
   dataset_id: string;
   expected_input_hash: string;
   job_id: string;
@@ -200,6 +208,23 @@ function safeNodeId(raw: unknown): string {
 function safeHex64(raw: unknown): string {
   const value = String(raw || "").trim().toLowerCase().replace(/^0x/, "");
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
+}
+
+function safeTransportMode(raw: unknown): PilotTransportMode | "" {
+  const value = String(raw || "").trim();
+  return value === "inbound_fetch" || value === "outbound_bundle"
+    ? value
+    : "";
+}
+
+function ticketTransportMode(
+  record: Partial<PilotTicketRecord>,
+): PilotTransportMode {
+  const explicit = safeTransportMode(record.transport_mode);
+  if (explicit) return explicit;
+  return safeHttpBase(record.executor_http_base)
+    ? "inbound_fetch"
+    : "outbound_bundle";
 }
 
 function safeHttpBase(raw: unknown): string {
@@ -371,7 +396,11 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
   ensureDirs(raw);
   const account = safeAccount(input.account);
   const executorNodeId = safeNodeId(input.executor_node_id);
+  const transportMode = safeTransportMode(
+    input.transport_mode || "inbound_fetch",
+  );
   const executorHttpBase = safeHttpBase(input.executor_http_base);
+  const executorHttpBaseRaw = String(input.executor_http_base || "").trim();
   const datasetId = safeId(input.dataset_id, 160);
   const expectedInputHash = safeHex64(input.expected_input_hash);
   const taskClass = String(
@@ -380,7 +409,13 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
 
   if (!account) throw new Error("invalid_account");
   if (!executorNodeId) throw new Error("invalid_executor_node_id");
-  if (!executorHttpBase) throw new Error("invalid_executor_http_base");
+  if (!transportMode) throw new Error("invalid_transport_mode");
+  if (transportMode === "inbound_fetch" && !executorHttpBase) {
+    throw new Error("invalid_executor_http_base");
+  }
+  if (transportMode === "outbound_bundle" && executorHttpBaseRaw) {
+    throw new Error("outbound_executor_http_base_forbidden");
+  }
   if (!datasetId) throw new Error("invalid_dataset_id");
   if (!expectedInputHash) throw new Error("invalid_expected_input_hash");
   if (taskClass !== VOID_WC_PUBLIC_EARNING_PILOT_TASK) {
@@ -411,7 +446,8 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
     account,
     task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
     executor_node_id: executorNodeId,
-    executor_http_base: executorHttpBase,
+    executor_http_base: transportMode === "inbound_fetch" ? executorHttpBase : "",
+    transport_mode: transportMode,
     dataset_id: datasetId,
     expected_input_hash: expectedInputHash,
     token_sha256: sha256Hex(token),
@@ -434,7 +470,8 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
       ticket_id: ticketId,
       account,
       executor_node_id: executorNodeId,
-      executor_http_base: executorHttpBase,
+      executor_http_base: record.executor_http_base,
+      transport_mode: transportMode,
       dataset_id: datasetId,
       expires_at_ms: record.expires_at_ms,
     },
@@ -471,6 +508,11 @@ function parseToken(raw: string): {
 export function pilotResultSigningObject(
   raw: Partial<PilotResultEnvelope>,
 ): PilotResultEnvelope {
+  const executorHttpBase = safeHttpBase(raw.executor_http_base);
+  const transportMode = safeTransportMode(
+    raw.transport_mode ||
+      (executorHttpBase ? "inbound_fetch" : "outbound_bundle"),
+  );
   const envelope: PilotResultEnvelope = {
     domain: "void:mainnet-0:wc-public-earning-pilot-v1",
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -480,7 +522,8 @@ export function pilotResultSigningObject(
     task_class: String(raw.task_class || "").trim(),
     executor_node_id: safeNodeId(raw.executor_node_id),
     executor_pubkey: String(raw.executor_pubkey || ""),
-    executor_http_base: safeHttpBase(raw.executor_http_base),
+    executor_http_base: executorHttpBase,
+    transport_mode: transportMode as PilotTransportMode,
     dataset_id: safeId(raw.dataset_id, 160),
     expected_input_hash: safeHex64(raw.expected_input_hash),
     job_id: safeId(raw.job_id, 160),
@@ -502,7 +545,19 @@ export function pilotResultSigningObject(
   if (!envelope.executor_pubkey.includes("BEGIN PUBLIC KEY")) {
     throw new Error("invalid_executor_pubkey");
   }
-  if (!envelope.executor_http_base) throw new Error("invalid_executor_http_base");
+  if (!envelope.transport_mode) throw new Error("invalid_transport_mode");
+  if (
+    envelope.transport_mode === "inbound_fetch" &&
+    !envelope.executor_http_base
+  ) {
+    throw new Error("invalid_executor_http_base");
+  }
+  if (
+    envelope.transport_mode === "outbound_bundle" &&
+    envelope.executor_http_base
+  ) {
+    throw new Error("outbound_executor_http_base_forbidden");
+  }
   if (!envelope.dataset_id) throw new Error("invalid_dataset_id");
   if (!envelope.expected_input_hash) throw new Error("invalid_expected_input_hash");
   if (!envelope.job_id) throw new Error("invalid_job_id");
@@ -706,6 +761,7 @@ export function assertPilotTicketEnvelopeMatch(
     ["task_class", envelope.task_class, record.task_class],
     ["executor_node_id", envelope.executor_node_id, record.executor_node_id],
     ["executor_http_base", envelope.executor_http_base, record.executor_http_base],
+    ["transport_mode", envelope.transport_mode, ticketTransportMode(record)],
     ["dataset_id", envelope.dataset_id, record.dataset_id],
     ["expected_input_hash", envelope.expected_input_hash, record.expected_input_hash],
   ];
@@ -937,6 +993,9 @@ export function persistImportedRemoteTruthOnce(
     capability_ticket_id: envelope.ticket_id,
     executor_node_id: envelope.executor_node_id,
     executor_http_base: envelope.executor_http_base,
+    transport_mode: envelope.transport_mode,
+    coordinator_inbound_fetch: envelope.transport_mode === "inbound_fetch",
+    participant_outbound_bundle: envelope.transport_mode === "outbound_bundle",
     executor_signature_sha256: sha256Hex(String(signatureRaw?.sig || "")),
     verified_remote_health: true,
     verified_remote_job: true,
@@ -1015,6 +1074,110 @@ export function persistImportedRemoteTruthOnce(
       job: jobResult.appended,
       completed: completedResult.appended,
     },
+  };
+}
+
+export async function verifyPilotSubmissionEvidence(
+  record: PilotTicketRecord,
+  envelope: PilotResultEnvelope,
+  proofBundleRaw?: JsonObject,
+): Promise<{
+  transportMode: PilotTransportMode;
+  health: JsonObject;
+  job: JsonObject;
+  receipt: JsonObject;
+  coordinatorInboundFetch: boolean;
+  participantOutboundBundle: boolean;
+}> {
+  const transportMode = ticketTransportMode(record);
+
+  if (transportMode === "outbound_bundle") {
+    const proofBundle = isJsonObject(proofBundleRaw)
+      ? proofBundleRaw
+      : {};
+    if (
+      proofBundle.marker !== VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
+      Number(proofBundle.version || 0) !== 1 ||
+      safeTransportMode(proofBundle.transport_mode) !== "outbound_bundle" ||
+      safeId(proofBundle.ticket_id, 64) !== envelope.ticket_id ||
+      safeNodeId(proofBundle.executor_node_id) !==
+        envelope.executor_node_id ||
+      safeId(proofBundle.job_id, 160) !== envelope.job_id ||
+      safeId(proofBundle.receipt_id, 180) !== envelope.receipt_id
+    ) {
+      throw new Error("outbound_proof_bundle_invalid");
+    }
+
+    const health = isJsonObject(proofBundle.health)
+      ? proofBundle.health
+      : {};
+    const job = isJsonObject(proofBundle.job)
+      ? proofBundle.job
+      : {};
+    const receiptCandidate = isJsonObject(proofBundle.receipt)
+      ? proofBundle.receipt
+      : {};
+
+    if (health?.ok !== true) {
+      throw new Error("outbound_health_not_ok");
+    }
+    if (safeNodeId(health?.nodeId) !== record.executor_node_id) {
+      throw new Error("outbound_health_node_id_mismatch");
+    }
+    assertRemoteJobTruth(job, envelope);
+    const receipt = findVerifiedReceipt(
+      receiptCandidate,
+      envelope.receipt_id,
+    );
+    if (!receipt) throw new Error("outbound_receipt_missing");
+    assertRemoteReceiptTruth(receipt, envelope);
+
+    return {
+      transportMode,
+      health,
+      job,
+      receipt,
+      coordinatorInboundFetch: false,
+      participantOutboundBundle: true,
+    };
+  }
+
+  const health = await fetchJson(
+    `${record.executor_http_base}/health`,
+    undefined,
+    10_000,
+  );
+  if (safeNodeId(health?.nodeId) !== record.executor_node_id) {
+    throw new Error("remote_health_node_id_mismatch");
+  }
+
+  const job = await fetchJson(
+    `${record.executor_http_base}/jobs/${encodeURIComponent(envelope.job_id)}`,
+    undefined,
+    15_000,
+  );
+  assertRemoteJobTruth(job, envelope);
+
+  const remoteReceipts = await fetchJson(
+    `${record.executor_http_base}/receipts` +
+      `?account=${encodeURIComponent(record.account)}&limit=50`,
+    undefined,
+    15_000,
+  );
+  const receipt = findVerifiedReceipt(
+    remoteReceipts,
+    envelope.receipt_id,
+  );
+  if (!receipt) throw new Error("remote_receipt_missing");
+  assertRemoteReceiptTruth(receipt, envelope);
+
+  return {
+    transportMode,
+    health,
+    job,
+    receipt,
+    coordinatorInboundFetch: true,
+    participantOutboundBundle: false,
   };
 }
 
@@ -1180,6 +1343,7 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   const datasetId = safeId(ticket.dataset_id, 160);
   const expectedInputHash = safeHex64(ticket.expected_input_hash);
   const ticketId = safeId(ticket.ticket_id, 64);
+  const transportMode = ticketTransportMode(ticket);
   const expiresAt = Number(ticket.expires_at_ms || 0);
 
   const parsedToken = parseToken(token);
@@ -1344,7 +1508,12 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   if (!outputHash) throw new Error("local_receipt_output_hash_invalid");
 
   const executorHttpBase = safeHttpBase(ticket.executor_http_base);
-  if (!executorHttpBase) throw new Error("invalid_executor_http_base");
+  if (transportMode === "inbound_fetch" && !executorHttpBase) {
+    throw new Error("invalid_executor_http_base");
+  }
+  if (transportMode === "outbound_bundle" && executorHttpBase) {
+    throw new Error("outbound_executor_http_base_forbidden");
+  }
 
   const signed = signPilotResultEnvelope(
     {
@@ -1354,6 +1523,7 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
       executor_node_id: executorNodeId,
       executor_pubkey: kp.pubPEM,
       executor_http_base: executorHttpBase,
+      transport_mode: transportMode,
       dataset_id: datasetId,
       expected_input_hash: expectedInputHash,
       job_id: jobId,
@@ -1366,6 +1536,41 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
     kp.privateKey,
   );
 
+  let proofBundle: JsonObject | undefined;
+  if (transportMode === "outbound_bundle") {
+    const localHealth = await fetchJson(`${localBase}/health`, undefined, 10_000);
+    if (localHealth?.ok !== true || safeNodeId(localHealth?.nodeId) !== executorNodeId) {
+      throw new Error("local_outbound_health_invalid");
+    }
+    const localJob = await fetchJson(
+      `${localBase}/jobs/${encodeURIComponent(jobId)}`,
+      undefined,
+      15_000,
+    );
+    assertRemoteJobTruth(localJob, signed.envelope);
+    const localReceipts = await fetchJson(
+      `${localBase}/receipts` +
+        `?account=${encodeURIComponent(account)}&limit=50`,
+      undefined,
+      15_000,
+    );
+    const persistedReceipt = findVerifiedReceipt(localReceipts, receiptId);
+    if (!persistedReceipt) throw new Error("local_outbound_receipt_missing");
+    assertRemoteReceiptTruth(persistedReceipt, signed.envelope);
+    proofBundle = {
+      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+      version: 1,
+      transport_mode: "outbound_bundle",
+      ticket_id: ticketId,
+      executor_node_id: executorNodeId,
+      job_id: jobId,
+      receipt_id: receiptId,
+      health: localHealth,
+      job: localJob,
+      receipt: persistedReceipt,
+    };
+  }
+
   const coordinator = await fetchJson(
     `${coordinatorBase}${PUBLIC_SUBMIT_ROUTE}`,
     {
@@ -1374,7 +1579,10 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(signed),
+      body: JSON.stringify({
+        ...signed,
+        ...(proofBundle ? { proof_bundle: proofBundle } : {}),
+      }),
     },
     45_000,
   );
@@ -1384,6 +1592,9 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
     remote_executor: true,
     local_node_id: executorNodeId,
+    transport_mode: transportMode,
+    coordinator_inbound_fetch: transportMode === "inbound_fetch",
+    participant_outbound_bundle: transportMode === "outbound_bundle",
     ticket_id: ticketId,
     job_id: jobId,
     receipt_id: receiptId,
@@ -1455,34 +1666,11 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
     );
     assertPilotTicketEnvelopeMatch(record, envelope);
 
-    const health = await fetchJson(
-      `${record.executor_http_base}/health`,
-      undefined,
-      10_000,
+    const evidence = await verifyPilotSubmissionEvidence(
+      record,
+      envelope,
+      req?.body?.proof_bundle,
     );
-    if (safeNodeId(health?.nodeId) !== record.executor_node_id) {
-      throw new Error("remote_health_node_id_mismatch");
-    }
-
-    const remoteJob = await fetchJson(
-      `${record.executor_http_base}/jobs/${encodeURIComponent(envelope.job_id)}`,
-      undefined,
-      15_000,
-    );
-    assertRemoteJobTruth(remoteJob, envelope);
-
-    const remoteReceipts = await fetchJson(
-      `${record.executor_http_base}/receipts` +
-        `?account=${encodeURIComponent(record.account)}&limit=50`,
-      undefined,
-      15_000,
-    );
-    const remoteReceipt = findVerifiedReceipt(
-      remoteReceipts,
-      envelope.receipt_id,
-    );
-    if (!remoteReceipt) throw new Error("remote_receipt_missing");
-    assertRemoteReceiptTruth(remoteReceipt, envelope);
 
     const before = await readCanonicalWcState(record.account);
     const imported = persistImportedRemoteTruthOnce(
@@ -1539,6 +1727,13 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
         String(req?.body?.signature?.sig || ""),
       ),
       executor_pubkey_sha256: sha256Hex(envelope.executor_pubkey),
+      transport_mode: evidence.transportMode,
+      coordinator_inbound_fetch: evidence.coordinatorInboundFetch,
+      participant_outbound_bundle: evidence.participantOutboundBundle,
+      outbound_proof_bundle_sha256:
+        evidence.participantOutboundBundle
+          ? sha256Hex(JSON.stringify(req?.body?.proof_bundle || {}))
+          : null,
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
@@ -1552,6 +1747,9 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       ticket_id: record.ticket_id,
       account: record.account,
       executor_node_id: record.executor_node_id,
+      transport_mode: evidence.transportMode,
+      coordinator_inbound_fetch: evidence.coordinatorInboundFetch,
+      participant_outbound_bundle: evidence.participantOutboundBundle,
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
@@ -1564,6 +1762,9 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
       remote_executor: true,
       executor_node_id: record.executor_node_id,
+      transport_mode: evidence.transportMode,
+      coordinator_inbound_fetch: evidence.coordinatorInboundFetch,
+      participant_outbound_bundle: evidence.participantOutboundBundle,
       signature_verified: true,
       remote_health_verified: true,
       remote_job_verified: true,
@@ -1634,7 +1835,10 @@ function publicStatus(accountRaw: unknown): JsonObject {
     capability: {
       account_bound: true,
       executor_node_bound: true,
-      executor_http_bound: true,
+      executor_http_bound_for_inbound_fetch: true,
+      outbound_only_supported: true,
+      inbound_executor_reachability_required_for_outbound: false,
+      transport_modes: ["inbound_fetch", "outbound_bundle"],
       dataset_bound: true,
       input_hash_bound: true,
       expiring: true,
@@ -1644,6 +1848,10 @@ function publicStatus(accountRaw: unknown): JsonObject {
       remote_health_required: true,
       remote_persisted_job_required: true,
       remote_persisted_receipt_required: true,
+      outbound_health_evidence_required: true,
+      outbound_persisted_job_bundle_required: true,
+      outbound_persisted_receipt_bundle_required: true,
+      outbound_evidence_bound_to_signed_envelope: true,
       receipt_timestamp_bound_to_ticket_window: true,
       stale_ticket_lock_recovery: true,
       participant_selected_award: false,

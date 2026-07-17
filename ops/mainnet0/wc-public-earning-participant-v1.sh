@@ -23,7 +23,8 @@ Example:
 
 The command validates the ticket, local executor identity, trusted coordinator
 identity, and pre-execution balance. It then asks the local VOID node to perform
-one ticket-bound job and verifies the exact 3 WC canonical delta.
+one ticket-bound job and verifies the exact 3 WC canonical delta. Outbound-bundle
+tickets require no inbound participant port or coordinator callback.
 
 The capability token is never printed. The ticket file is deleted only after
 an exact-green completion. A mode-600 sanitized receipt is retained.
@@ -205,15 +206,33 @@ EXECUTOR_NODE_ID="$(printf '%s' "$TICKET_JSON" | jq -r '.executor_node_id // emp
 DATASET_ID="$(printf '%s' "$TICKET_JSON" | jq -r '.dataset_id // empty')"
 EXPECTED_INPUT_HASH="$(printf '%s' "$TICKET_JSON" | jq -r '.expected_input_hash // empty' | tr '[:upper:]' '[:lower:]')"
 TOKEN_SHA_STORED="$(printf '%s' "$TICKET_JSON" | jq -r '.token_sha256 // empty' | tr '[:upper:]' '[:lower:]')"
+TRANSPORT_MODE="$(
+  printf '%s' "$TICKET_JSON" |
+  jq -r '
+    .transport_mode //
+    (if ((.executor_http_base // "") | length) > 0
+     then "inbound_fetch"
+     else "outbound_bundle"
+     end)
+  '
+)"
 EXPIRES_AT_MS="$(printf '%s' "$TICKET_JSON" | jq -r '.expires_at_ms // 0')"
 
 printf '%s' "$TICKET_JSON" | jq -e \
   --arg marker "$PILOT_MARKER" \
+  --arg transport "$TRANSPORT_MODE" \
   '.marker == $marker and
    .version == 1 and
    .task_class == "datanet_fetch_verify" and
    .fixed_award_wc == 3 and
    .status == "issued" and
+   ($transport == "inbound_fetch" or $transport == "outbound_bundle") and
+   (
+     ($transport == "inbound_fetch" and
+      (.executor_http_base | type == "string" and length > 0)) or
+     ($transport == "outbound_bundle" and
+      ((.executor_http_base // "") == ""))
+   ) and
    (.ticket_id | type == "string" and test("^[0-9a-f]{32}$")) and
    (.account | type == "string" and test("^[A-Za-z0-9._:-]{1,128}$")) and
    (.executor_node_id | type == "string" and test("^[0-9a-f]{32}$")) and
@@ -347,17 +366,24 @@ jq -e \
   --arg account "$ACCOUNT" \
   --arg executor "$EXECUTOR_NODE_ID" \
   --arg dataset "$DATASET_ID" \
+  --arg transport "$TRANSPORT_MODE" \
   --argjson before "$BALANCE_BEFORE" \
   '.ok == true and
    .marker == $marker and
    .remote_executor == true and
    .local_node_id == $executor and
+   (.transport_mode // "inbound_fetch") == $transport and
+   (.coordinator_inbound_fetch // true) == ($transport == "inbound_fetch") and
+   (.participant_outbound_bundle // false) == ($transport == "outbound_bundle") and
    .ticket_id == $ticket and
    .dataset_id == $dataset and
    .coordinator.ok == true and
    .coordinator.marker == $marker and
    .coordinator.remote_executor == true and
    .coordinator.executor_node_id == $executor and
+   (.coordinator.transport_mode // "inbound_fetch") == $transport and
+   (.coordinator.coordinator_inbound_fetch // true) == ($transport == "inbound_fetch") and
+   (.coordinator.participant_outbound_bundle // false) == ($transport == "outbound_bundle") and
    .coordinator.ticket_id == $ticket and
    .coordinator.account == $account and
    .coordinator.dataset_id == $dataset and
@@ -409,6 +435,7 @@ jq -n \
   --arg executor_node_id "$EXECUTOR_NODE_ID" \
   --arg coordinator_node_id "$TRUSTED_COORDINATOR_NODE_ID" \
   --arg coordinator_base "$COORDINATOR_BASE" \
+  --arg transport_mode "$TRANSPORT_MODE" \
   --arg dataset_id "$DATASET_ID" \
   --arg expected_input_hash "$EXPECTED_INPUT_HASH" \
   --arg job_id "$JOB_ID" \
@@ -424,6 +451,10 @@ jq -n \
     executor_node_id:$executor_node_id,
     coordinator_node_id:$coordinator_node_id,
     coordinator_base:$coordinator_base,
+    transport_mode:$transport_mode,
+    coordinator_inbound_fetch:($transport_mode == "inbound_fetch"),
+    participant_outbound_bundle:($transport_mode == "outbound_bundle"),
+    inbound_executor_reachability_required:($transport_mode == "inbound_fetch"),
     dataset_id:$dataset_id,
     expected_input_hash:$expected_input_hash,
     job_id:$job_id,
@@ -450,6 +481,8 @@ printf 'account=%s\n' "$ACCOUNT"
 printf 'ticket_id=%s\n' "$TICKET_ID"
 printf 'job_id=%s\n' "$JOB_ID"
 printf 'receipt_id=%s\n' "$RECEIPT_ID"
+printf 'transport_mode=%s\n' "$TRANSPORT_MODE"
+printf 'inbound_executor_reachability_required=%s\n' "$([ "$TRANSPORT_MODE" = "inbound_fetch" ] && echo true || echo false)"
 printf 'wc_before=%s\n' "$BALANCE_BEFORE"
 printf 'wc_after=%s\n' "$BALANCE_AFTER"
 printf 'wc_delta=3\n'
