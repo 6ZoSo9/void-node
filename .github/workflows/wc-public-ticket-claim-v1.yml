@@ -1,0 +1,76 @@
+name: wc-public-ticket-claim-v1
+
+on:
+  push:
+    paths:
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_wc_public_ticket_claim_v1.ts"
+      - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
+      - "scripts/prove_public_earn_gateway_v1.mjs"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "docs/public/wc-public-ticket-claim-v1.md"
+      - "docs/public/public-earn-gateway-v1.md"
+      - ".github/workflows/wc-public-ticket-claim-v1.yml"
+  pull_request:
+    paths:
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/prove_wc_public_ticket_claim_v1.ts"
+      - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
+      - "scripts/prove_public_earn_gateway_v1.mjs"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "docs/public/wc-public-ticket-claim-v1.md"
+      - "docs/public/public-earn-gateway-v1.md"
+      - ".github/workflows/wc-public-ticket-claim-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  public-ticket-claim-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check public claim surfaces
+        run: |
+          chmod +x ops/mainnet0/wc-public-ticket-claim-v1.sh
+          chmod +x ops/mainnet0/wc-public-earning-participant-v1.sh
+          bash -n ops/mainnet0/wc-public-ticket-claim-v1.sh
+          bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
+          node --check ops/public/public-seed-adapter-v1.mjs
+
+      - name: Preserve public earning core proofs
+        run: |
+          npx tsx scripts/prove_wc_public_earning_pilot_v1.ts
+          npx tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
+          npx tsx scripts/prove_wc_public_earning_outbound_participant_v1.ts
+          npx tsx scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts
+          npx tsx scripts/prove_wc_public_earning_participant_cli_v1.ts
+
+      - name: Prove signed public ticket claim
+        run: |
+          npx tsx scripts/prove_wc_public_ticket_claim_v1.ts
+          node scripts/prove_public_earn_gateway_v1.mjs
+          npx tsx scripts/prove_wc_public_ticket_claim_cli_v1.ts
+
+      - name: Guard index size and build
+        run: |
+          chmod +x tools/check_index_size.sh
+          tools/check_index_size.sh
+          npm run build

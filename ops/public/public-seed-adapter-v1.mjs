@@ -12,17 +12,29 @@ const EARN_HEALTH_PATH = "/health";
 const EARN_STATUS_PATH = "/wc/public-earning-pilot-v1/status";
 const EARN_BALANCE_PATH = "/wc/redeemable";
 const EARN_SUBMIT_PATH = "/wc/public-earning-pilot-v1/submit-result";
+const EARN_CLAIM_PATH = "/wc/public-earning-pilot-v1/claim-ticket";
 const EARN_GATEWAY_STATUS_PATH = "/__void/public-earn-gateway-v1/status.json";
 const EARN_CLI_PATH = "/download/wc-public-earning-participant-v1.sh";
+const EARN_CLAIM_CLI_PATH = "/download/wc-public-ticket-claim-v1.sh";
 const EARN_CLI_FILE = path.resolve(
   process.env.VOID_EARN_PARTICIPANT_CLI_FILE ||
     path.join(process.cwd(), "ops/mainnet0/wc-public-earning-participant-v1.sh"),
+);
+const EARN_CLAIM_CLI_FILE = path.resolve(
+  process.env.VOID_EARN_CLAIM_CLI_FILE ||
+    path.join(process.cwd(), "ops/mainnet0/wc-public-ticket-claim-v1.sh"),
 );
 const EARN_MAX_BODY_BYTES = boundedInteger(
   process.env.VOID_EARN_GATEWAY_MAX_BODY_BYTES,
   512 * 1024,
   64 * 1024,
   2 * 1024 * 1024,
+);
+const EARN_CLAIM_MAX_BODY_BYTES = boundedInteger(
+  process.env.VOID_EARN_GATEWAY_CLAIM_MAX_BODY_BYTES,
+  64 * 1024,
+  8 * 1024,
+  256 * 1024,
 );
 const EARN_MAX_RESPONSE_BYTES = boundedInteger(
   process.env.VOID_EARN_GATEWAY_MAX_RESPONSE_BYTES,
@@ -41,6 +53,12 @@ const EARN_RATE_LIMIT_PER_MINUTE = boundedInteger(
   30,
   1,
   600,
+);
+const EARN_CLAIM_RATE_LIMIT_PER_MINUTE = boundedInteger(
+  process.env.VOID_EARN_GATEWAY_CLAIM_RATE_LIMIT_PER_MINUTE,
+  6,
+  1,
+  60,
 );
 const EARN_REQUEST_TIMEOUT_MS = boundedInteger(
   process.env.VOID_EARN_GATEWAY_TIMEOUT_MS,
@@ -69,6 +87,7 @@ const exactAllow = new Set([
   EARN_BALANCE_PATH,
   EARN_GATEWAY_STATUS_PATH,
   EARN_CLI_PATH,
+  EARN_CLAIM_CLI_PATH,
 ]);
 
 const prefixAllow = [
@@ -102,7 +121,8 @@ const hopByHopHeaders = new Set([
   "upgrade",
 ]);
 
-const rateWindows = new Map();
+const submitRateWindows = new Map();
+const claimRateWindows = new Map();
 
 function boundedInteger(raw, fallback, minimum, maximum) {
   const parsed = Number(raw);
@@ -184,22 +204,32 @@ function gatewayStatus() {
       status: EARN_STATUS_PATH,
       balance: EARN_BALANCE_PATH,
       submit_result: EARN_SUBMIT_PATH,
+      claim_ticket: EARN_CLAIM_PATH,
       participant_cli: EARN_CLI_PATH,
+      claim_cli: EARN_CLAIM_CLI_PATH,
     },
     methods: {
       health: ["GET", "HEAD"],
       status: ["GET", "HEAD"],
       balance: ["GET", "HEAD"],
       submit_result: ["POST"],
+      claim_ticket: ["POST"],
       participant_cli: ["GET", "HEAD"],
+      claim_cli: ["GET", "HEAD"],
     },
     limits: {
       request_body_bytes: EARN_MAX_BODY_BYTES,
+      claim_request_body_bytes: EARN_CLAIM_MAX_BODY_BYTES,
       response_body_bytes: EARN_MAX_RESPONSE_BYTES,
       submit_requests_per_minute: EARN_RATE_LIMIT_PER_MINUTE,
+      claim_requests_per_minute: EARN_CLAIM_RATE_LIMIT_PER_MINUTE,
     },
     safety: {
-      public_ticket_issue: false,
+      public_ticket_issue: true,
+      public_signed_ticket_claim: true,
+      public_operator_ticket_issue: false,
+      claim_executor_key_possession_required: true,
+      claim_server_selected_work: true,
       generic_job_submit: false,
       participant_selected_award: false,
       wallet_send: false,
@@ -291,6 +321,8 @@ function sanitizeCoordinatorHealth(value) {
 function sanitizePilotStatus(value) {
   const capability = value && typeof value.capability === "object" ? value.capability : {};
   const caps = value && typeof value.caps === "object" ? value.caps : {};
+  const publicClaim =
+    value && typeof value.public_claim === "object" ? value.public_claim : {};
   return {
     ok: value?.ok === true,
     marker: safeString(value?.marker, 96),
@@ -301,9 +333,16 @@ function sanitizePilotStatus(value) {
     fixed_award_wc: safeFiniteNumber(value?.fixed_award_wc),
     caps: {
       account_total: safeFiniteNumber(caps.account_total) ?? 0,
-      account_limit: safeFiniteNumber(caps.account_limit),
-      global_active: safeFiniteNumber(caps.global_active),
-      global_consumed: safeFiniteNumber(caps.global_consumed),
+      account_limit:
+        safeFiniteNumber(caps.account_limit) ??
+        safeFiniteNumber(caps.per_account),
+      global_limit: safeFiniteNumber(caps.global),
+      global_active:
+        safeFiniteNumber(caps.global_active) ??
+        safeFiniteNumber(caps.active_issued),
+      global_consumed:
+        safeFiniteNumber(caps.global_consumed) ??
+        safeFiniteNumber(caps.consumed),
     },
     capability: {
       account_bound: safeBoolean(capability.account_bound),
@@ -315,6 +354,54 @@ function sanitizePilotStatus(value) {
       single_use: safeBoolean(capability.single_use),
       token_stored_as_sha256_only: safeBoolean(capability.token_stored_as_sha256_only),
       ed25519_executor_signature_required: safeBoolean(capability.ed25519_executor_signature_required),
+      public_claim_executor_key_possession_required: safeBoolean(
+        capability.public_claim_executor_key_possession_required,
+      ),
+      public_claim_replay_protected: safeBoolean(
+        capability.public_claim_replay_protected,
+      ),
+    },
+    public_claim: {
+      marker: safeString(publicClaim.marker, 96),
+      enabled: safeBoolean(publicClaim.enabled),
+      available: safeBoolean(publicClaim.available),
+      public_route: gatewayStatus().routes.claim_ticket,
+      task_class: safeString(publicClaim.task_class, 96),
+      fixed_award_wc: safeFiniteNumber(publicClaim.fixed_award_wc),
+      transport_mode: safeString(publicClaim.transport_mode, 32),
+      server_selected_work: safeBoolean(publicClaim.server_selected_work),
+      proof_of_executor_key_possession_required: safeBoolean(
+        publicClaim.proof_of_executor_key_possession_required,
+      ),
+      signed_claim_timestamp_required: safeBoolean(
+        publicClaim.signed_claim_timestamp_required,
+      ),
+      claim_nonce_replay_protection: safeBoolean(
+        publicClaim.claim_nonce_replay_protection,
+      ),
+      one_active_ticket_per_account: safeBoolean(
+        publicClaim.one_active_ticket_per_account,
+      ),
+      one_active_ticket_per_executor: safeBoolean(
+        publicClaim.one_active_ticket_per_executor,
+      ),
+      ticket_ttl_ms: safeFiniteNumber(publicClaim.ticket_ttl_ms),
+      cooldown_ms: safeFiniteNumber(publicClaim.cooldown_ms),
+      max_claims_per_account_24h: safeFiniteNumber(
+        publicClaim.max_claims_per_account_24h,
+      ),
+      max_claims_per_executor_24h: safeFiniteNumber(
+        publicClaim.max_claims_per_executor_24h,
+      ),
+      global_active_cap: safeFiniteNumber(publicClaim.global_active_cap),
+      global_claims_per_24h: safeFiniteNumber(
+        publicClaim.global_claims_per_24h,
+      ),
+      work_available: safeBoolean(publicClaim.work_available),
+      participant_selected_dataset: false,
+      participant_selected_input_hash: false,
+      participant_selected_award: false,
+      money_movement: false,
     },
     routes: gatewayStatus().routes,
     safety: gatewayStatus().safety,
@@ -342,21 +429,39 @@ function clientKey(req) {
   return String(req.socket.remoteAddress || "unknown").slice(0, 128);
 }
 
-function submitRateAllowed(req) {
+function requestRateAllowed(req, windows, limit, suffix = "") {
   const now = Date.now();
-  const key = clientKey(req);
-  const current = rateWindows.get(key);
+  const key = `${clientKey(req)}${suffix}`;
+  const current = windows.get(key);
   if (!current || now - current.startedAt >= 60_000) {
-    rateWindows.set(key, { startedAt: now, count: 1 });
+    windows.set(key, { startedAt: now, count: 1 });
     return true;
   }
   current.count += 1;
-  if (rateWindows.size > 4096) {
-    for (const [entryKey, entry] of rateWindows.entries()) {
-      if (now - entry.startedAt >= 120_000) rateWindows.delete(entryKey);
+  if (windows.size > 4096) {
+    for (const [entryKey, entry] of windows.entries()) {
+      if (now - entry.startedAt >= 120_000) windows.delete(entryKey);
     }
   }
-  return current.count <= EARN_RATE_LIMIT_PER_MINUTE;
+  return current.count <= limit;
+}
+
+function submitRateAllowed(req) {
+  return requestRateAllowed(
+    req,
+    submitRateWindows,
+    EARN_RATE_LIMIT_PER_MINUTE,
+    ":submit",
+  );
+}
+
+function claimRateAllowed(req) {
+  return requestRateAllowed(
+    req,
+    claimRateWindows,
+    EARN_CLAIM_RATE_LIMIT_PER_MINUTE,
+    ":claim",
+  );
 }
 
 function readBoundedBody(req, maximum) {
@@ -381,6 +486,138 @@ function readBoundedBody(req, maximum) {
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+function validPublicClaimBody(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (Object.keys(value).sort().join(",") !== "claim,signature") return false;
+  const claim = value.claim;
+  const signature = value.signature;
+  if (!claim || typeof claim !== "object" || Array.isArray(claim)) return false;
+  if (
+    Object.keys(claim).sort().join(",") !==
+    [
+      "account",
+      "claim_nonce",
+      "claim_ts_ms",
+      "domain",
+      "executor_node_id",
+      "executor_pubkey",
+      "marker",
+      "version",
+    ].sort().join(",")
+  ) {
+    return false;
+  }
+  if (
+    !signature ||
+    typeof signature !== "object" ||
+    Array.isArray(signature) ||
+    Object.keys(signature).sort().join(",") !== "alg,key_id,sig"
+  ) {
+    return false;
+  }
+
+  return (
+    claim.domain === "void:mainnet-0:wc-public-ticket-claim-v1" &&
+    claim.marker === "VOID_WC_PUBLIC_TICKET_CLAIM_V1" &&
+    claim.version === 1 &&
+    typeof claim.account === "string" &&
+    /^[A-Za-z0-9._:-]{1,128}$/.test(claim.account) &&
+    typeof claim.executor_node_id === "string" &&
+    /^[0-9a-f]{32}$/.test(claim.executor_node_id) &&
+    typeof claim.executor_pubkey === "string" &&
+    claim.executor_pubkey.length >= 80 &&
+    claim.executor_pubkey.length <= 2048 &&
+    claim.executor_pubkey.includes("BEGIN PUBLIC KEY") &&
+    claim.executor_pubkey.includes("END PUBLIC KEY") &&
+    typeof claim.claim_nonce === "string" &&
+    /^[0-9a-f]{32}$/.test(claim.claim_nonce) &&
+    Number.isSafeInteger(claim.claim_ts_ms) &&
+    claim.claim_ts_ms > 0 &&
+    signature.alg === "ed25519" &&
+    signature.key_id === claim.executor_node_id &&
+    typeof signature.sig === "string" &&
+    /^[0-9a-f]{128}$/.test(signature.sig)
+  );
+}
+
+async function proxyEarnClaim(req, res) {
+  if (!publicEarnEnabled()) {
+    writeJson(req, res, 503, { ok: false, error: "public_earn_gateway_disabled" });
+    return;
+  }
+  if (!claimRateAllowed(req)) {
+    writeJson(
+      req,
+      res,
+      429,
+      { ok: false, error: "public_earn_claim_rate_limited" },
+      { "retry-after": "60" },
+    );
+    return;
+  }
+  if (req.headers.authorization) {
+    writeJson(req, res, 400, {
+      ok: false,
+      error: "claim_authorization_header_not_allowed",
+    });
+    return;
+  }
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    writeJson(req, res, 415, { ok: false, error: "application_json_required" });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readBoundedBody(req, EARN_CLAIM_MAX_BODY_BYTES);
+  } catch (error) {
+    if (String(error?.message || "") === "request_body_too_large") {
+      writeJson(req, res, 413, { ok: false, error: "request_body_too_large" });
+      return;
+    }
+    throw error;
+  }
+
+  let parsedBody;
+  try {
+    parsedBody = JSON.parse(body.toString("utf8"));
+  } catch {
+    writeJson(req, res, 400, { ok: false, error: "invalid_json" });
+    return;
+  }
+  if (!validPublicClaimBody(parsedBody)) {
+    writeJson(req, res, 400, { ok: false, error: "invalid_public_claim_request" });
+    return;
+  }
+
+  const response = await fetchWithTimeout(
+    `${EARN_UPSTREAM}${EARN_CLAIM_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "content-length": String(body.length),
+        "user-agent": "void-public-ticket-claim-gateway-v1",
+      },
+      body,
+    },
+    EARN_REQUEST_TIMEOUT_MS,
+  );
+  const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
+  res.writeHead(
+    response.status,
+    filteredHeaders(response.headers, {
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "x-void-public-earn-gateway": "v1",
+      "x-void-public-ticket-claim": "v1",
+    }),
+  );
+  res.end(responseBody);
 }
 
 async function proxyEarnSubmit(req, res) {
@@ -463,22 +700,22 @@ async function proxyEarnSubmit(req, res) {
   res.end(responseBody);
 }
 
-function serveParticipantCli(req, res) {
+function serveShellScript(req, res, file, filename, unavailable) {
   let stat;
   try {
-    stat = fs.statSync(EARN_CLI_FILE);
+    stat = fs.statSync(file);
   } catch {
-    writeText(req, res, 404, "participant_cli_unavailable\n");
+    writeText(req, res, 404, `${unavailable}\n`);
     return;
   }
   if (!stat.isFile() || stat.size <= 0 || stat.size > 256 * 1024) {
-    writeText(req, res, 404, "participant_cli_unavailable\n");
+    writeText(req, res, 404, `${unavailable}\n`);
     return;
   }
-  const body = fs.readFileSync(EARN_CLI_FILE);
+  const body = fs.readFileSync(file);
   res.writeHead(200, {
     "content-type": "text/x-shellscript; charset=utf-8",
-    "content-disposition": 'attachment; filename="wc-public-earning-participant-v1.sh"',
+    "content-disposition": `attachment; filename="${filename}"`,
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "x-void-public-seed-adapter": "v1",
@@ -488,17 +725,45 @@ function serveParticipantCli(req, res) {
   res.end(body);
 }
 
+function serveParticipantCli(req, res) {
+  serveShellScript(
+    req,
+    res,
+    EARN_CLI_FILE,
+    "wc-public-earning-participant-v1.sh",
+    "participant_cli_unavailable",
+  );
+}
+
+function serveClaimCli(req, res) {
+  serveShellScript(
+    req,
+    res,
+    EARN_CLAIM_CLI_FILE,
+    "wc-public-ticket-claim-v1.sh",
+    "claim_cli_unavailable",
+  );
+}
+
 const server = http.createServer(async (req, res) => {
   // VOID_PUBLIC_EDGE_LANDING_ROOT_V1
   try {
     const url = new URL(req.url || "/", "http://adapter.local");
 
     if (req.method === "POST") {
-      if (url.pathname !== EARN_SUBMIT_PATH || url.search) {
-        writeText(req, res, 405, "method_not_allowed\n", { allow: "GET, HEAD" });
+      if (url.search) {
+        writeText(req, res, 400, "post_query_not_allowed\n");
         return;
       }
-      await proxyEarnSubmit(req, res);
+      if (url.pathname === EARN_SUBMIT_PATH) {
+        await proxyEarnSubmit(req, res);
+        return;
+      }
+      if (url.pathname === EARN_CLAIM_PATH) {
+        await proxyEarnClaim(req, res);
+        return;
+      }
+      writeText(req, res, 405, "method_not_allowed\n", { allow: "GET, HEAD" });
       return;
     }
 
@@ -572,6 +837,15 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       serveParticipantCli(req, res);
+      return;
+    }
+
+    if (url.pathname === EARN_CLAIM_CLI_PATH) {
+      if (url.search) {
+        writeText(req, res, 400, "download_query_not_allowed\n");
+        return;
+      }
+      serveClaimCli(req, res);
       return;
     }
 

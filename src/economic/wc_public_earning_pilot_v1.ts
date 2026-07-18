@@ -15,8 +15,21 @@ export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
 export const VOID_WC_PUBLIC_EARNING_PILOT_TASK =
   "datanet_fetch_verify";
 export const VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3;
+export const VOID_WC_PUBLIC_TICKET_CLAIM_MARKER =
+  "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 
 export type PilotTransportMode = "inbound_fetch" | "outbound_bundle";
+
+export interface PublicTicketClaimRequest {
+  domain: "void:mainnet-0:wc-public-ticket-claim-v1";
+  marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
+  version: 1;
+  account: string;
+  executor_node_id: string;
+  executor_pubkey: string;
+  claim_nonce: string;
+  claim_ts_ms: number;
+}
 
 const OPERATOR_ISSUE_ROUTE =
   "/wc/public-earning-pilot-v1/operator/issue";
@@ -26,6 +39,10 @@ const PUBLIC_SUBMIT_ROUTE =
   "/wc/public-earning-pilot-v1/submit-result";
 const PUBLIC_STATUS_ROUTE =
   "/wc/public-earning-pilot-v1/status";
+const PUBLIC_CLAIM_ROUTE =
+  "/wc/public-earning-pilot-v1/claim-ticket";
+const LOCAL_CLAIM_SIGN_ROUTE =
+  "/wc/public-earning-pilot-v1/sign-claim";
 const GLOBAL_MARK = "__void_wc_public_earning_pilot_v1";
 
 type JsonObject = Record<string, any>;
@@ -66,6 +83,8 @@ export interface PilotTicketRecord {
   status: string;
   public_submit_route: string;
   local_execute_route: string;
+  issuance_source?: "operator" | "public_claim";
+  public_claim_id?: string;
 }
 
 export interface PilotResultEnvelope {
@@ -118,6 +137,10 @@ function locksDir(raw?: string): string {
   return path.join(rootDir(raw), "locks");
 }
 
+function claimsDir(raw?: string): string {
+  return path.join(rootDir(raw), "public-claims");
+}
+
 function auditFile(raw?: string): string {
   return path.join(rootDir(raw), "audit.jsonl");
 }
@@ -128,6 +151,7 @@ function ensureDirs(raw?: string): void {
     issuedDir(raw),
     consumedDir(raw),
     locksDir(raw),
+    claimsDir(raw),
   ]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
@@ -210,6 +234,20 @@ function safeHex64(raw: unknown): string {
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
 }
 
+function safeClaimNonce(raw: unknown): string {
+  const value = String(raw || "").trim().toLowerCase();
+  return /^[0-9a-f]{32}$/.test(value) ? value : "";
+}
+
+function hasExactKeys(raw: JsonObject, expected: string[]): boolean {
+  const actual = Object.keys(raw).sort();
+  const wanted = expected.slice().sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((value, index) => value === wanted[index])
+  );
+}
+
 function safeTransportMode(raw: unknown): PilotTransportMode | "" {
   const value = String(raw || "").trim();
   return value === "inbound_fetch" || value === "outbound_bundle"
@@ -259,6 +297,74 @@ function coordinatorEnabled(): boolean {
 
 function executorEnabled(): boolean {
   return String(process.env.VOID_WC_PUBLIC_EARNING_EXECUTOR_ENABLED || "") === "1";
+}
+
+function publicClaimEnabled(): boolean {
+  return String(process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED || "") === "1";
+}
+
+function publicClaimDatasetId(): string {
+  return safeId(process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID, 160);
+}
+
+function publicClaimExpectedInputHash(): string {
+  return safeHex64(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH,
+  );
+}
+
+function publicClaimTicketTtlMs(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS,
+    15 * 60_000,
+    60_000,
+    60 * 60_000,
+  );
+}
+
+function publicClaimClockSkewMs(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS,
+    5 * 60_000,
+    30_000,
+    15 * 60_000,
+  );
+}
+
+function publicClaimCooldownMs(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS,
+    15 * 60_000,
+    60_000,
+    24 * 60 * 60_000,
+  );
+}
+
+function publicClaimMaxPer24h(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H,
+    24,
+    1,
+    1_000,
+  );
+}
+
+function publicClaimGlobalActiveCap(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP,
+    10,
+    1,
+    1_000,
+  );
+}
+
+function publicClaimGlobalMaxPer24h(): number {
+  return clampInt(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H,
+    500,
+    1,
+    100_000,
+  );
 }
 
 function defaultTtlMs(): number {
@@ -364,11 +470,15 @@ function ticketCounts(now = Date.now(), raw?: string): {
   consumed: number;
   accountCounts: Record<string, number>;
   executorCounts: Record<string, number>;
+  activeAccountCounts: Record<string, number>;
+  activeExecutorCounts: Record<string, number>;
 } {
   let active = 0;
   let consumed = 0;
   const accountCounts: Record<string, number> = {};
   const executorCounts: Record<string, number> = {};
+  const activeAccountCounts: Record<string, number> = {};
+  const activeExecutorCounts: Record<string, number> = {};
 
   for (const [dir, isConsumed] of [
     [issuedDir(raw), false],
@@ -384,15 +494,44 @@ function ticketCounts(now = Date.now(), raw?: string): {
       else active += 1;
       const account = safeAccount(record.account);
       const executor = safeNodeId(record.executor_node_id);
-      if (account) accountCounts[account] = Number(accountCounts[account] || 0) + 1;
-      if (executor) executorCounts[executor] = Number(executorCounts[executor] || 0) + 1;
+      if (account) {
+        accountCounts[account] = Number(accountCounts[account] || 0) + 1;
+        if (!isConsumed) {
+          activeAccountCounts[account] =
+            Number(activeAccountCounts[account] || 0) + 1;
+        }
+      }
+      if (executor) {
+        executorCounts[executor] = Number(executorCounts[executor] || 0) + 1;
+        if (!isConsumed) {
+          activeExecutorCounts[executor] =
+            Number(activeExecutorCounts[executor] || 0) + 1;
+        }
+      }
     }
   }
 
-  return { active, consumed, accountCounts, executorCounts };
+  return {
+    active,
+    consumed,
+    accountCounts,
+    executorCounts,
+    activeAccountCounts,
+    activeExecutorCounts,
+  };
 }
 
-function issueTicket(input: JsonObject, raw?: string): JsonObject {
+type IssueTicketOptions = {
+  enforceLegacyCaps?: boolean;
+  issuanceSource?: "operator" | "public_claim";
+  publicClaimId?: string;
+};
+
+function issueTicket(
+  input: JsonObject,
+  raw?: string,
+  options: IssueTicketOptions = {},
+): JsonObject {
   ensureDirs(raw);
   const account = safeAccount(input.account);
   const executorNodeId = safeNodeId(input.executor_node_id);
@@ -422,15 +561,24 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
     throw new Error("task_class_not_allowlisted");
   }
 
+  const issuanceSource =
+    options.issuanceSource === "public_claim" ? "public_claim" : "operator";
+  const publicClaimId =
+    issuanceSource === "public_claim"
+      ? safeHex64(options.publicClaimId)
+      : "";
+
   const counts = ticketCounts(Date.now(), raw);
-  if (counts.active + counts.consumed >= globalCap()) {
-    throw new Error("global_cap_reached");
-  }
-  if (Number(counts.accountCounts[account] || 0) >= perAccountCap()) {
-    throw new Error("account_cap_reached");
-  }
-  if (Number(counts.executorCounts[executorNodeId] || 0) >= perAccountCap()) {
-    throw new Error("executor_cap_reached");
+  if (options.enforceLegacyCaps !== false) {
+    if (counts.active + counts.consumed >= globalCap()) {
+      throw new Error("global_cap_reached");
+    }
+    if (Number(counts.accountCounts[account] || 0) >= perAccountCap()) {
+      throw new Error("account_cap_reached");
+    }
+    if (Number(counts.executorCounts[executorNodeId] || 0) >= perAccountCap()) {
+      throw new Error("executor_cap_reached");
+    }
   }
 
   const ttlMs = clampInt(input.ttl_ms, defaultTtlMs(), 60_000, maxTtlMs());
@@ -458,6 +606,8 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
     status: "issued",
     public_submit_route: PUBLIC_SUBMIT_ROUTE,
     local_execute_route: LOCAL_EXECUTE_ROUTE,
+    issuance_source: issuanceSource,
+    ...(publicClaimId ? { public_claim_id: publicClaimId } : {}),
   };
 
   atomicWriteJson(
@@ -466,7 +616,12 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
   );
   appendAudit(
     {
-      event: "issued",
+      event:
+        issuanceSource === "public_claim"
+          ? "public_claim_ticket_issued"
+          : "issued",
+      issuance_source: issuanceSource,
+      ...(publicClaimId ? { public_claim_id: publicClaimId } : {}),
       ticket_id: ticketId,
       account,
       executor_node_id: executorNodeId,
@@ -482,7 +637,8 @@ function issueTicket(input: JsonObject, raw?: string): JsonObject {
     ...record,
     capability_token: token,
     capability_token_returned_once: true,
-    operator_issued: true,
+    operator_issued: issuanceSource === "operator",
+    public_claim_issued: issuanceSource === "public_claim",
     fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
     participant_selected_award: false,
     money_movement: false,
@@ -503,6 +659,430 @@ function parseToken(raw: string): {
   const match = /^wcep1\.([0-9a-f]{32})\.([A-Za-z0-9_-]{20,})$/.exec(token);
   if (!match) return null;
   return { token, ticketId: match[1] };
+}
+
+export function publicTicketClaimSigningObject(
+  raw: Partial<PublicTicketClaimRequest>,
+): PublicTicketClaimRequest {
+  if (!isJsonObject(raw)) throw new Error("invalid_claim_request");
+  if (
+    !hasExactKeys(raw, [
+      "account",
+      "claim_nonce",
+      "claim_ts_ms",
+      "domain",
+      "executor_node_id",
+      "executor_pubkey",
+      "marker",
+      "version",
+    ])
+  ) {
+    throw new Error("unexpected_claim_request_field");
+  }
+
+  const claim: PublicTicketClaimRequest = {
+    domain: String(raw.domain || "") as PublicTicketClaimRequest["domain"],
+    marker: String(raw.marker || "") as PublicTicketClaimRequest["marker"],
+    version: Number(raw.version || 0) as 1,
+    account: safeAccount(raw.account),
+    executor_node_id: safeNodeId(raw.executor_node_id),
+    executor_pubkey: String(raw.executor_pubkey || ""),
+    claim_nonce: safeClaimNonce(raw.claim_nonce),
+    claim_ts_ms: Math.trunc(Number(raw.claim_ts_ms || 0)),
+  };
+
+  if (claim.domain !== "void:mainnet-0:wc-public-ticket-claim-v1") {
+    throw new Error("claim_domain_mismatch");
+  }
+  if (claim.marker !== VOID_WC_PUBLIC_TICKET_CLAIM_MARKER) {
+    throw new Error("claim_marker_mismatch");
+  }
+  if (claim.version !== 1) throw new Error("claim_version_unsupported");
+  if (!claim.account) throw new Error("invalid_account");
+  if (!claim.executor_node_id) throw new Error("invalid_executor_node_id");
+  if (
+    claim.executor_pubkey.length < 80 ||
+    claim.executor_pubkey.length > 2_048 ||
+    !claim.executor_pubkey.includes("BEGIN PUBLIC KEY") ||
+    !claim.executor_pubkey.includes("END PUBLIC KEY")
+  ) {
+    throw new Error("invalid_executor_pubkey");
+  }
+  if (!claim.claim_nonce) throw new Error("invalid_claim_nonce");
+  if (!Number.isFinite(claim.claim_ts_ms) || claim.claim_ts_ms <= 0) {
+    throw new Error("invalid_claim_timestamp");
+  }
+  if (nodeIdFromPubPEM(claim.executor_pubkey) !== claim.executor_node_id) {
+    throw new Error("claim_executor_pubkey_node_id_mismatch");
+  }
+
+  return claim;
+}
+
+export function publicTicketClaimSigningBytes(
+  raw: Partial<PublicTicketClaimRequest>,
+): Buffer {
+  return Buffer.from(
+    JSON.stringify(publicTicketClaimSigningObject(raw)),
+    "utf8",
+  );
+}
+
+export function signPublicTicketClaim(
+  raw: Partial<PublicTicketClaimRequest>,
+  privateKey: crypto.KeyObject,
+): { claim: PublicTicketClaimRequest; signature: JsonObject } {
+  const claim = publicTicketClaimSigningObject(raw);
+  const sig = crypto
+    .sign(null, publicTicketClaimSigningBytes(claim), privateKey)
+    .toString("hex");
+  return {
+    claim,
+    signature: {
+      alg: "ed25519",
+      key_id: claim.executor_node_id,
+      sig,
+    },
+  };
+}
+
+export function verifyPublicTicketClaim(
+  claimRaw: Partial<PublicTicketClaimRequest>,
+  signatureRaw: JsonObject,
+  now = Date.now(),
+): PublicTicketClaimRequest {
+  if (!isJsonObject(signatureRaw)) throw new Error("invalid_claim_signature");
+  if (!hasExactKeys(signatureRaw, ["alg", "key_id", "sig"])) {
+    throw new Error("unexpected_claim_signature_field");
+  }
+
+  const claim = publicTicketClaimSigningObject(claimRaw);
+  if (String(signatureRaw.alg || "") !== "ed25519") {
+    throw new Error("claim_signature_algorithm_not_allowed");
+  }
+  if (safeNodeId(signatureRaw.key_id) !== claim.executor_node_id) {
+    throw new Error("claim_signature_key_id_mismatch");
+  }
+  const sig = String(signatureRaw.sig || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{128}$/.test(sig)) {
+    throw new Error("invalid_claim_signature_shape");
+  }
+
+  const ageMs = Math.abs(now - claim.claim_ts_ms);
+  if (ageMs > publicClaimClockSkewMs()) {
+    throw new Error("claim_timestamp_outside_window");
+  }
+
+  let publicKey: crypto.KeyObject;
+  try {
+    publicKey = crypto.createPublicKey(claim.executor_pubkey);
+  } catch (error) {
+    recordPilotBestEffortFailure("claim-public-key-parse", error);
+    throw new Error("invalid_executor_pubkey");
+  }
+
+  const verified = crypto.verify(
+    null,
+    publicTicketClaimSigningBytes(claim),
+    publicKey,
+    Buffer.from(sig, "hex"),
+  );
+  if (!verified) throw new Error("claim_executor_signature_invalid");
+  return claim;
+}
+
+function publicClaimId(claim: PublicTicketClaimRequest): string {
+  return sha256Hex(publicTicketClaimSigningBytes(claim));
+}
+
+function publicClaimUsage(now = Date.now(), raw?: string): {
+  global24h: number;
+  account24h: Record<string, number>;
+  executor24h: Record<string, number>;
+  lastAccountAt: Record<string, number>;
+  lastExecutorAt: Record<string, number>;
+} {
+  const cutoff = now - 24 * 60 * 60_000;
+  const account24h: Record<string, number> = {};
+  const executor24h: Record<string, number> = {};
+  const lastAccountAt: Record<string, number> = {};
+  const lastExecutorAt: Record<string, number> = {};
+  let global24h = 0;
+
+  if (!fs.existsSync(claimsDir(raw))) {
+    return {
+      global24h,
+      account24h,
+      executor24h,
+      lastAccountAt,
+      lastExecutorAt,
+    };
+  }
+
+  for (const name of fs.readdirSync(claimsDir(raw))) {
+    if (!name.endsWith(".json")) continue;
+    const record = readJson(path.join(claimsDir(raw), name));
+    if (!record || String(record.status || "") !== "issued") continue;
+    const issuedAt = Math.trunc(Number(record.issued_at_ms || 0));
+    const account = safeAccount(record.account);
+    const executor = safeNodeId(record.executor_node_id);
+    if (!issuedAt || !account || !executor) continue;
+
+    lastAccountAt[account] = Math.max(
+      Number(lastAccountAt[account] || 0),
+      issuedAt,
+    );
+    lastExecutorAt[executor] = Math.max(
+      Number(lastExecutorAt[executor] || 0),
+      issuedAt,
+    );
+
+    if (issuedAt < cutoff || issuedAt > now + publicClaimClockSkewMs()) {
+      continue;
+    }
+    global24h += 1;
+    account24h[account] = Number(account24h[account] || 0) + 1;
+    executor24h[executor] = Number(executor24h[executor] || 0) + 1;
+  }
+
+  return {
+    global24h,
+    account24h,
+    executor24h,
+    lastAccountAt,
+    lastExecutorAt,
+  };
+}
+
+export function publicTicketClaimPolicySnapshot(): JsonObject {
+  const datasetId = publicClaimDatasetId();
+  const expectedInputHash = publicClaimExpectedInputHash();
+  const workAvailable = Boolean(datasetId && expectedInputHash);
+  return {
+    marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+    enabled: publicClaimEnabled(),
+    available: coordinatorEnabled() && publicClaimEnabled() && workAvailable,
+    public_route: PUBLIC_CLAIM_ROUTE,
+    local_sign_route: LOCAL_CLAIM_SIGN_ROUTE,
+    task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
+    fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    transport_mode: "outbound_bundle",
+    server_selected_work: true,
+    proof_of_executor_key_possession_required: true,
+    signed_claim_timestamp_required: true,
+    claim_nonce_replay_protection: true,
+    one_active_ticket_per_account: true,
+    one_active_ticket_per_executor: true,
+    ticket_ttl_ms: publicClaimTicketTtlMs(),
+    cooldown_ms: publicClaimCooldownMs(),
+    max_claims_per_account_24h: publicClaimMaxPer24h(),
+    max_claims_per_executor_24h: publicClaimMaxPer24h(),
+    global_active_cap: publicClaimGlobalActiveCap(),
+    global_claims_per_24h: publicClaimGlobalMaxPer24h(),
+    work_available: workAvailable,
+    participant_selected_dataset: false,
+    participant_selected_input_hash: false,
+    participant_selected_award: false,
+    operator_issue_route_exposed: false,
+    generic_job_submit: false,
+    wallet_send: false,
+    wc_to_void: false,
+    buy_void_fulfillment: false,
+    money_movement: false,
+  };
+}
+
+export function issuePublicTicketClaim(
+  input: JsonObject,
+  raw?: string,
+  now = Date.now(),
+): JsonObject {
+  if (!coordinatorEnabled()) throw new Error("coordinator_lane_disabled");
+  if (!publicClaimEnabled()) throw new Error("public_ticket_claim_disabled");
+  if (!isJsonObject(input)) throw new Error("invalid_claim_request_body");
+  if (!hasExactKeys(input, ["claim", "signature"])) {
+    throw new Error("unexpected_claim_request_body_field");
+  }
+
+  const datasetId = publicClaimDatasetId();
+  const expectedInputHash = publicClaimExpectedInputHash();
+  if (!datasetId || !expectedInputHash) {
+    throw new Error("public_claim_work_unavailable");
+  }
+
+  const claim = verifyPublicTicketClaim(
+    input.claim || {},
+    input.signature || {},
+    now,
+  );
+  const claimId = publicClaimId(claim);
+  ensureDirs(raw);
+  const claimFile = path.join(claimsDir(raw), `${claimId}.json`);
+
+  let reservationFd: number | null = null;
+  try {
+    reservationFd = fs.openSync(claimFile, "wx", 0o600);
+    fs.writeSync(
+      reservationFd,
+      JSON.stringify({
+        marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+        claim_id: claimId,
+        status: "reserving",
+        reserved_at_ms: now,
+      }) + "\n",
+    );
+  } catch (error: any) {
+    if (reservationFd !== null) fs.closeSync(reservationFd);
+    if (String(error?.code || "") === "EEXIST") {
+      throw new Error("public_claim_replay");
+    }
+    throw error;
+  }
+  if (reservationFd !== null) fs.closeSync(reservationFd);
+
+  let issued = false;
+  try {
+    const counts = ticketCounts(now, raw);
+    if (counts.active >= publicClaimGlobalActiveCap()) {
+      throw new Error("public_claim_global_active_cap_reached");
+    }
+    if (Number(counts.activeAccountCounts[claim.account] || 0) >= 1) {
+      throw new Error("public_claim_account_active");
+    }
+    if (
+      Number(counts.activeExecutorCounts[claim.executor_node_id] || 0) >= 1
+    ) {
+      throw new Error("public_claim_executor_active");
+    }
+
+    const usage = publicClaimUsage(now, raw);
+    if (usage.global24h >= publicClaimGlobalMaxPer24h()) {
+      throw new Error("public_claim_global_daily_cap_reached");
+    }
+    if (
+      Number(usage.account24h[claim.account] || 0) >=
+      publicClaimMaxPer24h()
+    ) {
+      throw new Error("public_claim_account_daily_cap_reached");
+    }
+    if (
+      Number(usage.executor24h[claim.executor_node_id] || 0) >=
+      publicClaimMaxPer24h()
+    ) {
+      throw new Error("public_claim_executor_daily_cap_reached");
+    }
+
+    const lastAccountAt = Number(usage.lastAccountAt[claim.account] || 0);
+    const lastExecutorAt = Number(
+      usage.lastExecutorAt[claim.executor_node_id] || 0,
+    );
+    if (
+      lastAccountAt > 0 &&
+      now - lastAccountAt < publicClaimCooldownMs()
+    ) {
+      throw new Error("public_claim_account_cooldown");
+    }
+    if (
+      lastExecutorAt > 0 &&
+      now - lastExecutorAt < publicClaimCooldownMs()
+    ) {
+      throw new Error("public_claim_executor_cooldown");
+    }
+
+    const ticketResult = issueTicket(
+      {
+        account: claim.account,
+        executor_node_id: claim.executor_node_id,
+        executor_http_base: "",
+        transport_mode: "outbound_bundle",
+        dataset_id: datasetId,
+        expected_input_hash: expectedInputHash,
+        task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
+        ttl_ms: publicClaimTicketTtlMs(),
+      },
+      raw,
+      {
+        enforceLegacyCaps: false,
+        issuanceSource: "public_claim",
+        publicClaimId: claimId,
+      },
+    );
+
+    const capabilityToken = String(ticketResult.capability_token || "");
+    const ticket = { ...ticketResult };
+    delete ticket.capability_token;
+    delete ticket.operator_issued;
+    delete ticket.public_claim_issued;
+
+    atomicWriteJson(claimFile, {
+      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+      version: 1,
+      claim_id: claimId,
+      status: "issued",
+      issued_at_ms: now,
+      account: claim.account,
+      executor_node_id: claim.executor_node_id,
+      executor_pubkey_sha256: sha256Hex(claim.executor_pubkey),
+      claim_nonce_sha256: sha256Hex(claim.claim_nonce),
+      claim_signature_sha256: sha256Hex(String(input.signature.sig || "")),
+      ticket_id: String(ticket.ticket_id || ""),
+      dataset_id: datasetId,
+      expected_input_hash: expectedInputHash,
+      token_sha256: String(ticket.token_sha256 || ""),
+      expires_at_ms: Number(ticket.expires_at_ms || 0),
+      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+      money_movement: false,
+    });
+
+    appendAudit(
+      {
+        event: "public_claim_accepted",
+        claim_id: claimId,
+        ticket_id: String(ticket.ticket_id || ""),
+        account: claim.account,
+        executor_node_id: claim.executor_node_id,
+        dataset_id: datasetId,
+        expires_at_ms: Number(ticket.expires_at_ms || 0),
+      },
+      raw,
+    );
+
+    issued = true;
+    return {
+      ok: true,
+      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+      claim_id: claimId,
+      claim_request_verified: true,
+      executor_key_possession_verified: true,
+      server_selected_work: true,
+      ticket,
+      capability_token: capabilityToken,
+      capability_token_returned_once: true,
+      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+      participant_selected_dataset: false,
+      participant_selected_input_hash: false,
+      participant_selected_award: false,
+      generic_job_submit: false,
+      wallet_send: false,
+      wc_to_void: false,
+      buy_void_fulfillment: false,
+      money_movement: false,
+    };
+  } finally {
+    if (!issued) {
+      try {
+        fs.unlinkSync(claimFile);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") {
+          recordPilotBestEffortFailure(
+            "public-claim-reservation-cleanup",
+            error,
+            { claim_id: claimId },
+          );
+        }
+      }
+    }
+  }
 }
 
 export function pilotResultSigningObject(
@@ -1317,6 +1897,106 @@ function completeTicket(
   return completed;
 }
 
+function loadLocalExecutorClaimSigner(): {
+  nodeId: string;
+  keypair: ReturnType<typeof loadKeypair>;
+} {
+  const node: any =
+    (globalThis as any).__void_node ||
+    (globalThis as any).node ||
+    (globalThis as any).VOID_NODE;
+  const liveNodeId = safeNodeId(node?.id);
+  if (!liveNodeId) throw new Error("executor_node_identity_unavailable");
+
+  const keyPathRaw = String(
+    process.env.NODE_PRIVKEY_PATH ||
+      process.env.KEY_FILE ||
+      process.env.VOID_NODE_KEY_A ||
+      "",
+  ).trim();
+  if (!keyPathRaw) throw new Error("executor_key_unavailable");
+  const keyPath = path.resolve(keyPathRaw);
+  if (!fs.existsSync(keyPath)) throw new Error("executor_key_unavailable");
+
+  const keypair = loadKeypair(keyPath);
+  if (keypair.nodeId !== liveNodeId) {
+    throw new Error("executor_key_node_binding_mismatch");
+  }
+  return { nodeId: liveNodeId, keypair };
+}
+
+function signLocalPublicTicketClaim(req: any, res: any): any {
+  if (!executorEnabled()) {
+    return res.status(503).json({
+      ok: false,
+      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+      error: "executor_lane_disabled",
+    });
+  }
+  if (
+    !requireConfirmedLocalMutation(
+      req,
+      res,
+      "wcPublicTicketClaimSign",
+    )
+  ) {
+    return;
+  }
+
+  try {
+    if (!isJsonObject(req?.body)) {
+      throw new Error("invalid_claim_sign_request");
+    }
+    if (!hasExactKeys(req.body, ["account"])) {
+      throw new Error("unexpected_claim_sign_request_field");
+    }
+    const account = safeAccount(req.body.account);
+    if (!account) throw new Error("invalid_account");
+
+    const signer = loadLocalExecutorClaimSigner();
+    const signed = signPublicTicketClaim(
+      {
+        domain: "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+        version: 1,
+        account,
+        executor_node_id: signer.nodeId,
+        executor_pubkey: signer.keypair.pubPEM,
+        claim_nonce: crypto.randomBytes(16).toString("hex"),
+        claim_ts_ms: Date.now(),
+      },
+      signer.keypair.privateKey,
+    );
+
+    return res.status(200).json({
+      ok: true,
+      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+      local_node_id: signer.nodeId,
+      ...signed,
+      signature_operation: "local_executor_claim_only",
+      ticket_issued: false,
+      wc_written: false,
+      money_movement: false,
+    });
+  } catch (error: any) {
+    const message = String(error?.message || error);
+    const status =
+      message.includes("unavailable")
+        ? 503
+        : message.includes("binding_mismatch")
+          ? 403
+          : 400;
+    return res.status(status).json({
+      ok: false,
+      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+      error: message,
+      ticket_issued: false,
+      wc_written: false,
+      money_movement: false,
+    });
+  }
+}
+
 async function executeLocalWork(req: any, res: any): Promise<any> {
   if (!executorEnabled()) {
     return res.status(503).json({
@@ -1830,6 +2510,8 @@ function publicStatus(accountRaw: unknown): JsonObject {
       operator_issue: OPERATOR_ISSUE_ROUTE,
       local_execute: LOCAL_EXECUTE_ROUTE,
       public_submit: PUBLIC_SUBMIT_ROUTE,
+      public_claim: PUBLIC_CLAIM_ROUTE,
+      local_claim_sign: LOCAL_CLAIM_SIGN_ROUTE,
       status: PUBLIC_STATUS_ROUTE,
     },
     capability: {
@@ -1854,8 +2536,11 @@ function publicStatus(accountRaw: unknown): JsonObject {
       outbound_evidence_bound_to_signed_envelope: true,
       receipt_timestamp_bound_to_ticket_window: true,
       stale_ticket_lock_recovery: true,
+      public_claim_executor_key_possession_required: true,
+      public_claim_replay_protected: true,
       participant_selected_award: false,
     },
+    public_claim: publicTicketClaimPolicySnapshot(),
     caps: {
       per_account: perAccountCap(),
       global: globalCap(),
@@ -1904,6 +2589,50 @@ function mount(): void {
       });
     }
   });
+
+  app.post(
+    LOCAL_CLAIM_SIGN_ROUTE,
+    express.json({ limit: "64kb" }),
+    (req: any, res: any) => signLocalPublicTicketClaim(req, res),
+  );
+
+  app.post(
+    PUBLIC_CLAIM_ROUTE,
+    express.json({ limit: "64kb" }),
+    (req: any, res: any) => {
+      try {
+        return res.status(201).json(issuePublicTicketClaim(req?.body || {}));
+      } catch (error: any) {
+        const message = String(error?.message || error);
+        const status =
+          message === "coordinator_lane_disabled" ||
+          message === "public_ticket_claim_disabled" ||
+          message === "public_claim_work_unavailable"
+            ? 503
+            : message === "public_claim_replay"
+              ? 409
+              : message.includes("_cooldown") ||
+                  message.includes("_daily_cap_reached")
+                ? 429
+                : message.includes("_active") ||
+                    message.includes("_active_cap_reached")
+                  ? 409
+                  : message.includes("signature") ||
+                      message.includes("pubkey_node_id_mismatch")
+                    ? 401
+                    : 400;
+        return res.status(status).json({
+          ok: false,
+          marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+          error: message,
+          fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+          participant_selected_award: false,
+          buy_void_fulfillment: false,
+          money_movement: false,
+        });
+      }
+    },
+  );
 
   app.post(
     OPERATOR_ISSUE_ROUTE,
