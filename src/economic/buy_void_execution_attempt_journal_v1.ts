@@ -9,6 +9,9 @@ import {
   VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1,
   type BuyVoidFulfillmentJournalIntentV1,
 } from "./buy_void_fulfillment_journal_v1.js";
+import type {
+  BuyVoidBroadcastRevertedRecordV1,
+} from "./buy_void_broadcast_outcome_journal_v1.js";
 
 export const VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 =
   "VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1";
@@ -19,6 +22,7 @@ export const VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_AUTHORITY_V1 = {
   execution_attempt_reservation: true,
   signed_transaction_binding: true,
   broadcast_observation_persistence: true,
+  definitive_revert_release_persistence: true,
   confirmation_reference_persistence: true,
   rpc_call: false,
   wallet_access: false,
@@ -117,6 +121,22 @@ export type BuyVoidExecutionPrebroadcastFailureV1 = {
   transaction_broadcast_observed: false;
 };
 
+export type BuyVoidExecutionPostbroadcastFailureV1 = {
+  schema: "void_buy_void_execution_postbroadcast_failure_v1";
+  marker: typeof VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1;
+  attempt_id: string;
+  failed_at_ms: number;
+  failure_code: "delivery_transaction_reverted";
+  retryable: true;
+  void_delivery_tx_hash: string;
+  broadcast_outcome_marker: "VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1";
+  broadcast_outcome_recorded_at_ms: number;
+  revert_block_number: string;
+  revert_confirmation_count: string;
+  definitive_revert: true;
+  transaction_broadcast_observed: true;
+};
+
 export type BuyVoidExecutionAttemptConfirmationV1 = {
   schema: "void_buy_void_execution_attempt_confirmation_v1";
   marker: typeof VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1;
@@ -132,6 +152,7 @@ export type BuyVoidExecutionAttemptStateV1 = {
   prepared: BuyVoidExecutionPreparedTransactionV1 | null;
   broadcast: BuyVoidExecutionBroadcastObservationV1 | null;
   failure: BuyVoidExecutionPrebroadcastFailureV1 | null;
+  postbroadcast_failure: BuyVoidExecutionPostbroadcastFailureV1 | null;
   confirmation: BuyVoidExecutionAttemptConfirmationV1 | null;
   status:
     | "reserved"
@@ -219,6 +240,13 @@ export type RecordBuyVoidExecutionPrebroadcastFailureInputV1 = {
   failure_code: unknown;
   retryable: boolean;
   detail?: Record<string, unknown>;
+  now_ms?: number;
+};
+
+export type RecordBuyVoidExecutionPostbroadcastFailureInputV1 = {
+  root_dir: string;
+  attempt_id: string;
+  outcome: BuyVoidBroadcastRevertedRecordV1;
   now_ms?: number;
 };
 
@@ -500,7 +528,13 @@ function attemptDir(paths: BuyVoidExecutionAttemptJournalPathsV1, attemptId: str
 function eventFile(
   paths: BuyVoidExecutionAttemptJournalPathsV1,
   attemptId: string,
-  event: "reserved" | "prepared" | "broadcast" | "failure" | "confirmed",
+  event:
+    | "reserved"
+    | "prepared"
+    | "broadcast"
+    | "failure"
+    | "postbroadcast-failure"
+    | "confirmed",
 ): string {
   return path.join(attemptDir(paths, attemptId), `${event}.json`);
 }
@@ -571,6 +605,30 @@ function parseFailure(raw: Record<string, any>): BuyVoidExecutionPrebroadcastFai
   return raw as BuyVoidExecutionPrebroadcastFailureV1;
 }
 
+function parsePostbroadcastFailure(
+  raw: Record<string, any>,
+): BuyVoidExecutionPostbroadcastFailureV1 {
+  if (
+    raw.schema !== "void_buy_void_execution_postbroadcast_failure_v1" ||
+    raw.marker !== VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+    !SHA256.test(String(raw.attempt_id || "")) ||
+    raw.failure_code !== "delivery_transaction_reverted" ||
+    raw.retryable !== true ||
+    !normalizeHash(raw.void_delivery_tx_hash) ||
+    raw.broadcast_outcome_marker !==
+      "VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1" ||
+    !Number.isSafeInteger(raw.broadcast_outcome_recorded_at_ms) ||
+    raw.broadcast_outcome_recorded_at_ms < 0 ||
+    parseNonNegativeInteger(raw.revert_block_number) === null ||
+    parseNonNegativeInteger(raw.revert_confirmation_count) === null ||
+    raw.definitive_revert !== true ||
+    raw.transaction_broadcast_observed !== true
+  ) {
+    throw new Error("invalid_execution_postbroadcast_failure");
+  }
+  return raw as BuyVoidExecutionPostbroadcastFailureV1;
+}
+
 function parseConfirmation(raw: Record<string, any>): BuyVoidExecutionAttemptConfirmationV1 {
   if (
     raw.schema !== "void_buy_void_execution_attempt_confirmation_v1" ||
@@ -594,22 +652,49 @@ function readAttemptState(
   const preparedRaw = readJsonObject(eventFile(paths, attemptId, "prepared"));
   const broadcastRaw = readJsonObject(eventFile(paths, attemptId, "broadcast"));
   const failureRaw = readJsonObject(eventFile(paths, attemptId, "failure"));
+  const postbroadcastFailureRaw = readJsonObject(
+    eventFile(paths, attemptId, "postbroadcast-failure"),
+  );
   const confirmedRaw = readJsonObject(eventFile(paths, attemptId, "confirmed"));
 
   const prepared = preparedRaw ? parsePrepared(preparedRaw) : null;
   const broadcast = broadcastRaw ? parseBroadcast(broadcastRaw) : null;
   const failure = failureRaw ? parseFailure(failureRaw) : null;
+  const postbroadcastFailure = postbroadcastFailureRaw
+    ? parsePostbroadcastFailure(postbroadcastFailureRaw)
+    : null;
   const confirmation = confirmedRaw ? parseConfirmation(confirmedRaw) : null;
 
-  for (const record of [prepared, broadcast, failure, confirmation]) {
+  for (const record of [
+    prepared,
+    broadcast,
+    failure,
+    postbroadcastFailure,
+    confirmation,
+  ]) {
     if (record && record.attempt_id !== reservation.attempt_id) {
       throw new Error("execution_attempt_record_id_mismatch");
     }
   }
   if (broadcast && !prepared) throw new Error("execution_attempt_broadcast_without_prepare");
   if (failure && broadcast) throw new Error("execution_attempt_failure_after_broadcast");
+  if (postbroadcastFailure && !broadcast) {
+    throw new Error("execution_attempt_postbroadcast_failure_without_broadcast");
+  }
+  if (failure && postbroadcastFailure) {
+    throw new Error("execution_attempt_failure_kind_conflict");
+  }
   if (confirmation && !broadcast) throw new Error("execution_attempt_confirmation_without_broadcast");
-  if (failure && confirmation) throw new Error("execution_attempt_failure_confirmation_conflict");
+  if ((failure || postbroadcastFailure) && confirmation) {
+    throw new Error("execution_attempt_failure_confirmation_conflict");
+  }
+  if (
+    prepared &&
+    postbroadcastFailure &&
+    prepared.void_delivery_tx_hash !== postbroadcastFailure.void_delivery_tx_hash
+  ) {
+    throw new Error("execution_attempt_postbroadcast_failure_tx_mismatch");
+  }
   if (
     prepared &&
     broadcast &&
@@ -629,9 +714,18 @@ function readAttemptState(
   if (prepared) status = "prepared";
   if (broadcast) status = "broadcast";
   if (failure) status = failure.retryable ? "failed_retryable" : "failed_terminal";
+  if (postbroadcastFailure) status = "failed_retryable";
   if (confirmation) status = "confirmed";
 
-  return { reservation, prepared, broadcast, failure, confirmation, status };
+  return {
+    reservation,
+    prepared,
+    broadcast,
+    failure,
+    postbroadcast_failure: postbroadcastFailure,
+    confirmation,
+    status,
+  };
 }
 
 export function listBuyVoidExecutionAttemptsV1(
@@ -932,7 +1026,9 @@ export function prepareBuyVoidExecutionTransactionV1(
   ) {
     return heldMutation("execution_attempt_policy_changed");
   }
-  if (found.state.failure) return heldMutation("execution_attempt_already_failed");
+  if (found.state.failure || found.state.postbroadcast_failure) {
+    return heldMutation("execution_attempt_already_failed");
+  }
   if (found.state.broadcast) return heldMutation("execution_attempt_already_broadcast");
   if (found.state.confirmation) return heldMutation("execution_attempt_already_confirmed");
 
@@ -1073,7 +1169,9 @@ export function recordBuyVoidExecutionBroadcastV1(
   const found = stateForMutation(input?.root_dir, String(input?.attempt_id || ""));
   if ("reason" in found) return heldMutation(found.reason);
   if (!found.state.prepared) return heldMutation("execution_attempt_not_prepared");
-  if (found.state.failure) return heldMutation("execution_attempt_already_failed");
+  if (found.state.failure || found.state.postbroadcast_failure) {
+    return heldMutation("execution_attempt_already_failed");
+  }
   if (found.state.confirmation) return heldMutation("execution_attempt_already_confirmed");
   const txHash = normalizeHash(input.transaction_hash);
   if (!txHash || txHash !== found.state.prepared.void_delivery_tx_hash) {
@@ -1178,6 +1276,118 @@ export function recordBuyVoidExecutionPrebroadcastFailureV1(
   }
 }
 
+export function recordBuyVoidExecutionPostbroadcastFailureV1(
+  input: RecordBuyVoidExecutionPostbroadcastFailureInputV1,
+): BuyVoidExecutionAttemptMutationDecisionV1 {
+  const found = stateForMutation(input?.root_dir, String(input?.attempt_id || ""));
+  if ("reason" in found) return heldMutation(found.reason);
+  if (!found.state.prepared || !found.state.broadcast) {
+    return heldMutation("execution_attempt_not_broadcast");
+  }
+  if (found.state.failure) return heldMutation("execution_attempt_already_failed");
+  if (found.state.confirmation) {
+    return heldMutation("execution_attempt_already_confirmed");
+  }
+
+  const outcome = input?.outcome;
+  if (
+    !outcome ||
+    outcome.schema !== "void_buy_void_broadcast_reverted_record_v1" ||
+    outcome.marker !== "VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1" ||
+    outcome.attempt_id !== found.state.reservation.attempt_id ||
+    outcome.definitive_revert !== true ||
+    outcome.retry_allowed !== true ||
+    outcome.reconciliation_required !== false ||
+    outcome.transaction_status !== 0
+  ) {
+    return heldMutation("invalid_definitive_revert_outcome");
+  }
+
+  const txHash = normalizeHash(outcome.void_delivery_tx_hash);
+  if (
+    !txHash ||
+    txHash !== found.state.prepared.void_delivery_tx_hash ||
+    txHash !== found.state.broadcast.void_delivery_tx_hash
+  ) {
+    return heldMutation("definitive_revert_transaction_hash_mismatch");
+  }
+
+  const blockNumber = parseNonNegativeInteger(outcome.block_number);
+  const confirmationCount = parseNonNegativeInteger(outcome.confirmation_count);
+  const requiredConfirmations = parseNonNegativeInteger(
+    outcome.min_revert_confirmations,
+  );
+  if (
+    blockNumber === null ||
+    blockNumber <= 0n ||
+    confirmationCount === null ||
+    requiredConfirmations === null ||
+    requiredConfirmations <= 0n ||
+    confirmationCount < requiredConfirmations
+  ) {
+    return heldMutation("invalid_definitive_revert_confirmation");
+  }
+
+  const failure: BuyVoidExecutionPostbroadcastFailureV1 = {
+    schema: "void_buy_void_execution_postbroadcast_failure_v1",
+    marker: VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1,
+    attempt_id: found.state.reservation.attempt_id,
+    failed_at_ms: safeNow(input.now_ms),
+    failure_code: "delivery_transaction_reverted",
+    retryable: true,
+    void_delivery_tx_hash: txHash,
+    broadcast_outcome_marker: "VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1",
+    broadcast_outcome_recorded_at_ms: outcome.recorded_at_ms,
+    revert_block_number: blockNumber.toString(),
+    revert_confirmation_count: confirmationCount.toString(),
+    definitive_revert: true,
+    transaction_broadcast_observed: true,
+  };
+
+  try {
+    const file = eventFile(
+      found.paths,
+      found.state.reservation.attempt_id,
+      "postbroadcast-failure",
+    );
+    const created = atomicCreateJson(file, failure);
+    if (created === "exists") {
+      const existingRaw = readJsonObject(file);
+      if (!existingRaw) {
+        return heldMutation("postbroadcast_failure_record_unreadable");
+      }
+      const existing = parsePostbroadcastFailure(existingRaw);
+      if (
+        existing.void_delivery_tx_hash !== failure.void_delivery_tx_hash ||
+        existing.broadcast_outcome_recorded_at_ms !==
+          failure.broadcast_outcome_recorded_at_ms ||
+        existing.revert_block_number !== failure.revert_block_number ||
+        existing.revert_confirmation_count !==
+          failure.revert_confirmation_count
+      ) {
+        return heldMutation("execution_postbroadcast_failure_conflict");
+      }
+    }
+
+    const state = readAttemptState(
+      found.paths,
+      found.state.reservation.attempt_id,
+    );
+    if (!state) return heldMutation("postbroadcast_failed_attempt_unreadable");
+    return {
+      ok: true,
+      status: created === "created" ? "recorded" : "duplicate",
+      duplicate: created === "exists",
+      recovered_delivery_index: false,
+      attempt: state,
+    };
+  } catch (error) {
+    return heldMutation("execution_postbroadcast_failure_record_failed", {
+      message: String((error as Error)?.message || error),
+    });
+  }
+}
+
 function confirmationFingerprint(record: BuyVoidConfirmedFulfillmentRecordV1): string {
   return stableFingerprint({
     marker: String(record.marker || ""),
@@ -1199,7 +1409,9 @@ export function recordBuyVoidExecutionConfirmedV1(
   if (!found.state.prepared || !found.state.broadcast) {
     return heldMutation("execution_attempt_not_broadcast");
   }
-  if (found.state.failure) return heldMutation("execution_attempt_already_failed");
+  if (found.state.failure || found.state.postbroadcast_failure) {
+    return heldMutation("execution_attempt_already_failed");
+  }
 
   const record = input.confirmed_record;
   if (
