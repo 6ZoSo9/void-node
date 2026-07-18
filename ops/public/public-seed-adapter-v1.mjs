@@ -428,7 +428,7 @@ async function proxyEarnSubmit(req, res) {
     return;
   }
 
-  const bodyTicketId = safeString(parsedBody?.ticket?.ticket_id, 64);
+  const bodyTicketId = safeString(parsedBody?.envelope?.ticket_id, 64);
   if (bodyTicketId !== capability.ticketId) {
     writeJson(req, res, 401, {
       ok: false,

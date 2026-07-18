@@ -254,7 +254,7 @@ async function main() {
   assert.equal(earnRequests.length, invalidBalanceCallsBefore);
 
   const payload = {
-    ticket: { ticket_id: "1".repeat(32) },
+    envelope: { ticket_id: "1".repeat(32) },
     proof_bundle: { result: "verified" },
   };
   const validCapability =
@@ -315,7 +315,7 @@ async function main() {
       },
       body: JSON.stringify({
         ...payload,
-        ticket: { ticket_id: "2".repeat(32) },
+        envelope: { ...payload.envelope, ticket_id: "2".repeat(32) },
       }),
     },
   );
