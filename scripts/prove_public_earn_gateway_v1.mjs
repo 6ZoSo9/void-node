@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -11,6 +12,7 @@ import { spawn } from "node:child_process";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const adapterFile = process.argv[2] || path.join(root, "ops/public/public-seed-adapter-v1.mjs");
 const repositoryCliFile = path.join(root, "ops/mainnet0/wc-public-earning-participant-v1.sh");
+const claimCliFile = path.join(root, "ops/mainnet0/wc-public-ticket-claim-v1.sh");
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-gateway-v1-"));
 let adapter;
 let regularServer;
@@ -56,10 +58,16 @@ async function json(url, options) {
 
 async function main() {
   assert.equal(fs.existsSync(repositoryCliFile), true, "participant CLI missing");
+  assert.equal(fs.existsSync(claimCliFile), true, "claim CLI missing");
   const repositoryCliText = fs.readFileSync(repositoryCliFile, "utf8");
+  const claimCliText = fs.readFileSync(claimCliFile, "utf8");
   assert.match(repositoryCliText, /VOID_WC_PUBLIC_EARNING_PARTICIPANT_CLI_V1/);
+  assert.match(claimCliText, /VOID_WC_PUBLIC_TICKET_CLAIM_CLI_V1/);
+  assert.match(claimCliText, /wcPublicTicketClaimSign/);
   assert.equal(/http:\/\/100\./.test(repositoryCliText), false, "public CLI leaks a Tailnet IPv4 example");
   assert.equal(/100\.122\.245\.125/.test(repositoryCliText), false, "public CLI leaks the Precision Tailnet address");
+  assert.equal(/http:\/\/100\./.test(claimCliText), false, "claim CLI leaks a Tailnet IPv4 example");
+  assert.equal(/100\.122\.245\.125/.test(claimCliText), false, "claim CLI leaks the Precision Tailnet address");
 
   const regularRequests = [];
   regularServer = http.createServer((req, res) => {
@@ -102,9 +110,44 @@ async function main() {
             executor_enabled: false,
             task_class: "datanet_fetch_verify",
             fixed_award_wc: 3,
-            caps: { account_total: 1, account_limit: 1, global_active: 0, global_consumed: 2, private_file: "/secret" },
+            caps: {
+              per_account: 1,
+              global: 10,
+              active_issued: 0,
+              consumed: 2,
+              account_total: 1,
+              private_file: "/secret",
+            },
             secret: "must_not_escape",
             routes: { operator_issue: "/wc/public-earning-pilot-v1/operator/issue" },
+            public_claim: {
+              marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+              enabled: true,
+              available: true,
+              public_route: "/wc/public-earning-pilot-v1/claim-ticket",
+              local_sign_route: "/wc/public-earning-pilot-v1/sign-claim",
+              task_class: "datanet_fetch_verify",
+              fixed_award_wc: 3,
+              transport_mode: "outbound_bundle",
+              server_selected_work: true,
+              proof_of_executor_key_possession_required: true,
+              signed_claim_timestamp_required: true,
+              claim_nonce_replay_protection: true,
+              one_active_ticket_per_account: true,
+              one_active_ticket_per_executor: true,
+              ticket_ttl_ms: 900000,
+              cooldown_ms: 900000,
+              max_claims_per_account_24h: 24,
+              max_claims_per_executor_24h: 24,
+              global_active_cap: 10,
+              global_claims_per_24h: 500,
+              work_available: true,
+              participant_selected_dataset: false,
+              participant_selected_input_hash: false,
+              participant_selected_award: false,
+              money_movement: false,
+              private_dataset_path: "/private/dataset",
+            },
             capability: {
               account_bound: true,
               executor_node_bound: true,
@@ -132,6 +175,74 @@ async function main() {
             redeemed: 0,
             redeemable: 3,
             ledger_file: "/private/path/ledger.jsonl",
+          }),
+        );
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/wc/public-earning-pilot-v1/claim-ticket") {
+        const claimBody = JSON.parse(raw || "{}");
+        if (
+          claimBody?.claim?.marker !== "VOID_WC_PUBLIC_TICKET_CLAIM_V1" ||
+          claimBody?.signature?.alg !== "ed25519"
+        ) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "invalid_claim" }));
+          return;
+        }
+        const ticketId = "3".repeat(32);
+        const token = `wcep1.${ticketId}.${"C".repeat(43)}`;
+        const tokenSha = crypto
+          .createHash("sha256")
+          .update(token)
+          .digest("hex");
+        res.writeHead(201, {
+          "content-type": "application/json",
+          "set-cookie": "claim-secret=1",
+          location: "http://private.invalid/claim",
+        });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+            claim_id: "4".repeat(64),
+            claim_request_verified: true,
+            executor_key_possession_verified: true,
+            server_selected_work: true,
+            ticket: {
+              marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+              version: 1,
+              ticket_id: ticketId,
+              account: claimBody.claim.account,
+              task_class: "datanet_fetch_verify",
+              executor_node_id: claimBody.claim.executor_node_id,
+              executor_http_base: "",
+              transport_mode: "outbound_bundle",
+              dataset_id: "ds_gateway_claim_v1",
+              expected_input_hash: "2".repeat(64),
+              token_sha256: tokenSha,
+              nonce: "5".repeat(32),
+              issued_at_ms: Date.now(),
+              expires_at_ms: Date.now() + 300000,
+              max_uses: 1,
+              status: "issued",
+              public_submit_route: "/wc/public-earning-pilot-v1/submit-result",
+              local_execute_route: "/wc/public-earning-pilot-v1/execute-local",
+              issuance_source: "public_claim",
+              public_claim_id: "4".repeat(64),
+              fixed_award_wc: 3,
+            },
+            capability_token: token,
+            capability_token_returned_once: true,
+            fixed_award_wc: 3,
+            participant_selected_dataset: false,
+            participant_selected_input_hash: false,
+            participant_selected_award: false,
+            generic_job_submit: false,
+            wallet_send: false,
+            wc_to_void: false,
+            buy_void_fulfillment: false,
+            money_movement: false,
           }),
         );
         return;
@@ -186,11 +297,14 @@ async function main() {
       VOID_SEED_UPSTREAM: `http://127.0.0.1:${regularPort}`,
       VOID_EARN_COORDINATOR_UPSTREAM: `http://127.0.0.1:${earnPort}`,
       VOID_EARN_PARTICIPANT_CLI_FILE: repositoryCliFile,
+      VOID_EARN_CLAIM_CLI_FILE: claimCliFile,
       VOID_ADAPTER_HOST: "127.0.0.1",
       VOID_ADAPTER_PORT: String(adapterPort),
       VOID_EARN_GATEWAY_MAX_BODY_BYTES: String(64 * 1024),
       VOID_EARN_GATEWAY_MAX_RESPONSE_BYTES: String(256 * 1024),
       VOID_EARN_GATEWAY_RATE_LIMIT_PER_MINUTE: "20",
+      VOID_EARN_GATEWAY_CLAIM_RATE_LIMIT_PER_MINUTE: "10",
+      VOID_EARN_GATEWAY_CLAIM_MAX_BODY_BYTES: String(64 * 1024),
     },
     stdio: ["ignore", log, log],
   });
@@ -203,7 +317,14 @@ async function main() {
   assert.equal(gateway.body.marker, "VOID_PUBLIC_EARN_GATEWAY_V1");
   assert.equal(gateway.body.enabled, true);
   assert.equal(gateway.body.fixed_award_wc, 3);
-  assert.equal(gateway.body.safety.public_ticket_issue, false);
+  assert.equal(gateway.body.routes.claim_ticket, "/wc/public-earning-pilot-v1/claim-ticket");
+  assert.equal(gateway.body.routes.claim_cli, "/download/wc-public-ticket-claim-v1.sh");
+  assert.deepEqual(gateway.body.methods.claim_ticket, ["POST"]);
+  assert.equal(gateway.body.safety.public_ticket_issue, true);
+  assert.equal(gateway.body.safety.public_signed_ticket_claim, true);
+  assert.equal(gateway.body.safety.public_operator_ticket_issue, false);
+  assert.equal(gateway.body.safety.claim_executor_key_possession_required, true);
+  assert.equal(gateway.body.safety.claim_server_selected_work, true);
   assert.equal(gateway.body.safety.buy_void_fulfillment, false);
   assert.equal(JSON.stringify(gateway.body).includes(String(earnPort)), false);
 
@@ -224,7 +345,23 @@ async function main() {
   assert.equal(status.body.fixed_award_wc, 3);
   assert.equal(status.body.caps.account_total, 1);
   assert.equal(status.body.caps.account_limit, 1);
+  assert.equal(status.body.caps.global_limit, 10);
+  assert.equal(status.body.caps.global_active, 0);
+  assert.equal(status.body.caps.global_consumed, 2);
   assert.equal("private_file" in status.body.caps, false);
+  assert.equal(status.body.public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(status.body.public_claim.enabled, true);
+  assert.equal(status.body.public_claim.available, true);
+  assert.equal(status.body.public_claim.server_selected_work, true);
+  assert.equal(
+    status.body.public_claim.proof_of_executor_key_possession_required,
+    true,
+  );
+  assert.equal(status.body.public_claim.participant_selected_dataset, false);
+  assert.equal(status.body.public_claim.participant_selected_input_hash, false);
+  assert.equal(status.body.public_claim.participant_selected_award, false);
+  assert.equal(status.body.public_claim.money_movement, false);
+  assert.equal("private_dataset_path" in status.body.public_claim, false);
   assert.equal(status.body.routes.submit_result, "/wc/public-earning-pilot-v1/submit-result");
   assert.equal("secret" in status.body, false);
   assert.equal(JSON.stringify(status.body).includes("operator/issue"), false);
@@ -252,6 +389,104 @@ async function main() {
   assert.equal(invalidBalance.response.status, 400);
   assert.equal(invalidBalance.body.error, "invalid_account");
   assert.equal(earnRequests.length, invalidBalanceCallsBefore);
+
+  const claimPayload = {
+    claim: {
+      domain: "void:mainnet-0:wc-public-ticket-claim-v1",
+      marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+      version: 1,
+      account: "outside-user-1",
+      executor_node_id: "b".repeat(32),
+      executor_pubkey:
+        "-----BEGIN PUBLIC KEY-----\n" +
+        "MCowBQYDK2VwAyEA" +
+        "A".repeat(44) +
+        "\n-----END PUBLIC KEY-----\n",
+      claim_nonce: "6".repeat(32),
+      claim_ts_ms: Date.now(),
+    },
+    signature: {
+      alg: "ed25519",
+      key_id: "b".repeat(32),
+      sig: "7".repeat(128),
+    },
+  };
+
+  const claimCallsBeforeInvalid = earnRequests.length;
+  const invalidClaim = await json(
+    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...claimPayload,
+        dataset_id: "participant-selected",
+      }),
+    },
+  );
+  assert.equal(invalidClaim.response.status, 400);
+  assert.equal(invalidClaim.body.error, "invalid_public_claim_request");
+  assert.equal(earnRequests.length, claimCallsBeforeInvalid);
+
+  const claimAuthorizationRejected = await json(
+    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer must-not-forward",
+      },
+      body: JSON.stringify(claimPayload),
+    },
+  );
+  assert.equal(claimAuthorizationRejected.response.status, 400);
+  assert.equal(
+    claimAuthorizationRejected.body.error,
+    "claim_authorization_header_not_allowed",
+  );
+
+  const claim = await json(
+    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: "must-not-forward=1",
+      },
+      body: JSON.stringify(claimPayload),
+    },
+  );
+  assert.equal(claim.response.status, 201);
+  assert.equal(claim.body.ok, true);
+  assert.equal(claim.body.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(claim.body.claim_request_verified, true);
+  assert.equal(claim.body.executor_key_possession_verified, true);
+  assert.equal(claim.body.server_selected_work, true);
+  assert.equal(claim.body.fixed_award_wc, 3);
+  assert.equal(claim.body.participant_selected_dataset, false);
+  assert.equal(claim.body.participant_selected_input_hash, false);
+  assert.equal(claim.body.participant_selected_award, false);
+  assert.equal(claim.body.money_movement, false);
+  assert.match(
+    claim.body.capability_token,
+    /^wcep1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/,
+  );
+  assert.equal(claim.response.headers.has("set-cookie"), false);
+  assert.equal(claim.response.headers.has("location"), false);
+  assert.equal(
+    claim.response.headers.get("x-void-public-ticket-claim"),
+    "v1",
+  );
+
+  const forwardedClaim = earnRequests.at(-1);
+  assert.equal(forwardedClaim.method, "POST");
+  assert.equal(
+    forwardedClaim.url,
+    "/wc/public-earning-pilot-v1/claim-ticket",
+  );
+  assert.deepEqual(JSON.parse(forwardedClaim.raw), claimPayload);
+  assert.equal(forwardedClaim.headers.authorization, undefined);
+  assert.equal(forwardedClaim.headers.cookie, undefined);
 
   const payload = {
     envelope: { ticket_id: "1".repeat(32) },
@@ -439,6 +674,17 @@ async function main() {
   assert.equal(/http:\/\/100\./.test(cliText), false);
   assert.match(cli.headers.get("content-disposition") || "", /attachment/);
 
+  const claimCli = await fetch(`${base}/download/wc-public-ticket-claim-v1.sh`);
+  assert.equal(claimCli.status, 200);
+  const servedClaimCliText = await claimCli.text();
+  assert.equal(servedClaimCliText, claimCliText);
+  assert.match(servedClaimCliText, /VOID_WC_PUBLIC_TICKET_CLAIM_CLI_V1/);
+  assert.equal(/http:\/\/100\./.test(servedClaimCliText), false);
+  assert.match(
+    claimCli.headers.get("content-disposition") || "",
+    /attachment/,
+  );
+
   const adapterManifest = await json(`${base}/__void/adapter.json`);
   assert.equal(adapterManifest.response.status, 200);
   assert.equal(adapterManifest.body.private_rpc_public, false);
@@ -458,6 +704,8 @@ async function main() {
 
   const submitGet = await json(`${base}/wc/public-earning-pilot-v1/submit-result`);
   assert.equal(submitGet.response.status, 404);
+  const claimGet = await json(`${base}/wc/public-earning-pilot-v1/claim-ticket`);
+  assert.equal(claimGet.response.status, 404);
 
   console.log("VOID_PUBLIC_EARN_GATEWAY_V1_GREEN");
 }

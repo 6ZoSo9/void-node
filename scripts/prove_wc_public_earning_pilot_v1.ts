@@ -37,12 +37,26 @@ need(
 
 for (const marker of [
   "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+  "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
   'VOID_WC_PUBLIC_EARNING_PILOT_TASK =\n  "datanet_fetch_verify"',
   "VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3",
   '"/wc/public-earning-pilot-v1/operator/issue"',
   '"/wc/public-earning-pilot-v1/execute-local"',
   '"/wc/public-earning-pilot-v1/submit-result"',
   '"/wc/public-earning-pilot-v1/status"',
+  '"/wc/public-earning-pilot-v1/claim-ticket"',
+  '"/wc/public-earning-pilot-v1/sign-claim"',
+  "publicTicketClaimSigningObject",
+  "publicTicketClaimSigningBytes",
+  "signPublicTicketClaim",
+  "verifyPublicTicketClaim",
+  "issuePublicTicketClaim",
+  "publicTicketClaimPolicySnapshot",
+  "proof_of_executor_key_possession_required: true",
+  "claim_nonce_replay_protection: true",
+  "server_selected_work: true",
+  "participant_selected_dataset: false",
+  "participant_selected_input_hash: false",
   "executor_node_id",
   "executor_http_base",
   "expected_input_hash",
@@ -165,6 +179,61 @@ need(
 need(
   !moduleText.includes("Number(receipt.ts_ms || Date.now())"),
   "local executor still synthesizes a receipt timestamp",
+);
+
+need(
+  moduleText.includes(
+    "process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID",
+  ),
+  "public claim server-selected dataset source missing",
+);
+need(
+  moduleText.includes(
+    "process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH",
+  ),
+  "public claim server-selected input hash source missing",
+);
+need(
+  moduleText.includes("enforceLegacyCaps: false"),
+  "public claim does not bypass legacy lifetime canary cap",
+);
+need(
+  moduleText.includes("counts.activeAccountCounts[claim.account]"),
+  "public claim active account cap missing",
+);
+need(
+  moduleText.includes(
+    "counts.activeExecutorCounts[claim.executor_node_id]",
+  ),
+  "public claim active executor cap missing",
+);
+need(
+  moduleText.includes("publicClaimCooldownMs()"),
+  "public claim cooldown missing",
+);
+need(
+  moduleText.includes("publicClaimMaxPer24h()"),
+  "public claim daily account/executor cap missing",
+);
+need(
+  moduleText.includes("publicClaimGlobalMaxPer24h()"),
+  "public claim global daily cap missing",
+);
+need(
+  moduleText.includes("claim_nonce_sha256"),
+  "public claim nonce is not persisted as a hash",
+);
+need(
+  moduleText.includes("claim_signature_sha256"),
+  "public claim signature evidence hash missing",
+);
+need(
+  !moduleText.includes("participant_selected_dataset: true"),
+  "participant-selected public claim dataset enabled",
+);
+need(
+  !moduleText.includes("participant_selected_input_hash: true"),
+  "participant-selected public claim input hash enabled",
 );
 
 need(!moduleText.includes("req?.body?.delta"), "participant-selected delta accepted");

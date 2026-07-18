@@ -1,0 +1,301 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+async function main(): Promise<void> {
+  const tmp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-wc-public-ticket-claim-v1-"),
+  );
+
+  process.env.DATA_DIR = tmp;
+  process.env.VOID_DATA_DIR = tmp;
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED = "1";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED = "1";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+    "ds_public_ticket_claim_v1_proof";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+    "2".repeat(64);
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS = "300000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS = "300000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS = "60000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H = "2";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP = "10";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H = "10";
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_PER_ACCOUNT_CAP = "1";
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_GLOBAL_CAP = "1";
+
+  const pilot = await import(
+    "../src/economic/wc_public_earning_pilot_v1.js"
+  );
+  const block = await import("../src/chain/block.js");
+
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
+  const pubPEM = publicKey
+    .export({ type: "spki", format: "pem" })
+    .toString();
+  const executorNodeId = block.nodeIdFromPubPEM(pubPEM);
+  const account = "public-ticket-claim-proof-v1";
+
+  function signed(
+    nonce: string,
+    claimAccount = account,
+    ts = Date.now(),
+  ) {
+    return pilot.signPublicTicketClaim(
+      {
+        domain: "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: claimAccount,
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: nonce,
+        claim_ts_ms: ts,
+      },
+      privateKey,
+    );
+  }
+
+  const policy = pilot.publicTicketClaimPolicySnapshot();
+  assert.equal(policy.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(policy.enabled, true);
+  assert.equal(policy.available, true);
+  assert.equal(policy.fixed_award_wc, 3);
+  assert.equal(policy.transport_mode, "outbound_bundle");
+  assert.equal(policy.server_selected_work, true);
+  assert.equal(policy.proof_of_executor_key_possession_required, true);
+  assert.equal(policy.claim_nonce_replay_protection, true);
+  assert.equal(policy.one_active_ticket_per_account, true);
+  assert.equal(policy.one_active_ticket_per_executor, true);
+  assert.equal(policy.participant_selected_dataset, false);
+  assert.equal(policy.participant_selected_input_hash, false);
+  assert.equal(policy.participant_selected_award, false);
+  assert.equal(policy.money_movement, false);
+
+  const firstSigned = signed("1".repeat(32));
+  const verified = pilot.verifyPublicTicketClaim(
+    firstSigned.claim,
+    firstSigned.signature,
+  );
+  assert.equal(verified.account, account);
+  assert.equal(verified.executor_node_id, executorNodeId);
+
+  assert.throws(
+    () =>
+      pilot.verifyPublicTicketClaim(
+        firstSigned.claim,
+        {
+          ...firstSigned.signature,
+          sig: "0".repeat(128),
+        },
+      ),
+    /claim_executor_signature_invalid/,
+  );
+
+  assert.throws(
+    () =>
+      pilot.issuePublicTicketClaim(
+        {
+          ...firstSigned,
+          dataset_id: "participant-selected-dataset",
+        },
+        tmp,
+      ),
+    /unexpected_claim_request_body_field/,
+  );
+
+  const first = pilot.issuePublicTicketClaim(firstSigned, tmp);
+  assert.equal(first.ok, true);
+  assert.equal(first.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(first.claim_request_verified, true);
+  assert.equal(first.executor_key_possession_verified, true);
+  assert.equal(first.server_selected_work, true);
+  assert.equal(first.fixed_award_wc, 3);
+  assert.equal(first.participant_selected_dataset, false);
+  assert.equal(first.participant_selected_input_hash, false);
+  assert.equal(first.participant_selected_award, false);
+  assert.equal(first.money_movement, false);
+  assert.match(first.claim_id, /^[0-9a-f]{64}$/);
+  assert.match(
+    first.capability_token,
+    /^wcep1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/,
+  );
+  assert.equal(first.ticket.account, account);
+  assert.equal(first.ticket.executor_node_id, executorNodeId);
+  assert.equal(first.ticket.executor_http_base, "");
+  assert.equal(first.ticket.transport_mode, "outbound_bundle");
+  assert.equal(first.ticket.dataset_id, "ds_public_ticket_claim_v1_proof");
+  assert.equal(first.ticket.expected_input_hash, "2".repeat(64));
+  assert.equal(first.ticket.task_class, "datanet_fetch_verify");
+  assert.equal(first.ticket.fixed_award_wc, 3);
+  assert.equal(first.ticket.issuance_source, "public_claim");
+  assert.equal(first.ticket.public_claim_id, first.claim_id);
+  assert.equal(first.ticket.status, "issued");
+  assert.equal(
+    crypto
+      .createHash("sha256")
+      .update(first.capability_token)
+      .digest("hex"),
+    first.ticket.token_sha256,
+  );
+
+  const root = path.join(
+    tmp,
+    "wc_v1",
+    "public-earning-pilot-v1",
+  );
+  const firstClaimFile = path.join(
+    root,
+    "public-claims",
+    `${first.claim_id}.json`,
+  );
+  assert.equal(fs.existsSync(firstClaimFile), true);
+  const firstClaimRecord = JSON.parse(
+    fs.readFileSync(firstClaimFile, "utf8"),
+  );
+  assert.equal(firstClaimRecord.status, "issued");
+  assert.equal(firstClaimRecord.ticket_id, first.ticket.ticket_id);
+  assert.equal(
+    JSON.stringify(firstClaimRecord).includes(first.capability_token),
+    false,
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(root, "issued", `${first.ticket.ticket_id}.json`),
+      "utf8",
+    ).includes(first.capability_token),
+    false,
+  );
+
+  assert.throws(
+    () => pilot.issuePublicTicketClaim(firstSigned, tmp),
+    /public_claim_replay/,
+  );
+
+  assert.throws(
+    () =>
+      pilot.issuePublicTicketClaim(
+        signed("3".repeat(32), "other-account-proof-v1"),
+        tmp,
+      ),
+    /public_claim_executor_active/,
+  );
+
+  assert.throws(
+    () =>
+      pilot.issuePublicTicketClaim(
+        signed("4".repeat(32)),
+        tmp,
+      ),
+    /public_claim_account_active/,
+  );
+
+  const firstIssuedPath = path.join(
+    root,
+    "issued",
+    `${first.ticket.ticket_id}.json`,
+  );
+  const firstConsumedPath = path.join(
+    root,
+    "consumed",
+    `${first.ticket.ticket_id}.json`,
+  );
+  const firstTicketRecord = JSON.parse(
+    fs.readFileSync(firstIssuedPath, "utf8"),
+  );
+  fs.writeFileSync(
+    firstConsumedPath,
+    JSON.stringify(
+      {
+        ...firstTicketRecord,
+        status: "completed",
+        completed_at_ms: Date.now(),
+      },
+      null,
+      2,
+    ) + "\n",
+    { mode: 0o600 },
+  );
+  fs.unlinkSync(firstIssuedPath);
+
+  assert.throws(
+    () =>
+      pilot.issuePublicTicketClaim(
+        signed("5".repeat(32)),
+        tmp,
+      ),
+    /public_claim_account_cooldown/,
+  );
+
+  firstClaimRecord.issued_at_ms = Date.now() - 120_000;
+  fs.writeFileSync(
+    firstClaimFile,
+    JSON.stringify(firstClaimRecord, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const second = pilot.issuePublicTicketClaim(
+    signed("6".repeat(32)),
+    tmp,
+  );
+  assert.equal(second.ok, true);
+  assert.equal(second.ticket.account, account);
+  assert.equal(second.ticket.executor_node_id, executorNodeId);
+  assert.equal(second.ticket.issuance_source, "public_claim");
+  assert.notEqual(second.ticket.ticket_id, first.ticket.ticket_id);
+
+  const secondIssuedPath = path.join(
+    root,
+    "issued",
+    `${second.ticket.ticket_id}.json`,
+  );
+  const secondConsumedPath = path.join(
+    root,
+    "consumed",
+    `${second.ticket.ticket_id}.json`,
+  );
+  const secondTicketRecord = JSON.parse(
+    fs.readFileSync(secondIssuedPath, "utf8"),
+  );
+  fs.writeFileSync(
+    secondConsumedPath,
+    JSON.stringify(
+      {
+        ...secondTicketRecord,
+        status: "completed",
+        completed_at_ms: Date.now(),
+      },
+      null,
+      2,
+    ) + "\n",
+    { mode: 0o600 },
+  );
+  fs.unlinkSync(secondIssuedPath);
+
+  assert.throws(
+    () =>
+      pilot.issuePublicTicketClaim(
+        signed("7".repeat(32)),
+        tmp,
+      ),
+    /public_claim_account_daily_cap_reached/,
+  );
+
+  for (const name of fs.readdirSync(path.join(root, "public-claims"))) {
+    const text = fs.readFileSync(
+      path.join(root, "public-claims", name),
+      "utf8",
+    );
+    assert.equal(text.includes("wcep1."), false);
+  }
+
+  console.log("VOID_WC_PUBLIC_TICKET_CLAIM_V1_GREEN");
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+main().catch((error) => {
+  console.error(error?.stack || String(error));
+  process.exitCode = 1;
+});
