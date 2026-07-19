@@ -1,0 +1,625 @@
+#!/usr/bin/env node
+
+import fs from "node:fs";
+import net from "node:net";
+import path from "node:path";
+
+const MARKER = "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1";
+const NETWORK = "Mainnet-0";
+const DEFAULT_BASE = process.env.VOID_PUBLIC_BASE || "http://127.0.0.1:4100";
+const DEFAULT_TIMEOUT_MS = 8_000;
+const DEFAULT_EXPECTED_PEERS = 1;
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+const REQUIRED_PUBLIC_ROUTES = [
+  "/public-node",
+  "/public-node/route-index.json",
+  "/public-node/route-manifest.json",
+  "/public-node/self-check-snapshot.json",
+  "/public-node/share-link.json",
+  "/public-node/tester-bundle.json",
+  "/public-node/outside-tester-smoke.json",
+  "/proofs",
+];
+
+const REQUIRED_WELL_KNOWN_ROUTES = [
+  "/public-node",
+  "/public-node/route-manifest.json",
+  "/public-node/self-check-snapshot.json",
+  "/proofs",
+];
+
+const SENSITIVE_NAMESPACES = [
+  "/__void/diag/",
+  "/__void/dev/",
+  "/__void/operator/",
+  "/__void/admin/",
+  "/__debug/",
+  "/dev/",
+  "/__void/participant/wallet/export",
+];
+
+function usage() {
+  console.log(`VOID public-node operator self-check v1
+
+Usage:
+  node tools/public-node-operator-self-check-v1.mjs [options]
+
+Options:
+  --base URL                    Node base URL (default: ${DEFAULT_BASE})
+  --output FILE                 Write a mode-0600 JSON receipt
+  --timeout-ms N                Per-request timeout (default: ${DEFAULT_TIMEOUT_MS})
+  --expected-peer-count N       Minimum peer count (default: ${DEFAULT_EXPECTED_PEERS})
+  --observed-at ISO8601         Fixed timestamp for deterministic proof fixtures
+  --help                        Show this help
+
+The command performs GET-only, read-only checks. It never submits, registers,
+claims, signs, stakes, sends, fulfills, or mutates network state.`);
+}
+
+function parseInteger(raw, label, minimum, maximum) {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return value;
+}
+
+function parseArgs(argv) {
+  const result = {
+    base: DEFAULT_BASE,
+    output: "",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    expectedPeerCount: DEFAULT_EXPECTED_PEERS,
+    observedAt: "",
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const next = () => {
+      index += 1;
+      if (index >= argv.length) throw new Error(`missing value for ${arg}`);
+      return argv[index];
+    };
+
+    if (arg === "--base") result.base = next();
+    else if (arg === "--output") result.output = next();
+    else if (arg === "--timeout-ms") {
+      result.timeoutMs = parseInteger(next(), "--timeout-ms", 250, 120_000);
+    } else if (arg === "--expected-peer-count") {
+      result.expectedPeerCount = parseInteger(next(), "--expected-peer-count", 0, 10_000);
+    } else if (arg === "--observed-at") result.observedAt = next();
+    else if (arg === "--help" || arg === "-h") {
+      usage();
+      process.exit(0);
+    } else {
+      throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+
+  return result;
+}
+
+function normalizeBase(raw) {
+  const value = new URL(raw);
+  if (!["http:", "https:"].includes(value.protocol)) {
+    throw new Error("base URL must use http or https");
+  }
+  if (value.username || value.password || value.search || value.hash) {
+    throw new Error("base URL must not contain credentials, query, or fragment");
+  }
+  if (value.pathname !== "/" && value.pathname !== "") {
+    throw new Error("base URL must not contain a path");
+  }
+  value.pathname = "/";
+  return value;
+}
+
+function classifyHost(hostname) {
+  const lower = hostname.toLowerCase();
+  if (lower === "localhost") return "loopback";
+  const family = net.isIP(hostname);
+  if (family === 4) {
+    const parts = hostname.split(".").map(Number);
+    if (
+      parts[0] === 10 ||
+      parts[0] === 127 ||
+      (parts[0] === 169 && parts[1] === 254) ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168) ||
+      (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127)
+    ) {
+      return parts[0] === 127 ? "loopback" : "private_or_overlay_ipv4";
+    }
+    return "public_ipv4";
+  }
+  if (family === 6) {
+    if (hostname === "::1") return "loopback";
+    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname)
+      ? "private_or_linklocal_ipv6"
+      : "public_ipv6";
+  }
+  if (lower.endsWith(".local") || lower.endsWith(".lan") || lower.endsWith(".internal")) {
+    return "private_dns";
+  }
+  if (lower.endsWith(".ts.net")) return "overlay_dns";
+  return "public_dns";
+}
+
+function safeIso(raw) {
+  const date = raw ? new Date(raw) : new Date();
+  if (!Number.isFinite(date.getTime())) throw new Error("--observed-at must be valid ISO-8601");
+  return date.toISOString();
+}
+
+function collectStrings(value, output = []) {
+  if (typeof value === "string") output.push(value);
+  else if (Array.isArray(value)) {
+    for (const child of value.slice(0, 10_000)) collectStrings(child, output);
+  } else if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      output.push(key);
+      collectStrings(child, output);
+    }
+  }
+  return output;
+}
+
+function routePathFromString(value) {
+  if (typeof value !== "string") return null;
+  try {
+    if (value.startsWith("/")) {
+      return new URL(value, "http://void.invalid").pathname;
+    }
+    if (/^https?:\/\//i.test(value)) {
+      return new URL(value).pathname;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function collectRouteStrings(value) {
+  const routes = [];
+  for (const item of collectStrings(value)) {
+    const route = routePathFromString(item);
+    if (route) routes.push(route);
+  }
+  return [...new Set(routes)];
+}
+
+function containsMarker(value, marker) {
+  return collectStrings(value).includes(marker);
+}
+
+function findKeyValues(value, wanted, output = []) {
+  if (Array.isArray(value)) {
+    for (const child of value) findKeyValues(child, wanted, output);
+  } else if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      if (key === wanted) output.push(child);
+      findKeyValues(child, wanted, output);
+    }
+  }
+  return output;
+}
+
+function sensitiveRoutes(routes) {
+  return routes.filter((route) =>
+    SENSITIVE_NAMESPACES.some(
+      (prefix) =>
+        route === prefix ||
+        route.startsWith(prefix) ||
+        (prefix.endsWith("/") && route === prefix.slice(0, -1)),
+    ),
+  );
+}
+
+function parsePeerCount(value) {
+  if (Array.isArray(value)) return value.length;
+  if (!value || typeof value !== "object") return null;
+  for (const key of ["peers", "connected", "items", "nodes"]) {
+    if (Array.isArray(value[key])) return value[key].length;
+  }
+  for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
+    const parsed = Number(value[key]);
+    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
+async function fetchJson(base, pathname, timeoutMs) {
+  const url = new URL(pathname, base);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: {
+        accept: "application/json",
+        "user-agent": "void-public-node-operator-self-check-v1",
+      },
+    });
+    const body = Buffer.from(await response.arrayBuffer());
+    if (body.length > MAX_RESPONSE_BYTES) {
+      return {
+        ok: false,
+        statusCode: response.status,
+        error: "response_too_large",
+        json: null,
+      };
+    }
+    let json = null;
+    let parseError = "";
+    try {
+      json = JSON.parse(body.toString("utf8"));
+    } catch {
+      parseError = "invalid_json";
+    }
+    return {
+      ok: response.status === 200 && parseError === "",
+      statusCode: response.status,
+      error: response.status === 200 ? parseError : `http_${response.status}`,
+      json,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      statusCode: 0,
+      error: error?.name === "AbortError" ? "timeout" : "request_failed",
+      json: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function check(id, pathValue, ok, reason, observed = {}) {
+  return {
+    id,
+    path: pathValue,
+    ok: Boolean(ok),
+    reason: ok ? null : reason,
+    observed,
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const base = normalizeBase(args.base);
+  const observedAt = safeIso(args.observedAt);
+  const checks = [];
+
+  const health = await fetchJson(base, "/health", args.timeoutMs);
+  const healthValue = health.json;
+  const healthPeers = parsePeerCount(healthValue?.peers ?? healthValue);
+  const healthOk =
+    health.ok &&
+    healthValue?.ok === true &&
+    typeof healthValue?.nodeId === "string" &&
+    healthValue.nodeId.length >= 8;
+  checks.push(
+    check("health", "/health", healthOk, health.error || "health_contract_mismatch", {
+      status_code: health.statusCode,
+      node_id_present: typeof healthValue?.nodeId === "string",
+      http_port: Number.isInteger(healthValue?.http) ? healthValue.http : null,
+      p2p_port: Number.isInteger(healthValue?.p2p) ? healthValue.p2p : null,
+      peer_count: healthPeers,
+    }),
+  );
+
+  const ready = await fetchJson(base, "/__void/ready.json", args.timeoutMs);
+  const readyValue = ready.json;
+  const readinessOk =
+    ready.ok &&
+    readyValue?.ready === true &&
+    Number(readyValue?.gap) === 0 &&
+    Number(readyValue?.txroot_live) === 1 &&
+    Array.isArray(readyValue?.reasons) &&
+    readyValue.reasons.length === 0;
+  checks.push(
+    check(
+      "readiness",
+      "/__void/ready.json",
+      readinessOk,
+      ready.error || "readiness_contract_mismatch",
+      {
+        status_code: ready.statusCode,
+        ready: readyValue?.ready === true,
+        head: Number.isInteger(readyValue?.head) ? readyValue.head : null,
+        lastmile_seen: Number.isInteger(readyValue?.lastmile_seen)
+          ? readyValue.lastmile_seen
+          : null,
+        gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
+        txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
+          ? Number(readyValue.txroot_live)
+          : null,
+        reason_count: Array.isArray(readyValue?.reasons) ? readyValue.reasons.length : null,
+      },
+    ),
+  );
+
+  const head = await fetchJson(base, "/blocks/latest/number2.json", args.timeoutMs);
+  const headNumber = Number(head.json?.number);
+  const headOk =
+    head.ok &&
+    Number.isInteger(headNumber) &&
+    headNumber >= 0 &&
+    (!Number.isInteger(readyValue?.head) || headNumber === readyValue.head) &&
+    (!Number.isInteger(readyValue?.lastmile_seen) || headNumber === readyValue.lastmile_seen);
+  checks.push(
+    check(
+      "chain_head",
+      "/blocks/latest/number2.json",
+      headOk,
+      head.error || "chain_head_mismatch",
+      {
+        status_code: head.statusCode,
+        number: Number.isInteger(headNumber) ? headNumber : null,
+        aligned_with_readiness: headOk && ready.ok,
+      },
+    ),
+  );
+
+  let peersPath = "/p2p/peers";
+  let peers = await fetchJson(base, peersPath, args.timeoutMs);
+  if (!peers.ok) {
+    peersPath = "/peers";
+    peers = await fetchJson(base, peersPath, args.timeoutMs);
+  }
+  const peerCount = parsePeerCount(peers.json);
+  const peersOk =
+    peers.ok &&
+    Number.isInteger(peerCount) &&
+    peerCount >= args.expectedPeerCount;
+  checks.push(
+    check(
+      "peer_visibility",
+      peersPath,
+      peersOk,
+      peers.error || "peer_count_below_expected",
+      {
+        status_code: peers.statusCode,
+        peer_count: Number.isInteger(peerCount) ? peerCount : null,
+        expected_minimum: args.expectedPeerCount,
+      },
+    ),
+  );
+
+  const wellKnown = await fetchJson(
+    base,
+    "/.well-known/void-public-node.json",
+    args.timeoutMs,
+  );
+  const wellKnownStrings = collectStrings(wellKnown.json);
+  const wellKnownRoutes = collectRouteStrings(wellKnown.json);
+  const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
+    (route) => !wellKnownRoutes.includes(route),
+  );
+  const wellKnownPolicy =
+    wellKnown.json && typeof wellKnown.json === "object" ? wellKnown.json.policy : null;
+  const wellKnownOk =
+    wellKnown.ok &&
+    containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
+    wellKnownMissing.length === 0 &&
+    wellKnownPolicy?.public_routes_only === true &&
+    wellKnownPolicy?.read_only === true &&
+    wellKnownPolicy?.mutation === false;
+  checks.push(
+    check(
+      "well_known_discovery",
+      "/.well-known/void-public-node.json",
+      wellKnownOk,
+      wellKnown.error || "well_known_discovery_contract_mismatch",
+      {
+        status_code: wellKnown.statusCode,
+        marker_present: containsMarker(
+          wellKnown.json,
+          "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
+        ),
+        public_route_pointer_count: wellKnownRoutes.filter((route) =>
+          route.startsWith("/public-node"),
+        ).length,
+        required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
+        missing_pointer_count: wellKnownMissing.length,
+        absolute_url_pointer_count: wellKnownStrings.filter((value) =>
+          /^https?:\/\//i.test(value),
+        ).length,
+        public_routes_only: wellKnownPolicy?.public_routes_only === true,
+        read_only: wellKnownPolicy?.read_only === true,
+        mutation_false: wellKnownPolicy?.mutation === false,
+      },
+    ),
+  );
+
+  const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
+  const indexRoutes = collectRouteStrings(routeIndex.json);
+  const indexSensitive = sensitiveRoutes(indexRoutes);
+  const routeIndexOk =
+    routeIndex.ok &&
+    containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
+    indexSensitive.length === 0;
+  checks.push(
+    check(
+      "route_index",
+      "/public-node/route-index.json",
+      routeIndexOk,
+      routeIndex.error || "route_index_contract_mismatch",
+      {
+        status_code: routeIndex.statusCode,
+        marker_present: containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
+        route_count: indexRoutes.length,
+        sensitive_route_count: indexSensitive.length,
+      },
+    ),
+  );
+
+  const routeManifest = await fetchJson(
+    base,
+    "/public-node/route-manifest.json",
+    args.timeoutMs,
+  );
+  const manifestRoutes = collectRouteStrings(routeManifest.json);
+  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
+    (route) => !manifestRoutes.includes(route),
+  );
+  const manifestSensitive = sensitiveRoutes(manifestRoutes);
+  const routeManifestOk =
+    routeManifest.ok &&
+    containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
+    manifestMissing.length === 0 &&
+    manifestSensitive.length === 0;
+  checks.push(
+    check(
+      "route_manifest",
+      "/public-node/route-manifest.json",
+      routeManifestOk,
+      routeManifest.error || "route_manifest_contract_mismatch",
+      {
+        status_code: routeManifest.statusCode,
+        marker_present: containsMarker(
+          routeManifest.json,
+          "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
+        ),
+        required_route_count: REQUIRED_PUBLIC_ROUTES.length,
+        missing_route_count: manifestMissing.length,
+        sensitive_route_count: manifestSensitive.length,
+      },
+    ),
+  );
+
+  const snapshot = await fetchJson(
+    base,
+    "/public-node/self-check-snapshot.json",
+    args.timeoutMs,
+  );
+  const snapshotRoutes = collectRouteStrings(snapshot.json);
+  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
+    (route) => !snapshotRoutes.includes(route),
+  );
+  const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
+  const publicPostValues = findKeyValues(snapshot.json, "public_post_endpoint");
+  const snapshotOk =
+    snapshot.ok &&
+    containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    snapshotMissing.length === 0 &&
+    snapshotSensitive.length === 0 &&
+    publicPostValues.includes(false);
+  checks.push(
+    check(
+      "self_check_snapshot",
+      "/public-node/self-check-snapshot.json",
+      snapshotOk,
+      snapshot.error || "self_check_snapshot_contract_mismatch",
+      {
+        status_code: snapshot.statusCode,
+        marker_present: containsMarker(
+          snapshot.json,
+          "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
+        ),
+        required_route_count: REQUIRED_PUBLIC_ROUTES.length,
+        missing_route_count: snapshotMissing.length,
+        sensitive_route_count: snapshotSensitive.length,
+        public_post_endpoint_false: publicPostValues.includes(false),
+      },
+    ),
+  );
+
+  const discoveryAlignmentOk =
+    routeIndexOk &&
+    routeManifestOk &&
+    snapshotOk &&
+    REQUIRED_PUBLIC_ROUTES.every(
+      (route) => manifestRoutes.includes(route) && snapshotRoutes.includes(route),
+    );
+  checks.push(
+    check(
+      "public_discovery_alignment",
+      "route-index + route-manifest + self-check-snapshot",
+      discoveryAlignmentOk,
+      "public_discovery_surfaces_not_aligned",
+      {
+        required_routes_aligned: discoveryAlignmentOk,
+      },
+    ),
+  );
+
+  const failed = checks.filter((entry) => !entry.ok);
+  const receipt = {
+    marker: MARKER,
+    network: NETWORK,
+    read_only: true,
+    observed_at: observedAt,
+    target: {
+      scheme: base.protocol.slice(0, -1),
+      host_class: classifyHost(base.hostname),
+      port: Number(base.port || (base.protocol === "https:" ? 443 : 80)),
+      raw_target_included: false,
+    },
+    summary: {
+      status: failed.length === 0 ? "green" : "hold",
+      checks_total: checks.length,
+      checks_green: checks.length - failed.length,
+      checks_failed: failed.length,
+      failed_check_ids: failed.map((entry) => entry.id),
+    },
+    runtime: {
+      node_id: typeof healthValue?.nodeId === "string" ? healthValue.nodeId : null,
+      http_port: Number.isInteger(healthValue?.http) ? healthValue.http : null,
+      p2p_port: Number.isInteger(healthValue?.p2p) ? healthValue.p2p : null,
+      chain_head: Number.isInteger(headNumber) ? headNumber : null,
+      peer_count: Number.isInteger(peerCount) ? peerCount : null,
+      expected_peer_count: args.expectedPeerCount,
+      ready: readyValue?.ready === true,
+      gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
+      txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
+        ? Number(readyValue.txroot_live)
+        : null,
+    },
+    checks,
+    safety: {
+      methods_used: ["GET"],
+      redirects_followed: false,
+      credentials_sent: false,
+      mutation_attempted: false,
+      registration_attempted: false,
+      validator_activation_attempted: false,
+      staking_attempted: false,
+      wallet_connection_attempted: false,
+      ledger_write_attempted: false,
+      peer_state_write_attempted: false,
+      validator_set_write_attempted: false,
+      ticket_claim_attempted: false,
+      buy_void_fulfillment_attempted: false,
+    },
+  };
+
+  const encoded = `${JSON.stringify(receipt, null, 2)}\n`;
+  if (args.output) {
+    const output = path.resolve(args.output);
+    fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(output, encoded, { encoding: "utf8", mode: 0o600 });
+    fs.chmodSync(output, 0o600);
+  }
+  process.stdout.write(encoded);
+  process.exitCode = failed.length === 0 ? 0 : 2;
+}
+
+main().catch((error) => {
+  console.error(
+    JSON.stringify(
+      {
+        marker: MARKER,
+        status: "error",
+        error: error instanceof Error ? error.message : "unknown_error",
+        mutation_attempted: false,
+      },
+      null,
+      2,
+    ),
+  );
+  process.exitCode = 1;
+});
