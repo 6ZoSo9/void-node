@@ -87,6 +87,7 @@ import { Metrics } from "./metrics.js";
 import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
+import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
 
 
 // __VOID_TS_DECLARES_V1__
@@ -3035,6 +3036,57 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       return String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION || "").trim() === "1";
     }
 
+    function durableIntentJournalEnabled(): boolean {
+      return String(process.env.VOID_VALIDATOR_SUBMIT_INTENT_DURABLE_JOURNAL || "").trim() === "1";
+    }
+
+    function durableIntentIntegration(): any {
+      if (!durableIntentJournalEnabled()) {
+        return { ok:false, reason:"durable_submit_intent_journal_kill_switch_off" };
+      }
+      const journalPath = String(process.env.VOID_VALIDATOR_SUBMIT_INTENT_JOURNAL_PATH || "").trim();
+      if (!journalPath) {
+        return { ok:false, reason:"durable_submit_intent_journal_path_missing" };
+      }
+      const ttlMs = String(process.env.VOID_VALIDATOR_SUBMIT_INTENT_TTL_MS || "").trim();
+      try {
+        return {
+          ok:true,
+          integration:new ValidatorSubmitIntentRuntimeIntegrationV1({
+            journal_path:journalPath,
+            ...(ttlMs ? { ttl_ms:ttlMs } : {})
+          })
+        };
+      } catch (e:any) {
+        return {
+          ok:false,
+          reason:"durable_submit_intent_journal_configuration_invalid",
+          detail:String(e?.message || e)
+        };
+      }
+    }
+
+    function durableDecisionSummary(decision:any): any {
+      if (!decision || typeof decision !== "object") return null;
+      return {
+        ok:decision.ok === true,
+        status:String(decision.status || ""),
+        reason:decision.ok === false ? String(decision.reason || "") : null,
+        source:decision.ok === false ? String(decision.source || "") : null,
+        submit_intent_id:String(decision.submit_intent_id || ""),
+        write_performed:decision.write_performed === true,
+        replay_required:decision.replay_required === true,
+        requires_operator_reconciliation:decision.requires_operator_reconciliation === true,
+        automatic_rebroadcast_allowed:false,
+        crash_state:decision.intent_state?.crash_state || decision.crash_state || null,
+        journal_entries_total:Number(decision.journal_entries_total || 0),
+        journal_head_hash_sha256:String(decision.journal_head_hash_sha256 || ""),
+        broadcast_id:decision.broadcast_id || null,
+        transaction_hash:decision.transaction_hash || null,
+        receipt_status:decision.receipt_status ?? null
+      };
+    }
+
     const route = "/__void/participant/validator-registration/submit-live";
     app.use(route, express.json({ limit:"32kb" }));
 
@@ -3107,13 +3159,32 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
             "unlock participant native wallet before live submit",
             "prove wallet authority is ready",
             "prove draft-submit payload equality",
-            "reserve submitIntentId through double-submit guard",
+            "reserve submitIntentId through durable append-only journal",
             "broadcast registerCandidate transaction",
             "require transaction receipt status=1",
             "prove candidate registered without active-set expansion"
           ]
         });
       }
+
+      const durableRuntime = durableIntentIntegration();
+      if (durableRuntime.ok !== true) {
+        return res.status(503).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:String(durableRuntime.reason || "durable_submit_intent_journal_not_ready"),
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          durable_submit_intent_journal_enabled:durableIntentJournalEnabled(),
+          durable_submit_intent_journal_ready:false,
+          automatic_rebroadcast_allowed:false,
+          submit_blocked_reason:String(durableRuntime.reason || "durable_submit_intent_journal_not_ready")
+        });
+      }
+      const intentRuntime:ValidatorSubmitIntentRuntimeIntegrationV1 = durableRuntime.integration;
 
       const port = String(process.env.HTTP_PORT || "4100");
       const base = "http://127.0.0.1:" + port;
@@ -3324,32 +3395,28 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
         });
       }
 
-      const guardResp = await selfReq("POST", "/__void/participant/validator-registration/double-submit-guard", {
-        mode:"reserve",
-        account,
-        reward,
-        registry,
-        valueWei,
-        functionSignature:"registerCandidate(address,bytes32,bytes32)",
-        consensusKeyHash,
-        metadataHash
+      const reserveDecision = intentRuntime.reserve({
+        now_ms:Date.now(),
+        submit_intent_id:String(submit.submitIntentId || "")
       });
-      const guard = guardResp.json || {};
-      if (!(guardResp.status === 200 && guard?.ok === true && guard?.submitIntentId === submit.submitIntentId)) {
-        return res.status(409).json({
+      if (reserveDecision.ok === false) {
+        return res.status(
+          reserveDecision.requires_operator_reconciliation ? 503 : 409
+        ).json({
           ok:false,
           kind:"participant_validator_registration_submit_live",
           source:"submit_live_v1",
-          error:guard?.error || "double_submit_guard_not_ready",
+          error:reserveDecision.reason || "durable_submit_intent_reservation_held",
           mutation:false,
           sends_transaction:false,
           submit_allowed:false,
           live_execution_wired:true,
-          submit_blocked_reason:guard?.error || "double_submit_guard_not_ready",
+          durable_submit_intent_journal_ready:true,
+          automatic_rebroadcast_allowed:false,
+          submit_blocked_reason:reserveDecision.reason || "durable_submit_intent_reservation_held",
           account,
           submitIntentId:submit.submitIntentId,
-          guard_http_status:guardResp.status,
-          guard
+          durable_submit_intent:durableDecisionSummary(reserveDecision)
         });
       }
 
@@ -3359,17 +3426,26 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       const beforeActive = cast(["call", "--rpc-url", rpc, registry, "activeCount()(uint256)"]);
 
       if (!beforeCandidate.ok || !beforeWaiting.ok || !beforeActive.ok) {
+        const durableRelease = intentRuntime.releaseBeforeBroadcast({
+          now_ms:Date.now(),
+          submit_intent_id:String(submit.submitIntentId || ""),
+          release_reason:"pre_count_read_failed"
+        });
         return res.status(500).json({
           ok:false,
           kind:"participant_validator_registration_submit_live",
           source:"submit_live_v1",
-          error:"pre_count_read_failed",
+          error:durableRelease.ok === true
+            ? "pre_count_read_failed"
+            : "pre_count_read_failed_durable_release_held",
           mutation:false,
           sends_transaction:false,
           submit_allowed:false,
           live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
           account,
           rpc,
+          durable_submit_intent:durableDecisionSummary(durableRelease),
           pre_counts:{
             candidate_ok:beforeCandidate.ok,
             waiting_ok:beforeWaiting.ok,
@@ -3377,6 +3453,29 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
           }
         });
       }
+
+      const broadcastDecision = intentRuntime.beginBroadcast({
+        now_ms:Date.now(),
+        submit_intent_id:String(submit.submitIntentId || "")
+      });
+      if (broadcastDecision.ok === false) {
+        return res.status(503).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:broadcastDecision.reason || "durable_broadcast_start_held",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
+          account,
+          registry,
+          submitIntentId:submit.submitIntentId,
+          durable_submit_intent:durableDecisionSummary(broadcastDecision)
+        });
+      }
+      const broadcastId = String(broadcastDecision.broadcast_id || "");
 
       const tx = cast([
         "send",
@@ -3392,7 +3491,108 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
 
       const parsed = parseCastSend(tx.stdout + "\n" + tx.stderr);
 
-      if (!tx.ok || parsed.receiptStatus !== "1" || !parsed.transactionHash) {
+      let transactionObserved:any = null;
+      if (parsed.transactionHash) {
+        transactionObserved = intentRuntime.observeTransaction({
+          now_ms:Date.now(),
+          submit_intent_id:String(submit.submitIntentId || ""),
+          broadcast_id:broadcastId,
+          transaction_hash:parsed.transactionHash
+        });
+        if (transactionObserved.ok === false) {
+          return res.status(500).json({
+            ok:false,
+            kind:"participant_validator_registration_submit_live",
+            source:"submit_live_v1",
+            error:"durable_transaction_observation_held",
+            mutation:true,
+            sends_transaction:true,
+            submit_allowed:false,
+            live_execution_wired:true,
+            automatic_rebroadcast_allowed:false,
+            requires_operator_reconciliation:true,
+            account,
+            registry,
+            transactionHash:parsed.transactionHash,
+            receipt_status:parsed.receiptStatus || null,
+            cast_exit_status:tx.status,
+            cast_signal:tx.signal,
+            durable_submit_intent:durableDecisionSummary(transactionObserved)
+          });
+        }
+      }
+
+      let receiptObserved:any = null;
+      if (
+        parsed.transactionHash &&
+        (parsed.receiptStatus === "0" || parsed.receiptStatus === "1")
+      ) {
+        receiptObserved = intentRuntime.observeReceipt({
+          now_ms:Date.now(),
+          submit_intent_id:String(submit.submitIntentId || ""),
+          broadcast_id:broadcastId,
+          transaction_hash:parsed.transactionHash,
+          receipt_status:parsed.receiptStatus
+        });
+        if (receiptObserved.ok === false) {
+          return res.status(500).json({
+            ok:false,
+            kind:"participant_validator_registration_submit_live",
+            source:"submit_live_v1",
+            error:"durable_receipt_observation_held",
+            mutation:true,
+            sends_transaction:true,
+            submit_allowed:false,
+            live_execution_wired:true,
+            automatic_rebroadcast_allowed:false,
+            requires_operator_reconciliation:true,
+            account,
+            registry,
+            transactionHash:parsed.transactionHash,
+            receipt_status:parsed.receiptStatus,
+            cast_exit_status:tx.status,
+            cast_signal:tx.signal,
+            durable_submit_intent:durableDecisionSummary(receiptObserved)
+          });
+        }
+      }
+
+      if (
+        !parsed.transactionHash ||
+        (parsed.receiptStatus !== "0" && parsed.receiptStatus !== "1")
+      ) {
+        return res.status(500).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"live_transaction_outcome_requires_reconciliation",
+          mutation:true,
+          sends_transaction:true,
+          submit_allowed:false,
+          live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
+          requires_operator_reconciliation:true,
+          account,
+          registry,
+          broadcastId,
+          transactionHash:parsed.transactionHash || null,
+          receipt_status:parsed.receiptStatus || null,
+          cast_exit_status:tx.status,
+          cast_signal:tx.signal,
+          cast_stdout_tail:tx.stdout.split(/\n/).slice(-20).join("\n"),
+          cast_stderr_tail:tx.stderr.split(/\n/).slice(-20).join("\n"),
+          durable_submit_intent:durableDecisionSummary(
+            transactionObserved || broadcastDecision
+          )
+        });
+      }
+
+      if (parsed.receiptStatus === "0") {
+        const failedRelease = intentRuntime.releaseFailedReceipt({
+          now_ms:Date.now(),
+          submit_intent_id:String(submit.submitIntentId || ""),
+          release_reason:"live_transaction_failed"
+        });
         return res.status(500).json({
           ok:false,
           kind:"participant_validator_registration_submit_live",
@@ -3402,14 +3602,18 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
           sends_transaction:true,
           submit_allowed:false,
           live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
+          requires_operator_reconciliation:failedRelease.ok === false,
           account,
           registry,
-          transactionHash:parsed.transactionHash || null,
-          receipt_status:parsed.receiptStatus || null,
+          broadcastId,
+          transactionHash:parsed.transactionHash,
+          receipt_status:parsed.receiptStatus,
           cast_exit_status:tx.status,
           cast_signal:tx.signal,
           cast_stdout_tail:tx.stdout.split(/\n/).slice(-20).join("\n"),
-          cast_stderr_tail:tx.stderr.split(/\n/).slice(-20).join("\n")
+          cast_stderr_tail:tx.stderr.split(/\n/).slice(-20).join("\n"),
+          durable_submit_intent:durableDecisionSummary(failedRelease)
         });
       }
 
@@ -3417,12 +3621,28 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
       const afterWaiting = cast(["call", "--rpc-url", rpc, registry, "waitingCount()(uint256)"]);
       const afterActive = cast(["call", "--rpc-url", rpc, registry, "activeCount()(uint256)"]);
 
-      const candBefore = Number(BigInt(String(beforeCandidate.stdout || "0").trim()));
-      const candAfter = Number(BigInt(String(afterCandidate.stdout || "0").trim()));
+      const parseCastCount = (value:any): bigint | null => {
+        try {
+          const text = String(value || "").trim();
+          return /^(0|[1-9][0-9]*)$/.test(text) ? BigInt(text) : null;
+        } catch {
+          return null;
+        }
+      };
+      const candBefore = parseCastCount(beforeCandidate.stdout);
+      const candAfter = parseCastCount(afterCandidate.stdout);
       const activeBefore = String(beforeActive.stdout || "0").trim();
       const activeAfter = String(afterActive.stdout || "0").trim();
 
-      if (!afterCandidate.ok || !afterWaiting.ok || !afterActive.ok || candAfter !== candBefore + 1 || activeAfter !== activeBefore) {
+      if (
+        !afterCandidate.ok ||
+        !afterWaiting.ok ||
+        !afterActive.ok ||
+        candBefore === null ||
+        candAfter === null ||
+        candAfter !== candBefore + 1n ||
+        activeAfter !== activeBefore
+      ) {
         return res.status(500).json({
           ok:false,
           kind:"participant_validator_registration_submit_live",
@@ -3432,10 +3652,49 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
           sends_transaction:true,
           submit_allowed:false,
           live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
+          requires_operator_reconciliation:true,
+          commit_recovery_required:true,
           account,
           registry,
+          broadcastId,
           transactionHash:parsed.transactionHash,
           receipt_status:parsed.receiptStatus,
+          durable_submit_intent:durableDecisionSummary(receiptObserved),
+          counts:{
+            candidateBefore:String(beforeCandidate.stdout || "").trim(),
+            candidateAfter:String(afterCandidate.stdout || "").trim(),
+            waitingBefore:String(beforeWaiting.stdout || "").trim(),
+            waitingAfter:String(afterWaiting.stdout || "").trim(),
+            activeBefore,
+            activeAfter
+          }
+        });
+      }
+
+      const commitDecision = intentRuntime.commitSuccessfulReceipt({
+        now_ms:Date.now(),
+        submit_intent_id:String(submit.submitIntentId || "")
+      });
+      if (commitDecision.ok === false) {
+        return res.status(500).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"durable_commit_recovery_required",
+          mutation:true,
+          sends_transaction:true,
+          submit_allowed:false,
+          live_execution_wired:true,
+          automatic_rebroadcast_allowed:false,
+          requires_operator_reconciliation:true,
+          commit_recovery_required:true,
+          account,
+          registry,
+          broadcastId,
+          transactionHash:parsed.transactionHash,
+          receipt_status:parsed.receiptStatus,
+          durable_submit_intent:durableDecisionSummary(commitDecision),
           counts:{
             candidateBefore:String(beforeCandidate.stdout || "").trim(),
             candidateAfter:String(afterCandidate.stdout || "").trim(),
@@ -3456,13 +3715,17 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
         submit_allowed:true,
         live_execution_wired:true,
         submit_blocked_reason:null,
+        automatic_rebroadcast_allowed:false,
+        durable_submit_intent_committed:true,
         account,
         signer_address:signer.address,
         registry,
         transactionHash:parsed.transactionHash,
         receipt_status:parsed.receiptStatus,
         submitIntentId:submit.submitIntentId,
-        guardIntentId:guard.submitIntentId,
+        durableIntentId:commitDecision.submit_intent_id,
+        durableBroadcastId:broadcastId,
+        durable_submit_intent:durableDecisionSummary(commitDecision),
         functionSignature:"registerCandidate(address,bytes32,bytes32)",
         valueWei,
         args:{ reward, consensusKeyHash, metadataHash },
@@ -3483,6 +3746,11 @@ try { console.log("[security] startup storage readiness gate v1 installed"); } c
           wallet_authority_ready:true,
           payload_ready:true,
           double_submit_reserved:true,
+          durable_submit_intent_reserved:true,
+          durable_broadcast_started:true,
+          durable_transaction_observed:true,
+          durable_receipt_observed:true,
+          durable_submit_intent_committed:true,
           tx_broadcast:true,
           receipt_status_1:true,
           active_set_safe:true
