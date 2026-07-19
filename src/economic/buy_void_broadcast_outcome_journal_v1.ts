@@ -430,6 +430,7 @@ function readConfirmed(raw: Record<string, any>): BuyVoidBroadcastConfirmedRecor
 function attemptFor(
   rootDir: string,
   attemptId: string,
+  allowExistingNotBroadcastAfterFailure = false,
 ):
   | {
       ok: true;
@@ -450,7 +451,20 @@ function attemptFor(
       return { ok: false, reason: "wrong_execution_attempt_marker" };
     }
     if (!attempt.prepared) return { ok: false, reason: "execution_attempt_not_prepared" };
-    if (attempt.failure) return { ok: false, reason: "execution_attempt_failed_prebroadcast" };
+    if (attempt.failure) {
+      const existingNotBroadcast = readJsonObject(
+        recordFile(paths, attemptId, "not-broadcast"),
+      );
+      if (
+        !allowExistingNotBroadcastAfterFailure ||
+        !existingNotBroadcast
+      ) {
+        return {
+          ok: false,
+          reason: "execution_attempt_failed_prebroadcast",
+        };
+      }
+    }
     return {
       ok: true,
       paths,
@@ -565,6 +579,7 @@ export function readBuyVoidBroadcastOutcomeStateV1(input: {
 function currentForMutation(
   rootDir: string,
   attemptId: string,
+  allowExistingNotBroadcastAfterFailure = false,
 ):
   | {
       ok: true;
@@ -574,7 +589,11 @@ function currentForMutation(
       state: BuyVoidBroadcastOutcomeStateV1;
     }
   | { ok: false; reason: string; detail?: Record<string, unknown> } {
-  const found = attemptFor(rootDir, attemptId);
+  const found = attemptFor(
+    rootDir,
+    attemptId,
+    allowExistingNotBroadcastAfterFailure,
+  );
   if ("reason" in found) return found;
   try {
     ensurePrivateDir(found.paths.attempts_dir);
@@ -625,7 +644,11 @@ function baseFingerprint(value: Record<string, any>): string {
 export function recordBuyVoidNotBroadcastV1(
   input: RecordBuyVoidNotBroadcastInputV1,
 ): BuyVoidBroadcastOutcomeDecisionV1 {
-  const found = currentForMutation(input?.root_dir, String(input?.attempt_id || ""));
+  const found = currentForMutation(
+    input?.root_dir,
+    String(input?.attempt_id || ""),
+    true,
+  );
   if ("reason" in found) return held(found.reason, found.detail);
   const tx = exactTx(input.transaction_hash, found.tx_hash);
   if (!tx) return held("not_broadcast_transaction_hash_mismatch");
