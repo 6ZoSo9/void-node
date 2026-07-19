@@ -86,6 +86,7 @@ import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
 import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
+import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
 
 
 // __VOID_TS_DECLARES_V1__
