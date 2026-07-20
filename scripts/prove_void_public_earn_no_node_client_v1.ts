@@ -117,6 +117,15 @@ for (const required of [
 }
 assert.equal(source.includes("--dataset-id"), false);
 assert.equal(source.includes("--award"), false);
+assert.deepEqual(
+  source.match(/catch\s*(?:\([^)]*\))?\s*\{\s*\}/g) || [],
+  [],
+  "raw empty catches must remain zero",
+);
+assert.match(
+  source,
+  /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_BEST_EFFORT_FAILURE_VISIBLE/,
+);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-no-node-client-v1-"));
 const successState = path.join(root, "success-state");
@@ -466,6 +475,7 @@ try {
   console.log("loopback_sign_claim_used=false");
   console.log("loopback_execute_local_used=false");
   console.log("participant_selected_award=false");
+  console.log("raw_empty_catches=0");
   console.log("VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_PROOF_EXACT_GREEN");
 } finally {
   await close(server);

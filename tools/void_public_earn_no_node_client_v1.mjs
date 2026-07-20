@@ -66,6 +66,18 @@ function safeId(raw, max = 180) {
   return /^[A-Za-z0-9._:-]+$/.test(value) ? value : "";
 }
 
+function safeErrorCode(error) {
+  const value = String(error?.code || error?.name || "unknown").trim();
+  return /^[A-Za-z0-9._:-]{1,80}$/.test(value) ? value : "unknown";
+}
+
+function visibleBestEffortFailure(scope, error) {
+  const safeScope = safeId(scope, 80) || "unknown";
+  console.error(
+    `VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_BEST_EFFORT_FAILURE_VISIBLE scope=${safeScope} code=${safeErrorCode(error)}`,
+  );
+}
+
 function exactKeys(value, expected) {
   if (!jsonObject(value)) return false;
   const actual = Object.keys(value).sort();
@@ -554,7 +566,9 @@ function candidateBuffersFromJson(value, depth = 0, key = "") {
         try {
           const decoded = Buffer.from(value, encoding);
           if (decoded.length) output.push(decoded);
-        } catch {}
+        } catch (error) {
+          visibleBestEffortFailure("dataset-base64-decode", error);
+        }
       }
     }
     return output;
@@ -611,7 +625,16 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
               return { url, bytes: candidate.length, fetchedHash: digest, representation: "json-content" };
             }
           }
-        } catch {}
+        } catch (error) {
+          visibleBestEffortFailure("dataset-json-parse", error);
+          attempts.push({
+            url,
+            status: response.status,
+            hash: rawHash,
+            error: "json_parse_failed",
+          });
+          continue;
+        }
       }
       attempts.push({ url, status: response.status, hash: rawHash });
     } catch (error) {
@@ -665,8 +688,28 @@ function acquireRunLock(file) {
 }
 
 function releaseRunLock(file, fd) {
-  try { fs.closeSync(fd); } catch {}
-  try { fs.unlinkSync(file); } catch {}
+  let closeError = null;
+  let unlinkError = null;
+  try {
+    fs.closeSync(fd);
+  } catch (error) {
+    closeError = error;
+    visibleBestEffortFailure("run-lock-close", error);
+  }
+  try {
+    fs.unlinkSync(file);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      unlinkError = error;
+      visibleBestEffortFailure("run-lock-unlink", error);
+    }
+  }
+  if (closeError || unlinkError) {
+    fail("run_lock_release_failed", "private run lock cleanup failed", {
+      close_error: closeError ? safeErrorCode(closeError) : null,
+      unlink_error: unlinkError ? safeErrorCode(unlinkError) : null,
+    });
+  }
 }
 
 async function inspectCoordinator(options, identity) {
