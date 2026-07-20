@@ -1,177 +1,99 @@
-# VOID Network Public Docs
+# VOID public documentation
 
-status: public_mainnet0_live
-checkpoint: 10657b80 / ckpt-mainnet0-public-onboarding-pack-green-20260524-081134
+<!-- VOID_PUBLIC_DOCS_INDEX_CURRENT_STATE_V1 -->
 
-Start here:
+This directory contains the canonical public documentation for the current VOID Mainnet-0 network.
 
-0. `start-here.md` — shortest public entry point and reading order.
-1. `mainnet0-launch-notes.md` — what is live, what remains guarded, and the launch checkpoint.
-2. `run-a-node.md` — how to run a VOID Mainnet-0 node.
-3. `participant-onboarding.md` — how participants should start safely.
-4. `mainnet0-announcement.md` — public launch announcement.
-5. `mainnet0-short-announcement.txt` — short copy/paste launch blurb.
-6. `void-network-whitepaper.md` — detailed technical and economic whitepaper.
-7. `mainnet0-current-public-status.md` — current public status and guardrails.
-8. `mainnet0-faq.md` — common questions for users, operators, and potential investors.
-9. `quick-start.md` — fastest path for new users to run a node.
-10. `windows-wsl2-quick-start.md` — Windows WSL2 path for running a node.
-11. `support-runbook.md` — first-response support checklist for node/user issues.
-12. `developer-reference.md` — public technical reference for endpoints, proofs, and guarded boundaries.
-13. `proof-cadence.md` — lightweight proof tiers for public repo development and checkpoint closeout.
-14. `branch-release-policy.md` — public-safe branch, merge, tag, and release rules.
+Reviewed: **July 20, 2026**
 
-## Mainnet-0 status
+## Begin here
 
-VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
+1. [Start here](start-here.md)
+2. [Current public status](mainnet0-current-public-status.md)
+3. [Current capability matrix](current-capability-matrix.md)
+4. [Quick start](quick-start.md)
+5. [Run a node](run-a-node.md)
+6. [Participant onboarding](participant-onboarding.md)
 
-Public active validator admission remains disabled.
-Public validator registration remains candidate/waiting only.
-Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
-Future treasury spend remains separately guarded.
+Windows users can use the [WSL2 quick start](windows-wsl2-quick-start.md).
 
-## Current public status
+## Current capability documentation
 
-- [Mainnet-0 public release status summary](mainnet0-public-release-status-summary.md)
+- [Current capability matrix](current-capability-matrix.md)
+- [Mainnet-0 current public status](mainnet0-current-public-status.md)
+- [Participant onboarding](participant-onboarding.md)
+- [Run a node](run-a-node.md)
+- [Developer reference](developer-reference.md)
+- [Mainnet-0 FAQ](mainnet0-faq.md)
 
-Use this first for a concise public-live status summary: safe-now actions, guarded actions, proof stack, trust boundary, and current safety line.
+## Public node and operator evidence
 
-## Safety
+- [Public-node operator evidence workflow](../public-node/public-node-operator-evidence-workflow-v1.md)
+- Public discovery route: `/public-node`
+- Machine discovery route: `/.well-known/void-public-node.json`
+- Operator evidence is read-only and does not grant wallet, ledger, Work Credit, Buy VOID, validator, or treasury mutation authority.
 
-Do not share private keys or seed phrases.
-Do not send blind deposits.
-Do not confuse candidate/waiting validator registration with active validator admission.
+The one-command operator workflow creates and reviews a public-node evidence pack, signs an exact pack binding, and verifies the attestation offline.
 
-## Native public site bundle
+## Work Credits
 
-Status: cross-box proven.
+Work Credits are useful-work accounting units.
 
-Checkpoint: 25899017 / ckpt-public-site-status-doc-green-20260528-131313
+Current policy and boundary:
 
-Public routes:
+- WC are intended to be unlimited.
+- The policy conversion is `100 WC : 1 VOID`.
+- Real remote-executor earning has been proven.
+- Current public earning remains a bounded, coordinator-issued, capability-ticket pilot.
+- Awards require verified receipts and are protected by caps and duplicate controls.
+- Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 
-- /download redirects to /site/voidchain
-- /voidchain redirects to /site/voidchain
-- /nullfeed redirects to /site/nullfeed
-- /site/voidchain serves the Voidchain public site
-- /site/nullfeed serves the NullFeed public preview
+See [participant onboarding](participant-onboarding.md) and the [capability matrix](current-capability-matrix.md).
 
-DataNet-backed site roots:
+## DataNet
 
-- Voidchain dataset_id: 1b8bf41db2d64f8877d0aec397373fa1
-- Voidchain content_root: db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2
-- NullFeed dataset_id: 2930d5e8436eb5674be06d2b0152d20c
-- NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
+DataNet provides data publish, read, verify, mirror, pin, discovery, evidence, and weighting paths.
 
-Canonical detail:
+Public read-only DataNet evidence can be reviewed without exposing private operator APIs. Data persistence does not imply equal trust, equal visibility, or automatic promotion.
 
-- Current public status: mainnet0-current-public-status.md
-- DataNet site bundle seeding runbook: ../ops/runbooks/datanet-site-bundle-seeding.md
+## Validators
 
-Operational guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires datanet_live_v1 headers and the expected content roots.
+- [Validator registration positive-readiness public release](../validators/validator-registration-positive-readiness-public-release-v1.md)
 
-- [Node network troubleshooting](node-network-troubleshooting.md) — recover when the local node is ready but the host loses internet.
+Positive-readiness evidence does not activate a validator. Public registration remains candidate/waiting only, and active validator admission remains disabled and operator-governed.
 
-## Public launch/share checklist
+## Economics and guarded actions
 
-- [Mainnet-0 public launch/share checklist](mainnet0-public-launch-share-checklist.md)
+The participant application exposes Wallet, Earn, Data, Buy, and Validate surfaces, but each action retains its own trust boundary.
 
-Use this before public posts, onboarding replies, or social updates. It records the safe path, required warnings, and things not to say.
+- Wallet sends require explicit local unlock and signing.
+- Buy VOID requests may be created, but fulfillment remains payment-verified and transaction-reference recorded.
+- WC-to-VOID settlement remains guarded.
+- Treasury movement remains separately guarded.
+- Public internet callers do not receive private mutation authority.
 
-## Public share posts
+## Help and project policy
 
-- [Mainnet-0 public share posts](mainnet0-public-share-posts.md)
+- [Support guide](../../SUPPORT.md)
+- [Security policy](../../SECURITY.md)
+- [Contributing guide](../../CONTRIBUTING.md)
+- [Proof cadence](proof-cadence.md)
+- [Branch and release policy](branch-release-policy.md)
+- [Documentation freshness policy](docs-freshness-policy.md)
+- [Whitepaper](void-network-whitepaper.md)
 
-Proof-checked public templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.
+## Current docs versus historical evidence
 
-## Demo 002 local data-drop closeout <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_CLOSEOUT_INDEX_POINTER_V1 -->
+Files named as receipts, checkpoints, closeouts, launch announcements, audits, proof results, or dated evidence are historical records. They should not be rewritten merely because the network moved forward.
 
-The Demo 002 closeout card summarizes the full public-node local data-drop evidence lane:
+The canonical current-state files are:
 
-       docs/public/public-node-local-data-drop-demo002-closeout.md
+- `README.md`
+- `docs/public/README.md`
+- `docs/public/start-here.md`
+- `docs/public/mainnet0-current-public-status.md`
+- `docs/public/current-capability-matrix.md`
+- `docs/public/run-a-node.md`
+- `docs/public/participant-onboarding.md`
 
-Latest closeout checkpoint:
-
-       603169e4
-       ckpt-public-node-local-data-drop-demo002-closeout-card-green-20260612-225519
-
-It covers public read routes, tester smoke receipts, offline receipt verification, local receipt intake, intake status, evidence roundtrip, shareable evidence pack creation, offline evidence-pack verification, and the safety/trust boundary.
-
-## Demo 002 local data-drop evidence lane closed <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO002_CURRENT_STATUS_POINTER_V1 -->
-
-Status: green / closed.
-
-The Demo 002 public-node local data-drop evidence lane is now complete and verifiable:
-
-       docs/public/public-node-local-data-drop-demo002-closeout.md
-
-Latest closeout checkpoint:
-
-       f17b335d
-       ckpt-public-node-local-data-drop-demo002-closeout-index-pointer-green-20260612-225901
-
-What is covered:
-
-       public read object
-       tester smoke receipt
-       offline receipt verification
-       local receipt intake
-       intake status
-       one-command evidence roundtrip
-       shareable evidence pack
-       offline evidence-pack verifier
-       closeout card
-       public docs index pointer
-
-Trust boundary:
-
-       offline_verified=true
-       network_fetch_during_import=false
-       network_fetch=false
-       trusted_as_network_truth=false
-
-Safety boundary:
-
-       public_routes_only=true
-       read_only=true
-       mutation=false
-       money_movement=false
-       wallet_send=false
-       validator_mutation=false
-
-Meaning: Demo 002 is ready as a public-node tester/handoff proof lane. It proves read-only local data-drop serving, receipt generation, local intake, shareable evidence packaging, and offline verification without promoting local receipts into automatic network truth.
-
-
-## DataNet Core public verification external reviewer <!-- VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_DOCS_INDEX_POINTER_V1 -->
-
-Current public-safe reviewer entry point:
-
-       docs/public/public-node-datanet-core-public-verification-external-reviewer-public-landing-page-v1.md
-
-Current evidence bundle:
-
-       docs/public/public-node-datanet-core-public-verification-external-reviewer-evidence-bundle-v1.md
-
-Status:
-
-- public reviewer safe
-- external reviewer readable
-- seed-stage/operator-heavy disclosed
-- reveal decision pending
-- final reveal approval not granted
-- no command reveal, print, or execute
-- no candidate identity
-- no candidate record write
-- no reviewer contact
-- no packet share
-- no public mutation
-- no ledger write
-- no Work Credit award
-
-Latest public landing page checkpoint:
-
-       3b7c799f / ckpt-datanet-core-public-verification-external-reviewer-public-landing-page-v1-cross-box-green-20260619-145151
-
-## Refined tracked raw empty catches terminal seal
-
-- [Refined tracked raw empty catches public discovery index v1](./refined-tracked-raw-empty-catches-public-discovery-index-v1.md)
+When a current-state claim changes, update these files instead of appending another status section to the root README.
