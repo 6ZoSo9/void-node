@@ -1,59 +1,160 @@
-# Run a VOID Mainnet-0 Node
+# Run a VOID node
 
-status: public_mainnet0_live
-target: Linux first
-windows_status: WSL2 supported path planned/documented, native Windows bundle later
+<!-- VOID_PUBLIC_RUN_A_NODE_CURRENT_STATE_V2 -->
 
-VOID Mainnet-0 is intended to be run by serious participants on Linux first. Windows users should use WSL2 until a later packaged Windows/WSL bundle exists.
+This guide starts a standard VOID node for local participation and read-only public verification.
 
-## Basic Linux path
+Running a node does not automatically grant validator, wallet, Work Credit coordinator, Buy VOID fulfillment, or treasury authority.
 
-    git clone https://github.com/6ZoSo9/void-node.git
-    cd void-node
-    npm install
-    npm run build
+## Requirements
 
-Install and start the local user service:
+Recommended environment:
 
-    ./ops/install-user-units.sh
+- Ubuntu 24.04 LTS or a comparable Linux distribution.
+- Windows 11 with WSL2 is also supported for development.
+- Node.js 22.
+- Git.
+- At least 8 GB RAM.
+- Persistent disk space for chain and DataNet state.
+- Stable network access.
 
-Check the service:
+## Install
 
-    systemctl --user status void-node.service
+```bash
+git clone https://github.com/6ZoSo9/void-node.git
+cd void-node
+npm ci
+cp .env.example .env
+npm run build
+```
 
-When the node is running, verify readiness:
+Review `.env.example` before changing configuration.
 
-    curl -fsS http://127.0.0.1:4100/__void/ready.json
+Common settings:
 
-A healthy Mainnet-0 node should report ready=true, gap=0, and txroot_live=1.
+```text
+DATA_DIR
+HTTP_PORT
+P2P_PORT
+BOOTSTRAP_ADDRS
+```
 
-The participant page is served from the local node:
+Keep secrets out of shell history, screenshots, issue reports, and public receipts.
 
-    http://127.0.0.1:4100/participant
+## Start
 
-## Desktop launcher
+```bash
+npm start
+```
 
-VOID has a Linux desktop launcher path for local operator/participant machines. The launcher starts/polls the node and opens the participant page when ready.
+The default local HTTP endpoint is normally:
 
-Existing launcher scripts live under:
+```text
+http://127.0.0.1:4100
+```
 
-    ops/desktop-linux/
+Check readiness:
 
-## Windows users
+```bash
+curl -fsS http://127.0.0.1:4100/__void/ready.json
+```
 
-For Mainnet-0, use WSL2. Native Windows packaging can come later. The serious-node path remains Linux-first.
+Healthy readiness should report:
 
-## Safety
+```text
+ready=true
+gap=0
+txroot_live=1
+```
 
-Do not expose private keys.
-Do not paste seed phrases into chat, issue trackers, or public logs.
-Do not run operator/admin commands unless you understand the proof lane.
-Do not confuse public validator candidate/waiting registration with active validator admission.
+Check public discovery:
 
-## Network troubleshooting
+```bash
+curl -fsS http://127.0.0.1:4100/.well-known/void-public-node.json
+```
 
-If your local VOID node remains ready but the host machine loses internet access, use the public node network troubleshooting runbook:
+## Public exposure
 
-- [Node network troubleshooting](node-network-troubleshooting.md)
+Public exposure is optional.
 
-The runbook covers interface, route, DNS, carrier-flap, NetworkManager, live-failure capture, non-reboot recovery, and physical cable or port troubleshooting. It is a documentation/support path only and does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
+When exposing the public-node surface, provide the exact external base URL that testers should copy:
+
+```bash
+PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-node.example npm start
+```
+
+Begin external review at:
+
+```text
+https://your-node.example/public-node
+```
+
+Only expose documented public routes. Do not publish private RPC, signer, wallet, operator mutation, Work Credit award, settlement, validator mutation, Buy VOID fulfillment, or treasury routes.
+
+Use a reverse proxy, TLS, host firewall, and service isolation appropriate to your environment.
+
+## Produce operator evidence
+
+Create a dedicated operator attestation key. Do not reuse a wallet key, validator key, treasury key, or account key.
+
+Then run:
+
+```bash
+node tools/public-node-operator-evidence-workflow-v1.mjs \
+  --base https://your-node.example \
+  --expected-peer-count 2 \
+  --output-dir "$HOME/void-operator-evidence" \
+  --operator-id your-operator-id \
+  --node-key your-public-node-key \
+  --private-key "$HOME/.config/void/operator-keys/your-key.ed25519"
+```
+
+A successful workflow should report:
+
+```text
+status=green
+gate=passed
+attestation_created=true
+attestation_verified=true
+mutation_attempted=false
+```
+
+The workflow creates permission-restricted files and recursive checksums. Review the output before sharing it.
+
+See [public-node operator evidence workflow](../public-node/public-node-operator-evidence-workflow-v1.md).
+
+## Join as a Work Credit executor
+
+Executor participation is separate from merely running a node.
+
+A coordinator must issue a capability-bound ticket. The executor performs the requested work and returns a receipt. The coordinator verifies the receipt before any award is written.
+
+There is no public generic-credit route.
+
+## Validator boundary
+
+A healthy node is not automatically a validator.
+
+Public validator registration remains candidate/waiting only. Active admission requires separate policy, stake, identity, readiness, and operator approval. Active admission is currently disabled.
+
+## Updating safely
+
+Use a clean checkout or isolated worktree for changes.
+
+Before updating a live service:
+
+1. Fetch the intended revision.
+2. Review release and migration notes.
+3. Build and run targeted proofs.
+4. Confirm data-directory ownership and backups.
+5. Restart only when the change actually requires it.
+6. Recheck PID, restart count, readiness, head, gap, and peers.
+
+Documentation-only work does not require a node restart.
+
+## Help
+
+- [Support guide](../../SUPPORT.md)
+- [Security policy](../../SECURITY.md)
+- [Developer reference](developer-reference.md)
+- [Current capability matrix](current-capability-matrix.md)
