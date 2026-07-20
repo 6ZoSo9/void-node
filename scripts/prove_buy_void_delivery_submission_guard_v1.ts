@@ -7,10 +7,8 @@ import {
   buyVoidDeliverySubmissionGuardPathsV1,
   createBuyVoidDeliverySubmissionGuardV1,
   readBuyVoidDeliverySubmissionGuardJournalV1,
+  type BuyVoidDeliverySubmissionBindingV1,
 } from "../src/economic/buy_void_delivery_submission_guard_v1.js";
-import type {
-  BuyVoidDeliverySubmissionBindingV1,
-} from "../src/economic/buy_void_delivery_sign_broadcast_adapter_v1.js";
 
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-buy-delivery-submission-guard-v1-"),
@@ -102,6 +100,14 @@ assert.deepEqual(
   ["claim", "release", "claim"],
 );
 assert.deepEqual(
+  entries.map((entry) => entry.adapter_marker),
+  [
+    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  ],
+);
+assert.deepEqual(
   entries.map((entry) => entry.sequence),
   [1, 2, 3],
 );
@@ -138,6 +144,29 @@ assert.equal(
   "operator-lock\n",
 );
 fs.unlinkSync(paths.lock_file);
+
+const nativeRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-buy-native-delivery-submission-guard-v1-"),
+);
+const nativeGuard = createBuyVoidDeliverySubmissionGuardV1(nativeRoot);
+const nativeBinding: BuyVoidDeliverySubmissionBindingV1 = {
+  marker: "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  submission_idempotency_key: "7".repeat(64),
+  attempt_id: "8".repeat(64),
+  expected_transaction_hash: `0x${"9".repeat(64)}`,
+  transaction_plan_fingerprint_sha256: "a".repeat(64),
+};
+assert.deepEqual(
+  await nativeGuard.claim_submission_once(nativeBinding),
+  { claimed: true },
+);
+const nativeEntries =
+  readBuyVoidDeliverySubmissionGuardJournalV1(nativeRoot);
+assert.equal(nativeEntries.length, 1);
+assert.equal(
+  nativeEntries[0].adapter_marker,
+  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+);
 
 const journalText = fs.readFileSync(paths.journal_file, "utf8");
 for (const forbidden of [
