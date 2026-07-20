@@ -1,13 +1,43 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type {
-  BuyVoidDeliverySubmissionBindingV1,
-  BuyVoidDeliverySubmissionGuardV1,
-} from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
-
 export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1 =
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1";
+
+export type BuyVoidDeliverySubmissionAdapterMarkerV1 =
+  | "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
+  | "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1";
+
+export type BuyVoidDeliverySubmissionBindingV1 = {
+  marker: BuyVoidDeliverySubmissionAdapterMarkerV1;
+  submission_idempotency_key: string;
+  attempt_id: string;
+  expected_transaction_hash: string;
+  transaction_plan_fingerprint_sha256: string;
+};
+
+export type BuyVoidDeliverySubmissionGuardV1 = {
+  claim_submission_once: (
+    binding: Readonly<BuyVoidDeliverySubmissionBindingV1>,
+  ) => Promise<
+    | { claimed: true }
+    | {
+        claimed: false;
+        reason?: string;
+        existing_transaction_hash?: string;
+      }
+  >;
+  release_submission_claim: (
+    binding: Readonly<BuyVoidDeliverySubmissionBindingV1>,
+    release_reason: string,
+  ) => Promise<
+    | { released: true }
+    | {
+        released: false;
+        reason?: string;
+      }
+  >;
+};
 
 export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   filesystem_read: true,
@@ -43,6 +73,7 @@ type ClaimEntryV1 = {
   previous_entry_hash_sha256: string;
   entry_hash_sha256: string;
   event: "claim";
+  adapter_marker: BuyVoidDeliverySubmissionAdapterMarkerV1;
   submission_idempotency_key: string;
   attempt_id: string;
   expected_transaction_hash: string;
@@ -57,6 +88,7 @@ type ReleaseEntryV1 = {
   previous_entry_hash_sha256: string;
   entry_hash_sha256: string;
   event: "release";
+  adapter_marker: BuyVoidDeliverySubmissionAdapterMarkerV1;
   submission_idempotency_key: string;
   attempt_id: string;
   expected_transaction_hash: string;
@@ -69,6 +101,7 @@ export type BuyVoidDeliverySubmissionGuardEntryV1 =
   | ReleaseEntryV1;
 
 type NormalizedBindingV1 = {
+  adapter_marker: BuyVoidDeliverySubmissionAdapterMarkerV1;
   submission_idempotency_key: string;
   attempt_id: string;
   expected_transaction_hash: string;
@@ -109,12 +142,16 @@ function normalizeBinding(
 ): NormalizedBindingV1 {
   if (
     !binding ||
-    binding.marker !==
-      "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
+    ![
+      "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+      "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+    ].includes(binding.marker)
   ) {
     throw new Error("invalid_submission_binding_marker");
   }
 
+  const adapterMarker =
+    binding.marker as BuyVoidDeliverySubmissionAdapterMarkerV1;
   const submissionKey = String(
     binding.submission_idempotency_key || "",
   )
@@ -148,6 +185,7 @@ function normalizeBinding(
   }
 
   return {
+    adapter_marker: adapterMarker,
     submission_idempotency_key: submissionKey,
     attempt_id: attemptId,
     expected_transaction_hash: transactionHash,
@@ -272,6 +310,7 @@ function readJournal(
 
     normalizeBinding({
       marker:
+        value.adapter_marker ||
         "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
       submission_idempotency_key:
         value.submission_idempotency_key,
@@ -292,7 +331,13 @@ function readJournal(
       );
     }
 
-    entries.push(value as BuyVoidDeliverySubmissionGuardEntryV1);
+    const normalizedValue = {
+      ...value,
+      adapter_marker:
+        value.adapter_marker ||
+        "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+    } as BuyVoidDeliverySubmissionGuardEntryV1;
+    entries.push(normalizedValue);
     previous = recordedHash;
   }
 
@@ -337,6 +382,7 @@ function sameBinding(
   binding: NormalizedBindingV1,
 ): boolean {
   return (
+    entry.adapter_marker === binding.adapter_marker &&
     entry.submission_idempotency_key ===
       binding.submission_idempotency_key &&
     entry.attempt_id === binding.attempt_id &&
