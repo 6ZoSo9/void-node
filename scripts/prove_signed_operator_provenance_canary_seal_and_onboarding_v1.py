@@ -46,6 +46,7 @@ kit = root / "ops/public/operator-onboarding-v1"
 required = {
     "README.md",
     "void-public-node-operator-enroll-v1.py",
+    "void-public-node-operator-evidence-attest-v1.py",
     "void-public-node-operator-review-v1.py",
 }
 assert required == {path.name for path in kit.iterdir() if path.is_file()}
