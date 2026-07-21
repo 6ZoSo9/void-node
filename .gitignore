@@ -206,3 +206,7 @@ journal-txroot-*.txt
 public/public-node/datanet/field-objects/
 
 public/public-node/datanet/field-object-mirrors/
+
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN
+dist-release/
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END

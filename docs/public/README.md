@@ -97,3 +97,8 @@ The canonical current-state files are:
 - `docs/public/participant-onboarding.md`
 
 When a current-state claim changes, update these files instead of appending another status section to the root README.
+
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+- [Verified release install](download-install-release-v1.md)
+- [Release process](release-process-v1.md)
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->

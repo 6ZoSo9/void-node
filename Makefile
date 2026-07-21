@@ -1505,3 +1505,13 @@ participant-datanet-object-browser-link-proof:
 .PHONY: participant-wc-proof-viewer-proof
 participant-wc-proof-viewer-proof:
 	bash ops/mainnet0/participant-wc-proof-viewer-proof.sh
+
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN
+.PHONY: public-release-build-v1
+public-release-build-v1:
+	node tools/build-public-release-v1.mjs --out dist-release
+
+.PHONY: public-release-distribution-v1-proof
+public-release-distribution-v1-proof:
+	bash ops/security/public-release-distribution-v1-proof.sh
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END

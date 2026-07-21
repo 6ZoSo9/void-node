@@ -75,3 +75,11 @@ Do not share wallet secrets, seed phrases, private keys, or keystore files.
 Use WSL2 for Mainnet-0.
 
 Native Windows packaging can come later. Serious node operators should eventually move to Linux.
+
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+## Verified release path
+
+For a versioned user-scoped installation that does not require a development
+checkout, follow [`download-install-release-v1.md`](download-install-release-v1.md).
+The existing source-build path remains available for developers.
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->

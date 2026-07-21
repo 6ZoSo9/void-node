@@ -1,0 +1,31 @@
+{
+  "marker": "VOID_PUBLIC_RELEASE_DISTRIBUTION_STATUS_V1",
+  "schema_version": 1,
+  "lane": "public_release_distribution",
+  "state": "implemented_in_repository_proof_gated",
+  "platforms": ["linux-x64"],
+  "node_major": 22,
+  "artifacts": [
+    "void-node-release-manifest.json",
+    "SHA256SUMS",
+    "install-void-node-v1.sh",
+    "void-node-<version>-linux-x64.tar.gz",
+    "void-node-<version>.spdx.json"
+  ],
+  "verification": {
+    "deterministic_archive": true,
+    "outer_sha256": true,
+    "inner_sha256": true,
+    "archive_traversal_guard": true,
+    "functional_install_uninstall_proof": true,
+    "github_attestation_on_tag": true
+  },
+  "defaults": {
+    "unprivileged_user_install": true,
+    "service_enabled_by_default": false,
+    "service_started_by_default": false,
+    "private_key_generation": false,
+    "guarded_lanes_activated": false
+  },
+  "proof_target": "make public-release-distribution-v1-proof"
+}
