@@ -177,3 +177,15 @@ Historical receipts, checkpoint files, launch records, and audit evidence remain
 - [Contributing](CONTRIBUTING.md)
 
 [![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml)
+
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+## Verified release installer
+
+The public download lane now has a deterministic Linux x64 archive, stable
+manifest, outer and inner SHA-256 verification, SPDX SBOM, user-scoped
+installer, atomic update/rollback, and CI/tag publishing proof. Start at
+[`docs/public/download-install-release-v1.md`](docs/public/download-install-release-v1.md).
+
+The installer never starts the service, generates private keys, or activates
+guarded economic/operator lanes unless a separate explicit lane does so.
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
