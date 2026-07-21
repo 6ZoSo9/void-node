@@ -43,21 +43,21 @@ jobs:
             --bundle "$bundle" \
             --output "$tmp/review.json"
           python3 - "$bundle" "$tmp/tampered" <<'PY'
-import json
-import pathlib
-import sys
-import zipfile
+          import json
+          import pathlib
+          import sys
+          import zipfile
 
-bundle = pathlib.Path(sys.argv[1])
-out = pathlib.Path(sys.argv[2])
-out.mkdir()
-with zipfile.ZipFile(bundle) as archive:
-    archive.extractall(out)
-path = out / "operator-manifest-v1.json"
-value = json.loads(path.read_text())
-value["node"]["description"] = "tampered"
-path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
-PY
+          bundle = pathlib.Path(sys.argv[1])
+          out = pathlib.Path(sys.argv[2])
+          out.mkdir()
+          with zipfile.ZipFile(bundle) as archive:
+              archive.extractall(out)
+          path = out / "operator-manifest-v1.json"
+          value = json.loads(path.read_text())
+          value["node"]["description"] = "tampered"
+          path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+          PY
           if python3 ops/public/operator-onboarding-v1/void-public-node-operator-review-v1.py --bundle "$tmp/tampered"; then
             echo 'tampered bundle unexpectedly passed' >&2
             exit 1
