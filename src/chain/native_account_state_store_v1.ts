@@ -20,6 +20,11 @@ import type {
   VoidNativeValueTransferStoreApplyResultV1,
   VoidNativeValueTransferStoreV1,
 } from "./native_value_transfer_state_transition_v1.js";
+import type {
+  VoidNativeValueTransferBlockStoreApplyRequestV1,
+  VoidNativeValueTransferBlockStoreApplyResultV1,
+  VoidNativeValueTransferBlockStoreV1,
+} from "./native_value_transfer_block_executor_v1.js";
 
 export const VOID_NATIVE_ACCOUNT_STATE_STORE_V1 =
   "VOID_NATIVE_ACCOUNT_STATE_STORE_V1";
@@ -44,6 +49,11 @@ export const VOID_NATIVE_ACCOUNT_STATE_STORE_AUTHORITY_V1 = {
   expected_prestate_comparison: true,
   multi_account_atomic_write: true,
   transaction_apply_once_persistence: true,
+  block_apply_once_persistence: true,
+  block_atomic_multi_transaction_write: true,
+  block_parent_snapshot_binding: true,
+  block_final_accounts_fingerprint_validation: true,
+  block_recovery_through_shared_intent_protocol: true,
   durable_state_version_advancement: true,
   append_only_commit_journal: true,
   crash_intent_recovery: true,
@@ -115,6 +125,7 @@ export type VoidNativeAccountStateStoreStatusV1 = {
   state_version: string | null;
   account_count: number;
   applied_transaction_count: number;
+  block_atomic_apply_once: true;
   last_commit_id: string | null;
   filesystem_authority: true;
   runtime_mounted: false;
@@ -170,7 +181,9 @@ export type VoidNativeAccountStateStoreRecoveryResultV1 =
     };
 
 export type VoidNativeAccountStateStoreV1 =
-  VoidNativeValueTransferStoreV1 & {
+  VoidNativeValueTransferStoreV1
+  & VoidNativeValueTransferBlockStoreV1
+  & {
     read_state_snapshot: () => VoidNativeAccountStateSnapshotV1;
     status: () => VoidNativeAccountStateStoreStatusV1;
   };
@@ -191,7 +204,7 @@ type LockRecordV1 = {
   created_at_ms: number;
 };
 
-type JournalEntryV1 = {
+type TransactionJournalEntryV1 = {
   schema: "void_native_account_state_store_journal_entry_v1";
   marker: typeof VOID_NATIVE_ACCOUNT_STATE_STORE_V1;
   version: 1;
@@ -208,6 +221,36 @@ type JournalEntryV1 = {
   snapshot_fingerprint_sha256: string;
   raw_signed_transaction_included: false;
 };
+
+type BlockJournalEntryV1 = {
+  schema:
+    "void_native_account_state_store_block_journal_entry_v1";
+  marker: typeof VOID_NATIVE_ACCOUNT_STATE_STORE_V1;
+  version: 1;
+  commit_id: string;
+  block_idempotency_key_sha256: string;
+  block_hash: string;
+  block_number: string;
+  transaction_count: number;
+  prior_state_version: string;
+  state_version: string;
+  parent_snapshot_fingerprint_sha256: string;
+  final_accounts_fingerprint_sha256: string;
+  ordered_transaction_hashes: readonly string[];
+  transaction_plan_bindings_sha256: readonly string[];
+  aggregate_account_changes:
+    VoidNativeValueTransferBlockStoreApplyRequestV1[
+      "aggregate_account_changes"
+    ];
+  total_fee_burned_wei: string;
+  block_binding_sha256: string;
+  snapshot_fingerprint_sha256: string;
+  raw_signed_transactions_included: false;
+};
+
+type JournalEntryV1 =
+  | TransactionJournalEntryV1
+  | BlockJournalEntryV1;
 
 type IntentRecordV1 = {
   schema: "void_native_account_state_store_intent_v1";
@@ -610,6 +653,138 @@ function appendJournal(
   fsyncDirectory(path.dirname(file));
 }
 
+function validateJournalEntry(
+  value: unknown,
+): JournalEntryV1 {
+  if (!value || typeof value !== "object") {
+    throw new Error("journal_entry_invalid");
+  }
+  const entry = value as Record<string, unknown>;
+  if (
+    entry.marker !== VOID_NATIVE_ACCOUNT_STATE_STORE_V1
+    || entry.version !== 1
+    || !SAFE_ID.test(String(entry.commit_id || ""))
+  ) {
+    throw new Error("journal_entry_invalid");
+  }
+
+  if (
+    entry.schema
+      === "void_native_account_state_store_journal_entry_v1"
+  ) {
+    const transactionEntry =
+      entry as unknown as TransactionJournalEntryV1;
+    if (
+      !SHA256.test(
+        String(transactionEntry.idempotency_key_sha256 || ""),
+      )
+      || !TRANSACTION_HASH.test(
+        String(transactionEntry.transaction_hash || ""),
+      )
+      || !SAFE_ID.test(
+        String(transactionEntry.prior_state_version || ""),
+      )
+      || !SAFE_ID.test(
+        String(transactionEntry.state_version || ""),
+      )
+      || !SHA256.test(
+        String(
+          transactionEntry.prestate_fingerprint_sha256 || "",
+        ),
+      )
+      || !SHA256.test(
+        String(
+          transactionEntry.poststate_fingerprint_sha256 || "",
+        ),
+      )
+      || !SHA256.test(
+        String(transactionEntry.plan_binding_sha256 || ""),
+      )
+      || !SHA256.test(
+        String(
+          transactionEntry.snapshot_fingerprint_sha256 || "",
+        ),
+      )
+      || transactionEntry.raw_signed_transaction_included
+        !== false
+    ) {
+      throw new Error("transaction_journal_entry_invalid");
+    }
+    return transactionEntry;
+  }
+
+  if (
+    entry.schema
+      === "void_native_account_state_store_block_journal_entry_v1"
+  ) {
+    const blockEntry =
+      entry as unknown as BlockJournalEntryV1;
+    if (
+      !SHA256.test(
+        String(
+          blockEntry.block_idempotency_key_sha256 || "",
+        ),
+      )
+      || !TRANSACTION_HASH.test(
+        String(blockEntry.block_hash || ""),
+      )
+      || !/^(0|[1-9][0-9]*)$/.test(
+        String(blockEntry.block_number || ""),
+      )
+      || !Number.isSafeInteger(blockEntry.transaction_count)
+      || blockEntry.transaction_count <= 0
+      || !SAFE_ID.test(
+        String(blockEntry.prior_state_version || ""),
+      )
+      || !SAFE_ID.test(
+        String(blockEntry.state_version || ""),
+      )
+      || !SHA256.test(
+        String(
+          blockEntry.parent_snapshot_fingerprint_sha256 || "",
+        ),
+      )
+      || !SHA256.test(
+        String(
+          blockEntry.final_accounts_fingerprint_sha256 || "",
+        ),
+      )
+      || !Array.isArray(blockEntry.ordered_transaction_hashes)
+      || blockEntry.ordered_transaction_hashes.length
+        !== blockEntry.transaction_count
+      || blockEntry.ordered_transaction_hashes.some(
+        (hash) => !TRANSACTION_HASH.test(String(hash || "")),
+      )
+      || !Array.isArray(
+        blockEntry.transaction_plan_bindings_sha256,
+      )
+      || blockEntry.transaction_plan_bindings_sha256.length
+        !== blockEntry.transaction_count
+      || blockEntry.transaction_plan_bindings_sha256.some(
+        (binding) => !SHA256.test(String(binding || "")),
+      )
+      || !Array.isArray(blockEntry.aggregate_account_changes)
+      || blockEntry.aggregate_account_changes.length === 0
+      || !SHA256.test(
+        String(blockEntry.block_binding_sha256 || ""),
+      )
+      || !SHA256.test(
+        String(blockEntry.snapshot_fingerprint_sha256 || ""),
+      )
+      || blockEntry.raw_signed_transactions_included !== false
+    ) {
+      throw new Error("block_journal_entry_invalid");
+    }
+    parseUint(
+      blockEntry.total_fee_burned_wei,
+      "block_journal_total_fee_burned_wei",
+    );
+    return blockEntry;
+  }
+
+  throw new Error("journal_entry_schema_invalid");
+}
+
 function readJournal(
   file: string,
   maxBytes: number,
@@ -622,24 +797,7 @@ function readJournal(
   const entries: JournalEntryV1[] = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
-    const entry = JSON.parse(line) as JournalEntryV1;
-    if (
-      entry.schema
-        !== "void_native_account_state_store_journal_entry_v1"
-      || entry.marker !== VOID_NATIVE_ACCOUNT_STATE_STORE_V1
-      || entry.version !== 1
-      || !SAFE_ID.test(String(entry.commit_id || ""))
-      || !SHA256.test(
-        String(entry.idempotency_key_sha256 || ""),
-      )
-      || !TRANSACTION_HASH.test(
-        String(entry.transaction_hash || ""),
-      )
-      || entry.raw_signed_transaction_included !== false
-    ) {
-      throw new Error("journal_entry_invalid");
-    }
-    entries.push(entry);
+    entries.push(validateJournalEntry(JSON.parse(line)));
   }
   return entries;
 }
@@ -926,6 +1084,7 @@ function validateIntent(
     throw new Error("intent_identity_invalid");
   }
   const postSnapshot = validateSnapshot(intent.post_snapshot, policy);
+  const journalEntry = validateJournalEntry(intent.journal_entry);
   if (
     postSnapshot.snapshot_fingerprint_sha256
     !== intent.post_snapshot_fingerprint_sha256
@@ -952,6 +1111,7 @@ function validateIntent(
   return {
     ...intent,
     post_snapshot: postSnapshot,
+    journal_entry: journalEntry,
   };
 }
 
@@ -1175,6 +1335,465 @@ function applyOnce(
     return {
       applied: false,
       reason: "native_account_store_apply_failed",
+      submission_may_have_occurred: intentWritten,
+    };
+  } finally {
+    if (lockFd !== null) releaseLock(paths, lockFd);
+  }
+}
+
+
+function blockAccountsFingerprint(
+  stateVersion: string,
+  accounts: readonly VoidNativeAccountStateV1[],
+): string {
+  return sha256({
+    state_version: stateVersion,
+    accounts: [...accounts].sort(
+      (a, b) => a.address.localeCompare(b.address),
+    ),
+  });
+}
+
+function validateBlockApplyRequest(
+  input:
+    Readonly<VoidNativeValueTransferBlockStoreApplyRequestV1>,
+): {
+  block_idempotency_key_sha256: string;
+  block_hash: string;
+  block_number: string;
+  transaction_count: number;
+  parent_state_version: string;
+  parent_snapshot_fingerprint_sha256: string;
+  final_state_version: string;
+  final_accounts_fingerprint_sha256: string;
+  ordered_transaction_hashes: readonly string[];
+  transaction_plan_bindings_sha256: readonly string[];
+  aggregate_account_changes:
+    VoidNativeValueTransferBlockStoreApplyRequestV1[
+      "aggregate_account_changes"
+    ];
+  total_fee_burned_wei: bigint;
+  block_binding_sha256: string;
+} {
+  const blockIdempotency = String(
+    input.block_idempotency_key_sha256 || "",
+  ).toLowerCase();
+  const blockHash = String(input.block_hash || "").toLowerCase();
+  const blockNumber = parseUint(
+    input.block_number,
+    "block_number",
+  ).toString();
+  const parentStateVersion = String(
+    input.parent_state_version || "",
+  );
+  const parentSnapshotFingerprint = String(
+    input.parent_snapshot_fingerprint_sha256 || "",
+  ).toLowerCase();
+  const finalStateVersion = String(
+    input.final_state_version || "",
+  );
+  const finalAccountsFingerprint = String(
+    input.final_accounts_fingerprint_sha256 || "",
+  ).toLowerCase();
+  const blockBinding = String(
+    input.block_binding_sha256 || "",
+  ).toLowerCase();
+
+  if (
+    input.marker !== "VOID_NATIVE_VALUE_TRANSFER_BLOCK_EXECUTOR_V1"
+    || input.version !== 1
+    || input.confirmation
+      !== "applyNativeValueTransferBlockV1"
+    || input.raw_signed_transactions_included !== false
+  ) {
+    throw new Error("block_store_apply_request_identity_invalid");
+  }
+  if (
+    !SHA256.test(blockIdempotency)
+    || !TRANSACTION_HASH.test(blockHash)
+    || !SAFE_ID.test(parentStateVersion)
+    || !SHA256.test(parentSnapshotFingerprint)
+    || !SAFE_ID.test(finalStateVersion)
+    || !SHA256.test(finalAccountsFingerprint)
+    || !SHA256.test(blockBinding)
+    || !Number.isSafeInteger(input.transaction_count)
+    || input.transaction_count <= 0
+  ) {
+    throw new Error("block_store_apply_request_binding_invalid");
+  }
+  if (
+    sha256({
+      marker: "VOID_NATIVE_VALUE_TRANSFER_BLOCK_EXECUTOR_V1",
+      block_hash: blockHash,
+      block_number: blockNumber,
+    }) !== blockIdempotency
+  ) {
+    throw new Error("block_store_idempotency_key_mismatch");
+  }
+
+  if (
+    !Array.isArray(input.ordered_transaction_hashes)
+    || input.ordered_transaction_hashes.length
+      !== input.transaction_count
+    || !Array.isArray(
+      input.transaction_plan_bindings_sha256,
+    )
+    || input.transaction_plan_bindings_sha256.length
+      !== input.transaction_count
+  ) {
+    throw new Error("block_store_transaction_binding_count_mismatch");
+  }
+  const transactionHashes =
+    input.ordered_transaction_hashes.map(
+      (hash) => String(hash || "").toLowerCase(),
+    );
+  if (
+    transactionHashes.some(
+      (hash) => !TRANSACTION_HASH.test(hash),
+    )
+    || new Set(transactionHashes).size
+      !== transactionHashes.length
+  ) {
+    throw new Error("block_store_transaction_hashes_invalid");
+  }
+  const planBindings =
+    input.transaction_plan_bindings_sha256.map(
+      (binding) => String(binding || "").toLowerCase(),
+    );
+  if (
+    planBindings.some((binding) => !SHA256.test(binding))
+  ) {
+    throw new Error("block_store_transaction_bindings_invalid");
+  }
+
+  if (
+    !Array.isArray(input.aggregate_account_changes)
+    || input.aggregate_account_changes.length === 0
+  ) {
+    throw new Error("block_store_aggregate_changes_empty");
+  }
+
+  const normalizedChanges:
+    VoidNativeValueTransferBlockStoreApplyRequestV1[
+      "aggregate_account_changes"
+    ] extends readonly (infer T)[] ? T[] : never = [];
+  const addresses = new Set<string>();
+  let previousAddress = "";
+  let totalBefore = 0n;
+  let totalAfter = 0n;
+  let totalNonceDelta = 0n;
+
+  for (const item of input.aggregate_account_changes) {
+    const address = normalizeAddress(
+      item.address,
+      "block_change_address",
+    );
+    if (addresses.has(address)) {
+      throw new Error("block_store_duplicate_account_change");
+    }
+    if (
+      previousAddress
+      && address.localeCompare(previousAddress) <= 0
+    ) {
+      throw new Error("block_store_changes_not_sorted");
+    }
+    addresses.add(address);
+    previousAddress = address;
+
+    const balanceBefore = parseUint(
+      item.balance_before_wei,
+      "block_change_balance_before_wei",
+    );
+    const balanceAfter = parseUint(
+      item.balance_after_wei,
+      "block_change_balance_after_wei",
+    );
+    const nonceBefore = parseUint(
+      item.nonce_before,
+      "block_change_nonce_before",
+    );
+    const nonceAfter = parseUint(
+      item.nonce_after,
+      "block_change_nonce_after",
+    );
+    if (nonceAfter < nonceBefore) {
+      throw new Error("block_store_nonce_regression");
+    }
+
+    totalBefore += balanceBefore;
+    totalAfter += balanceAfter;
+    totalNonceDelta += nonceAfter - nonceBefore;
+
+    normalizedChanges.push({
+      address,
+      balance_before_wei: balanceBefore.toString(),
+      balance_after_wei: balanceAfter.toString(),
+      nonce_before: nonceBefore.toString(),
+      nonce_after: nonceAfter.toString(),
+    });
+  }
+
+  if (totalNonceDelta !== BigInt(input.transaction_count)) {
+    throw new Error("block_store_nonce_delta_count_mismatch");
+  }
+
+  const totalFeeBurned = parseUint(
+    input.total_fee_burned_wei,
+    "block_total_fee_burned_wei",
+  );
+  if (
+    totalBefore < totalAfter
+    || totalBefore - totalAfter !== totalFeeBurned
+  ) {
+    throw new Error("block_store_fee_burn_mismatch");
+  }
+
+  return {
+    block_idempotency_key_sha256: blockIdempotency,
+    block_hash: blockHash,
+    block_number: blockNumber,
+    transaction_count: input.transaction_count,
+    parent_state_version: parentStateVersion,
+    parent_snapshot_fingerprint_sha256:
+      parentSnapshotFingerprint,
+    final_state_version: finalStateVersion,
+    final_accounts_fingerprint_sha256:
+      finalAccountsFingerprint,
+    ordered_transaction_hashes: transactionHashes,
+    transaction_plan_bindings_sha256: planBindings,
+    aggregate_account_changes: normalizedChanges,
+    total_fee_burned_wei: totalFeeBurned,
+    block_binding_sha256: blockBinding,
+  };
+}
+
+function applyBlockOnce(
+  paths: StorePathsV1,
+  policy: NormalizedPolicyV1,
+  input:
+    Readonly<VoidNativeValueTransferBlockStoreApplyRequestV1>,
+): VoidNativeValueTransferBlockStoreApplyResultV1 {
+  let lockFd: number | null = null;
+  let intentWritten = false;
+  try {
+    if (existsSync(paths.intent)) {
+      return {
+        applied: false,
+        reason: "native_account_store_recovery_required",
+        submission_may_have_occurred: true,
+      };
+    }
+    if (existsSync(paths.lock)) {
+      return {
+        applied: false,
+        reason: "native_account_store_busy",
+        submission_may_have_occurred: false,
+      };
+    }
+
+    lockFd = writeLock(paths);
+    const request = validateBlockApplyRequest(input);
+    const snapshot = readSnapshot(paths, policy);
+    const journal = readJournal(
+      paths.journal,
+      policy.max_journal_bytes,
+    );
+
+    const existing = journal.find(
+      (entry): entry is BlockJournalEntryV1 =>
+        entry.schema
+          === "void_native_account_state_store_block_journal_entry_v1"
+        && entry.block_idempotency_key_sha256
+          === request.block_idempotency_key_sha256,
+    );
+    if (existing) {
+      return {
+        applied: false,
+        reason:
+          existing.block_hash === request.block_hash
+            ? "native_value_transfer_block_already_applied"
+            : "native_account_store_block_idempotency_collision",
+        existing_block_hash: existing.block_hash,
+        submission_may_have_occurred: false,
+      };
+    }
+
+    if (
+      snapshot.state_version !== request.parent_state_version
+    ) {
+      return {
+        applied: false,
+        reason: "native_account_store_block_state_version_mismatch",
+        submission_may_have_occurred: false,
+      };
+    }
+    if (
+      snapshot.snapshot_fingerprint_sha256
+      !== request.parent_snapshot_fingerprint_sha256
+    ) {
+      return {
+        applied: false,
+        reason: "native_account_store_block_parent_snapshot_mismatch",
+        submission_may_have_occurred: false,
+      };
+    }
+
+    const accountMap = new Map(
+      snapshot.accounts.map((account) => [
+        account.address,
+        account,
+      ]),
+    );
+    for (const change of request.aggregate_account_changes) {
+      const current = accountMap.get(change.address);
+      if (!current) {
+        return {
+          applied: false,
+          reason: "native_account_store_block_account_missing",
+          submission_may_have_occurred: false,
+        };
+      }
+      if (
+        current.balance_wei !== change.balance_before_wei
+        || current.nonce !== change.nonce_before
+      ) {
+        return {
+          applied: false,
+          reason: "native_account_store_block_prestate_mismatch",
+          submission_may_have_occurred: false,
+        };
+      }
+    }
+
+    for (const change of request.aggregate_account_changes) {
+      accountMap.set(change.address, {
+        address: change.address,
+        balance_wei: change.balance_after_wei,
+        nonce: change.nonce_after,
+      });
+    }
+
+    const postAccounts = [...accountMap.values()].sort(
+      (a, b) => a.address.localeCompare(b.address),
+    );
+    if (
+      blockAccountsFingerprint(
+        request.final_state_version,
+        postAccounts,
+      ) !== request.final_accounts_fingerprint_sha256
+    ) {
+      return {
+        applied: false,
+        reason:
+          "native_account_store_block_final_accounts_fingerprint_mismatch",
+        submission_may_have_occurred: false,
+      };
+    }
+
+    const commitId = `bc1-${sha256({
+      prior_state_version: snapshot.state_version,
+      parent_snapshot_fingerprint_sha256:
+        snapshot.snapshot_fingerprint_sha256,
+      block_idempotency_key_sha256:
+        request.block_idempotency_key_sha256,
+      block_hash: request.block_hash,
+      block_number: request.block_number,
+      transaction_plan_bindings_sha256:
+        request.transaction_plan_bindings_sha256,
+      final_state_version: request.final_state_version,
+      final_accounts_fingerprint_sha256:
+        request.final_accounts_fingerprint_sha256,
+      block_binding_sha256: request.block_binding_sha256,
+    })}`;
+
+    const postSnapshot = createSnapshot({
+      state_version: request.final_state_version,
+      accounts: postAccounts,
+      applied_transactions: snapshot.applied_transactions,
+      last_commit_id: commitId,
+    });
+
+    const journalEntry: BlockJournalEntryV1 = {
+      schema:
+        "void_native_account_state_store_block_journal_entry_v1",
+      marker: VOID_NATIVE_ACCOUNT_STATE_STORE_V1,
+      version: 1,
+      commit_id: commitId,
+      block_idempotency_key_sha256:
+        request.block_idempotency_key_sha256,
+      block_hash: request.block_hash,
+      block_number: request.block_number,
+      transaction_count: request.transaction_count,
+      prior_state_version: snapshot.state_version,
+      state_version: request.final_state_version,
+      parent_snapshot_fingerprint_sha256:
+        request.parent_snapshot_fingerprint_sha256,
+      final_accounts_fingerprint_sha256:
+        request.final_accounts_fingerprint_sha256,
+      ordered_transaction_hashes:
+        request.ordered_transaction_hashes,
+      transaction_plan_bindings_sha256:
+        request.transaction_plan_bindings_sha256,
+      aggregate_account_changes:
+        request.aggregate_account_changes,
+      total_fee_burned_wei:
+        request.total_fee_burned_wei.toString(),
+      block_binding_sha256: request.block_binding_sha256,
+      snapshot_fingerprint_sha256:
+        postSnapshot.snapshot_fingerprint_sha256,
+      raw_signed_transactions_included: false,
+    };
+    const intent: IntentRecordV1 = {
+      schema: "void_native_account_state_store_intent_v1",
+      marker: VOID_NATIVE_ACCOUNT_STATE_STORE_V1,
+      version: 1,
+      created_at_ms: Date.now(),
+      pre_snapshot_fingerprint_sha256:
+        snapshot.snapshot_fingerprint_sha256,
+      post_snapshot_fingerprint_sha256:
+        postSnapshot.snapshot_fingerprint_sha256,
+      post_snapshot: postSnapshot,
+      journal_entry: journalEntry,
+      raw_signed_transaction_included: false,
+    };
+
+    atomicWriteJson(
+      paths.intent,
+      intent,
+      policy.max_snapshot_bytes,
+    );
+    intentWritten = true;
+
+    atomicWriteJson(
+      paths.snapshot_next,
+      postSnapshot,
+      policy.max_snapshot_bytes,
+    );
+    renameSync(paths.snapshot_next, paths.snapshot);
+    fsyncDirectory(paths.root);
+
+    appendJournal(
+      paths.journal,
+      journalEntry,
+      policy.max_journal_bytes,
+    );
+    unlinkSync(paths.intent);
+    fsyncDirectory(paths.root);
+    intentWritten = false;
+
+    return {
+      applied: true,
+      commit_id: commitId,
+      block_hash: request.block_hash,
+      block_number: request.block_number,
+      state_version: request.final_state_version,
+      transaction_count: request.transaction_count,
+    };
+  } catch (_error) {
+    return {
+      applied: false,
+      reason: "native_account_store_block_apply_failed",
       submission_may_have_occurred: intentWritten,
     };
   } finally {
@@ -1530,6 +2149,13 @@ export function createVoidNativeAccountStateStoreV1(
       return applyOnce(paths, policy, request);
     },
 
+    async apply_native_value_transfer_block_once(
+      request:
+        Readonly<VoidNativeValueTransferBlockStoreApplyRequestV1>,
+    ): Promise<VoidNativeValueTransferBlockStoreApplyResultV1> {
+      return applyBlockOnce(paths, policy, request);
+    },
+
     read_state_snapshot(): VoidNativeAccountStateSnapshotV1 {
       return readSnapshot(paths, policy);
     },
@@ -1552,6 +2178,7 @@ export function createVoidNativeAccountStateStoreV1(
         account_count: snapshot?.accounts.length ?? 0,
         applied_transaction_count:
           snapshot?.applied_transactions.length ?? 0,
+        block_atomic_apply_once: true,
         last_commit_id: snapshot?.last_commit_id ?? null,
         filesystem_authority: true,
         runtime_mounted: false,
