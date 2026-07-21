@@ -92,8 +92,23 @@ async function readJsonOnce(base, path, timeoutMs) {
     });
     const text = await r.text();
     let body = null;
-    try { body = text.trim() ? JSON.parse(text) : null; } catch {}
-    return { path, method: "GET", status: r.status, json: body !== null, body, error: null };
+    let parseError = null;
+
+    try {
+      body = text.trim() ? JSON.parse(text) : null;
+    } catch (e) {
+      parseError = e?.name || "json_parse_error";
+    }
+
+    return {
+      path,
+      method: "GET",
+      status: r.status,
+      json: body !== null,
+      body,
+      error: null,
+      parse_error: parseError,
+    };
   } catch (e) {
     return { path, method: "GET", status: null, json: false, body: null, error: e?.name || "request_error" };
   } finally {
