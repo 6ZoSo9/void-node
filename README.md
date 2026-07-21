@@ -189,3 +189,15 @@ installer, atomic update/rollback, and CI/tag publishing proof. Start at
 The installer never starts the service, generates private keys, or activates
 guarded economic/operator lanes unless a separate explicit lane does so.
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
+
+## Verified stable update channel
+
+`VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1` adds a stable channel manifest,
+anti-downgrade update checks, SHA-256 and GitHub-attestation verification,
+explicit restart controls, and health-gated automatic rollback.
+
+```bash
+void-node update check --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
+```
+
+See [release update channel v1](docs/public/release-update-channel-v1.md).

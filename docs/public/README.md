@@ -102,3 +102,5 @@ When a current-state claim changes, update these files instead of appending anot
 - [Verified release install](download-install-release-v1.md)
 - [Release process](release-process-v1.md)
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
+
+- [Verified release update channel v1](release-update-channel-v1.md) — stable-channel discovery, anti-downgrade apply, attestation verification, and health-gated rollback.
