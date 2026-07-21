@@ -64,7 +64,7 @@ jobs:
           fi
           rm -rf dist-release
           node tools/build-public-release-v1.mjs --out dist-release --version "$VERSION"
-          sha256sum --check --strict dist-release/SHA256SUMS
+          (cd dist-release && sha256sum --check --strict SHA256SUMS)
       - name: Upload proved release assets
         uses: actions/upload-artifact@v4
         with:
@@ -98,7 +98,7 @@ jobs:
           set -euo pipefail
           EXPECTED="release-v$(node -p 'require("./package.json").version')"
           test "$GITHUB_REF_NAME" = "$EXPECTED"
-          sha256sum --check --strict dist-release/SHA256SUMS
+          (cd dist-release && sha256sum --check --strict SHA256SUMS)
       - name: Attest release archive provenance
         uses: actions/attest@v4
         with:

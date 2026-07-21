@@ -71,6 +71,9 @@ const workflow=needText(".github/workflows/public-release-distribution-v1.yml",[
 ]);
 if(!workflow.includes("pull_request:"))fail("workflow lacks pull_request proof gate");
 pass("workflow-pr-proof-and-tag-publish-contract");
+const checksumCwdCount=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;
+if(checksumCwdCount<2)fail(`workflow must verify SHA256SUMS from dist-release in prove and publish jobs; found ${checksumCwdCount}`);
+pass("workflow-checks-sha256sums-from-artifact-directory");
 
 needText("docs/public/download-install-release-v1.md",["sha256sum --check SHA256SUMS","service is not enabled or started","void-node rollback"]);
 needText("docs/public/release-process-v1.md",["release-v<package-version>","GitHub artifact attestations","No live deployment"]);
