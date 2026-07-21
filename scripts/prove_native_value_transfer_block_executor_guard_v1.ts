@@ -114,8 +114,86 @@ for (const marker of [
 ]) {
   assert.equal(indexText.includes(marker), false);
   assert.equal(runtimeText.includes(marker), false);
-  assert.equal(accountStoreText.includes(marker), false);
 }
+
+assert.equal(
+  accountStoreText.includes(
+    'import type {\n  VoidNativeValueTransferBlockStoreApplyRequestV1,',
+  ),
+  true,
+  "the account store may depend on the executor only through a type-only block-store contract",
+);
+assert.equal(
+  accountStoreText.includes(
+    'from "./native_value_transfer_block_executor_v1.js";',
+  ),
+  true,
+  "the block-store type contract must come from the canonical executor module",
+);
+assert.equal(
+  accountStoreText.includes(
+    "apply_native_value_transfer_block_once",
+  ),
+  true,
+  "the account store must implement the canonical block-atomic store boundary",
+);
+for (const forbiddenStoreIntegration of [
+  "prepareVoidNativeValueTransferBlockExecutionV1(",
+  "applyVoidNativeValueTransferBlockExecutionV1(",
+  "prepareVoidNativeValueTransferStateTransitionV1(",
+  "applyVoidNativeValueTransferStateTransitionV1(",
+  "app.post(",
+  "app.get(",
+  "process.env",
+  "fetch(",
+  "JsonRpcProvider",
+  "signTransaction(",
+  "broadcastTransaction(",
+  "eth_sendRawTransaction",
+]) {
+  assert.equal(
+    accountStoreText.includes(forbiddenStoreIntegration),
+    false,
+    `account store must not gain executor/runtime/signing authority: ${forbiddenStoreIntegration}`,
+  );
+}
+assert.equal(
+  (
+    accountStoreText.match(
+      /apply_native_value_transfer_block_once/g,
+    ) || []
+  ).length,
+  1,
+  "exactly one concrete block-atomic store method implementation is expected",
+);
+assert.equal(
+  accountStoreText.includes(
+    "VoidNativeValueTransferStoreV1\n  & VoidNativeValueTransferBlockStoreV1",
+  ),
+  true,
+  "the account-store public type must implement the canonical block-store interface",
+);
+assert.equal(
+  accountStoreText.includes(
+    "VoidNativeValueTransferBlockStoreApplyRequestV1,",
+  ),
+  true,
+  "the type-only block-store request contract must remain imported",
+);
+assert.equal(
+  accountStoreText.includes(
+    "VoidNativeValueTransferBlockStoreApplyResultV1,",
+  ),
+  true,
+  "the type-only block-store result contract must remain imported",
+);
+assert.equal(
+  accountStoreText.includes(
+    "return applyBlockOnce(paths, policy, request);",
+  ),
+  true,
+  "the canonical store method must delegate only to its internal block-atomic persistence function",
+);
 
 assert.equal(
   transitionText.includes(
@@ -251,6 +329,27 @@ assert.equal(
   proofText.includes("submission_may_have_occurred, true"),
   true,
   "proof must cover unknown block-store outcome",
+);
+assert.equal(
+  accountStoreText.includes(
+    "block_apply_once_persistence: true",
+  ),
+  true,
+  "canonical account store must advertise durable block apply-once persistence",
+);
+assert.equal(
+  accountStoreText.includes(
+    "block_atomic_multi_transaction_write: true",
+  ),
+  true,
+  "canonical account store must advertise block-atomic multi-account writes",
+);
+assert.equal(
+  accountStoreText.includes(
+    "raw_signed_transactions_included: false",
+  ),
+  true,
+  "raw signed transactions must remain outside the account-store block boundary",
 );
 
 console.log(
