@@ -1,0 +1,25 @@
+{
+  "marker": "VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_STATUS_V1",
+  "schema_version": 1,
+  "status": "implemented_proof_gated",
+  "channel": "stable",
+  "platform": "linux-x64",
+  "minimum_node_major": 22,
+  "channel_asset": "stable-v1.json",
+  "verification": [
+    "https_repository_and_release_tag_binding",
+    "exact_asset_byte_lengths",
+    "sha256_outer_and_inner_manifests",
+    "github_artifact_attestations",
+    "installed_content_verification"
+  ],
+  "policy": {
+    "downgrade_allowed_by_default": false,
+    "service_started_implicitly": false,
+    "restart_requires_explicit_flag": true,
+    "health_gate_for_running_service": true,
+    "rollback_on_health_failure": true,
+    "guarded_lanes_activated": false
+  },
+  "proof_target": "make public-release-update-channel-v1-proof"
+}

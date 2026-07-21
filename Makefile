@@ -1515,3 +1515,20 @@ public-release-build-v1:
 public-release-distribution-v1-proof:
 	bash ops/security/public-release-distribution-v1-proof.sh
 # VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END
+
+.PHONY: public-release-update-channel-v1-proof
+public-release-update-channel-v1-proof:
+	bash ops/security/public-release-update-channel-v1-proof.sh
+
+.PHONY: public-release-channel-build-v1
+public-release-channel-build-v1:
+	test -n "$(RELEASE_TAG)"
+	test -n "$(RELEASE_BASE_URL)"
+	node tools/build-public-release-channel-v1.mjs \
+	  --manifest dist-release/void-node-release-manifest.json \
+	  --checksums dist-release/SHA256SUMS \
+	  --base-url "$(RELEASE_BASE_URL)" \
+	  --repository 6ZoSo9/void-node \
+	  --release-tag "$(RELEASE_TAG)" \
+	  --channel stable \
+	  --out dist-release/stable-v1.json

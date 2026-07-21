@@ -83,3 +83,17 @@ For a versioned user-scoped installation that does not require a development
 checkout, follow [`download-install-release-v1.md`](download-install-release-v1.md).
 The existing source-build path remains available for developers.
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
+
+## Verified updates
+
+`VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_QUICKSTART_V1`
+
+After installing a verified release, check the stable channel without changing
+state:
+
+```bash
+void-node update check --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
+```
+
+A stopped service remains stopped during apply. Running-service restart requires
+`--restart-if-running` and is protected by readiness-gated rollback.

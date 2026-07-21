@@ -104,6 +104,9 @@ case "${1:-help}" in
     command -v journalctl >/dev/null 2>&1 || die "journalctl unavailable"
     exec journalctl --user -u "$UNIT" -n "${VOID_NODE_LOG_LINES:-200}" -f
     ;;
+  update)
+    exec "$RELEASE_ROOT/bin/void-node-update" "${@:2}"
+    ;;
   rollback)
     test -L "$PREVIOUS" || die "no previous release is available"
     old_current="$(readlink -f "$CURRENT")"
@@ -134,6 +137,9 @@ VOID node release manager
   void-node doctor
   void-node enable|disable
   void-node start|stop|restart|status|logs
+  void-node update check --channel URL
+  void-node update apply --channel URL --yes [--restart-if-running]
+  void-node update rollback
   void-node rollback
   void-node uninstall [--yes] [--purge]
   void-node run [node arguments]
