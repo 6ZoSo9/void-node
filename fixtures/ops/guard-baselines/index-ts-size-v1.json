@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Lowered for verified-receipt acceptance repair. The retired phantom /wc/scan-receipts containment entry was removed; capability crediting now uses a separate in-process, duplicate-safe acceptance module.",
+  "reason": "Raised for the reviewed disabled native block execution precommit integration. The added index code is limited to one import and one hard-disabled prepare-only sealOnce hook; executor apply, production account-store wiring, live block execution, and money movement remain disabled.",
   "path": "src/index.ts",
-  "baseline_bytes": 3834264,
+  "baseline_bytes": 3834791,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {
@@ -12,7 +12,7 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "remove retired scanner containment and use external acceptance module",
+    "baseline_update_reason": "reviewed disabled native block execution precommit integration adds 527 bytes",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
@@ -20,5 +20,5 @@
     "well_known_runtime_closeout_rollup_link_only": true
   },
   "previous_baseline_bytes": 3834264,
-  "note": "Lowered by exactly 43 bytes. No route body was added to src/index.ts; verified-receipt acceptance and failed-ticket recovery remain outside index."
+  "note": "Raised by exactly 527 bytes from 3834264 to 3834791. The guard remains an exact ceiling and rejects any future index growth beyond 3834791."
 }
