@@ -1,0 +1,22 @@
+name: public-python-bytecode-hygiene-v1
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bytecode-hygiene:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/void-python-bytecode-hygiene-v1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Prove tracked Python bytecode is zero
+        run: bash ops/security/public-python-bytecode-hygiene-v1-proof.sh

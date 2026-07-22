@@ -1,0 +1,24 @@
+{
+  "marker": "VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_RECEIPT_V1",
+  "schema_version": 1,
+  "repository": "6ZoSo9/void-node",
+  "version": "0.1.0-rehearsal.1",
+  "official_release_tag": "release-v0.1.0-rehearsal.1",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "rehearsal_namespace": "rehearsal/release-v0.1.0-rehearsal.1/000000000000",
+  "packet_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "stage_receipt_sha256s": [
+    "0000000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "history_tip_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "passed": true,
+  "policy": {
+    "rehearsal_only": true,
+    "release_tag_published": false,
+    "official_release_published": false,
+    "live_deployment": false,
+    "service_restart": false,
+    "money_movement": false,
+    "guarded_lanes_activated": false
+  }
+}

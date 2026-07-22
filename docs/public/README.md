@@ -108,3 +108,5 @@ When a current-state claim changes, update these files instead of appending anot
 - [Release publication and promotion v1](release-publication-promotion-v1.md) — immutable releases, canary-gated candidate/stable promotion, freeze, revocation, and rollback. <!-- VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1 -->
 
 - [Release qualification v1](release-qualification-v1.md) — complete canary matrix and independent approval required before stable promotion. <!-- VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1 -->
+
+- [First official release rehearsal v1](first-official-release-rehearsal-v1.md) — deterministic no-publish rehearsal of immutable publication, qualification, canary, promotion, freeze, revocation, and rollback. <!-- VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1 -->

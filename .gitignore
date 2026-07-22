@@ -219,3 +219,9 @@ release/promotion/state/
 release/qualification/state/
 .release-qualification-state/
 qualification-runner-output/
+
+# VOID_PUBLIC_PYTHON_BYTECODE_HYGIENE_V1
+__pycache__/
+*.py[cod]
+*.pyd
+*$py.class
