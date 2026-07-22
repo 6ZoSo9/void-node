@@ -1,0 +1,116 @@
+name: public-release-qualification-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-release-qualification-v1.yml'
+      - 'release/qualification/**'
+      - 'tools/void-release-qualification-v1.mjs'
+      - 'ops/release/void-release-qualification-**'
+      - 'ops/security/public-release-qualification-v1-proof.sh'
+      - 'scripts/prove_public_release_qualification_v1.mjs'
+      - 'tools/void-release-promotion-v1.mjs'
+      - 'release/bin/void-node-update'
+      - 'release/channel/public-release-channel-v1.schema.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-release-qualification-v1.yml'
+      - 'release/qualification/**'
+      - 'tools/void-release-qualification-v1.mjs'
+      - 'ops/release/void-release-qualification-**'
+      - 'ops/security/public-release-qualification-v1-proof.sh'
+      - 'scripts/prove_public_release_qualification_v1.mjs'
+      - 'tools/void-release-promotion-v1.mjs'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable release tag to qualify
+        required: true
+        type: string
+      source_commit:
+        description: Exact 40-character source commit
+        required: true
+        type: string
+      confirm:
+        description: QUALIFY VOID RELEASE release-vX.Y.Z AT <commit>
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+  id-token: write
+
+jobs:
+  prove:
+    name: qualification-control-plane-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: make public-release-qualification-v1-proof
+
+  ubuntu-matrix:
+    if: github.event_name == 'workflow_dispatch'
+    name: qualify-${{ matrix.target }}
+    environment: void-release-qualification
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: ubuntu-22.04-x64
+          - os: ubuntu-24.04
+            target: ubuntu-24.04-x64
+    steps:
+      - uses: actions/checkout@v5
+      - name: Exact release binding
+        shell: bash
+        env:
+          TAG: ${{ inputs.release_tag }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRM" = "QUALIFY VOID RELEASE $TAG AT $SOURCE_COMMIT"
+          test "${#SOURCE_COMMIT}" = 40
+      - name: Run isolated release qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VOID_QUALIFICATION_TARGET: ${{ matrix.target }}
+          VOID_RELEASE_TAG: ${{ inputs.release_tag }}
+          VOID_RELEASE_REPOSITORY: ${{ github.repository }}
+          VOID_QUALIFICATION_OUT: qualification-output
+        run: bash ops/release/void-release-qualification-runner-v1.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: qualification-${{ matrix.target }}
+          path: qualification-output
+          if-no-files-found: error
+          retention-days: 30
+
+  external-target-boundary:
+    if: github.event_name == 'workflow_dispatch'
+    name: external-target-boundary
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Record required external targets
+        run: |
+          cat <<'EOF2'
+          Debian 12, Windows WSL2, upgrade-from-current-stable,
+          health-failure rollback, two-node sync, and participant UI smoke
+          remain required. This workflow does not synthesize those receipts.
+          Stable promotion remains blocked until every target is present.
+          EOF2
+          grep -q 'windows-wsl2-ubuntu-24.04-x64' tools/void-release-qualification-v1.mjs
+          grep -q 'two-node-sync' tools/void-release-qualification-v1.mjs

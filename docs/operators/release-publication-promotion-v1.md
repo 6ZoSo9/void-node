@@ -115,3 +115,11 @@ node tools/void-release-promotion-v1.mjs revoke \
 
 Every action requires an exact confirmation phrase. There is no generic `--yes`
 for publication, promotion, freeze, revocation, or rollback.
+
+## Qualification inputs for stable promotion
+
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1`
+
+Supply both `--qualification-receipt` and `--qualification-approval`. Stable
+promotion refuses missing, mismatched, failed, or non-independent qualification
+artifacts.

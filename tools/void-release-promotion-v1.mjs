@@ -10,6 +10,8 @@ const TOOL_MARKER = "VOID_RELEASE_PROMOTION_CONTROL_V1";
 const PACKET_MARKER = "VOID_RELEASE_PUBLICATION_PACKET_V1";
 const PUBLICATION_MARKER = "VOID_RELEASE_PUBLICATION_RECEIPT_V1";
 const CANARY_MARKER = "VOID_RELEASE_CANARY_RECEIPT_V1";
+const QUALIFICATION_MARKER = "VOID_RELEASE_QUALIFICATION_RECEIPT_V1";
+const QUALIFICATION_APPROVAL_MARKER = "VOID_RELEASE_QUALIFICATION_APPROVAL_V1";
 const LEDGER_MARKER = "VOID_RELEASE_PROMOTION_LEDGER_V1";
 const RECEIPT_MARKER = "VOID_RELEASE_PROMOTION_RECEIPT_V1";
 
@@ -117,7 +119,7 @@ function validatePacket(packet) {
     names.add(asset.name);
     if (!isHex(asset.sha256, 64) || !Number.isSafeInteger(asset.bytes) || asset.bytes < 1) fail(`invalid packet asset: ${asset.name}`);
   }
-  if (packet.policy?.immutable_release_required !== true || packet.policy?.release_attestation_required !== true || packet.policy?.asset_attestations_required !== true || packet.policy?.tag_replacement_allowed !== false || packet.policy?.asset_replacement_allowed !== false || packet.policy?.stable_promotion_requires_canary !== true) fail("unsafe publication packet policy");
+  if (packet.policy?.immutable_release_required !== true || packet.policy?.release_attestation_required !== true || packet.policy?.asset_attestations_required !== true || packet.policy?.tag_replacement_allowed !== false || packet.policy?.asset_replacement_allowed !== false || packet.policy?.stable_promotion_requires_canary !== true || packet.policy?.stable_promotion_requires_qualification !== true) fail("unsafe publication packet policy");
   return packet;
 }
 function validatePublication(receipt, packet) {
@@ -141,6 +143,27 @@ function validateCanary(receipt, packet, publication) {
   if (receipt.passed !== true) fail("canary receipt is not green");
   for (const key of ["immutable_release", "release_attestation", "asset_attestations", "sha256", "install", "update_check", "health", "rollback"]) if (receipt.checks?.[key] !== true) fail(`canary check is not green: ${key}`);
   return receipt;
+}
+function validateQualification(receipt, packet, publication, canary) {
+  if (receipt?.marker !== QUALIFICATION_MARKER || receipt?.schema_version !== 1) fail("invalid qualification receipt marker/schema");
+  if (receipt.repository !== packet.repository || receipt.release_tag !== packet.release_tag || receipt.source_commit !== packet.source_commit) fail("qualification receipt release binding mismatch");
+  if (receipt.packet_sha256 !== shaObject(packet) || receipt.publication_receipt_sha256 !== shaObject(publication) || receipt.canary_receipt_sha256 !== shaObject(canary)) fail("qualification receipt upstream hash binding mismatch");
+  if (receipt.passed !== true || receipt.matrix_passed !== true) fail("qualification receipt is not green");
+  if (!Array.isArray(receipt.results) || receipt.results.length < 8 || !Array.isArray(receipt.runner_ids) || receipt.runner_ids.length < 1) fail("qualification matrix is incomplete");
+  const targets = new Set();
+  for (const result of receipt.results) {
+    if (!result?.target || targets.has(result.target) || result.passed !== true || !isHex(result.result_sha256, 64)) fail("invalid qualification matrix result");
+    targets.add(result.target);
+  }
+  if (receipt.policy?.stable_promotion_allowed !== true || receipt.policy?.release_tag_published_by_qualification !== false || receipt.policy?.live_deployment !== false || receipt.policy?.guarded_lanes_activated !== false) fail("unsafe qualification receipt policy");
+  return receipt;
+}
+function validateQualificationApproval(approval, qualification) {
+  if (approval?.marker !== QUALIFICATION_APPROVAL_MARKER || approval?.schema_version !== 1) fail("invalid qualification approval marker/schema");
+  if (approval.repository !== qualification.repository || approval.release_tag !== qualification.release_tag || approval.source_commit !== qualification.source_commit || approval.qualification_receipt_sha256 !== shaObject(qualification)) fail("qualification approval binding mismatch");
+  if (approval.approved !== true || !approval.reviewer_id || qualification.runner_ids.includes(approval.reviewer_id)) fail("qualification approval is not independently approved");
+  if (approval.policy?.stable_promotion_authorized !== true || approval.policy?.single_person_run_and_approve_allowed !== false || approval.policy?.release_tag_published_by_approval !== false || approval.policy?.live_deployment !== false || approval.policy?.guarded_lanes_activated !== false) fail("unsafe qualification approval policy");
+  return approval;
 }
 function defaultState(repository) {
   return {
@@ -196,6 +219,8 @@ function buildChannel(ledger, tag, channelName) {
     ledger_sequence: ledger.state.sequence,
     ledger_tip_sha256: ledger.history_tip_sha256,
     canary_receipt_sha256: entry.canary_receipt_sha256 || null,
+    qualification_receipt_sha256: entry.qualification_receipt_sha256 || null,
+    qualification_approval_sha256: entry.qualification_approval_sha256 || null,
     promoted_at_utc: channel.generated_at_utc,
   };
   channel.policy.channel_frozen = ledger.state.frozen;
@@ -269,6 +294,7 @@ function verifyLedger(ledger) {
   if (ledger.state.sequence !== ledger.history.length) fail("ledger state sequence mismatch");
   if (ledger.state.current_stable && ledger.state.revocations[ledger.state.current_stable]) fail("current stable release is revoked");
   if (ledger.state.current_candidate && ledger.state.revocations[ledger.state.current_candidate]) fail("current candidate release is revoked");
+  if (ledger.state.current_stable) { const stable = ledger.state.releases[ledger.state.current_stable]; if (!stable || !isHex(stable.qualification_receipt_sha256, 64) || !isHex(stable.qualification_approval_sha256, 64)) fail("stable promotion requires qualification receipt and approval binding"); }
   return true;
 }
 function verifyDerived(stateDir, ledger) {
@@ -326,7 +352,7 @@ function ensureRelease(state, packet, publication) {
     published_at_utc: publication.published_at_utc,
     status: "published", ever_candidate: false, ever_stable: false,
     candidate_promoted_at_utc: null, stable_promoted_at_utc: null,
-    canary_receipt_sha256: null, base_channel: packet.base_channel,
+    canary_receipt_sha256: null, qualification_receipt_sha256: null, qualification_approval_sha256: null, base_channel: packet.base_channel,
   };
   return state.releases[tag];
 }
@@ -335,7 +361,7 @@ function outputPath(opt) { return path.resolve(need(opt, "out")); }
 
 const opt = parseArgs(process.argv.slice(2));
 if (opt.command === "help" || opt.command === "--help" || opt.command === "-h") {
-  console.log(`VOID release publication/promotion control v1\n\nCommands:\n  prepare --release-manifest FILE --checksums FILE --channel-manifest FILE --asset-dir DIR --repository OWNER/REPO --version X.Y.Z --release-tag release-vX.Y.Z --source-commit SHA --out FILE\n  record-published --packet FILE --release-json FILE --out FILE\n  candidate --state-dir DIR --packet FILE --publication-receipt FILE --confirm PHRASE\n  stable --state-dir DIR --packet FILE --publication-receipt FILE --canary-receipt FILE --confirm PHRASE\n  freeze|unfreeze --state-dir DIR --repository OWNER/REPO --reason TEXT --confirm PHRASE\n  revoke --state-dir DIR --release-tag TAG --reason TEXT [--rollback-to TAG] --confirm PHRASE\n  rollback --state-dir DIR --release-tag TAG --reason TEXT --confirm PHRASE\n  verify|render|status --state-dir DIR\n`);
+  console.log(`VOID release publication/promotion control v1\n\nCommands:\n  prepare --release-manifest FILE --checksums FILE --channel-manifest FILE --asset-dir DIR --repository OWNER/REPO --version X.Y.Z --release-tag release-vX.Y.Z --source-commit SHA --out FILE\n  record-published --packet FILE --release-json FILE --out FILE\n  candidate --state-dir DIR --packet FILE --publication-receipt FILE --confirm PHRASE\n  stable --state-dir DIR --packet FILE --publication-receipt FILE --canary-receipt FILE --qualification-receipt FILE --qualification-approval FILE --confirm PHRASE\n  freeze|unfreeze --state-dir DIR --repository OWNER/REPO --reason TEXT --confirm PHRASE\n  revoke --state-dir DIR --release-tag TAG --reason TEXT [--rollback-to TAG] --confirm PHRASE\n  rollback --state-dir DIR --release-tag TAG --reason TEXT --confirm PHRASE\n  verify|render|status --state-dir DIR\n`);
   process.exit(0);
 }
 
@@ -371,7 +397,7 @@ if (opt.command === "prepare") {
     source_commit: sourceCommit, created_at_utc: timestamp(opt.timestamp),
     release_manifest_sha256: shaFile(manifestFile), checksums_sha256: shaFile(sumsFile),
     base_channel_sha256: shaFile(channelFile), release_manifest: manifest, base_channel: channel, assets,
-    policy: {immutable_release_required: true, release_attestation_required: true, asset_attestations_required: true, tag_replacement_allowed: false, asset_replacement_allowed: false, stable_promotion_requires_canary: true, guarded_lanes_activated: false},
+    policy: {immutable_release_required: true, release_attestation_required: true, asset_attestations_required: true, tag_replacement_allowed: false, asset_replacement_allowed: false, stable_promotion_requires_canary: true, stable_promotion_requires_qualification: true, guarded_lanes_activated: false},
   };
   validatePacket(packet);
   atomicJson(outputPath(opt), packet);
@@ -414,8 +440,12 @@ if (["candidate", "stable", "freeze", "unfreeze", "revoke", "rollback", "verify"
 if (opt.command === "candidate" || opt.command === "stable") {
   const packet = validatePacket(readJson(path.resolve(need(opt, "packet"))));
   const publication = validatePublication(readJson(path.resolve(need(opt, "publicationReceipt"))), packet);
-  let canary = null;
-  if (opt.command === "stable") canary = validateCanary(readJson(path.resolve(need(opt, "canaryReceipt"))), packet, publication);
+  let canary = null, qualification = null, qualificationApproval = null;
+  if (opt.command === "stable") {
+    canary = validateCanary(readJson(path.resolve(need(opt, "canaryReceipt"))), packet, publication);
+    qualification = validateQualification(readJson(path.resolve(need(opt, "qualificationReceipt"))), packet, publication, canary);
+    qualificationApproval = validateQualificationApproval(readJson(path.resolve(need(opt, "qualificationApproval"))), qualification);
+  }
   exactConfirm(opt.confirm, `PROMOTE ${packet.release_tag} TO ${opt.command.toUpperCase()}`);
   let ledger = loadLedger(stateDir, packet.repository);
   verifyLedger(ledger);
@@ -430,7 +460,7 @@ if (opt.command === "candidate" || opt.command === "stable") {
   if (ledger.state.revocations[packet.release_tag]) fail("cannot promote a revoked release");
   if (opt.command === "stable" && ledger.state.current_candidate !== packet.release_tag) fail("stable promotion requires the exact current candidate");
   ledger = transition(stateDir, ledger, opt.command === "candidate" ? "promote-candidate" : "promote-stable", {
-    release_tag: packet.release_tag, packet_sha256: shaObject(packet), publication_receipt_sha256: shaObject(publication), canary_receipt_sha256: canary ? shaObject(canary) : null,
+    release_tag: packet.release_tag, packet_sha256: shaObject(packet), publication_receipt_sha256: shaObject(publication), canary_receipt_sha256: canary ? shaObject(canary) : null, qualification_receipt_sha256: qualification ? shaObject(qualification) : null, qualification_approval_sha256: qualificationApproval ? shaObject(qualificationApproval) : null,
   }, state => {
     const entry = ensureRelease(state, packet, publication);
     if (opt.command === "candidate") {
@@ -438,7 +468,7 @@ if (opt.command === "candidate" || opt.command === "stable") {
       state.current_candidate = packet.release_tag;
     } else {
       entry.status = "stable"; entry.ever_candidate = true; entry.ever_stable = true;
-      entry.canary_receipt_sha256 = shaObject(canary); entry.stable_promoted_at_utc = timestamp(opt.timestamp);
+      entry.canary_receipt_sha256 = shaObject(canary); entry.qualification_receipt_sha256 = shaObject(qualification); entry.qualification_approval_sha256 = shaObject(qualificationApproval); entry.stable_promoted_at_utc = timestamp(opt.timestamp);
       if (state.current_stable !== packet.release_tag) state.previous_stable = state.current_stable;
       state.current_stable = packet.release_tag;
       state.current_candidate = packet.release_tag;
