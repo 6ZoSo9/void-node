@@ -6,6 +6,7 @@ on:
       - '.github/workflows/public-release-publication-promotion-v1.yml'
       - '.github/workflows/public-release-canary-v1.yml'
       - 'release/promotion/**'
+      - 'release/launch-gate/**'
       - 'tools/void-release-promotion-v1.mjs'
       - 'ops/release/**'
       - 'scripts/prove_public_release_publication_promotion_v1.mjs'
@@ -23,6 +24,7 @@ on:
       - '.github/workflows/public-release-publication-promotion-v1.yml'
       - '.github/workflows/public-release-canary-v1.yml'
       - 'release/promotion/**'
+      - 'release/launch-gate/**'
       - 'tools/void-release-promotion-v1.mjs'
       - 'ops/release/**'
       - 'scripts/prove_public_release_publication_promotion_v1.mjs'
@@ -52,6 +54,26 @@ on:
         type: string
       confirmation:
         description: 'Exact PUBLISH VOID RELEASE phrase'
+        required: false
+        type: string
+      launch_id:
+        description: 'Exact sealed launch ID committed under release/launch-gate/records'
+        required: false
+        type: string
+      launch_record_commit:
+        description: 'Exact current main commit containing the sealed launch record'
+        required: false
+        type: string
+      launch_packet_sha256:
+        description: 'Exact SHA-256 of launch-packet-v1.json'
+        required: false
+        type: string
+      launch_approval_sha256:
+        description: 'Exact SHA-256 of launch-approval-v1.json'
+        required: false
+        type: string
+      launch_authorization_sha256:
+        description: 'Exact SHA-256 of launch-authorization-v1.json'
         required: false
         type: string
 
@@ -93,6 +115,11 @@ jobs:
       VERSION: ${{ inputs.version }}
       SOURCE_COMMIT: ${{ inputs.source_commit }}
       CONFIRMATION: ${{ inputs.confirmation }}
+      LAUNCH_ID: ${{ inputs.launch_id }}
+      LAUNCH_RECORD_COMMIT: ${{ inputs.launch_record_commit }}
+      LAUNCH_PACKET_SHA256: ${{ inputs.launch_packet_sha256 }}
+      LAUNCH_APPROVAL_SHA256: ${{ inputs.launch_approval_sha256 }}
+      LAUNCH_AUTHORIZATION_SHA256: ${{ inputs.launch_authorization_sha256 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -109,7 +136,9 @@ jobs:
           set -euo pipefail
           test "$VERSION" = "$(node -p 'require("./package.json").version')"
           test "$SOURCE_COMMIT" = "$(git rev-parse HEAD)"
-          test "$SOURCE_COMMIT" = "$(git rev-parse origin/main)"
+          git fetch origin main:refs/remotes/origin/main --tags
+          test "$LAUNCH_RECORD_COMMIT" = "$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$SOURCE_COMMIT" "$LAUNCH_RECORD_COMMIT"
           TAG="release-v${VERSION}"
           test "$CONFIRMATION" = "PUBLISH VOID RELEASE ${TAG} AT ${SOURCE_COMMIT}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/immutable-releases" --jq '.enabled')" = true
@@ -121,6 +150,45 @@ jobs:
             echo "release already exists: ${TAG}" >&2
             exit 1
           fi
+      # VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WORKFLOW_V1
+      - name: Verify sealed launch-gate record before any publication mutation
+        run: |
+          set -euo pipefail
+          [[ "$LAUNCH_ID" =~ ^launch-release-v[0-9A-Za-z.+-]+-[0-9a-f]{16}$ ]]
+          [[ "$LAUNCH_RECORD_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$LAUNCH_PACKET_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$LAUNCH_APPROVAL_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$LAUNCH_AUTHORIZATION_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          git fetch origin main:refs/remotes/origin/main --tags
+          test "$LAUNCH_RECORD_COMMIT" = "$(git rev-parse origin/main)"
+          git cat-file -e "${LAUNCH_RECORD_COMMIT}^{commit}"
+          git merge-base --is-ancestor "$SOURCE_COMMIT" "$LAUNCH_RECORD_COMMIT"
+          RECORD_ROOT="$RUNNER_TEMP/void-launch-record"
+          RECORD_REPO_PATH="release/launch-gate/records/${LAUNCH_ID}"
+          rm -rf "$RECORD_ROOT"
+          mkdir -p "$RECORD_ROOT"
+          git archive --format=tar "$LAUNCH_RECORD_COMMIT" "$RECORD_REPO_PATH" | tar -x -C "$RECORD_ROOT"
+          RECORD_DIR="$RECORD_ROOT/$RECORD_REPO_PATH"
+          test -d "$RECORD_DIR"
+          test "$(sha256sum "$RECORD_DIR/launch-packet-v1.json" | awk '{print $1}')" = "$LAUNCH_PACKET_SHA256"
+          test "$(sha256sum "$RECORD_DIR/launch-approval-v1.json" | awk '{print $1}')" = "$LAUNCH_APPROVAL_SHA256"
+          test "$(sha256sum "$RECORD_DIR/launch-authorization-v1.json" | awk '{print $1}')" = "$LAUNCH_AUTHORIZATION_SHA256"
+          npm ci --ignore-scripts --include=dev --no-audit --no-fund
+          RELEASE_A="$RUNNER_TEMP/void-launch-release-a"
+          RELEASE_B="$RUNNER_TEMP/void-launch-release-b"
+          rm -rf "$RELEASE_A" "$RELEASE_B"
+          node tools/build-public-release-v1.mjs --out "$RELEASE_A" --version "$VERSION"
+          node tools/build-public-release-v1.mjs --out "$RELEASE_B" --version "$VERSION"
+          (cd "$RELEASE_A" && sha256sum --check --strict SHA256SUMS)
+          (cd "$RELEASE_B" && sha256sum --check --strict SHA256SUMS)
+          cmp "$RELEASE_A/SHA256SUMS" "$RELEASE_B/SHA256SUMS"
+          node tools/void-first-official-release-launch-gate-v1.mjs verify-record \
+            --record-dir "$RECORD_DIR" \
+            --release-dir-a "$RELEASE_A" \
+            --release-dir-b "$RELEASE_B" \
+            --workflow-file "$GITHUB_WORKSPACE/.github/workflows/public-release-publication-promotion-v1.yml" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_RECORD_WORKFLOW_V1_GREEN"
       - name: Build deterministic release, candidate/stable manifests, and publication packet
         run: |
           set -euo pipefail

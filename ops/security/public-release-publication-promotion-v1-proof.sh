@@ -108,7 +108,7 @@ PY
 echo "=== [1] static contract ==="
 node scripts/prove_public_release_publication_promotion_v1.mjs
 node --check tools/void-release-promotion-v1.mjs
-python3 -m py_compile ops/release/void-release-promotion-pr-v1.py
+PYTHONPYCACHEPREFIX="$OUT/publication-pycache" python3 -m py_compile ops/release/void-release-promotion-pr-v1.py
 bash -n ops/release/void-release-dispatch-v1.sh
 
 echo "=== [2] build two immutable-release fixtures ==="

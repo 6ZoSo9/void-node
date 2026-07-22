@@ -1564,3 +1564,11 @@ public-first-official-release-rehearsal-v1-static-proof:
 .PHONY: public-first-official-release-rehearsal-v1-proof
 public-first-official-release-rehearsal-v1-proof:
 	bash ops/security/public-first-official-release-rehearsal-v1-proof.sh
+
+.PHONY: public-first-official-release-launch-gate-v1-static-proof
+public-first-official-release-launch-gate-v1-static-proof:
+	node scripts/prove_public_first_official_release_launch_gate_v1.mjs
+
+.PHONY: public-first-official-release-launch-gate-v1-proof
+public-first-official-release-launch-gate-v1-proof:
+	bash ops/security/public-first-official-release-launch-gate-v1-proof.sh

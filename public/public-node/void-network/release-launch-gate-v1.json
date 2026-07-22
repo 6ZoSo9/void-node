@@ -1,0 +1,23 @@
+{
+  "marker": "VOID_PUBLIC_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_V1",
+  "schema_version": 1,
+  "status": "infrastructure_ready_no_launch_packet",
+  "launch_packet_created": false,
+  "independent_approval_recorded": false,
+  "single_use_authorization_sealed": false,
+  "publication_command_rendered": false,
+  "publication_command_executed": false,
+  "release_tag_published": false,
+  "official_release_published": false,
+  "stable_channel_changed": false,
+  "post_publication_canary_required": true,
+  "post_publication_qualification_required": true,
+  "live_deployment": false,
+  "service_restart": false,
+  "money_movement": false,
+  "guarded_lanes_activated": false,
+  "sealed_launch_record_required": true,
+  "launch_record_committed_to_main": false,
+  "publication_workflow_reverification_required": true,
+  "publication_command_finalized": false
+}

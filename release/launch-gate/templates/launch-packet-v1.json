@@ -1,0 +1,26 @@
+{
+  "marker": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_PACKET_V1",
+  "schema_version": 1,
+  "launch_id": "launch-release-vX.Y.Z-0000000000000000",
+  "repository": "6ZoSo9/void-node",
+  "version": "X.Y.Z",
+  "release_tag": "release-vX.Y.Z",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "created_at_utc": "2000-01-01T00:00:00Z",
+  "expires_at_utc": "2000-01-01T04:00:00Z",
+  "preparer_id": "release-preparer",
+  "status": "awaiting_independent_approval",
+  "policy": {
+    "launch_gate_only": true,
+    "manual_publication_action_required": true,
+    "single_use_authorization": true,
+    "publication_executed": false,
+    "release_tag_published": false,
+    "official_release_published": false,
+    "stable_channel_changed": false,
+    "live_deployment": false,
+    "service_restart": false,
+    "money_movement": false,
+    "guarded_lanes_activated": false
+  }
+}
