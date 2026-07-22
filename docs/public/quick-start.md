@@ -97,3 +97,18 @@ void-node update check --channel https://github.com/6ZoSo9/void-node/releases/la
 
 A stopped service remains stopped during apply. Running-service restart requires
 `--restart-if-running` and is protected by readiness-gated rollback.
+
+## Official stable release channel
+
+`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1`
+
+After the first official release is promoted, inspect the reviewed stable
+pointer without changing state:
+
+```bash
+void-node update check \
+  --channel https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json
+```
+
+Candidate application is refused unless an operator explicitly supplies
+`--allow-candidate`.

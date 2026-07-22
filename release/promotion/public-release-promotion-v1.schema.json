@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/public-release-promotion-v1.schema.json",
+  "title": "VOID Public Release Publication and Promotion v1",
+  "description": "Schemas for publication packets, immutable publication receipts, canary receipts, and hash-chained promotion state.",
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "tag": {"type": "string", "pattern": "^release-v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "bytes"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 1}
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "title": "Publication packet",
+      "type": "object",
+      "required": ["marker", "schema_version", "repository", "version", "release_tag", "source_commit", "assets", "policy"],
+      "properties": {
+        "marker": {"const": "VOID_RELEASE_PUBLICATION_PACKET_V1"},
+        "schema_version": {"const": 1},
+        "repository": {"$ref": "#/$defs/repository"},
+        "version": {"type": "string"},
+        "release_tag": {"$ref": "#/$defs/tag"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "assets": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/asset"}},
+        "policy": {
+          "type": "object",
+          "required": ["immutable_release_required", "release_attestation_required", "asset_attestations_required", "tag_replacement_allowed", "asset_replacement_allowed", "stable_promotion_requires_canary"],
+          "properties": {
+            "immutable_release_required": {"const": true},
+            "release_attestation_required": {"const": true},
+            "asset_attestations_required": {"const": true},
+            "tag_replacement_allowed": {"const": false},
+            "asset_replacement_allowed": {"const": false},
+            "stable_promotion_requires_canary": {"const": true}
+          }
+        }
+      }
+    },
+    {
+      "title": "Immutable publication receipt",
+      "type": "object",
+      "required": ["marker", "schema_version", "repository", "release_tag", "source_commit", "packet_sha256", "release", "verified_assets", "verification"],
+      "properties": {
+        "marker": {"const": "VOID_RELEASE_PUBLICATION_RECEIPT_V1"},
+        "schema_version": {"const": 1},
+        "repository": {"$ref": "#/$defs/repository"},
+        "release_tag": {"$ref": "#/$defs/tag"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "release": {
+          "type": "object",
+          "required": ["is_draft", "is_immutable"],
+          "properties": {"is_draft": {"const": false}, "is_immutable": {"const": true}}
+        },
+        "verified_assets": {"type": "array", "minItems": 5},
+        "verification": {
+          "type": "object",
+          "required": ["release_attestation_verified", "all_assets_verified", "artifact_attestations_verified"],
+          "properties": {
+            "release_attestation_verified": {"const": true},
+            "all_assets_verified": {"const": true},
+            "artifact_attestations_verified": {"const": true}
+          }
+        }
+      }
+    },
+    {
+      "title": "Canary receipt",
+      "type": "object",
+      "required": ["marker", "schema_version", "repository", "release_tag", "source_commit", "packet_sha256", "publication_receipt_sha256", "passed", "checks"],
+      "properties": {
+        "marker": {"const": "VOID_RELEASE_CANARY_RECEIPT_V1"},
+        "schema_version": {"const": 1},
+        "repository": {"$ref": "#/$defs/repository"},
+        "release_tag": {"$ref": "#/$defs/tag"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "publication_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "passed": {"const": true},
+        "checks": {"type": "object"}
+      }
+    },
+    {
+      "title": "Promotion ledger",
+      "type": "object",
+      "required": ["marker", "schema_version", "repository", "history_tip_sha256", "state", "history"],
+      "properties": {
+        "marker": {"const": "VOID_RELEASE_PROMOTION_LEDGER_V1"},
+        "schema_version": {"const": 1},
+        "repository": {"$ref": "#/$defs/repository"},
+        "history_tip_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+        "state": {"type": "object"},
+        "history": {"type": "array"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,246 @@
+name: public-release-publication-promotion-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-release-publication-promotion-v1.yml'
+      - '.github/workflows/public-release-canary-v1.yml'
+      - 'release/promotion/**'
+      - 'tools/void-release-promotion-v1.mjs'
+      - 'ops/release/**'
+      - 'scripts/prove_public_release_publication_promotion_v1.mjs'
+      - 'ops/security/public-release-publication-promotion-v1-proof.sh'
+      - 'release/bin/void-node-update'
+      - 'release/channel/public-release-channel-v1.schema.json'
+      - 'docs/public/release-publication-promotion-v1.md'
+      - 'docs/operators/release-publication-promotion-v1.md'
+      - 'docs/security/public-release-publication-promotion-v1-threat-model.md'
+      - 'public/public-node/void-network/release-publication-promotion-v1.*'
+      - 'Makefile'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-release-publication-promotion-v1.yml'
+      - '.github/workflows/public-release-canary-v1.yml'
+      - 'release/promotion/**'
+      - 'tools/void-release-promotion-v1.mjs'
+      - 'ops/release/**'
+      - 'scripts/prove_public_release_publication_promotion_v1.mjs'
+      - 'ops/security/public-release-publication-promotion-v1-proof.sh'
+      - 'release/bin/void-node-update'
+      - 'release/channel/public-release-channel-v1.schema.json'
+      - 'docs/public/release-publication-promotion-v1.md'
+      - 'docs/operators/release-publication-promotion-v1.md'
+      - 'docs/security/public-release-publication-promotion-v1-threat-model.md'
+      - 'public/public-node/void-network/release-publication-promotion-v1.*'
+      - 'Makefile'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'verify or publish'
+        required: true
+        default: verify
+        type: choice
+        options: [verify, publish]
+      version:
+        description: 'Exact package version, without release-v prefix'
+        required: false
+        type: string
+      source_commit:
+        description: 'Exact 40-character main commit to publish'
+        required: false
+        type: string
+      confirmation:
+        description: 'Exact PUBLISH VOID RELEASE phrase'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-release-publication-v1-${{ github.event.inputs.version || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: prove-publication-promotion-wall
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: make public-release-distribution-v1-proof
+      - run: make public-release-update-channel-v1-proof
+      - run: make public-release-publication-promotion-v1-proof
+
+  publish:
+    name: publish-immutable-release
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
+    needs: prove
+    runs-on: ubuntu-latest
+    environment: void-release-publication
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      GH_TOKEN: ${{ secrets.VOID_RELEASE_ADMIN_TOKEN }}
+      VERSION: ${{ inputs.version }}
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source_commit }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Fail closed on missing protected token
+        run: test -n "$GH_TOKEN"
+      - name: Exact publication preflight
+        run: |
+          set -euo pipefail
+          test "$VERSION" = "$(node -p 'require("./package.json").version')"
+          test "$SOURCE_COMMIT" = "$(git rev-parse HEAD)"
+          test "$SOURCE_COMMIT" = "$(git rev-parse origin/main)"
+          TAG="release-v${VERSION}"
+          test "$CONFIRMATION" = "PUBLISH VOID RELEASE ${TAG} AT ${SOURCE_COMMIT}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/immutable-releases" --jq '.enabled')" = true
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag already exists: ${TAG}" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release already exists: ${TAG}" >&2
+            exit 1
+          fi
+      - name: Build deterministic release, candidate/stable manifests, and publication packet
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          rm -rf dist-release
+          node tools/build-public-release-v1.mjs --out dist-release --version "$VERSION"
+          (cd dist-release && sha256sum --check --strict SHA256SUMS)
+          TAG="release-v${VERSION}"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          node tools/build-public-release-channel-v1.mjs \
+            --manifest dist-release/void-node-release-manifest.json \
+            --checksums dist-release/SHA256SUMS \
+            --base-url "$BASE" \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$TAG" \
+            --channel candidate \
+            --out dist-release/candidate-v1.json
+          node tools/build-public-release-channel-v1.mjs \
+            --manifest dist-release/void-node-release-manifest.json \
+            --checksums dist-release/SHA256SUMS \
+            --base-url "$BASE" \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$TAG" \
+            --channel stable \
+            --out dist-release/stable-v1.json
+          node tools/void-release-promotion-v1.mjs prepare \
+            --release-manifest dist-release/void-node-release-manifest.json \
+            --checksums dist-release/SHA256SUMS \
+            --channel-manifest dist-release/candidate-v1.json \
+            --asset-dir dist-release \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$VERSION" \
+            --release-tag "$TAG" \
+            --source-commit "$SOURCE_COMMIT" \
+            --out dist-release/publication-packet-v1.json
+          (cd dist-release && find . -maxdepth 1 -type f ! -name PUBLICATION-SHA256SUMS -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > PUBLICATION-SHA256SUMS)
+          (cd dist-release && sha256sum --check --strict PUBLICATION-SHA256SUMS)
+      - name: Attest release assets with build provenance
+        uses: actions/attest@v4
+        with:
+          subject-checksums: dist-release/PUBLICATION-SHA256SUMS
+      - name: Attest archive SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: dist-release/void-node-${{ inputs.version }}-linux-x64.tar.gz
+          sbom-path: dist-release/void-node-${{ inputs.version }}.spdx.json
+      - name: Create annotated tag and immutable release
+        run: |
+          set -euo pipefail
+          TAG="release-v${VERSION}"
+          git config user.name "VOID Release Publisher"
+          git config user.email "release-bot@void.network"
+          git tag -a "$TAG" "$SOURCE_COMMIT" -m "VOID Network ${TAG}" -m "Source commit: ${SOURCE_COMMIT}"
+          git push origin "refs/tags/${TAG}"
+          gh release create "$TAG" dist-release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --latest=false \
+            --title "VOID Network ${VERSION}" \
+            --notes-file "dist-release/void-node-${VERSION}-release-notes.txt"
+      - name: Verify immutable release and every local asset
+        run: |
+          set -euo pipefail
+          TAG="release-v${VERSION}"
+          test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isImmutable --jq '[.isDraft,.isImmutable] | @tsv')" = $'false\ttrue'
+          test "$(git ls-remote origin "refs/tags/${TAG}^{}" | awk '{print $1}')" = "$SOURCE_COMMIT"
+          gh release verify "$TAG" --repo "$GITHUB_REPOSITORY"
+          while read -r _ file; do
+            gh release verify-asset "$TAG" "dist-release/$file" --repo "$GITHUB_REPOSITORY"
+          done < dist-release/PUBLICATION-SHA256SUMS
+      - name: Build immutable publication receipt
+        run: |
+          set -euo pipefail
+          TAG="release-v${VERSION}"
+          python3 - "$GITHUB_REPOSITORY" "$TAG" "$SOURCE_COMMIT" <<'PY'
+          import hashlib, json, pathlib, subprocess, sys
+          repo, tag, commit = sys.argv[1:]
+          packet = json.loads(pathlib.Path('dist-release/publication-packet-v1.json').read_text())
+          expected = {x['name']: x for x in packet['assets']}
+          verified=[]
+          for name, item in sorted(expected.items()):
+              p=pathlib.Path('dist-release')/name
+              verified.append({
+                  'name': name,
+                  'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                  'bytes': p.stat().st_size,
+                  'release_asset_verified': True,
+                  'artifact_attestation_verified': True,
+              })
+          view=json.loads(subprocess.check_output([
+              'gh','release','view',tag,'--repo',repo,
+              '--json','url,publishedAt,isDraft,isImmutable,isPrerelease'
+          ], text=True))
+          view['tagName']=tag
+          view['targetCommitish']=commit
+          view['verified_assets']=verified
+          view['release_attestation_verified']=True
+          pathlib.Path('dist-release/release-verification-v1.json').write_text(json.dumps(view,indent=2,sort_keys=True)+'\n')
+          PY
+          node tools/void-release-promotion-v1.mjs record-published \
+            --packet dist-release/publication-packet-v1.json \
+            --release-json dist-release/release-verification-v1.json \
+            --out dist-release/publication-receipt-v1.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: void-release-publication-${{ inputs.version }}
+          path: |
+            dist-release/publication-packet-v1.json
+            dist-release/publication-receipt-v1.json
+            dist-release/PUBLICATION-SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publication boundary summary
+        run: |
+          echo "release_tag=release-v${VERSION}"
+          echo "source_commit=${SOURCE_COMMIT}"
+          echo "immutable_release=true"
+          echo "stable_promoted=false"
+          echo "live_deployment=false"
+          echo "service_restart=false"
+          echo "money_movement=false"
+          echo "guarded_lanes_activated=false"
+          echo "VOID_PUBLIC_RELEASE_PUBLICATION_WORKFLOW_V1_GREEN"

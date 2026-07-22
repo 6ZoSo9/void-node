@@ -1,69 +1,257 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://void.network/schemas/public-release-channel-v1.schema.json",
-  "title": "VOID Public Release Channel v1",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "required": ["marker", "schema_version", "channel", "generated_at_utc", "repository", "release_tag", "release", "assets", "verification", "policy"],
   "properties": {
-    "marker": {"const": "VOID_PUBLIC_RELEASE_CHANNEL_V1"},
-    "schema_version": {"const": 1},
-    "channel": {"enum": ["stable", "candidate"]},
-    "generated_at_utc": {"type": "string", "format": "date-time"},
-    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
-    "release_tag": {"type": "string", "pattern": "^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$"},
-    "release": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["version", "git_commit", "platform", "minimum_node_major", "archive", "archive_sha256", "archive_bytes"],
-      "properties": {
-        "version": {"type": "string", "minLength": 1},
-        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "platform": {"const": "linux-x64"},
-        "minimum_node_major": {"const": 22},
-        "archive": {"type": "string", "minLength": 1},
-        "archive_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "archive_bytes": {"type": "integer", "minimum": 1}
-      }
-    },
     "assets": {
-      "type": "object",
-      "minProperties": 5,
       "additionalProperties": {
-        "type": "object",
         "additionalProperties": false,
-        "required": ["name", "url", "sha256", "bytes"],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "url": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-          "bytes": {"type": "integer", "minimum": 1}
-        }
-      }
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "url": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "sha256",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "minProperties": 5,
+      "type": "object"
     },
-    "verification": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["checksum_algorithm", "github_attestation_required", "attestation_repository", "attestation_subjects"],
-      "properties": {
-        "checksum_algorithm": {"const": "sha256"},
-        "github_attestation_required": {"const": true},
-        "attestation_repository": {"type": "string", "minLength": 3},
-        "attestation_subjects": {"type": "array", "minItems": 1, "items": {"type": "string"}}
-      }
+    "channel": {
+      "enum": [
+        "stable",
+        "candidate"
+      ]
+    },
+    "generated_at_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_RELEASE_CHANNEL_V1"
     },
     "policy": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["downgrade_allowed_by_default", "service_started_implicitly", "restart_requires_explicit_flag", "health_gate_for_running_service", "rollback_on_health_failure", "guarded_lanes_activated"],
       "properties": {
-        "downgrade_allowed_by_default": {"const": false},
-        "service_started_implicitly": {"const": false},
-        "restart_requires_explicit_flag": {"const": true},
-        "health_gate_for_running_service": {"const": true},
-        "rollback_on_health_failure": {"const": true},
-        "guarded_lanes_activated": {"const": false}
-      }
+        "channel_frozen": {
+          "type": "boolean"
+        },
+        "downgrade_allowed_by_default": {
+          "const": false
+        },
+        "guarded_lanes_activated": {
+          "const": false
+        },
+        "health_gate_for_running_service": {
+          "const": true
+        },
+        "restart_requires_explicit_flag": {
+          "const": true
+        },
+        "rollback_on_health_failure": {
+          "const": true
+        },
+        "service_started_implicitly": {
+          "const": false
+        }
+      },
+      "required": [
+        "downgrade_allowed_by_default",
+        "service_started_implicitly",
+        "restart_requires_explicit_flag",
+        "health_gate_for_running_service",
+        "rollback_on_health_failure",
+        "guarded_lanes_activated"
+      ],
+      "type": "object"
+    },
+    "promotion": {
+      "additionalProperties": false,
+      "properties": {
+        "canary_receipt_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ]
+        },
+        "ledger_sequence": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "ledger_tip_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "promoted_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "candidate",
+            "stable"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "ledger_sequence",
+        "ledger_tip_sha256",
+        "canary_receipt_sha256",
+        "promoted_at_utc"
+      ],
+      "type": "object"
+    },
+    "publication": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_attestations_required": {
+          "const": true
+        },
+        "publication_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "release_attestation_required": {
+          "const": true
+        },
+        "release_immutable": {
+          "const": true
+        },
+        "release_verified": {
+          "const": true
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "release_immutable",
+        "release_verified",
+        "release_attestation_required",
+        "artifact_attestations_required",
+        "revoked",
+        "publication_receipt_sha256"
+      ],
+      "type": "object"
+    },
+    "release": {
+      "additionalProperties": false,
+      "properties": {
+        "archive": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "archive_bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "archive_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "git_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "minimum_node_major": {
+          "const": 22
+        },
+        "platform": {
+          "const": "linux-x64"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "git_commit",
+        "platform",
+        "minimum_node_major",
+        "archive",
+        "archive_sha256",
+        "archive_bytes"
+      ],
+      "type": "object"
+    },
+    "release_tag": {
+      "pattern": "^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$",
+      "type": "string"
+    },
+    "repository": {
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "verification": {
+      "additionalProperties": false,
+      "properties": {
+        "attestation_repository": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "attestation_subjects": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "checksum_algorithm": {
+          "const": "sha256"
+        },
+        "github_attestation_required": {
+          "const": true
+        }
+      },
+      "required": [
+        "checksum_algorithm",
+        "github_attestation_required",
+        "attestation_repository",
+        "attestation_subjects"
+      ],
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "marker",
+    "schema_version",
+    "channel",
+    "generated_at_utc",
+    "repository",
+    "release_tag",
+    "release",
+    "assets",
+    "verification",
+    "policy"
+  ],
+  "title": "VOID Public Release Channel v1",
+  "type": "object"
 }
