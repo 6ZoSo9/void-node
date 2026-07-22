@@ -1548,3 +1548,19 @@ public-release-qualification-v1-static-proof:
 .PHONY: public-release-qualification-v1-proof
 public-release-qualification-v1-proof:
 	bash ops/security/public-release-qualification-v1-proof.sh
+
+.PHONY: public-python-bytecode-hygiene-v1-static-proof
+public-python-bytecode-hygiene-v1-static-proof:
+	node scripts/prove_public_python_bytecode_hygiene_v1.mjs
+
+.PHONY: public-python-bytecode-hygiene-v1-proof
+public-python-bytecode-hygiene-v1-proof:
+	bash ops/security/public-python-bytecode-hygiene-v1-proof.sh
+
+.PHONY: public-first-official-release-rehearsal-v1-static-proof
+public-first-official-release-rehearsal-v1-static-proof:
+	node scripts/prove_public_first_official_release_rehearsal_v1.mjs
+
+.PHONY: public-first-official-release-rehearsal-v1-proof
+public-first-official-release-rehearsal-v1-proof:
+	bash ops/security/public-first-official-release-rehearsal-v1-proof.sh

@@ -1,0 +1,54 @@
+name: public-first-official-release-rehearsal-v1
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rehearsal_version:
+        description: Optional semver rehearsal version; no release or tag is published
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/void-python-bytecode-hygiene-v1
+      VOID_REHEARSAL_VERSION: ${{ inputs.rehearsal_version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          package-manager-cache: false
+      - name: Install development dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+      - name: Prove Python bytecode hygiene
+        run: make public-python-bytecode-hygiene-v1-proof
+      - name: Run first official release rehearsal
+        run: make public-first-official-release-rehearsal-v1-proof
+      - name: Confirm no release tag exists for the rehearsal version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(node -p 'require("./package.json").version')"
+          version="${VOID_REHEARSAL_VERSION:-}"
+          if test -z "$version"; then
+            case "$base" in
+              *-*) version="${base}.rehearsal.1" ;;
+              *) version="${base}-rehearsal.1" ;;
+            esac
+          fi
+          test -z "$(git tag --list "release-v${version}")"
+          echo "release_tag_published=false"
+          echo "official_release_published=false"
+          echo "live_deployment=false"

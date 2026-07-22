@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/public-first-official-release-rehearsal-v1.schema.json",
+  "title": "VOID first official release rehearsal v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "repository",
+        "version",
+        "official_release_tag",
+        "source_commit",
+        "rehearsal_namespace",
+        "sha256sums_sha256",
+        "asset_manifest_sha256",
+        "assets",
+        "requirements",
+        "policy"
+      ],
+      "properties": {
+        "marker": { "const": "VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_PACKET_V1" },
+        "schema_version": { "const": 1 },
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "version": { "type": "string" },
+        "official_release_tag": { "type": "string", "pattern": "^release-v" },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "rehearsal_namespace": { "type": "string", "pattern": "^rehearsal/release-v" },
+        "sha256sums_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "asset_manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "assets": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["name", "sha256", "bytes"],
+            "properties": {
+              "name": { "type": "string" },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "policy": { "$ref": "#/$defs/noMutationPolicy" }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "repository",
+        "version",
+        "official_release_tag",
+        "source_commit",
+        "packet_sha256",
+        "stage_receipt_sha256s",
+        "history_tip_sha256",
+        "passed",
+        "policy"
+      ],
+      "properties": {
+        "marker": { "const": "VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_RECEIPT_V1" },
+        "schema_version": { "const": 1 },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "packet_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "stage_receipt_sha256s": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "history_tip_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "passed": { "const": true },
+        "policy": { "$ref": "#/$defs/noMutationPolicy" }
+      }
+    }
+  ],
+  "$defs": {
+    "noMutationPolicy": {
+      "type": "object",
+      "required": [
+        "rehearsal_only",
+        "release_tag_published",
+        "official_release_published",
+        "live_deployment",
+        "service_restart",
+        "money_movement",
+        "guarded_lanes_activated"
+      ],
+      "properties": {
+        "rehearsal_only": { "const": true },
+        "release_tag_published": { "const": false },
+        "official_release_published": { "const": false },
+        "live_deployment": { "const": false },
+        "service_restart": { "const": false },
+        "money_movement": { "const": false },
+        "guarded_lanes_activated": { "const": false }
+      }
+    }
+  }
+}

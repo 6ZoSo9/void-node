@@ -221,3 +221,19 @@ stable promotion.
 
 This infrastructure does not publish a release or deploy a live node. See
 [release qualification v1](docs/public/release-qualification-v1.md).
+
+## First official release rehearsal
+
+`VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1` removes tracked Python
+bytecode, enforces bytecode-free proofs, normalizes GitHub operations to
+non-interactive SSH, and rehearses the complete first official release chain
+without publishing a tag or release.
+
+Run:
+
+```bash
+make public-python-bytecode-hygiene-v1-proof
+make public-first-official-release-rehearsal-v1-proof
+```
+
+See [first official release rehearsal v1](docs/public/first-official-release-rehearsal-v1.md).

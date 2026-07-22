@@ -120,3 +120,14 @@ Candidate application is refused unless an operator explicitly supplies
 A release is eligible for the stable channel only after the immutable
 publication, canary, complete qualification matrix, and independent reviewer
 approval are all hash-bound in promotion state.
+
+## Release rehearsal status
+
+`VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1`
+
+Before the first official release, operators run a complete no-publish
+rehearsal. It creates no release tag and does not deploy or restart a node.
+
+```bash
+make public-first-official-release-rehearsal-v1-proof
+```
