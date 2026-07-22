@@ -1,0 +1,12 @@
+{
+  "marker": "VOID_PUBLIC_RELEASE_CHANNEL_INDEX_V1",
+  "schema_version": 1,
+  "status": "awaiting_first_official_release",
+  "candidate": "/public-node/void-network/channels/candidate-v1.json",
+  "stable": "/public-node/void-network/channels/stable-v1.json",
+  "history": "/public-node/void-network/channels/release-history-v1.json",
+  "revocations": "/public-node/void-network/channels/release-revocations-v1.json",
+  "freeze": "/public-node/void-network/channels/release-freeze-v1.json",
+  "state_summary": "/public-node/void-network/channels/release-state-summary-v1.json",
+  "canonical_stable_raw": "https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json"
+}

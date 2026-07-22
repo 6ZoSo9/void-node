@@ -64,3 +64,17 @@ void-node update rollback
 
 The previous release must pass its internal checksum manifest before the
 atomic pointer swap.
+
+## Canonical promoted channel
+
+`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1`
+
+The canonical stable pointer is the reviewed `main` branch artifact:
+
+```text
+https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json
+```
+
+Official promoted channels carry immutable publication and hash-chained
+promotion metadata. Revoked releases are rejected, and candidate application
+requires `--allow-candidate`.

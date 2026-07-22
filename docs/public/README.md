@@ -104,3 +104,5 @@ When a current-state claim changes, update these files instead of appending anot
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
 
 - [Verified release update channel v1](release-update-channel-v1.md) — stable-channel discovery, anti-downgrade apply, attestation verification, and health-gated rollback.
+
+- [Release publication and promotion v1](release-publication-promotion-v1.md) — immutable releases, canary-gated candidate/stable promotion, freeze, revocation, and rollback. <!-- VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1 -->

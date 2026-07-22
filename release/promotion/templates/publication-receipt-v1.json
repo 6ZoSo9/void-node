@@ -1,0 +1,22 @@
+{
+  "marker": "VOID_RELEASE_PUBLICATION_RECEIPT_V1",
+  "schema_version": 1,
+  "repository": "6ZoSo9/void-node",
+  "release_tag": "release-v0.0.0",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "packet_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "published_at_utc": "1970-01-01T00:00:00.000Z",
+  "release": {
+    "url": null,
+    "is_draft": false,
+    "is_immutable": true,
+    "is_prerelease": false
+  },
+  "verified_assets": [],
+  "verification": {
+    "release_attestation_verified": true,
+    "all_assets_verified": true,
+    "artifact_attestations_verified": true
+  },
+  "guarded_lanes_activated": false
+}

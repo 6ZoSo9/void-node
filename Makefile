@@ -1532,3 +1532,11 @@ public-release-channel-build-v1:
 	  --release-tag "$(RELEASE_TAG)" \
 	  --channel stable \
 	  --out dist-release/stable-v1.json
+
+.PHONY: public-release-publication-promotion-v1-static-proof
+public-release-publication-promotion-v1-static-proof:
+	node scripts/prove_public_release_publication_promotion_v1.mjs
+
+.PHONY: public-release-publication-promotion-v1-proof
+public-release-publication-promotion-v1-proof:
+	bash ops/security/public-release-publication-promotion-v1-proof.sh

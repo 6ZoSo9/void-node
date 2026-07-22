@@ -210,3 +210,7 @@ public/public-node/datanet/field-object-mirrors/
 # VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN
 dist-release/
 # VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END
+
+# Local operator release-promotion state is never public source.
+release/promotion/state/
+.release-promotion-state/

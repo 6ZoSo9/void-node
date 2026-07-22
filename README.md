@@ -201,3 +201,13 @@ void-node update check --channel https://github.com/6ZoSo9/void-node/releases/la
 ```
 
 See [release update channel v1](docs/public/release-update-channel-v1.md).
+
+## Immutable release publication and promotion
+
+`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1` adds protected immutable
+GitHub Release publication, attested publication and canary receipts,
+hash-chained candidate/stable promotion, freeze, revocation, rollback, and
+public release-channel state.
+
+No real release is published by merging this infrastructure. See
+[release publication and promotion v1](docs/public/release-publication-promotion-v1.md).

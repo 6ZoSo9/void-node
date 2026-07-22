@@ -45,7 +45,9 @@ function validateChannel(j,allowFile){
   }
   if(j.assets.archive.sha256!==j.release.archive_sha256||j.assets.archive.bytes!==j.release.archive_bytes)fail("archive binding mismatch");
   if(j.verification?.checksum_algorithm!=="sha256"||j.verification?.github_attestation_required!==true||j.verification?.attestation_repository!==j.repository)fail("unsafe verification policy");
-  const p=j.policy||{};if(p.downgrade_allowed_by_default!==false||p.service_started_implicitly!==false||p.restart_requires_explicit_flag!==true||p.health_gate_for_running_service!==true||p.rollback_on_health_failure!==true||p.guarded_lanes_activated!==false)fail("unsafe update policy");
+  if(j.publication!==undefined){const publication=j.publication;if(publication.release_immutable!==true||publication.release_verified!==true||publication.release_attestation_required!==true||publication.artifact_attestations_required!==true||publication.revoked!==false||!/^[0-9a-f]{64}$/.test(publication.publication_receipt_sha256||""))fail("unsafe or revoked publication metadata");}
+  if(j.promotion!==undefined){const promotion=j.promotion;if(promotion.state!==j.channel||!Number.isSafeInteger(promotion.ledger_sequence)||promotion.ledger_sequence<1||!/^[0-9a-f]{64}$/.test(promotion.ledger_tip_sha256||"")||(promotion.canary_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.canary_receipt_sha256||"")))fail("invalid promotion metadata");if(j.channel==="stable"&&!promotion.canary_receipt_sha256)fail("stable promotion requires canary receipt binding");}
+  const p=j.policy||{};if(p.downgrade_allowed_by_default!==false||p.service_started_implicitly!==false||p.restart_requires_explicit_flag!==true||p.health_gate_for_running_service!==true||p.rollback_on_health_failure!==true||p.guarded_lanes_activated!==false||(p.channel_frozen!==undefined&&typeof p.channel_frozen!=="boolean"))fail("unsafe update policy");
   return j;
 }
 function currentInfo(installRoot){const p=path.join(installRoot,"current","BUILD-INFO.json");if(!fs.existsSync(p))fail(`missing current build info: ${p}`);return readJson(p);}
@@ -80,7 +82,7 @@ async function downloadAsset(a,dest,allowFile){
   fs.writeFileSync(dest,b,{mode:a.name.endsWith(".sh")?0o755:0o644});
 }
 function parseArgs(){
-  const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
+  const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
   for(let i=0;i<argv.length;i++){
     const a=argv[i];
     if(a==="--channel")o.channel=argv[++i]||fail("--channel needs a source");
@@ -90,6 +92,7 @@ function parseArgs(){
     else if(a==="--health-command")o.healthCommand=argv[++i]||fail("--health-command needs a command");
     else if(a==="--yes")o.yes=true;
     else if(a==="--allow-downgrade")o.allowDowngrade=true;
+    else if(a==="--allow-candidate")o.allowCandidate=true;
     else if(a==="--restart-if-running")o.restartIfRunning=true;
     else if(a==="--test-allow-file")o.testAllowFile=true;
     else if(a==="--skip-attestation")o.skipAttestation=true;
@@ -111,14 +114,15 @@ async function main(){
   const o=parseArgs();const self=fs.realpathSync(process.argv[1]);const releaseRoot=path.dirname(path.dirname(self));const inferredInstall=path.dirname(path.dirname(releaseRoot));
   const installRoot=path.resolve(o.installRoot||process.env.VOID_NODE_INSTALL_ROOT||inferredInstall);const binDir=path.resolve(o.binDir||process.env.VOID_NODE_BIN_DIR||path.join(os.homedir(),".local","bin"));
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
-    say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
+    say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
   if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active);return;}
   if(!o.channel)fail("--channel is required");
   const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
-  say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
+  say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
   if(o.command==="check")return;
   if(o.command!=="apply")fail(`unknown command: ${o.command}`);
+  if(channel.channel==="candidate"&&!o.allowCandidate)fail("candidate channel apply requires --allow-candidate");
   if(cmp===0){say(`${MARKER}_ALREADY_CURRENT`);return;}
   if(cmp<0&&!o.allowDowngrade)fail(`downgrade refused: ${cur.version} -> ${channel.release.version}`);
   await confirm(o,`Apply verified VOID update ${cur.version} -> ${channel.release.version}?`);
