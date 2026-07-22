@@ -98,6 +98,27 @@ const prefixAllow = [
   "/docs/public",
 ];
 
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_FETCH_V1
+const DATANET_FETCH_PATH_V1_RE =
+  /^\/datanet\/v1\/fetch\/[A-Za-z0-9._:-]{1,180}$/;
+const DATANET_FETCH_WHO_V1_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+
+function publicDataNetFetchAllowed(pathname, search = "") {
+  if (!DATANET_FETCH_PATH_V1_RE.test(pathname)) return false;
+  if (!search) return true;
+
+  const params = new URLSearchParams(search);
+  if ([...params.keys()].some((key) => key !== "who")) return false;
+
+  const whoValues = params.getAll("who");
+  if (whoValues.length === 0) return true;
+  return (
+    whoValues.length === 1 &&
+    DATANET_FETCH_WHO_V1_RE.test(whoValues[0] || "")
+  );
+}
+
+
 const blocked = [
   "/rpc",
   "/admin",
@@ -130,11 +151,12 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.floor(parsed)));
 }
 
-function allowed(pathname) {
+function allowed(pathname, search = "") {
   if (blocked.some((value) => pathname === value || pathname.startsWith(`${value}/`))) {
     return false;
   }
   if (exactAllow.has(pathname)) return true;
+  if (publicDataNetFetchAllowed(pathname, search)) return true;
   return prefixAllow.some((value) => pathname === value || pathname.startsWith(`${value}/`));
 }
 
@@ -772,7 +794,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (!allowed(url.pathname)) {
+    if (!allowed(url.pathname, url.search)) {
       writeText(req, res, 404, "not_public\n");
       return;
     }
