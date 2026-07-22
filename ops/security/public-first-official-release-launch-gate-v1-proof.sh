@@ -11,6 +11,7 @@ node scripts/prove_public_release_publication_promotion_v1.mjs
 node scripts/prove_public_release_qualification_v1.mjs
 node scripts/prove_public_first_official_release_rehearsal_v1.mjs
 node scripts/prove_public_python_bytecode_hygiene_v1.mjs
+bash -n ops/release/configure-void-release-publication-solo-v1.sh
 grep -Fq 'PYTHONPYCACHEPREFIX="$OUT/qualification-pycache" python3 -m py_compile' ops/security/public-release-qualification-v1-proof.sh
 grep -Fq 'PYTHONPYCACHEPREFIX="$OUT/publication-pycache" python3 -m py_compile' ops/security/public-release-publication-promotion-v1-proof.sh
 CACHE_PROBE="$(mktemp -d -t void-launch-gate-python-cache-probe-XXXXXX)"
@@ -31,11 +32,14 @@ REPOSITORY="6ZoSo9/void-node"
 TAG="release-v${VERSION}"
 NOW="2030-01-01T00:00:00Z"
 EXPIRES="2030-01-01T04:00:00Z"
+SOLO_EXPIRES="2030-01-02T00:00:00Z"
 A="$ROOT/build-a"
 B="$ROOT/build-b"
 REHEARSAL="$ROOT/rehearsal"
 STATE="$ROOT/gate"
+SOLO_STATE="$ROOT/solo-gate"
 PREFLIGHT="$ROOT/preflight.json"
+SOLO_PREFLIGHT="$ROOT/solo-preflight.json"
 TOOL="tools/void-first-official-release-launch-gate-v1.mjs"
 WORKFLOW=".github/workflows/public-release-publication-promotion-v1.yml"
 
@@ -52,21 +56,37 @@ node tools/void-first-official-release-rehearsal-v1.mjs run-all \
   --release-dir "$A" --state-dir "$REHEARSAL" --now "$NOW"
 node tools/void-first-official-release-rehearsal-v1.mjs verify --release-dir "$A" --state-dir "$REHEARSAL"
 
-python3 - "$PREFLIGHT" "$REPOSITORY" "$VERSION" "$TAG" "$COMMIT" "$NOW" "$(sha256sum "$WORKFLOW" | awk '{print $1}')" <<'PY'
-import json,sys
-out,repo,version,tag,commit,now,wsha=sys.argv[1:]
-obj={
+python3 - "$PREFLIGHT" "$SOLO_PREFLIGHT" "$REPOSITORY" "$VERSION" "$TAG" "$COMMIT" "$NOW" "$(sha256sum "$WORKFLOW" | awk '{print $1}')" <<'PY'
+import copy,json,sys
+independent_out,solo_out,repo,version,tag,commit,now,wsha=sys.argv[1:]
+base={
  'marker':'VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_PREFLIGHT_V1','schema_version':1,
  'repository':repo,'version':version,'release_tag':tag,'source_commit':commit,
  'origin_main_commit':commit,'package_version':version,'branch':'main',
  'working_tree_clean':True,'remote_transport':'ssh','github_auth_ok':True,
  'remote_tag_absent':True,'github_release_absent':True,'immutable_releases_enabled':True,
- 'publication_environment':{'name':'void-release-publication','exists':True,'protected':True,'required_reviewers':2,'prevent_self_review':True},
  'publication_workflow':{'path':'.github/workflows/public-release-publication-promotion-v1.yml','sha256':wsha,'publish_action':'publish','confirmation':f'PUBLISH VOID RELEASE {tag} AT {commit}'},
  'foundation_proofs':{'distribution':True,'update_channel':True,'publication_promotion':True,'qualification':True,'rehearsal':True,'python_bytecode_hygiene':True},
  'observed_at_utc':now,'live_github_observation':False,
 }
-open(out,'w').write(json.dumps(obj,indent=2,sort_keys=True)+'\n')
+independent=copy.deepcopy(base)
+independent['review_mode']='independent_review_v1'
+independent['independent_review']=True
+independent['publication_environment']={
+ 'name':'void-release-publication','exists':True,'protected':True,
+ 'review_mode':'independent_review_v1','required_reviewers':2,'prevent_self_review':True,
+ 'wait_timer_minutes':0,'deployment_branch_main_only':True,
+}
+solo=copy.deepcopy(base)
+solo['review_mode']='solo_time_lock_v1'
+solo['independent_review']=False
+solo['publication_environment']={
+ 'name':'void-release-publication','exists':True,'protected':True,
+ 'review_mode':'solo_time_lock_v1','required_reviewers':0,'prevent_self_review':False,
+ 'wait_timer_minutes':720,'deployment_branch_main_only':True,
+}
+for out,obj in [(independent_out,independent),(solo_out,solo)]:
+    open(out,'w').write(json.dumps(obj,indent=2,sort_keys=True)+'\n')
 PY
 
 expect_fail(){
@@ -85,7 +105,7 @@ node "$TOOL" prepare --test-mode \
   --repository "$REPOSITORY" --version "$VERSION" --source-commit "$COMMIT" \
   --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" \
   --preflight "$PREFLIGHT" --workflow-file "$WORKFLOW" --preparer-id release-preparer-a \
-  --now "$NOW" --expires-at "$EXPIRES" --state-dir "$STATE"
+  --now "$NOW" --expires-at "$EXPIRES" --state-dir "$STATE" --review-mode independent_review_v1
 PACKET="$STATE/launch-packet-v1.json"
 APPROVAL="$STATE/launch-approval-v1.json"
 AUTH="$STATE/launch-authorization-v1.json"
@@ -140,7 +160,54 @@ printf '\n' >> "$TAMPERED_RECORD/launch-approval-v1.json"
 expect_fail launch-record-tamper node "$TOOL" verify-record --test-mode --record-dir "$TAMPERED_RECORD" --release-dir-a "$A" --release-dir-b "$B" --workflow-file "$WORKFLOW" --now "2030-01-01T01:00:00Z"
 expect_fail expired-authorization node "$TOOL" verify "${COMMON[@]}" --now "2030-01-01T04:00:01Z"
 
-echo '=== [6] fail-closed preflight, asset, and packet boundaries ==='
+echo '=== [6] explicit solo time-lock path without fake independent review ==='
+node "$TOOL" prepare --test-mode \
+  --repository "$REPOSITORY" --version "$VERSION" --source-commit "$COMMIT" \
+  --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" \
+  --preflight "$SOLO_PREFLIGHT" --workflow-file "$WORKFLOW" --preparer-id solo-operator-a \
+  --now "$NOW" --expires-at "$SOLO_EXPIRES" --state-dir "$SOLO_STATE" --review-mode solo_time_lock_v1
+SOLO_PACKET="$SOLO_STATE/launch-packet-v1.json"
+SOLO_APPROVAL="$SOLO_STATE/launch-approval-v1.json"
+SOLO_AUTH="$SOLO_STATE/launch-authorization-v1.json"
+SOLO_PACKET_SHA="$(sha256sum "$SOLO_PACKET" | awk '{print $1}')"
+SOLO_APPROVE_PHRASE="ACKNOWLEDGE SOLO VOID RELEASE LAUNCH ${TAG} AT ${COMMIT} WITHOUT INDEPENDENT REVIEW PACKET ${SOLO_PACKET_SHA}"
+SOLO_SEAL_PHRASE="SEAL SOLO VOID RELEASE LAUNCH ${TAG} AT ${COMMIT} UNTIL ${SOLO_EXPIRES} PACKET ${SOLO_PACKET_SHA}"
+expect_fail solo-cannot-pretend-second-reviewer node "$TOOL" approve --packet "$SOLO_PACKET" --reviewer-id invented-reviewer --confirmation "$SOLO_APPROVE_PHRASE" --now "2030-01-01T00:10:00Z" --out "$ROOT/bad-solo-approval.json"
+expect_fail solo-independent-phrase-refused node "$TOOL" approve --packet "$SOLO_PACKET" --reviewer-id solo-operator-a --confirmation "APPROVE VOID RELEASE LAUNCH ${TAG} AT ${COMMIT} PACKET ${SOLO_PACKET_SHA}" --now "2030-01-01T00:10:00Z" --out "$ROOT/bad-solo-approval2.json"
+node "$TOOL" approve --packet "$SOLO_PACKET" --reviewer-id solo-operator-a --confirmation "$SOLO_APPROVE_PHRASE" --now "2030-01-01T00:10:00Z" --out "$SOLO_APPROVAL"
+node "$TOOL" seal --packet "$SOLO_PACKET" --approval "$SOLO_APPROVAL" --authorizer-id solo-operator-a --confirmation "$SOLO_SEAL_PHRASE" --now "2030-01-01T00:20:00Z" --out "$SOLO_AUTH"
+SOLO_COMMON=(--test-mode --packet "$SOLO_PACKET" --approval "$SOLO_APPROVAL" --authorization "$SOLO_AUTH" --preflight "$SOLO_PREFLIGHT" --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" --workflow-file "$WORKFLOW")
+node "$TOOL" verify "${SOLO_COMMON[@]}" --now "2030-01-01T01:00:00Z"
+node "$TOOL" render "${SOLO_COMMON[@]}" --now "2030-01-01T01:00:00Z" --out-dir "$SOLO_STATE/rendered"
+SOLO_LAUNCH_ID="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["launch_id"])' "$SOLO_PACKET")"
+SOLO_RECORD_DIR="$SOLO_STATE/rendered/launch-record/$SOLO_LAUNCH_ID"
+node "$TOOL" verify-record --test-mode --record-dir "$SOLO_RECORD_DIR" --release-dir-a "$A" --release-dir-b "$B" --workflow-file "$WORKFLOW" --now "2030-01-01T01:00:00Z"
+python3 - "$SOLO_PACKET" "$SOLO_APPROVAL" "$SOLO_AUTH" "$SOLO_STATE/rendered/launch-gate-status-v1.json" <<'PY'
+import json,sys
+packet,approval,auth,status=map(lambda p:json.load(open(p)),sys.argv[1:])
+assert packet['review_mode']=='solo_time_lock_v1'
+assert packet['independent_review'] is False and packet['solo_operator'] is True
+assert packet['status']=='awaiting_solo_operator_confirmation'
+assert packet['requirements']['independent_approval_required'] is False
+assert packet['requirements']['solo_operator_time_lock_required'] is True
+assert packet['requirements']['minimum_environment_wait_timer_minutes']==720
+assert approval['reviewer_id']==packet['preparer_id']=='solo-operator-a'
+assert approval['independent_review'] is False and approval['risk_acknowledgement']=='NO_INDEPENDENT_REVIEW'
+assert auth['authorizer_id']=='solo-operator-a'
+assert auth['independent_review'] is False and auth['risk_acknowledgement']=='NO_INDEPENDENT_REVIEW'
+assert status['review_mode']=='solo_time_lock_v1' and status['independent_review'] is False
+print('solo_time_lock_path_verified=true')
+print('independent_review_claimed=false')
+PY
+expect_fail solo-short-packet-lifetime node "$TOOL" prepare --test-mode --repository "$REPOSITORY" --version "$VERSION" --source-commit "$COMMIT" --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" --preflight "$SOLO_PREFLIGHT" --workflow-file "$WORKFLOW" --preparer-id solo-operator-a --now "$NOW" --expires-at "$EXPIRES" --state-dir "$ROOT/solo-short-state" --review-mode solo_time_lock_v1
+python3 - "$SOLO_PREFLIGHT" "$ROOT/solo-preflight-short-wait.json" <<'PY'
+import json,sys
+obj=json.load(open(sys.argv[1]));obj['publication_environment']['wait_timer_minutes']=719
+open(sys.argv[2],'w').write(json.dumps(obj,indent=2,sort_keys=True)+'\n')
+PY
+expect_fail solo-short-environment-wait node "$TOOL" prepare --test-mode --repository "$REPOSITORY" --version "$VERSION" --source-commit "$COMMIT" --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" --preflight "$ROOT/solo-preflight-short-wait.json" --workflow-file "$WORKFLOW" --preparer-id solo-operator-a --now "$NOW" --expires-at "$SOLO_EXPIRES" --state-dir "$ROOT/solo-short-wait-state" --review-mode solo_time_lock_v1
+
+echo '=== [7] fail-closed preflight, asset, and packet boundaries ==='
 python3 - "$PREFLIGHT" "$ROOT/preflight-immutable-false.json" "$ROOT/preflight-tag-present.json" "$ROOT/preflight-env-unprotected.json" <<'PY'
 import copy,json,sys
 src=json.load(open(sys.argv[1]))
@@ -166,11 +233,15 @@ p=sys.argv[1];j=json.load(open(p));j['release']['assets'][0]['bytes']+=1;open(p,
 PY
 expect_fail packet-tamper node "$TOOL" verify --test-mode --packet "$ROOT/tampered-packet.json" --approval "$APPROVAL" --authorization "$AUTH" --preflight "$PREFLIGHT" --release-dir-a "$A" --release-dir-b "$B" --rehearsal-state-dir "$REHEARSAL" --workflow-file "$WORKFLOW" --now "2030-01-01T01:00:00Z"
 
-echo '=== [7] explicit abort invalidates the sealed launch and committed record ==='
+echo '=== [8] explicit abort invalidates the sealed launch and committed record ==='
 node "$TOOL" abort --packet "$PACKET" --approval "$APPROVAL" --authorization "$AUTH" --actor-id release-preparer-a --reason "operator requested abort during proof" --confirmation "$ABORT_PHRASE" --now "2030-01-01T01:30:00Z" --out "$ABORT"
 expect_fail aborted-launch node "$TOOL" verify "${COMMON[@]}" --abort "$ABORT" --now "2030-01-01T01:31:00Z"
 
-echo '=== [8] no publication or live mutation boundary ==='
+echo '=== [9] no publication or live mutation boundary ==='
+echo 'independent_review_path_verified=true'
+echo 'solo_time_lock_path_verified=true'
+echo 'independent_review_claimed_in_solo_mode=false'
+echo 'solo_environment_wait_timer_minutes_minimum=720'
 echo 'sealed_launch_record_rendered=true'
 echo 'publication_command_finalized_with_record_commit=true'
 echo 'publication_command_rendered=true'

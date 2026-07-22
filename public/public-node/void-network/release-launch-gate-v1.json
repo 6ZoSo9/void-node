@@ -19,5 +19,14 @@
   "sealed_launch_record_required": true,
   "launch_record_committed_to_main": false,
   "publication_workflow_reverification_required": true,
-  "publication_command_finalized": false
+  "publication_command_finalized": false,
+  "supported_review_modes": [
+    "independent_review_v1",
+    "solo_time_lock_v1"
+  ],
+  "preferred_review_mode": "independent_review_v1",
+  "solo_mode_independent_review": false,
+  "solo_mode_minimum_wait_timer_minutes": 720,
+  "solo_mode_main_only": true,
+  "solo_mode_explicit_risk_acknowledgement": true
 }
