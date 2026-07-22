@@ -87,7 +87,7 @@ node --check tools/void-release-qualification-v1.mjs
 node --check tools/void-release-promotion-v1.mjs
 bash -n ops/release/void-release-qualification-runner-v1.sh
 bash -n ops/release/void-release-qualification-dispatch-v1.sh
-python3 -m py_compile ops/release/void-release-qualification-pr-v1.py
+PYTHONPYCACHEPREFIX="$OUT/qualification-pycache" python3 -m py_compile ops/release/void-release-qualification-pr-v1.py
 
 echo "=== [2] build immutable release fixture and qualification plan ==="
 COMMIT="$(git rev-parse HEAD)"

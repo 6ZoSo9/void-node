@@ -1,0 +1,422 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/public-first-official-release-launch-gate-v1.schema.json",
+  "title": "VOID first official release launch gate v1",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/packet"
+    },
+    {
+      "$ref": "#/$defs/approval"
+    },
+    {
+      "$ref": "#/$defs/authorization"
+    },
+    {
+      "$ref": "#/$defs/abort"
+    },
+    {
+      "$ref": "#/$defs/record"
+    },
+    {
+      "$ref": "#/$defs/command"
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "launch_gate_only",
+        "manual_publication_action_required",
+        "single_use_authorization",
+        "publication_executed",
+        "release_tag_published",
+        "official_release_published",
+        "stable_channel_changed",
+        "live_deployment",
+        "service_restart",
+        "money_movement",
+        "guarded_lanes_activated"
+      ],
+      "properties": {
+        "launch_gate_only": {
+          "const": true
+        },
+        "manual_publication_action_required": {
+          "const": true
+        },
+        "single_use_authorization": {
+          "const": true
+        },
+        "publication_executed": {
+          "const": false
+        },
+        "release_tag_published": {
+          "const": false
+        },
+        "official_release_published": {
+          "const": false
+        },
+        "stable_channel_changed": {
+          "const": false
+        },
+        "live_deployment": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        },
+        "guarded_lanes_activated": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "packet": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "repository",
+        "version",
+        "release_tag",
+        "source_commit",
+        "created_at_utc",
+        "expires_at_utc",
+        "preparer_id",
+        "preflight_sha256",
+        "release",
+        "rehearsal",
+        "exact_publication",
+        "requirements",
+        "status",
+        "policy"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_PACKET_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "launch_id": {
+          "type": "string",
+          "pattern": "^launch-release-v[0-9A-Za-z.+-]+-[0-9a-f]{16}$"
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "version": {
+          "type": "string"
+        },
+        "release_tag": {
+          "type": "string",
+          "pattern": "^release-v"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/commit"
+        },
+        "created_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "preparer_id": {
+          "type": "string",
+          "minLength": 2
+        },
+        "preflight_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "const": "awaiting_independent_approval"
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "additionalProperties": true
+    },
+    "approval": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "packet_sha256",
+        "reviewer_id",
+        "approved",
+        "confirmation",
+        "policy"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_APPROVAL_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reviewer_id": {
+          "type": "string",
+          "minLength": 2
+        },
+        "approved": {
+          "const": true
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "additionalProperties": true
+    },
+    "authorization": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "packet_sha256",
+        "approval_sha256",
+        "authorizer_id",
+        "authorized",
+        "single_use",
+        "expires_at_utc",
+        "policy"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_AUTHORIZATION_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authorized": {
+          "const": true
+        },
+        "single_use": {
+          "const": true
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "additionalProperties": true
+    },
+    "abort": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "packet_sha256",
+        "approval_sha256",
+        "authorization_sha256",
+        "actor_id",
+        "aborted",
+        "reason",
+        "policy"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_ABORT_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authorization_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "aborted": {
+          "const": true
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "additionalProperties": true
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "repository",
+        "release_tag",
+        "source_commit",
+        "packet_sha256",
+        "approval_sha256",
+        "authorization_sha256",
+        "expires_at_utc",
+        "publication_workflow_sha256",
+        "source_release_sha256sums_sha256",
+        "rehearsal_receipt_sha256",
+        "files",
+        "publication_executed",
+        "release_tag_published",
+        "official_release_published"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_RECORD_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "source_commit": {
+          "$ref": "#/$defs/commit"
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authorization_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publication_workflow_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_release_sha256sums_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rehearsal_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 12,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256",
+              "bytes"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "publication_executed": {
+          "const": false
+        },
+        "release_tag_published": {
+          "const": false
+        },
+        "official_release_published": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "command": {
+      "type": "object",
+      "required": [
+        "marker",
+        "schema_version",
+        "launch_id",
+        "launch_record_commit",
+        "launch_record_commit_finalized",
+        "packet_sha256",
+        "approval_sha256",
+        "authorization_sha256",
+        "repository",
+        "release_tag",
+        "source_commit",
+        "workflow_file",
+        "executable_by_gate",
+        "command_argv",
+        "shell_display",
+        "policy"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_FIRST_OFFICIAL_RELEASE_PUBLICATION_COMMAND_V1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "launch_record_commit": {
+          "type": "string"
+        },
+        "launch_record_commit_finalized": {
+          "type": "boolean"
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authorization_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/commit"
+        },
+        "executable_by_gate": {
+          "const": false
+        },
+        "command_argv": {
+          "type": "array",
+          "minItems": 10,
+          "items": {
+            "type": "string"
+          }
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

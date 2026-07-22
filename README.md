@@ -237,3 +237,19 @@ make public-first-official-release-rehearsal-v1-proof
 ```
 
 See [first official release rehearsal v1](docs/public/first-official-release-rehearsal-v1.md).
+
+## First official release launch gate
+
+`VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1` installs the last
+non-publishing control plane before an official VOID release. It also repairs
+the qualification proof so Python syntax validation cannot leak bytecode into
+the repository. The gate freezes an exact clean `main` commit and semantic
+version, binds two deterministic builds to the complete release rehearsal,
+requires independent approval and an expiring single-use authorization, and
+renders an inert publication command.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).

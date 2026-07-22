@@ -131,3 +131,14 @@ rehearsal. It creates no release tag and does not deploy or restart a node.
 ```bash
 make public-first-official-release-rehearsal-v1-proof
 ```
+
+## Official release launch gate
+
+Before any official release publication, operators must pass the exact-source
+launch gate. The gate renders the publication command but does not run it.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+`VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1`
