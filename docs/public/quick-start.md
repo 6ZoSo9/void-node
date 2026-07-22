@@ -142,3 +142,16 @@ make public-first-official-release-launch-gate-v1-proof
 ```
 
 `VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1`
+
+## Solo-operator release time-lock
+
+When no second reviewer exists, the exact-source launch gate may use
+`solo_time_lock_v1`. That mode records `independent_review=false`, requires a
+main-only GitHub wait of at least twelve hours, and still renders rather than
+executes the publication command.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+`VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1`

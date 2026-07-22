@@ -253,3 +253,19 @@ make public-first-official-release-launch-gate-v1-proof
 ```
 
 See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+## Solo-operator release time-lock
+
+`VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1` preserves the independent-review
+release path and adds an explicit `solo_time_lock_v1` path for a project with no
+second human reviewer. Solo mode never claims independent review. It requires a
+main-only GitHub environment wait of at least twelve hours, a separate explicit
+risk acknowledgement, and a 14-24 hour authorization window. The publication
+workflow rechecks the live environment after reading the sealed launch record
+and before release mutation can become reachable.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).

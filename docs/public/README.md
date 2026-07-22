@@ -112,3 +112,5 @@ When a current-state claim changes, update these files instead of appending anot
 - [First official release rehearsal v1](first-official-release-rehearsal-v1.md) — deterministic no-publish rehearsal of immutable publication, qualification, canary, promotion, freeze, revocation, and rollback. <!-- VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1 -->
 
 - [First official release launch gate v1](first-official-release-launch-gate-v1.md) — exact-source, deterministic-asset, independently approved, expiring pre-publication gate. <!-- VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1 -->
+
+- [First official release launch gate v1](first-official-release-launch-gate-v1.md) — exact-source gate supporting either real independent review or an explicitly weaker twelve-hour solo time-lock. <!-- VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1 -->

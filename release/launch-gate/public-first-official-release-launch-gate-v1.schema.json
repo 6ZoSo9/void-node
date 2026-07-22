@@ -96,6 +96,9 @@
         "created_at_utc",
         "expires_at_utc",
         "preparer_id",
+        "review_mode",
+        "independent_review",
+        "solo_operator",
         "preflight_sha256",
         "release",
         "rehearsal",
@@ -145,10 +148,23 @@
           "$ref": "#/$defs/sha256"
         },
         "status": {
-          "const": "awaiting_independent_approval"
+          "type": "string",
+          "enum": [
+            "awaiting_independent_approval",
+            "awaiting_solo_operator_confirmation"
+          ]
         },
         "policy": {
           "$ref": "#/$defs/policy"
+        },
+        "review_mode": {
+          "$ref": "#/$defs/review_mode"
+        },
+        "independent_review": {
+          "type": "boolean"
+        },
+        "solo_operator": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -163,7 +179,12 @@
         "reviewer_id",
         "approved",
         "confirmation",
-        "policy"
+        "policy",
+        "review_mode",
+        "independent_review",
+        "solo_operator",
+        "risk_acknowledgement",
+        "approved_at_utc"
       ],
       "properties": {
         "marker": {
@@ -184,6 +205,26 @@
         },
         "policy": {
           "$ref": "#/$defs/policy"
+        },
+        "review_mode": {
+          "$ref": "#/$defs/review_mode"
+        },
+        "independent_review": {
+          "type": "boolean"
+        },
+        "solo_operator": {
+          "type": "boolean"
+        },
+        "risk_acknowledgement": {
+          "type": "string",
+          "enum": [
+            "INDEPENDENT_REVIEW",
+            "NO_INDEPENDENT_REVIEW"
+          ]
+        },
+        "approved_at_utc": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "additionalProperties": true
@@ -200,7 +241,12 @@
         "authorized",
         "single_use",
         "expires_at_utc",
-        "policy"
+        "policy",
+        "review_mode",
+        "independent_review",
+        "solo_operator",
+        "risk_acknowledgement",
+        "authorized_at_utc"
       ],
       "properties": {
         "marker": {
@@ -223,6 +269,26 @@
         },
         "policy": {
           "$ref": "#/$defs/policy"
+        },
+        "review_mode": {
+          "$ref": "#/$defs/review_mode"
+        },
+        "independent_review": {
+          "type": "boolean"
+        },
+        "solo_operator": {
+          "type": "boolean"
+        },
+        "risk_acknowledgement": {
+          "type": "string",
+          "enum": [
+            "INDEPENDENT_REVIEW",
+            "NO_INDEPENDENT_REVIEW"
+          ]
+        },
+        "authorized_at_utc": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "additionalProperties": true
@@ -289,7 +355,9 @@
         "files",
         "publication_executed",
         "release_tag_published",
-        "official_release_published"
+        "official_release_published",
+        "review_mode",
+        "independent_review"
       ],
       "properties": {
         "marker": {
@@ -353,6 +421,12 @@
         },
         "official_release_published": {
           "const": false
+        },
+        "review_mode": {
+          "$ref": "#/$defs/review_mode"
+        },
+        "independent_review": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -375,7 +449,9 @@
         "executable_by_gate",
         "command_argv",
         "shell_display",
-        "policy"
+        "policy",
+        "review_mode",
+        "independent_review"
       ],
       "properties": {
         "marker": {
@@ -414,9 +490,22 @@
         },
         "policy": {
           "$ref": "#/$defs/policy"
+        },
+        "review_mode": {
+          "$ref": "#/$defs/review_mode"
+        },
+        "independent_review": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
+    },
+    "review_mode": {
+      "type": "string",
+      "enum": [
+        "independent_review_v1",
+        "solo_time_lock_v1"
+      ]
     }
   }
 }

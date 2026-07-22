@@ -14,6 +14,9 @@ const REHEARSAL_PACKET_MARKER = 'VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_PACKET_V1
 const REHEARSAL_STAGE_MARKER = 'VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_STAGE_RECEIPT_V1';
 const REHEARSAL_SUMMARY_MARKER = 'VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_RECEIPT_V1';
 const WORKFLOW_PATH = '.github/workflows/public-release-publication-promotion-v1.yml';
+const REVIEW_MODE_INDEPENDENT = 'independent_review_v1';
+const REVIEW_MODE_SOLO = 'solo_time_lock_v1';
+const SOLO_MIN_WAIT_MINUTES = 720;
 const FOUNDATION_KEYS = [
   'distribution',
   'update_channel',
@@ -106,6 +109,20 @@ function iso(value, label = 'timestamp') {
   return new Date(raw).toISOString().replace('.000Z', 'Z');
 }
 function sameJson(a, b) { return canonical(a) === canonical(b); }
+function validateReviewMode(value) {
+  if (![REVIEW_MODE_INDEPENDENT, REVIEW_MODE_SOLO].includes(value)) fail(`invalid review mode: ${value}`);
+  return value;
+}
+function approvalPhrase(packet) {
+  const packetSha = shaObject(packet);
+  if (packet.review_mode === REVIEW_MODE_SOLO) return `ACKNOWLEDGE SOLO VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} WITHOUT INDEPENDENT REVIEW PACKET ${packetSha}`;
+  return `APPROVE VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} PACKET ${packetSha}`;
+}
+function sealPhrase(packet) {
+  const packetSha = shaObject(packet);
+  if (packet.review_mode === REVIEW_MODE_SOLO) return `SEAL SOLO VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} UNTIL ${packet.expires_at_utc} PACKET ${packetSha}`;
+  return `SEAL VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} UNTIL ${packet.expires_at_utc} PACKET ${packetSha}`;
+}
 function safeAssetName(name) {
   return typeof name === 'string' && name.length > 0 && name.length < 256 && !name.includes('/') && !name.includes('\\') && name !== '.' && name !== '..';
 }
@@ -194,7 +211,17 @@ function validatePreflight(preflight, expected, workflowFile, testMode) {
   if (preflight.working_tree_clean !== true || preflight.remote_transport !== 'ssh' || preflight.github_auth_ok !== true) fail('launch preflight repository/auth state is unsafe');
   if (preflight.remote_tag_absent !== true || preflight.github_release_absent !== true || preflight.immutable_releases_enabled !== true) fail('launch preflight publication state is unsafe');
   const env = preflight.publication_environment || {};
-  if (env.name !== 'void-release-publication' || env.exists !== true || env.protected !== true || Number(env.required_reviewers || 0) < 1 || env.prevent_self_review !== true) fail('protected publication environment requirements are not met');
+  const reviewMode = validateReviewMode(preflight.review_mode || env.review_mode || REVIEW_MODE_INDEPENDENT);
+  if (expected.review_mode && reviewMode !== expected.review_mode) fail('launch preflight review mode mismatch');
+  if (preflight.independent_review !== (reviewMode === REVIEW_MODE_INDEPENDENT) || env.review_mode !== reviewMode) fail('launch preflight review-mode flags are inconsistent');
+  if (env.name !== 'void-release-publication' || env.exists !== true || env.protected !== true || env.deployment_branch_main_only !== true) fail('protected publication environment requirements are not met');
+  const reviewers = Number(env.required_reviewers || 0);
+  const waitMinutes = Number(env.wait_timer_minutes || 0);
+  if (reviewMode === REVIEW_MODE_INDEPENDENT) {
+    if (reviewers < 1 || env.prevent_self_review !== true) fail('independent-review publication environment requirements are not met');
+  } else {
+    if (reviewers !== 0 || env.prevent_self_review !== false || waitMinutes < SOLO_MIN_WAIT_MINUTES) fail('solo time-lock publication environment requirements are not met');
+  }
   const contract = workflowRequirements(workflowFile);
   if (preflight.publication_workflow?.path !== WORKFLOW_PATH || preflight.publication_workflow?.sha256 !== contract.sha256 || preflight.publication_workflow?.publish_action !== 'publish') fail('publication workflow preflight binding mismatch');
   const confirmation = `PUBLISH VOID RELEASE ${expected.release_tag} AT ${expected.source_commit}`;
@@ -235,22 +262,36 @@ function validatePacket(packet) {
   validateRepository(packet.repository);
   if (!isVersion(packet.version) || packet.release_tag !== `release-v${packet.version}` || !isHex(packet.source_commit, 40)) fail('invalid launch packet release identity');
   if (!/^launch-release-v[0-9A-Za-z.+-]+-[0-9a-f]{16}$/.test(packet.launch_id || '')) fail('invalid launch id');
-  if (!packet.preparer_id || packet.status !== 'awaiting_independent_approval') fail('invalid launch packet preparation state');
+  const reviewMode = validateReviewMode(packet.review_mode);
+  const expectedStatus = reviewMode === REVIEW_MODE_SOLO ? 'awaiting_solo_operator_confirmation' : 'awaiting_independent_approval';
+  if (!packet.preparer_id || packet.status !== expectedStatus) fail('invalid launch packet preparation state');
+  if (packet.independent_review !== (reviewMode === REVIEW_MODE_INDEPENDENT) || packet.solo_operator !== (reviewMode === REVIEW_MODE_SOLO)) fail('launch packet review-mode flags are inconsistent');
+  if (packet.requirements?.independent_approval_required !== (reviewMode === REVIEW_MODE_INDEPENDENT) || packet.requirements?.solo_operator_time_lock_required !== (reviewMode === REVIEW_MODE_SOLO) || packet.requirements?.no_independent_review_claimed !== (reviewMode === REVIEW_MODE_SOLO)) fail('launch packet review-mode requirements are inconsistent');
+  if (reviewMode === REVIEW_MODE_SOLO && Number(packet.requirements?.minimum_environment_wait_timer_minutes || 0) < SOLO_MIN_WAIT_MINUTES) fail('launch packet solo wait-timer requirement is too weak');
   if (!isHex(packet.preflight_sha256, 64) || !isHex(packet.release?.sha256sums_sha256, 64) || !isHex(packet.release?.asset_manifest_sha256, 64) || !Array.isArray(packet.release?.assets) || packet.release.assets.length < 5) fail('invalid launch packet release binding');
   if (packet.release?.deterministic_build_match !== true || !isHex(packet.rehearsal?.receipt_sha256, 64) || packet.rehearsal?.passed !== true) fail('launch packet proof bindings are incomplete');
   if (packet.exact_publication?.workflow_file !== WORKFLOW_PATH || packet.exact_publication?.action !== 'publish' || packet.exact_publication?.version !== packet.version || packet.exact_publication?.source_commit !== packet.source_commit || packet.exact_publication?.confirmation !== `PUBLISH VOID RELEASE ${packet.release_tag} AT ${packet.source_commit}` || packet.exact_publication?.launch_record_required !== true) fail('launch packet publication command binding mismatch');
   const created = Date.parse(iso(packet.created_at_utc));
   const expires = Date.parse(iso(packet.expires_at_utc));
-  if (!(expires > created) || expires - created > 24 * 60 * 60 * 1000) fail('launch packet expiry must be after creation and at most 24 hours');
+  const lifetime = expires - created;
+  if (!(lifetime > 0) || lifetime > 24 * 60 * 60 * 1000) fail('launch packet expiry must be after creation and at most 24 hours');
+  if (reviewMode === REVIEW_MODE_SOLO && lifetime < 14 * 60 * 60 * 1000) fail('solo time-lock launch packet must remain valid for at least 14 hours');
   validatePolicy(packet.policy, 'launch packet');
   return packet;
 }
 function validateApproval(approval, packet) {
   if (approval?.marker !== APPROVAL_MARKER || approval?.schema_version !== 1) fail('invalid launch approval marker/schema');
   const packetSha = shaObject(packet);
-  if (approval.launch_id !== packet.launch_id || approval.packet_sha256 !== packetSha || approval.repository !== packet.repository || approval.release_tag !== packet.release_tag || approval.source_commit !== packet.source_commit) fail('launch approval binding mismatch');
-  if (approval.approved !== true || !approval.reviewer_id || approval.reviewer_id === packet.preparer_id) fail('launch approval is not independent');
-  const phrase = `APPROVE VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} PACKET ${packetSha}`;
+  if (approval.launch_id !== packet.launch_id || approval.packet_sha256 !== packetSha || approval.repository !== packet.repository || approval.release_tag !== packet.release_tag || approval.source_commit !== packet.source_commit || approval.review_mode !== packet.review_mode) fail('launch approval binding mismatch');
+  if (approval.approved !== true || !approval.reviewer_id) fail('launch approval is incomplete');
+  const approvedAt = Date.parse(iso(approval.approved_at_utc, 'approval timestamp'));
+  if (approvedAt < Date.parse(packet.created_at_utc) || approvedAt > Date.parse(packet.expires_at_utc)) fail('launch approval timestamp is outside the packet lifetime');
+  if (packet.review_mode === REVIEW_MODE_INDEPENDENT) {
+    if (approval.reviewer_id === packet.preparer_id || approval.independent_review !== true || approval.solo_operator !== false) fail('launch approval is not independent');
+  } else {
+    if (approval.reviewer_id !== packet.preparer_id || approval.independent_review !== false || approval.solo_operator !== true || approval.risk_acknowledgement !== 'NO_INDEPENDENT_REVIEW') fail('solo launch approval identity or risk acknowledgement mismatch');
+  }
+  const phrase = approvalPhrase(packet);
   if (approval.confirmation !== phrase) fail('launch approval confirmation mismatch');
   validatePolicy(approval.policy, 'launch approval');
   return approval;
@@ -259,9 +300,16 @@ function validateAuthorization(auth, packet, approval) {
   if (auth?.marker !== AUTH_MARKER || auth?.schema_version !== 1) fail('invalid launch authorization marker/schema');
   const packetSha = shaObject(packet);
   const approvalSha = shaObject(approval);
-  if (auth.launch_id !== packet.launch_id || auth.packet_sha256 !== packetSha || auth.approval_sha256 !== approvalSha || auth.repository !== packet.repository || auth.release_tag !== packet.release_tag || auth.source_commit !== packet.source_commit) fail('launch authorization binding mismatch');
-  if (auth.authorized !== true || auth.single_use !== true || auth.authorizer_id !== approval.reviewer_id || auth.authorizer_id === packet.preparer_id || auth.expires_at_utc !== packet.expires_at_utc) fail('launch authorization identity/expiry mismatch');
-  const phrase = `SEAL VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} UNTIL ${packet.expires_at_utc} PACKET ${packetSha}`;
+  if (auth.launch_id !== packet.launch_id || auth.packet_sha256 !== packetSha || auth.approval_sha256 !== approvalSha || auth.repository !== packet.repository || auth.release_tag !== packet.release_tag || auth.source_commit !== packet.source_commit || auth.review_mode !== packet.review_mode) fail('launch authorization binding mismatch');
+  if (auth.authorized !== true || auth.single_use !== true || auth.authorizer_id !== approval.reviewer_id || auth.expires_at_utc !== packet.expires_at_utc) fail('launch authorization identity/expiry mismatch');
+  const authorizedAt = Date.parse(iso(auth.authorized_at_utc, 'authorization timestamp'));
+  if (authorizedAt < Date.parse(approval.approved_at_utc) || authorizedAt > Date.parse(packet.expires_at_utc)) fail('launch authorization timestamp is outside the approved packet lifetime');
+  if (packet.review_mode === REVIEW_MODE_INDEPENDENT) {
+    if (auth.authorizer_id === packet.preparer_id || auth.independent_review !== true || auth.solo_operator !== false) fail('independent launch authorization identity mismatch');
+  } else {
+    if (auth.authorizer_id !== packet.preparer_id || auth.independent_review !== false || auth.solo_operator !== true || auth.risk_acknowledgement !== 'NO_INDEPENDENT_REVIEW') fail('solo launch authorization identity or risk acknowledgement mismatch');
+  }
+  const phrase = sealPhrase(packet);
   if (auth.confirmation !== phrase) fail('launch authorization confirmation mismatch');
   validatePolicy(auth.policy, 'launch authorization');
   return auth;
@@ -303,6 +351,8 @@ function publicationCommand(packet, approval, auth, recordCommit = 'REPLACE_WITH
     repository: packet.repository,
     release_tag: packet.release_tag,
     source_commit: packet.source_commit,
+    review_mode: packet.review_mode,
+    independent_review: packet.review_mode === REVIEW_MODE_INDEPENDENT,
     workflow_file: WORKFLOW_PATH,
     executable_by_gate: false,
     operator_must_reverify_gate_immediately_before_manual_execution: true,
@@ -323,6 +373,7 @@ function prepare(args) {
   const expiresAt = iso(required(args, 'expires-at'), 'expiry timestamp');
   const preparerId = required(args, 'preparer-id');
   if (!/^[A-Za-z0-9_.:@+-]{2,128}$/.test(preparerId)) fail('invalid preparer id');
+  const reviewMode = validateReviewMode(typeof args['review-mode'] === 'string' ? args['review-mode'] : REVIEW_MODE_INDEPENDENT);
   const dirA = path.resolve(required(args, 'release-dir-a'));
   const dirB = path.resolve(required(args, 'release-dir-b'));
   const preflightFile = path.resolve(required(args, 'preflight'));
@@ -331,7 +382,7 @@ function prepare(args) {
   const stateDir = path.resolve(required(args, 'state-dir'));
   if (fs.existsSync(stateDir) && fs.readdirSync(stateDir).length) fail(`state directory must be empty: ${stateDir}`);
   ensureDir(stateDir);
-  const expected = { repository, version, release_tag: releaseTag, source_commit: sourceCommit };
+  const expected = { repository, version, release_tag: releaseTag, source_commit: sourceCommit, review_mode: reviewMode };
   const build = validateBuilds(dirA, dirB, version, sourceCommit);
   const preflight = readJson(preflightFile);
   const workflow = validatePreflight(preflight, expected, workflowFile, args['test-mode'] === true);
@@ -344,6 +395,9 @@ function prepare(args) {
     created_at_utc: createdAt,
     expires_at_utc: expiresAt,
     preparer_id: preparerId,
+    review_mode: reviewMode,
+    independent_review: reviewMode === REVIEW_MODE_INDEPENDENT,
+    solo_operator: reviewMode === REVIEW_MODE_SOLO,
     preflight_sha256: shaObject(preflight),
     release: {
       deterministic_build_match: true,
@@ -376,12 +430,15 @@ function prepare(args) {
       release_and_tag_absent: true,
       all_foundation_proofs_green: true,
       complete_no_publish_rehearsal_green: true,
-      independent_approval_required: true,
+      independent_approval_required: reviewMode === REVIEW_MODE_INDEPENDENT,
+      solo_operator_time_lock_required: reviewMode === REVIEW_MODE_SOLO,
+      minimum_environment_wait_timer_minutes: reviewMode === REVIEW_MODE_SOLO ? SOLO_MIN_WAIT_MINUTES : 0,
+      no_independent_review_claimed: reviewMode === REVIEW_MODE_SOLO,
       expiring_single_use_authorization_required: true,
       manual_publication_action_required: true,
       post_publication_canary_and_qualification_still_required_for_stable: true,
     },
-    status: 'awaiting_independent_approval',
+    status: reviewMode === REVIEW_MODE_SOLO ? 'awaiting_solo_operator_confirmation' : 'awaiting_independent_approval',
     policy: noMutationPolicy(),
   };
   const launchDigest = shaObject(core).slice(0, 16);
@@ -392,7 +449,9 @@ function prepare(args) {
   say(`${TOOL_MARKER}_PREPARE_GREEN`);
   say(`launch_id=${packet.launch_id}`);
   say(`packet_sha256=${shaObject(packet)}`);
-  say(`approval_confirmation=APPROVE VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} PACKET ${shaObject(packet)}`);
+  say(`review_mode=${packet.review_mode}`);
+  say(`independent_review=${packet.independent_review}`);
+  say(`approval_confirmation=${approvalPhrase(packet)}`);
   say('publication_executed=false');
 }
 function approve(args) {
@@ -410,6 +469,10 @@ function approve(args) {
     source_commit: packet.source_commit,
     preparer_id: packet.preparer_id,
     reviewer_id: reviewerId,
+    review_mode: packet.review_mode,
+    independent_review: packet.review_mode === REVIEW_MODE_INDEPENDENT,
+    solo_operator: packet.review_mode === REVIEW_MODE_SOLO,
+    risk_acknowledgement: packet.review_mode === REVIEW_MODE_SOLO ? 'NO_INDEPENDENT_REVIEW' : 'INDEPENDENT_REVIEW',
     approved: true,
     confirmation,
     approved_at_utc: approvedAt,
@@ -419,7 +482,8 @@ function approve(args) {
   writeJson(path.resolve(required(args, 'out')), approval);
   say(`${TOOL_MARKER}_APPROVE_GREEN`);
   say(`approval_sha256=${shaObject(approval)}`);
-  say(`seal_confirmation=SEAL VOID RELEASE LAUNCH ${packet.release_tag} AT ${packet.source_commit} UNTIL ${packet.expires_at_utc} PACKET ${shaObject(packet)}`);
+  say(`review_mode=${packet.review_mode}`);
+  say(`seal_confirmation=${sealPhrase(packet)}`);
 }
 function seal(args) {
   const packet = validatePacket(readJson(path.resolve(required(args, 'packet'))));
@@ -434,6 +498,10 @@ function seal(args) {
     release_tag: packet.release_tag,
     source_commit: packet.source_commit,
     authorizer_id: required(args, 'authorizer-id'),
+    review_mode: packet.review_mode,
+    independent_review: packet.review_mode === REVIEW_MODE_INDEPENDENT,
+    solo_operator: packet.review_mode === REVIEW_MODE_SOLO,
+    risk_acknowledgement: packet.review_mode === REVIEW_MODE_SOLO ? 'NO_INDEPENDENT_REVIEW' : 'INDEPENDENT_REVIEW',
     authorized: true,
     single_use: true,
     confirmation: required(args, 'confirmation'),
@@ -506,6 +574,8 @@ function render(args) {
     marker: 'VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_RECORD_V1', schema_version: 1,
     launch_id: verified.packet.launch_id, repository: verified.packet.repository,
     release_tag: verified.packet.release_tag, source_commit: verified.packet.source_commit,
+    review_mode: verified.packet.review_mode,
+    independent_review: verified.packet.review_mode === REVIEW_MODE_INDEPENDENT,
     packet_sha256: shaObject(verified.packet), approval_sha256: shaObject(verified.approval),
     authorization_sha256: shaObject(verified.auth),
     expires_at_utc: verified.packet.expires_at_utc,
@@ -525,6 +595,8 @@ function render(args) {
     version: verified.packet.version,
     release_tag: verified.packet.release_tag,
     source_commit: verified.packet.source_commit,
+    review_mode: verified.packet.review_mode,
+    independent_review: verified.packet.review_mode === REVIEW_MODE_INDEPENDENT,
     packet_sha256: shaObject(verified.packet),
     approval_sha256: shaObject(verified.approval),
     authorization_sha256: shaObject(verified.auth),
@@ -592,7 +664,7 @@ function validateRecordManifest(recordDir, packet, approval, auth) {
   const file = path.join(recordDir, 'launch-record-manifest-v1.json');
   if (!fs.existsSync(file)) fail('launch record manifest is missing');
   const manifest = readJson(file);
-  if (manifest.marker !== 'VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_RECORD_V1' || manifest.schema_version !== 1 || manifest.launch_id !== packet.launch_id || manifest.repository !== packet.repository || manifest.release_tag !== packet.release_tag || manifest.source_commit !== packet.source_commit || manifest.packet_sha256 !== shaObject(packet) || manifest.approval_sha256 !== shaObject(approval) || manifest.authorization_sha256 !== shaObject(auth)) fail('launch record manifest binding mismatch');
+  if (manifest.marker !== 'VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_RECORD_V1' || manifest.schema_version !== 1 || manifest.launch_id !== packet.launch_id || manifest.repository !== packet.repository || manifest.release_tag !== packet.release_tag || manifest.source_commit !== packet.source_commit || manifest.review_mode !== packet.review_mode || manifest.independent_review !== (packet.review_mode === REVIEW_MODE_INDEPENDENT) || manifest.packet_sha256 !== shaObject(packet) || manifest.approval_sha256 !== shaObject(approval) || manifest.authorization_sha256 !== shaObject(auth)) fail('launch record manifest binding mismatch');
   if (manifest.expires_at_utc !== packet.expires_at_utc || manifest.publication_workflow_sha256 !== packet.publication_workflow.sha256 || manifest.source_release_sha256sums_sha256 !== packet.release.sha256sums_sha256 || manifest.rehearsal_receipt_sha256 !== packet.rehearsal.receipt_sha256) fail('launch record proof digest binding mismatch');
   if (!Array.isArray(manifest.files) || manifest.files.length < 12) fail('launch record inventory is incomplete');
   const requiredFiles = new Set(['launch-preflight-v1.json', 'launch-packet-v1.json', 'launch-approval-v1.json', 'launch-authorization-v1.json', 'rehearsal/rehearsal-packet-v1.json', 'rehearsal/rehearsal-receipt-v1.json']);

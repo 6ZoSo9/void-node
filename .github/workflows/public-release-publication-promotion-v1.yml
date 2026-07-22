@@ -173,6 +173,42 @@ jobs:
           test "$(sha256sum "$RECORD_DIR/launch-packet-v1.json" | awk '{print $1}')" = "$LAUNCH_PACKET_SHA256"
           test "$(sha256sum "$RECORD_DIR/launch-approval-v1.json" | awk '{print $1}')" = "$LAUNCH_APPROVAL_SHA256"
           test "$(sha256sum "$RECORD_DIR/launch-authorization-v1.json" | awk '{print $1}')" = "$LAUNCH_AUTHORIZATION_SHA256"
+          # VOID_FIRST_OFFICIAL_RELEASE_SOLO_OPERATOR_ENVIRONMENT_WORKFLOW_V1
+          LIVE_ENV="$RUNNER_TEMP/void-release-publication-environment.json"
+          LIVE_POLICIES="$RUNNER_TEMP/void-release-publication-branch-policies.json"
+          gh api "repos/${GITHUB_REPOSITORY}/environments/void-release-publication" > "$LIVE_ENV"
+          gh api "repos/${GITHUB_REPOSITORY}/environments/void-release-publication/deployment-branch-policies" > "$LIVE_POLICIES"
+          python3 - "$RECORD_DIR/launch-packet-v1.json" "$LIVE_ENV" "$LIVE_POLICIES" <<'PY'
+          import json,sys
+          packet=json.load(open(sys.argv[1]))
+          env=json.load(open(sys.argv[2]))
+          policies=json.load(open(sys.argv[3]))
+          mode=packet.get('review_mode')
+          reviewers=0; prevent=False; wait=0
+          for rule in env.get('protection_rules') or []:
+              if rule.get('type') == 'required_reviewers':
+                  reviewers=max(reviewers,len(rule.get('reviewers') or []))
+                  prevent=prevent or bool(rule.get('prevent_self_review'))
+              if rule.get('type') == 'wait_timer':
+                  wait=max(wait,int(rule.get('wait_timer') or 0))
+          names=sorted({str(x.get('name')) for x in policies.get('branch_policies') or [] if x.get('name')})
+          if names != ['main']:
+              raise SystemExit(f'publication environment branch policies must be exactly [main], got {names}')
+          if mode == 'independent_review_v1':
+              if reviewers < 1 or not prevent:
+                  raise SystemExit('live independent-review environment requirements are not met')
+          elif mode == 'solo_time_lock_v1':
+              if reviewers != 0 or prevent or wait < 720:
+                  raise SystemExit('live solo time-lock environment requirements are not met')
+          else:
+              raise SystemExit(f'invalid launch review mode: {mode}')
+          print(f'review_mode={mode}')
+          print(f'required_reviewers={reviewers}')
+          print(f'prevent_self_review={str(prevent).lower()}')
+          print(f'wait_timer_minutes={wait}')
+          print('deployment_branch_main_only=true')
+          print('VOID_FIRST_OFFICIAL_RELEASE_SOLO_OPERATOR_ENVIRONMENT_WORKFLOW_V1_GREEN')
+          PY
           npm ci --ignore-scripts --include=dev --no-audit --no-fund
           RELEASE_A="$RUNNER_TEMP/void-launch-release-a"
           RELEASE_B="$RUNNER_TEMP/void-launch-release-b"

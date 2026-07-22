@@ -10,7 +10,7 @@ need(){ command -v "$1" >/dev/null 2>&1 || fail "missing required tool: $1"; }
 usage(){
   cat <<'USAGE'
 Usage:
-  void-first-official-release-launch-gate-v1.sh prepare-live [--version X.Y.Z] [--preparer-id ID] [--state-dir DIR] [--expires-hours N]
+  void-first-official-release-launch-gate-v1.sh prepare-live [--version X.Y.Z] [--preparer-id ID] [--state-dir DIR] [--expires-hours N] [--review-mode independent_review_v1|solo_time_lock_v1]
   void-first-official-release-launch-gate-v1.sh approve --state-dir DIR --reviewer-id ID --confirmation 'EXACT PHRASE'
   void-first-official-release-launch-gate-v1.sh seal --state-dir DIR --authorizer-id ID --confirmation 'EXACT PHRASE'
   void-first-official-release-launch-gate-v1.sh verify-live --state-dir DIR
@@ -37,7 +37,8 @@ ACTOR_ID=""
 STATE_DIR=""
 CONFIRMATION=""
 REASON=""
-EXPIRES_HOURS="4"
+EXPIRES_HOURS=""
+REVIEW_MODE="${VOID_RELEASE_REVIEW_MODE:-independent_review_v1}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --version) VERSION="${2:-}"; shift 2;;
@@ -49,12 +50,23 @@ while [ "$#" -gt 0 ]; do
     --confirmation) CONFIRMATION="${2:-}"; shift 2;;
     --reason) REASON="${2:-}"; shift 2;;
     --expires-hours) EXPIRES_HOURS="${2:-}"; shift 2;;
+    --review-mode) REVIEW_MODE="${2:-}"; shift 2;;
     -h|--help) usage; exit 0;;
     *) fail "unknown argument: $1";;
   esac
 done
 
 for t in git node npm python3 gh sha256sum; do need "$t"; done
+case "$REVIEW_MODE" in
+  independent_review_v1|solo_time_lock_v1) ;;
+  *) fail "invalid review mode: $REVIEW_MODE" ;;
+esac
+if [ -z "$EXPIRES_HOURS" ]; then
+  if [ "$REVIEW_MODE" = "solo_time_lock_v1" ]; then EXPIRES_HOURS=24; else EXPIRES_HOURS=4; fi
+fi
+case "$EXPIRES_HOURS" in *[!0-9]*|'') fail "expires-hours must be an integer";; esac
+if [ "$EXPIRES_HOURS" -lt 1 ] || [ "$EXPIRES_HOURS" -gt 24 ]; then fail "expires-hours must be from 1 through 24"; fi
+if [ "$REVIEW_MODE" = "solo_time_lock_v1" ] && [ "$EXPIRES_HOURS" -lt 14 ]; then fail "solo time-lock mode requires expires-hours from 14 through 24"; fi
 REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$REPO" ] || fail "run from inside the VOID repository"
 cd "$REPO"
@@ -85,37 +97,57 @@ state_paths(){
 }
 
 write_live_preflight(){
-  local output="$1" version="$2" commit="$3" observed="$4" slug="$5"
+  local output="$1" version="$2" commit="$3" observed="$4" slug="$5" review_mode="$6"
   local tag="release-v${version}"
-  local immutable env_json env_file reviewers prevent_self
+  local immutable env_file policies_file reviewers prevent_self wait_minutes main_only
   immutable="$(gh api "repos/${slug}/immutable-releases" --jq '.enabled')"
   [ "$immutable" = "true" ] || fail "GitHub immutable releases are not enabled"
   env_file="$(mktemp)"
-  trap 'rm -f "${env_file:-}"' RETURN
+  policies_file="$(mktemp)"
+  trap 'rm -f "${env_file:-}" "${policies_file:-}"' RETURN
   gh api "repos/${slug}/environments/void-release-publication" > "$env_file"
-  read -r reviewers prevent_self < <(python3 - "$env_file" <<'PY'
+  gh api "repos/${slug}/environments/void-release-publication/deployment-branch-policies" > "$policies_file"
+  read -r reviewers prevent_self wait_minutes main_only < <(python3 - "$env_file" "$policies_file" <<'PY'
 import json,sys
-j=json.load(open(sys.argv[1]))
-rules=j.get('protection_rules') or []
+env=json.load(open(sys.argv[1]))
+policies=json.load(open(sys.argv[2]))
 reviewers=0
 prevent=False
-for rule in rules:
+wait=0
+for rule in env.get('protection_rules') or []:
     if rule.get('type') == 'required_reviewers':
         reviewers=max(reviewers,len(rule.get('reviewers') or []))
         prevent=prevent or bool(rule.get('prevent_self_review'))
-print(reviewers, str(prevent).lower())
+    if rule.get('type') == 'wait_timer':
+        wait=max(wait,int(rule.get('wait_timer') or 0))
+names=sorted({str(x.get('name')) for x in policies.get('branch_policies') or [] if x.get('name')})
+main_only=(names == ['main'])
+print(reviewers, str(prevent).lower(), wait, str(main_only).lower())
 PY
 )
-  [ "$reviewers" -ge 1 ] || fail "void-release-publication requires at least one reviewer"
-  [ "$prevent_self" = "true" ] || fail "void-release-publication must prevent self review"
+  [ "$main_only" = "true" ] || fail "void-release-publication must allow only branch main"
+  case "$review_mode" in
+    independent_review_v1)
+      [ "$reviewers" -ge 1 ] || fail "independent-review mode requires at least one reviewer"
+      [ "$prevent_self" = "true" ] || fail "independent-review mode must prevent self review"
+      ;;
+    solo_time_lock_v1)
+      [ "$reviewers" -eq 0 ] || fail "solo time-lock mode must not claim an independent reviewer"
+      [ "$prevent_self" = "false" ] || fail "solo time-lock mode cannot claim self-review prevention"
+      [ "$wait_minutes" -ge 720 ] || fail "solo time-lock mode requires a GitHub wait timer of at least 720 minutes"
+      ;;
+    *) fail "invalid review mode: $review_mode" ;;
+  esac
   if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then fail "release tag already exists: ${tag}"; fi
   if gh release view "$tag" --repo "$slug" >/dev/null 2>&1; then fail "GitHub Release already exists: ${tag}"; fi
-  python3 - "$output" "$slug" "$version" "$tag" "$commit" "$observed" "$(sha256sum "$WORKFLOW" | awk '{print $1}')" "$reviewers" "$prevent_self" <<'PY'
+  python3 - "$output" "$slug" "$version" "$tag" "$commit" "$observed" "$(sha256sum "$WORKFLOW" | awk '{print $1}')" "$reviewers" "$prevent_self" "$wait_minutes" "$main_only" "$review_mode" <<'PY'
 import json,sys
-out,repo,version,tag,commit,observed,workflow_sha,reviewers,prevent=sys.argv[1:]
+out,repo,version,tag,commit,observed,workflow_sha,reviewers,prevent,wait,main_only,review_mode=sys.argv[1:]
 obj={
   'marker':'VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_PREFLIGHT_V1',
   'schema_version':1,
+  'review_mode':review_mode,
+  'independent_review':review_mode=='independent_review_v1',
   'repository':repo,
   'version':version,
   'release_tag':tag,
@@ -131,7 +163,11 @@ obj={
   'immutable_releases_enabled':True,
   'publication_environment':{
     'name':'void-release-publication','exists':True,'protected':True,
-    'required_reviewers':int(reviewers),'prevent_self_review':prevent=='true'
+    'review_mode':review_mode,
+    'required_reviewers':int(reviewers),
+    'prevent_self_review':prevent=='true',
+    'wait_timer_minutes':int(wait),
+    'deployment_branch_main_only':main_only=='true',
   },
   'publication_workflow':{
     'path':'.github/workflows/public-release-publication-promotion-v1.yml',
@@ -202,14 +238,16 @@ PY
       --release-dir "$BUILD_A" --state-dir "$REHEARSAL" --now "$NOW"
     node tools/void-first-official-release-rehearsal-v1.mjs verify --release-dir "$BUILD_A" --state-dir "$REHEARSAL"
     echo "=== live GitHub launch preflight ==="
-    write_live_preflight "$PREFLIGHT" "$VERSION" "$COMMIT" "$NOW" "$SLUG"
+    write_live_preflight "$PREFLIGHT" "$VERSION" "$COMMIT" "$NOW" "$SLUG" "$REVIEW_MODE"
     node "$TOOL" prepare \
       --repository "$SLUG" --version "$VERSION" --source-commit "$COMMIT" \
       --release-dir-a "$BUILD_A" --release-dir-b "$BUILD_B" \
       --rehearsal-state-dir "$REHEARSAL" --preflight "$PREFLIGHT" \
       --workflow-file "$WORKFLOW" --preparer-id "$PREPARER_ID" \
-      --now "$NOW" --expires-at "$EXPIRES" --state-dir "$STATE_DIR"
+      --now "$NOW" --expires-at "$EXPIRES" --state-dir "$STATE_DIR" --review-mode "$REVIEW_MODE"
     echo "state_dir=$STATE_DIR"
+    echo "review_mode=$REVIEW_MODE"
+    if [ "$REVIEW_MODE" = "solo_time_lock_v1" ]; then echo "independent_review=false"; echo "github_wait_timer_minutes_minimum=720"; else echo "independent_review=true"; fi
     echo "publication_executed=false"
     echo "${MARKER}_PREPARE_LIVE_GREEN"
     ;;
@@ -232,7 +270,8 @@ PY
     SLUG="$(repo_slug)"
     VERSION="$(node -p 'require("./package.json").version')"
     CURRENT="$STATE_DIR/current-live-preflight-v1.json"
-    write_live_preflight "$CURRENT" "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SLUG"
+    REVIEW_MODE="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["review_mode"])' "$PACKET")"
+    write_live_preflight "$CURRENT" "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SLUG" "$REVIEW_MODE"
     python3 - "$PREFLIGHT" "$CURRENT" <<'PY'
 import json,sys
 old,new=map(lambda p:json.load(open(p)),sys.argv[1:])

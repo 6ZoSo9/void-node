@@ -6,21 +6,43 @@
 - GitHub SSH origin and noninteractive SSH authentication.
 - GitHub CLI authentication.
 - Immutable releases enabled.
-- Protected `void-release-publication` environment with at least one reviewer and self-review prevention.
+- Protected `void-release-publication` environment in either independent-review mode or solo time-lock mode. Solo mode requires a `main`-only policy, zero reviewers, no self-review claim, and a wait timer of at least 720 minutes.
 - No existing tag or GitHub Release for the package version.
 - Node.js 22 and installed development dependencies.
 
 ## 1. Prepare the exact gate
 
 ```bash
-bash ops/release/void-first-official-release-launch-gate-v1.sh prepare-live   --preparer-id PREPARER_ID
+bash ops/release/void-first-official-release-launch-gate-v1.sh prepare-live \
+  --preparer-id PREPARER_ID \
+  --review-mode independent_review_v1
 ```
 
 Preparation runs all release proofs, builds the exact release twice, performs the complete no-publish rehearsal, captures a live read-only GitHub preflight, and prints the approval phrase.
 
-## 2. Independently approve and seal
+## Solo operator mode
 
-A reviewer different from the preparer records the exact printed approval phrase. The same independent authority then seals the printed authorization phrase. The authorization is single use and expires within 24 hours.
+When no second human exists, first configure the honest time lock:
+
+```bash
+bash ops/release/configure-void-release-publication-solo-v1.sh configure \
+  --confirm 'CONFIGURE VOID SOLO RELEASE TIME LOCK 720 MINUTES'
+```
+
+Then prepare with a 24-hour packet lifetime:
+
+```bash
+bash ops/release/void-first-official-release-launch-gate-v1.sh prepare-live \
+  --preparer-id SOLO_OPERATOR_ID \
+  --review-mode solo_time_lock_v1 \
+  --expires-hours 24
+```
+
+The same operator must use the printed `ACKNOWLEDGE SOLO ... WITHOUT INDEPENDENT REVIEW` phrase and then the separate `SEAL SOLO ...` phrase. GitHub still delays the publication job for at least 12 hours, allowing cancellation before mutation. Solo mode is explicitly weaker and never records an independent-review claim.
+
+## 2. Approve and seal
+
+In independent mode, a reviewer different from the preparer records the exact printed approval phrase and seals the authorization. In solo mode, the same operator records the explicit no-independent-review acknowledgement and separate solo seal phrase. The authorization is single use and expires within 24 hours.
 
 ## 3. Reverify and render
 
@@ -57,4 +79,4 @@ Manual execution remains a distinct protected operator action. The publication w
 
 ## Abort
 
-The preparer or independent reviewer can issue the exact abort phrase. A valid abort receipt causes all later gate, record, command-finalization, and workflow verification to fail closed.
+The preparer, independent reviewer, or solo operator can issue the exact abort phrase. A valid abort receipt causes all later gate, record, command-finalization, and workflow verification to fail closed.
