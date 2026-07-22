@@ -1,0 +1,17 @@
+{
+  "marker": "VOID_RELEASE_QUALIFICATION_RESULT_V1",
+  "schema_version": 1,
+  "repository": "OWNER/REPO",
+  "release_tag": "release-v0.0.0",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "target": "ubuntu-24.04-x64",
+  "target_class": "fresh-host",
+  "runner_id": "runner-id",
+  "run_id": "run-id",
+  "generated_at_utc": "1970-01-01T00:00:00.000Z",
+  "checks": {},
+  "safety": {},
+  "evidence": [],
+  "passed": false
+}

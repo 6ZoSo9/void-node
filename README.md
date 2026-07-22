@@ -211,3 +211,13 @@ public release-channel state.
 
 No real release is published by merging this infrastructure. See
 [release publication and promotion v1](docs/public/release-publication-promotion-v1.md).
+
+## Release qualification and canary matrix
+
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1` requires a complete
+fresh-host, WSL2, upgrade, rollback, two-node, and participant-surface matrix,
+plus approval by a reviewer who did not run the qualification targets, before
+stable promotion.
+
+This infrastructure does not publish a release or deploy a live node. See
+[release qualification v1](docs/public/release-qualification-v1.md).

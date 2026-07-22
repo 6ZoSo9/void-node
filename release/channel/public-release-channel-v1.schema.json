@@ -109,6 +109,28 @@
           "format": "date-time",
           "type": "string"
         },
+        "qualification_approval_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ]
+        },
+        "qualification_receipt_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ]
+        },
         "state": {
           "enum": [
             "candidate",
@@ -121,7 +143,9 @@
         "ledger_sequence",
         "ledger_tip_sha256",
         "canary_receipt_sha256",
-        "promoted_at_utc"
+        "promoted_at_utc",
+        "qualification_receipt_sha256",
+        "qualification_approval_sha256"
       ],
       "type": "object"
     },

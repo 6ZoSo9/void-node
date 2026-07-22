@@ -112,3 +112,11 @@ void-node update check \
 
 Candidate application is refused unless an operator explicitly supplies
 `--allow-candidate`.
+
+## Qualified stable releases
+
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1`
+
+A release is eligible for the stable channel only after the immutable
+publication, canary, complete qualification matrix, and independent reviewer
+approval are all hash-bound in promotion state.

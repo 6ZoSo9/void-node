@@ -1540,3 +1540,11 @@ public-release-publication-promotion-v1-static-proof:
 .PHONY: public-release-publication-promotion-v1-proof
 public-release-publication-promotion-v1-proof:
 	bash ops/security/public-release-publication-promotion-v1-proof.sh
+
+.PHONY: public-release-qualification-v1-static-proof
+public-release-qualification-v1-static-proof:
+	node scripts/prove_public_release_qualification_v1.mjs
+
+.PHONY: public-release-qualification-v1-proof
+public-release-qualification-v1-proof:
+	bash ops/security/public-release-qualification-v1-proof.sh

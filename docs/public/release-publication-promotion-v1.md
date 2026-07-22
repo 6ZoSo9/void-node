@@ -79,3 +79,11 @@ normal exact-head pull request.
 Publication and promotion do not deploy a node, start or restart a service,
 generate keys, change wallet state, write Work Credit ledgers, fulfill Buy VOID,
 admit validators, move treasury assets, or transfer authority.
+
+## Qualification gate
+
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1`
+
+Stable promotion additionally requires a green qualification receipt covering
+the full target matrix and an approval from a reviewer identity that did not
+run those targets.

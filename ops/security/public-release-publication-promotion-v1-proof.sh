@@ -86,6 +86,23 @@ root=pathlib.Path(sys.argv[1]);tag,commit,psha,rsha=sys.argv[2:]
 r={'marker':'VOID_RELEASE_CANARY_RECEIPT_V1','schema_version':1,'repository':'6ZoSo9/void-node','release_tag':tag,'source_commit':commit,'packet_sha256':psha,'publication_receipt_sha256':rsha,'generated_at_utc':'2026-07-21T20:02:00Z','passed':True,'checks':{'immutable_release':True,'release_attestation':True,'asset_attestations':True,'sha256':True,'install':True,'update_check':True,'health':True,'rollback':True},'service_started_implicitly':False,'guarded_lanes_activated':False}
 (root/'canary-receipt-v1.json').write_text(json.dumps(r,indent=2,sort_keys=True)+'\n')
 PY
+  local csha
+  csha="$(object_sha "$dir/canary-receipt-v1.json")"
+  python3 - "$dir" "$tag" "$commit" "$psha" "$rsha" "$csha" <<'PY'
+import hashlib,json,pathlib,sys
+root=pathlib.Path(sys.argv[1]);tag,commit,psha,rsha,csha=sys.argv[2:]
+def stable(v):
+    if isinstance(v,dict): return {k:stable(v[k]) for k in sorted(v)}
+    if isinstance(v,list): return [stable(x) for x in v]
+    return v
+def objsha(v): return hashlib.sha256(json.dumps(stable(v),separators=(',',':')).encode()).hexdigest()
+targets=['ubuntu-22.04-x64','ubuntu-24.04-x64','debian-12-x64','windows-wsl2-ubuntu-24.04-x64','upgrade-from-current-stable','rollback-health-failure','two-node-sync','participant-ui-smoke']
+results=[{'target':t,'target_class':'fixture','runner_id':f'publication-proof-runner-{i+1}','run_id':f'publication-proof-run-{i+1}','result_sha256':hashlib.sha256(t.encode()).hexdigest(),'passed':True} for i,t in enumerate(targets)]
+q={'marker':'VOID_RELEASE_QUALIFICATION_RECEIPT_V1','schema_version':1,'repository':'6ZoSo9/void-node','version':tag.removeprefix('release-v'),'release_tag':tag,'source_commit':commit,'plan_sha256':'1'*64,'packet_sha256':psha,'publication_receipt_sha256':rsha,'canary_receipt_sha256':csha,'generated_at_utc':'2026-07-21T20:02:30Z','passed':True,'matrix_passed':True,'runner_ids':[x['runner_id'] for x in results],'results':results,'policy':{'stable_promotion_allowed':True,'release_tag_published_by_qualification':False,'live_deployment':False,'guarded_lanes_activated':False}}
+(root/'qualification-receipt-v1.json').write_text(json.dumps(q,indent=2,sort_keys=True)+'\n')
+a={'marker':'VOID_RELEASE_QUALIFICATION_APPROVAL_V1','schema_version':1,'repository':'6ZoSo9/void-node','release_tag':tag,'source_commit':commit,'qualification_receipt_sha256':objsha(q),'reviewer_id':'publication-proof-reviewer','approved_at_utc':'2026-07-21T20:02:40Z','approved':True,'policy':{'stable_promotion_authorized':True,'single_person_run_and_approve_allowed':False,'release_tag_published_by_approval':False,'live_deployment':False,'guarded_lanes_activated':False}}
+(root/'qualification-approval-v1.json').write_text(json.dumps(a,indent=2,sort_keys=True)+'\n')
+PY
 }
 
 echo "=== [1] static contract ==="
@@ -113,11 +130,15 @@ node tools/void-release-promotion-v1.mjs stable \
   --state-dir "$STATE" --packet "$OUT/v1/publication-packet-v1.json" \
   --publication-receipt "$OUT/v1/publication-receipt-v1.json" \
   --canary-receipt "$OUT/v1/canary-receipt-v1.json" \
+  --qualification-receipt "$OUT/v1/qualification-receipt-v1.json" \
+  --qualification-approval "$OUT/v1/qualification-approval-v1.json" \
   --confirm "PROMOTE release-v1.0.0 TO STABLE" --timestamp "2026-07-21T20:04:00Z"
 node tools/void-release-promotion-v1.mjs stable \
   --state-dir "$STATE" --packet "$OUT/v1/publication-packet-v1.json" \
   --publication-receipt "$OUT/v1/publication-receipt-v1.json" \
   --canary-receipt "$OUT/v1/canary-receipt-v1.json" \
+  --qualification-receipt "$OUT/v1/qualification-receipt-v1.json" \
+  --qualification-approval "$OUT/v1/qualification-approval-v1.json" \
   --confirm "PROMOTE release-v1.0.0 TO STABLE" --timestamp "2026-07-21T20:04:00Z"
 node tools/void-release-promotion-v1.mjs verify --state-dir "$STATE"
 
@@ -133,6 +154,8 @@ expect_fail frozen-stable node tools/void-release-promotion-v1.mjs stable \
   --state-dir "$STATE" --packet "$OUT/v2/publication-packet-v1.json" \
   --publication-receipt "$OUT/v2/publication-receipt-v1.json" \
   --canary-receipt "$OUT/v2/canary-receipt-v1.json" \
+  --qualification-receipt "$OUT/v2/qualification-receipt-v1.json" \
+  --qualification-approval "$OUT/v2/qualification-approval-v1.json" \
   --confirm "PROMOTE release-v1.1.0 TO STABLE"
 node tools/void-release-promotion-v1.mjs unfreeze \
   --state-dir "$STATE" --repository 6ZoSo9/void-node --reason "review complete" \
@@ -141,6 +164,8 @@ node tools/void-release-promotion-v1.mjs stable \
   --state-dir "$STATE" --packet "$OUT/v2/publication-packet-v1.json" \
   --publication-receipt "$OUT/v2/publication-receipt-v1.json" \
   --canary-receipt "$OUT/v2/canary-receipt-v1.json" \
+  --qualification-receipt "$OUT/v2/qualification-receipt-v1.json" \
+  --qualification-approval "$OUT/v2/qualification-approval-v1.json" \
   --confirm "PROMOTE release-v1.1.0 TO STABLE" --timestamp "2026-07-21T20:08:00Z"
 
 echo "=== [5] revoke v2 and atomically return stable to v1 ==="

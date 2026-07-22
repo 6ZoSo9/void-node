@@ -214,3 +214,8 @@ dist-release/
 # Local operator release-promotion state is never public source.
 release/promotion/state/
 .release-promotion-state/
+
+# Local release-qualification evidence and state are never public source.
+release/qualification/state/
+.release-qualification-state/
+qualification-runner-output/
