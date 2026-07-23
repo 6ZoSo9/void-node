@@ -37,9 +37,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
   const publicNodeConnectRoute = "/public-node/connect";
   const publicNodeConnectJsonRoute = "/public-node/connect/public-node-connect-pack-v1.json";
   const publicNodeConnectHtmlRoute = "/public-node/connect/public-node-connect-pack-v1.html";
+  // VOID_VALIDATOR_POSITIVE_READINESS_PUBLIC_ROUTE_V1
+  const validatorPositiveReadinessPublicEvidenceRoute = "/public-node/validators/validator-registration-positive-readiness-public-evidence-v1.json";
   const publicNodeConnectPagePath = path.resolve(process.cwd(), "public/public-node/connect/index.html");
   const publicNodeConnectJsonPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.json");
   const publicNodeConnectHtmlPath = path.resolve(process.cwd(), "public/public-node/connect/public-node-connect-pack-v1.html");
+  const validatorPositiveReadinessPublicEvidencePath = path.resolve(process.cwd(), "public/public-node/validators/validator-registration-positive-readiness-public-evidence-v1.json");
   const publicNodeOperatorQuickstartPageRoute = "/public-node/operator-quickstart-v1";
   const publicNodeOperatorQuickstartJsonRoute = "/public-node/public-node-operator-quickstart-v1.json";
   const publicNodeOperatorQuickstartHtmlRoute = "/public-node/public-node-operator-quickstart-v1.html";
@@ -265,6 +268,7 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
         publicNodeConnectRoute,
         publicNodeConnectJsonRoute,
         publicNodeConnectHtmlRoute,
+        validatorPositiveReadinessPublicEvidenceRoute,
         publicNodeConnectReceiptPageRoute,
         publicNodeConnectReceiptJsonRoute,
         publicNodeConnectReceiptHtmlRoute],
@@ -327,6 +331,12 @@ export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
 
   app.get(publicNodeConnectHtmlRoute, (_req: any, res: any) => {
     res.sendFile(publicNodeConnectHtmlPath);
+  });
+
+  // VOID_VALIDATOR_POSITIVE_READINESS_PUBLIC_ROUTE_V1
+  app.get(validatorPositiveReadinessPublicEvidenceRoute, (_req: any, res: any) => {
+    res.type("application/json");
+    res.sendFile(validatorPositiveReadinessPublicEvidencePath);
   });
 
 

@@ -49221,6 +49221,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
     routes: [
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/validators/validator-registration-positive-readiness-public-evidence-v1.json", kind: "json", marker: "VOID_VALIDATOR_REGISTRATION_POSITIVE_READINESS_PUBLIC_EVIDENCE_V1", use: "public read-only validator registration positive-readiness evidence; live public registration, admission, and active-set mutation remain disabled" },
       { path: "/public-node/triad-seal-v1.json", kind: "json", marker: "VOID_PUBLIC_GATEWAY_TRIAD_SEAL_V1", use: "public gateway triad seal proving Fund VOID, Earn WC, and Verify DataNet are wired with safety boundaries" },
       { path: "/public-node/usdc-void-buy-pool/operator-execution-hold-status-v1", kind: "html", marker: "VOID_USDC_VOID_BUY_POOL_OPERATOR_EXECUTION_HOLD_PUBLIC_STATUS_V1", use: "public-safe status proving the USDC to VOID buy-pool route is live while operator execution remains gated, withheld, non-autonomous, and non-public" },
   // VOID_USDC_VOID_BUY_POOL_EXECUTION_HOLD_STATUS_ROUTE_INDEX_RUNTIME_KIND_TIGHTEN_V1: runtime route-index kind tightened to html
