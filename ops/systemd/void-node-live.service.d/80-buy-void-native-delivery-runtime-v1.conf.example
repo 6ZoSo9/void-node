@@ -1,0 +1,18 @@
+# Example only. Do not install without replacing operator placeholders.
+#
+# The source credential file must remain outside the repository and must contain
+# only the dedicated balance-capped fulfillment wallet private key.
+[Service]
+LoadCredential=buy-void-native-fulfillment-wallet-v1:/ABSOLUTE/OPERATOR/PRIVATE/PATH/buy-void-native-fulfillment-wallet-v1.key
+
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED=0
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_ENABLED=0
+
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_ASSET_MODE=native_void
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_CHAIN_ID=2050
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS=REPLACE_WITH_DEDICATED_BALANCE_CAPPED_WALLET
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_MAX_AMOUNT_UNITS=REPLACE_WITH_BOUNDED_CANARY_LIMIT
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_MAX_GAS_LIMIT=21000
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_MAX_FEE_PER_GAS_WEI=REPLACE_WITH_BOUNDED_FEE_CAP
+Environment=VOID_BUY_VOID_NATIVE_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI=REPLACE_WITH_BOUNDED_PRIORITY_FEE_CAP
+Environment=VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL=http://127.0.0.1:8545/
