@@ -187,6 +187,7 @@ try {
 
   let stdout = "";
   let stderr = "";
+  let lastStartupError = "";
   child.stdout.on("data", (chunk) => (stdout += chunk));
   child.stderr.on("data", (chunk) => (stderr += chunk));
 
@@ -195,10 +196,14 @@ try {
     try {
       const response = await fetch(`${base}/__void/public-app/status.json`);
       if (response.status === 200) break;
-    } catch {}
+    } catch (error) {
+      lastStartupError = String(error?.message || error);
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
     if (attempt === 99) {
-      throw new Error(`composition gateway did not start\nstdout=${stdout}\nstderr=${stderr}`);
+      throw new Error(
+        `composition gateway did not start\nlast_startup_error=${lastStartupError}\nstdout=${stdout}\nstderr=${stderr}`,
+      );
     }
   }
 

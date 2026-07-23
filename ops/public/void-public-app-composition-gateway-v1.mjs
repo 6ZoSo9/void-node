@@ -53,7 +53,13 @@ const publicModeScript = String.raw`(() => {
   try {
     sessionStorage.removeItem('void.ui.wave3.wallet.account.v1');
     sessionStorage.removeItem('void.ui.wave4.earn.account.v1');
-  } catch {}
+  } catch (error) {
+    window.__VOID_PUBLIC_APP_STORAGE_CLEAR_ERROR__ = true;
+    console.warn(
+      '[void-public-app] account context storage clear failed',
+      String(error?.message || error),
+    );
+  }
 
   const setText = (selector, value) => {
     document.querySelectorAll(selector).forEach((node) => {
@@ -293,10 +299,13 @@ async function fetchJson(pathname) {
   try {
     const { response, body } = await fetchWithLimit(`${NODE_UPSTREAM}${pathname}`, "GET");
     let json = null;
+    let jsonParseError = null;
     try {
       json = JSON.parse(body.toString("utf8"));
-    } catch {}
-    return { status: response.status, json, body };
+    } catch (error) {
+      jsonParseError = String(error?.message || error);
+    }
+    return { status: response.status, json, body, jsonParseError };
   } catch (error) {
     return {
       status: 0,
