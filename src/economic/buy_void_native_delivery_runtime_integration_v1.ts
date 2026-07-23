@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import express from "express";
+import "./buy_void_native_delivery_runtime_dependencies_v1.js";
 import {
   VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
   VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1,
