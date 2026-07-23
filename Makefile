@@ -1572,3 +1572,9 @@ public-first-official-release-launch-gate-v1-static-proof:
 .PHONY: public-first-official-release-launch-gate-v1-proof
 public-first-official-release-launch-gate-v1-proof:
 	bash ops/security/public-first-official-release-launch-gate-v1-proof.sh
+
+# VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN
+.PHONY: public-app-composition-repair-wall-v1-proof
+public-app-composition-repair-wall-v1-proof:
+	bash ops/security/public-app-composition-repair-wall-v1-proof.sh
+# VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END

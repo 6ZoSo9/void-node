@@ -269,3 +269,18 @@ make public-first-official-release-launch-gate-v1-proof
 ```
 
 See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
+## Public app composition gateway v1
+
+The public node now has a dedicated composition boundary that preserves the
+existing Public Earn Gateway while safely serving the VOID App shell and
+sanitized network telemetry. Account-scoped Wallet and Earn records remain
+local or session-authorized only.
+
+Proof:
+
+```bash
+make public-app-composition-repair-wall-v1-proof
+```
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->
