@@ -16,8 +16,6 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-CapabilityBoundingSet=
-AmbientCapabilities=
 UMask=0077
 
 [Install]
