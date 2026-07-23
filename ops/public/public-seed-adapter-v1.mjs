@@ -307,8 +307,24 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }
 }
 
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_COORDINATOR_UPSTREAM_V1
+function publicReadUpstream(url) {
+  if (!publicDataNetFetchAllowed(url.pathname, url.search)) return UPSTREAM;
+  return publicEarnEnabled() ? EARN_UPSTREAM : "";
+}
+
 async function proxyRead(req, res, url) {
-  const upstreamUrl = `${UPSTREAM}${url.pathname}${url.search}`;
+  const readUpstream = publicReadUpstream(url);
+  if (!readUpstream) {
+    writeJson(req, res, 503, {
+      ok: false,
+      marker: "VOID_PUBLIC_EARN_GATEWAY_DATANET_COORDINATOR_UPSTREAM_V1",
+      error: "public_earn_gateway_disabled",
+      datanet_coordinator_bound: true,
+    });
+    return;
+  }
+  const upstreamUrl = `${readUpstream}${url.pathname}${url.search}`;
   const response = await fetchWithTimeout(
     upstreamUrl,
     { method: req.method },
