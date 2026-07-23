@@ -47,6 +47,13 @@ export type BuyVoidVerifiedPaymentEventV1 = {
   };
 };
 
+export type BuyVoidVerifiedPaymentAdmissionEventV1 =
+  BuyVoidVerifiedPaymentEventV1 & {
+    schema: "void_buy_void_verified_payment_event_v2";
+    marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2";
+    payment_identity_input_complete: true;
+  };
+
 export type BuyVoidAutoFulfillmentPolicyV1 = {
   automatic_fulfillment_enabled: boolean;
   allowed_chains: string[];
@@ -118,7 +125,7 @@ export type BuyVoidAutoFulfillmentDecisionV1 =
 
 export type BuyVoidAutoFulfillmentInputV1 = {
   request: BuyVoidRequestV1;
-  verified_payment_event: BuyVoidVerifiedPaymentEventV1;
+  verified_payment_event: BuyVoidVerifiedPaymentAdmissionEventV1;
   policy: BuyVoidAutoFulfillmentPolicyV1;
   prior_claims?: BuyVoidFulfillmentClaimV1[];
 };
@@ -236,6 +243,26 @@ export function decideBuyVoidAutoFulfillmentV1(
   }
   if (policy.exact_payment_required !== true) {
     return held("exact_payment_policy_required");
+  }
+
+  const provenanceEvent = event as BuyVoidVerifiedPaymentEventV1 & {
+    schema?: unknown;
+    marker?: unknown;
+    payment_identity_input_complete?: unknown;
+  };
+  if (
+    provenanceEvent.schema !== "void_buy_void_verified_payment_event_v2" ||
+    provenanceEvent.marker !== "VOID_BUY_VOID_VERIFIED_PAYMENT_V2" ||
+    provenanceEvent.payment_identity_input_complete !== true
+  ) {
+    return held("untrusted_payment_verification_provenance", {
+      expected_schema: "void_buy_void_verified_payment_event_v2",
+      observed_schema: String(provenanceEvent.schema || ""),
+      expected_marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
+      observed_marker: String(provenanceEvent.marker || ""),
+      payment_identity_input_complete:
+        provenanceEvent.payment_identity_input_complete === true,
+    });
   }
 
   const requestId = String(request.request_id || "").trim();
