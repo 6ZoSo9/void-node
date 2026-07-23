@@ -23,6 +23,7 @@ const MAX_PROXY_BODY_BYTES = Math.max(
 
 const MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const HOME_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
+const RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1";
 
 const blockedPrefixes = [
   "/rpc",
@@ -181,6 +182,11 @@ const publicNodeCompatScript = String.raw`(() => {
       }
 
       const ready = snapshot.ready === true;
+      const runtimeStatus = String(
+        snapshot.status || (ready ? 'ready' : 'degraded')
+      );
+      const restrictedReady = runtimeStatus === 'restricted_ready';
+      const unavailable = runtimeStatus === 'unavailable';
       const head = Number.isFinite(Number(snapshot.chain_head))
         ? Number(snapshot.chain_head).toLocaleString('en-US')
         : 'Unavailable';
@@ -188,30 +194,64 @@ const publicNodeCompatScript = String.raw`(() => {
         ? Number(snapshot.peer_count)
         : 0;
 
-      setChip('ready', ready ? 'positive' : 'warning', ready ? 'Ready' : 'Degraded');
+      const readyTone = ready ? 'positive' : restrictedReady ? 'info' : 'warning';
+      const readyLabel = ready
+        ? 'Ready'
+        : restrictedReady
+          ? 'Synchronized'
+          : unavailable
+            ? 'Unavailable'
+            : 'Degraded';
+
+      setChip('ready', readyTone, readyLabel);
       setChip('head', head === 'Unavailable' ? 'warning' : 'positive', head === 'Unavailable' ? 'Unavailable' : 'Block ' + head);
       setChip('peers', peers > 0 ? 'positive' : 'warning', peers + ' peer' + (peers === 1 ? '' : 's'));
       setChip('route_index', 'positive', 'Available');
 
-      replaceExact('Loading public status…', ready ? 'Public status ready' : 'Public status degraded');
-      replaceExact('Loading readiness…', ready ? 'Ready' : 'Degraded');
+      const publicStatusText = ready
+        ? 'Public status ready'
+        : restrictedReady
+          ? 'Public status synchronized · txroot safety quarantine active'
+          : unavailable
+            ? 'Public status unavailable'
+            : 'Public status degraded';
+      const readinessText = ready
+        ? 'Ready'
+        : restrictedReady
+          ? 'Synchronized · quarantined'
+          : unavailable
+            ? 'Unavailable'
+            : 'Degraded';
+      const compactStatusText = ready
+        ? 'Status ready'
+        : restrictedReady
+          ? 'Status synchronized · quarantined'
+          : unavailable
+            ? 'Status unavailable'
+            : 'Status degraded';
+
+      replaceExact('Loading public status…', publicStatusText);
+      replaceExact('Loading readiness…', readinessText);
       replaceExact('Loading sanitized public status', 'Live sanitized public status');
       replaceExact(
         'No cached or invented telemetry is shown while the adapter is unavailable.',
-        'Fresh bounded telemetry is supplied by the public composition gateway.'
+        restrictedReady
+          ? 'Chain and peer mesh are synchronized while txroot persistence remains intentionally quarantined.'
+          : 'Fresh bounded telemetry is supplied by the public composition gateway.'
       );
       replaceExact('Loading mesh', peers + ' connected peer' + (peers === 1 ? '' : 's'));
       replaceExact('Waiting for explicit per-node runtime evidence.', 'Public seed reports block ' + head + '.');
       replaceExact('No node coverage published yet.', 'One public seed is currently observed.');
-      replaceExact('Alignment unknown', 'Public seed snapshot');
+      replaceExact('Alignment unknown', restrictedReady ? 'Synchronized under safety quarantine' : 'Public seed snapshot');
       replaceExact('Waiting for nodes', snapshot.node?.label || 'Public seed');
       replaceExact('Selected node Unknown', 'Selected node ' + (snapshot.node?.label || 'Public seed'));
       replaceExact('Not published', head === 'Unavailable' ? 'Unavailable' : 'Block ' + head);
       replaceExact('Loading public proofs', 'Public proof routes available');
       replaceExact('Waiting for sanitized snapshot', 'Sanitized public-seed snapshot loaded');
-      replaceExact('Loading public status', ready ? 'Status ready' : 'Status degraded');
+      replaceExact('Loading public status', compactStatusText);
 
       document.documentElement.dataset.voidPublicComposition = 'ready';
+      document.documentElement.dataset.voidPublicRuntimeStatus = runtimeStatus;
     } catch (error) {
       setChip('ready', 'warning', 'Unavailable');
       setChip('head', 'warning', 'Unavailable');
@@ -366,6 +406,50 @@ async function buildSnapshot() {
     : null;
   const operationalReady =
     reportedReady && gap === 0 && txrootLive === 1 && reasons.length === 0;
+  const publicServiceAvailable =
+    readyResult.status === 200 &&
+    headResult.status === 200 &&
+    peersResult.status === 200 &&
+    versionResult.status === 200;
+  const chainSynchronized =
+    reportedReady && gap === 0 && Number.isFinite(Number(head));
+  const meshConnected = Number.isFinite(Number(peerCount)) && peerCount > 0;
+  const meshAligned =
+    Number.isFinite(Number(peerCount)) && peerCount >= EXPECTED_PEERS;
+  const txrootQuarantineActive =
+    TXROOT_QUARANTINED && txrootLive !== 1;
+  const quarantineReasonOnly =
+    reasons.length > 0 &&
+    reasons.every((reason) => reason === "txroot_live!=1");
+  const restrictedReady =
+    !operationalReady &&
+    publicServiceAvailable &&
+    chainSynchronized &&
+    meshConnected &&
+    meshAligned &&
+    txrootQuarantineActive &&
+    quarantineReasonOnly;
+  const runtimeStatus = operationalReady
+    ? "ready"
+    : restrictedReady
+      ? "restricted_ready"
+      : publicServiceAvailable
+        ? "degraded"
+        : "unavailable";
+  const runtimeStatusLabel = operationalReady
+    ? "Ready"
+    : restrictedReady
+      ? "Synchronized under txroot safety quarantine"
+      : runtimeStatus === "unavailable"
+        ? "Unavailable"
+        : "Degraded";
+  const runtimeStatusDetail = operationalReady
+    ? "Strict readiness checks are green."
+    : restrictedReady
+      ? "Chain head and expected peer mesh are synchronized; txroot persistence remains intentionally quarantined."
+      : runtimeStatus === "unavailable"
+        ? "One or more required public telemetry sources are unavailable."
+        : "Public telemetry is available, but strict or restricted-ready conditions are not satisfied.";
   const versionBody =
     versionResult.json && typeof versionResult.json === "object"
       ? versionResult.json
@@ -374,9 +458,20 @@ async function buildSnapshot() {
   const snapshot = {
     ok: true,
     marker: MARKER,
+    runtime_truth_marker: RUNTIME_TRUTH_MARKER,
     generated_at: new Date().toISOString(),
     read_only: true,
     public_safe: true,
+    status: runtimeStatus,
+    status_label: runtimeStatusLabel,
+    status_detail: runtimeStatusDetail,
+    strict_ready: operationalReady,
+    restricted_ready: restrictedReady,
+    public_service_available: publicServiceAvailable,
+    chain_synchronized: chainSynchronized,
+    mesh_connected: meshConnected,
+    mesh_aligned: meshAligned,
+    security_mode: txrootQuarantineActive ? "txroot_quarantine" : "normal",
     network_name: NETWORK_NAME,
     node: {
       label: NODE_LABEL,
@@ -390,7 +485,7 @@ async function buildSnapshot() {
     head,
     gap,
     txroot_live: txrootLive,
-    txroot_quarantined: TXROOT_QUARANTINED && txrootLive !== 1,
+    txroot_quarantined: txrootQuarantineActive,
     reasons,
     peer_count: peerCount,
     expected_peer_count: EXPECTED_PEERS,
@@ -415,10 +510,14 @@ async function buildSnapshot() {
         head,
         peer_count: peerCount,
         ready: operationalReady,
+        strict_ready: operationalReady,
+        restricted_ready: restrictedReady,
+        status: runtimeStatus,
+        status_label: runtimeStatusLabel,
         reported_ready: reportedReady,
         gap,
         txroot_live: txrootLive,
-        txroot_quarantined: TXROOT_QUARANTINED && txrootLive !== 1,
+        txroot_quarantined: txrootQuarantineActive,
         reasons,
       },
     ],
@@ -481,8 +580,23 @@ function toHomeSnapshot(snapshot) {
       reason: "Account-scoped balances are not public.",
     },
     network: {
-      health: snapshot.ready ? "healthy" : "degraded",
+      health:
+        snapshot.status === "ready"
+          ? "healthy"
+          : snapshot.status === "restricted_ready"
+            ? "restricted"
+            : snapshot.status,
+      status: snapshot.status,
+      status_label: snapshot.status_label,
+      status_detail: snapshot.status_detail,
       ready: snapshot.ready,
+      strict_ready: snapshot.strict_ready,
+      restricted_ready: snapshot.restricted_ready,
+      public_service_available: snapshot.public_service_available,
+      chain_synchronized: snapshot.chain_synchronized,
+      mesh_connected: snapshot.mesh_connected,
+      mesh_aligned: snapshot.mesh_aligned,
+      security_mode: snapshot.security_mode,
       reported_ready: snapshot.reported_ready,
       chain_head: snapshot.chain_head,
       gap: snapshot.gap,
@@ -585,6 +699,7 @@ const server = http.createServer(async (req, res) => {
         {
           ok: true,
           marker: MARKER,
+          runtime_truth_marker: RUNTIME_TRUTH_MARKER,
           mode: "public_safe_composition",
           host: HOST,
           port: PORT,
@@ -606,6 +721,7 @@ const server = http.createServer(async (req, res) => {
         {
           ok: true,
           marker: MARKER,
+          runtime_truth_marker: RUNTIME_TRUTH_MARKER,
           public_mode: true,
           account_views_public: false,
           local_or_authorized_session_required: true,
