@@ -124,6 +124,18 @@ function publicDataNetFetchAllowed(pathname, search = "") {
   );
 }
 
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_DEFAULT_WHO_V1
+const DATANET_FETCH_DEFAULT_WHO_V1 = "void-public-earn-no-node-v1";
+
+function publicDataNetFetchUpstreamSearch(search = "") {
+  const params = new URLSearchParams(search);
+  if (params.getAll("who").length === 0) {
+    params.set("who", DATANET_FETCH_DEFAULT_WHO_V1);
+  }
+  const rendered = params.toString();
+  return rendered ? `?${rendered}` : "";
+}
+
 
 const blocked = [
   "/rpc",
@@ -324,7 +336,13 @@ async function proxyRead(req, res, url) {
     });
     return;
   }
-  const upstreamUrl = `${readUpstream}${url.pathname}${url.search}`;
+  const upstreamSearch = publicDataNetFetchAllowed(
+    url.pathname,
+    url.search,
+  )
+    ? publicDataNetFetchUpstreamSearch(url.search)
+    : url.search;
+  const upstreamUrl = `${readUpstream}${url.pathname}${upstreamSearch}`;
   const response = await fetchWithTimeout(
     upstreamUrl,
     { method: req.method },
