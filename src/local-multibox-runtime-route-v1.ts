@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { mountAiAgentDiscoveryRuntimeRouteV1 } from "./ai-agent-discovery-runtime-route-v1.js";
 
 /* VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1
  * Public-safe read-only exact route exposure for the local multi-box runtime status artifact.
@@ -7,6 +8,8 @@ import path from "node:path";
  * buy-VOID fulfillment, WC-to-VOID execution, or public internet mesh claim.
  */
 export function mountLocalMultiboxRuntimeRouteV1(app: any): void {
+  // VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1
+  mountAiAgentDiscoveryRuntimeRouteV1(app);
   const jsonRoute = "/public-node/runtime/local-multibox-status-v1.json";
   const htmlRoute = "/public-node/runtime/local-multibox-status-v1.html";
   const jsonPath = path.resolve(process.cwd(), "public/public-node/runtime/local-multibox-status-v1.json");

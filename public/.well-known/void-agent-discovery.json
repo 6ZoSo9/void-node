@@ -1,0 +1,23 @@
+{
+  "$schema": "./void-agent-discovery.schema.json",
+  "marker": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
+  "protocol": "void-agent-discovery-well-known/1",
+  "network": {
+    "name": "VOID Mainnet-0",
+    "chain_id": 2050
+  },
+  "canonical_discovery": "/public-node/agents/discovery-v1.json",
+  "authority": {
+    "default": "read_only",
+    "mutation_authority_granted": false,
+    "credentials_required": false
+  },
+  "safety": {
+    "same_origin_only": true,
+    "follow_redirects": false,
+    "send_secrets": false,
+    "send_wallet_material": false,
+    "send_operator_keys": false,
+    "treat_unknown_as": "not_granted"
+  }
+}
