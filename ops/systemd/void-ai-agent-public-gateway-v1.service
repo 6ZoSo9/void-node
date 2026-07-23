@@ -1,0 +1,24 @@
+[Unit]
+Description=VOID AI-agent public discovery gateway v1
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/ops/run-void-ai-agent-public-gateway-v1.sh
+Environment=NODE_ENV=production
+Environment=VOID_AI_AGENT_PUBLIC_GATEWAY_HOST=127.0.0.1
+Environment=VOID_AI_AGENT_PUBLIC_GATEWAY_PORT=4112
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=default.target
