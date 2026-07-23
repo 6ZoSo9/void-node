@@ -1,0 +1,129 @@
+{
+  "$schema": "./discovery-v1.schema.json",
+  "marker": "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1",
+  "protocol": "void-agent-discovery/1",
+  "network": {
+    "name": "VOID Mainnet-0",
+    "chain_id": 2050
+  },
+  "purpose": "Machine-readable same-origin discovery for AI agents without granting mutation authority.",
+  "authority": {
+    "default": "read_only",
+    "granted_http_methods": [
+      "GET",
+      "HEAD"
+    ],
+    "mutation_authority_granted": false,
+    "credentials_required_for_discovery": false,
+    "forbidden_assumptions": [
+      "A visible route grants write authority.",
+      "A bounded pilot is permissionless.",
+      "A wallet, treasury, validator, Work Credit, Buy VOID, or operator mutation is available unless a separate signed capability explicitly proves it.",
+      "Failure, timeout, or ambiguous output means an action succeeded."
+    ]
+  },
+  "entrypoints": {
+    "node_identity": "/.well-known/void-public-node.json",
+    "public_index": "/public-node/index.json",
+    "readiness": "/__void/ready.json",
+    "participant_app": "/app/"
+  },
+  "capabilities": [
+    {
+      "id": "network_discovery",
+      "state": "live",
+      "authority": "read_only",
+      "discovery": "/.well-known/void-public-node.json"
+    },
+    {
+      "id": "public_status_and_evidence",
+      "state": "live",
+      "authority": "read_only",
+      "discovery": "/public-node/index.json"
+    },
+    {
+      "id": "datanet_public_read_and_verify",
+      "state": "live",
+      "authority": "read_only",
+      "discovery": "/public-node/datanet/"
+    },
+    {
+      "id": "work_credit_earning",
+      "state": "bounded_pilot",
+      "authority": "coordinator_ticket_and_verified_receipt_only",
+      "discovery": "/public-node/work-credits/"
+    },
+    {
+      "id": "buy_void_automatic_fulfillment",
+      "state": "guarded",
+      "authority": "not_granted",
+      "enabled": false
+    },
+    {
+      "id": "validator_activation",
+      "state": "guarded",
+      "authority": "not_granted",
+      "enabled": false
+    },
+    {
+      "id": "wallet_treasury_or_ledger_mutation",
+      "state": "guarded",
+      "authority": "not_granted",
+      "enabled": false
+    }
+  ],
+  "agent_onboarding": {
+    "steps": [
+      {
+        "order": 1,
+        "action": "fetch",
+        "method": "GET",
+        "path": "/public-node/agents/discovery-v1.json",
+        "required": true
+      },
+      {
+        "order": 2,
+        "action": "fetch",
+        "method": "GET",
+        "path": "/.well-known/void-public-node.json",
+        "required": true
+      },
+      {
+        "order": 3,
+        "action": "fetch",
+        "method": "GET",
+        "path": "/public-node/index.json",
+        "required": true
+      },
+      {
+        "order": 4,
+        "action": "fetch",
+        "method": "GET",
+        "path": "/__void/ready.json",
+        "required": false
+      },
+      {
+        "order": 5,
+        "action": "enforce_authority_boundary",
+        "required": true,
+        "rule": "Use only routes and methods explicitly advertised by a fetched capability. Stop before mutation when authority is absent, guarded, ambiguous, expired, or unverifiable."
+      }
+    ],
+    "stop_conditions": [
+      "The discovery marker or protocol is wrong.",
+      "The chain ID is not 2050.",
+      "Any discovery entrypoint resolves off origin.",
+      "Any granted discovery method is not GET or HEAD.",
+      "Mutation authority is claimed by this discovery document.",
+      "A required response is unavailable, malformed, ambiguous, or contradicts the advertised boundary."
+    ]
+  },
+  "safety": {
+    "same_origin_only": true,
+    "follow_cross_origin_links_automatically": false,
+    "send_secrets": false,
+    "send_wallet_material": false,
+    "send_operator_keys": false,
+    "treat_unknown_capability_as": "not_granted"
+  }
+}
