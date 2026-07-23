@@ -23,6 +23,9 @@ function baseInput(): BuyVoidAutoFulfillmentInputV1 {
       quoted_void: "50",
     },
     verified_payment_event: {
+      schema: "void_buy_void_verified_payment_event_v2",
+      marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
+      payment_identity_input_complete: true,
       request_id: "buyvoid_replay_request_1",
       operator_status: "payment_verified",
       payment_verified: true,
