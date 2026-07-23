@@ -19,12 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/void-python-bytecode-hygiene-v1
       VOID_REHEARSAL_VERSION: ${{ inputs.rehearsal_version }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Configure external Python bytecode cache
+        shell: bash
+        run: |
+          echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/void-python-bytecode-hygiene-v1" \
+            >> "$GITHUB_ENV"
       - uses: actions/setup-node@v5
         with:
           node-version: '22'

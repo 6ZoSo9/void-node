@@ -12,11 +12,14 @@ permissions:
 jobs:
   bytecode-hygiene:
     runs-on: ubuntu-latest
-    env:
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/void-python-bytecode-hygiene-v1
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Configure external Python bytecode cache
+        shell: bash
+        run: |
+          echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/void-python-bytecode-hygiene-v1" \
+            >> "$GITHUB_ENV"
       - name: Prove tracked Python bytecode is zero
         run: bash ops/security/public-python-bytecode-hygiene-v1-proof.sh
