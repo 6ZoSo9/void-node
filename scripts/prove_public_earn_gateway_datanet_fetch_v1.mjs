@@ -9,6 +9,7 @@ import path from "node:path";
 
 const DATASET_ID = "ds_public_gateway_fetch_v1";
 const WHO = "outside-user-1";
+const DEFAULT_WHO = "void-public-earn-no-node-v1";
 const PAYLOAD = Buffer.from(
   "VOID_PUBLIC_EARN_GATEWAY_DATANET_FETCH_V1_FIXTURE\n",
   "utf8",
@@ -330,6 +331,7 @@ try {
   );
   assert.equal(validWithoutWho.status, 200);
   assert.equal(validWithoutWho.json?.id, DATASET_ID);
+  assert.equal(validWithoutWho.json?.who, DEFAULT_WHO);
 
   const validHead = await request(
     "HEAD",
@@ -377,6 +379,14 @@ try {
     fetchRequests.map((item) => item.method),
     ["GET", "GET", "HEAD"],
   );
+  assert.deepEqual(
+    fetchRequests.map((item) => item.search),
+    [
+      `?who=${WHO}`,
+      `?who=${DEFAULT_WHO}`,
+      `?who=${WHO}`,
+    ],
+  );
   assert.equal(
     upstreamRequests.some((item) =>
       item.pathname.startsWith("/datanet/v1/fetch/"),
@@ -410,6 +420,9 @@ try {
           item.pathname.startsWith("/datanet/v1/fetch/"),
         ).length,
         earn_upstream_datanet_fetch_count: fetchRequests.length,
+        explicit_who_preserved: true,
+        missing_who_defaulted: true,
+        default_who: DEFAULT_WHO,
         public_claim_preserved: true,
         claim_submit_regression_delegated:
           "scripts/prove_public_earn_gateway_v1.mjs",
