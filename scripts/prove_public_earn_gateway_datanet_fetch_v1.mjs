@@ -120,7 +120,31 @@ const seedServer = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === `/datanet/v1/fetch/${DATASET_ID}`) {
+  const raw = Buffer.from(
+    JSON.stringify({ ok: false, error: "not_found" }),
+    "utf8",
+  );
+  res.writeHead(404, {
+    "content-type": "application/json",
+    "content-length": String(raw.length),
+  });
+  res.end(raw);
+});
+
+const earnRequests = [];
+const earnPosts = [];
+const earnServer = http.createServer((req, res) => {
+  const url = new URL(req.url || "/", "http://fixture.invalid");
+  earnRequests.push({
+    method: req.method,
+    pathname: url.pathname,
+    search: url.search,
+  });
+
+  if (
+    (req.method === "GET" || req.method === "HEAD") &&
+    url.pathname === `/datanet/v1/fetch/${DATASET_ID}`
+  ) {
     const raw = Buffer.from(
       JSON.stringify({
         ok: true,
@@ -135,24 +159,11 @@ const seedServer = http.createServer((req, res) => {
       "content-type": "application/json",
       "content-length": String(raw.length),
     });
+    if (req.method === "HEAD") return res.end();
     res.end(raw);
     return;
   }
 
-  const raw = Buffer.from(
-    JSON.stringify({ ok: false, error: "not_found" }),
-    "utf8",
-  );
-  res.writeHead(404, {
-    "content-type": "application/json",
-    "content-length": String(raw.length),
-  });
-  res.end(raw);
-});
-
-const earnPosts = [];
-const earnServer = http.createServer((req, res) => {
-  const url = new URL(req.url || "/", "http://fixture.invalid");
   if (req.method === "GET" && url.pathname === "/health") {
     const raw = Buffer.from(JSON.stringify({ ok: true }), "utf8");
     res.writeHead(200, {
@@ -358,7 +369,7 @@ try {
   // in scripts/prove_public_earn_gateway_v1.mjs. This focused proof sends no
   // POST to the earn coordinator; it covers only the new read-only DataNet
   // route plus preservation of the public_claim status object.
-  const fetchRequests = upstreamRequests.filter((item) =>
+  const fetchRequests = earnRequests.filter((item) =>
     item.pathname.startsWith("/datanet/v1/fetch/"),
   );
   assert.equal(fetchRequests.length, 3);
@@ -367,7 +378,18 @@ try {
     ["GET", "GET", "HEAD"],
   );
   assert.equal(
+    upstreamRequests.some((item) =>
+      item.pathname.startsWith("/datanet/v1/fetch/"),
+    ),
+    false,
+    "DataNet earning reads must not use VOID_SEED_UPSTREAM",
+  );
+  assert.equal(
     upstreamRequests.some((item) => item.pathname === "/datanet/v1/publish"),
+    false,
+  );
+  assert.equal(
+    earnRequests.some((item) => item.pathname === "/datanet/v1/publish"),
     false,
   );
   assert.equal(
@@ -383,6 +405,11 @@ try {
         valid_fetch_cases: 3,
         blocked_fetch_cases: blockedCases.length + 1,
         valid_upstream_fetch_count: fetchRequests.length,
+        datanet_read_upstream: "VOID_EARN_COORDINATOR_UPSTREAM",
+        seed_upstream_datanet_fetch_count: upstreamRequests.filter((item) =>
+          item.pathname.startsWith("/datanet/v1/fetch/"),
+        ).length,
+        earn_upstream_datanet_fetch_count: fetchRequests.length,
         public_claim_preserved: true,
         claim_submit_regression_delegated:
           "scripts/prove_public_earn_gateway_v1.mjs",

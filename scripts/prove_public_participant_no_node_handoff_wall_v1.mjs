@@ -120,6 +120,16 @@ let statusAccountQueries = 0;
 const coordinator = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", "http://coordinator.local");
 
+  // VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_DATANET_COORDINATOR_FIXTURE_V1
+  if (url.pathname === "/datanet/v1/fetch/ds_no_node_public_v1") {
+      res.writeHead(200, {
+        "content-type": "application/octet-stream",
+        "content-length": dataset.length,
+      });
+      return res.end(dataset);
+    }
+
+
   if (req.method === "GET" && url.pathname === "/health") {
     return sendJson(res, 200, {
       ok: true,
@@ -298,15 +308,7 @@ const nodeServer = http.createServer((req, res) => {
     });
   }
 
-  if (url.pathname === "/datanet/v1/fetch/ds_no_node_public_v1") {
-    res.writeHead(200, {
-      "content-type": "application/octet-stream",
-      "content-length": dataset.length,
-    });
-    return res.end(dataset);
-  }
-
-  return sendJson(res, 404, { ok: false, error: "not_found" });
+    return sendJson(res, 404, { ok: false, error: "not_found" });
 });
 
 let adapter;
