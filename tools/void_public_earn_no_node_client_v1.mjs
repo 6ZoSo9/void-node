@@ -16,7 +16,7 @@ export const FIXED_AWARD_WC = 3;
 export const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 export const SUBMIT_ROUTE = "/wc/public-earning-pilot-v1/submit-result";
 export const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
-export const BALANCE_ROUTE = "/wc/redeemable";
+export const ACCOUNTING_MODE = "capability_bound_submission_response_v1";
 const CLAIM_DOMAIN = "void:mainnet-0:wc-public-ticket-claim-v1";
 const RESULT_DOMAIN = "void:mainnet-0:wc-public-earning-pilot-v1";
 const DEFAULT_STATE_DIR = path.join(
@@ -433,15 +433,6 @@ function validateCoordinatorStatus(status) {
   return publicClaim;
 }
 
-function validateBalance(body, account) {
-  if (body?.ok !== true || safeAccount(body?.account) !== account) {
-    fail("balance_response_invalid");
-  }
-  const value = Number(body.redeemable);
-  if (!Number.isFinite(value) || value < 0) fail("balance_redeemable_invalid");
-  return value;
-}
-
 function redact(value, secrets = []) {
   if (typeof value === "string") {
     let output = value;
@@ -647,7 +638,9 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
   fail("dataset_fetch_verify_failed", "no public dataset representation matched the server-selected expected hash", { attempts });
 }
 
-function validateCoordinatorSubmission(body, ticket, before) {
+function validateCoordinatorSubmission(body, ticket) {
+  const before = Number(body?.wc?.before);
+  const after = Number(body?.wc?.after);
   if (
     body?.ok !== true ||
     body?.marker !== PILOT_MARKER ||
@@ -666,13 +659,19 @@ function validateCoordinatorSubmission(body, ticket, before) {
     safeId(body?.dataset_id, 160) !== ticket.dataset_id ||
     Number(body?.wc?.fixed_award_wc || 0) !== FIXED_AWARD_WC ||
     Number(body?.wc?.delta) !== FIXED_AWARD_WC ||
-    Number(body?.wc?.before) !== before ||
+    !Number.isFinite(before) ||
+    before < 0 ||
+    !Number.isFinite(after) ||
+    after !== before + FIXED_AWARD_WC ||
+    body?.wc?.canonical_redeemable !== true ||
+    body?.acceptance?.credited !== true ||
+    body?.acceptance?.duplicate !== false ||
     body?.participant_selected_award !== false ||
     body?.money_movement !== false
   ) {
     fail("coordinator_submission_response_invalid");
   }
-  return Number(body.wc.after);
+  return { before, after };
 }
 
 function acquireRunLock(file) {
@@ -719,29 +718,32 @@ async function inspectCoordinator(options, identity) {
   if (!account) fail("invalid_account");
   if (!coordinatorBase) fail("invalid_coordinator_base");
   if (!trustedNodeId) fail("invalid_coordinator_node_id");
-  const health = (await requestJson(`${coordinatorBase}/health`, {}, 15_000)).body;
-  if (health?.ok !== true || safeNodeId(health?.nodeId) !== trustedNodeId) {
+  const health = (
+    await requestJson(`${coordinatorBase}/health`, {}, 15_000)
+  ).body;
+  if (
+    health?.ok !== true ||
+    safeNodeId(health?.nodeId) !== trustedNodeId
+  ) {
     fail("coordinator_node_identity_mismatch");
   }
   const status = (
     await requestJson(
-      `${coordinatorBase}${STATUS_ROUTE}?account=${encodeURIComponent(account)}`,
+      `${coordinatorBase}${STATUS_ROUTE}`,
       {},
       15_000,
     )
   ).body;
   const publicClaim = validateCoordinatorStatus(status);
-  const balance = validateBalance(
-    (
-      await requestJson(
-        `${coordinatorBase}${BALANCE_ROUTE}?account=${encodeURIComponent(account)}`,
-        {},
-        15_000,
-      )
-    ).body,
+  return {
     account,
-  );
-  return { account, coordinatorBase, trustedNodeId, health, status, publicClaim, balance, identity };
+    coordinatorBase,
+    trustedNodeId,
+    health,
+    status,
+    publicClaim,
+    identity,
+  };
 }
 
 function loadPendingClaim(paths, account, coordinatorBase, coordinatorNodeId, executorNodeId) {
@@ -959,24 +961,11 @@ async function runOnce(options) {
       45_000,
       [capabilityToken],
     );
-    const responseAfter = validateCoordinatorSubmission(
+    const accounting = validateCoordinatorSubmission(
       submission.body,
       ticket,
-      context.balance,
     );
-    const balanceAfter = validateBalance(
-      (
-        await requestJson(
-          `${context.coordinatorBase}${BALANCE_ROUTE}?account=${encodeURIComponent(context.account)}`,
-          {},
-          15_000,
-        )
-      ).body,
-      context.account,
-    );
-    if (balanceAfter !== context.balance + FIXED_AWARD_WC || balanceAfter !== responseAfter) {
-      fail("canonical_balance_delta_mismatch");
-    }
+
     const receiptFile = path.join(paths.receiptsDir, `${ticket.ticket_id}.json`);
     atomicWrite(
       receiptFile,
@@ -999,10 +988,11 @@ async function runOnce(options) {
           receipt_id: receiptId,
           token_sha256: sha256(capabilityToken),
           wc: {
-            before: context.balance,
-            after: balanceAfter,
+            before: accounting.before,
+            after: accounting.after,
             delta: FIXED_AWARD_WC,
             fixed_award_wc: FIXED_AWARD_WC,
+            proof: ACCOUNTING_MODE,
           },
           transport_mode: "outbound_bundle",
           full_void_node_required: false,
@@ -1030,9 +1020,10 @@ async function runOnce(options) {
     console.log("transport_mode=outbound_bundle");
     console.log("full_void_node_required=false");
     console.log("inbound_executor_reachability_required=false");
-    console.log(`wc_before=${context.balance}`);
-    console.log(`wc_after=${balanceAfter}`);
+    console.log(`wc_before=${accounting.before}`);
+    console.log(`wc_after=${accounting.after}`);
     console.log(`wc_delta=${FIXED_AWARD_WC}`);
+    console.log(`accounting_proof=${ACCOUNTING_MODE}`);
     console.log(`resumed_pending_ticket=${resumedPendingTicket}`);
     console.log("ticket_deleted=1");
     console.log(`receipt=${receiptFile}`);
@@ -1066,7 +1057,8 @@ async function main(argv = process.argv.slice(2)) {
     console.log(`account=${context.account}`);
     console.log(`executor_node_id=${identity.nodeId}`);
     console.log(`coordinator_node_id=${context.trustedNodeId}`);
-    console.log(`redeemable=${context.balance}`);
+    console.log("public_balance_lookup=false");
+    console.log(`accounting_proof=${ACCOUNTING_MODE}`);
     console.log("public_claim_available=true");
     console.log("full_void_node_required=false");
     console.log("VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_STATUS_EXACT_GREEN");

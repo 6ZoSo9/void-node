@@ -15,7 +15,7 @@ The gateway does not expose the operator issue route. Public ticket creation is 
 | `/__void/public-earn-gateway-v1/status.json` | GET/HEAD | Sanitized gateway status and safety boundary |
 | `/health` | GET/HEAD | Sanitized coordinator identity and health used by the participant CLIs |
 | `/wc/public-earning-pilot-v1/status` | GET/HEAD | Sanitized coordinator capability and public-claim status |
-| `/wc/redeemable?account=...` | GET/HEAD | Sanitized canonical account balance |
+| `/download/void-public-earn-no-node-client-v1.mjs` | GET/HEAD | One-shot no-node participant client |
 | `/wc/public-earning-pilot-v1/claim-ticket` | POST | Signed, server-selected, rate-limited public ticket claim |
 | `/wc/public-earning-pilot-v1/submit-result` | POST | Capability-bound result submission only |
 | `/download/wc-public-ticket-claim-v1.sh` | GET/HEAD | Public claim-and-earn CLI |
@@ -67,3 +67,17 @@ The result route requires JSON, has bounded request and response sizes, uses an 
 10. The CLI verifies the canonical balance delta and deletes the consumed ticket file.
 
 A successful claim or submission grants no wallet, settlement, Buy VOID, validator, or operator authority.
+
+## Participant-account privacy
+
+The public gateway exposes generic earning availability without an account
+query. Account-bearing status queries and arbitrary
+`/wc/redeemable?account=...` lookups are not public.
+
+The no-node client verifies canonical `before`, `after`, and exact `+3 WC`
+accounting from the capability-bound submit response. This preserves useful
+earning without publishing a participant-account balance directory.
+
+The public no-node client is distributed at:
+
+`/download/void-public-earn-no-node-client-v1.mjs`

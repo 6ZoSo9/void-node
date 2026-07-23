@@ -24,6 +24,12 @@ const EARN_CLAIM_CLI_FILE = path.resolve(
   process.env.VOID_EARN_CLAIM_CLI_FILE ||
     path.join(process.cwd(), "ops/mainnet0/wc-public-ticket-claim-v1.sh"),
 );
+const EARN_NO_NODE_CLIENT_PATH =
+  "/download/void-public-earn-no-node-client-v1.mjs";
+const EARN_NO_NODE_CLIENT_FILE = path.resolve(
+  process.env.VOID_EARN_NO_NODE_CLIENT_FILE ||
+    path.join(process.cwd(), "tools/void_public_earn_no_node_client_v1.mjs"),
+);
 const EARN_MAX_BODY_BYTES = boundedInteger(
   process.env.VOID_EARN_GATEWAY_MAX_BODY_BYTES,
   512 * 1024,
@@ -84,10 +90,10 @@ const exactAllow = new Set([
   "/datanet/materialized-status",
   EARN_HEALTH_PATH,
   EARN_STATUS_PATH,
-  EARN_BALANCE_PATH,
   EARN_GATEWAY_STATUS_PATH,
   EARN_CLI_PATH,
   EARN_CLAIM_CLI_PATH,
+  EARN_NO_NODE_CLIENT_PATH,
 ]);
 
 const prefixAllow = [
@@ -224,20 +230,20 @@ function gatewayStatus() {
     routes: {
       health: EARN_HEALTH_PATH,
       status: EARN_STATUS_PATH,
-      balance: EARN_BALANCE_PATH,
       submit_result: EARN_SUBMIT_PATH,
       claim_ticket: EARN_CLAIM_PATH,
       participant_cli: EARN_CLI_PATH,
       claim_cli: EARN_CLAIM_CLI_PATH,
+      no_node_client: EARN_NO_NODE_CLIENT_PATH,
     },
     methods: {
       health: ["GET", "HEAD"],
       status: ["GET", "HEAD"],
-      balance: ["GET", "HEAD"],
       submit_result: ["POST"],
       claim_ticket: ["POST"],
       participant_cli: ["GET", "HEAD"],
       claim_cli: ["GET", "HEAD"],
+      no_node_client: ["GET", "HEAD"],
     },
     limits: {
       request_body_bytes: EARN_MAX_BODY_BYTES,
@@ -259,6 +265,8 @@ function gatewayStatus() {
       buy_void_fulfillment: false,
       validator_mutation: false,
       operator_routes_exposed: false,
+      arbitrary_balance_lookup: false,
+      submission_response_canonical_accounting: true,
     },
   };
 }
@@ -420,6 +428,7 @@ function sanitizePilotStatus(value) {
         publicClaim.global_claims_per_24h,
       ),
       work_available: safeBoolean(publicClaim.work_available),
+      dataset_url_template: "/datanet/v1/fetch/{dataset_id}",
       participant_selected_dataset: false,
       participant_selected_input_hash: false,
       participant_selected_award: false,
@@ -767,6 +776,32 @@ function serveClaimCli(req, res) {
   );
 }
 
+function serveNoNodeClient(req, res) {
+  let stat;
+  try {
+    stat = fs.statSync(EARN_NO_NODE_CLIENT_FILE);
+  } catch (error) {
+    writeText(req, res, 404, "no_node_client_unavailable\n");
+    return;
+  }
+  if (!stat.isFile() || stat.size <= 0 || stat.size > 256 * 1024) {
+    writeText(req, res, 404, "no_node_client_unavailable\n");
+    return;
+  }
+  const body = fs.readFileSync(EARN_NO_NODE_CLIENT_FILE);
+  res.writeHead(200, {
+    "content-type": "text/javascript; charset=utf-8",
+    "content-disposition":
+      'attachment; filename="void-public-earn-no-node-client-v1.mjs"',
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-public-seed-adapter": "v1",
+    "x-void-public-earn-gateway": "v1",
+  });
+  if (req.method === "HEAD") return res.end();
+  res.end(body);
+}
+
 const server = http.createServer(async (req, res) => {
   // VOID_PUBLIC_EDGE_LANDING_ROOT_V1
   try {
@@ -830,14 +865,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === EARN_STATUS_PATH) {
-      const keys = Array.from(url.searchParams.keys());
-      const account = String(url.searchParams.get("account") || "");
-      if (keys.some((key) => key !== "account") || (account && !validAccount(account))) {
-        writeJson(req, res, 400, { ok: false, error: "invalid_account" });
+      if (url.search) {
+        writeJson(req, res, 400, {
+          ok: false,
+          error: "status_query_not_allowed",
+        });
         return;
       }
-      const search = account ? `?account=${encodeURIComponent(account)}` : "";
-      const result = await fetchEarnJson(EARN_STATUS_PATH, search);
+      const result = await fetchEarnJson(EARN_STATUS_PATH);
       writeJson(req, res, result.status, sanitizePilotStatus(result.body));
       return;
     }
@@ -868,6 +903,15 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       serveClaimCli(req, res);
+      return;
+    }
+
+    if (url.pathname === EARN_NO_NODE_CLIENT_PATH) {
+      if (url.search) {
+        writeText(req, res, 400, "download_query_not_allowed\n");
+        return;
+      }
+      serveNoNodeClient(req, res);
       return;
     }
 

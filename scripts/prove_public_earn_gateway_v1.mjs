@@ -13,6 +13,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const adapterFile = process.argv[2] || path.join(root, "ops/public/public-seed-adapter-v1.mjs");
 const repositoryCliFile = path.join(root, "ops/mainnet0/wc-public-earning-participant-v1.sh");
 const claimCliFile = path.join(root, "ops/mainnet0/wc-public-ticket-claim-v1.sh");
+const noNodeClientFile = path.join(
+  root,
+  "tools/void_public_earn_no_node_client_v1.mjs",
+);
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-gateway-v1-"));
 let adapter;
 let regularServer;
@@ -59,11 +63,15 @@ async function json(url, options) {
 async function main() {
   assert.equal(fs.existsSync(repositoryCliFile), true, "participant CLI missing");
   assert.equal(fs.existsSync(claimCliFile), true, "claim CLI missing");
+  assert.equal(fs.existsSync(noNodeClientFile), true, "no-node client missing");
   const repositoryCliText = fs.readFileSync(repositoryCliFile, "utf8");
   const claimCliText = fs.readFileSync(claimCliFile, "utf8");
+  const noNodeClientText = fs.readFileSync(noNodeClientFile, "utf8");
   assert.match(repositoryCliText, /VOID_WC_PUBLIC_EARNING_PARTICIPANT_CLI_V1/);
   assert.match(claimCliText, /VOID_WC_PUBLIC_TICKET_CLAIM_CLI_V1/);
   assert.match(claimCliText, /wcPublicTicketClaimSign/);
+  assert.match(noNodeClientText, /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1/);
+  assert.equal(noNodeClientText.includes("/wc/redeemable"), false);
   assert.equal(/http:\/\/100\./.test(repositoryCliText), false, "public CLI leaks a Tailnet IPv4 example");
   assert.equal(/100\.122\.245\.125/.test(repositoryCliText), false, "public CLI leaks the Precision Tailnet address");
   assert.equal(/http:\/\/100\./.test(claimCliText), false, "claim CLI leaks a Tailnet IPv4 example");
@@ -298,6 +306,7 @@ async function main() {
       VOID_EARN_COORDINATOR_UPSTREAM: `http://127.0.0.1:${earnPort}`,
       VOID_EARN_PARTICIPANT_CLI_FILE: repositoryCliFile,
       VOID_EARN_CLAIM_CLI_FILE: claimCliFile,
+      VOID_EARN_NO_NODE_CLIENT_FILE: noNodeClientFile,
       VOID_ADAPTER_HOST: "127.0.0.1",
       VOID_ADAPTER_PORT: String(adapterPort),
       VOID_EARN_GATEWAY_MAX_BODY_BYTES: String(64 * 1024),
@@ -319,13 +328,25 @@ async function main() {
   assert.equal(gateway.body.fixed_award_wc, 3);
   assert.equal(gateway.body.routes.claim_ticket, "/wc/public-earning-pilot-v1/claim-ticket");
   assert.equal(gateway.body.routes.claim_cli, "/download/wc-public-ticket-claim-v1.sh");
+  assert.equal(
+    gateway.body.routes.no_node_client,
+    "/download/void-public-earn-no-node-client-v1.mjs",
+  );
+  assert.equal("balance" in gateway.body.routes, false);
   assert.deepEqual(gateway.body.methods.claim_ticket, ["POST"]);
+  assert.deepEqual(gateway.body.methods.no_node_client, ["GET", "HEAD"]);
+  assert.equal("balance" in gateway.body.methods, false);
   assert.equal(gateway.body.safety.public_ticket_issue, true);
   assert.equal(gateway.body.safety.public_signed_ticket_claim, true);
   assert.equal(gateway.body.safety.public_operator_ticket_issue, false);
   assert.equal(gateway.body.safety.claim_executor_key_possession_required, true);
   assert.equal(gateway.body.safety.claim_server_selected_work, true);
   assert.equal(gateway.body.safety.buy_void_fulfillment, false);
+  assert.equal(gateway.body.safety.arbitrary_balance_lookup, false);
+  assert.equal(
+    gateway.body.safety.submission_response_canonical_accounting,
+    true,
+  );
   assert.equal(JSON.stringify(gateway.body).includes(String(earnPort)), false);
 
   const health = await json(`${base}/health`);
@@ -336,7 +357,10 @@ async function main() {
   assert.equal("private_path" in health.body, false);
   assert.equal(health.response.headers.has("set-cookie"), false);
 
-  const status = await json(`${base}/wc/public-earning-pilot-v1/status?account=outside-user-1`);
+  const statusCallsBefore = earnRequests.length;
+  const status = await json(
+    `${base}/wc/public-earning-pilot-v1/status`,
+  );
   assert.equal(status.response.status, 200);
   assert.equal(status.body.marker, "VOID_WC_PUBLIC_EARNING_PILOT_V1");
   assert.equal(status.body.gateway_marker, "VOID_PUBLIC_EARN_GATEWAY_V1");
@@ -349,7 +373,10 @@ async function main() {
   assert.equal(status.body.caps.global_active, 0);
   assert.equal(status.body.caps.global_consumed, 2);
   assert.equal("private_file" in status.body.caps, false);
-  assert.equal(status.body.public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(
+    status.body.public_claim.marker,
+    "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+  );
   assert.equal(status.body.public_claim.enabled, true);
   assert.equal(status.body.public_claim.available, true);
   assert.equal(status.body.public_claim.server_selected_work, true);
@@ -361,34 +388,66 @@ async function main() {
   assert.equal(status.body.public_claim.participant_selected_input_hash, false);
   assert.equal(status.body.public_claim.participant_selected_award, false);
   assert.equal(status.body.public_claim.money_movement, false);
+  assert.equal(
+    status.body.public_claim.dataset_url_template,
+    "/datanet/v1/fetch/{dataset_id}",
+  );
   assert.equal("private_dataset_path" in status.body.public_claim, false);
-  assert.equal(status.body.routes.submit_result, "/wc/public-earning-pilot-v1/submit-result");
+  assert.equal(
+    status.body.routes.submit_result,
+    "/wc/public-earning-pilot-v1/submit-result",
+  );
+  assert.equal(
+    status.body.routes.no_node_client,
+    "/download/void-public-earn-no-node-client-v1.mjs",
+  );
+  assert.equal("balance" in status.body.routes, false);
   assert.equal("secret" in status.body, false);
   assert.equal(JSON.stringify(status.body).includes("operator/issue"), false);
   assert.equal(status.response.headers.has("set-cookie"), false);
+  assert.equal(earnRequests.length, statusCallsBefore + 1);
+  assert.equal(
+    earnRequests.at(-1).url,
+    "/wc/public-earning-pilot-v1/status",
+  );
 
-  const statusHead = await fetch(`${base}/wc/public-earning-pilot-v1/status?account=outside-user-1`, { method: "HEAD" });
+  const statusHead = await fetch(
+    `${base}/wc/public-earning-pilot-v1/status`,
+    { method: "HEAD" },
+  );
   assert.equal(statusHead.status, 200);
   assert.equal(await statusHead.text(), "");
 
-  const balance = await json(`${base}/wc/redeemable?account=outside-user-1`);
-  assert.equal(balance.response.status, 200);
-  assert.deepEqual(
-    {
-      account: balance.body.account,
-      earned: balance.body.earned,
-      redeemable: balance.body.redeemable,
-    },
-    { account: "outside-user-1", earned: 3, redeemable: 3 },
+  const accountQueryCallsBefore = earnRequests.length;
+  const accountStatus = await json(
+    `${base}/wc/public-earning-pilot-v1/status?account=outside-user-1`,
   );
-  assert.equal("ledger_file" in balance.body, false);
-  assert.equal(balance.body.canonical_coordinator_accounting, true);
+  assert.equal(accountStatus.response.status, 400);
+  assert.equal(accountStatus.body.error, "status_query_not_allowed");
+  assert.equal(earnRequests.length, accountQueryCallsBefore);
 
-  const invalidBalanceCallsBefore = earnRequests.length;
-  const invalidBalance = await json(`${base}/wc/redeemable?account=../../private`);
-  assert.equal(invalidBalance.response.status, 400);
-  assert.equal(invalidBalance.body.error, "invalid_account");
-  assert.equal(earnRequests.length, invalidBalanceCallsBefore);
+  const accountStatusHead = await fetch(
+    `${base}/wc/public-earning-pilot-v1/status?account=outside-user-1`,
+    { method: "HEAD" },
+  );
+  assert.equal(accountStatusHead.status, 400);
+  assert.equal(await accountStatusHead.text(), "");
+  assert.equal(earnRequests.length, accountQueryCallsBefore);
+
+  const balanceCallsBefore = earnRequests.length;
+  const balance = await json(
+    `${base}/wc/redeemable?account=outside-user-1`,
+  );
+  assert.equal(balance.response.status, 404);
+  assert.match(balance.text, /not_public/);
+  assert.equal(earnRequests.length, balanceCallsBefore);
+
+  const invalidBalance = await json(
+    `${base}/wc/redeemable?account=..%2F..%2Fprivate`,
+  );
+  assert.equal(invalidBalance.response.status, 404);
+  assert.match(invalidBalance.text, /not_public/);
+  assert.equal(earnRequests.length, balanceCallsBefore);
 
   const claimPayload = {
     claim: {
@@ -685,10 +744,39 @@ async function main() {
     /attachment/,
   );
 
+  const noNodeClient = await fetch(
+    `${base}/download/void-public-earn-no-node-client-v1.mjs`,
+  );
+  assert.equal(noNodeClient.status, 200);
+  const servedNoNodeClientText = await noNodeClient.text();
+  assert.equal(servedNoNodeClientText, noNodeClientText);
+  assert.match(servedNoNodeClientText, /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1/);
+  assert.equal(servedNoNodeClientText.includes("/wc/redeemable"), false);
+  assert.match(
+    noNodeClient.headers.get("content-disposition") || "",
+    /attachment/,
+  );
+
   const adapterManifest = await json(`${base}/__void/adapter.json`);
   assert.equal(adapterManifest.response.status, 200);
   assert.equal(adapterManifest.body.private_rpc_public, false);
   assert.equal(adapterManifest.body.public_earn_gateway.enabled, true);
+  assert.equal(
+    adapterManifest.body.exact_allow.includes("/wc/redeemable"),
+    false,
+  );
+  assert.equal(
+    adapterManifest.body.public_earn_gateway.routes.no_node_client,
+    "/download/void-public-earn-no-node-client-v1.mjs",
+  );
+  assert.equal(
+    "balance" in adapterManifest.body.public_earn_gateway.routes,
+    false,
+  );
+  assert.equal(
+    adapterManifest.body.public_earn_gateway.safety.arbitrary_balance_lookup,
+    false,
+  );
   const manifestText = JSON.stringify(adapterManifest.body);
   assert.equal(manifestText.includes(String(earnPort)), false);
   assert.equal(manifestText.includes("127.0.0.1"), false);

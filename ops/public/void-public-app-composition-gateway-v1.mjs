@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // VOID Public App Composition Gateway v1
-// GET/HEAD-only composition layer:
-//   existing public earn gateway -> existing public proof and earning routes
+// Public-safe composition layer:
+//   existing public earn gateway -> bounded no-node earning contract
 //   loopback node -> public app assets and sanitized network truth
-// Account-scoped Wallet/Earn adapters remain private and are never proxied.
+//   /participant -> static no-node handoff, never the local operator dashboard
+// Account-scoped Wallet/Earn adapters and arbitrary mutations remain private.
 
 import http from "node:http";
 
@@ -24,6 +25,30 @@ const MAX_PROXY_BODY_BYTES = Math.max(
 const MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const HOME_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
 const RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1";
+const PUBLIC_PARTICIPANT_MARKER =
+  "VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1";
+const PUBLIC_EARN_HEALTH_PATH = "/health";
+const PUBLIC_EARN_GATEWAY_STATUS_PATH =
+  "/__void/public-earn-gateway-v1/status.json";
+const PUBLIC_EARN_STATUS_PATH =
+  "/wc/public-earning-pilot-v1/status";
+const PUBLIC_EARN_CLAIM_PATH =
+  "/wc/public-earning-pilot-v1/claim-ticket";
+const PUBLIC_EARN_SUBMIT_PATH =
+  "/wc/public-earning-pilot-v1/submit-result";
+const PUBLIC_EARN_CLIENT_PATH =
+  "/download/void-public-earn-no-node-client-v1.mjs";
+const PUBLIC_PARTICIPANT_STATUS_PATH =
+  "/__void/public-participant/status.json";
+const PUBLIC_EARN_CLAIM_MAX_BODY_BYTES = 64 * 1024;
+const PUBLIC_EARN_SUBMIT_MAX_BODY_BYTES = 512 * 1024;
+const PUBLIC_EARN_MUTATION_TIMEOUT_MS = Math.max(
+  5_000,
+  Number(process.env.VOID_PUBLIC_EARN_MUTATION_TIMEOUT_MS || "60000"),
+);
+const PUBLIC_DATANET_FETCH_RE =
+  /^\/datanet\/v1\/fetch\/[A-Za-z0-9._:-]{1,180}$/;
+const PUBLIC_DATANET_WHO_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 const blockedPrefixes = [
   "/rpc",
@@ -267,6 +292,395 @@ const publicNodeCompatScript = String.raw`(() => {
     run();
   }
 })();`;
+
+const publicParticipantHtml = String.raw`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VOID Public Earn</title>
+  <style>
+    :root{color-scheme:dark;background:#070a0f;color:#edf7ff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#102335 0,#070a0f 52%);min-height:100vh}
+    main{max-width:920px;margin:0 auto;padding:38px 20px 70px}
+    .eyebrow{letter-spacing:.16em;text-transform:uppercase;color:#69e4dc;font-size:.75rem;font-weight:800}
+    h1{font-size:clamp(2.1rem,6vw,4.7rem);line-height:.96;margin:.5rem 0 1rem}
+    h2{margin-top:0}.lead{font-size:1.08rem;line-height:1.65;color:#c9d8e5;max-width:760px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:26px 0}
+    .card{border:1px solid rgba(105,228,220,.28);background:rgba(8,17,25,.84);border-radius:16px;padding:20px;box-shadow:0 18px 55px rgba(0,0,0,.22)}
+    code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#03070b;border:1px solid #213443;padding:14px;border-radius:12px;color:#d8f8f5}
+    a.button{display:inline-flex;align-items:center;justify-content:center;padding:11px 15px;border-radius:10px;text-decoration:none;font-weight:800;background:#69e4dc;color:#041014;margin:4px 8px 4px 0}
+    a.secondary{background:transparent;color:#bfeeea;border:1px solid #35635f}
+    ul,ol{line-height:1.65;color:#c9d8e5}.boundary{border-left:4px solid #f6c453;padding-left:14px;color:#f7e3ae}
+    footer{margin-top:32px;color:#8296a7;font-size:.9rem}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Mainnet-0 · Public Earn</div>
+  <h1>Earn Work Credits without running a VOID node.</h1>
+  <p class="lead">Use the one-shot no-node client. It creates a private local executor identity, claims one server-selected task, verifies the selected dataset, submits one signed result bundle, and checks the capability-bound canonical +3 WC acceptance response.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1. Check availability</h2>
+      <p>Read the sanitized participant status. It contains the trusted coordinator node ID and whether bounded work is currently claimable.</p>
+      <a class="button secondary" href="${PUBLIC_PARTICIPANT_STATUS_PATH}">Open status JSON</a>
+    </section>
+    <section class="card">
+      <h2>2. Download one file</h2>
+      <p>This is not a node, wallet, miner, validator, or background daemon. Node.js is required to run the single client file.</p>
+      <a class="button" href="${PUBLIC_EARN_CLIENT_PATH}">Download no-node client</a>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>3. Run one bounded job</h2>
+    <pre>node void-public-earn-no-node-client-v1.mjs status \
+  --account YOUR_ACCOUNT \
+  --coordinator-base PUBLIC_HTTPS_BASE \
+  --coordinator-node-id COORDINATOR_NODE_ID
+
+node void-public-earn-no-node-client-v1.mjs run \
+  --account YOUR_ACCOUNT \
+  --coordinator-base PUBLIC_HTTPS_BASE \
+  --coordinator-node-id COORDINATOR_NODE_ID</pre>
+    <p>The account is a participant accounting identifier, not a wallet address. Work, dataset, input hash, fixed award, and expiry remain coordinator-selected.</p>
+  </section>
+
+  <section class="card boundary">
+    <h2>Public boundary</h2>
+    <ul>
+      <li>No participant account directory or arbitrary balance lookup.</li>
+      <li>No browser wallet, wallet send, WC→VOID swap, Buy VOID fulfillment, staking, or validator submit.</li>
+      <li>No generic job submission or participant-selected award.</li>
+      <li>The local operator dashboard is not served through this route.</li>
+    </ul>
+  </section>
+
+  <p>
+    <a class="button secondary" href="/public-node/">Network status</a>
+    <a class="button secondary" href="/app/">Read-only app</a>
+    <a class="button secondary" href="/docs/public/void-public-earn-no-node-client-v1.md">Client guide</a>
+  </p>
+  <footer>${PUBLIC_PARTICIPANT_MARKER}</footer>
+</main>
+</body>
+</html>`;
+
+
+function publicDataNetReadAllowed(url) {
+  if (!PUBLIC_DATANET_FETCH_RE.test(url.pathname)) return false;
+  if (!url.search) return true;
+  const keys = Array.from(url.searchParams.keys());
+  if (keys.some((key) => key !== "who")) return false;
+  const values = url.searchParams.getAll("who");
+  return (
+    values.length <= 1 &&
+    (values.length === 0 || PUBLIC_DATANET_WHO_RE.test(values[0] || ""))
+  );
+}
+
+function publicEarnReadAllowed(url) {
+  if (
+    url.pathname === PUBLIC_EARN_HEALTH_PATH ||
+    url.pathname === PUBLIC_EARN_GATEWAY_STATUS_PATH ||
+    url.pathname === PUBLIC_EARN_CLIENT_PATH
+  ) {
+    return !url.search;
+  }
+  if (url.pathname === PUBLIC_EARN_STATUS_PATH) return !url.search;
+  return publicDataNetReadAllowed(url);
+}
+
+async function fetchPublicJson(pathname) {
+  try {
+    const { response, body } = await fetchWithLimit(
+      `${PUBLIC_UPSTREAM}${pathname}`,
+      "GET"
+    );
+    let json = null;
+    let jsonParseError = null;
+    try {
+      json = JSON.parse(body.toString("utf8"));
+    } catch (error) {
+      jsonParseError = String(error?.message || error);
+    }
+    return { status: response.status, json, jsonParseError };
+  } catch (error) {
+    return {
+      status: 0,
+      json: null,
+      error: String(error?.message || error),
+    };
+  }
+}
+
+async function buildPublicParticipantStatus() {
+  const [health, gateway, pilot] = await Promise.all([
+    fetchPublicJson(PUBLIC_EARN_HEALTH_PATH),
+    fetchPublicJson(PUBLIC_EARN_GATEWAY_STATUS_PATH),
+    fetchPublicJson(PUBLIC_EARN_STATUS_PATH),
+  ]);
+
+  const healthBody =
+    health.json && typeof health.json === "object" ? health.json : {};
+  const gatewayBody =
+    gateway.json && typeof gateway.json === "object" ? gateway.json : {};
+  const pilotBody =
+    pilot.json && typeof pilot.json === "object" ? pilot.json : {};
+  const publicClaim =
+    pilotBody.public_claim && typeof pilotBody.public_claim === "object"
+      ? pilotBody.public_claim
+      : {};
+
+  const coordinatorNodeId =
+    typeof healthBody.nodeId === "string" &&
+    /^[0-9a-f]{32}$/.test(healthBody.nodeId)
+      ? healthBody.nodeId
+      : null;
+  const fixedAward = Number(pilotBody.fixed_award_wc);
+  const available =
+    health.status === 200 &&
+    gateway.status === 200 &&
+    pilot.status === 200 &&
+    healthBody.ok === true &&
+    gatewayBody.ok === true &&
+    gatewayBody.enabled === true &&
+    pilotBody.ok === true &&
+    pilotBody.coordinator_enabled === true &&
+    pilotBody.executor_enabled === false &&
+    fixedAward === 3 &&
+    publicClaim.enabled === true &&
+    publicClaim.available === true &&
+    publicClaim.server_selected_work === true &&
+    publicClaim.proof_of_executor_key_possession_required === true &&
+    publicClaim.transport_mode === "outbound_bundle" &&
+    publicClaim.participant_selected_dataset === false &&
+    publicClaim.participant_selected_input_hash === false &&
+    publicClaim.participant_selected_award === false &&
+    coordinatorNodeId !== null;
+
+  return {
+    ok: true,
+    marker: PUBLIC_PARTICIPANT_MARKER,
+    generated_at: new Date().toISOString(),
+    available,
+    status: available ? "available" : "hold",
+    no_node_required: true,
+    background_service_started: false,
+    coordinator_node_id: coordinatorNodeId,
+    task_class:
+      typeof pilotBody.task_class === "string"
+        ? pilotBody.task_class
+        : "datanet_fetch_verify",
+    fixed_award_wc: fixedAward === 3 ? 3 : null,
+    accounting_proof: "capability_bound_submission_response_v1",
+    routes: {
+      participant: "/participant",
+      health: PUBLIC_EARN_HEALTH_PATH,
+      gateway_status: PUBLIC_EARN_GATEWAY_STATUS_PATH,
+      earning_status: PUBLIC_EARN_STATUS_PATH,
+      claim_ticket: PUBLIC_EARN_CLAIM_PATH,
+      submit_result: PUBLIC_EARN_SUBMIT_PATH,
+      client_download: PUBLIC_EARN_CLIENT_PATH,
+    },
+    methods: {
+      health: ["GET", "HEAD"],
+      gateway_status: ["GET", "HEAD"],
+      earning_status: ["GET", "HEAD"],
+      claim_ticket: ["POST"],
+      submit_result: ["POST"],
+      client_download: ["GET", "HEAD"],
+    },
+    sources: {
+      health: { status: health.status, available: health.status === 200 },
+      gateway: { status: gateway.status, available: gateway.status === 200 },
+      pilot: { status: pilot.status, available: pilot.status === 200 },
+    },
+    boundaries: {
+      account_directory: false,
+      arbitrary_balance_lookup: false,
+      browser_account_state: false,
+      local_operator_dashboard: false,
+      generic_job_submit: false,
+      participant_selected_work: false,
+      participant_selected_award: false,
+      wallet: false,
+      money_movement: false,
+      validator_mutation: false,
+      operator_mutation: false,
+    },
+  };
+}
+
+function readBoundedRequestBody(req, maximum) {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"] || 0);
+    if (Number.isFinite(declared) && declared > maximum) {
+      req.resume();
+      reject(new Error("request_body_too_large"));
+      return;
+    }
+
+    const chunks = [];
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maximum) {
+        reject(new Error("request_body_too_large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function validatedCapability(value) {
+  if (typeof value !== "string") return null;
+  const match =
+    /^Bearer (wcep1\.([0-9a-f]{32})\.[A-Za-z0-9_-]{43})$/.exec(
+      value.trim()
+    );
+  if (!match) return null;
+  return { header: `Bearer ${match[1]}`, ticketId: match[2] };
+}
+
+async function proxyPublicEarnMutation(req, res, url) {
+  if (url.search) {
+    return send(
+      res,
+      400,
+      { "content-type": "text/plain; charset=utf-8" },
+      "post_query_not_allowed\n",
+      "POST"
+    );
+  }
+
+  const claim = url.pathname === PUBLIC_EARN_CLAIM_PATH;
+  const submit = url.pathname === PUBLIC_EARN_SUBMIT_PATH;
+  if (!claim && !submit) {
+    return send(
+      res,
+      405,
+      {
+        "content-type": "text/plain; charset=utf-8",
+        allow: "GET, HEAD",
+      },
+      "method_not_allowed\n",
+      "POST"
+    );
+  }
+
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    return sendJson(
+      res,
+      415,
+      { ok: false, error: "application_json_required" },
+      "POST"
+    );
+  }
+
+  let capability = null;
+  if (claim && req.headers.authorization) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "claim_authorization_header_not_allowed" },
+      "POST"
+    );
+  }
+  if (submit) {
+    capability = validatedCapability(req.headers.authorization);
+    if (!capability) {
+      return sendJson(
+        res,
+        401,
+        { ok: false, error: "earning_capability_authorization_required" },
+        "POST"
+      );
+    }
+  }
+
+  const maximum = claim
+    ? PUBLIC_EARN_CLAIM_MAX_BODY_BYTES
+    : PUBLIC_EARN_SUBMIT_MAX_BODY_BYTES;
+
+  let body;
+  try {
+    body = await readBoundedRequestBody(req, maximum);
+  } catch (error) {
+    if (String(error?.message || "") === "request_body_too_large") {
+      return sendJson(
+        res,
+        413,
+        { ok: false, error: "request_body_too_large" },
+        "POST"
+      );
+    }
+    throw error;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(body.toString("utf8"));
+  } catch (error) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "invalid_json" },
+      "POST"
+    );
+  }
+
+  if (submit) {
+    const bodyTicketId = String(parsed?.envelope?.ticket_id || "");
+    if (bodyTicketId !== capability.ticketId) {
+      return sendJson(
+        res,
+        401,
+        { ok: false, error: "earning_capability_ticket_mismatch" },
+        "POST"
+      );
+    }
+  }
+
+  const headers = {
+    accept: "application/json",
+    "content-type": "application/json",
+    "content-length": String(body.length),
+    "user-agent": "void-public-participant-handoff-v1",
+  };
+  if (submit) headers.authorization = capability.header;
+
+  const response = await fetch(`${PUBLIC_UPSTREAM}${url.pathname}`, {
+    method: "POST",
+    headers,
+    body,
+    redirect: "manual",
+    signal: AbortSignal.timeout(PUBLIC_EARN_MUTATION_TIMEOUT_MS),
+  });
+  const responseBody = Buffer.from(await response.arrayBuffer());
+  if (responseBody.length > MAX_PROXY_BODY_BYTES) {
+    throw new Error(`upstream body exceeds ${MAX_PROXY_BODY_BYTES} bytes`);
+  }
+
+  const responseHeaders = copyHeaders(response);
+  delete responseHeaders["set-cookie"];
+  delete responseHeaders.location;
+  responseHeaders["cache-control"] = "no-store";
+  return send(
+    res,
+    response.status,
+    responseHeaders,
+    responseBody,
+    "POST"
+  );
+}
 
 function isBlocked(pathname) {
   return blockedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
@@ -666,6 +1080,28 @@ async function proxy(
 const server = http.createServer(async (req, res) => {
   try {
     const method = String(req.method || "GET").toUpperCase();
+    const url = new URL(req.url || "/", "http://composition.local");
+    const pathname = url.pathname;
+
+    if (method === "POST") {
+      if (
+        pathname === PUBLIC_EARN_CLAIM_PATH ||
+        pathname === PUBLIC_EARN_SUBMIT_PATH
+      ) {
+        return await proxyPublicEarnMutation(req, res, url);
+      }
+      return send(
+        res,
+        405,
+        {
+          "content-type": "text/plain; charset=utf-8",
+          allow: "GET, HEAD",
+        },
+        "method_not_allowed\n",
+        method
+      );
+    }
+
     if (method !== "GET" && method !== "HEAD") {
       return send(
         res,
@@ -679,8 +1115,50 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
-    const url = new URL(req.url || "/", "http://composition.local");
-    const pathname = url.pathname;
+    if (pathname === "/participant" || pathname === "/participant/") {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "participant_query_not_allowed" },
+          method
+        );
+      }
+      return send(
+        res,
+        200,
+        {
+          "content-type": "text/html; charset=utf-8",
+          "content-security-policy":
+            "default-src 'self'; style-src 'unsafe-inline'; " +
+            "img-src 'self' data:; object-src 'none'; base-uri 'self'; " +
+            "frame-ancestors 'none'; form-action 'none'",
+        },
+        publicParticipantHtml,
+        method
+      );
+    }
+
+    if (pathname === PUBLIC_PARTICIPANT_STATUS_PATH) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "participant_status_query_not_allowed" },
+          method
+        );
+      }
+      return sendJson(
+        res,
+        200,
+        await buildPublicParticipantStatus(),
+        method
+      );
+    }
+
+    if (publicEarnReadAllowed(url)) {
+      return await proxy(req, res, PUBLIC_UPSTREAM);
+    }
 
     if (isBlocked(pathname)) {
       return send(
@@ -705,10 +1183,14 @@ const server = http.createServer(async (req, res) => {
           port: PORT,
           public_upstream_private: true,
           node_upstream_private: true,
-          methods: ["GET", "HEAD"],
+          methods: ["GET", "HEAD", "POST(exact public earn routes only)"],
           app_public: true,
+          participant_handoff_public: true,
           account_views_public: false,
           mutation: false,
+          generic_mutation: false,
+          bounded_public_earn_claim_submit: true,
+          money_movement: false,
         },
         method
       );

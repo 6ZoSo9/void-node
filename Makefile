@@ -1582,3 +1582,7 @@ public-app-composition-repair-wall-v1-proof:
 .PHONY: public-app-runtime-truth-wall-v1-proof
 public-app-runtime-truth-wall-v1-proof:
 	bash ops/security/public-app-runtime-truth-wall-v1-proof.sh
+
+.PHONY: public-participant-no-node-handoff-wall-v1-proof
+public-participant-no-node-handoff-wall-v1-proof:
+	bash ops/security/public-participant-no-node-handoff-wall-v1-proof.sh

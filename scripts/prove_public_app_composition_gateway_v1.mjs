@@ -309,7 +309,21 @@ try {
   {
     const { response, text } = await get("/participant");
     assert.equal(response.status, 200);
-    assert.equal(text.includes("participant public gateway"), true);
+    assert.equal(
+      text.includes("VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1"),
+      true,
+    );
+    assert.equal(
+      text.includes("Earn Work Credits without running a VOID node"),
+      true,
+    );
+    assert.equal(text.includes("participant public gateway"), false);
+    assert.equal(text.includes(">zoso<"), false);
+    assert.equal(text.includes("/__void/admin/"), false);
+    assert.equal(
+      text.includes("validator-registration/submit-live"),
+      false,
+    );
   }
 
   {

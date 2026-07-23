@@ -36,7 +36,7 @@ upstream-backed pilot status request.
 The tool uses `GET` only:
 
 - `/__void/public-earn-gateway-v1/status.json`
-- `/wc/public-earning-pilot-v1/status?account=...`
+- `/wc/public-earning-pilot-v1/status`
 - `/wc/public-earning-pilot-v1/claim-ticket`
 - `/wc/public-earning-pilot-v1/submit-result`
 - `/wc/public-earning-pilot-v1/operator/issue`
