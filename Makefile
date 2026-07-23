@@ -1578,3 +1578,7 @@ public-first-official-release-launch-gate-v1-proof:
 public-app-composition-repair-wall-v1-proof:
 	bash ops/security/public-app-composition-repair-wall-v1-proof.sh
 # VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END
+
+.PHONY: public-app-runtime-truth-wall-v1-proof
+public-app-runtime-truth-wall-v1-proof:
+	bash ops/security/public-app-runtime-truth-wall-v1-proof.sh
