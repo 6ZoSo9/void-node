@@ -29,7 +29,9 @@ async function listen(
       let body: any = {};
       try {
         body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      } catch {}
+      } catch {
+        body = {};
+      }
       methods.push(String(body?.method || ""));
       res.writeHead(200, { "content-type": "application/json" });
       if (body?.method === "eth_chainId") {
@@ -110,7 +112,7 @@ try {
       target_global: readyTarget,
     });
   assert.equal(ready.ok, true);
-  if ("reason" in ready) throw new Error(ready.reason);
+  if ("reason" in ready) throw new Error(String(ready.reason));
   assert.equal(
     typeof ready.dependencies.signer.sign_transaction,
     "function",

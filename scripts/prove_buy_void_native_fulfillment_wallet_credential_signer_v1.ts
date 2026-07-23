@@ -33,7 +33,7 @@ try {
       expected_wallet_address: wallet.address,
     });
   assert.equal(ready.ok, true);
-  if ("reason" in ready) throw new Error(ready.reason);
+  if ("reason" in ready) throw new Error(String(ready.reason));
 
   assert.equal(
     await ready.signer.get_address(),
