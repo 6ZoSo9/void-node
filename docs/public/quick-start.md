@@ -155,3 +155,11 @@ make public-first-official-release-launch-gate-v1-proof
 ```
 
 `VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1`
+
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
+## Public VOID App
+
+The public `/app/` route is served through a GET/HEAD-only composition gateway.
+Network status is sanitized. Participant account IDs, wallet records, Work
+Credit balances, jobs, and receipts are not enumerable from the public route.
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->

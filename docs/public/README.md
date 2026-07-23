@@ -114,3 +114,8 @@ When a current-state claim changes, update these files instead of appending anot
 - [First official release launch gate v1](first-official-release-launch-gate-v1.md) — exact-source, deterministic-asset, independently approved, expiring pre-publication gate. <!-- VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1 -->
 
 - [First official release launch gate v1](first-official-release-launch-gate-v1.md) — exact-source gate supporting either real independent review or an explicitly weaker twelve-hour solo time-lock. <!-- VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1 -->
+
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
+- [Public App Composition Gateway v1](public-app-composition-gateway-v1.md)
+  repairs the public UI/backend contract without exposing account-scoped data.
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->
