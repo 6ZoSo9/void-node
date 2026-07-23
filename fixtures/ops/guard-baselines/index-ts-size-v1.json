@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Raised for the reviewed disabled native block execution precommit integration. The added index code is limited to one import and one hard-disabled prepare-only sealOnce hook; executor apply, production account-store wiring, live block execution, and money movement remain disabled.",
+  "reason": "Raised for the reviewed validator positive-readiness public route. The added index code is limited to one read-only GET mount and one public route discovery entry; public validator registration remains disabled, and no validator admission, active-set mutation, or money movement is enabled.",
   "path": "src/index.ts",
-  "baseline_bytes": 3834791,
+  "baseline_bytes": 3835145,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {
@@ -12,13 +12,13 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "reviewed disabled native block execution precommit integration adds 527 bytes",
+    "baseline_update_reason": "reviewed validator positive-readiness public route minimal index wiring adds 354 bytes",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
     "well_known_public_node_card_index_link_only": true,
     "well_known_runtime_closeout_rollup_link_only": true
   },
-  "previous_baseline_bytes": 3834264,
-  "note": "Raised by exactly 527 bytes from 3834264 to 3834791. The guard remains an exact ceiling and rejects any future index growth beyond 3834791."
+  "previous_baseline_bytes": 3834791,
+  "note": "Raised by exactly 354 bytes from 3834791 to 3835145. The guard remains an exact ceiling and rejects any future index growth beyond 3835145."
 }
