@@ -5,6 +5,7 @@ on:
     paths:
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "docs/public/public-earn-gateway-v1.md"
       - ".github/workflows/public-earn-gateway-v1.yml"
@@ -12,6 +13,7 @@ on:
     paths:
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "docs/public/public-earn-gateway-v1.md"
       - ".github/workflows/public-earn-gateway-v1.yml"
@@ -30,6 +32,7 @@ jobs:
       - name: Check adapter and participant CLI syntax
         run: |
           node --check ops/public/public-seed-adapter-v1.mjs
+          node --check tools/void_public_earn_no_node_client_v1.mjs
           bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
       - name: Prove bounded public earn gateway
         run: node scripts/prove_public_earn_gateway_v1.mjs

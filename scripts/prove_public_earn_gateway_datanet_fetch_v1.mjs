@@ -298,7 +298,7 @@ try {
   const status = await request(
     "GET",
     origin,
-    "/wc/public-earning-pilot-v1/status?account=outside-user-1",
+    "/wc/public-earning-pilot-v1/status",
   );
   assert.equal(status.status, 200);
   assert.equal(typeof status.json?.public_claim, "object");
