@@ -1,0 +1,45 @@
+name: public-participant-no-node-handoff-wall-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
+      - "ops/security/public-participant-no-node-handoff-wall-v1-proof.sh"
+      - "docs/operators/public-participant-no-node-handoff-wall-v1.md"
+      - "docs/public/public-participant-no-node-handoff-v1.md"
+      - "docs/security/public-participant-no-node-handoff-wall-v1-threat-model.md"
+      - "Makefile"
+      - ".github/workflows/public-participant-no-node-handoff-wall-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
+      - "ops/security/public-participant-no-node-handoff-wall-v1-proof.sh"
+      - "docs/operators/public-participant-no-node-handoff-wall-v1.md"
+      - "docs/public/public-participant-no-node-handoff-v1.md"
+      - "docs/security/public-participant-no-node-handoff-wall-v1-threat-model.md"
+      - "Makefile"
+      - ".github/workflows/public-participant-no-node-handoff-wall-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --include=dev --no-audit --no-fund
+      - run: make public-participant-no-node-handoff-wall-v1-proof
+      - run: npm run build

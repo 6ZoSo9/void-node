@@ -24,6 +24,12 @@ const EARN_CLAIM_CLI_FILE = path.resolve(
   process.env.VOID_EARN_CLAIM_CLI_FILE ||
     path.join(process.cwd(), "ops/mainnet0/wc-public-ticket-claim-v1.sh"),
 );
+const EARN_NO_NODE_CLIENT_PATH =
+  "/download/void-public-earn-no-node-client-v1.mjs";
+const EARN_NO_NODE_CLIENT_FILE = path.resolve(
+  process.env.VOID_EARN_NO_NODE_CLIENT_FILE ||
+    path.join(process.cwd(), "tools/void_public_earn_no_node_client_v1.mjs"),
+);
 const EARN_MAX_BODY_BYTES = boundedInteger(
   process.env.VOID_EARN_GATEWAY_MAX_BODY_BYTES,
   512 * 1024,
@@ -84,10 +90,10 @@ const exactAllow = new Set([
   "/datanet/materialized-status",
   EARN_HEALTH_PATH,
   EARN_STATUS_PATH,
-  EARN_BALANCE_PATH,
   EARN_GATEWAY_STATUS_PATH,
   EARN_CLI_PATH,
   EARN_CLAIM_CLI_PATH,
+  EARN_NO_NODE_CLIENT_PATH,
 ]);
 
 const prefixAllow = [
@@ -97,6 +103,39 @@ const prefixAllow = [
   "/site/voidchain",
   "/docs/public",
 ];
+
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_FETCH_V1
+const DATANET_FETCH_PATH_V1_RE =
+  /^\/datanet\/v1\/fetch\/[A-Za-z0-9._:-]{1,180}$/;
+const DATANET_FETCH_WHO_V1_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+
+function publicDataNetFetchAllowed(pathname, search = "") {
+  if (!DATANET_FETCH_PATH_V1_RE.test(pathname)) return false;
+  if (!search) return true;
+
+  const params = new URLSearchParams(search);
+  if ([...params.keys()].some((key) => key !== "who")) return false;
+
+  const whoValues = params.getAll("who");
+  if (whoValues.length === 0) return true;
+  return (
+    whoValues.length === 1 &&
+    DATANET_FETCH_WHO_V1_RE.test(whoValues[0] || "")
+  );
+}
+
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_DEFAULT_WHO_V1
+const DATANET_FETCH_DEFAULT_WHO_V1 = "void-public-earn-no-node-v1";
+
+function publicDataNetFetchUpstreamSearch(search = "") {
+  const params = new URLSearchParams(search);
+  if (params.getAll("who").length === 0) {
+    params.set("who", DATANET_FETCH_DEFAULT_WHO_V1);
+  }
+  const rendered = params.toString();
+  return rendered ? `?${rendered}` : "";
+}
+
 
 const blocked = [
   "/rpc",
@@ -130,11 +169,12 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.floor(parsed)));
 }
 
-function allowed(pathname) {
+function allowed(pathname, search = "") {
   if (blocked.some((value) => pathname === value || pathname.startsWith(`${value}/`))) {
     return false;
   }
   if (exactAllow.has(pathname)) return true;
+  if (publicDataNetFetchAllowed(pathname, search)) return true;
   return prefixAllow.some((value) => pathname === value || pathname.startsWith(`${value}/`));
 }
 
@@ -202,20 +242,20 @@ function gatewayStatus() {
     routes: {
       health: EARN_HEALTH_PATH,
       status: EARN_STATUS_PATH,
-      balance: EARN_BALANCE_PATH,
       submit_result: EARN_SUBMIT_PATH,
       claim_ticket: EARN_CLAIM_PATH,
       participant_cli: EARN_CLI_PATH,
       claim_cli: EARN_CLAIM_CLI_PATH,
+      no_node_client: EARN_NO_NODE_CLIENT_PATH,
     },
     methods: {
       health: ["GET", "HEAD"],
       status: ["GET", "HEAD"],
-      balance: ["GET", "HEAD"],
       submit_result: ["POST"],
       claim_ticket: ["POST"],
       participant_cli: ["GET", "HEAD"],
       claim_cli: ["GET", "HEAD"],
+      no_node_client: ["GET", "HEAD"],
     },
     limits: {
       request_body_bytes: EARN_MAX_BODY_BYTES,
@@ -237,6 +277,8 @@ function gatewayStatus() {
       buy_void_fulfillment: false,
       validator_mutation: false,
       operator_routes_exposed: false,
+      arbitrary_balance_lookup: false,
+      submission_response_canonical_accounting: true,
     },
   };
 }
@@ -277,8 +319,30 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }
 }
 
+// VOID_PUBLIC_EARN_GATEWAY_DATANET_COORDINATOR_UPSTREAM_V1
+function publicReadUpstream(url) {
+  if (!publicDataNetFetchAllowed(url.pathname, url.search)) return UPSTREAM;
+  return publicEarnEnabled() ? EARN_UPSTREAM : "";
+}
+
 async function proxyRead(req, res, url) {
-  const upstreamUrl = `${UPSTREAM}${url.pathname}${url.search}`;
+  const readUpstream = publicReadUpstream(url);
+  if (!readUpstream) {
+    writeJson(req, res, 503, {
+      ok: false,
+      marker: "VOID_PUBLIC_EARN_GATEWAY_DATANET_COORDINATOR_UPSTREAM_V1",
+      error: "public_earn_gateway_disabled",
+      datanet_coordinator_bound: true,
+    });
+    return;
+  }
+  const upstreamSearch = publicDataNetFetchAllowed(
+    url.pathname,
+    url.search,
+  )
+    ? publicDataNetFetchUpstreamSearch(url.search)
+    : url.search;
+  const upstreamUrl = `${readUpstream}${url.pathname}${upstreamSearch}`;
   const response = await fetchWithTimeout(
     upstreamUrl,
     { method: req.method },
@@ -398,6 +462,7 @@ function sanitizePilotStatus(value) {
         publicClaim.global_claims_per_24h,
       ),
       work_available: safeBoolean(publicClaim.work_available),
+      dataset_url_template: "/datanet/v1/fetch/{dataset_id}",
       participant_selected_dataset: false,
       participant_selected_input_hash: false,
       participant_selected_award: false,
@@ -745,6 +810,32 @@ function serveClaimCli(req, res) {
   );
 }
 
+function serveNoNodeClient(req, res) {
+  let stat;
+  try {
+    stat = fs.statSync(EARN_NO_NODE_CLIENT_FILE);
+  } catch (error) {
+    writeText(req, res, 404, "no_node_client_unavailable\n");
+    return;
+  }
+  if (!stat.isFile() || stat.size <= 0 || stat.size > 256 * 1024) {
+    writeText(req, res, 404, "no_node_client_unavailable\n");
+    return;
+  }
+  const body = fs.readFileSync(EARN_NO_NODE_CLIENT_FILE);
+  res.writeHead(200, {
+    "content-type": "text/javascript; charset=utf-8",
+    "content-disposition":
+      'attachment; filename="void-public-earn-no-node-client-v1.mjs"',
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-public-seed-adapter": "v1",
+    "x-void-public-earn-gateway": "v1",
+  });
+  if (req.method === "HEAD") return res.end();
+  res.end(body);
+}
+
 const server = http.createServer(async (req, res) => {
   // VOID_PUBLIC_EDGE_LANDING_ROOT_V1
   try {
@@ -772,7 +863,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (!allowed(url.pathname)) {
+    if (!allowed(url.pathname, url.search)) {
       writeText(req, res, 404, "not_public\n");
       return;
     }
@@ -808,14 +899,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === EARN_STATUS_PATH) {
-      const keys = Array.from(url.searchParams.keys());
-      const account = String(url.searchParams.get("account") || "");
-      if (keys.some((key) => key !== "account") || (account && !validAccount(account))) {
-        writeJson(req, res, 400, { ok: false, error: "invalid_account" });
+      if (url.search) {
+        writeJson(req, res, 400, {
+          ok: false,
+          error: "status_query_not_allowed",
+        });
         return;
       }
-      const search = account ? `?account=${encodeURIComponent(account)}` : "";
-      const result = await fetchEarnJson(EARN_STATUS_PATH, search);
+      const result = await fetchEarnJson(EARN_STATUS_PATH);
       writeJson(req, res, result.status, sanitizePilotStatus(result.body));
       return;
     }
@@ -846,6 +937,15 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       serveClaimCli(req, res);
+      return;
+    }
+
+    if (url.pathname === EARN_NO_NODE_CLIENT_PATH) {
+      if (url.search) {
+        writeText(req, res, 400, "download_query_not_allowed\n");
+        return;
+      }
+      serveNoNodeClient(req, res);
       return;
     }
 

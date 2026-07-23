@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+import childProcess from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import readline from "node:readline/promises";
+import {fileURLToPath, pathToFileURL} from "node:url";
+
+const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
+function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
+function say(m=""){console.log(m);}
+function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
+function shaFile(p){return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");}
+function run(cmd,args,opt={}){
+  const r=childProcess.spawnSync(cmd,args,{cwd:opt.cwd,env:{...process.env,...(opt.env||{})},encoding:"utf8",stdio:opt.capture?["ignore","pipe","pipe"]:"inherit",maxBuffer:128*1024*1024});
+  if(r.error)throw r.error;
+  if(r.status!==0){if(opt.capture){process.stderr.write(r.stdout||"");process.stderr.write(r.stderr||"");}if(opt.allowFail)return r;fail(`${cmd} ${args.join(" ")} failed rc=${r.status}`);}
+  return r;
+}
+function commandExists(c){return childProcess.spawnSync("bash",["-lc",`command -v ${JSON.stringify(c)} >/dev/null 2>&1`]).status===0;}
+function managerAvailable(){return commandExists("systemctl")&&childProcess.spawnSync("systemctl",["--user","show-environment"],{stdio:"ignore"}).status===0;}
+function readJson(p){return JSON.parse(fs.readFileSync(p,"utf8"));}
+function parseVersion(v){const m=String(v).match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);if(!m)return null;return {core:m.slice(1,4).map(Number),pre:m[4]||""};}
+function compareVersion(a,b){const A=parseVersion(a),B=parseVersion(b);if(!A||!B)fail(`versions must be semver-compatible: ${a} / ${b}`);for(let i=0;i<3;i++){if(A.core[i]!==B.core[i])return A.core[i]<B.core[i]?-1:1;}if(A.pre===B.pre)return 0;if(!A.pre)return 1;if(!B.pre)return -1;return A.pre<B.pre?-1:1;}
+function ensureSafeName(n){if(typeof n!=="string"||!n||n.includes("/")||n.includes("\\")||n==="."||n==="..")fail(`unsafe asset name: ${n}`);return n;}
+function validateChannel(j,allowFile){
+  if(j?.marker!=="VOID_PUBLIC_RELEASE_CHANNEL_V1"||j?.schema_version!==1)fail("invalid channel marker/schema");
+  if(!["stable","candidate"].includes(j.channel))fail("invalid channel");
+  if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(j.repository||""))fail("invalid repository");
+  if(!/^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$/.test(j.release_tag||""))fail("invalid release tag");
+  if(!/^[0-9a-f]{40}$/.test(j.release?.git_commit||""))fail("invalid release commit");
+  if(!parseVersion(j.release?.version))fail("invalid release version");
+  if(j.release?.platform!=="linux-x64"||j.release?.minimum_node_major!==22)fail("unsupported release platform/runtime");
+  if(!/^[0-9a-f]{64}$/.test(j.release?.archive_sha256||""))fail("invalid archive hash");
+  for(const k of ["archive","installer","manifest","checksums","sbom"]){if(!j.assets?.[k])fail(`missing channel asset ${k}`);}
+  for(const [key,a] of Object.entries(j.assets||{})){
+    ensureSafeName(a.name);
+    if(!/^[0-9a-f]{64}$/.test(a.sha256||""))fail(`invalid hash for ${key}`);
+    if(!Number.isSafeInteger(a.bytes)||a.bytes<1)fail(`invalid size for ${key}`);
+    const u=new URL(a.url);if(u.protocol!=="https:"&&!(allowFile&&u.protocol==="file:"))fail(`unsafe URL for ${key}: ${a.url}`);
+    if(u.protocol==="https:"&&u.hostname!=="github.com")fail(`stable channel assets must start at github.com: ${a.url}`);
+    if(u.protocol==="https:"&&!u.pathname.startsWith(`/${j.repository}/releases/download/${j.release_tag}/`))fail(`asset URL escapes repository/tag: ${a.url}`);
+  }
+  if(j.assets.archive.sha256!==j.release.archive_sha256||j.assets.archive.bytes!==j.release.archive_bytes)fail("archive binding mismatch");
+  if(j.verification?.checksum_algorithm!=="sha256"||j.verification?.github_attestation_required!==true||j.verification?.attestation_repository!==j.repository)fail("unsafe verification policy");
+  if(j.publication!==undefined){const publication=j.publication;if(publication.release_immutable!==true||publication.release_verified!==true||publication.release_attestation_required!==true||publication.artifact_attestations_required!==true||publication.revoked!==false||!/^[0-9a-f]{64}$/.test(publication.publication_receipt_sha256||""))fail("unsafe or revoked publication metadata");}
+  if(j.promotion!==undefined){const promotion=j.promotion;if(promotion.state!==j.channel||!Number.isSafeInteger(promotion.ledger_sequence)||promotion.ledger_sequence<1||!/^[0-9a-f]{64}$/.test(promotion.ledger_tip_sha256||"")||(promotion.canary_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.canary_receipt_sha256||""))||(promotion.qualification_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_receipt_sha256||""))||(promotion.qualification_approval_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_approval_sha256||"")))fail("invalid promotion metadata");if(j.channel==="stable"&&(!promotion.canary_receipt_sha256||!promotion.qualification_receipt_sha256||!promotion.qualification_approval_sha256))fail("stable promotion requires qualification receipt and approval binding");}
+  const p=j.policy||{};if(p.downgrade_allowed_by_default!==false||p.service_started_implicitly!==false||p.restart_requires_explicit_flag!==true||p.health_gate_for_running_service!==true||p.rollback_on_health_failure!==true||p.guarded_lanes_activated!==false||(p.channel_frozen!==undefined&&typeof p.channel_frozen!=="boolean"))fail("unsafe update policy");
+  return j;
+}
+function currentInfo(installRoot){const p=path.join(installRoot,"current","BUILD-INFO.json");if(!fs.existsSync(p))fail(`missing current build info: ${p}`);return readJson(p);}
+function verifyRoot(root){const sums=path.join(root,"RELEASE-CONTENTS-SHA256");if(!fs.existsSync(sums))fail(`missing internal checksums: ${sums}`);run("sha256sum",["--check","--strict","RELEASE-CONTENTS-SHA256"],{cwd:root,capture:true});}
+function swapRollback(installRoot,restart){
+  const cur=path.join(installRoot,"current"),prev=path.join(installRoot,"previous");if(!fs.lstatSync(prev).isSymbolicLink())fail("no previous release is available for rollback");
+  const oldCur=fs.realpathSync(cur),oldPrev=fs.realpathSync(prev);verifyRoot(oldPrev);
+  const n1=path.join(installRoot,".current.update-next"),n2=path.join(installRoot,".previous.update-next");
+  try{fs.unlinkSync(n1);}catch{}try{fs.unlinkSync(n2);}catch{}
+  fs.symlinkSync(oldPrev,n1);fs.renameSync(n1,cur);fs.symlinkSync(oldCur,n2);fs.renameSync(n2,prev);
+  if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
+  say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
+}
+async function readSource(source,allowFile,maxBytes=2*1024*1024){
+  let u;try{u=new URL(source);}catch{u=pathToFileURL(path.resolve(source));}
+  if(u.protocol==="file:"){
+    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");const b=fs.readFileSync(fileURLToPath(u));if(b.length>maxBytes)fail("channel file exceeds size limit");return b;
+  }
+  if(u.protocol!=="https:")fail(`channel URL must use HTTPS: ${source}`);
+  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),30000);
+  try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`download failed ${r.status}: ${u}`);const b=Buffer.from(await r.arrayBuffer());if(b.length>maxBytes)fail(`download exceeds size limit: ${u}`);return b;}finally{clearTimeout(t);}
+}
+async function downloadAsset(a,dest,allowFile){
+  let u=new URL(a.url);let b;
+  if(u.protocol==="file:"){if(!allowFile)fail("file assets are test-only");b=fs.readFileSync(fileURLToPath(u));}
+  else{
+    const ac=new AbortController();const t=setTimeout(()=>ac.abort(),120000);
+    try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`asset download failed ${r.status}: ${u}`);b=Buffer.from(await r.arrayBuffer());}finally{clearTimeout(t);}
+  }
+  if(b.length!==a.bytes)fail(`asset size mismatch for ${a.name}: ${b.length} != ${a.bytes}`);
+  const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
+  fs.writeFileSync(dest,b,{mode:a.name.endsWith(".sh")?0o755:0o644});
+}
+function parseArgs(){
+  const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
+  for(let i=0;i<argv.length;i++){
+    const a=argv[i];
+    if(a==="--channel")o.channel=argv[++i]||fail("--channel needs a source");
+    else if(a==="--install-root")o.installRoot=argv[++i]||fail("--install-root needs a path");
+    else if(a==="--bin-dir")o.binDir=argv[++i]||fail("--bin-dir needs a path");
+    else if(a==="--health-url")o.healthUrl=argv[++i]||fail("--health-url needs a URL");
+    else if(a==="--health-command")o.healthCommand=argv[++i]||fail("--health-command needs a command");
+    else if(a==="--yes")o.yes=true;
+    else if(a==="--allow-downgrade")o.allowDowngrade=true;
+    else if(a==="--allow-candidate")o.allowCandidate=true;
+    else if(a==="--restart-if-running")o.restartIfRunning=true;
+    else if(a==="--test-allow-file")o.testAllowFile=true;
+    else if(a==="--skip-attestation")o.skipAttestation=true;
+    else fail(`unknown argument: ${a}`);
+  }
+  return o;
+}
+async function confirm(o,message){if(o.yes)return; if(!process.stdin.isTTY)fail("--yes is required in non-interactive mode");const rl=readline.createInterface({input:process.stdin,output:process.stdout});const ans=await rl.question(`${message} [type yes]: `);rl.close();if(ans.trim()!=="yes")fail("update cancelled",2);}
+async function healthCheck(o){
+  if(o.healthCommand){if(!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_HEALTH_COMMAND!=="1")fail("--health-command is test/operator-only");return childProcess.spawnSync("bash",["-lc",o.healthCommand],{stdio:"inherit"}).status===0;}
+  if(!o.healthUrl)return true;
+  for(let i=0;i<30;i++){
+    try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),3000);const r=await fetch(o.healthUrl,{signal:ac.signal});clearTimeout(t);if(r.ok){const j=await r.json();if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  return false;
+}
+async function main(){
+  const o=parseArgs();const self=fs.realpathSync(process.argv[1]);const releaseRoot=path.dirname(path.dirname(self));const inferredInstall=path.dirname(path.dirname(releaseRoot));
+  const installRoot=path.resolve(o.installRoot||process.env.VOID_NODE_INSTALL_ROOT||inferredInstall);const binDir=path.resolve(o.binDir||process.env.VOID_NODE_BIN_DIR||path.join(os.homedir(),".local","bin"));
+  if(o.command==="help"||o.command==="--help"||o.command==="-h"){
+    say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
+  }
+  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active);return;}
+  if(!o.channel)fail("--channel is required");
+  const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
+  say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
+  if(o.command==="check")return;
+  if(o.command!=="apply")fail(`unknown command: ${o.command}`);
+  if(channel.channel==="candidate"&&!o.allowCandidate)fail("candidate channel apply requires --allow-candidate");
+  if(cmp===0){say(`${MARKER}_ALREADY_CURRENT`);return;}
+  if(cmp<0&&!o.allowDowngrade)fail(`downgrade refused: ${cur.version} -> ${channel.release.version}`);
+  await confirm(o,`Apply verified VOID update ${cur.version} -> ${channel.release.version}?`);
+  const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;
+  if(active&&!o.restartIfRunning)fail("service is running; pass --restart-if-running to permit an explicit restart and health gate");
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-node-update-v1-"));
+  try{
+    for(const [key,a] of Object.entries(channel.assets))await downloadAsset(a,path.join(tmp,a.name),o.testAllowFile);
+    const sums=fs.readFileSync(path.join(tmp,channel.assets.checksums.name),"utf8");
+    for(const key of ["archive","installer","manifest","sbom"]){const a=channel.assets[key];const line=`${a.sha256}  ${a.name}`;if(!sums.split(/\r?\n/).includes(line))fail(`SHA256SUMS does not bind ${a.name}`);}
+    if(channel.verification.github_attestation_required&&!o.testAllowFile&&!o.skipAttestation){
+      if(!commandExists("gh"))fail("GitHub CLI is required to verify release attestations");
+      for(const key of ["archive","installer","manifest"]){run("gh",["attestation","verify",path.join(tmp,channel.assets[key].name),"--repo",channel.verification.attestation_repository]);}
+    } else if(o.skipAttestation&&!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_SKIP_ATTESTATION!=="1") fail("--skip-attestation requires explicit operator override");
+    const installer=path.join(tmp,channel.assets.installer.name),archive=path.join(tmp,channel.assets.archive.name),checksums=path.join(tmp,channel.assets.checksums.name),manifest=path.join(tmp,channel.assets.manifest.name);
+    run("bash",[installer,"install","--archive",archive,"--checksums",checksums,"--manifest",manifest,"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:{VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE:process.env.VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE||"",VOID_NODE_ALLOW_ROOT_INSTALL:process.env.VOID_NODE_ALLOW_ROOT_INSTALL||""}});
+    verifyRoot(path.join(installRoot,"current"));
+    if(active&&o.restartIfRunning)run("systemctl",["--user","restart","void-node.service"]);
+    const healthRequired=Boolean(o.healthCommand||o.healthUrl||active);
+    if(active&&!o.healthUrl&&!o.healthCommand)o.healthUrl="http://127.0.0.1:4100/__void/ready.json";
+    if(healthRequired&&!(await healthCheck(o))){
+      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning);fail("updated release failed health gate and was rolled back");
+    }
+    say(`${MARKER}_APPLY_GREEN`);say(`updated_to=${channel.release.version}`);say(`previous_version=${cur.version}`);say(`service_restarted=${active&&o.restartIfRunning}`);say("health_gate_green=true");say("service_started_implicitly=false");say("guarded_lanes_activated=false");
+  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
+}
+main().catch(e=>fail(e?.stack||String(e)));

@@ -1,136 +1,125 @@
-# VOID Mainnet-0 Start Here
+# Start with VOID Network
 
-status: public_mainnet0_live
-decision: GO_PUBLIC_MAINNET0
-updated_at_utc: 20260524-130500
+<!-- VOID_PUBLIC_START_HERE_CURRENT_STATE_V2 -->
 
-current_public_status_checkpoint: 0fd4b9b2 / ckpt-current-public-status-support-runbook-green-20260524-124839
+VOID Network is building a decentralized data and useful-work network for people and AI agents.
 
-## Start here
+Mainnet-0 is live, but capabilities are released in layers. Public evidence does not automatically imply public mutation authority.
 
-VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
+## Choose your path
 
-This page is the shortest public entry point for new visitors, participants, node operators, support helpers, and technical readers.
+### Explore the network
 
-## First-user trust boundary
+Open the public-node surface:
 
-The participant page is public-live, but not every action is automatic or unguarded.
+```text
+/public-node
+```
 
-Safe now:
+The machine-readable discovery entry is:
 
-- Set up or unlock your Account Wallet.
-- Earn WC through approved useful work.
-- Use DataNet publish/read/verify flows.
-- Create a guided Buy VOID request from the participant page.
+```text
+/.well-known/void-public-node.json
+```
 
-Guarded:
+Use the [current public status](mainnet0-current-public-status.md) and [capability matrix](current-capability-matrix.md) to distinguish live, bounded, guarded, and planned features.
 
-- VOID delivery requires operator verification and an explicit recorded VOID tx ref.
-- WC→VOID swaps and wallet sends require explicit unlock/sign confirmation.
-- Public validator registration is candidate/waiting only; active validator admission remains capped, proof-backed, and operator-governed.
-- Blind deposits, exchange sends, and custodial sends are not supported.
+### Use the participant application
 
-## New users
+Open:
 
-Start with:
+```text
+/app/
+```
 
-    docs/public/quick-start.md
+The app contains:
 
-Windows users should start with:
+- Home
+- Wallet
+- Earn
+- Data
+- Buy
+- Validate
+- Network
 
-    docs/public/windows-wsl2-quick-start.md
+A visible surface is not a promise of unrestricted execution. Wallet, settlement, fulfillment, and validator actions retain explicit gates.
 
-Then open the participant page from a running local node:
+See [participant onboarding](participant-onboarding.md).
 
-    http://127.0.0.1:4100/participant
+### Run a node
 
-## Current public truth
+Follow [Run a node](run-a-node.md).
 
-Read:
+A local node can:
 
-    docs/public/mainnet0-current-public-status.md
+- Join the P2P network.
+- Serve block and transaction APIs.
+- Expose DataNet and public-node discovery.
+- Participate in read-only verification.
+- Produce a public operator evidence pack.
 
-This explains what is live and what remains guarded.
+Running a node does not automatically make it an active validator or Work Credit coordinator.
 
-## Common questions
+### Earn Work Credits
 
-Read:
+Current earning is a bounded pilot.
 
-    docs/public/mainnet0-faq.md
+The normal flow is:
 
-This covers validators, Buy VOID, Work Credits, DataNet, VPod, Obelisk Agent, risks, and the current public summary.
+1. Receive a coordinator-issued capability ticket.
+2. Execute the described useful work.
+3. Produce a receipt.
+4. Return the receipt for verification.
+5. Receive the fixed or bounded WC award only after verification and cap checks.
 
-## Technical and investor overview
+There is no unrestricted public WC credit endpoint.
 
-Read:
+### Review operator evidence
 
-    docs/public/void-network-whitepaper.md
+The one-command operator workflow creates a self-check, reviews it, builds an evidence pack, signs the exact pack, and verifies the attestation offline.
 
-The whitepaper covers architecture, proof philosophy, validator posture, DataNet, Work Credits, Obelisk Agent, treasury, tokenomics, security, roadmap, and risks.
+See [public-node operator evidence workflow](../public-node/public-node-operator-evidence-workflow-v1.md).
 
-## Running a node
+### Register as a validator candidate
 
-Fast path:
+Validator registration is candidate/waiting only. Positive readiness evidence exists, but active admission remains disabled.
 
-    docs/public/quick-start.md
+See [validator registration positive-readiness public release](../validators/validator-registration-positive-readiness-public-release-v1.md).
 
-Full node guide:
+## What is safe to do now
 
-    docs/public/run-a-node.md
+- Browse public node and proof surfaces.
+- Verify DataNet and runtime evidence.
+- Run a node.
+- Use local wallet setup and explicit local signing.
+- Participate in approved useful-work earning.
+- Create a guided Buy VOID request.
+- Submit validator candidate information through the documented guarded path.
+- Create and share an operator evidence pack.
 
-Windows WSL2 path:
+## What remains guarded
 
-    docs/public/windows-wsl2-quick-start.md
+- Public signer access.
+- Anonymous ledger writes.
+- Unrestricted WC issuance.
+- WC-to-VOID settlement.
+- Buy VOID fulfillment.
+- Active validator admission.
+- Treasury movement.
+- Private operator and mutation APIs.
 
-## Participant onboarding
+## Basic safety
 
-Read:
+- Never share a private key or seed phrase.
+- Never publish a wallet file or `.env`.
+- Do not send blind deposits or exchange withdrawals.
+- Verify the exact node, route, amount, recipient, and transaction reference.
+- Treat evidence as proof of its exact claim, not as unlimited authority.
 
-    docs/public/participant-onboarding.md
+## Next documents
 
-This is the safer user-facing path for participant actions.
-
-## Support
-
-Read:
-
-    docs/public/support-runbook.md
-
-This gives first-response checks for node, WSL2, build, participant page, Buy VOID, validator, treasury, and DataNet issues.
-
-## Announcement material
-
-Read:
-
-    docs/public/mainnet0-announcement.md
-    docs/public/mainnet0-short-announcement.txt
-    docs/public/mainnet0-launch-notes.md
-
-## Public release bundle
-
-Read:
-
-    docs/public/mainnet0-public-release-bundle-closeout.md
-
-This records the public release bundle closeout.
-
-## Mainnet-0 guardrails
-
-Public onboarding is open.
-
-Still guarded:
-
-- Public active validator admission remains disabled.
-- Public validator registration remains candidate/waiting only.
-- Vault126 onboarding has not been executed.
-- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
-- Future treasury spend remains separately guarded.
-- No additional authority transfer is authorized by public launch status.
-
-## Best reading order
-
-1. docs/public/quick-start.md
-2. docs/public/mainnet0-current-public-status.md
-3. docs/public/mainnet0-faq.md
-4. docs/public/void-network-whitepaper.md
-5. docs/public/support-runbook.md
+- [Current public status](mainnet0-current-public-status.md)
+- [Current capability matrix](current-capability-matrix.md)
+- [Run a node](run-a-node.md)
+- [Participant onboarding](participant-onboarding.md)
+- [Public docs index](README.md)

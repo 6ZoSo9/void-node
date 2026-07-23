@@ -1,0 +1,34 @@
+name: public-app-composition-repair-wall-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/security/public-app-composition-repair-wall-v1-proof.sh"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - ".github/workflows/public-app-composition-repair-wall-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/security/public-app-composition-repair-wall-v1-proof.sh"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - ".github/workflows/public-app-composition-repair-wall-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bash ops/security/public-app-composition-repair-wall-v1-proof.sh

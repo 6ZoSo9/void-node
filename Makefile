@@ -1505,3 +1505,84 @@ participant-datanet-object-browser-link-proof:
 .PHONY: participant-wc-proof-viewer-proof
 participant-wc-proof-viewer-proof:
 	bash ops/mainnet0/participant-wc-proof-viewer-proof.sh
+
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN
+.PHONY: public-release-build-v1
+public-release-build-v1:
+	node tools/build-public-release-v1.mjs --out dist-release
+
+.PHONY: public-release-distribution-v1-proof
+public-release-distribution-v1-proof:
+	bash ops/security/public-release-distribution-v1-proof.sh
+# VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END
+
+.PHONY: public-release-update-channel-v1-proof
+public-release-update-channel-v1-proof:
+	bash ops/security/public-release-update-channel-v1-proof.sh
+
+.PHONY: public-release-channel-build-v1
+public-release-channel-build-v1:
+	test -n "$(RELEASE_TAG)"
+	test -n "$(RELEASE_BASE_URL)"
+	node tools/build-public-release-channel-v1.mjs \
+	  --manifest dist-release/void-node-release-manifest.json \
+	  --checksums dist-release/SHA256SUMS \
+	  --base-url "$(RELEASE_BASE_URL)" \
+	  --repository 6ZoSo9/void-node \
+	  --release-tag "$(RELEASE_TAG)" \
+	  --channel stable \
+	  --out dist-release/stable-v1.json
+
+.PHONY: public-release-publication-promotion-v1-static-proof
+public-release-publication-promotion-v1-static-proof:
+	node scripts/prove_public_release_publication_promotion_v1.mjs
+
+.PHONY: public-release-publication-promotion-v1-proof
+public-release-publication-promotion-v1-proof:
+	bash ops/security/public-release-publication-promotion-v1-proof.sh
+
+.PHONY: public-release-qualification-v1-static-proof
+public-release-qualification-v1-static-proof:
+	node scripts/prove_public_release_qualification_v1.mjs
+
+.PHONY: public-release-qualification-v1-proof
+public-release-qualification-v1-proof:
+	bash ops/security/public-release-qualification-v1-proof.sh
+
+.PHONY: public-python-bytecode-hygiene-v1-static-proof
+public-python-bytecode-hygiene-v1-static-proof:
+	node scripts/prove_public_python_bytecode_hygiene_v1.mjs
+
+.PHONY: public-python-bytecode-hygiene-v1-proof
+public-python-bytecode-hygiene-v1-proof:
+	bash ops/security/public-python-bytecode-hygiene-v1-proof.sh
+
+.PHONY: public-first-official-release-rehearsal-v1-static-proof
+public-first-official-release-rehearsal-v1-static-proof:
+	node scripts/prove_public_first_official_release_rehearsal_v1.mjs
+
+.PHONY: public-first-official-release-rehearsal-v1-proof
+public-first-official-release-rehearsal-v1-proof:
+	bash ops/security/public-first-official-release-rehearsal-v1-proof.sh
+
+.PHONY: public-first-official-release-launch-gate-v1-static-proof
+public-first-official-release-launch-gate-v1-static-proof:
+	node scripts/prove_public_first_official_release_launch_gate_v1.mjs
+
+.PHONY: public-first-official-release-launch-gate-v1-proof
+public-first-official-release-launch-gate-v1-proof:
+	bash ops/security/public-first-official-release-launch-gate-v1-proof.sh
+
+# VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN
+.PHONY: public-app-composition-repair-wall-v1-proof
+public-app-composition-repair-wall-v1-proof:
+	bash ops/security/public-app-composition-repair-wall-v1-proof.sh
+# VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END
+
+.PHONY: public-app-runtime-truth-wall-v1-proof
+public-app-runtime-truth-wall-v1-proof:
+	bash ops/security/public-app-runtime-truth-wall-v1-proof.sh
+
+.PHONY: public-participant-no-node-handoff-wall-v1-proof
+public-participant-no-node-handoff-wall-v1-proof:
+	bash ops/security/public-participant-no-node-handoff-wall-v1-proof.sh

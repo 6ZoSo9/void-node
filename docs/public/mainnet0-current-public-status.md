@@ -1,513 +1,138 @@
-# VOID Mainnet-0 Current Public Status
+# VOID Mainnet-0 current public status
 
-status: public_mainnet0_live
-decision: GO_PUBLIC_MAINNET0
-updated_at_utc: 20260524-104000
+<!-- VOID_MAINNET0_CURRENT_PUBLIC_STATUS_V2 -->
 
-current_public_release_checkpoint: 2865819a / ckpt-public-release-bundle-whitepaper-green-20260524-103149
-whitepaper_checkpoint: 9067695b / ckpt-mainnet0-whitepaper-v1-green-20260524-102511
-public_release_bundle_checkpoint: 49f460ea / ckpt-mainnet0-public-release-bundle-closeout-green-20260524-091935
-public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygiene-public-live-green-20260524-090437
-public_live_closeout_checkpoint: 4180224d / ckpt-mainnet0-public-live-closeout-green-20260525-110841
-public_live_announcement_checkpoint: 33c10bd6 / ckpt-mainnet0-public-live-announcement-green-20260525-211809
-quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319
-windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
-support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
-participant_first_user_clarity_checkpoint: 9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631
-public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719
-buy_void_ux_txref_clarity_checkpoint: 67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627
-stake_public_preview_clarity_checkpoint: 5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825
-start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
-public_docs_stack_checkpoint: 9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543
-developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
-public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-20260525-085128
+Reviewed: **July 20, 2026**
 
-public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502
+Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
-public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325
-current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224
-public_faq_network_troubleshooting_checkpoint: 567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407
-wc_to_void_test_swap_explainer_checkpoint: 14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920
-wc_to_void_copy_compact_checkpoint: 87f050a1 / ckpt-wc-to-void-copy-compact-green-20260603-023554
-## Current truth
+VOID Mainnet-0 is live as an early public network with real multi-node operation, public discovery, DataNet evidence, Work Credit earning proofs, operator evidence workflows, and validator readiness evidence.
 
-VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
+It is not yet a permissionless production network. Public visibility is intentionally ahead of public mutation authority.
 
-The public release bundle, public release hygiene, launch docs, participant onboarding, announcement materials, and whitepaper are cross-box proven.
+## Current hosted entry point
 
-The full public docs stack is proven by:
+- Public node: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+- Machine discovery: `/.well-known/void-public-node.json`
+- Participant application: `/app/`
 
-    make mainnet0-public-docs-stack-proof
+The repository and discovery document remain the canonical way to understand routes and capability boundaries. A hosted endpoint may change without changing the protocol.
 
-The current served public surface is proven by:
+## Capability status
 
-    make mainnet0-public-surface-proof
+### Live and public read-only
 
-The current public package includes:
+- Public-node dashboard and route discovery.
+- Public runtime, build-map, DataNet, Work Credit, validator-candidate, and proof evidence.
+- DataNet read, verify, mirror, pin, and public evidence surfaces.
+- Work Credit proof summaries and verifier links.
+- Native Voidchain and NullFeed public-site routes.
+- Public operator self-check and offline evidence review.
+- Evidence-pack creation and offline pack review.
+- Signed operator evidence attestation and independent verification.
+- One-command operator evidence workflow.
+- Validator registration positive-readiness public evidence.
 
-- docs/public/mainnet0-public-live-announcement.md
-- docs/public/mainnet0-public-live-closeout.md
-- docs/public/start-here.md
-- README.md public docs pointer
-- docs/public/README.md
-- docs/public/mainnet0-launch-notes.md
-- docs/public/run-a-node.md
-- docs/public/participant-onboarding.md
-- docs/public/mainnet0-announcement.md
-- docs/public/mainnet0-short-announcement.txt
-- docs/public/mainnet0-public-release-bundle-closeout.md
-- docs/public/void-network-whitepaper.md
-- docs/public/mainnet0-current-public-status.md
-- docs/public/windows-wsl2-quick-start.md
-- docs/public/support-runbook.md
-- docs/public/developer-reference.md
-- docs/public/quick-start.md
+### Live as a bounded pilot
 
-## Served public surface
+- Coordinator-issued Work Credit earning tickets.
+- Remote execution by an outside participant or executor.
+- Verified receipt submission.
+- Fixed or bounded award policy.
+- Per-account and global caps.
+- Duplicate-ticket and duplicate-receipt protection.
+- Participant command-line workflow.
 
-The current served public surface is intentionally narrow:
+This is real earning, but it is not unrestricted public issuance.
 
-- `/participant` is served.
-- `/__void/ready.json` is served.
-- `/__void/runtime/validator-truth/status` is served as a read surface.
-- `/` redirects to `/participant` as the public first-run entry path.
-- `/__void/status` remains a non-public 404 surface.
-- GET `/__void/participant/stake/next-onboard` remains a non-public 404 surface.
+### Guarded
 
-This proves the public participant/readiness/runtime-truth surface without opening default root, legacy status, or next-onboard GET surfaces.
+- Work Credit award authorization.
+- WC-to-VOID settlement.
+- Wallet signing and VOID transfer.
+- Buy VOID payment verification and fulfillment.
+- Validator activation and validator-set mutation.
+- Treasury spending.
+- Private RPC and operator mutation routes.
 
-## Start here
+### Not enabled
 
-Everyone should start with:
+- Public anonymous ledger writes.
+- Permissionless WC minting.
+- Automatic Buy VOID fulfillment.
+- Public active-validator admission.
+- Public treasury control.
+- Public wallet or signer custody.
 
-    docs/public/start-here.md
+## Work Credit policy
 
-New users should then read:
+Work Credits account for useful, verifiable work.
 
-    docs/public/quick-start.md
+- WC are intended to be unlimited accounting units.
+- A funded settlement tranche is not a lifetime WC supply cap.
+- The policy conversion is `100 WC : 1 VOID`.
+- A valid earning result requires a capability-bound ticket, acceptable work, a verified receipt, and successful duplicate/cap checks.
+- Current settlement remains explicit and guarded.
 
-Windows users should start with:
+## Buy VOID status
 
-    docs/public/windows-wsl2-quick-start.md
+The application can guide a participant through a Buy VOID request.
 
-Participants should also read:
+Fulfillment remains:
 
-    docs/public/README.md
+1. Payment verified.
+2. Recipient and request checked.
+3. VOID transaction explicitly submitted.
+4. Transaction reference recorded.
+5. Result independently reviewable.
 
-Technical readers and potential investors should read:
+Automatic fulfillment is not enabled.
 
-    docs/public/void-network-whitepaper.md
+## Validator status
 
-Node operators should read:
+Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
 
-    docs/public/run-a-node.md
+- Active admission is disabled.
+- Stake, identity, readiness, and operator policy remain separate checks.
+- A public readiness document does not itself grant validator authority.
 
-Support/public operators should read:
+See [validator registration positive-readiness public release](../validators/validator-registration-positive-readiness-public-release-v1.md).
 
-    docs/public/support-runbook.md
+## Operator evidence status
 
-Participants should read:
+The public operator evidence workflow is complete and post-merge proven.
 
-    docs/public/participant-onboarding.md
+It composes:
 
-## What is live
+1. Public-node self-check.
+2. Offline self-check receipt review.
+3. Evidence-pack creation.
+4. Offline evidence-pack review.
+5. Dedicated-domain signed attestation.
+6. Independent attestation verification.
+7. Recursive checksum verification.
 
-- VOID Mainnet-0 public status is live.
-- Local node runtime is live.
-- Participant page is available from a running local node.
-- Public documentation is available.
-- Start-here public landing overview is available.
-- Public docs stack composite proof is available.
-- Public live closeout proof is available.
-- Public live announcement proof is available.
-- Developer reference is available.
-- Public served surface proof is available.
-- Linux quick-start is available.
-- Windows WSL2 quick-start is available.
-- Public support runbook is available.
-- Whitepaper v1 is available.
-- Public release hygiene is green.
-- Sanitized public export and gitleaks path are green.
-- Precision and Alienware cross-box proofs are green.
+The workflow is read-only. It does not restart a node or mutate chain, DataNet, Work Credit, wallet, Buy VOID, validator, or treasury state.
 
-## What remains guarded
+See [public-node operator evidence workflow](../public-node/public-node-operator-evidence-workflow-v1.md).
 
-- Public active validator admission remains disabled.
-- Public validator registration remains candidate/waiting only.
-- Vault126 onboarding has not been executed.
-- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
-- WC→VOID real wallet execution remains explicit unlock/sign only; the reusable proof uses a temporary local-devnet wallet.
-- WC→VOID visible trade copy is compact, but wallet-signed execution and unlock/sign boundaries remain explicit.
-- Future treasury spend remains separately guarded.
-- No additional authority transfer is authorized by public launch status.
-- Operator/admin controls are not public participant controls.
+## Honest network posture
 
+The project-operated multi-node mesh proves real networking and role separation. It does not by itself prove broad external decentralization.
 
+The next activation goals remain:
 
+- More outside operators.
+- More independent public evidence packs.
+- More useful-work participation.
+- Safer reduction of coordinator dependence.
+- Bounded automatic Buy VOID fulfillment after its payment and replay boundaries are fully proven.
+- Candidate-to-active validator admission only after the public policy and runtime gates are ready.
 
-## Latest WC→VOID compact-copy refresh
+## Safety line
 
-The participant WC→VOID compact-copy refresh is now cross-box proven at `87f050a1 / ckpt-wc-to-void-copy-compact-green-20260603-023554`.
+Never share private keys, seed phrases, wallet files, `.env` contents, operator credentials, or unredacted receipts containing secrets.
 
-This refresh shortens the visible Trade/WC→VOID state text while preserving the safety boundary: WC→VOID swaps are wallet-signed, test proof uses a temporary local-devnet wallet only, and real wallet execution requires explicit unlock/sign confirmation.
+Do not treat a public page, tester receipt, candidate record, or signed evidence pack as authority beyond the exact claim it verifies.
 
-The protected proof stack includes `make participant-wc-to-void-current-status-proof`, `make participant-first-user-clarity-proof`, `make public-first60-user-journey-proof`, and `make mainnet0-status-smoke`.
-
-This is a UI copy/proof lane only. It does not mutate chain state, validator state, Buy VOID state, treasury state, or the user's real wallet.
-
-## Latest WC→VOID test-swap explainer refresh
-
-The participant WC→VOID test-swap explainer is now cross-box proven at `14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920`.
-
-This refresh makes the participant Trade/WC→VOID UI state clear: the reusable proof uses a temporary local-devnet wallet only, while real wallet execution requires explicit native-wallet unlock/sign confirmation.
-
-The reusable proof target is `make participant-wc-to-void-temp-wallet-execution-proof`.
-
-This is a UI/documentation/proof lane only. It does not mutate chain state, validator state, Buy VOID state, treasury state, or the user's real wallet.
-
-## Latest public FAQ network troubleshooting refresh
-
-The public FAQ network troubleshooting entry is now cross-box proven at `567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407`.
-
-The FAQ now answers the operator case where the local VOID node still returns `ready:true`, but the host machine loses internet access. It links users to `docs/public/node-network-troubleshooting.md` and keeps the issue framed as a local host/network troubleshooting path first, not a VOID chain failure.
-
-This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
-
-## Latest current public status proof repair
-
-The current public status proof repair is now cross-box proven at `ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224`.
-
-This repair makes `mainnet0-current-public-status-proof` validate the public docs stack pointer refresh for `9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543`.
-
-This is a documentation and proof repair lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
-
-## Latest public docs stack refresh
-
-The public docs stack is now cross-box proven at `9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543`.
-
-This stack explicitly requires the public node network troubleshooting runbook, its links from the public docs index and run-a-node guide, mutation-safety language, and the dedicated public node network troubleshooting proof.
-
-This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
-
-## Latest public node network troubleshooting refresh
-
-The public node network troubleshooting runbook is now cross-box proven at `b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325`.
-
-This runbook is for operators whose local VOID node remains ready while the host machine loses internet access. It documents interface, route, DNS, carrier-flap, NetworkManager, live-failure capture, non-reboot recovery, and physical cable/port troubleshooting.
-
-This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
-
-## Latest DataNet site bundle auto-materialization refresh
-
-The public DataNet site bundle lane is now seeded, peer-readable, and auto-materializing at `cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502`.
-
-The previous peer-readiness checkpoint proved both Precision and Alienware expose fixed DataNet manifests and `/datanet/v1/fetch` for Voidchain and NullFeed at `ckpt-public-site-bundle-peer-readiness-green-20260601-202959`.
-
-The new auto-materialization checkpoint proves a node can recover missing fixed public site bundle packed dirs from a configured peer, verify content hash/root, write the packed dir atomically, and serve `/site/voidchain` and `/site/nullfeed` as `datanet_live_v1_peer_materialized` instead of falling back to repo static.
-
-Manual seeding remains a safe fallback/runbook path, but it is no longer the only proven way for a peer node to restore these fixed public site bundles.
-
-## Latest Buy VOID and Stake public clarity refresh
-
-Buy VOID UX now has a cross-box proven explicit tx-ref fulfillment warning at `67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627`.
-
-Stake public preview now has a cross-box proven top-of-tab warning at `5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825`.
-
-Together these prove that public users are told Buy VOID has no automatic delivery and requires an explicit recorded VOID tx ref, while Stake remains preview-only, candidate/waiting-only, and not active validator admission.
-
-## Latest first-user and run-node support proof refresh
-
-The participant first-user path is now cross-box proven at `9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631`.
-
-The public run-node/support path is now cross-box proven at `a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719`.
-
-Together these prove the public path from docs and install guidance to a running local node, the participant page, wallet-first onboarding, guided Earn/WC→VOID flow, DataNet-backed public site routing, and sensitive public GET route 404 behavior.
-
-## Public support first checks
-
-For first-response support, start with these safe checks:
-
-- `/` should redirect to `/participant`.
-- `/download` and `/voidchain` should redirect to `/site/voidchain`.
-- `/participant` should serve the Wallet-first participant app.
-- `/__void/ready.json` should report `ready=true`, `gap=0`, and `txroot_live=1`.
-- Sensitive GET routes such as `/__void/status`, `/__void/participant/stake/next-onboard`, Buy VOID fulfill/claim routes, treasury routes, and admin routes should remain non-public `404` surfaces.
-- Public validator registration remains candidate/waiting only.
-- Buy VOID remains guided-only and fulfillment remains explicit, payment-verified, and tx-ref-recorded.
-
-## Current validator posture
-
-Public validator registration is candidate/waiting only.
-
-Public registration does not mutate the active validator set.
-
-The guarded operator selector remains:
-
-    vault126 / epoch128 / expectedValidatorCount=127
-
-This selector has not been live-executed.
-
-## Current Buy VOID posture
-
-Buy VOID remains guarded.
-
-Payment confirmation does not equal VOID sent. VOID fulfillment requires explicit payment verification and a recorded VOID transaction reference.
-
-Participants should not send blind deposits and should not use unsupported exchange/custodial send paths where the participant flow warns against them.
-
-## Current treasury posture
-
-OpsTreasury has been seeded with 1,000,000 VOID.
-
-Future treasury spend remains separately guarded and requires its own dry-run, signer check, broadcast, transaction record, balance proof, and closeout artifact.
-
-## Current release hygiene posture
-
-Public release hygiene is green.
-
-The public release bundle includes public docs, announcement materials, whitepaper, release hygiene, and a sanitized/gitleaks-clean export path.
-
-Secret-bearing files, runtime private artifacts, wallet files, keystores, local proof logs, build artifacts, caches, and local databases are not public release contents.
-
-## Current decision
-
-VOID Mainnet-0 is live, but intentionally conservative.
-
-The correct public message is:
-
-    VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
-    Public onboarding is open.
-    Public active validator admission, vault126 execution, Buy VOID fulfillment, and future treasury spend remain guarded by separate proof lanes.
-
-
-## Public live closeout
-
-The public live closeout is proven by:
-
-    make mainnet0-public-live-closeout-proof
-
-It records the current public-facing Mainnet-0 baseline across the public docs stack, served participant surface, readiness, and cross-box runtime truth.
-
-
-## Public live announcement
-
-The public live announcement is proven by:
-
-    make mainnet0-public-live-announcement-proof
-
-It provides safe public wording for Mainnet-0: public-live infrastructure is open, while public active validator admission, treasury spend, Buy VOID fulfillment, and authority transfer remain guarded.
-
-## Native public site bundle
-
-Status: cross-box proven.
-
-Checkpoint: 1ee9285e / ckpt-voidchain-run-node-doc-links-datanet-green-20260531-104226
-
-Routes:
-
-- /download
-- /voidchain
-- /nullfeed
-- /site/voidchain
-- /site/nullfeed
-
-DataNet site bundles:
-
-- Voidchain dataset_id: 1b8bf41db2d64f8877d0aec397373fa1
-- Voidchain content_root: db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2
-- NullFeed dataset_id: 2930d5e8436eb5674be06d2b0152d20c
-- NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
-
-Operational note: public site routes are DataNet-first with repo static fallback. Follower nodes must have the packed DataNet site bundles seeded locally until peer materialization is automated. Repo static fallback must not be treated as DataNet-backed serving.
-
-## Repo hygiene / branch cleanup checkpoint
-
-github_branch_cleanup_checkpoint: f0366cfd / ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931
-github_branch_cleanup_crossbox_closeout: /tmp/github-branch-cleanup-proof-crossbox-closeout-20260603-074525.log
-remote_non_main_branch_count: 0
-archive_branch_tag_count: 13
-archive_branch_tag_prefix: archive/branch-cleanup-20260603-071740/*
-superseded_branch_cleanup_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540
-branch_cleanup_canonical: true
-
-GitHub branch cleanup is cross-box green. Remote non-main branch count is zero. The 13 old unmerged branch tips were preserved as archive tags before deleting the remote branch refs. The earlier branch-cleanup tag `ckpt-github-branch-cleanup-proof-green-20260603-072540` is superseded by the fixed checkpoint because its original proof wrapper masked a failing proof.
-
-## Participant first-user trust boundary checkpoint
-
-participant_first_user_trust_boundary_checkpoint: 9674bc92 / ckpt-participant-first-user-trust-boundary-green-20260603-093941
-participant_first_user_trust_boundary_crossbox_closeout: /tmp/participant-first-user-trust-boundary-crossbox-closeout-20260603-094418.log
-participant_first_user_trust_boundary_crossbox: green
-first_user_trust_boundary_marker: VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1
-safe_now_copy: true
-guarded_copy: true
-no_blind_deposits_copy: true
-buy_void_fulfillment: false
-validator_mutation: false
-
-The participant first screen now includes a trust-boundary note that tells new users what is safe now, what remains guarded, and that blind deposits are not supported. This is a user-facing clarity checkpoint only; it did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Participant onboarding trust-boundary docs checkpoint
-
-participant_onboarding_trust_boundary_checkpoint: 7b933a68 / ckpt-participant-onboarding-trust-boundary-green-20260603-112947
-participant_onboarding_trust_boundary_crossbox_closeout: /tmp/participant-onboarding-trust-boundary-crossbox-closeout-20260603-113231.log
-participant_onboarding_trust_boundary_crossbox: green
-docs_safe_now_copy: true
-docs_guarded_copy: true
-docs_no_blind_deposits_copy: true
-docs_ui_trust_boundary_agree: true
-buy_void_fulfillment: false
-validator_mutation: false
-
-Public onboarding docs now match the participant first-screen trust boundary. README.md, docs/public/participant-onboarding.md, and docs/public/start-here.md explain what is safe now, what remains guarded, and that blind deposits, exchange sends, and custodial sends are not supported. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public first-60 trust-boundary proof checkpoint
-
-public_first60_trust_boundary_proof_checkpoint: 9c211cdb / ckpt-public-first60-trust-boundary-proof-green-20260603-114916
-public_first60_trust_boundary_proof_crossbox_closeout: /tmp/public-first60-trust-boundary-proof-crossbox-closeout-20260603-115216.log
-public_first60_trust_boundary_proof_crossbox: green
-public_first60_requires_trust_boundary: true
-safe_now_copy: true
-guarded_copy: true
-no_blind_deposits_copy: true
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public first-60 user journey proof now explicitly requires the participant first-screen trust boundary marker and copy. This means the first-user journey fails if the Safe now / Guarded / No blind deposits boundary disappears from the served participant page. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public trust-boundary stack proof checkpoint
-
-public_trust_boundary_stack_proof_checkpoint: e7211c94 / ckpt-public-trust-boundary-stack-proof-green-20260603-123044
-public_trust_boundary_stack_proof_crossbox_closeout: /tmp/public-trust-boundary-stack-proof-crossbox-closeout-20260603-123437.log
-public_trust_boundary_stack_proof_crossbox: green
-current_public_status_pointer: green
-public_first60_requires_trust_boundary: true
-participant_ui_trust_boundary: true
-docs_trust_boundary: true
-buy_void_fulfillment: false
-validator_mutation: false
-
-The reusable public trust-boundary stack proof now verifies the current public status pointer, the public first-60 trust-boundary requirement, the participant UI trust-boundary marker/copy, the public onboarding docs trust boundary, and status smoke in one composite target. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public release status summary checkpoint
-
-public_release_status_summary_checkpoint: 4494a9b2 / ckpt-public-release-status-summary-green-20260603-124755
-public_release_status_summary_crossbox_closeout: /tmp/public-release-status-summary-crossbox-closeout-20260603-125109.log
-public_release_status_summary_crossbox: green
-safe_now_copy: true
-guarded_copy: true
-no_blind_deposits_copy: true
-public_trust_boundary_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public release status summary gives users one concise page for what is safe now, what remains guarded, which proof stack is green, and the current safety line. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public release summary discoverability checkpoint
-
-public_release_summary_discoverability_checkpoint: 713b2094 / ckpt-public-release-summary-discoverability-green-20260603-130818
-public_release_summary_discoverability_crossbox_closeout: /tmp/public-release-summary-discoverability-crossbox-closeout-20260603-131334.log
-public_release_summary_discoverability_crossbox: green
-root_readme_link: true
-public_docs_readme_link: true
-summary_doc: docs/public/mainnet0-public-release-status-summary.md
-public_trust_boundary_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public release status summary is now discoverable from both the root README and the public docs README. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public launch/share checklist checkpoint
-
-public_launch_share_checklist_checkpoint: 606c595f / ckpt-public-launch-share-checklist-green-20260603-133644
-public_launch_share_checklist_crossbox_closeout: /tmp/public-launch-share-checklist-crossbox-closeout-20260603-134239.log
-public_launch_share_checklist_crossbox: green
-checklist_doc: docs/public/mainnet0-public-launch-share-checklist.md
-safe_path: README_to_summary_to_participant_to_guided_actions_only
-required_warnings: true
-do_not_say_guardrails: true
-public_trust_boundary_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public launch/share checklist gives social posts and onboarding replies one safe path: README -> public release status summary -> participant page -> guided actions only. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public share posts pack checkpoint
-
-public_share_posts_pack_checkpoint: 7f622630 / ckpt-public-share-posts-pack-green-20260603-143632
-public_share_posts_pack_crossbox_closeout: /tmp/public-share-posts-pack-crossbox-closeout-20260603-144555.log
-public_share_posts_pack_crossbox: green
-share_posts_doc: docs/public/mainnet0-public-share-posts.md
-templates: reddit,x_short,x_thread,discord,github
-safe_path: README_to_summary_to_participant_to_guided_actions_only
-required_warnings: true
-unsafe_promotional_claims: false
-public_trust_boundary_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public share posts pack gives proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Public communications stack proof checkpoint
-
-public_communications_stack_proof_checkpoint: 0bf36a62 / ckpt-public-communications-stack-proof-green-20260603-193224
-public_communications_stack_proof_crossbox_closeout: /tmp/public-communications-stack-proof-crossbox-closeout-20260603-194852.log
-public_communications_stack_proof_crossbox: green
-current_public_status: green
-share_templates: reddit,x_short,x_thread,discord,github
-safe_path: README_to_summary_to_participant_to_guided_actions_only
-required_warnings: true
-unsafe_promotional_claims: false
-public_trust_boundary_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The public communications stack proof bundles current public status, public share posts, launch/share checklist, release summary discoverability, release status summary, trust-boundary stack, public onboarding pack, status smoke, unsafe promotional-claim scanning, and public-doc secret scanning into one reusable proof target. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-## Participant public UI polish checkpoint
-
-participant_public_ui_polish_v1_checkpoint: e06ddab4 / ckpt-participant-public-ui-polish-v1-green-20260604-024034
-participant_public_ui_polish_v1_crossbox_closeout: /tmp/participant-public-ui-polish-v1-crossbox-closeout-20260604-025814.log
-participant_public_ui_polish_v1_crossbox: green
-wallet_first: true
-safe_now_copy: true
-guarded_copy: true
-guided_actions: true
-no_blind_deposits: true
-public_communications_stack: green
-buy_void_fulfillment: false
-validator_mutation: false
-
-The participant public UI polish v1 checkpoint makes the first participant screen clearer for public users while preserving the safe path: Wallet first, Earn WC, DataNet, guided Buy VOID request creation, WC-to-VOID path visibility, staking preview, and guarded money-moving / active-validator actions. This checkpoint is UI/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
-
-<!-- VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_START -->
-## DataNet materialization status
-
-DataNet materialization is currently green on the two-box Mainnet-0 baseline.
-
-- Status artifact: `docs/public/datanet-materialized-current-status.md`
-- Machine status: `docs/public/datanet-materialized-current-status.json`
-- Baseline doc: `docs/public/datanet-materialized-current-baseline.md`
-- Baseline checkpoint: `ckpt-datanet-materialized-current-baseline-v1-green-20260605-155821`
-- Stack sweep checkpoint: `ckpt-no-manual-peer-seed-tailscale-preflight-guard-v1-green-20260605-154722`
-
-<!-- VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_END -->
-## Public node live runtime quarantine <!-- VOID_PUBLIC_NODE_LIVE_RUNTIME_QUARANTINE_STATUS_POINTER_V1 -->
-
-The public-node Local Data Drop live service is currently proven in a quarantined public serving posture.
-
-Checkpoint:
-
-    08383516
-    ckpt-public-node-live-runtime-quarantine-green-20260612-210820
-
-Proof marker:
-
-    VOID_PUBLIC_NODE_LIVE_RUNTIME_QUARANTINE_PROOF_V1_GREEN
-
-Operational meaning:
-
-- `void-node-live.service` is the only live owner of ports 4100/4700.
-- legacy `void-node.service` must stay inactive/disabled.
-- public Local Data Drop HTTP routes stay online.
-- hot runtime wrapper/txroot/saveblock/forensics/drift families are disabled through the user systemd quarantine drop-in.
-- Demo 002 object/proof endpoints verified green after the quarantine posture was installed.
+For a role-based introduction, see [Start here](start-here.md). For a compact status table, see the [current capability matrix](current-capability-matrix.md).

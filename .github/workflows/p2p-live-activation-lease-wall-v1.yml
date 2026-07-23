@@ -1,0 +1,31 @@
+name: P2P Live Activation Lease Wall v1
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  live-activation-lease-wall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_p2p_authenticated_edge_wall_v1.ts
+      - run: npx tsx scripts/prove_p2p_authenticated_edge_wall_guard_v1.ts
+      - run: npx tsx scripts/prove_p2p_signed_trust_policy_wall_v1.ts
+      - run: npx tsx scripts/prove_p2p_signed_trust_policy_wall_guard_v1.ts
+      - run: npx tsx scripts/prove_p2p_node_bound_activation_permit_wall_v1.ts
+      - run: npx tsx scripts/prove_p2p_node_bound_activation_permit_wall_guard_v1.ts
+      - run: npx tsx scripts/prove_p2p_live_activation_lease_wall_v1.ts
+      - run: npx tsx scripts/prove_p2p_live_activation_lease_wall_guard_v1.ts
+      - run: |
+          chmod +x tools/check_index_size.sh
+          tools/check_index_size.sh
+      - run: npm run build

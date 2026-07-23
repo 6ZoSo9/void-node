@@ -1,398 +1,286 @@
-# void-node
+# VOID Network / `void-node`
 
-<!-- VOID_README_CURRENT_STATUS_V1_START -->
-## VOID Network current status
+<!-- VOID_PUBLIC_DOCS_CURRENT_STATE_V1 -->
 
-VOID Network is a Mainnet-0 public node, DataNet, and Work Credits prototype focused on verifiable public proofs, read-only public discovery, and tightly guarded mutation paths.
+**PROTECT THE CORE.**
 
-Live public entry point:
+VOID Network is a Mainnet-0 blockchain, DataNet, and useful-work network built for verifiable coordination between people, operators, and AI agents.
 
-- `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+The repository is public and operational, but it is still an early network. Public discovery and proof surfaces are intentionally broader than public mutation authority.
 
-What is public-live now:
+## Current state
 
-- Public node dashboard and route discovery.
-- DataNet-backed public proof/read/verify surfaces.
-- Public Work Credit proof summaries and verifier links.
-- Public build-map, DataNet, Work Credits, validator-candidate, and status documentation.
-- Public-safe static/repo fallback surfaces for bootstrap availability.
+Reviewed: **July 20, 2026**
 
-What remains guarded:
+### Live now
 
-- Private RPC is not public.
-- Wallet/signer access is not public.
-- Ledger writes are not public.
-- Work Credit awards and Work Credit settlement are not public mutation routes.
-- VOID transfers, Buy VOID fulfillment, validator admission, validator mutation, and operator/private routes remain behind explicit operator gates.
+- Mainnet-0 block production and multi-node runtime operation.
+- Public node discovery at `/public-node` and `/.well-known/void-public-node.json`.
+- Read-only public status, proof, DataNet, Work Credit, and validator-candidate evidence.
+- Participant-facing application at `/app/` with Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces.
+- DataNet publish, read, verify, mirror, pin, and public evidence paths.
+- Bounded Work Credit earning through coordinator-issued capability tickets and verified remote-executor receipts.
+- Public operator self-checks, offline evidence review, evidence packs, signed attestations, and one-command evidence workflow.
+- Positive-readiness evidence for validator registration while active admission remains disabled.
 
-Work Credits policy:
+### Still guarded
 
-- Work Credits are useful-work accounting units.
-- Work Credits are intended to be unlimited/uncapped.
-- Any funded settlement tranche capacity is not a lifetime Work Credit supply cap.
+- Public wallet or signer access.
+- Unrestricted public ledger writes.
+- Permissionless Work Credit issuance or settlement.
+- Automatic Buy VOID fulfillment.
+- Public validator activation or validator mutation.
+- Treasury movement and private operator routes.
 
-Native public site routes:
+See the [current capability matrix](docs/public/current-capability-matrix.md) for the exact boundary.
 
-- `/download` redirects to `/site/voidchain`
-- `/voidchain` redirects to `/site/voidchain`
-- `/nullfeed` redirects to `/site/nullfeed`
-- `/site/voidchain` serves the Voidchain public site
-- `/site/nullfeed` serves the NullFeed public preview
+## Start here
 
-<!-- VOID_README_CURRENT_STATUS_V1_END -->
+| You are… | Begin with… |
+|---|---|
+| Exploring VOID | [Start here](docs/public/start-here.md) |
+| Checking current status | [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) |
+| Running a node | [Run a node](docs/public/run-a-node.md) |
+| Participating or earning Work Credits | [Participant onboarding](docs/public/participant-onboarding.md) |
+| Reviewing public evidence | [`/public-node`](https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node) |
+| Operating a public node | [Operator evidence workflow](docs/public-node/public-node-operator-evidence-workflow-v1.md) |
+| Reviewing validator readiness | [Validator positive-readiness release](docs/validators/validator-registration-positive-readiness-public-release-v1.md) |
+| Browsing all public docs | [Public documentation index](docs/public/README.md) |
 
-<!-- VOID_README_PUBLIC_PROOF_FEED_V1_START -->
-### Public node proof feed
+## What VOID is building
 
-The live public node exposes a read-only Work Credit proof summary feed used by the public dashboard proof stats card:
+### VOID Chain
 
-- Public dashboard: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
-- Latest proof summaries: `GET /wc-proofs/latest?limit=12`
-- Route marker: `VOID_WC_PROOFS_LATEST_ROUTE_V1`
-- Current post-merge live check marker: `VOID_PUBLIC_FUNNEL_WC_PROOFS_LATEST_POST_MERGE_GREEN`
+A native chain with chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards.
 
-Boundary:
+### DataNet
 
-- The public seed adapter allowlist entry is exact: `/wc-proofs/latest`.
-- There is no `/wc-proofs/*` wildcard.
-- The route is `GET`/`HEAD` public-read-only proof summary access.
-- It does not expose private RPC, wallet/signer access, ledger writes, Work Credit awards, Work Credit settlement, validator mutation, operator/private routes, or public mutation authority.
+A decentralized data layer for storing, serving, mirroring, verifying, weighting, and discovering data. Data can remain persistent without every object receiving equal trust, visibility, or promotion priority.
 
-<!-- VOID_README_PUBLIC_PROOF_FEED_V1_END -->
+### Work Credits
 
-<!-- VOID_PUBLIC_DOCS_START -->
-## VOID Mainnet-0 is live
+Work Credits (`WC`) account for useful, verifiable work.
 
-Status: `public_mainnet0_live / GO_PUBLIC_MAINNET0`
+- WC are intended to be unlimited accounting units.
+- The policy conversion is `100 WC : 1 VOID`.
+- Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
+- Public self-service issuance and settlement are not enabled.
 
-VOID Mainnet-0 is public-live. Start with the links below.
+### Participant and operator surfaces
 
-### Start here
+The application and public-node interfaces expose capability status honestly. A visible button or page does not imply unrestricted authority behind it.
 
-- [Start here](docs/public/start-here.md)
-- [Quick start](docs/public/quick-start.md)
-- [Windows WSL2 quick start](docs/public/windows-wsl2-quick-start.md)
-- [Run a node](docs/public/run-a-node.md)
-- [Participant onboarding](docs/public/participant-onboarding.md)
+The operator evidence workflow composes:
 
-### Current status and announcements
+1. Public-node self-check.
+2. Offline receipt review.
+3. Evidence-pack creation.
+4. Offline evidence-pack review.
+5. Signed operator attestation.
+6. Independent attestation verification.
 
-- [Current public status](docs/public/mainnet0-current-public-status.md)
-- [Public live announcement](docs/public/mainnet0-public-live-announcement.md)
-- [Launch notes](docs/public/mainnet0-launch-notes.md)
-- [Announcement](docs/public/mainnet0-announcement.md)
-- [Public release bundle closeout](docs/public/mainnet0-public-release-bundle-closeout.md)
+It is read-only with respect to chain, wallet, Work Credit, Buy VOID, and validator state.
 
-### Help, security, and contributing
+## Local quick start
 
-- [Support guide](SUPPORT.md)
-- [Support runbook](docs/public/support-runbook.md)
-- [Security policy](SECURITY.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Proof cadence](docs/public/proof-cadence.md)
-- [Branch/release policy](docs/public/branch-release-policy.md)
+Requirements:
 
-### Technical reference
+- Linux or WSL2.
+- Node.js 22.
+- Git.
 
-- [Public docs index](docs/public/README.md)
-- [Developer reference](docs/public/developer-reference.md)
-- [FAQ](docs/public/mainnet0-faq.md)
-- [Whitepaper](docs/public/void-network-whitepaper.md)
+```bash
+git clone https://github.com/6ZoSo9/void-node.git
+cd void-node
+npm ci
+cp .env.example .env
+npm run build
+npm start
+```
 
-### Important guardrails
+Check readiness:
 
-- Public active validator admission remains disabled.
-- Public validator registration remains candidate/waiting only.
-- Vault126 onboarding has not been executed.
-- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
-- Future treasury spend remains separately guarded.
-- Do not share private keys or seed phrases.
-<!-- VOID_PUBLIC_DOCS_END -->
+```bash
+curl -fsS http://127.0.0.1:4100/__void/ready.json
+```
 
-Minimal block node with segmented storage, pubsub, participant UI, Work Credits, DataNet, validator truth, and HTTP APIs.
+Healthy readiness should report:
 
-## First-user trust boundary
+```text
+ready=true
+gap=0
+txroot_live=1
+```
 
-The participant page is public-live, but not every action is automatic or unguarded.
+Configuration starts in [`.env.example`](.env.example). Common settings include `DATA_DIR`, `HTTP_PORT`, `P2P_PORT`, and `BOOTSTRAP_ADDRS`.
 
-Safe now:
+## Public-node operator evidence
 
-- Set up or unlock your Account Wallet.
-- Earn WC through approved useful work.
-- Use DataNet publish/read/verify flows.
-- Create a guided Buy VOID request from the participant page.
+After a node is running, use the one-command evidence workflow with your own values:
 
-Guarded:
+```bash
+node tools/public-node-operator-evidence-workflow-v1.mjs \
+  --base https://your-node.example \
+  --expected-peer-count 2 \
+  --output-dir "$HOME/void-operator-evidence" \
+  --operator-id your-operator-id \
+  --node-key your-public-node-key \
+  --private-key "$HOME/.config/void/operator-keys/your-key.ed25519"
+```
 
-- VOID delivery requires operator verification and an explicit recorded VOID tx ref.
-- WC→VOID swaps and wallet sends require explicit unlock/sign confirmation.
-- Public validator registration is candidate/waiting only; active validator admission remains capped, proof-backed, and operator-governed.
-- Blind deposits, exchange sends, and custodial sends are not supported.
+The output is locally permission-restricted, recursively checksummed, signed in a dedicated SSHSIG namespace, and independently reviewable offline.
 
-## Recommended public path
+Never publish a private key, seed phrase, wallet file, `.env`, or operator secret.
 
-New users should start with the public Mainnet-0 docs linked above.
+## Safety boundary
 
-The shortest path is:
+Public read-only evidence is not public mutation authority.
 
-1. [Start here](docs/public/start-here.md)
-2. [Quick start](docs/public/quick-start.md)
-3. [Run a node](docs/public/run-a-node.md)
-4. [Participant onboarding](docs/public/participant-onboarding.md)
-5. [Support guide](SUPPORT.md)
+VOID currently distinguishes between:
 
-## Local health check
+- **Live** — deployed and usable within the documented boundary.
+- **Bounded pilot** — real and proven, but rate-limited or coordinator-gated.
+- **Guarded** — implemented or demonstrated, but requires explicit trusted action.
+- **Planned** — not yet available.
 
-After starting a node, check:
+Do not send blind deposits, exchange withdrawals, custodial transfers, or funds based only on an unverified message. Buy VOID delivery remains payment-verified and transaction-reference recorded.
 
-    curl -fsS http://127.0.0.1:4100/__void/ready.json
+## Maintained proof and beta references
 
-Healthy local readiness should show:
+Repository guards retain these established verification commands:
 
-    ready=true
-    gap=0
-    txroot_live=1
-
-## Environment
-
-See [.env.example](.env.example) for the full list.
-
-Common settings:
-
-- DATA_DIR
-- HTTP_PORT
-- P2P_PORT
-- BOOTSTRAP_ADDRS
-
-## Public APIs
-
-Common local routes:
-
-- Health/readiness: GET /__void/ready.json
-- Participant UI: GET /participant
-- Blocks: GET /blocks/*
-- Transactions: POST /tx, GET /tx/lookup, GET /tx/receipt, GET /tx/status
-- Index: POST /index/*, GET /index/stats
-- Peers: GET /peers, POST /peers/registry/*
-- Metrics: GET /metrics
-
-Developer and operator endpoints are documented in [Developer reference](docs/public/developer-reference.md).
-
-## Proof cadence
-
-Use the lighter public proof cadence:
-
-- small docs changes: targeted proof + make mainnet0-status-smoke
-- runtime/protocol/security changes: branch + targeted proof + local runtime proof
-- meaningful checkpoints: tag main
-- cross-box checks: reserve for runtime, protocol, security-sensitive, or checkpoint closeout work
-
-See [Proof cadence](docs/public/proof-cadence.md) and [Branch/release policy](docs/public/branch-release-policy.md).
-
-## Maintainer compatibility commands
-
-Some older proof and demo commands still exist in the repo for maintainers.
-
-They are not the recommended public entry point.
-
-New users should use the public Mainnet-0 docs at the top of this README.
-
-## CI Status
-
-![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)
-
-## Support and security
-
-- [Support guide](SUPPORT.md)
-- [Security policy](SECURITY.md)
-- [Contributing guide](CONTRIBUTING.md)
-
-Do not share private keys, seed phrases, wallet files, .env contents, or screenshots containing secrets.
-
-## Mainnet-0 public status
-
-- [Mainnet-0 public release status summary](docs/public/mainnet0-public-release-status-summary.md)
-
-This concise summary explains what is safe now, what remains guarded, which proof stack is green, and the current Mainnet-0 safety line.
-
-## Public launch/share checklist
-
-- [Mainnet-0 public launch/share checklist](docs/public/mainnet0-public-launch-share-checklist.md)
-
-Use this before posting publicly about VOID Network. It keeps public posts pointed at the safe path: README -> public status summary -> participant page -> guided actions only.
-
-## Public share posts
-
-- [Mainnet-0 public share posts](docs/public/mainnet0-public-share-posts.md)
-
-Use these proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.
-
-## Public node entry point <!-- VOID_PUBLIC_NODE_README_POINTER_V1 -->
-
-The public node surface starts at:
-
-    /public-node
-
-Operators exposing a node to the internet should start it with the public base URL testers should copy:
-
-    PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-domain.example npm start
-
-Outside testers can fetch the smoke pack:
-
-    /public-node/public-exposure-smoke-pack.json
-
-Or run the short public-route smoke check:
-
-    PUBLIC_NODE_BASE=https://your-domain.example; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done
-
-This checks public routes only. It does not touch private APIs, wallets, swaps, Buy VOID fulfillment, validators, or proof mutation.
-
-## Public node data weighting path <!-- VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_README_POINTER_V1 -->
-
-VOID public nodes now expose the storage-to-weighting path:
-
-- Local Data Drop: operator-local files served through public read-only routes.
-- Data Weight Record v1: public schema for ranking stored data by verification, freshness, duplicate status, suspicion state, tombstone state, storage tier, AI visibility, trust score, and promotion eligibility.
-
-Public route:
-
-`/public-node/data-weight-record.json`
-
-Docs:
-
-- `docs/public/public-node-local-data-drop.md`
-- `docs/public/public-node-data-weight-record.md`
-
-Proof:
-
-`ops/mainnet0/public-node-data-weight-record-rollup-proof.sh`
-
-Policy boundary: persistent does not mean equal priority. VOID can preserve data without treating every object as equally trusted, equally visible, or equally eligible for promotion.
-
-## Public node outside tester path <!-- VOID_PUBLIC_NODE_OUTSIDE_TESTER_README_POINTER_V1 -->
-
-For an outside tester, start with the public-node share link:
-
-    /public-node/share-link.json
-
-That route gives a copy-paste invite and points testers to:
-
-    /public-node
-    /public-node/tester-bundle.json
-    /public-node/tester-result-receipt.json
-
-The tester bundle links the quickstart, handoff, smoke pack, route index, and public proofs. This path is public-route and read-only only: no wallet sends, no WC to VOID swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.
-
-## Public Node Outside Tester Lane <!-- VOID_PUBLIC_NODE_TESTER_LANE_README_POINTER_V1 -->
-
-VOID public nodes now expose a complete read-only outside tester lane.
-
-Start here:
-
-    /public-node/tester-share
-
-Machine-readable summary:
-
-    /public-node/tester-lane-summary.json
-
-A tester can open the share page, run one curl/bash command, get the expected green marker, and send back `tester-receipt.json`.
-
-Expected green marker:
-
-    VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
-
-Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.
-
-## First Tester Request Copy Pack <!-- VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_README_POINTER_V1 -->
-
-VOID public nodes expose ready-to-post first-tester recruiting copy.
-
-Copy pack route:
-
-    /public-node/first-tester-request-copy-pack.json
-
-It includes:
-
-- Reddit post copy
-- X/Twitter post copy
-- short DM copy
-- GitHub blurb
-- tester share page link
-- standalone smoke command
-- expected green marker
-- tester receipt instructions
-
-Expected green marker:
-
-    VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
-
-Expected receipt file:
-
-    tester-receipt.json
-
-Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.
-
-## Public beta status
-
-Current public beta operator checks:
-
-
-Self-hosted beta CI plan: SELF_HOSTED_BETA_CI_PLAN.md
-
-Boundary: public read-only/bootstrap surfaces may be inspected and smoke-tested, while mutation, wallet movement, validator mutation, WC issuance, and automatic fulfillment remain locked behind explicit operator gates.
-
-## Public beta status command references
-
-Required beta proof commands:
-
+```bash
 make public-beta-status
 make public-beta-preflight
 make wc-wallet-proof
+```
 
-Self-hosted beta CI plan: SELF_HOSTED_BETA_CI_PLAN.md
+See the [self-hosted beta CI plan](ops/SELF_HOSTED_BETA_CI_PLAN.md) and the [refined tracked raw empty-catches public discovery index](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md).
 
-<!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_START -->
-## Local multi-box runtime verification
+## Documentation
 
-Marker: `VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1`
+- [Public docs index](docs/public/README.md)
+- [Current capability matrix](docs/public/current-capability-matrix.md)
+- [Documentation freshness policy](docs/public/docs-freshness-policy.md)
+- [Developer reference](docs/public/developer-reference.md)
+- [FAQ](docs/public/mainnet0-faq.md)
+- [Whitepaper](docs/public/void-network-whitepaper.md)
+- [Proof cadence](docs/public/proof-cadence.md)
+- [Branch and release policy](docs/public/branch-release-policy.md)
 
-VOID now exposes a public-safe verification path for the local multi-box runtime stack. External testers and agents can start at:
+Historical receipts, checkpoint files, launch records, and audit evidence remain immutable. They are evidence of what happened at a specific time, not the canonical description of what is available now.
 
-`/.well-known/void-public-node.json`
+## Support, security, and contributing
 
-From there, the well-known discovery document links to the runtime discovery surface, smoke card, smoke pack JSON, and smoke script:
+- [Support](SUPPORT.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
 
-- `/public-node/index.json`
-- `/public-node/runtime`
-- `/public-node/runtime#runtime-smoke-check`
-- `/public-node/runtime/smoke-pack-v1.json`
-- `/public-node/runtime/smoke-pack-v1.sh`
+[![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml)
 
-The smoke script verifies the route chain end-to-end and should print:
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+## Verified release installer
 
-`VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN`
+The public download lane now has a deterministic Linux x64 archive, stable
+manifest, outer and inner SHA-256 verification, SPDX SBOM, user-scoped
+installer, atomic update/rollback, and CI/tag publishing proof. Start at
+[`docs/public/download-install-release-v1.md`](docs/public/download-install-release-v1.md).
 
-Boundary: this is read-only discovery/smoke visibility only. It does not enable wallet send, money movement, buy-VOID fulfillment, WC-to-VOID swap execution, validator mutation/admission, public WC self-serve earning, mutation routes, or public internet mesh completion.
+The installer never starts the service, generates private keys, or activates
+guarded economic/operator lanes unless a separate explicit lane does so.
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
 
-<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_README_START -->
-### Canonical runtime discovery closeout
+## Verified stable update channel
 
-Marker: `VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1`
+`VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1` adds a stable channel manifest,
+anti-downgrade update checks, SHA-256 and GitHub-attestation verification,
+explicit restart controls, and health-gated automatic rollback.
 
-The local multi-box runtime discovery path is sealed by a canonical closeout rollup:
+```bash
+void-node update check --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
+```
 
-- `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json`
-- `/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html`
+See [release update channel v1](docs/public/release-update-channel-v1.md).
 
-Expected marker: `VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1`
+## Immutable release publication and promotion
 
-This is read-only discovery/status documentation only; it does not enable mutation, wallet, money, validator, WC self-serve, or public mesh behavior.
-<!-- VOID_LOCAL_MULTIBOX_RUNTIME_CLOSEOUT_README_LINK_V1_README_END -->
+`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1` adds protected immutable
+GitHub Release publication, attested publication and canary receipts,
+hash-chained candidate/stable promotion, freeze, revocation, rollback, and
+public release-channel state.
 
-More detail: [`docs/public/local-multibox-runtime-verification-path-v1.md`](docs/public/local-multibox-runtime-verification-path-v1.md)
-<!-- VOID_LOCAL_MULTIBOX_RUNTIME_README_STATUS_NOTE_V1_END -->
+No real release is published by merging this infrastructure. See
+[release publication and promotion v1](docs/public/release-publication-promotion-v1.md).
 
-## Public verification indexes
+## Release qualification and canary matrix
 
-- [Refined tracked raw empty catches public discovery index v1](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md)
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1` requires a complete
+fresh-host, WSL2, upgrade, rollback, two-node, and participant-surface matrix,
+plus approval by a reviewer who did not run the qualification targets, before
+stable promotion.
 
+This infrastructure does not publish a release or deploy a live node. See
+[release qualification v1](docs/public/release-qualification-v1.md).
+
+## First official release rehearsal
+
+`VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1` removes tracked Python
+bytecode, enforces bytecode-free proofs, normalizes GitHub operations to
+non-interactive SSH, and rehearses the complete first official release chain
+without publishing a tag or release.
+
+Run:
+
+```bash
+make public-python-bytecode-hygiene-v1-proof
+make public-first-official-release-rehearsal-v1-proof
+```
+
+See [first official release rehearsal v1](docs/public/first-official-release-rehearsal-v1.md).
+
+## First official release launch gate
+
+`VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1` installs the last
+non-publishing control plane before an official VOID release. It also repairs
+the qualification proof so Python syntax validation cannot leak bytecode into
+the repository. The gate freezes an exact clean `main` commit and semantic
+version, binds two deterministic builds to the complete release rehearsal,
+requires independent approval and an expiring single-use authorization, and
+renders an inert publication command.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+## Solo-operator release time-lock
+
+`VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1` preserves the independent-review
+release path and adds an explicit `solo_time_lock_v1` path for a project with no
+second human reviewer. Solo mode never claims independent review. It requires a
+main-only GitHub environment wait of at least twelve hours, a separate explicit
+risk acknowledgement, and a 14-24 hour authorization window. The publication
+workflow rechecks the live environment after reading the sealed launch record
+and before release mutation can become reachable.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
+## Public app composition gateway v1
+
+The public node now has a dedicated composition boundary that preserves the
+existing Public Earn Gateway while safely serving the VOID App shell and
+sanitized network telemetry. Account-scoped Wallet and Earn records remain
+local or session-authorized only.
+
+Proof:
+
+```bash
+make public-app-composition-repair-wall-v1-proof
+```
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->

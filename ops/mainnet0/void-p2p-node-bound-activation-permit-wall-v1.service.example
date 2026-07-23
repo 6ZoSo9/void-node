@@ -1,0 +1,45 @@
+[Unit]
+Description=VOID P2P Node-Bound Activation Permit Wall v1
+After=network-online.target void-node.service
+Wants=network-online.target
+Requires=void-node.service
+Conflicts=void-p2p-signed-trust-policy-wall-v1.service void-p2p-authenticated-edge-wall-v1.service
+
+[Service]
+Type=simple
+User=void
+Group=void
+WorkingDirectory=/opt/void-node
+EnvironmentFile=/etc/void/p2p-node-bound-activation-permit-wall-v1.env
+ExecStart=/opt/void-node/ops/mainnet0/run-p2p-node-bound-activation-permit-wall-v1.sh
+# Consumption is one-shot. A restart requires a fresh successor permit; the
+# service manager must never loop on a consumed permit.
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+ReadOnlyPaths=/etc/void/p2p-node-bound-activation-permit-wall-v1 /etc/void/p2p-trust-policy-wall-v1 /home/void/.void/p2p-edge-wall-v1
+ReadWritePaths=/var/lib/void/p2p-node-bound-activation-permit-wall-v1 /var/lib/void/p2p-trust-policy-wall-v1 /var/lib/void/p2p-edge-wall-v1
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

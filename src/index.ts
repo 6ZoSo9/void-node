@@ -1,3 +1,6 @@
+import {
+  runVoidNativeBlockExecutionPrecommitIntegrationV1,
+} from "./chain/native_block_execution_precommit_integration_v1.js";
 import { mountLocalMultiboxRuntimeRouteV1 } from "./local-multibox-runtime-route-v1.js";
 import { createRequire } from 'node:module';
 
@@ -19644,7 +19647,18 @@ function __voidAutoStopV1(){
       };
 
       try {
-        const mod:any = require("./util/txroot.js");
+                await runVoidNativeBlockExecutionPrecommitIntegrationV1({
+          policy: {
+            enabled: false,
+            confirmation: null,
+          },
+          candidate_transaction_count:
+            Array.isArray(block.txs) ? block.txs.length : 0,
+          candidate_transactions:
+            Array.isArray(block.txs) ? block.txs : [],
+          prepare_dependency: null,
+        });
+const mod:any = require("./util/txroot.js");
         const txRootOf = mod?.txRootOf || mod?.computeTxRoot || mod?.computeTxRootFromTxs;
         if (typeof txRootOf === "function") {
           const out = await Promise.resolve(txRootOf(block.txs));

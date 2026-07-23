@@ -1,0 +1,127 @@
+name: public-release-canary-v1
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Exact release-vX.Y.Z tag'
+        required: true
+        type: string
+      source_commit:
+        description: 'Exact 40-character source commit'
+        required: true
+        type: string
+      publication_receipt_sha256:
+        description: 'SHA-256 of publication-receipt-v1.json from the publication workflow artifact'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: public-release-canary-v1-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    environment: void-release-canary
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      PUBLICATION_RECEIPT_SHA256: ${{ inputs.publication_receipt_sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source_commit }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Download and verify immutable release
+        run: |
+          set -euo pipefail
+          test "$RELEASE_TAG" = "release-v$(node -p 'require("./package.json").version')"
+          test "$SOURCE_COMMIT" = "$(git rev-parse HEAD)"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft,isImmutable,targetCommitish --jq '[.isDraft,.isImmutable,.targetCommitish] | @tsv')" = $'false\ttrue\t'"$SOURCE_COMMIT"
+          rm -rf canary-release
+          mkdir canary-release
+          gh release download "$RELEASE_TAG" --dir canary-release
+          gh release verify "$RELEASE_TAG"
+          (cd canary-release && sha256sum --check --strict PUBLICATION-SHA256SUMS)
+          while read -r _ file; do
+            gh release verify-asset "$RELEASE_TAG" "canary-release/$file"
+          done < canary-release/PUBLICATION-SHA256SUMS
+      - name: Verify user-scoped install without starting a service
+        run: |
+          set -euo pipefail
+          HOME_ROOT="$RUNNER_TEMP/void-canary-home"
+          INSTALL_ROOT="$HOME_ROOT/.local/share/void-node"
+          BIN_DIR="$HOME_ROOT/.local/bin"
+          mkdir -p "$HOME_ROOT" "$BIN_DIR"
+          MANIFEST=canary-release/void-node-release-manifest.json
+          ARCHIVE="canary-release/$(node -p "require('./$MANIFEST').archive")"
+          HOME="$HOME_ROOT" VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE=1 \
+            bash canary-release/install-void-node-v1.sh install \
+              --archive "$ARCHIVE" \
+              --checksums canary-release/SHA256SUMS \
+              --manifest "$MANIFEST" \
+              --install-root "$INSTALL_ROOT" \
+              --bin-dir "$BIN_DIR" \
+              --yes
+          HOME="$HOME_ROOT" "$BIN_DIR/void-node" verify
+          test ! -e "$HOME_ROOT/.config/systemd/user/default.target.wants/void-node.service"
+      - name: Prove update health and rollback mechanism
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          make public-release-update-channel-v1-proof
+      - name: Build canary receipt
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          packet=json.loads(pathlib.Path('canary-release/publication-packet-v1.json').read_text())
+          packet_sha=hashlib.sha256(json.dumps(packet,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          receipt={
+            'marker':'VOID_RELEASE_CANARY_RECEIPT_V1',
+            'schema_version':1,
+            'repository':os.environ['GITHUB_REPOSITORY'],
+            'release_tag':os.environ['RELEASE_TAG'],
+            'source_commit':os.environ['SOURCE_COMMIT'],
+            'packet_sha256':packet_sha,
+            'publication_receipt_sha256':os.environ['PUBLICATION_RECEIPT_SHA256'],
+            'generated_at_utc':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00','Z'),
+            'passed':True,
+            'checks':{
+              'immutable_release':True,
+              'release_attestation':True,
+              'asset_attestations':True,
+              'sha256':True,
+              'install':True,
+              'update_check':True,
+              'health':True,
+              'rollback':True,
+            },
+            'service_started_implicitly':False,
+            'guarded_lanes_activated':False,
+          }
+          pathlib.Path('canary-receipt-v1.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: void-release-canary-${{ inputs.release_tag }}
+          path: canary-receipt-v1.json
+          if-no-files-found: error
+          retention-days: 90
+      - run: |
+          echo "release_tag=${RELEASE_TAG}"
+          echo "canary_passed=true"
+          echo "live_deployment=false"
+          echo "service_started_implicitly=false"
+          echo "guarded_lanes_activated=false"
+          echo "VOID_PUBLIC_RELEASE_CANARY_WORKFLOW_V1_GREEN"

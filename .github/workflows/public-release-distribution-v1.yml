@@ -1,0 +1,144 @@
+name: public-release-distribution-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-release-distribution-v1.yml'
+      - 'release/**'
+      - 'ops/public/install-void-node-v1.sh'
+      - 'ops/security/public-release-distribution-v1-proof.sh'
+      - 'tools/build-public-release-v1.mjs'
+      - 'tools/build-public-release-channel-v1.mjs'
+      - 'release/channel/**'
+      - 'release/bin/void-node-update'
+      - 'scripts/prove_public_release_update_channel_v1.mjs'
+      - 'ops/security/public-release-update-channel-v1-proof.sh'
+      - 'scripts/prove_public_release_distribution_v1.mjs'
+      - 'docs/public/**'
+      - 'docs/security/public-release-distribution-v1-threat-model.md'
+      - 'docs/site/voidchain/index.html'
+      - 'public/public-node/void-network/**'
+      - 'Makefile'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    tags:
+      - 'release-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version override; blank uses package version plus commit'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-release-distribution-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Use Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove release distribution wall
+        run: make public-release-distribution-v1-proof
+      - name: Prove stable release update channel
+        run: make public-release-update-channel-v1-proof
+      - name: Build publishable assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#release-v}"
+          elif [[ -n "${{ inputs.version || '' }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="$(node -p 'require("./package.json").version')-dev.${GITHUB_SHA::12}"
+          fi
+          rm -rf dist-release
+          node tools/build-public-release-v1.mjs --out dist-release --version "$VERSION"
+          (cd dist-release && sha256sum --check --strict SHA256SUMS)
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            CHANNEL_TAG="${GITHUB_REF_NAME}"
+          else
+            CHANNEL_TAG="release-v${VERSION}"
+          fi
+          node tools/build-public-release-channel-v1.mjs \
+            --manifest dist-release/void-node-release-manifest.json \
+            --checksums dist-release/SHA256SUMS \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${CHANNEL_TAG}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --release-tag "${CHANNEL_TAG}" \
+            --channel stable \
+            --out dist-release/stable-v1.json
+          node tools/build-public-release-channel-v1.mjs --verify dist-release/stable-v1.json
+      - name: Upload proved release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-node-release-assets
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/release-v')
+    needs: prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Download proved assets
+        uses: actions/download-artifact@v5
+        with:
+          name: void-node-release-assets
+          path: dist-release
+      - name: Verify tag version contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="release-v$(node -p 'require("./package.json").version')"
+          test "$GITHUB_REF_NAME" = "$EXPECTED"
+          (cd dist-release && sha256sum --check --strict SHA256SUMS)
+      - name: Attest release archive provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist-release/*.tar.gz'
+      - name: Attest release SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist-release/*.tar.gz'
+          sbom-path: 'dist-release/*.spdx.json'
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES="$(find dist-release -maxdepth 1 -name '*-release-notes.txt' -print -quit)"
+          test -n "$NOTES"
+          gh release create "$GITHUB_REF_NAME" dist-release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "VOID Node ${GITHUB_REF_NAME#release-v}" \
+            --notes-file "$NOTES"

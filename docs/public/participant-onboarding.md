@@ -1,72 +1,119 @@
-# VOID Mainnet-0 Participant Onboarding
+# VOID participant onboarding
 
-status: public_mainnet0_live
-participant_surface: local node participant page
+<!-- VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V2 -->
 
-Start here after your node is running:
+This guide explains what a participant can do now and which actions remain guarded.
 
-    http://127.0.0.1:4100/participant
+Open the participant application at:
 
-## What participants can do
+```text
+/app/
+```
 
-- Open the participant page from a local node.
-- Set up or connect an account wallet.
-- View Mainnet-0 status.
-- Review Buy VOID instructions.
-- Review Stake / validator registration status.
-- Register for candidate/waiting validator flows where available.
-- Read public safety notices.
+## 1. Understand the capability labels
 
-## Validator registration
+VOID uses four practical states:
 
-Public validator registration is candidate/waiting only for Mainnet-0.
+- **Live** — usable within the documented boundary.
+- **Bounded pilot** — real, but capped or coordinator-gated.
+- **Guarded** — requires explicit trusted action.
+- **Planned** — not yet available.
 
-It does not make you an active validator immediately. Public active validator admission remains disabled unless a later guarded proof lane intentionally changes it.
+See the [current capability matrix](current-capability-matrix.md).
 
-Current guarded operator selector remains:
+## 2. Create or unlock your local account wallet
 
-    vault126 / epoch128 / expectedValidatorCount=127
+Wallet material must remain local to you.
 
-That operator lane is separate from public participant registration.
+- Never share a private key or seed phrase.
+- Never upload a wallet file to a support ticket.
+- Never paste secrets into chat, Discord, Reddit, GitHub, or a public receipt.
+- Confirm network, chain ID, recipient, amount, and fee before signing.
 
-## Buy VOID
+VOID does not provide a public custodial signer.
 
-Buy VOID is guarded.
+## 3. Earn Work Credits
 
-- Use only the supported flow from the participant page.
-- Do not send blind direct deposits.
-- Do not send from exchanges or custodial accounts when warned.
-- Payment confirmation does not equal VOID sent.
-- VOID fulfillment requires explicit payment verification and a recorded VOID transaction reference.
+Work Credits account for useful, verifiable work.
 
-## First-user trust boundary
+Current earning is a bounded remote-executor pilot.
 
-The participant page is public-live, but not every action is automatic or unguarded.
+The flow is:
 
-Safe now:
+1. A coordinator issues a capability-bound ticket.
+2. The participant executes the specified task.
+3. The participant produces a result receipt.
+4. The coordinator verifies the receipt and execution identity.
+5. Duplicate and cap checks run.
+6. The account receives the fixed or bounded award.
 
-- Set up or unlock your Account Wallet.
-- Earn WC through approved useful work.
-- Use DataNet publish/read/verify flows.
-- Create a guided Buy VOID request from the participant page.
+A participant does not need unrestricted ledger access. The ticket and receipt carry the minimum authority needed for the specific job.
 
-Guarded:
+Current boundaries:
 
-- VOID delivery requires operator verification and an explicit recorded VOID tx ref.
-- WC→VOID swaps and wallet sends require explicit unlock/sign confirmation.
-- Public validator registration is candidate/waiting only; active validator admission remains capped, proof-backed, and operator-governed.
-- Blind deposits, exchange sends, and custodial sends are not supported.
+- WC are intended to be unlimited accounting units.
+- The policy conversion is `100 WC : 1 VOID`.
+- A settlement tranche is not a lifetime WC supply cap.
+- There is no public generic-credit route.
+- Public self-service settlement is not enabled.
+- A receipt is not automatically accepted merely because it exists.
 
-## Wallet safety
+## 4. Use DataNet
 
-Back up your wallet.
-Use self-custody.
-Do not share private keys or seed phrases.
-Do not paste secrets into support chats, GitHub issues, Discord, Telegram, or AI tools.
+Participants can use DataNet workflows to publish, read, verify, mirror, pin, and review data within the available local or authorized path.
 
-## What Mainnet-0 is not
+Public-node DataNet evidence is read-only. Public internet access to evidence does not grant public write authority.
 
-Mainnet-0 is not a promise that all features are open.
-Mainnet-0 does not enable public active validator admission by default.
-Mainnet-0 does not authorize unguarded treasury spend.
-Mainnet-0 does not make exchange/custodial Buy VOID sends safe.
+Data weighting can consider verification, freshness, duplication, suspicion, tombstone state, storage tier, AI visibility, trust, and promotion eligibility.
+
+## 5. Create a Buy VOID request
+
+The Buy surface can guide request creation.
+
+Fulfillment remains guarded:
+
+1. Payment must be independently verified.
+2. The recipient and request must match.
+3. An operator must explicitly authorize fulfillment.
+4. The VOID transaction reference must be recorded.
+5. The participant should verify the result independently.
+
+Automatic Buy VOID fulfillment is not enabled.
+
+Do not send blind deposits, exchange withdrawals, custodial sends, or money based only on a direct message.
+
+## 6. WC-to-VOID settlement
+
+The policy conversion is `100 WC : 1 VOID`, but settlement is not a permissionless public route.
+
+Settlement requires the documented explicit authorization, account checks, available settlement capacity, and transaction evidence.
+
+## 7. Validator candidacy
+
+A participant may follow the validator candidate path, but active admission remains disabled.
+
+Positive-readiness evidence shows that the registration surface is prepared; it does not activate the candidate.
+
+See [validator registration positive-readiness public release](../validators/validator-registration-positive-readiness-public-release-v1.md).
+
+## 8. Verify before trusting
+
+Use public proofs and receipts to verify exact claims:
+
+- Node readiness.
+- Peer visibility.
+- DataNet object identity.
+- Work Credit ticket and receipt status.
+- Transaction reference.
+- Operator evidence-pack checksums.
+- Signed attestation binding.
+- Validator candidate readiness.
+
+A tester receipt, candidate record, public page, or operator signature has only the authority explicitly described by its schema and verification policy.
+
+## Need help?
+
+- [Start here](start-here.md)
+- [Current public status](mainnet0-current-public-status.md)
+- [Support guide](../../SUPPORT.md)
+- [Security policy](../../SECURITY.md)

@@ -1,0 +1,31 @@
+[Unit]
+Description=VOID public app composition gateway v1
+After=network-online.target void-node-live.service void-vps-public-seed-adapter.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=VOID_NODE_REPO=%h/dev/void-node
+Environment=VOID_COMPOSITION_HOST=127.0.0.1
+Environment=VOID_COMPOSITION_PORT=8082
+Environment=VOID_PUBLIC_GATEWAY_UPSTREAM=http://127.0.0.1:8080
+Environment=VOID_NODE_UPSTREAM=http://127.0.0.1:4100
+Environment=VOID_PUBLIC_EXPECTED_PEERS=2
+Environment=VOID_PUBLIC_NODE_LABEL=Alienware public seed
+Environment=VOID_PUBLIC_NETWORK_NAME=Mainnet-0
+Environment=VOID_TXROOT_QUARANTINED=1
+ExecStart=%h/dev/void-node/ops/public/run-void-public-app-composition-gateway-v1.sh
+Restart=always
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=%h/dev/void-node
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=default.target

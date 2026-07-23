@@ -1,0 +1,61 @@
+name: public-first-official-release-launch-gate-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-first-official-release-launch-gate-v1.yml'
+      - 'release/launch-gate/**'
+      - 'tools/void-first-official-release-launch-gate-v1.mjs'
+      - 'ops/release/void-first-official-release-launch-gate-v1.sh'
+      - 'ops/security/public-first-official-release-launch-gate-v1-proof.sh'
+      - 'scripts/prove_public_first_official_release_launch_gate_v1.mjs'
+      - 'docs/public/first-official-release-launch-gate-v1.md'
+      - 'docs/operators/first-official-release-launch-gate-v1.md'
+      - 'docs/security/public-first-official-release-launch-gate-v1-threat-model.md'
+      - 'public/public-node/void-network/release-launch-gate-v1.*'
+      - 'Makefile'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-first-official-release-launch-gate-v1.yml'
+      - 'release/launch-gate/**'
+      - 'tools/void-first-official-release-launch-gate-v1.mjs'
+      - 'ops/release/void-first-official-release-launch-gate-v1.sh'
+      - 'ops/security/public-first-official-release-launch-gate-v1-proof.sh'
+      - 'scripts/prove_public_first_official_release_launch_gate_v1.mjs'
+      - 'Makefile'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  prove-launch-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: make public-first-official-release-launch-gate-v1-proof
+      - name: Confirm no-publication boundary
+        run: |
+          set -euo pipefail
+          echo 'publication_command_rendered_by_proof=true'
+          echo 'publication_command_executed=false'
+          echo 'release_tag_published=false'
+          echo 'official_release_published=false'
+          echo 'stable_channel_changed=false'
+          echo 'live_deployment=false'
+          echo 'service_restart=false'
+          echo 'money_movement=false'
+          echo 'guarded_lanes_activated=false'
+          echo 'VOID_PUBLIC_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WORKFLOW_V1_GREEN'

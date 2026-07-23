@@ -8,7 +8,7 @@ import {
   type BuyVoidAutoFulfillmentPolicyV1,
   type BuyVoidFulfillmentClaimV1,
   type BuyVoidRequestV1,
-  type BuyVoidVerifiedPaymentEventV1,
+  type BuyVoidVerifiedPaymentAdmissionEventV1,
 } from "./buy_void_auto_fulfillment_v1.js";
 
 export const VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1 =
@@ -111,7 +111,7 @@ export type BuyVoidFulfillmentJournalDecisionV1 =
 export type ClaimBuyVoidFulfillmentJournalInputV1 = {
   root_dir: string;
   request: BuyVoidRequestV1;
-  verified_payment_event: BuyVoidVerifiedPaymentEventV1;
+  verified_payment_event: BuyVoidVerifiedPaymentAdmissionEventV1;
   policy: BuyVoidAutoFulfillmentPolicyV1;
   now_ms?: number;
 };
@@ -335,7 +335,7 @@ function parseRequestIndex(value: Record<string, any>): BuyVoidFulfillmentReques
 }
 
 function canonicalIdentityFromEvent(
-  event: BuyVoidVerifiedPaymentEventV1,
+  event: BuyVoidVerifiedPaymentAdmissionEventV1,
 ): string {
   return canonicalBuyVoidPaymentIdentityV1({
     source_chain: event?.payment_verifier?.chain,

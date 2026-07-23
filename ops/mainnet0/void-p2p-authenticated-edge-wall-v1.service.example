@@ -1,0 +1,28 @@
+[Unit]
+Description=VOID P2P Authenticated Edge Wall v1
+After=network-online.target void-node.service
+Wants=network-online.target
+Requires=void-node.service
+
+[Service]
+Type=simple
+User=void
+Group=void
+WorkingDirectory=/opt/void-node
+EnvironmentFile=/etc/void/p2p-authenticated-edge-wall-v1.env
+ExecStart=/opt/void-node/ops/mainnet0/run-p2p-authenticated-edge-wall-v1.sh
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=78
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/void/p2p-edge-wall-v1
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
