@@ -18937,30 +18937,13 @@ setInterval(refresh, 10000);
       });
     });
 
-    app.get("/__void/buy-void/operator/request.json", async (req:any,res:any)=>{
-      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
-
-      const id = String((req.query || {}).id || "").trim();
-      const requests = await __voidReadBuyVoidRequestsV1();
-      const found = requests.find((r:any)=>String(r.request_id || "") === id);
-
-      if (!found) {
-        return res.status(404).json({
-          schema: "void_buy_void_operator_request_v1",
-          ok: false,
-          error: "buy_void_request_not_found",
-          request_id: id
-        });
-      }
-
-      res.json({
-        schema: "void_buy_void_operator_request_v1",
-        ok: true,
-        local_only: true,
-        request: found
+    require("./economic/buy_void_request_tx_hash_binding_v1")
+      .installBuyVoidRequestTxHashBindingV1({
+        app,
+        localOnly: __voidBuyVoidOperatorLocalOnlyV1,
+        readRequests: __voidReadBuyVoidRequestsV1,
+        persistRequest: __voidPersistBuyVoidRequestV1
       });
-    });
-
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
