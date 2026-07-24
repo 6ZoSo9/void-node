@@ -52,12 +52,12 @@ try {
 
 const payload = JSON.parse(await readFile(resolve(payloadArg), "utf8"));
 if (
-  payload.schema !== "void.official-network-authenticity-root-signing-payload.v2" ||
-  payload.marker !== "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_SIGNING_PAYLOAD_V2" ||
+  payload.schema !== "void.official-network-authenticity-root-signing-payload.v2.1" ||
+  payload.marker !== "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_SIGNING_PAYLOAD_V2_1" ||
   payload.signature_domain !== "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2" ||
   payload.algorithm !== "ed25519"
 ) {
-  console.error("HOLD: invalid signing payload");
+  console.error("HOLD: invalid or superseded signing payload; V2.1 is required");
   process.exit(1);
 }
 

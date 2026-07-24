@@ -38,6 +38,18 @@ const publicDer = publicKey.export({ format: "der", type: "spki" });
 const expectedKeyId = `ed25519:${sha256(publicDer)}`;
 
 const failures = [];
+if (
+  payload.schema !==
+    "void.official-network-authenticity-root-signing-payload.v2.1"
+) failures.push("payload schema");
+if (
+  payload.marker !==
+    "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_SIGNING_PAYLOAD_V2_1"
+) failures.push("payload marker");
+if (
+  payload.supersedes_payload_sha256 !==
+    "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e"
+) failures.push("payload supersession");
 if (rootRecord.schema !== "void.official-network-authenticity-root.v2") failures.push("schema");
 if (rootRecord.marker !== "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2") failures.push("marker");
 if (rootRecord.signature_domain !== "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2") failures.push("domain");

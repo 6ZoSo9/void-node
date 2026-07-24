@@ -62,3 +62,13 @@ V2 should create an offline Ed25519 root-key ceremony, pin the public key in
 independently distributed official clients, sign the canonical identity payload,
 and add read-only verification surfaces. V2 must remain separate from runtime
 enablement and economic mutation.
+
+## V2.1 Mainnet-0 identity correction
+
+The public identity now distinguishes the official public network name
+`VOID Mainnet-0` from the immutable legacy `genesis.json.networkName` value
+`VOID-DEV`. The genesis file and its SHA-256 remain unchanged.
+
+Unsigned payload
+`b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e`
+is superseded and must not be signed or transferred.

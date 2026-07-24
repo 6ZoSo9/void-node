@@ -9,11 +9,13 @@
     "marker",
     "spdx_license_identifier",
     "status",
+    "identity_revision",
     "project",
     "repository",
     "source_base_commit",
     "canonical",
     "forensic_fingerprint_registry",
+    "supersession",
     "authority",
     "official_service_policy",
     "safety_boundary"
@@ -53,6 +55,7 @@
       "required": [
         "chain_id",
         "network_name",
+        "genesis_network_name",
         "genesis_file",
         "genesis_sha256"
       ],
@@ -62,8 +65,7 @@
           "minimum": 1
         },
         "network_name": {
-          "type": "string",
-          "minLength": 1
+          "const": "VOID Mainnet-0"
         },
         "genesis_file": {
           "const": "genesis.json"
@@ -71,6 +73,9 @@
         "genesis_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "genesis_network_name": {
+          "const": "VOID-DEV"
         }
       }
     },
@@ -171,6 +176,30 @@
         },
         "third_party_network_mutation": {
           "const": false
+        }
+      }
+    },
+    "identity_revision": {
+      "const": "v2.1"
+    },
+    "supersession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "superseded_payload_sha256",
+        "disposition",
+        "reason"
+      ],
+      "properties": {
+        "superseded_payload_sha256": {
+          "const": "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e"
+        },
+        "disposition": {
+          "const": "do_not_sign_or_transfer"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }
