@@ -1,0 +1,65 @@
+name: External opportunity Across scheduled observer runtime V1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/external-opportunity-across-scheduled-observer-runtime-v1.yml"
+      - "docs/architecture/external-opportunity-across-scheduled-observer-runtime-v1.md"
+      - "ops/main/run_external_opportunity_across_scheduled_observer_v1.ts"
+      - "ops/systemd/void-external-opportunity-across-scheduled-observer-v1.service"
+      - "ops/systemd/void-external-opportunity-across-scheduled-observer-v1.timer"
+      - "scripts/prove_external_opportunity_across_scheduled_observer_runtime_v1.ts"
+      - "src/external_opportunity/across_scheduled_observer_runtime_v1.ts"
+      - "src/external_opportunity/across_scheduled_observer_v1.ts"
+      - "src/external_opportunity/across_swap_api_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-across-scheduled-observer-runtime-v1.yml"
+      - "docs/architecture/external-opportunity-across-scheduled-observer-runtime-v1.md"
+      - "ops/main/run_external_opportunity_across_scheduled_observer_v1.ts"
+      - "ops/systemd/void-external-opportunity-across-scheduled-observer-v1.service"
+      - "ops/systemd/void-external-opportunity-across-scheduled-observer-v1.timer"
+      - "scripts/prove_external_opportunity_across_scheduled_observer_runtime_v1.ts"
+      - "src/external_opportunity/across_scheduled_observer_runtime_v1.ts"
+      - "src/external_opportunity/across_scheduled_observer_v1.ts"
+      - "src/external_opportunity/across_swap_api_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prove crash-safe scheduled observer runtime
+        run: npx tsx scripts/prove_external_opportunity_across_scheduled_observer_runtime_v1.ts
+
+      - name: Type-check runtime and production runner
+        run: >-
+          npx tsc --noEmit
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --strict
+          --exactOptionalPropertyTypes
+          --skipLibCheck
+          --types node
+          src/external_opportunity/across_scheduled_observer_runtime_v1.ts
+          ops/main/run_external_opportunity_across_scheduled_observer_v1.ts
+          scripts/prove_external_opportunity_across_scheduled_observer_runtime_v1.ts
+
+      - name: Build
+        run: npm run build
