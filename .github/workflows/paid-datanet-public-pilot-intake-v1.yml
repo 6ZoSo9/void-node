@@ -1,0 +1,42 @@
+name: paid-datanet-public-pilot-intake-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/ISSUE_TEMPLATE/paid-datanet-pilot-intake-v1.yml"
+      - "docs/commercial/paid-datanet-public-pilot-intake-v1.md"
+      - "scripts/prove_paid_datanet_public_pilot_intake_v1.ts"
+      - ".github/workflows/paid-datanet-public-pilot-intake-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/ISSUE_TEMPLATE/paid-datanet-pilot-intake-v1.yml"
+      - "docs/commercial/paid-datanet-public-pilot-intake-v1.md"
+      - "scripts/prove_paid_datanet_public_pilot_intake_v1.ts"
+      - ".github/workflows/paid-datanet-public-pilot-intake-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove public pilot intake
+        run: >-
+          npx --no-install tsx
+          scripts/prove_paid_datanet_public_pilot_intake_v1.ts
