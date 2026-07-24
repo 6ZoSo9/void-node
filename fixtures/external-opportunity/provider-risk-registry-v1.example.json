@@ -1,0 +1,63 @@
+{
+  "authority": {
+    "automatic_operator_approval": false,
+    "credential_storage": false,
+    "live_execution": false,
+    "network_mutation": false,
+    "service_mutation": false,
+    "transaction_construction": false,
+    "transaction_submission": false,
+    "wallet_or_key_access": false
+  },
+  "live_execution_enabled": false,
+  "marker": "VOID_EXTERNAL_OPPORTUNITY_PROVIDER_RISK_REGISTRY_V1",
+  "phase": "paper_only",
+  "providers": [
+    {
+      "allowed_api_origins": [
+        "https://app.across.to/api"
+      ],
+      "contract_allowlist": [],
+      "destination_chain_ids": [
+        1,
+        8453
+      ],
+      "display_name": "Across",
+      "policy": {
+        "contract_allowlist_required_for_live": true,
+        "max_daily_loss_usd": 0,
+        "max_daily_notional_usd": 25,
+        "max_gas_cost_usd": 0.25,
+        "max_loss_per_opportunity_usd": 0,
+        "max_notional_usd": 5,
+        "max_protocol_fee_bps": 100,
+        "max_quote_age_ms": 60000,
+        "max_slippage_bps": 30,
+        "min_net_profit_margin_bps": 100,
+        "min_net_profit_usd": 0.1,
+        "operator_approval_required_for_live": true,
+        "simulation_required_for_live": true
+      },
+      "provider_id": "across",
+      "source_chain_ids": [
+        1,
+        8453
+      ],
+      "status": "allowed",
+      "token_allowlist": [
+        {
+          "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "chain_id": 1,
+          "symbol": "USDC"
+        },
+        {
+          "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "chain_id": 8453,
+          "symbol": "USDC"
+        }
+      ]
+    }
+  ],
+  "revision": 1,
+  "schema": "void-external-opportunity-provider-risk-registry-v1"
+}
