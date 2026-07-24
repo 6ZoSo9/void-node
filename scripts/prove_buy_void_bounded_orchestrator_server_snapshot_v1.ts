@@ -123,8 +123,10 @@ async function main(): Promise<void> {
         },
       });
 
+    if (newDecision.status === "held") {
+      throw new Error(newDecision.reason);
+    }
     assert.equal(newDecision.ok, true);
-    if (!newDecision.ok) throw new Error(newDecision.reason);
     assert.equal(newDecision.snapshot.claim_status, "missing");
     assert.equal(newDecision.snapshot.attempt_status, "missing");
     assert.equal(newDecision.snapshot.broadcast_status, "none");
@@ -169,10 +171,10 @@ async function main(): Promise<void> {
         },
       });
 
-    assert.equal(reserveDecision.ok, true);
-    if (!reserveDecision.ok) {
+    if (reserveDecision.status === "held") {
       throw new Error(reserveDecision.reason);
     }
+    assert.equal(reserveDecision.ok, true);
     assert.equal(reserveDecision.snapshot.claim_status, "claimed");
     assert.equal(
       reserveDecision.snapshot.canonical_payment_identity,
@@ -222,10 +224,10 @@ async function main(): Promise<void> {
         },
       });
 
-    assert.equal(unknownDecision.ok, true);
-    if (!unknownDecision.ok) {
+    if (unknownDecision.status === "held") {
       throw new Error(unknownDecision.reason);
     }
+    assert.equal(unknownDecision.ok, true);
     assert.equal(
       unknownDecision.snapshot.attempt_id,
       unknownAttempt,
@@ -306,10 +308,10 @@ async function main(): Promise<void> {
         },
       });
 
-    assert.equal(fulfilledDecision.ok, true);
-    if (!fulfilledDecision.ok) {
+    if (fulfilledDecision.status === "held") {
       throw new Error(fulfilledDecision.reason);
     }
+    assert.equal(fulfilledDecision.ok, true);
     assert.equal(
       fulfilledDecision.snapshot.public_status,
       "fulfilled",
