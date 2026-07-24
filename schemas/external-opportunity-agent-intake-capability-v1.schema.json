@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:void:external-opportunity:agent-intake-capability:v1",
+  "title": "VOID External Opportunity Agent Intake Capability V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "capability_id",
+    "availability",
+    "transport",
+    "request_contract",
+    "modes",
+    "pipeline_bindings",
+    "negotiation",
+    "unsupported",
+    "authority",
+    "manifest_fingerprint_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-external-opportunity-agent-intake-capability-v1"
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "capability_id": {
+      "const": "void.external_opportunity.paper_intake.v1"
+    },
+    "availability": {
+      "const": "offline_static_contract"
+    },
+    "transport": {
+      "const": {
+        "invocation": "tsx src/external_opportunity/paper_intake_cli_v1.ts --request /absolute/request.json [--pretty]",
+        "request_delivery": "absolute_local_json_file",
+        "response_delivery": "machine_readable_json",
+        "success_channel": "stdout",
+        "usage_and_input_error_channel": "stderr_when_exit_code_gte_64",
+        "network_endpoint": false,
+        "network_listener": false,
+        "authentication": "none"
+      }
+    },
+    "request_contract": {
+      "const": {
+        "schema": "void-external-opportunity-paper-intake-cli-request-v1",
+        "marker": "VOID_EXTERNAL_OPPORTUNITY_PAPER_INTAKE_CLI_V1",
+        "version": 1,
+        "schema_path": "schemas/external-opportunity-paper-intake-cli-v1.schema.json",
+        "schema_sha256": "1b1646547a406cf89116f007de2977607970131ab5f3b26517d98ec706156eba",
+        "example_path": "fixtures/external-opportunity/paper-intake-cli-v1.example.json",
+        "example_sha256": "5eef684c2afd12ad8e0b54c776bca42f0ca7aebf8bc5be4ed38c8193d7d4f58e",
+        "max_request_bytes": 131072,
+        "allowed_keys": [
+          "allow_held_entries",
+          "allowed_root",
+          "confirmation",
+          "marker",
+          "max_entries",
+          "max_file_bytes",
+          "max_line_bytes",
+          "mode",
+          "observation_path",
+          "recorded_at",
+          "registry_path",
+          "schema",
+          "version"
+        ],
+        "path_requirements": {
+          "request_path": [
+            "absolute",
+            "regular_file",
+            "non_symlink"
+          ],
+          "registry_path": [
+            "absolute",
+            "regular_file",
+            "non_symlink"
+          ],
+          "observation_path": [
+            "absolute",
+            "regular_file",
+            "non_symlink"
+          ],
+          "allowed_root": [
+            "absolute",
+            "existing_directory",
+            "non_symlink"
+          ],
+          "request_registry_observation_distinct": true
+        },
+        "input_limits": {
+          "registry_max_bytes": 1048576,
+          "observation_max_bytes": 262144,
+          "default_journal_max_file_bytes": 8388608,
+          "default_journal_max_entries": 10000,
+          "default_journal_max_line_bytes": 1048576
+        }
+      }
+    },
+    "modes": {
+      "const": [
+        {
+          "mode": "dry_run",
+          "default": true,
+          "journal_write": false,
+          "confirmation_required": false,
+          "confirmation": "",
+          "statuses": [
+            "dry_run_ready",
+            "dry_run_duplicate",
+            "dry_run_held",
+            "input_held",
+            "usage_held",
+            "internal_held"
+          ],
+          "exit_codes": [
+            0,
+            10,
+            20,
+            64,
+            65,
+            70
+          ]
+        },
+        {
+          "mode": "record",
+          "default": false,
+          "journal_write": true,
+          "confirmation_required": true,
+          "confirmation": "recordPaperOpportunityV1",
+          "statuses": [
+            "record_applied",
+            "record_duplicate",
+            "record_held",
+            "record_lock_busy",
+            "input_held",
+            "usage_held",
+            "internal_held"
+          ],
+          "exit_codes": [
+            0,
+            10,
+            20,
+            21,
+            64,
+            65,
+            70
+          ]
+        }
+      ]
+    },
+    "pipeline_bindings": {
+      "const": [
+        {
+          "stage": "provider_risk_registry",
+          "path": "src/external_opportunity/provider_risk_registry_v1.ts",
+          "sha256": "66979ada6968a1773d1c816597800768521801ec5ee9b5560802c14ae36f542f"
+        },
+        {
+          "stage": "paper_risk_classification",
+          "path": "src/external_opportunity/paper_risk_classification_adapter_v1.ts",
+          "sha256": "8527ddb196d3a4e3c5b68e7f46350e8318801eb46ab8aad881ca9f77531f8f6b"
+        },
+        {
+          "stage": "paper_classification_journal",
+          "path": "src/external_opportunity/paper_classification_journal_v1.ts",
+          "sha256": "c0da147200da2a5a35bc1383792d192d501eaf4c2d436f06a668db9280230dfc"
+        },
+        {
+          "stage": "paper_classification_journal_file_store",
+          "path": "src/external_opportunity/paper_classification_journal_file_store_v1.ts",
+          "sha256": "aaa7437a95f2e6073f0c624455e54720777386fc954903f72e3143636caa86a9"
+        },
+        {
+          "stage": "paper_intake_cli",
+          "path": "src/external_opportunity/paper_intake_cli_v1.ts",
+          "sha256": "c4cf82c7f4a4d0017ce6ca9456b582c6ef1df9c47f164c0576659168fd873f8d"
+        }
+      ]
+    },
+    "negotiation": {
+      "const": {
+        "request_schema": "void-external-opportunity-agent-intake-negotiation-request-v1",
+        "result_schema": "void-external-opportunity-agent-intake-negotiation-result-v1",
+        "supported_versions": [
+          1
+        ],
+        "supported_modes": [
+          "dry_run",
+          "record"
+        ],
+        "manifest_fingerprint_algorithm": "sha256-canonical-json-without-fingerprint"
+      }
+    },
+    "unsupported": {
+      "const": {
+        "network_endpoint": true,
+        "network_listener": true,
+        "authentication_secret": true,
+        "provider_polling": true,
+        "paid_work_submission": true,
+        "wc_earning": true,
+        "wallet_or_key_access": true,
+        "transaction_construction": true,
+        "transaction_submission": true,
+        "runtime_mutation": true,
+        "service_mutation": true,
+        "scheduler_mutation": true,
+        "live_execution": true
+      }
+    },
+    "authority": {
+      "const": {
+        "repository_fixture_read": true,
+        "repository_schema_read": true,
+        "local_request_read_when_explicitly_invoked": true,
+        "local_registry_read_when_explicitly_invoked": true,
+        "local_observation_read_when_explicitly_invoked": true,
+        "local_journal_read_when_explicitly_invoked": true,
+        "local_journal_write_with_exact_confirmation": true,
+        "implicit_or_scheduled_access": false,
+        "network_request": false,
+        "credential_access": false,
+        "wallet_or_key_access": false,
+        "transaction_construction": false,
+        "transaction_submission": false,
+        "runtime_mutation": false,
+        "service_mutation": false,
+        "scheduler_mutation": false,
+        "paid_work_submission": false,
+        "wc_earning": false,
+        "live_execution": false
+      }
+    },
+    "manifest_fingerprint_sha256": {
+      "const": "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
