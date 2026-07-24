@@ -1,0 +1,270 @@
+import assert from "node:assert/strict";
+import * as http from "node:http";
+import {
+  VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1,
+  VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1,
+  createBuyVoidNativeExecutionPlannerHttpTransportV1,
+  planBuyVoidNativeExecutionNonceFeeV1,
+  type BuyVoidNativeExecutionPlannerRpcCallV1,
+  type BuyVoidNativeExecutionPlannerTransportV1,
+} from "../src/economic/buy_void_native_execution_nonce_fee_planner_v1.js";
+
+const wallet = "0x1000000000000000000000000000000000000001";
+const basePolicy = {
+  rpc_url: "http://127.0.0.1:18545/",
+  expected_chain_id: "2050" as const,
+  fulfillment_wallet_address: wallet,
+  native_value_wei: "1000000000000000000",
+  gas_limit: "21000",
+  max_gas_limit: "21000",
+  max_fee_per_gas_wei: "3000000000",
+  max_priority_fee_per_gas_wei: "1000000000",
+  fee_multiplier_bps: "12000",
+};
+
+assert.deepEqual(
+  VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1,
+  {
+    expected_chain_id: 2050,
+    server_controlled_rpc_url: true,
+    loopback_http_only: true,
+    read_only_rpc_methods: [
+      "eth_chainId",
+      "eth_getTransactionCount",
+      "eth_gasPrice",
+      "eth_getBalance",
+    ],
+    transaction_signing: false,
+    transaction_broadcast: false,
+    wallet_access: false,
+    secret_access: false,
+    filesystem_read: false,
+    filesystem_write: false,
+    runtime_route_mount: false,
+    automatic_retry: false,
+    receipt_wait: false,
+    redirect_follow: false,
+    proxy_use: false,
+    money_movement: false,
+  },
+);
+
+const calls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+const mock: BuyVoidNativeExecutionPlannerTransportV1 =
+  async (call) => {
+    calls.push({ ...call, params: [...call.params] });
+    const resultByMethod: Record<string, string> = {
+      eth_chainId: "0x802",
+      eth_getTransactionCount: "0x7",
+      eth_gasPrice: "0x77359400",
+      eth_getBalance: "0x21e19e0c9bab2400000",
+    };
+    return {
+      ok: true,
+      result: resultByMethod[call.method],
+      provider_submission_id: `mock-${call.request_id}`,
+      http_status: 200,
+    };
+  };
+
+const planned = await planBuyVoidNativeExecutionNonceFeeV1(
+  basePolicy,
+  mock,
+);
+assert.equal(planned.ok, true);
+if ("reason" in planned) throw new Error(String(planned.reason));
+assert.equal(
+  planned.marker,
+  VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1,
+);
+assert.equal(planned.status, "planned");
+assert.equal(planned.pending_nonce, 7);
+assert.equal(planned.observed_gas_price_wei, "2000000000");
+assert.equal(
+  planned.computed_max_fee_per_gas_wei,
+  "2400000000",
+);
+assert.equal(
+  planned.transaction_plan.max_priority_fee_per_gas_wei,
+  "1000000000",
+);
+assert.equal(
+  planned.transaction_plan.max_fee_per_gas_wei,
+  "2400000000",
+);
+assert.equal(planned.transaction_plan.gas_limit, "21000");
+assert.equal(planned.transaction_plan.nonce, 7);
+assert.equal(planned.sufficient_balance, true);
+assert.deepEqual(
+  planned.rpc_methods_used,
+  [
+    "eth_chainId",
+    "eth_getTransactionCount",
+    "eth_gasPrice",
+    "eth_getBalance",
+  ],
+);
+assert.deepEqual(
+  calls.map((call) => call.method),
+  planned.rpc_methods_used,
+);
+assert.deepEqual(calls[1].params, [wallet, "pending"]);
+assert.deepEqual(calls[3].params, [wallet, "latest"]);
+assert.equal(
+  JSON.stringify(planned).includes(basePolicy.rpc_url),
+  false,
+);
+
+let rejectedCalls = 0;
+const nonLoopback =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    {
+      ...basePolicy,
+      rpc_url: "http://192.0.2.10:8545/",
+    },
+    async () => {
+      rejectedCalls += 1;
+      throw new Error("should not run");
+    },
+  );
+assert.equal(nonLoopback.ok, false);
+if (!("reason" in nonLoopback)) throw new Error("expected hold");
+assert.equal(nonLoopback.reason, "rpc_url_must_be_loopback_http");
+assert.equal(rejectedCalls, 0);
+
+const chainMismatch =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    basePolicy,
+    async (call) => ({
+      ok: true,
+      result:
+        call.method === "eth_chainId"
+          ? "0x1"
+          : "0x0",
+      provider_submission_id: "",
+      http_status: 200,
+    }),
+  );
+assert.equal(chainMismatch.ok, false);
+if (!("reason" in chainMismatch)) throw new Error("expected hold");
+assert.equal(chainMismatch.reason, "chain_id_mismatch");
+assert.deepEqual(chainMismatch.rpc_methods_used, ["eth_chainId"]);
+
+const feeCap =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    {
+      ...basePolicy,
+      max_fee_per_gas_wei: "2100000000",
+    },
+    mock,
+  );
+assert.equal(feeCap.ok, false);
+if (!("reason" in feeCap)) throw new Error("expected hold");
+assert.equal(feeCap.reason, "computed_fee_exceeds_policy_cap");
+
+const insufficient =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    basePolicy,
+    async (call) => {
+      const resultByMethod: Record<string, string> = {
+        eth_chainId: "0x802",
+        eth_getTransactionCount: "0x7",
+        eth_gasPrice: "0x77359400",
+        eth_getBalance: "0x1",
+      };
+      return {
+        ok: true,
+        result: resultByMethod[call.method],
+        provider_submission_id: "",
+        http_status: 200,
+      };
+    },
+  );
+assert.equal(insufficient.ok, false);
+if (!("reason" in insufficient)) throw new Error("expected hold");
+assert.equal(
+  insufficient.reason,
+  "fulfillment_wallet_balance_insufficient",
+);
+
+const serverCalls: Array<{
+  id: number;
+  method: string;
+  params: unknown[];
+}> = [];
+const server = http.createServer((req, res) => {
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => {
+    const body = JSON.parse(
+      Buffer.concat(chunks).toString("utf8"),
+    );
+    serverCalls.push({
+      id: body.id,
+      method: body.method,
+      params: body.params,
+    });
+    const resultByMethod: Record<string, string> = {
+      eth_chainId: "0x802",
+      eth_getTransactionCount: "0x2",
+      eth_gasPrice: "0x3b9aca00",
+      eth_getBalance: "0x21e19e0c9bab2400000",
+    };
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: resultByMethod[body.method],
+    }));
+  });
+});
+await new Promise<void>((resolve) =>
+  server.listen(0, "127.0.0.1", resolve),
+);
+const address = server.address();
+assert.ok(address && typeof address === "object");
+
+try {
+  const transport =
+    createBuyVoidNativeExecutionPlannerHttpTransportV1();
+  const live = await planBuyVoidNativeExecutionNonceFeeV1(
+    {
+      ...basePolicy,
+      rpc_url: `http://127.0.0.1:${address.port}/rpc`,
+    },
+    transport,
+  );
+  assert.equal(live.ok, true);
+  if ("reason" in live) throw new Error(String(live.reason));
+  assert.equal(live.pending_nonce, 2);
+  assert.deepEqual(
+    serverCalls.map((call) => call.method),
+    [
+      "eth_chainId",
+      "eth_getTransactionCount",
+      "eth_gasPrice",
+      "eth_getBalance",
+    ],
+  );
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
+console.log(
+  "VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1_GREEN",
+);
+console.log("read_only_rpc_method_count=4");
+console.log("pending_nonce_source=eth_getTransactionCount_pending");
+console.log("fee_source=eth_gasPrice_bounded_multiplier");
+console.log("balance_preflight=1");
+console.log("loopback_http_only=1");
+console.log("signing=0");
+console.log("transaction_broadcast=0");
+console.log(
+  "verdict=BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_EXACT_GREEN",
+);
