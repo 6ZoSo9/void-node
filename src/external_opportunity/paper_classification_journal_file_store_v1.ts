@@ -212,6 +212,44 @@ function isErrnoV1(error: unknown, code: string): boolean {
   );
 }
 
+function cleanupErrorCodeV1(error: unknown): string {
+  if (error instanceof Error && "code" in error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (typeof code === "string" && code.length > 0) {
+      return code;
+    }
+  }
+  if (error instanceof Error && error.name.length > 0) {
+    return error.name;
+  }
+  return "unknown";
+}
+
+function cleanupFailedLockInitializationV1(
+  descriptor: number,
+  lockPath: string,
+): string[] {
+  const reasons: string[] = [];
+
+  try {
+    closeSync(descriptor);
+  } catch (error) {
+    if (!isErrnoV1(error, "EBADF")) {
+      reasons.push(`close:${cleanupErrorCodeV1(error)}`);
+    }
+  }
+
+  try {
+    unlinkSync(lockPath);
+  } catch (error) {
+    if (!isErrnoV1(error, "ENOENT")) {
+      reasons.push(`unlink:${cleanupErrorCodeV1(error)}`);
+    }
+  }
+
+  return reasons;
+}
+
 function modeOctalV1(mode: number): string {
   return (mode & 0o777).toString(8).padStart(4, "0");
 }
@@ -662,23 +700,23 @@ function acquireLockV1(
     }
     fsyncSync(descriptor);
     const metadata = fstatSync(descriptor);
+    closeSync(descriptor);
     return {
       acquired: true,
       file_dev: Number(metadata.dev),
       file_ino: Number(metadata.ino),
     };
   } catch (error) {
-    try {
-      closeSync(descriptor);
-    } catch {}
-    try {
-      unlinkSync(paths.lock_path);
-    } catch {}
+    const cleanupReasons = cleanupFailedLockInitializationV1(
+      descriptor,
+      paths.lock_path,
+    );
+    if (cleanupReasons.length > 0) {
+      throw new FileStoreHoldV1(
+        `lock_initialization_cleanup_failed:${cleanupErrorCodeV1(error)}:${cleanupReasons.join("|")}`,
+      );
+    }
     throw error;
-  } finally {
-    try {
-      closeSync(descriptor);
-    } catch {}
   }
 }
 

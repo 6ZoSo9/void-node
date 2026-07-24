@@ -403,6 +403,7 @@ try {
     /\bspawnSync\s*\(/,
     /\bsetInterval\s*\(/,
     /\bsetTimeout\s*\(/,
+    /\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}/,
   ]) {
     assert.equal(
       forbidden.test(source),
