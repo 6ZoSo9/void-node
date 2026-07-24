@@ -1,0 +1,26 @@
+{
+  "schema": "void.official-network-authenticity-root-policy.v2",
+  "marker": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_POLICY_V2",
+  "algorithm": "ed25519",
+  "signature_domain": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2",
+  "ceremony": {
+    "offline_host_required": true,
+    "fresh_key_required": true,
+    "operator_presence_required": true,
+    "public_export_only": true,
+    "automatic_publication_forbidden": true
+  },
+  "private_key": {
+    "repository_storage_forbidden": true,
+    "network_transfer_forbidden": true,
+    "cloud_storage_forbidden": true,
+    "mode": "0600"
+  },
+  "authority": {
+    "runtime_mutation": "none",
+    "wallet_mutation": "none",
+    "validator_mutation": "none",
+    "economic_mutation": "none",
+    "third_party_network_control": "none"
+  }
+}
