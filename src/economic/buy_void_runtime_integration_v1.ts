@@ -11,6 +11,11 @@ import {
   type BuyVoidPipelineCommandV1,
   type BuyVoidPipelineCoordinatorDecisionV1,
 } from "./buy_void_pipeline_coordinator_v1.js";
+import {
+  VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+  buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1,
+  handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1,
+} from "./buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -178,6 +183,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
     required_confirmations: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
     authority: VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1,
     coordinator_authority: VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
+    bounded_auto_fulfillment_orchestrator:
+      buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1(),
   };
 }
 
@@ -222,6 +229,19 @@ export function handleBuyVoidRuntimeCommandV1(
       error: "forbidden_execution_material",
       forbidden_key: forbiddenKey,
     });
+  }
+
+  if (
+    String((body as any).action || "") ===
+    VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
+      req,
+      res,
+      {
+        root_dir: buyVoidRuntimeRootDirV1(),
+      },
+    );
   }
 
   if (!isPipelineAction((body as any).action)) {
