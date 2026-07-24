@@ -18381,7 +18381,8 @@ small{color:#94a3b8}
       if (!fs.existsSync(jsonl)) return out;
 
       const lines = fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean);
-      for (const line of lines) {
+      // VOID_BUY_VOID_LATEST_REQUEST_STATE_V1
+      for (const line of [...lines].reverse()) {
         try {
           const j:any = JSON.parse(line);
           if (!j || !j.request_id || seen.has(j.request_id)) continue;
