@@ -2,6 +2,7 @@
   "$schema": "./capabilities-v1.schema.json",
   "authority": {
     "authentication_active": false,
+    "authentication_contract_published": true,
     "buy_void_automatic_fulfillment_active": false,
     "default": "not_granted",
     "discovery_authority": "read_only",
@@ -44,6 +45,24 @@
         "/public-node/agents/capabilities-v1.schema.json",
         "/.well-known/void-agent-capabilities.json",
         "/.well-known/void-agent-capabilities.schema.json"
+      ],
+      "state": "live"
+    },
+    {
+      "access": "anonymous",
+      "authority": "read_only",
+      "description": "Fetch the published Ed25519 identity and signed read-only request-envelope contract without activating authentication.",
+      "enabled": true,
+      "http_methods": [
+        "GET",
+        "HEAD"
+      ],
+      "id": "authentication_contract_discovery",
+      "paths": [
+        "/public-node/agents/authentication-v1.json",
+        "/public-node/agents/authentication-v1.schema.json",
+        "/.well-known/void-agent-authentication.json",
+        "/.well-known/void-agent-authentication.schema.json"
       ],
       "state": "live"
     },
@@ -164,6 +183,12 @@
   "network": {
     "chain_id": 2050,
     "name": "VOID Mainnet-0"
+  },
+  "next_contract": {
+    "authenticated_routes_active": false,
+    "authentication_contract": "/public-node/agents/authentication-v1.json",
+    "name": "AI-agent read-only verifier runtime v1",
+    "verifier_runtime_active": false
   },
   "protocol": "void-agent-capability-negotiation/1",
   "purpose": "Deterministic client-side capability intersection without granting authentication, mutation, payment, or Work Credit award authority.",

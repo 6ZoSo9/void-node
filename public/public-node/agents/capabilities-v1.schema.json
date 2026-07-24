@@ -12,6 +12,9 @@
         "authentication_active": {
           "const": false
         },
+        "authentication_contract_published": {
+          "const": true
+        },
         "buy_void_automatic_fulfillment_active": {
           "const": false
         },
@@ -42,7 +45,8 @@
         "signed_request_envelopes_active",
         "payment_submission_active",
         "work_credit_awards_active",
-        "buy_void_automatic_fulfillment_active"
+        "buy_void_automatic_fulfillment_active",
+        "authentication_contract_published"
       ],
       "type": "object"
     },
@@ -114,7 +118,7 @@
         ],
         "type": "object"
       },
-      "minItems": 9,
+      "minItems": 10,
       "type": "array",
       "uniqueItems": true
     },
@@ -207,6 +211,30 @@
       ],
       "type": "object"
     },
+    "next_contract": {
+      "additionalProperties": false,
+      "properties": {
+        "authenticated_routes_active": {
+          "const": false
+        },
+        "authentication_contract": {
+          "const": "/public-node/agents/authentication-v1.json"
+        },
+        "name": {
+          "const": "AI-agent read-only verifier runtime v1"
+        },
+        "verifier_runtime_active": {
+          "const": false
+        }
+      },
+      "required": [
+        "name",
+        "authentication_contract",
+        "verifier_runtime_active",
+        "authenticated_routes_active"
+      ],
+      "type": "object"
+    },
     "protocol": {
       "const": "void-agent-capability-negotiation/1"
     },
@@ -268,7 +296,8 @@
     "authority",
     "capabilities",
     "client_algorithm",
-    "safety"
+    "safety",
+    "next_contract"
   ],
   "title": "VOID AI-Agent Capability Negotiation V1",
   "type": "object"

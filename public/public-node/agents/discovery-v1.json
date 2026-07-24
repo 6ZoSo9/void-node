@@ -27,7 +27,8 @@
     "public_index": "/public-node/index.json",
     "readiness": "/__void/ready.json",
     "participant_app": "/app/",
-    "capability_negotiation": "/public-node/agents/capabilities-v1.json"
+    "capability_negotiation": "/public-node/agents/capabilities-v1.json",
+    "authentication_contract": "/public-node/agents/authentication-v1.json"
   },
   "capabilities": [
     {
@@ -47,6 +48,12 @@
       "state": "live",
       "authority": "read_only",
       "discovery": "/public-node/agents/capabilities-v1.json"
+    },
+    {
+      "id": "authentication_contract_discovery",
+      "state": "live",
+      "authority": "read_only",
+      "discovery": "/public-node/agents/authentication-v1.json"
     },
     {
       "id": "datanet_public_read_and_verify",
@@ -99,25 +106,32 @@
         "order": 3,
         "action": "fetch",
         "method": "GET",
-        "path": "/.well-known/void-public-node.json",
+        "path": "/public-node/agents/authentication-v1.json",
         "required": true
       },
       {
         "order": 4,
         "action": "fetch",
         "method": "GET",
-        "path": "/public-node/index.json",
+        "path": "/.well-known/void-public-node.json",
         "required": true
       },
       {
         "order": 5,
         "action": "fetch",
         "method": "GET",
+        "path": "/public-node/index.json",
+        "required": true
+      },
+      {
+        "order": 6,
+        "action": "fetch",
+        "method": "GET",
         "path": "/__void/ready.json",
         "required": false
       },
       {
-        "order": 6,
+        "order": 7,
         "action": "enforce_authority_boundary",
         "required": true,
         "rule": "Use only routes and methods explicitly advertised by a fetched capability. Stop before mutation when authority is absent, guarded, ambiguous, expired, or unverifiable."
@@ -128,6 +142,7 @@
       "The chain ID is not 2050.",
       "Any discovery entrypoint resolves off origin.",
       "The capability-negotiation marker, protocol, chain identity, same-origin rule, or fail-closed default is wrong.",
+      "The authentication-contract marker, protocol, chain identity, same-origin rule, or inactive-runtime boundary is wrong.",
       "Any granted discovery method is not GET or HEAD.",
       "Mutation authority is claimed by this discovery document.",
       "A required response is unavailable, malformed, ambiguous, or contradicts the advertised boundary."

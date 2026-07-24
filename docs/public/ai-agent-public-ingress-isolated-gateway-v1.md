@@ -2,14 +2,13 @@
 
 ## Purpose
 
-This gateway is the narrow public-facing boundary for VOID AI-agent discovery
-and read-only capability negotiation. It is intentionally separate from the
-main node service and does not proxy the node's general HTTP surface.
+This gateway is the narrow public-facing boundary for VOID AI-agent discovery,
+capability negotiation, and authentication-contract discovery. It is separate
+from the main node service and does not proxy the node's general HTTP surface.
 
 ## Exact surface
 
-The gateway binds to loopback only and serves eight repository-backed JSON
-documents.
+The gateway binds to loopback only and serves twelve repository-backed JSON documents.
 
 Discovery:
 
@@ -25,19 +24,25 @@ Capability negotiation:
 - `/.well-known/void-agent-capabilities.json`
 - `/.well-known/void-agent-capabilities.schema.json`
 
+Authentication contract:
+
+- `/public-node/agents/authentication-v1.json`
+- `/public-node/agents/authentication-v1.schema.json`
+- `/.well-known/void-agent-authentication.json`
+- `/.well-known/void-agent-authentication.schema.json`
+
 Only `GET` and `HEAD` are accepted. Unknown paths return `404`. Other methods
 return `405` with `Allow: GET, HEAD`.
 
-The negotiation mode is client-side intersection. The gateway accepts no
-negotiation submission, no authentication, no signed request envelope, no
-payment request, and no paid-work submission.
+Capability negotiation remains client-side intersection. The authentication
+contract is published for interoperability, but there is no authentication verifier runtime, no session issuance, no challenge endpoint, no protected route, no authorization-header intake, and no signed-envelope intake.
 
 ## Authority boundary
 
 The gateway has:
 
 - no transaction submission;
-- no authentication or credential intake;
+- no active authentication or credential intake;
 - no signed request-envelope intake;
 - no payment or paid-work submission;
 - no automatic Work Credit award;
@@ -47,7 +52,7 @@ The gateway has:
 - no secret or operator-key access;
 - no ability to expose the main node's port `4100`.
 
-The service reads the eight JSON files at startup and serves their exact bytes.
+The service reads the twelve JSON files at startup and serves their exact bytes.
 
 ## Deployment sequence
 
