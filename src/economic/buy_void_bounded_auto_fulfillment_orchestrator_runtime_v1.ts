@@ -5,8 +5,12 @@ import {
   VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_V1,
   runBuyVoidBoundedAutoFulfillmentOrchestratorV1,
   type BuyVoidBoundedAutoFulfillmentDependenciesV1,
-  type BuyVoidBoundedAutoFulfillmentSnapshotV1,
 } from "./buy_void_bounded_auto_fulfillment_orchestrator_v1.js";
+import {
+  VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_SERVER_SNAPSHOT_AUTHORITY_V1,
+  deriveBuyVoidBoundedOrchestratorServerSnapshotV1,
+  type BuyVoidBoundedOrchestratorServerSnapshotDependenciesV1,
+} from "./buy_void_bounded_orchestrator_server_snapshot_v1.js";
 
 export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1 =
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1";
@@ -19,6 +23,9 @@ export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_AUTHORI
   disabled_by_default: true,
   server_controlled_root_dir: true,
   server_controlled_request_dir: true,
+  server_derived_snapshot: true,
+  request_id_only_selector: true,
+  client_supplied_snapshot_forbidden: true,
   max_requests_per_invocation: 1,
   one_stage_transition_per_invocation: true,
   dry_by_default: true,
@@ -128,6 +135,11 @@ export function buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1():
       Number.isSafeInteger(configuredMax) ? configuredMax : null,
     effective_max_requests_per_run: 1,
     request_dir_env: REQUEST_DIR_ENV,
+    snapshot_source: "server_derived_request_id_only",
+    client_supplied_snapshot_forbidden: true,
+    request_id_only_selector: true,
+    server_snapshot_authority:
+      VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_SERVER_SNAPSHOT_AUTHORITY_V1,
     runtime_surface:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_SURFACE_V1,
     required_confirmation:
@@ -148,6 +160,8 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     root_dir: string;
     request_dir?: string;
     dependencies?: BuyVoidBoundedAutoFulfillmentDependenciesV1;
+    snapshot_dependencies?:
+      BuyVoidBoundedOrchestratorServerSnapshotDependenciesV1;
   },
 ): Promise<unknown> {
   if (!loopback(req)) {
@@ -224,18 +238,33 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     });
   }
 
-  const snapshot = body.snapshot as
-    BuyVoidBoundedAutoFulfillmentSnapshotV1 | undefined;
   if (
-    !snapshot ||
-    typeof snapshot !== "object" ||
-    Array.isArray(snapshot)
+    Object.prototype.hasOwnProperty.call(body, "snapshot")
   ) {
     return res.status(400).json({
       marker:
         VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
       ok: false,
-      error: "snapshot_required",
+      error: "client_supplied_snapshot_forbidden",
+      snapshot_source: "server_derived_request_id_only",
+    });
+  }
+
+  const requestId = String(body.request_id || "").trim();
+  if (!requestId) {
+    return res.status(400).json({
+      marker:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+      ok: false,
+      error: "request_id_required",
+    });
+  }
+  if (!/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
+    return res.status(400).json({
+      marker:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+      ok: false,
+      error: "invalid_request_id",
     });
   }
 
@@ -262,11 +291,30 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     ),
   ).trim();
 
+  const derived =
+    deriveBuyVoidBoundedOrchestratorServerSnapshotV1({
+      root_dir: options.root_dir,
+      request_dir: requestDir,
+      request_id: requestId,
+      dependencies: options.snapshot_dependencies,
+    });
+
+  if (derived.status === "held") {
+    return res.status(422).json({
+      marker:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+      ok: false,
+      error: "server_snapshot_derivation_held",
+      reason: derived.reason,
+      ...(derived.detail ? { detail: derived.detail } : {}),
+    });
+  }
+
   const decision =
     await runBuyVoidBoundedAutoFulfillmentOrchestratorV1({
       root_dir: options.root_dir,
       request_dir: requestDir,
-      snapshot,
+      snapshot: derived.snapshot,
       stage_command:
         body.stage_command &&
         typeof body.stage_command === "object" &&
@@ -289,6 +337,9 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     effective_max_requests_per_run: 1,
     action:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+    snapshot_source: "server_derived_request_id_only",
+    derived_snapshot: derived.snapshot,
+    snapshot_evidence: derived.evidence,
     decision,
   });
 }
