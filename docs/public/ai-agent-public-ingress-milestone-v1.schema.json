@@ -1,0 +1,64 @@
+{
+  "$id": "https://voidchain.io/schemas/ai-agent-public-ingress-milestone-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "type": "object"
+    },
+    "checkpoint_tag_after_merge": {
+      "const": "ckpt-ai-agent-public-ingress-independent-external-v1-<MERGE_SHORT>-20260724"
+    },
+    "containment": {
+      "type": "object"
+    },
+    "gateway_merge_commit": {
+      "const": "b44c7796e40090c1f18fc1c81cb36d485118cb42"
+    },
+    "gateway_repair_merge_commit": {
+      "const": "462e460147da4b60682351160ba5290846cba9a4"
+    },
+    "independent_verification": {
+      "type": "object"
+    },
+    "main_commit": {
+      "const": "462e460147da4b60682351160ba5290846cba9a4"
+    },
+    "marker": {
+      "const": "VOID_AI_AGENT_PUBLIC_INGRESS_MILESTONE_V1"
+    },
+    "next_lane": {
+      "type": "object"
+    },
+    "observed_at_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "public_endpoint": {
+      "type": "object"
+    },
+    "repository": {
+      "const": "6ZoSo9/void-node"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "observed_at_utc",
+    "repository",
+    "main_commit",
+    "gateway_merge_commit",
+    "gateway_repair_merge_commit",
+    "public_endpoint",
+    "containment",
+    "authority",
+    "independent_verification",
+    "next_lane",
+    "checkpoint_tag_after_merge"
+  ],
+  "title": "VOID AI-Agent Public Ingress Milestone V1",
+  "type": "object"
+}
