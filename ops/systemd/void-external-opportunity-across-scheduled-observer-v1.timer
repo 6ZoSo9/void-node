@@ -1,0 +1,13 @@
+[Unit]
+Description=Run VOID Across scheduled paper-opportunity observer V1 every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=true
+Unit=void-external-opportunity-across-scheduled-observer-v1.service
+
+[Install]
+WantedBy=timers.target
