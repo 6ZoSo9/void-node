@@ -1,0 +1,38 @@
+name: External Opportunity Paper Risk Classification Adapter V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-paper-risk-classification-adapter-v1.yml"
+      - "docs/architecture/external-opportunity-paper-risk-classification-adapter-v1.md"
+      - "fixtures/external-opportunity/paper-risk-classification-adapter-v1.example.json"
+      - "schemas/external-opportunity-paper-risk-classification-adapter-v1.schema.json"
+      - "scripts/prove_external_opportunity_paper_risk_classification_adapter_v1.ts"
+      - "src/external_opportunity/paper_risk_classification_adapter_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/external-opportunity-paper-risk-classification-adapter-v1.yml"
+      - "docs/architecture/external-opportunity-paper-risk-classification-adapter-v1.md"
+      - "fixtures/external-opportunity/paper-risk-classification-adapter-v1.example.json"
+      - "schemas/external-opportunity-paper-risk-classification-adapter-v1.schema.json"
+      - "scripts/prove_external_opportunity_paper_risk_classification_adapter_v1.ts"
+      - "src/external_opportunity/paper_risk_classification_adapter_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_external_opportunity_paper_risk_classification_adapter_v1.ts
+      - run: npm run build
