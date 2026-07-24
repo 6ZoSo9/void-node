@@ -1,0 +1,16 @@
+{
+  "schema": "void.source-forensic-fingerprint-registry.v1",
+  "marker": "VOID_SOURCE_FORENSIC_FINGERPRINT_REGISTRY_V1",
+  "spdx_license_identifier": "VCL-1.0",
+  "purpose": "Non-secret provenance and clone-evidence markers only.",
+  "execution_authority": "none",
+  "network_mutation_authority": "none",
+  "markers": [
+    "void.authenticity.identity.v1",
+    "void.provenance.release.v1",
+    "void.receipt.buy-fulfillment.v1",
+    "void.receipt.work-credit-issuer.v1",
+    "void.receipt.agent-credential.v1",
+    "void.receipt.datanet-attestation.v1"
+  ]
+}
