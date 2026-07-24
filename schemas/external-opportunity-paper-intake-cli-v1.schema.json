@@ -1,0 +1,299 @@
+{
+  "$defs": {
+    "absolutePath": {
+      "minLength": 1,
+      "pattern": "^/",
+      "type": "string"
+    },
+    "classification": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "journalSummary": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "recordSummary": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "request": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "record"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": "recordPaperOpportunityV1"
+              }
+            },
+            "required": [
+              "confirmation"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "allow_held_entries": {
+          "default": false,
+          "type": "boolean"
+        },
+        "allowed_root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_OPPORTUNITY_PAPER_INTAKE_CLI_V1"
+        },
+        "max_entries": {
+          "default": 10000,
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_file_bytes": {
+          "default": 8388608,
+          "maximum": 67108864,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_line_bytes": {
+          "default": 1048576,
+          "maximum": 1048576,
+          "minimum": 256,
+          "type": "integer"
+        },
+        "mode": {
+          "default": "dry_run",
+          "enum": [
+            "dry_run",
+            "record"
+          ]
+        },
+        "observation_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "registry_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "schema": {
+          "const": "void-external-opportunity-paper-intake-cli-request-v1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema",
+        "marker",
+        "version",
+        "registry_path",
+        "observation_path",
+        "allowed_root",
+        "recorded_at"
+      ],
+      "type": "object"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/classification"
+        },
+        "credential_access_performed": {
+          "const": false
+        },
+        "execution_authorized": {
+          "const": false
+        },
+        "exit_code": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explicit_local_journal_read_performed": {
+          "type": "boolean"
+        },
+        "explicit_local_journal_write_performed": {
+          "type": "boolean"
+        },
+        "explicit_local_observation_read_performed": {
+          "type": "boolean"
+        },
+        "explicit_local_registry_read_performed": {
+          "type": "boolean"
+        },
+        "explicit_local_request_read_performed": {
+          "type": "boolean"
+        },
+        "implicit_or_scheduled_access_performed": {
+          "const": false
+        },
+        "journal": {
+          "$ref": "#/$defs/journalSummary"
+        },
+        "live_execution_authorized": {
+          "const": false
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_OPPORTUNITY_PAPER_INTAKE_CLI_V1"
+        },
+        "mode": {
+          "enum": [
+            "dry_run",
+            "record"
+          ]
+        },
+        "network_request_performed": {
+          "const": false
+        },
+        "observation_file_sha256": {
+          "pattern": "^$|^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "record": {
+          "$ref": "#/$defs/recordSummary"
+        },
+        "registry_file_sha256": {
+          "pattern": "^$|^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registry_validation_ok": {
+          "type": "boolean"
+        },
+        "registry_validation_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "request_file_sha256": {
+          "pattern": "^$|^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "runtime_mutation_performed": {
+          "const": false
+        },
+        "scheduler_mutation_performed": {
+          "const": false
+        },
+        "schema": {
+          "const": "void-external-opportunity-paper-intake-cli-result-v1"
+        },
+        "service_mutation_performed": {
+          "const": false
+        },
+        "status": {
+          "enum": [
+            "dry_run_ready",
+            "dry_run_duplicate",
+            "dry_run_held",
+            "record_applied",
+            "record_duplicate",
+            "record_held",
+            "record_lock_busy",
+            "input_held",
+            "usage_held",
+            "internal_held"
+          ]
+        },
+        "transaction_construction_performed": {
+          "const": false
+        },
+        "transaction_submission_performed": {
+          "const": false
+        },
+        "version": {
+          "const": 1
+        },
+        "wallet_or_key_access_performed": {
+          "const": false
+        }
+      },
+      "required": [
+        "schema",
+        "marker",
+        "version",
+        "status",
+        "exit_code",
+        "mode",
+        "reason",
+        "reasons",
+        "request_file_sha256",
+        "registry_file_sha256",
+        "observation_file_sha256",
+        "registry_validation_ok",
+        "registry_validation_reasons",
+        "classification",
+        "journal",
+        "record",
+        "explicit_local_request_read_performed",
+        "explicit_local_registry_read_performed",
+        "explicit_local_observation_read_performed",
+        "explicit_local_journal_read_performed",
+        "explicit_local_journal_write_performed",
+        "implicit_or_scheduled_access_performed",
+        "network_request_performed",
+        "credential_access_performed",
+        "wallet_or_key_access_performed",
+        "transaction_construction_performed",
+        "transaction_submission_performed",
+        "runtime_mutation_performed",
+        "service_mutation_performed",
+        "scheduler_mutation_performed",
+        "live_execution_authorized",
+        "execution_authorized"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-opportunity-paper-intake-cli-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/result"
+    }
+  ],
+  "title": "VOID External Opportunity Paper Intake CLI V1"
+}

@@ -1,0 +1,46 @@
+name: External Opportunity Paper Intake CLI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-paper-intake-cli-v1.yml"
+      - "docs/operators/external-opportunity-paper-intake-cli-v1.md"
+      - "fixtures/external-opportunity/paper-intake-cli-v1.example.json"
+      - "schemas/external-opportunity-paper-intake-cli-v1.schema.json"
+      - "scripts/prove_external_opportunity_paper_intake_cli_v1.ts"
+      - "src/external_opportunity/paper_intake_cli_v1.ts"
+      - "src/external_opportunity/provider_risk_registry_v1.ts"
+      - "src/external_opportunity/paper_risk_classification_adapter_v1.ts"
+      - "src/external_opportunity/paper_classification_journal_v1.ts"
+      - "src/external_opportunity/paper_classification_journal_file_store_v1.ts"
+  push:
+    branches:
+      - "feat/external-opportunity-paper-intake-cli-v1"
+    paths:
+      - ".github/workflows/external-opportunity-paper-intake-cli-v1.yml"
+      - "docs/operators/external-opportunity-paper-intake-cli-v1.md"
+      - "fixtures/external-opportunity/paper-intake-cli-v1.example.json"
+      - "schemas/external-opportunity-paper-intake-cli-v1.schema.json"
+      - "scripts/prove_external_opportunity_paper_intake_cli_v1.ts"
+      - "src/external_opportunity/paper_intake_cli_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  paper-intake-cli-v1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove paper intake CLI V1
+        run: >-
+          npx --no-install tsx
+          scripts/prove_external_opportunity_paper_intake_cli_v1.ts
+      - name: Build
+        run: npm run build
