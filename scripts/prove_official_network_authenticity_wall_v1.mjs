@@ -86,8 +86,25 @@ const checks = [
     "manifest chain ID matches genesis",
   ],
   [
-    manifest.canonical.network_name === genesis.networkName,
-    "manifest network name matches genesis",
+    manifest.identity_revision === "v2.1",
+    "identity revision is v2.1",
+  ],
+  [
+    manifest.canonical.network_name === "VOID Mainnet-0",
+    "official public network name is VOID Mainnet-0",
+  ],
+  [
+    manifest.canonical.genesis_network_name === genesis.networkName,
+    "legacy genesis network name matches genesis",
+  ],
+  [
+    manifest.supersession.superseded_payload_sha256 ===
+      "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e",
+    "incorrect unsigned payload is superseded",
+  ],
+  [
+    manifest.supersession.disposition === "do_not_sign_or_transfer",
+    "superseded payload remains held",
   ],
   [
     manifest.canonical.genesis_sha256 === sha256(genesisBytes),

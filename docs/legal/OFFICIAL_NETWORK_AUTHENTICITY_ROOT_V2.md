@@ -31,3 +31,13 @@ repository, transferred with the public output, or loaded by a running node.
 V2 provides authenticity evidence only. It has no runtime, wallet, validator,
 treasury, Work Credit, Buy VOID, release-promotion, or third-party shutdown
 authority.
+
+## V2.1 corrected preparation provenance
+
+A replacement payload must identify `VOID Mainnet-0` as the official public
+network and `VOID-DEV` as the immutable legacy genesis label. It must include
+the sealed V1 and V2 checkpoint history, the V2.1 correction checkpoint, the
+exact preparation-tool SHA-256, a preparation receipt, and the superseded
+payload SHA-256.
+
+Only the public directory may return to an online host.

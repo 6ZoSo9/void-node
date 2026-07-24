@@ -24,6 +24,7 @@ interface OfficialNetworkIdentityManifestV1 {
   canonical: {
     chain_id: number;
     network_name: string;
+    genesis_network_name: string;
     genesis_file: "genesis.json";
     genesis_sha256: string;
   };
@@ -122,8 +123,8 @@ export async function verifyOfficialNetworkIdentityV1(
   if (genesis.chainId !== manifest.canonical.chain_id) {
     reasons.push("chain id conflicts with genesis");
   }
-  if (genesis.networkName !== manifest.canonical.network_name) {
-    reasons.push("network name conflicts with genesis");
+  if (genesis.networkName !== manifest.canonical.genesis_network_name) {
+    reasons.push("legacy genesis network name conflicts with genesis");
   }
   if (actualGenesisSha256 !== manifest.canonical.genesis_sha256) {
     reasons.push("genesis SHA-256 mismatch");

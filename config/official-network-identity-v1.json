@@ -8,9 +8,10 @@
   "source_base_commit": "f0bb6b59448ee3a80ed78c3144cba8aae66b188a",
   "canonical": {
     "chain_id": 2050,
-    "network_name": "VOID-DEV",
+    "network_name": "VOID Mainnet-0",
     "genesis_file": "genesis.json",
-    "genesis_sha256": "22f42ef6cfa8e4ebfbc5ea98cdc536ec04c1bb4ddb15885b45b1ac02d0f122ab"
+    "genesis_sha256": "22f42ef6cfa8e4ebfbc5ea98cdc536ec04c1bb4ddb15885b45b1ac02d0f122ab",
+    "genesis_network_name": "VOID-DEV"
   },
   "forensic_fingerprint_registry": {
     "path": "config/source-forensic-fingerprint-registry-v1.json",
@@ -39,5 +40,11 @@
     "credential_collection": false,
     "self_destruct_logic": false,
     "third_party_network_mutation": false
+  },
+  "identity_revision": "v2.1",
+  "supersession": {
+    "superseded_payload_sha256": "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e",
+    "disposition": "do_not_sign_or_transfer",
+    "reason": "The unsigned payload conflated the immutable legacy genesis label with the official public Mainnet-0 network name."
   }
 }

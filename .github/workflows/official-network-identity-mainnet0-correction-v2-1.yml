@@ -1,0 +1,52 @@
+name: official-network-identity-mainnet0-correction-v2-1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/official-network-identity-mainnet0-correction-v2-1.yml"
+      - "config/official-network-identity-v1.json"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2.md"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1.md"
+      - "docs/legal/OFFICIAL_NETWORK_IDENTITY_MAINNET0_CORRECTION_V2_1.md"
+      - "schemas/official-network-identity-v1.schema.json"
+      - "scripts/prepare_official_network_authenticity_root_v2.mjs"
+      - "scripts/offline_sign_official_network_authenticity_root_v2.mjs"
+      - "scripts/verify_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs"
+      - "src/security/official_network_identity_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/official-network-identity-mainnet0-correction-v2-1.yml"
+      - "config/official-network-identity-v1.json"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2.md"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1.md"
+      - "docs/legal/OFFICIAL_NETWORK_IDENTITY_MAINNET0_CORRECTION_V2_1.md"
+      - "schemas/official-network-identity-v1.schema.json"
+      - "scripts/prepare_official_network_authenticity_root_v2.mjs"
+      - "scripts/offline_sign_official_network_authenticity_root_v2.mjs"
+      - "scripts/verify_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs"
+      - "src/security/official_network_identity_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_official_network_authenticity_wall_v1.mjs
+      - run: node scripts/prove_official_network_authenticity_root_v2.mjs
+      - run: node scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs
+      - run: npm run build
+      - run: git diff --check
