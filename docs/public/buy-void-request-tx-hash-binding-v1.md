@@ -30,3 +30,13 @@ Successful binding changes the request status from
 `awaiting_payment_tx_hash` to
 `payment_submitted_pending_manual_review`. It does not verify payment, reserve
 presale inventory, enable fulfillment, or transfer VOID.
+
+## Implementation boundary
+
+The existing operator request reader and the guarded transaction-hash binding
+routes are installed from
+`src/economic/buy_void_request_tx_hash_binding_v1.ts`. `src/index.ts` only
+injects the existing local-only, request-reader, and persistence dependencies.
+
+This preserves the existing `src/index.ts` size baseline instead of increasing
+that baseline for the presale-only lane.
