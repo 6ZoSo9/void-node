@@ -1,0 +1,42 @@
+name: paid-datanet-operator-workflow-cli-v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/paid_datanet_operator_workflow_cli_v1.ts"
+      - "scripts/prove_paid_datanet_operator_workflow_cli_v1.ts"
+      - "docs/operators/paid-datanet-operator-workflow-cli-v1.md"
+      - ".github/workflows/paid-datanet-operator-workflow-cli-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/paid_datanet_operator_workflow_cli_v1.ts"
+      - "scripts/prove_paid_datanet_operator_workflow_cli_v1.ts"
+      - "docs/operators/paid-datanet-operator-workflow-cli-v1.md"
+      - ".github/workflows/paid-datanet-operator-workflow-cli-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove operator workflow CLI
+        run: >-
+          npx --no-install tsx
+          scripts/prove_paid_datanet_operator_workflow_cli_v1.ts
