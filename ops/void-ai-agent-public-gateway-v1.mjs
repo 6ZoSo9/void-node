@@ -46,6 +46,22 @@ const routeFiles = new Map([
     "/.well-known/void-agent-capabilities.schema.json",
     "public/.well-known/void-agent-capabilities.schema.json",
   ],
+  [
+    "/public-node/agents/authentication-v1.json",
+    "public/public-node/agents/authentication-v1.json",
+  ],
+  [
+    "/public-node/agents/authentication-v1.schema.json",
+    "public/public-node/agents/authentication-v1.schema.json",
+  ],
+  [
+    "/.well-known/void-agent-authentication.json",
+    "public/.well-known/void-agent-authentication.json",
+  ],
+  [
+    "/.well-known/void-agent-authentication.schema.json",
+    "public/.well-known/void-agent-authentication.schema.json",
+  ],
 ]);
 
 function fail(message) {

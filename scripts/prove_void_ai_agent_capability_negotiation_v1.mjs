@@ -142,6 +142,11 @@ assert(
   "result states differ",
 );
 
+assert(
+  catalog.authority?.authentication_contract_published === true,
+  "authentication contract publication differs",
+);
+
 for (const [name, expected] of Object.entries({
   mutation_authority_granted: false,
   authentication_active: false,
@@ -164,7 +169,11 @@ assert(
   "capability IDs are not unique",
 );
 
-for (const id of ["public_discovery", "capability_negotiation"]) {
+for (const id of [
+  "public_discovery",
+  "capability_negotiation",
+  "authentication_contract_discovery",
+]) {
   const entry = byId.get(id);
   assert(entry, `missing live capability ${id}`);
   assert(entry.state === "live", `${id} state differs`);
@@ -260,6 +269,10 @@ for (const route of [
   "/public-node/agents/capabilities-v1.schema.json",
   "/.well-known/void-agent-capabilities.json",
   "/.well-known/void-agent-capabilities.schema.json",
+  "/public-node/agents/authentication-v1.json",
+  "/public-node/agents/authentication-v1.schema.json",
+  "/.well-known/void-agent-authentication.json",
+  "/.well-known/void-agent-authentication.schema.json",
 ]) {
   assert(gateway.includes(`"${route}"`), `gateway lacks ${route}`);
   assert(gatewayProof.includes(`"${route}"`), `gateway proof lacks ${route}`);
@@ -296,11 +309,13 @@ for (const required of [
 }
 
 for (const required of [
-  "eight repository-backed JSON",
+  "twelve repository-backed JSON",
   "/public-node/agents/capabilities-v1.json",
   "/.well-known/void-agent-capabilities.json",
-  "no authentication",
-  "no paid-work submission",
+  "/public-node/agents/authentication-v1.json",
+  "/.well-known/void-agent-authentication.json",
+  "no authentication verifier runtime",
+  "no payment or paid-work submission",
 ]) {
   assert(gatewayDoc.includes(required), `gateway doc lacks ${required}`);
 }
@@ -308,10 +323,11 @@ for (const required of [
 for (const required of [
   "client-side intersection",
   "`not_granted`",
-  "bounded_paid_work_submission",
+  "authentication_contract_discovery",
+  "authenticated_readonly_agent_session",
   "automatic Work Credit awards",
   "Buy VOID automatic fulfillment",
-  "expiry-bounded authentication contract",
+  "AI-agent read-only verifier runtime v1",
 ]) {
   assert(
     negotiationDoc.includes(required),
@@ -414,6 +430,7 @@ async function runClient(port) {
         [
           "public_discovery",
           "capability_negotiation",
+          "authentication_contract_discovery",
           "bounded_paid_work_submission",
           "work_credit_earning",
           "unknown_future_capability",
@@ -469,7 +486,7 @@ async function runClient(port) {
 try {
   const ready = await waitForReady();
   assert(
-    ready.allowed_routes.length === 8,
+    ready.allowed_routes.length === 12,
     "gateway allowed-route count differs",
   );
 
@@ -487,7 +504,11 @@ try {
   assert(
     JSON.stringify(result.granted.map((entry) => entry.id).sort()) ===
       JSON.stringify(
-        ["capability_negotiation", "public_discovery"].sort(),
+        [
+          "authentication_contract_discovery",
+          "capability_negotiation",
+          "public_discovery",
+        ].sort(),
       ),
     "client granted set differs",
   );
@@ -513,7 +534,7 @@ try {
 
   process.stdout.write(
     `${MARKER}\n` +
-      `gateway_route_count=8\n` +
+      `gateway_route_count=12\n` +
       `catalog_capability_count=${catalog.capabilities.length}\n` +
       `granted_count=${result.granted.length}\n` +
       `not_granted_count=${result.not_granted.length}\n` +
