@@ -1,0 +1,47 @@
+name: Buy VOID Auto Claim Worker v1
+
+on:
+  push:
+    paths:
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_auto_claim_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_claim_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_claim_worker_guard_v1.ts"
+      - "docs/operators/buy-void-auto-claim-worker-v1.md"
+      - ".github/workflows/buy-void-auto-claim-worker-v1.yml"
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_auto_claim_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_claim_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_claim_worker_guard_v1.ts"
+      - "docs/operators/buy-void-auto-claim-worker-v1.md"
+      - ".github/workflows/buy-void-auto-claim-worker-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  auto-claim-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Focused Buy VOID TypeScript
+        run: >-
+          npx tsc --noEmit --target ES2022 --module NodeNext
+          --moduleResolution NodeNext --lib ES2022 --types node
+          --esModuleInterop --allowSyntheticDefaultImports
+          --downlevelIteration --skipLibCheck
+          scripts/prove_buy_void_auto_claim_worker_v1.ts
+          scripts/prove_buy_void_auto_claim_worker_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_auto_claim_worker_v1.ts
+      - run: npx tsx scripts/prove_buy_void_auto_claim_worker_guard_v1.ts
+      - run: bash tools/check_index_size.sh
+      - run: npm run build
+      - run: git diff --check
