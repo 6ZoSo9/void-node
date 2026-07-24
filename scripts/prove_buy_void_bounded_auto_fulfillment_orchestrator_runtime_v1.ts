@@ -94,6 +94,14 @@ async function main(): Promise<void> {
       disabledStatus.snapshot_source,
       "server_derived_request_id_only",
     );
+    const disabledActivation =
+      disabledStatus.apply_activation_gate as Record<string, any>;
+    assert.equal(disabledActivation.enabled, false);
+    assert.equal(disabledActivation.enabled_stage_count, 0);
+    assert.equal(
+      disabledActivation.runtime_execution_mounted_v1,
+      false,
+    );
 
     const disabledRes = response();
     await handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -176,6 +184,26 @@ async function main(): Promise<void> {
       applyRes.value.error,
       "runtime_apply_not_enabled_v1",
     );
+    assert.equal(
+      applyRes.value.activation_error,
+      "apply_activation_gate_disabled",
+    );
+    assert.equal(
+      applyRes.value.legacy_apply_hard_stop,
+      true,
+    );
+    assert.equal(
+      applyRes.value.apply_activation.status,
+      "held",
+    );
+    assert.equal(
+      applyRes.value.apply_activation.reason,
+      "apply_activation_gate_disabled",
+    );
+    assert.equal(
+      applyRes.value.apply_activation.apply_authorized,
+      false,
+    );
 
     const forbiddenRes = response();
     await handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -253,6 +281,10 @@ async function main(): Promise<void> {
     console.log("disabled_by_default=1");
     console.log("dry_run_only_v1=1");
     console.log("runtime_apply=0");
+    console.log("apply_activation_gate_present=1");
+    console.log("apply_activation_gate_enabled=0");
+    console.log("enabled_stage_count=0");
+    console.log("runtime_apply_execution_mounted=0");
     console.log("hard_max_requests_per_run=1");
     console.log("wallet_access=0");
     console.log("signing=0");

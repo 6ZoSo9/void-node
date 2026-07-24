@@ -11,6 +11,11 @@ import {
   deriveBuyVoidBoundedOrchestratorServerSnapshotV1,
   type BuyVoidBoundedOrchestratorServerSnapshotDependenciesV1,
 } from "./buy_void_bounded_orchestrator_server_snapshot_v1.js";
+import {
+  VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_DEFAULT_POLICY_V1,
+  buyVoidBoundedOrchestratorApplyActivationStatusV1,
+  evaluateBuyVoidBoundedOrchestratorApplyActivationV1,
+} from "./buy_void_bounded_orchestrator_apply_activation_gate_v1.js";
 
 export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1 =
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1";
@@ -26,6 +31,11 @@ export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_AUTHORI
   server_derived_snapshot: true,
   request_id_only_selector: true,
   client_supplied_snapshot_forbidden: true,
+  apply_activation_gate_present: true,
+  apply_activation_gate_disabled_by_default: true,
+  apply_activation_enabled_stage_count: 0,
+  runtime_apply_execution_mounted_v1: false,
+  legacy_apply_hard_stop_error_v1: "runtime_apply_not_enabled_v1",
   max_requests_per_invocation: 1,
   one_stage_transition_per_invocation: true,
   dry_by_default: true,
@@ -140,6 +150,8 @@ export function buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1():
     request_id_only_selector: true,
     server_snapshot_authority:
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_SERVER_SNAPSHOT_AUTHORITY_V1,
+    apply_activation_gate:
+      buyVoidBoundedOrchestratorApplyActivationStatusV1(),
     runtime_surface:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_SURFACE_V1,
     required_confirmation:
@@ -227,14 +239,16 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
       forbidden_key: forbiddenKey,
     });
   }
-  if (body.apply === true) {
-    return res.status(503).json({
+  if (
+    Object.prototype.hasOwnProperty.call(body, "activation_policy") ||
+    Object.prototype.hasOwnProperty.call(body, "allowed_stages") ||
+    Object.prototype.hasOwnProperty.call(body, "enabled_stages")
+  ) {
+    return res.status(400).json({
       marker:
         VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
       ok: false,
-      error: "runtime_apply_not_enabled_v1",
-      dry_run_only: true,
-      money_moving_runtimes_remain_separately_gated: true,
+      error: "runtime_activation_policy_is_server_controlled",
     });
   }
 
@@ -310,20 +324,73 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     });
   }
 
+  const stageCommand =
+    body.stage_command &&
+    typeof body.stage_command === "object" &&
+    !Array.isArray(body.stage_command)
+      ? body.stage_command as Record<string, unknown>
+      : undefined;
+
   const decision =
     await runBuyVoidBoundedAutoFulfillmentOrchestratorV1({
       root_dir: options.root_dir,
       request_dir: requestDir,
       snapshot: derived.snapshot,
-      stage_command:
-        body.stage_command &&
-        typeof body.stage_command === "object" &&
-        !Array.isArray(body.stage_command)
-          ? body.stage_command
-          : undefined,
+      stage_command: stageCommand,
       apply: false,
       dependencies: options.dependencies,
     });
+
+  const applyActivation =
+    evaluateBuyVoidBoundedOrchestratorApplyActivationV1({
+      policy:
+        VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_DEFAULT_POLICY_V1,
+      request_id: requestId,
+      derived_snapshot: derived.snapshot,
+      snapshot_evidence: derived.evidence,
+      dry_run_decision: decision,
+      stage_command: stageCommand,
+      apply: body.apply === true,
+      plan_fingerprint: body.plan_fingerprint,
+      confirmation: body.confirmation,
+      delegated_confirmation: body.delegated_confirmation,
+      stage_confirmation: body.stage_confirmation,
+    });
+
+  if (body.apply === true) {
+    if (applyActivation.status !== "held") {
+      return res.status(503).json({
+        marker:
+          VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+        ok: false,
+        error: "runtime_apply_execution_unmounted_v1",
+        apply_activation: applyActivation,
+        runtime_apply_execution_mounted_v1: false,
+      });
+    }
+    return res.status(
+      applyActivation.reason === "apply_activation_gate_disabled"
+        ? 503
+        : 422,
+    ).json({
+      marker:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+      ok: false,
+      error:
+        applyActivation.reason === "apply_activation_gate_disabled"
+          ? "runtime_apply_not_enabled_v1"
+          : applyActivation.reason,
+      ...(applyActivation.reason === "apply_activation_gate_disabled"
+        ? {
+            activation_error: applyActivation.reason,
+            legacy_apply_hard_stop: true,
+          }
+        : {}),
+      apply_activation: applyActivation,
+      runtime_apply_execution_mounted_v1: false,
+      money_moving_runtimes_remain_separately_gated: true,
+    });
+  }
 
   return res.status(responseStatus(decision)).json({
     marker:
@@ -340,6 +407,7 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     snapshot_source: "server_derived_request_id_only",
     derived_snapshot: derived.snapshot,
     snapshot_evidence: derived.evidence,
+    apply_activation: applyActivation,
     decision,
   });
 }
