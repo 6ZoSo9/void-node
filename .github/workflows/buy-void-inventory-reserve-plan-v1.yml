@@ -1,0 +1,85 @@
+name: Buy VOID inventory reserve plan v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_auto_reserve_plan_worker_v1.ts"
+      - "scripts/prove_buy_void_inventory_reservation_journal_v1.ts"
+      - "scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts"
+      - "docs/operators/buy-void-inventory-reserve-plan-v1.md"
+      - ".github/workflows/buy-void-inventory-reserve-plan-v1.yml"
+  push:
+    branches:
+      - "feat/buy-void-inventory-reserve-plan-v1"
+    paths:
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_auto_reserve_plan_worker_v1.ts"
+      - "scripts/prove_buy_void_inventory_reservation_journal_v1.ts"
+      - "scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts"
+      - "scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts"
+      - "docs/operators/buy-void-inventory-reserve-plan-v1.md"
+      - ".github/workflows/buy-void-inventory-reserve-plan-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inventory-reserve-plan:
+    name: inventory-reserve-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Focused TypeScript
+        run: |
+          npx tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_inventory_reservation_journal_v1.ts \
+            scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts \
+            scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts
+
+      - name: Prove inventory reservation journal
+        run: npx tsx scripts/prove_buy_void_inventory_reservation_journal_v1.ts
+
+      - name: Prove automatic reserve-plan worker
+        run: npx tsx scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts
+
+      - name: Prove authority guard
+        run: npx tsx scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts
+
+      - name: Buy VOID regressions
+        run: |
+          npx tsx scripts/prove_buy_void_auto_claim_worker_v1.ts
+          npx tsx scripts/prove_buy_void_auto_claim_worker_guard_v1.ts
+          npx tsx scripts/prove_buy_void_fulfillment_journal_v1.ts
+          npx tsx scripts/prove_buy_void_fulfillment_journal_crash_recovery_v1.ts
+          npx tsx scripts/prove_buy_void_execution_attempt_journal_v1.ts
+          npx tsx scripts/prove_buy_void_execution_attempt_replay_guard_v1.ts
+          npx tsx scripts/prove_buy_void_pipeline_coordinator_v1.ts
+          npx tsx scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts
+
+      - name: Index guard
+        run: bash tools/check_index_size.sh
+
+      - name: Full build
+        run: npm run build
