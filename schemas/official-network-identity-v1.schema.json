@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/official-network-identity-v1.schema.json",
+  "title": "VOID Official Network Identity V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "spdx_license_identifier",
+    "status",
+    "project",
+    "repository",
+    "source_base_commit",
+    "canonical",
+    "forensic_fingerprint_registry",
+    "authority",
+    "official_service_policy",
+    "safety_boundary"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void.official-network-identity.v1"
+    },
+    "marker": {
+      "const": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1"
+    },
+    "spdx_license_identifier": {
+      "const": "VCL-1.0"
+    },
+    "status": {
+      "enum": [
+        "draft_unsealed",
+        "official",
+        "unverified",
+        "conflicting",
+        "revoked"
+      ]
+    },
+    "project": {
+      "const": "VOID Network"
+    },
+    "repository": {
+      "const": "6ZoSo9/void-node"
+    },
+    "source_base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "canonical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_id",
+        "network_name",
+        "genesis_file",
+        "genesis_sha256"
+      ],
+      "properties": {
+        "chain_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "network_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "genesis_file": {
+          "const": "genesis.json"
+        },
+        "genesis_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "forensic_fingerprint_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "canonical_sha256"
+      ],
+      "properties": {
+        "path": {
+          "const": "config/source-forensic-fingerprint-registry-v1.json"
+        },
+        "canonical_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "key_id",
+        "public_key_pem",
+        "signature_base64"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "key_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "public_key_pem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature_base64": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "official_service_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_required_before_enablement",
+        "services"
+      ],
+      "properties": {
+        "verification_required_before_enablement": {
+          "const": true
+        },
+        "services": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "safety_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "third_party_shutdown_authority",
+        "hidden_command_execution",
+        "credential_collection",
+        "self_destruct_logic",
+        "third_party_network_mutation"
+      ],
+      "properties": {
+        "third_party_shutdown_authority": {
+          "const": false
+        },
+        "hidden_command_execution": {
+          "const": false
+        },
+        "credential_collection": {
+          "const": false
+        },
+        "self_destruct_logic": {
+          "const": false
+        },
+        "third_party_network_mutation": {
+          "const": false
+        }
+      }
+    }
+  }
+}
