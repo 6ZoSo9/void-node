@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-observe-and-claim-fixture-canary-gate-v1",
+  "title": "VOID Buy VOID observe-and-claim fixture canary gate V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "fixture_only",
+    "live_activation_mounted",
+    "live_eligible_candidate_count",
+    "candidate_stage",
+    "policy",
+    "required_canary_controls",
+    "hard_forbidden_authority",
+    "activation_performed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_observe_and_claim_fixture_canary_gate_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_OBSERVE_AND_CLAIM_FIXTURE_CANARY_GATE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "fixture_only": {
+      "const": true
+    },
+    "live_activation_mounted": {
+      "const": false
+    },
+    "live_eligible_candidate_count": {
+      "const": 0
+    },
+    "candidate_stage": {
+      "const": "observe_and_claim"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "exact_request_ids",
+        "maximum_successful_canary_mutations"
+      ],
+      "properties": {
+        "enabled": {
+          "const": false
+        },
+        "exact_request_ids": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "maximum_successful_canary_mutations": {
+          "const": 1
+        }
+      }
+    },
+    "required_canary_controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "server_owned_exact_request_allowlist",
+        "exact_request_allowlist_count_when_armed",
+        "server_derived_activation_plan_required",
+        "exact_plan_fingerprint_echo_required",
+        "exact_orchestrator_confirmation_required",
+        "exact_delegated_confirmation_required",
+        "exact_stage_confirmation_required",
+        "exact_canary_confirmation_required",
+        "operator_approval_required",
+        "one_request_per_invocation",
+        "one_stage_transition_per_invocation",
+        "automatic_retry",
+        "auto_disable_after_terminal_outcome"
+      ],
+      "properties": {
+        "server_owned_exact_request_allowlist": {
+          "const": true
+        },
+        "exact_request_allowlist_count_when_armed": {
+          "const": 1
+        },
+        "server_derived_activation_plan_required": {
+          "const": true
+        },
+        "exact_plan_fingerprint_echo_required": {
+          "const": true
+        },
+        "exact_orchestrator_confirmation_required": {
+          "const": true
+        },
+        "exact_delegated_confirmation_required": {
+          "const": true
+        },
+        "exact_stage_confirmation_required": {
+          "const": true
+        },
+        "exact_canary_confirmation_required": {
+          "const": true
+        },
+        "operator_approval_required": {
+          "const": true
+        },
+        "one_request_per_invocation": {
+          "const": true
+        },
+        "one_stage_transition_per_invocation": {
+          "const": true
+        },
+        "automatic_retry": {
+          "const": false
+        },
+        "auto_disable_after_terminal_outcome": {
+          "const": true
+        }
+      }
+    },
+    "hard_forbidden_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reserve_inventory_and_attempt",
+        "execute_reserved_plan",
+        "reconcile_possible_broadcast",
+        "closeout_confirmed_delivery",
+        "inventory_reservation",
+        "execution_attempt_reservation",
+        "wallet_access",
+        "signing",
+        "transaction_broadcast",
+        "rpc_mutation",
+        "money_movement",
+        "background_loop",
+        "startup_execution"
+      ],
+      "properties": {
+        "reserve_inventory_and_attempt": {
+          "const": true
+        },
+        "execute_reserved_plan": {
+          "const": true
+        },
+        "reconcile_possible_broadcast": {
+          "const": true
+        },
+        "closeout_confirmed_delivery": {
+          "const": true
+        },
+        "inventory_reservation": {
+          "const": true
+        },
+        "execution_attempt_reservation": {
+          "const": true
+        },
+        "wallet_access": {
+          "const": true
+        },
+        "signing": {
+          "const": true
+        },
+        "transaction_broadcast": {
+          "const": true
+        },
+        "rpc_mutation": {
+          "const": true
+        },
+        "money_movement": {
+          "const": true
+        },
+        "background_loop": {
+          "const": true
+        },
+        "startup_execution": {
+          "const": true
+        }
+      }
+    },
+    "activation_performed": {
+      "const": false
+    }
+  }
+}
