@@ -30,6 +30,22 @@ const expectedRoutes = new Map([
     "/.well-known/void-agent-discovery.schema.json",
     "public/.well-known/void-agent-discovery.schema.json",
   ],
+  [
+    "/public-node/agents/capabilities-v1.json",
+    "public/public-node/agents/capabilities-v1.json",
+  ],
+  [
+    "/public-node/agents/capabilities-v1.schema.json",
+    "public/public-node/agents/capabilities-v1.schema.json",
+  ],
+  [
+    "/.well-known/void-agent-capabilities.json",
+    "public/.well-known/void-agent-capabilities.json",
+  ],
+  [
+    "/.well-known/void-agent-capabilities.schema.json",
+    "public/.well-known/void-agent-capabilities.schema.json",
+  ],
 ]);
 
 function assert(condition, message) {
