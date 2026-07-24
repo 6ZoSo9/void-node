@@ -105,8 +105,8 @@ const planned = planBuyVoidConfirmedCloseoutV1({
   policy,
   snapshot: snapshot(),
 });
-assert.equal(planned.ok, true);
 if (planned.ok === false) throw new Error(planned.reason);
+assert.equal(planned.ok, true);
 assert.equal(
   planned.plan.marker,
   VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
