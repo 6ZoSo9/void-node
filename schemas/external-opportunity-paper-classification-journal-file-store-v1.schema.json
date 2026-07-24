@@ -1,0 +1,64 @@
+{
+  "$id": "https://voidchain.io/schemas/external-opportunity-paper-classification-journal-file-store-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allow_held_entries": {
+      "type": "boolean"
+    },
+    "allowed_root": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "pattern": "^/",
+      "type": "string"
+    },
+    "fsync_directory": {
+      "const": true
+    },
+    "journal_filename": {
+      "const": "paper-classification-journal-v1.jsonl"
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_PAPER_CLASSIFICATION_JOURNAL_FILE_STORE_V1"
+    },
+    "max_entries": {
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "max_file_bytes": {
+      "maximum": 67108864,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "max_line_bytes": {
+      "maximum": 1048576,
+      "minimum": 256,
+      "type": "integer"
+    },
+    "required_file_mode_octal": {
+      "const": "0600"
+    },
+    "schema": {
+      "const": "void-external-opportunity-paper-classification-journal-file-store-config-v1"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "allowed_root",
+    "journal_filename",
+    "max_file_bytes",
+    "max_entries",
+    "max_line_bytes",
+    "required_file_mode_octal",
+    "allow_held_entries",
+    "fsync_directory"
+  ],
+  "title": "VOID External Opportunity Paper Classification Journal File Store Config V1",
+  "type": "object"
+}
