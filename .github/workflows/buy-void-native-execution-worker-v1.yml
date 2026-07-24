@@ -1,0 +1,69 @@
+name: Buy VOID native execution worker v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_native_execution_worker_v1.ts"
+      - "scripts/prove_buy_void_native_execution_worker_v1.ts"
+      - "scripts/prove_buy_void_native_execution_worker_guard_v1.ts"
+      - "docs/operators/buy-void-native-execution-worker-v1.md"
+      - ".github/workflows/buy-void-native-execution-worker-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-execution-worker:
+    name: native-execution-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Focused TypeScript validation
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_native_execution_worker_v1.ts \
+            scripts/prove_buy_void_native_execution_worker_guard_v1.ts
+
+      - name: Native execution worker proof
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_execution_worker_v1.ts
+
+      - name: Native execution worker authority guard
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_execution_worker_guard_v1.ts
+
+      - name: Revenue regressions
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_inventory_reservation_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_sign_broadcast_adapter_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_execution_attempt_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_broadcast_outcome_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_pipeline_coordinator_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts
+
+      - run: bash tools/check_index_size.sh
+
+      - run: npm run build
