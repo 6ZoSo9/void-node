@@ -2,6 +2,7 @@ import path from "node:path";
 import express from "express";
 import "./buy_void_native_delivery_runtime_integration_v1.js";
 import "./buy_void_native_execution_runtime_v1.js";
+import "./buy_void_confirmed_closeout_runtime_v1.js";
 import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
   VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
