@@ -1,0 +1,41 @@
+name: External opportunity Across quote ingestion V1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/external-opportunity-across-quote-ingestion-v1.yml"
+      - "docs/architecture/external-opportunity-across-quote-ingestion-v1.md"
+      - "scripts/prove_external_opportunity_across_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_swap_api_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-across-quote-ingestion-v1.yml"
+      - "docs/architecture/external-opportunity-across-quote-ingestion-v1.md"
+      - "scripts/prove_external_opportunity_across_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_swap_api_quote_ingestion_v1.ts"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prove read-only Across quote ingestion
+        run: npx tsx scripts/prove_external_opportunity_across_quote_ingestion_v1.ts
+
+      - name: Build
+        run: npm run build
