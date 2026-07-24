@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "safeIdentifier": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-opportunity-paper-classification-journal-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "classification_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "classification_status": {
+      "enum": [
+        "classified_paper_positive",
+        "classified_paper_negative",
+        "risk_held",
+        "source_held"
+      ]
+    },
+    "credential_access_performed": {
+      "const": false
+    },
+    "credential_value_present": {
+      "const": false
+    },
+    "entry_fingerprint_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "gross_revenue_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "held": {
+      "type": "boolean"
+    },
+    "journal_date": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "type": "string"
+    },
+    "journal_id": {
+      "const": "external-opportunity-paper-classifications-v1"
+    },
+    "live_execution_authorized": {
+      "const": false
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_PAPER_CLASSIFICATION_JOURNAL_V1"
+    },
+    "net_profit_margin_bps": {
+      "type": "number"
+    },
+    "net_profit_usd": {
+      "type": "number"
+    },
+    "network_request_performed": {
+      "const": false
+    },
+    "notional_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "opportunity_id": {
+      "$ref": "#/$defs/safeIdentifier"
+    },
+    "paper_negative": {
+      "type": "boolean"
+    },
+    "paper_positive": {
+      "type": "boolean"
+    },
+    "projected_loss_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "provider_id": {
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "type": "string"
+    },
+    "quote_id": {
+      "$ref": "#/$defs/safeIdentifier"
+    },
+    "raw_response_present": {
+      "const": false
+    },
+    "reasons": {
+      "items": {
+        "maxLength": 256,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "recorded_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "risk_decision_status": {
+      "enum": [
+        "recordable_paper_positive",
+        "recordable_paper_negative",
+        "held",
+        "live_candidate_blocked",
+        "not_evaluated"
+      ]
+    },
+    "runtime_mutation_performed": {
+      "const": false
+    },
+    "sanitized_output": {
+      "const": true
+    },
+    "scheduler_mutation_performed": {
+      "const": false
+    },
+    "schema": {
+      "const": "void-external-opportunity-paper-classification-journal-entry-v1"
+    },
+    "service_mutation_performed": {
+      "const": false
+    },
+    "source_record_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_validation_status": {
+      "enum": [
+        "accepted",
+        "held"
+      ]
+    },
+    "total_cost_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "transaction_construction_performed": {
+      "const": false
+    },
+    "transaction_payload_present": {
+      "const": false
+    },
+    "transaction_submission_performed": {
+      "const": false
+    },
+    "version": {
+      "const": 1
+    },
+    "wallet_or_key_access_performed": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "journal_id",
+    "journal_date",
+    "recorded_at",
+    "classification_id",
+    "entry_fingerprint_sha256",
+    "source_record_sha256",
+    "provider_id",
+    "quote_id",
+    "opportunity_id",
+    "classification_status",
+    "source_validation_status",
+    "risk_decision_status",
+    "reasons",
+    "notional_usd",
+    "gross_revenue_usd",
+    "total_cost_usd",
+    "net_profit_usd",
+    "net_profit_margin_bps",
+    "projected_loss_usd",
+    "paper_positive",
+    "paper_negative",
+    "held",
+    "sanitized_output",
+    "credential_value_present",
+    "raw_response_present",
+    "transaction_payload_present",
+    "network_request_performed",
+    "credential_access_performed",
+    "wallet_or_key_access_performed",
+    "transaction_construction_performed",
+    "transaction_submission_performed",
+    "runtime_mutation_performed",
+    "service_mutation_performed",
+    "scheduler_mutation_performed",
+    "live_execution_authorized",
+    "execution_authorized"
+  ],
+  "title": "VOID External Opportunity Paper Classification Journal Entry V1",
+  "type": "object"
+}
