@@ -4859,6 +4859,31 @@ app.get("/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-sum
 </html>`);
 });
 
+// VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1_BEGIN
+const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
+  firstContactRoute: "/public-node/agents/first-contact-v1.json",
+  joinRoute: "/public-node/agents/join-v1.html",
+  firstContactFile: `${process.cwd()}/public/public-node/agents/first-contact-v1.json`,
+  joinFile: `${process.cwd()}/public/public-node/agents/join-v1.html`,
+});
+
+app.get(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.firstContactRoute, (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.sendFile(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.firstContactFile);
+});
+app.head(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.firstContactRoute, (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.sendFile(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.firstContactFile);
+});
+app.get(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.joinRoute, (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.sendFile(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.joinFile);
+});
+app.head(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.joinRoute, (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.sendFile(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.joinFile);
+});
+// VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1_END
 app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
       console.log("[early-minimal-boot] http listening");
       console.log(`[early-minimal-boot] http :${HTTP_PORT}`);
