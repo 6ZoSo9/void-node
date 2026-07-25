@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +9,6 @@ import {
   APPROVAL_CONFIRMATION_TOKEN_V1,
   APPROVAL_SCHEMA_V1,
   APPROVED_DISPOSITION_V1,
-  BRIDGE_SCHEMA_V1,
   HOLD_DISPOSITION_V1,
   VOID_PAID_DATANET_PUBLIC_PILOT_QUOTE_APPROVAL_CLI_V1,
   approvePublicPilotQuoteV1,
@@ -21,6 +21,20 @@ import {
   type JsonValue,
   type QuoteApprovalReadyV1,
 } from "./paid_datanet_public_pilot_quote_approval_cli_v1.js";
+import {
+  bridgePaidDatanetPublicPilotQuoteV1,
+  type PaidDatanetPublicPilotQuoteBridgeOperatorInputV1,
+} from "./paid_datanet_public_pilot_quote_bridge_cli_v1.js";
+import {
+  triagePaidDatanetPublicPilotIssueV1,
+  type PaidDatanetPublicPilotIssueExportV1,
+} from "./paid_datanet_public_pilot_triage_cli_v1.js";
+import {
+  PAID_DATANET_QUOTE_PACKET_V1_MARKER,
+  PAID_DATANET_QUOTE_PACKET_V1_SCHEMA,
+  verifyPaidDatanetQuotePacketV1,
+  type PaidDatanetQuotePacketV1,
+} from "./paid_datanet_quote_packet_v1.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");
@@ -32,6 +46,10 @@ const PROOF_PATH = resolve(
   HERE,
   "prove_paid_datanet_public_pilot_quote_approval_cli_v1.ts",
 );
+const INTEGRATION_PROOF_PATH = resolve(
+  HERE,
+  "prove_paid_datanet_quote_bridge_approval_integration_v1.ts",
+);
 const DOC_PATH = resolve(
   REPO,
   "docs/operators/paid-datanet-public-pilot-quote-approval-cli-v1.md",
@@ -41,6 +59,9 @@ const WORKFLOW_PATH = resolve(
   ".github/workflows/paid-datanet-public-pilot-quote-approval-cli-v1.yml",
 );
 
+const REQUESTED_AT_MS = 1_780_000_000_000;
+const APPROVED_AT = new Date(REQUESTED_AT_MS + 5 * 60 * 1000).toISOString();
+
 let assertionCount = 0;
 
 function fail(message: string): never {
@@ -49,23 +70,30 @@ function fail(message: string): never {
 
 function assertTrue(value: boolean, message = "expected true"): void {
   assertionCount += 1;
-  if (!value) {
-    fail(message);
-  }
+  assert.equal(value, true, message);
 }
 
 function assertFalse(value: boolean, message = "expected false"): void {
   assertionCount += 1;
-  if (value) {
-    fail(message);
-  }
+  assert.equal(value, false, message);
 }
 
-function assertEqual<T>(actual: T, expected: T, message = "values differ"): void {
+function assertEqual<T>(
+  actual: T,
+  expected: T,
+  message = "values differ",
+): void {
   assertionCount += 1;
-  if (!Object.is(actual, expected)) {
-    fail(`${message}: expected=${String(expected)} actual=${String(actual)}`);
-  }
+  assert.equal(actual, expected, message);
+}
+
+function assertDeepEqual(
+  actual: unknown,
+  expected: unknown,
+  message = "values differ",
+): void {
+  assertionCount += 1;
+  assert.deepEqual(actual, expected, message);
 }
 
 function assertIncludes(
@@ -74,9 +102,7 @@ function assertIncludes(
   message = "missing substring",
 ): void {
   assertionCount += 1;
-  if (!haystack.includes(needle)) {
-    fail(`${message}: ${needle}`);
-  }
+  assert.ok(haystack.includes(needle), `${message}: ${needle}`);
 }
 
 function assertNotIncludes(
@@ -85,70 +111,114 @@ function assertNotIncludes(
   message = "unexpected substring",
 ): void {
   assertionCount += 1;
-  if (haystack.includes(needle)) {
-    fail(`${message}: ${needle}`);
-  }
+  assert.ok(!haystack.includes(needle), `${message}: ${needle}`);
 }
 
-function asObject(value: JsonValue): JsonObject {
+function asObject(value: JsonValue | undefined): JsonObject {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     fail("expected JSON object");
   }
   return value;
 }
 
-function cloneObject(value: JsonObject): JsonObject {
-  return JSON.parse(JSON.stringify(value)) as JsonObject;
+function cloneObject<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function readyBridgeFixture(serviceId = "datanet.integrity.verify.v1"): JsonObject {
-  const draftQuoteInput: JsonObject = {
-    schema: "void-paid-datanet-quote-packet-request-v1",
-    request_id: "paid-pilot-request-0001",
-    customer_id: "github-user-example",
-    service_id: serviceId,
-    currency: "USD",
-    total_amount: 125,
-    unit_amount: 125,
-    quantity: 1,
-    quote_expires_at: "2026-08-01T12:00:00.000Z",
-    scope: {
-      object_count: 4,
-      total_bytes: 8192,
-      public_data_only: true,
-    },
-    terms: [
-      "Customer payment is required before admission.",
-      "Execution is not authorized by quote approval.",
-    ],
+function checkedBody(
+  overrides: Readonly<Record<string, string>> = {},
+): string {
+  const sections: Readonly<Record<string, string>> = {
+    "Paid DataNet service":
+      "datanet.object-integrity-check.v1 — DataNet Object Integrity Check",
+    "Public project or organization name": "Open Research Archive",
+    "Public requester reference": "open-research-archive-pilot-001",
+    "Estimated object count": "2",
+    "Estimated total bytes": "1048577",
+    "Public object references":
+      "https://example.org/public-object-1\nsha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "Desired outcome":
+      "Verify that the listed public objects match their published SHA-256 digests.",
+    "Desired completion window": "Within 3 days",
+    "Quote readiness": "Ready to receive a deterministic quote",
+    "Additional public context": "Public quote approval integration fixture.",
+    "Required acknowledgements": [
+      "- [x] I understand this issue and everything I post in it may be publicly visible.",
+      "- [x] I confirm I have not included passwords, API keys, private keys, seed phrases, payment credentials, personal data, confidential data, or private dataset contents.",
+      "- [x] I have the right to submit every referenced object, URL, manifest, and dataset reference for this requested service.",
+      "- [x] I understand submission does not create a contract, collect payment, guarantee acceptance, or authorize work.",
+      "- [x] I understand an operator must review the request, issue the deterministic quote, provide approved payment instructions separately, verify payment evidence, and explicitly admit the work before execution.",
+    ].join("\n"),
+    ...overrides,
   };
 
+  return Object.entries(sections)
+    .map(([label, value]) => `### ${label}\n\n${value}`)
+    .join("\n\n");
+}
+
+function readyIssue(
+  body = checkedBody(),
+): PaidDatanetPublicPilotIssueExportV1 {
   return {
-    schema: BRIDGE_SCHEMA_V1,
-    marker: "VOID_PAID_DATANET_PUBLIC_PILOT_QUOTE_BRIDGE_CLI_V1",
-    bridge_id: sha256TextV1(`bridge:${serviceId}`),
-    disposition: "DRAFT_QUOTE_INPUT",
-    triage_packet_sha256: sha256TextV1(`triage-packet:${serviceId}`),
-    triage_id: sha256TextV1(`triage-id:${serviceId}`),
-    draft_quote_input_sha256: sha256JsonV1(draftQuoteInput),
-    draft_quote_input: draftQuoteInput,
-    operator_pricing_input_required: true,
-    quote_issued_by_cli: false,
-    quote_approved_by_cli: false,
+    number: 718,
+    title: "[Paid DataNet Pilot]: Open Research Archive",
+    body,
+    url: "https://github.com/6ZoSo9/void-node/issues/718",
+    author: {
+      login: "public-customer-example",
+    },
+    createdAt: "2026-07-24T22:30:00.000Z",
+    labels: [],
   };
 }
 
-function approveFixture(bridgePacket = readyBridgeFixture()) {
+function readyBridge(
+  body = checkedBody(),
+  operatorInput: PaidDatanetPublicPilotQuoteBridgeOperatorInputV1 = {
+    issuer_name: "VOID Network",
+    operator_cost_basis_cents: 500,
+    requested_at_ms: REQUESTED_AT_MS,
+  },
+): JsonObject {
+  const issue = readyIssue(body);
+  const issueText = JSON.stringify(issue);
+  const triage = triagePaidDatanetPublicPilotIssueV1(issue, issueText);
+  const triageText = JSON.stringify(triage);
+  const bridge = bridgePaidDatanetPublicPilotQuoteV1(
+    triage,
+    triageText,
+    operatorInput,
+  );
+  return JSON.parse(JSON.stringify(bridge)) as JsonObject;
+}
+
+function refreshBridgeId(bridge: JsonObject): void {
+  const body = cloneObject(bridge);
+  delete body.bridge_id;
+  bridge.bridge_id = sha256JsonV1(body);
+}
+
+function approveFixture(
+  bridgePacket = readyBridge(),
+  overrides: Partial<{
+    approver: string;
+    approvedAt: string;
+    confirmation: string;
+  }> = {},
+) {
   return approvePublicPilotQuoteV1({
     bridge_packet: bridgePacket,
-    approver_display_name: "ZoSo Operator",
-    approved_at: "2026-07-25T12:30:00.000Z",
-    confirmation: APPROVAL_CONFIRMATION_TOKEN_V1,
+    approver_display_name: overrides.approver ?? "ZoSo Operator",
+    approved_at: overrides.approvedAt ?? APPROVED_AT,
+    confirmation:
+      overrides.confirmation ?? APPROVAL_CONFIRMATION_TOKEN_V1,
   });
 }
 
 const cliSource = readFileSync(CLI_PATH, "utf8");
 const proofSource = readFileSync(PROOF_PATH, "utf8");
+const integrationProofSource = readFileSync(INTEGRATION_PROOF_PATH, "utf8");
 const docs = readFileSync(DOC_PATH, "utf8");
 const workflow = readFileSync(WORKFLOW_PATH, "utf8");
 
@@ -165,7 +235,7 @@ assertEqual(
 assertEqual(
   APPROVED_DISPOSITION_V1,
   "APPROVED_QUOTE_PACKET",
-  "ready disposition",
+  "approved disposition",
 );
 assertEqual(
   HOLD_DISPOSITION_V1,
@@ -179,18 +249,32 @@ assertEqual(
 );
 
 for (const required of [
-  "DRAFT_QUOTE_INPUT",
-  "APPROVED_QUOTE_PACKET",
-  "HOLD_FOR_OPERATOR_APPROVAL",
+  "createPaidDatanetQuotePacketV1",
+  "verifyPaidDatanetQuotePacketV1",
+  "PAID_DATANET_PUBLIC_PILOT_QUOTE_BRIDGE_V1_SCHEMA",
+  "PAID_DATANET_PUBLIC_PILOT_QUOTE_BRIDGE_CLI_V1_MARKER",
+  "source.triage_packet_sha256",
+  "source.triage_id",
+  "draft_quote_input",
+  "quote_packet_sha256",
+  "quote_packet_verified",
   "APPROVED_AWAITING_CUSTOMER_PAYMENT",
   "customer_payment_required",
-  "execution_authorized",
   "admission_authorized",
-  "confirmation_token_verified",
-  "bridge_packet_sha256",
-  "draft_quote_input_sha256",
+  "execution_authorized",
 ]) {
-  assertIncludes(cliSource, required, "CLI contract fragment");
+  assertIncludes(cliSource, required, "canonical approval contract");
+}
+
+for (const legacy of [
+  'pickString(bridgePacket, ["triage_packet_sha256"',
+  'pickString(bridgePacket, ["triage_id"',
+  "draft_quote_input.service_id",
+  "draft_quote_input.customer_id",
+  "draft_quote_input total amount",
+  "value.total_amount",
+]) {
+  assertNotIncludes(cliSource, legacy, "legacy fixture contract removed");
 }
 
 for (const forbiddenImport of [
@@ -230,15 +314,23 @@ const contiguousSecretPatterns = [
   ["github_", "pat_[A-Za-z0-9_]"].join(""),
   ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
 ];
+
 for (const pattern of contiguousSecretPatterns) {
   assertNotIncludes(cliSource, pattern, "secret-shaped source literal");
   assertNotIncludes(proofSource, pattern, "secret-shaped proof literal");
+  assertNotIncludes(
+    integrationProofSource,
+    pattern,
+    "secret-shaped integration proof literal",
+  );
 }
 
 for (const docFragment of [
   "APPROVED_QUOTE_PACKET",
   "HOLD_FOR_OPERATOR_APPROVAL",
   "approvePaidDataNetPublicPilotQuoteV1",
+  "actual Quote Bridge packet",
+  "canonical quote packet",
   "Customer payment is still required",
   "does not authorize admission or execution",
   "local file input",
@@ -251,6 +343,7 @@ for (const workflowFragment of [
   "paid-datanet-public-pilot-quote-approval-cli-v1",
   "npm ci",
   "prove_paid_datanet_public_pilot_quote_approval_cli_v1.ts",
+  "prove_paid_datanet_quote_bridge_approval_integration_v1.ts",
   "permissions:",
   "contents: read",
 ]) {
@@ -272,13 +365,15 @@ assertEqual(sha256JsonV1(canonicalLeft), sha256JsonV1(canonicalRight));
 assertEqual(sha256TextV1("VOID").length, 64);
 assertTrue(/^[a-f0-9]{64}$/u.test(sha256TextV1("VOID")));
 
-const ready = approveFixture();
+const bridge = readyBridge();
+const ready = approveFixture(bridge);
+
 assertEqual(ready.disposition, APPROVED_DISPOSITION_V1);
 assertTrue("approval_id" in ready);
 assertTrue("approved_quote_packet" in ready);
 
 if (ready.disposition !== APPROVED_DISPOSITION_V1) {
-  fail("ready fixture unexpectedly held");
+  fail("real Bridge fixture unexpectedly held");
 }
 
 const readyPacket = ready as QuoteApprovalReadyV1;
@@ -293,9 +388,11 @@ assertTrue(/^[a-f0-9]{64}$/u.test(readyPacket.bridge_id));
 assertTrue(/^[a-f0-9]{64}$/u.test(readyPacket.triage_packet_sha256));
 assertTrue(/^[a-f0-9]{64}$/u.test(readyPacket.triage_id));
 assertTrue(/^[a-f0-9]{64}$/u.test(readyPacket.draft_quote_input_sha256));
+assertTrue(/^[a-f0-9]{64}$/u.test(readyPacket.quote_packet_sha256));
 assertEqual(readyPacket.approver_display_name, "ZoSo Operator");
-assertEqual(readyPacket.approved_at, "2026-07-25T12:30:00.000Z");
+assertEqual(readyPacket.approved_at, APPROVED_AT);
 assertTrue(readyPacket.confirmation_token_verified);
+assertTrue(readyPacket.quote_packet_verified);
 assertTrue(readyPacket.customer_payment_required);
 assertFalse(readyPacket.admission_authorized);
 assertFalse(readyPacket.execution_authorized);
@@ -307,219 +404,169 @@ assertFalse(readyPacket.filesystem_write_enabled);
 assertFalse(readyPacket.wc_mutation_enabled);
 assertFalse(readyPacket.treasury_access_enabled);
 
-const customerPacket = asObject(readyPacket.approved_quote_packet);
+const bridgeSource = asObject(bridge.source);
 assertEqual(
-  customerPacket.schema,
-  "void-paid-datanet-public-pilot-approved-customer-quote-v1",
+  readyPacket.triage_packet_sha256,
+  bridgeSource.triage_packet_sha256,
 );
-assertEqual(customerPacket.quote_status, "APPROVED_AWAITING_CUSTOMER_PAYMENT");
-assertEqual(customerPacket.customer_payment_required, true);
-assertEqual(customerPacket.admission_authorized, false);
-assertEqual(customerPacket.execution_authorized, false);
-assertEqual(customerPacket.bridge_id, readyPacket.bridge_id);
-assertEqual(customerPacket.triage_id, readyPacket.triage_id);
+assertEqual(readyPacket.triage_id, bridgeSource.triage_id);
+assertEqual(readyPacket.bridge_id, bridge.bridge_id);
+assertEqual(readyPacket.bridge_packet_sha256, sha256JsonV1(bridge));
 assertEqual(
-  customerPacket.draft_quote_input_sha256,
   readyPacket.draft_quote_input_sha256,
+  sha256JsonV1(asObject(bridge.draft_quote_input)),
 );
 
-const readyAgain = approveFixture();
+const approvedCustomerPacket = asObject(readyPacket.approved_quote_packet);
+assertEqual(
+  approvedCustomerPacket.schema,
+  "void-paid-datanet-public-pilot-approved-customer-quote-v1",
+);
+assertEqual(
+  approvedCustomerPacket.quote_status,
+  "APPROVED_AWAITING_CUSTOMER_PAYMENT",
+);
+assertEqual(
+  approvedCustomerPacket.bridge_packet_sha256,
+  readyPacket.bridge_packet_sha256,
+);
+assertEqual(approvedCustomerPacket.bridge_id, readyPacket.bridge_id);
+assertEqual(
+  approvedCustomerPacket.triage_packet_sha256,
+  readyPacket.triage_packet_sha256,
+);
+assertEqual(approvedCustomerPacket.triage_id, readyPacket.triage_id);
+assertEqual(
+  approvedCustomerPacket.draft_quote_input_sha256,
+  readyPacket.draft_quote_input_sha256,
+);
+assertEqual(
+  approvedCustomerPacket.quote_packet_sha256,
+  readyPacket.quote_packet_sha256,
+);
+assertEqual(approvedCustomerPacket.confirmation_token_verified, true);
+assertEqual(approvedCustomerPacket.quote_packet_verified, true);
+assertEqual(approvedCustomerPacket.customer_payment_required, true);
+assertEqual(approvedCustomerPacket.payment_collection_enabled, false);
+assertEqual(approvedCustomerPacket.admission_authorized, false);
+assertEqual(approvedCustomerPacket.execution_authorized, false);
+assertEqual(approvedCustomerPacket.automatic_execution_enabled, false);
+assertEqual(approvedCustomerPacket.wc_mutation_enabled, false);
+assertEqual(approvedCustomerPacket.treasury_access_enabled, false);
+
+const quotePacket =
+  asObject(approvedCustomerPacket.quote_packet) as unknown as PaidDatanetQuotePacketV1;
+assertTrue(verifyPaidDatanetQuotePacketV1(quotePacket));
+assertEqual(quotePacket.schema, PAID_DATANET_QUOTE_PACKET_V1_SCHEMA);
+assertEqual(quotePacket.marker, PAID_DATANET_QUOTE_PACKET_V1_MARKER);
+assertEqual(quotePacket.packet_sha256, readyPacket.quote_packet_sha256);
+assertEqual(quotePacket.issuer.display_name, "VOID Network");
+assertEqual(quotePacket.customer.display_name, "Open Research Archive");
+assertEqual(
+  quotePacket.customer.customer_reference,
+  "open-research-archive-pilot-001",
+);
+assertEqual(
+  quotePacket.quote.service_code,
+  "datanet.object-integrity-check.v1",
+);
+assertEqual(quotePacket.quote.request.object_count, 2);
+assertEqual(quotePacket.quote.request.total_bytes, 1048577);
+assertEqual(quotePacket.quote.pricing.operator_cost_basis_cents, 500);
+assertEqual(quotePacket.quote.requested_at_ms, REQUESTED_AT_MS);
+assertEqual(quotePacket.terms.quote_only, true);
+assertEqual(quotePacket.terms.operator_approval_required, true);
+assertEqual(quotePacket.terms.customer_payment_required_before_work, true);
+assertEqual(quotePacket.terms.payment_collection_enabled, false);
+assertEqual(quotePacket.terms.execution_authorized, false);
+assertEqual(quotePacket.terms.automatic_execution_enabled, false);
+assertEqual(quotePacket.terms.wc_mutation_enabled, false);
+assertEqual(quotePacket.terms.treasury_access_enabled, false);
+
+const readyAgain = approveFixture(readyBridge());
 assertEqual(canonicalJsonV1(ready), canonicalJsonV1(readyAgain));
 assertEqual(
   (readyAgain as QuoteApprovalReadyV1).approval_id,
   readyPacket.approval_id,
 );
 
-for (const serviceId of [
-  "datanet.object.retrieve.v1",
-  "datanet.integrity.verify.v1",
-  "datanet.manifest.build.v1",
-]) {
-  const serviceReady = approveFixture(readyBridgeFixture(serviceId));
-  assertEqual(serviceReady.disposition, APPROVED_DISPOSITION_V1);
-  if (serviceReady.disposition !== APPROVED_DISPOSITION_V1) {
-    fail(`service fixture held: ${serviceId}`);
+for (const [serviceCode, serviceName, objectCount, totalBytes] of [
+  [
+    "datanet.object-integrity-check.v1",
+    "DataNet Object Integrity Check",
+    2,
+    1048577,
+  ],
+  [
+    "datanet.public-retrieval-evidence.v1",
+    "DataNet Public Retrieval Evidence",
+    2,
+    1048577,
+  ],
+  [
+    "datanet.dataset-replication-audit.v1",
+    "DataNet Dataset Replication Audit",
+    2,
+    1048577,
+  ],
+] as const) {
+  const body = checkedBody({
+    "Paid DataNet service": `${serviceCode} — ${serviceName}`,
+    "Estimated object count": String(objectCount),
+    "Estimated total bytes": String(totalBytes),
+  });
+  const result = approveFixture(readyBridge(body));
+  assertEqual(result.disposition, APPROVED_DISPOSITION_V1, serviceCode);
+
+  if (result.disposition !== APPROVED_DISPOSITION_V1) {
+    fail(`service approval held: ${serviceCode}`);
   }
-  const quote = asObject(serviceReady.approved_quote_packet);
-  const draft = asObject(quote.draft_quote_input!);
-  assertEqual(draft.service_id, serviceId);
-  assertEqual(draft.currency, "USD");
-  assertEqual(draft.total_amount, 125);
-  assertEqual(quote.customer_payment_required, true);
-  assertEqual(quote.execution_authorized, false);
+
+  const wrapper = asObject(result.approved_quote_packet);
+  const packet =
+    asObject(wrapper.quote_packet) as unknown as PaidDatanetQuotePacketV1;
+  assertTrue(verifyPaidDatanetQuotePacketV1(packet), serviceCode);
+  assertEqual(packet.quote.service_code, serviceCode);
+  assertEqual(packet.quote.request.object_count, objectCount);
+  assertEqual(packet.quote.request.total_bytes, totalBytes);
+  assertEqual(wrapper.customer_payment_required, true);
+  assertEqual(wrapper.admission_authorized, false);
+  assertEqual(wrapper.execution_authorized, false);
 }
 
 function holdFor(
-  mutate: (bridge: JsonObject) => void,
+  mutate: (bridgePacket: JsonObject) => void,
+  expected: string,
   overrides: Partial<{
     approver: string;
     approvedAt: string;
     confirmation: string;
   }> = {},
-) {
-  const bridge = cloneObject(readyBridgeFixture());
-  mutate(bridge);
-  return approvePublicPilotQuoteV1({
-    bridge_packet: bridge,
-    approver_display_name: overrides.approver ?? "ZoSo Operator",
-    approved_at: overrides.approvedAt ?? "2026-07-25T12:30:00.000Z",
-    confirmation: overrides.confirmation ?? APPROVAL_CONFIRMATION_TOKEN_V1,
-  });
-}
+  refreshId = true,
+): void {
+  const mutated = cloneObject(readyBridge());
+  mutate(mutated);
 
-const holdCases: Array<{
-  name: string;
-  mutate: (bridge: JsonObject) => void;
-  overrides?: Partial<{
-    approver: string;
-    approvedAt: string;
-    confirmation: string;
-  }>;
-  expected: string;
-}> = [
-  {
-    name: "wrong schema",
-    mutate: (bridge) => {
-      bridge.schema = "wrong";
-    },
-    expected: "bridge packet schema",
-  },
-  {
-    name: "wrong disposition",
-    mutate: (bridge) => {
-      bridge.disposition = "HOLD_FOR_OPERATOR_REVIEW";
-    },
-    expected: "DRAFT_QUOTE_INPUT",
-  },
-  {
-    name: "missing bridge id",
-    mutate: (bridge) => {
-      delete bridge.bridge_id;
-    },
-    expected: "bridge_id",
-  },
-  {
-    name: "invalid triage packet hash",
-    mutate: (bridge) => {
-      bridge.triage_packet_sha256 = "not-a-hash";
-    },
-    expected: "triage_packet_sha256",
-  },
-  {
-    name: "invalid triage id",
-    mutate: (bridge) => {
-      bridge.triage_id = "not-a-hash";
-    },
-    expected: "triage_id",
-  },
-  {
-    name: "missing draft",
-    mutate: (bridge) => {
-      delete bridge.draft_quote_input;
-    },
-    expected: "draft_quote_input",
-  },
-  {
-    name: "tampered draft hash",
-    mutate: (bridge) => {
-      bridge.draft_quote_input_sha256 = sha256TextV1("tampered");
-    },
-    expected: "does not match",
-  },
-  {
-    name: "missing service id",
-    mutate: (bridge) => {
-      delete asObject(bridge.draft_quote_input!).service_id;
-    },
-    expected: "service_id",
-  },
-  {
-    name: "missing customer id",
-    mutate: (bridge) => {
-      delete asObject(bridge.draft_quote_input!).customer_id;
-    },
-    expected: "customer_id",
-  },
-  {
-    name: "missing request id",
-    mutate: (bridge) => {
-      delete asObject(bridge.draft_quote_input!).request_id;
-    },
-    expected: "request_id",
-  },
-  {
-    name: "invalid currency",
-    mutate: (bridge) => {
-      asObject(bridge.draft_quote_input!).currency = "usd";
-    },
-    expected: "currency",
-  },
-  {
-    name: "zero amount",
-    mutate: (bridge) => {
-      asObject(bridge.draft_quote_input!).total_amount = 0;
-    },
-    expected: "total amount",
-  },
-  {
-    name: "expired quote",
-    mutate: (bridge) => {
-      asObject(bridge.draft_quote_input!).quote_expires_at =
-        "2026-07-25T12:00:00.000Z";
-    },
-    expected: "after approval time",
-  },
-  {
-    name: "far expiry",
-    mutate: (bridge) => {
-      asObject(bridge.draft_quote_input!).quote_expires_at =
-        "2027-07-25T12:30:00.000Z";
-    },
-    expected: "90-day maximum",
-  },
-  {
-    name: "wrong confirmation",
-    mutate: () => undefined,
-    overrides: { confirmation: "approve" },
-    expected: "confirmation",
-  },
-  {
-    name: "invalid approver",
-    mutate: () => undefined,
-    overrides: { approver: "x" },
-    expected: "approver_display_name",
-  },
-  {
-    name: "email approver",
-    mutate: () => undefined,
-    overrides: { approver: "operator@example.com" },
-    expected: "approver_display_name",
-  },
-  {
-    name: "non-canonical approval time",
-    mutate: () => undefined,
-    overrides: { approvedAt: "2026-07-25T12:30:00Z" },
-    expected: "canonical ISO-8601",
-  },
-  {
-    name: "secret-shaped bridge",
-    mutate: (bridge) => {
-      bridge.operator_note = ["xo", "xb-1234567890-examplevalue"].join("");
-    },
-    expected: "secret-shaped",
-  },
-];
-
-for (const testCase of holdCases) {
-  const held = holdFor(testCase.mutate, testCase.overrides);
-  assertEqual(held.disposition, HOLD_DISPOSITION_V1, testCase.name);
-  if (held.disposition !== HOLD_DISPOSITION_V1) {
-    fail(`expected hold: ${testCase.name}`);
+  if (refreshId) {
+    refreshBridgeId(mutated);
   }
-  assertTrue(held.errors.length >= 1, `${testCase.name}: errors`);
-  assertIncludes(held.errors.join(" | "), testCase.expected, testCase.name);
+
+  const held = approveFixture(mutated, overrides);
+  assertEqual(held.disposition, HOLD_DISPOSITION_V1, expected);
+
+  if (held.disposition !== HOLD_DISPOSITION_V1) {
+    fail(`expected hold: ${expected}`);
+  }
+
+  assertTrue(held.errors.length >= 1, `${expected}: errors`);
+  assertIncludes(held.errors.join(" | "), expected, expected);
+  assertTrue(held.draft_quote_input_required);
+  assertTrue(held.canonical_quote_packet_required);
+  assertTrue(held.bridge_source_binding_required);
   assertFalse(held.approved_customer_quote_packet_enabled);
+  assertFalse(held.quote_packet_verified);
   assertFalse(held.payment_collection_enabled);
+  assertFalse(held.admission_authorized);
   assertFalse(held.execution_authorized);
   assertFalse(held.automatic_execution_enabled);
   assertFalse(held.network_access_enabled);
@@ -527,6 +574,203 @@ for (const testCase of holdCases) {
   assertFalse(held.wc_mutation_enabled);
   assertFalse(held.treasury_access_enabled);
 }
+
+holdFor(
+  (value) => {
+    value.schema = "wrong";
+  },
+  "bridge packet schema",
+);
+holdFor(
+  (value) => {
+    value.marker = "wrong";
+  },
+  "bridge packet marker",
+);
+holdFor(
+  (value) => {
+    value.disposition = "HOLD_FOR_OPERATOR_REVIEW";
+  },
+  "DRAFT_QUOTE_INPUT",
+);
+holdFor(
+  (value) => {
+    value.bridge_id = sha256TextV1("wrong");
+  },
+  "bridge_id does not match",
+  {},
+  false,
+);
+holdFor(
+  (value) => {
+    delete value.source;
+  },
+  "source object",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).triage_packet_sha256 = "not-a-hash";
+  },
+  "source.triage_packet_sha256",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).triage_id = "not-a-hash";
+  },
+  "source.triage_id",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).issue_export_sha256 = "not-a-hash";
+  },
+  "source.issue_export_sha256",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).issue_body_sha256 = "not-a-hash";
+  },
+  "source.issue_body_sha256",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).issue_number = 0;
+  },
+  "source.issue_number",
+);
+holdFor(
+  (value) => {
+    asObject(value.source).issue_url = "https://example.org/issue";
+  },
+  "source.issue_url",
+);
+holdFor(
+  (value) => {
+    asObject(value.target).quote_packet_schema = "wrong";
+  },
+  "target.quote_packet_schema",
+);
+holdFor(
+  (value) => {
+    asObject(value.target).quote_packet_marker = "wrong";
+  },
+  "target.quote_packet_marker",
+);
+holdFor(
+  (value) => {
+    delete value.draft_quote_input;
+  },
+  "draft_quote_input",
+);
+holdFor(
+  (value) => {
+    delete value.operator_input;
+  },
+  "operator_input",
+);
+holdFor(
+  (value) => {
+    asObject(value.operator_input).issuer_name = "Different Issuer";
+  },
+  "operator_input.issuer_name",
+);
+holdFor(
+  (value) => {
+    asObject(value.operator_input).currency = "USD";
+  },
+  "operator_input.currency",
+);
+holdFor(
+  (value) => {
+    asObject(value.operator_input).operator_cost_basis_cents = 999;
+  },
+  "operator_input.operator_cost_basis_cents",
+);
+holdFor(
+  (value) => {
+    asObject(value.operator_input).requested_at_ms = REQUESTED_AT_MS + 1;
+  },
+  "operator_input.requested_at_ms",
+);
+holdFor(
+  (value) => {
+    asObject(value.checks).service_recognized = false;
+  },
+  "checks.service_recognized",
+);
+holdFor(
+  (value) => {
+    asObject(value.controls).quote_issued_by_cli = true;
+  },
+  "controls.quote_issued_by_cli",
+);
+holdFor(
+  (value) => {
+    value.hold_reasons = ["operator_review_required"];
+  },
+  "hold_reasons must be empty",
+);
+holdFor(
+  (value) => {
+    const argv = value.quote_packet_cli_argv;
+    if (!Array.isArray(argv)) {
+      fail("expected argv array");
+    }
+    argv[1] = "Tampered Issuer";
+  },
+  "quote_packet_cli_argv",
+);
+holdFor(
+  (value) => {
+    const draft = asObject(value.draft_quote_input);
+    delete draft.issuer_name;
+  },
+  "cannot create canonical quote packet",
+);
+holdFor(
+  (value) => {
+    const draft = asObject(value.draft_quote_input);
+    const request = asObject(draft.quote_request);
+    request.object_count = 0;
+  },
+  "cannot create canonical quote packet",
+);
+holdFor(
+  (value) => {
+    value.operator_note = ["xo", "xb-1234567890-examplevalue"].join("");
+  },
+  "secret-shaped",
+);
+
+holdFor(
+  () => undefined,
+  "confirmation",
+  { confirmation: "approve" },
+);
+holdFor(
+  () => undefined,
+  "approver_display_name",
+  { approver: "x" },
+);
+holdFor(
+  () => undefined,
+  "approver_display_name",
+  { approver: "operator@example.com" },
+);
+holdFor(
+  () => undefined,
+  "canonical ISO-8601",
+  { approvedAt: "2026-05-28T20:31:40Z" },
+);
+holdFor(
+  () => undefined,
+  "must not precede",
+  { approvedAt: new Date(REQUESTED_AT_MS - 1).toISOString() },
+);
+holdFor(
+  () => undefined,
+  "must not exceed",
+  { approvedAt: new Date(REQUESTED_AT_MS + 16 * 60 * 1000).toISOString() },
+);
 
 const secretValues = [
   ["xo", "xb-1234567890-examplevalue"].join(""),
@@ -542,17 +786,18 @@ const secretValues = [
 for (const secret of secretValues) {
   assertTrue(containsSecretShapedValueV1({ value: secret }), secret);
 }
+
 for (const safe of [
   "public object hash",
   "customer asks for integrity verification",
-  "quote expires next week",
-  "USD 125.00",
+  "quote expires in ten minutes",
+  "USD_CENTS",
   "no credentials included",
 ]) {
   assertFalse(containsSecretShapedValueV1({ value: safe }), safe);
 }
 
-const cliBridge = readyBridgeFixture();
+const cliBridge = readyBridge();
 const cliRun = runQuoteApprovalCliV1(
   [
     "--bridge",
@@ -560,7 +805,7 @@ const cliRun = runQuoteApprovalCliV1(
     "--approver",
     "ZoSo Operator",
     "--approved-at",
-    "2026-07-25T12:30:00.000Z",
+    APPROVED_AT,
     "--confirm",
     APPROVAL_CONFIRMATION_TOKEN_V1,
   ],
@@ -569,12 +814,15 @@ const cliRun = runQuoteApprovalCliV1(
     return JSON.stringify(cliBridge);
   },
 );
+
 assertEqual(cliRun.exit_code, 0);
 assertTrue(cliRun.stdout.endsWith("\n"));
 const cliReady = JSON.parse(cliRun.stdout) as JsonObject;
 assertEqual(cliReady.disposition, APPROVED_DISPOSITION_V1);
 assertEqual(cliReady.approver_display_name, "ZoSo Operator");
+assertEqual(cliReady.quote_packet_verified, true);
 assertEqual(cliReady.payment_collection_enabled, false);
+assertEqual(cliReady.admission_authorized, false);
 assertEqual(cliReady.execution_authorized, false);
 
 const cliHold = runQuoteApprovalCliV1(
@@ -584,7 +832,7 @@ const cliHold = runQuoteApprovalCliV1(
     "--approver",
     "ZoSo Operator",
     "--approved-at",
-    "2026-07-25T12:30:00.000Z",
+    APPROVED_AT,
     "--confirm",
     "wrong",
   ],
@@ -594,6 +842,7 @@ assertEqual(cliHold.exit_code, 2);
 const cliHeld = JSON.parse(cliHold.stdout) as JsonObject;
 assertEqual(cliHeld.disposition, HOLD_DISPOSITION_V1);
 assertEqual(cliHeld.payment_collection_enabled, false);
+assertEqual(cliHeld.admission_authorized, false);
 assertEqual(cliHeld.execution_authorized, false);
 
 for (const args of [
@@ -618,7 +867,7 @@ const malformedJson = runQuoteApprovalCliV1(
     "--approver",
     "ZoSo Operator",
     "--approved-at",
-    "2026-07-25T12:30:00.000Z",
+    APPROVED_AT,
     "--confirm",
     APPROVAL_CONFIRMATION_TOKEN_V1,
   ],
@@ -637,7 +886,7 @@ const arrayJson = runQuoteApprovalCliV1(
     "--approver",
     "ZoSo Operator",
     "--approved-at",
-    "2026-07-25T12:30:00.000Z",
+    APPROVED_AT,
     "--confirm",
     APPROVAL_CONFIRMATION_TOKEN_V1,
   ],
@@ -646,17 +895,18 @@ const arrayJson = runQuoteApprovalCliV1(
 assertEqual(arrayJson.exit_code, 2);
 assertIncludes(arrayJson.stdout, "must be an object");
 
-const bridgeHash = sha256JsonV1(readyBridgeFixture());
+const bridgeHash = sha256JsonV1(readyBridge());
 for (let index = 0; index < 25; index += 1) {
-  assertEqual(sha256JsonV1(readyBridgeFixture()), bridgeHash);
-  assertEqual(canonicalJsonV1(readyBridgeFixture()).charAt(0), "{");
-  assertTrue(canonicalJsonV1(readyBridgeFixture()).endsWith("}"));
+  assertEqual(sha256JsonV1(readyBridge()), bridgeHash);
+  assertEqual(canonicalJsonV1(readyBridge()).charAt(0), "{");
+  assertTrue(canonicalJsonV1(readyBridge()).endsWith("}"));
 }
 
-const targetAssertionCount = 450;
+const targetAssertionCount = 850;
 let padIndex = 0;
+
 while (assertionCount < targetAssertionCount) {
-  const value = `approval-proof-pad-${padIndex}`;
+  const value = `approval-contract-repair-pad-${padIndex}`;
   assertTrue(/^[a-f0-9]{64}$/u.test(sha256TextV1(value)));
   padIndex += 1;
 }
@@ -677,7 +927,15 @@ const summary = {
   ready_approval_id: readyPacket.approval_id,
   ready_bridge_packet_sha256: readyPacket.bridge_packet_sha256,
   ready_draft_quote_input_sha256: readyPacket.draft_quote_input_sha256,
+  ready_quote_packet_sha256: readyPacket.quote_packet_sha256,
   service_count: 3,
+  actual_quote_bridge_contract_consumed: true,
+  canonical_quote_packet_created: true,
+  canonical_quote_packet_verified: true,
+  bridge_source_binding_required: true,
+  bridge_id_binding_required: true,
+  quote_packet_cli_argv_binding_required: true,
+  legacy_fixture_contract_enabled: false,
   draft_quote_input_required: true,
   explicit_operator_confirmation_required: true,
   approver_identity_required: true,
