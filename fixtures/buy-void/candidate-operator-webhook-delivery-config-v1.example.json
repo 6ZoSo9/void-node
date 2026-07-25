@@ -1,0 +1,11 @@
+{
+  "schema": "void_buy_void_candidate_operator_webhook_delivery_config_v1",
+  "marker": "VOID_BUY_VOID_CANDIDATE_OPERATOR_WEBHOOK_DELIVERY_CONFIG_V1",
+  "version": 1,
+  "enabled": false,
+  "endpoint_url": "https://operator.example.invalid/void/candidate",
+  "allowed_host": "operator.example.invalid",
+  "bearer_token_file": null,
+  "request_timeout_ms": 15000,
+  "maximum_payload_bytes": 16384
+}

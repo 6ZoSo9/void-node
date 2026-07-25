@@ -1,0 +1,19 @@
+[Unit]
+Description=VOID Buy VOID candidate-watch operator webhook delivery V1
+After=network-online.target void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.service
+Wants=network-online.target
+ConditionPathExists=%h/.config/void/buy-void-candidate-operator-webhook-delivery-v1.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/node_modules/.bin/tsx scripts/buy_void_candidate_watch_operator_webhook_delivery_v1.ts --mode apply --confirm sendBuyVoidCandidateOperatorNotification
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/void-buy-void-candidate-operator-webhook-delivery-v1 %h/void-precision-smoke
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077

@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch VOID candidate notification receipts for webhook delivery V1
+
+[Path]
+PathChanged=%h/.local/state/void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1/notifications
+Unit=void-buy-void-candidate-watch-operator-webhook-delivery-v1.service
+
+[Install]
+WantedBy=default.target
