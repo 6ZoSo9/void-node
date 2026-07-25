@@ -63,8 +63,10 @@ ordering, amount, arrival time, or any other hidden policy.
 
 ## systemd examples
 
-The example service is `Type=oneshot`. The example timer invokes it every two
-minutes with a small randomized delay.
+The example service is `Type=oneshot`. The example timer schedules its first
+run 15 seconds after activation, then schedules each later run two minutes
+after the prior one-shot service becomes inactive, with a small randomized
+delay.
 
 The examples are not installed or enabled by this source lane. Enabling them
 requires a separate explicit operator action after merge.

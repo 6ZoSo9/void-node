@@ -172,8 +172,20 @@ assert.equal(
   true,
 );
 assert.equal(
-  timer.includes("OnUnitActiveSec=2min"),
+  timer.includes("OnActiveSec=15s"),
   true,
+);
+assert.equal(
+  timer.includes("OnUnitInactiveSec=2min"),
+  true,
+);
+assert.equal(
+  timer.includes("OnBootSec="),
+  false,
+);
+assert.equal(
+  timer.includes("OnUnitActiveSec="),
+  false,
 );
 assert.equal(
   timer.includes("Persistent=true"),
@@ -191,6 +203,7 @@ console.log("exact_lane_file_count=8");
 console.log("runtime_import_count=0");
 console.log("one_shot_worker=1");
 console.log("timer_example_disabled_until_installed=1");
+console.log("timer_cadence=on_active_then_on_unit_inactive");
 console.log("network_state_write=0");
 console.log("operator_local_state_write=1");
 console.log("background_loop=0");
