@@ -21,6 +21,14 @@ export const voidAiAgentDiscoveryRuntimeRoutesV1 = [
     route: "/.well-known/void-agent-discovery.schema.json",
     relativePath: "public/.well-known/void-agent-discovery.schema.json",
   },
+  {
+    route: "/.well-known/void-network-authenticity.json",
+    relativePath: "public/.well-known/void-network-authenticity.json",
+  },
+  {
+    route: "/.well-known/void-network-authenticity.schema.json",
+    relativePath: "public/.well-known/void-network-authenticity.schema.json",
+  },
 ] as const;
 
 type JsonResponse = {

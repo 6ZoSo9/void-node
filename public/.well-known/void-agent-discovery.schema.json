@@ -10,7 +10,8 @@
     "network",
     "canonical_discovery",
     "authority",
-    "safety"
+    "safety",
+    "network_authenticity"
   ],
   "properties": {
     "$schema": {
@@ -92,6 +93,9 @@
           "const": "not_granted"
         }
       }
+    },
+    "network_authenticity": {
+      "const": "/.well-known/void-network-authenticity.json"
     }
   }
 }

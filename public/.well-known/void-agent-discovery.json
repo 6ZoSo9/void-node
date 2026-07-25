@@ -19,5 +19,6 @@
     "send_wallet_material": false,
     "send_operator_keys": false,
     "treat_unknown_as": "not_granted"
-  }
+  },
+  "network_authenticity": "/.well-known/void-network-authenticity.json"
 }
