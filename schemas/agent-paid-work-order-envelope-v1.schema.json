@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-order-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Order Envelope V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "created_at_utc",
+    "expires_at_utc",
+    "requester",
+    "service",
+    "commercial",
+    "execution_limits",
+    "nonce",
+    "work_order_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "created_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "callback_uri"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "callback_uri": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 2048,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_id",
+        "objective",
+        "input_refs",
+        "expected_outputs"
+      ],
+      "properties": {
+        "capability_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "input_refs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "expected_outputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      }
+    },
+    "commercial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quote_asset",
+        "max_total",
+        "payment_required_before_execution"
+      ],
+      "properties": {
+        "quote_asset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Z][A-Z0-9._:-]{0,31}$"
+        },
+        "max_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "allOf": [
+            {
+              "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$"
+            },
+            {
+              "not": {
+                "pattern": "^0(?:\\.0{1,18})?$"
+              }
+            }
+          ]
+        },
+        "payment_required_before_execution": {
+          "const": true
+        }
+      }
+    },
+    "execution_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_runtime_seconds",
+        "max_output_bytes",
+        "external_side_effects_allowed",
+        "wallet_access_allowed",
+        "money_movement_allowed"
+      ],
+      "properties": {
+        "max_runtime_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "external_side_effects_allowed": {
+          "const": false
+        },
+        "wallet_access_allowed": {
+          "const": false
+        },
+        "money_movement_allowed": {
+          "const": false
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    }
+  }
+}
