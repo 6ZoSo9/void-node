@@ -7,16 +7,22 @@ on:
       - "docs/operators/paid-datanet-public-pilot-quote-approval-cli-v1.md"
       - "scripts/paid_datanet_public_pilot_quote_approval_cli_v1.ts"
       - "scripts/prove_paid_datanet_public_pilot_quote_approval_cli_v1.ts"
+      - "scripts/prove_paid_datanet_quote_bridge_approval_integration_v1.ts"
       - "scripts/paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "scripts/paid_datanet_public_pilot_triage_cli_v1.ts"
       - "scripts/paid_datanet_quote_packet_v1.ts"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
   pull_request:
     paths:
       - ".github/workflows/paid-datanet-public-pilot-quote-approval-cli-v1.yml"
       - "docs/operators/paid-datanet-public-pilot-quote-approval-cli-v1.md"
       - "scripts/paid_datanet_public_pilot_quote_approval_cli_v1.ts"
       - "scripts/prove_paid_datanet_public_pilot_quote_approval_cli_v1.ts"
+      - "scripts/prove_paid_datanet_quote_bridge_approval_integration_v1.ts"
       - "scripts/paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "scripts/paid_datanet_public_pilot_triage_cli_v1.ts"
       - "scripts/paid_datanet_quote_packet_v1.ts"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
 
 permissions:
   contents: read
@@ -43,3 +49,8 @@ jobs:
         run: >-
           npx --no-install tsx
           scripts/prove_paid_datanet_public_pilot_quote_approval_cli_v1.ts
+
+      - name: Prove Quote Bridge to Approval integration v1
+        run: >-
+          npx --no-install tsx
+          scripts/prove_paid_datanet_quote_bridge_approval_integration_v1.ts
