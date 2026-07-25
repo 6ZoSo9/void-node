@@ -1,0 +1,48 @@
+name: paid-datanet-public-pilot-quote-bridge-cli-v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "scripts/prove_paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "docs/operators/paid-datanet-public-pilot-quote-bridge-cli-v1.md"
+      - ".github/workflows/paid-datanet-public-pilot-quote-bridge-cli-v1.yml"
+      - "scripts/paid_datanet_public_pilot_triage_cli_v1.ts"
+      - "scripts/paid_datanet_quote_packet_v1.ts"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "scripts/prove_paid_datanet_public_pilot_quote_bridge_cli_v1.ts"
+      - "docs/operators/paid-datanet-public-pilot-quote-bridge-cli-v1.md"
+      - ".github/workflows/paid-datanet-public-pilot-quote-bridge-cli-v1.yml"
+      - "scripts/paid_datanet_public_pilot_triage_cli_v1.ts"
+      - "scripts/paid_datanet_quote_packet_v1.ts"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove public pilot quote bridge CLI
+        run: >-
+          npx --no-install tsx
+          scripts/prove_paid_datanet_public_pilot_quote_bridge_cli_v1.ts
