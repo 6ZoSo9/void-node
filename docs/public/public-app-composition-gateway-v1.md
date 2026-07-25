@@ -38,3 +38,20 @@ Compatibility aliases are also provided for three stale public runtime links.
 The gateway cannot write ledgers, run jobs, award Work Credits, connect wallets,
 broadcast transactions, admit validators, alter operators, move money, or
 expose private node routes.
+
+
+## Operator notification receiver route
+
+The source includes a disabled-by-default exact proxy route:
+
+- `POST /__void/operator-notifications/v1/candidate`
+
+The route is unavailable unless the composition gateway receives the
+operator-local environment binding
+`VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM=http://127.0.0.1:4186`.
+
+The gateway requires JSON, a bearer authorization header, a matching raw-body
+SHA-256 header, no query string, and a bounded request body. It follows no
+redirects and proxies no other receiver path. The loopback receiver performs
+the actual token comparison, payload validation, duplicate suppression, and
+append-once receipt write.

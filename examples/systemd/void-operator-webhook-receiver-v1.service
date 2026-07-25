@@ -1,0 +1,30 @@
+[Unit]
+Description=VOID operator webhook receiver V1
+After=network.target
+ConditionPathExists=%h/.config/void/credentials/operator-webhook-token-v1
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=VOID_OPERATOR_WEBHOOK_RECEIVER_HOST=127.0.0.1
+Environment=VOID_OPERATOR_WEBHOOK_RECEIVER_PORT=4186
+Environment=VOID_OPERATOR_WEBHOOK_RECEIVER_TOKEN_FILE=%h/.config/void/credentials/operator-webhook-token-v1
+Environment=VOID_OPERATOR_WEBHOOK_RECEIVER_STATE_DIR=%h/.local/state/void-operator-webhook-receiver-v1
+Environment=VOID_OPERATOR_WEBHOOK_RECEIVER_HEALTH_OUTPUT=%h/void-precision-smoke/void-operator-webhook-receiver-health-v1.json
+ExecStart=%h/dev/void-node/ops/public/run-void-operator-webhook-receiver-v1.sh
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/void-operator-webhook-receiver-v1 %h/void-precision-smoke
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077
+
+[Install]
+WantedBy=default.target
