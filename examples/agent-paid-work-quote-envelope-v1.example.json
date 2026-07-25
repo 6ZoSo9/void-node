@@ -1,0 +1,34 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "created_at_utc": "2026-07-25T22:35:00Z",
+  "expires_at_utc": "2026-07-26T20:30:00Z",
+  "provider": {
+    "provider_id": "void.provider.datanet.verify.precision",
+    "capability_id": "datanet.fetch_verify"
+  },
+  "commercial": {
+    "quote_asset": "USD",
+    "total": "3.50",
+    "payment_rail_id": "void.external.prepaid.v1"
+  },
+  "execution_commitment": {
+    "max_runtime_seconds": 240,
+    "max_output_bytes": 524288,
+    "output_labels": [
+      "verification_result.json",
+      "verification_receipt.json"
+    ],
+    "external_side_effects_allowed": false,
+    "wallet_access_allowed": false,
+    "money_movement_allowed": false
+  },
+  "terms": {
+    "separate_acceptance_required": true,
+    "payment_required_before_execution": true,
+    "quote_grants_no_execution_authority": true
+  },
+  "nonce": "quote-example-20260725-0001",
+  "quote_id": "voidawq1_fd090f2e8770eb6c962d0b0c721373733e187ab8ae654da55aa7981b1949bf0f"
+}
