@@ -92,7 +92,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 128,
-          "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
         }
       }
     },
@@ -147,7 +147,9 @@
       "required": [
         "separate_acceptance_required",
         "payment_required_before_execution",
-        "quote_grants_no_execution_authority"
+        "quote_grants_no_execution_authority",
+        "provider_authentication_required",
+        "quote_is_not_payment_instruction"
       ],
       "properties": {
         "separate_acceptance_required": {
@@ -157,6 +159,12 @@
           "const": true
         },
         "quote_grants_no_execution_authority": {
+          "const": true
+        },
+        "provider_authentication_required": {
+          "const": true
+        },
+        "quote_is_not_payment_instruction": {
           "const": true
         }
       }

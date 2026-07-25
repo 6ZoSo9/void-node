@@ -243,8 +243,26 @@ expectReject("quote execution authority", () =>
   validateAgentPaidWorkQuoteDraft(workOrder, grantsAuthority),
 );
 
+const noProviderAuthentication =
+  structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  noProviderAuthentication.terms as Record<string, unknown>
+).provider_authentication_required = false;
+expectReject("unauthenticated provider acceptance", () =>
+  validateAgentPaidWorkQuoteDraft(workOrder, noProviderAuthentication),
+);
+
+const paymentInstruction =
+  structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  paymentInstruction.terms as Record<string, unknown>
+).quote_is_not_payment_instruction = false;
+expectReject("quote treated as payment instruction", () =>
+  validateAgentPaidWorkQuoteDraft(workOrder, paymentInstruction),
+);
+
 const unsafeRail = structuredClone(draft);
-unsafeRail.commercial.payment_rail_id = "file:///tmp/wallet";
+unsafeRail.commercial.payment_rail_id = "file:tmp";
 expectReject("unsafe payment rail identifier", () =>
   validateAgentPaidWorkQuoteDraft(workOrder, unsafeRail),
 );
@@ -285,6 +303,9 @@ for (const boundary of [
   "does not receive payment",
   "does not start work",
   "grants no authority to execute",
+  "provider through a separately signed transport",
+  "not a URI, wallet, payment destination, invoice, or authorization to pay",
+  "authenticated and allowlisted payment-rail registry",
   "No wallet access",
   "No money movement",
   "No external side effects",
@@ -313,6 +334,8 @@ console.log("side_effects_rejected=yes");
 console.log("wallet_access_rejected=yes");
 console.log("money_movement_rejected=yes");
 console.log("separate_acceptance_required=yes");
+console.log("provider_authentication_required=yes");
+console.log("quote_is_not_payment_instruction=yes");
 console.log("payment_before_execution_required=yes");
 console.log("schema_parse_and_boundary_checks=yes");
 console.log("VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1_PROOF_GREEN");

@@ -27,8 +27,10 @@
   "terms": {
     "separate_acceptance_required": true,
     "payment_required_before_execution": true,
-    "quote_grants_no_execution_authority": true
+    "quote_grants_no_execution_authority": true,
+    "provider_authentication_required": true,
+    "quote_is_not_payment_instruction": true
   },
   "nonce": "quote-example-20260725-0001",
-  "quote_id": "voidawq1_fd090f2e8770eb6c962d0b0c721373733e187ab8ae654da55aa7981b1949bf0f"
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e"
 }

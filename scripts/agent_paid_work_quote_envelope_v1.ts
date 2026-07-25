@@ -44,6 +44,8 @@ export interface AgentPaidWorkQuoteDraft {
     separate_acceptance_required: true;
     payment_required_before_execution: true;
     quote_grants_no_execution_authority: true;
+    provider_authentication_required: true;
+    quote_is_not_payment_instruction: true;
   };
   nonce: string;
 }
@@ -319,7 +321,7 @@ function validateDraftShape(value: unknown, allowQuoteId: boolean): AgentPaidWor
   const paymentRailId = requirePattern(
     commercial.payment_rail_id,
     "commercial.payment_rail_id",
-    /^[a-z0-9][a-z0-9._:-]{2,127}$/,
+    /^[a-z0-9][a-z0-9._-]{2,127}$/,
     3,
     128,
   );
@@ -368,6 +370,8 @@ function validateDraftShape(value: unknown, allowQuoteId: boolean): AgentPaidWor
     "separate_acceptance_required",
     "payment_required_before_execution",
     "quote_grants_no_execution_authority",
+    "provider_authentication_required",
+    "quote_is_not_payment_instruction",
   ]);
   assertCondition(
     terms.separate_acceptance_required === true,
@@ -380,6 +384,14 @@ function validateDraftShape(value: unknown, allowQuoteId: boolean): AgentPaidWor
   assertCondition(
     terms.quote_grants_no_execution_authority === true,
     "terms.quote_grants_no_execution_authority must be true",
+  );
+  assertCondition(
+    terms.provider_authentication_required === true,
+    "terms.provider_authentication_required must be true",
+  );
+  assertCondition(
+    terms.quote_is_not_payment_instruction === true,
+    "terms.quote_is_not_payment_instruction must be true",
   );
 
   const nonce = requirePattern(
@@ -417,6 +429,8 @@ function validateDraftShape(value: unknown, allowQuoteId: boolean): AgentPaidWor
       separate_acceptance_required: true,
       payment_required_before_execution: true,
       quote_grants_no_execution_authority: true,
+      provider_authentication_required: true,
+      quote_is_not_payment_instruction: true,
     },
     nonce,
   };

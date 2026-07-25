@@ -28,6 +28,14 @@ V1 covers step 2 only. A quote grants no authority to execute, access a wallet,
 move money, mutate Work Credits, fulfill Buy VOID, change validator state, or
 perform external side effects.
 
+`provider_id` is declarative. The content-addressed `quote_id` proves payload
+integrity, not who sent it. Before acceptance, a consumer must authenticate the
+provider through a separately signed transport or a later signed-envelope lane.
+
+`payment_rail_id` is an opaque registry key only. It is not a URI, wallet,
+payment destination, invoice, or authorization to pay. Resolution must occur
+through a separately authenticated and allowlisted payment-rail registry.
+
 ## Deterministic identity
 
 `quote_id` is:
@@ -54,6 +62,8 @@ The implementation enforces:
 - Quote expiry no later than work-order expiry
 - Runtime and output-byte commitments within the requested limits
 - Exact expected-output labels in the same order
+- Provider authentication before acceptance
+- Authenticated, allowlisted payment-rail resolution
 - Payment before execution
 - No wallet access
 - No money movement
