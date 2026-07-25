@@ -6,12 +6,31 @@
 //   /participant -> static no-node handoff, never the local operator dashboard
 // Account-scoped Wallet/Earn adapters and arbitrary mutations remain private.
 
+import crypto from "node:crypto";
 import http from "node:http";
 
 const HOST = process.env.VOID_COMPOSITION_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_COMPOSITION_PORT || "8082");
 const PUBLIC_UPSTREAM = (process.env.VOID_PUBLIC_GATEWAY_UPSTREAM || "http://127.0.0.1:8080").replace(/\/+$/, "");
 const NODE_UPSTREAM = (process.env.VOID_NODE_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
+  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || ""
+).replace(/\/+$/, "");
+const OPERATOR_WEBHOOK_RECEIVER_PATH =
+  "/__void/operator-notifications/v1/candidate";
+const OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES ||
+      String(64 * 1024)
+  )
+);
+const OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS = Math.max(
+  1000,
+  Number(
+    process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS || "15000"
+  )
+);
 const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
   "/.well-known/void-agent-discovery.json",
   "/.well-known/void-agent-discovery.schema.json",
@@ -688,6 +707,153 @@ async function proxyPublicEarnMutation(req, res, url) {
   );
 }
 
+
+async function proxyOperatorWebhookReceiver(req, res, url) {
+  if (!OPERATOR_WEBHOOK_RECEIVER_UPSTREAM) {
+    return sendJson(
+      res,
+      503,
+      { ok: false, error: "operator_webhook_receiver_unavailable" },
+      "POST"
+    );
+  }
+  if (
+    url.pathname !== OPERATOR_WEBHOOK_RECEIVER_PATH ||
+    url.search
+  ) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "query_not_allowed" },
+      "POST"
+    );
+  }
+
+  const contentType = String(
+    req.headers["content-type"] || ""
+  ).toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    return sendJson(
+      res,
+      415,
+      { ok: false, error: "application_json_required" },
+      "POST"
+    );
+  }
+
+  const authorization = String(
+    req.headers.authorization || ""
+  ).trim();
+  if (!/^Bearer [^\s]{16,8192}$/.test(authorization)) {
+    return sendJson(
+      res,
+      401,
+      { ok: false, error: "bearer_authorization_required" },
+      "POST"
+    );
+  }
+
+  let body;
+  try {
+    body = await readBoundedRequestBody(
+      req,
+      OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES
+    );
+  } catch (error) {
+    if (
+      String(error?.message || "") ===
+      "request_body_too_large"
+    ) {
+      return sendJson(
+        res,
+        413,
+        { ok: false, error: "request_body_too_large" },
+        "POST"
+      );
+    }
+    throw error;
+  }
+
+  const bodySha = crypto
+    .createHash("sha256")
+    .update(body)
+    .digest("hex");
+  const declaredSha = String(
+    req.headers["x-void-payload-sha256"] || ""
+  ).toLowerCase();
+
+  if (!/^[0-9a-f]{64}$/.test(declaredSha)) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "payload_sha256_required" },
+      "POST"
+    );
+  }
+  if (declaredSha !== bodySha) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "payload_sha256_mismatch" },
+      "POST"
+    );
+  }
+
+  try {
+    JSON.parse(body.toString("utf8"));
+  } catch {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "invalid_json" },
+      "POST"
+    );
+  }
+
+  const response = await fetch(
+    `${OPERATOR_WEBHOOK_RECEIVER_UPSTREAM}${OPERATOR_WEBHOOK_RECEIVER_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization,
+        "content-type": "application/json",
+        "content-length": String(body.length),
+        "user-agent": "void-public-app-composition-gateway-v1",
+        "x-void-payload-sha256": bodySha,
+      },
+      body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(
+        OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS
+      ),
+    }
+  );
+
+  const responseBody = Buffer.from(
+    await response.arrayBuffer()
+  );
+  if (responseBody.length > MAX_PROXY_BODY_BYTES) {
+    throw new Error(
+      `upstream body exceeds ${MAX_PROXY_BODY_BYTES} bytes`
+    );
+  }
+
+  const responseHeaders = copyHeaders(response);
+  delete responseHeaders["set-cookie"];
+  delete responseHeaders.location;
+  responseHeaders["cache-control"] = "no-store";
+  responseHeaders["x-void-operator-webhook-route"] = "v1";
+
+  return send(
+    res,
+    response.status,
+    responseHeaders,
+    responseBody,
+    "POST"
+  );
+}
+
 function isBlocked(pathname) {
   return blockedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
 }
@@ -1090,6 +1256,9 @@ const server = http.createServer(async (req, res) => {
     const pathname = url.pathname;
 
     if (method === "POST") {
+      if (pathname === OPERATOR_WEBHOOK_RECEIVER_PATH) {
+        return await proxyOperatorWebhookReceiver(req, res, url);
+      }
       if (
         pathname === PUBLIC_EARN_CLAIM_PATH ||
         pathname === PUBLIC_EARN_SUBMIT_PATH
@@ -1102,6 +1271,19 @@ const server = http.createServer(async (req, res) => {
         {
           "content-type": "text/plain; charset=utf-8",
           allow: "GET, HEAD",
+        },
+        "method_not_allowed\n",
+        method
+      );
+    }
+
+    if (pathname === OPERATOR_WEBHOOK_RECEIVER_PATH) {
+      return send(
+        res,
+        405,
+        {
+          "content-type": "text/plain; charset=utf-8",
+          allow: "POST",
         },
         "method_not_allowed\n",
         method
@@ -1201,7 +1383,15 @@ const server = http.createServer(async (req, res) => {
           port: PORT,
           public_upstream_private: true,
           node_upstream_private: true,
-          methods: ["GET", "HEAD", "POST(exact public earn routes only)"],
+          methods: [
+            "GET",
+            "HEAD",
+            "POST(exact public earn and operator notification routes only)",
+          ],
+          operator_webhook_receiver_route_configured:
+            Boolean(OPERATOR_WEBHOOK_RECEIVER_UPSTREAM),
+          operator_webhook_receiver_path:
+            OPERATOR_WEBHOOK_RECEIVER_PATH,
           app_public: true,
           participant_handoff_public: true,
           account_views_public: false,

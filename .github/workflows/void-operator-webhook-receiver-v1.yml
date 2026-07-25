@@ -1,0 +1,33 @@
+name: VOID operator webhook receiver V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-operator-webhook-receiver-v1.yml"
+      - "docs/operators/void-operator-webhook-receiver-v1.md"
+      - "docs/public/public-app-composition-gateway-v1.md"
+      - "examples/systemd/void-ai-agent-public-gateway-v1.service.d/60-void-operator-webhook-receiver-v1.conf"
+      - "examples/systemd/void-operator-webhook-receiver-v1.service"
+      - "fixtures/void-operator-webhook-receiver-request-v1.example.json"
+      - "ops/public/run-void-operator-webhook-receiver-v1.sh"
+      - "ops/public/void-operator-webhook-receiver-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "schemas/void-operator-webhook-receiver-*.schema.json"
+      - "scripts/prove_void_operator_webhook_receiver*.mjs"
+  workflow_dispatch:
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_void_operator_webhook_receiver_v1.mjs
+      - run: node scripts/prove_void_operator_webhook_receiver_gateway_integration_v1.mjs
+      - run: node scripts/prove_void_operator_webhook_receiver_guard_v1.mjs
+      - run: node scripts/prove_public_app_composition_gateway_v1.mjs
+      - run: npm run build
