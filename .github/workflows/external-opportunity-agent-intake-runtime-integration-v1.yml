@@ -1,0 +1,43 @@
+name: external-opportunity-agent-intake-runtime-integration-v1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-runtime-integration-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-runtime-integration-v1.md"
+      - "scripts/prove_external_opportunity_agent_intake_runtime_integration_v1.ts"
+      - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "src/external_opportunity/agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-runtime-integration-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-runtime-integration-v1.md"
+      - "scripts/prove_external_opportunity_agent_intake_runtime_integration_v1.ts"
+      - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "src/external_opportunity/agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_external_opportunity_agent_intake_runtime_adapter_v1.ts
+      - run: npx tsx scripts/prove_external_opportunity_agent_intake_runtime_integration_v1.ts
+      - run: npx tsx scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts
+      - run: node scripts/prove_official_network_authenticity_well_known_v1.mjs
+      - run: node scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs
+      - run: bash tools/check_index_size.sh
+      - run: npm run build
+      - run: git diff --check
