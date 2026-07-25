@@ -12,6 +12,12 @@ const HOST = process.env.VOID_COMPOSITION_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_COMPOSITION_PORT || "8082");
 const PUBLIC_UPSTREAM = (process.env.VOID_PUBLIC_GATEWAY_UPSTREAM || "http://127.0.0.1:8080").replace(/\/+$/, "");
 const NODE_UPSTREAM = (process.env.VOID_NODE_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
+const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
+  "/.well-known/void-agent-discovery.json",
+  "/.well-known/void-agent-discovery.schema.json",
+  "/.well-known/void-network-authenticity.json",
+  "/.well-known/void-network-authenticity.schema.json",
+]);
 const EXPECTED_PEERS = Math.max(0, Number(process.env.VOID_PUBLIC_EXPECTED_PEERS || "2"));
 const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed";
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
@@ -1158,6 +1164,18 @@ const server = http.createServer(async (req, res) => {
 
     if (publicEarnReadAllowed(url)) {
       return await proxy(req, res, PUBLIC_UPSTREAM);
+    }
+
+    if (PUBLIC_NODE_WELL_KNOWN_PATHS.has(pathname)) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "well_known_query_not_allowed" },
+          method
+        );
+      }
+      return await proxy(req, res, NODE_UPSTREAM);
     }
 
     if (isBlocked(pathname)) {
