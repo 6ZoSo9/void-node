@@ -2,8 +2,8 @@
 Description=Schedule VOID Buy VOID observe-and-claim candidate watch V1
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=2min
+OnActiveSec=15s
+OnUnitInactiveSec=2min
 RandomizedDelaySec=15s
 Persistent=true
 Unit=void-buy-void-observe-and-claim-candidate-watch-v1.service
