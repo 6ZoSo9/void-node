@@ -230,41 +230,121 @@ try {
   await new Promise((resolve) => server.close(resolve));
 }
 
-const changed = await new Promise((resolve, reject) => {
-  const child = spawn(
-    "git",
-    ["status", "--porcelain=v1", "--untracked-files=all"],
-    {
-      cwd: ROOT,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  let stdout = "";
-  let stderr = "";
-  child.stdout.setEncoding("utf8");
-  child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => {
-    stdout += chunk;
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk;
-  });
-  child.once("error", reject);
-  child.once("close", (code) => {
-    if (code !== 0) {
-      reject(new Error(stderr));
-      return;
-    }
-    resolve(
-      stdout
-        .trim()
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => line.slice(3)),
+async function gitLines(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      "git",
+      args,
+      {
+        cwd: ROOT,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
     );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr));
+        return;
+      }
+      resolve(
+        stdout
+          .replace(/\n$/, "")
+          .split("\n")
+          .filter((line) => line.length > 0),
+      );
+    });
   });
-});
-assert.deepEqual([...new Set(changed)].sort(), [...BOUNDARY].sort());
+}
+
+const workingBoundary = [
+  ...new Set(
+    (
+      await gitLines([
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+      ])
+    ).map((line) => line.slice(3)),
+  ),
+].sort();
+const expectedBoundary = [...BOUNDARY].sort();
+const outsideBoundary = workingBoundary.filter(
+  (path) => !BOUNDARY.includes(path),
+);
+assert.deepEqual(
+  outsideBoundary,
+  [],
+  "working tree contains a change outside the six-file lane",
+);
+
+let boundaryVerificationMode = "working_tree";
+let boundaryIntroductionCommit = null;
+
+if (
+  workingBoundary.length === expectedBoundary.length &&
+  workingBoundary.every(
+    (path, index) => path === expectedBoundary[index],
+  )
+) {
+  assert.deepEqual(workingBoundary, expectedBoundary);
+} else {
+  const introductionCommits = await gitLines([
+    "log",
+    "--diff-filter=A",
+    "--format=%H",
+    "-n",
+    "1",
+    "--",
+    "public/public-node/agents/first-contact-v1.json",
+  ]);
+  assert.equal(
+    introductionCommits.length,
+    1,
+    "first-contact introduction commit was not found",
+  );
+  boundaryIntroductionCommit = introductionCommits[0];
+
+  const introducedBoundary = [
+    ...new Set(
+      await gitLines([
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        boundaryIntroductionCommit,
+      ]),
+    ),
+  ].sort();
+
+  assert.deepEqual(
+    introducedBoundary,
+    expectedBoundary,
+    "the introduction commit did not add the exact six-file lane",
+  );
+  boundaryVerificationMode =
+    workingBoundary.length === 0
+      ? "clean_checkout_introduction_commit"
+      : "in_boundary_repair_plus_introduction_commit";
+}
+
+console.log(
+  `boundary_verification_mode=${boundaryVerificationMode}`,
+);
+if (boundaryIntroductionCommit !== null) {
+  console.log(
+    `boundary_introduction_commit=${boundaryIntroductionCommit}`,
+  );
+}
 
 console.log("first_contact_marker=VOID_AI_AGENT_FIRST_CONTACT_V1");
 console.log("client_marker=VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1");
