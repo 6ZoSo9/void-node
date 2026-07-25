@@ -1,0 +1,2 @@
+8893477662a9916896e59e2f1dd107fe3da1b7cff857a32159640fbff5c94c0f  official-network-authenticity-root-v2-public.pem
+530e1cbda5d8acf2d7f7b216b441c4e6af3e613033cdf13ddd9730487ebe79da  official-network-authenticity-root-v2.json
