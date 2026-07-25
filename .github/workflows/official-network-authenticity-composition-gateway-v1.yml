@@ -1,0 +1,32 @@
+name: official-network-authenticity-composition-gateway-v1
+on:
+  push:
+    paths:
+      - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "docs/public/official-network-authenticity-composition-gateway-v1.md"
+  pull_request:
+    paths:
+      - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "docs/public/official-network-authenticity-composition-gateway-v1.md"
+permissions:
+  contents: read
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_public_app_composition_gateway_v1.mjs
+      - run: node scripts/prove_public_participant_no_node_handoff_wall_v1.mjs
+      - run: node scripts/prove_official_network_authenticity_well_known_v1.mjs
+      - run: node scripts/prove_official_network_authenticity_composition_gateway_v1.mjs
+      - run: npm run build
+      - run: git diff --check
