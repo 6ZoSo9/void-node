@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-observe-and-claim-candidate-notification-v1",
+  "title": "Buy VOID observe-and-claim candidate notification V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "marker", "version", "candidate_stage",
+    "notification_id_sha256", "alert_fingerprint_sha256", "request_id",
+    "plan_fingerprint_sha256", "readiness_report_sha256",
+    "required_orchestrator_confirmation", "required_delegated_confirmation",
+    "required_stage_confirmation", "required_canary_confirmation",
+    "operator_action", "source_alert_path", "source_alert_sha256",
+    "created_at", "authority"
+  ],
+  "properties": {
+    "schema": {"const": "void_buy_void_observe_and_claim_candidate_notification_v1"},
+    "marker": {"const": "VOID_BUY_VOID_OBSERVE_AND_CLAIM_CANDIDATE_NOTIFICATION_V1"},
+    "version": {"const": 1},
+    "candidate_stage": {"const": "observe_and_claim"},
+    "notification_id_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "alert_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_id": {"type": "string", "minLength": 3, "maxLength": 160},
+    "plan_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "readiness_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "required_orchestrator_confirmation": {"type": "string", "minLength": 1},
+    "required_delegated_confirmation": {"type": "string", "minLength": 1},
+    "required_stage_confirmation": {"type": "string", "minLength": 1},
+    "required_canary_confirmation": {"const": "buyVoidArmExactObserveAndClaimCanary"},
+    "operator_action": {"const": "review_exact_one_candidate_for_separate_arming_lane"},
+    "source_alert_path": {"type": "string", "minLength": 1},
+    "source_alert_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "minLength": 1},
+    "authority": {"type": "object"}
+  }
+}

@@ -1,0 +1,33 @@
+name: Buy VOID candidate-watch notification bridge V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts"
+      - "scripts/buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts"
+      - "scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts"
+      - "scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_guard_v1.ts"
+      - "schemas/buy-void-observe-and-claim-candidate-notification-v1.schema.json"
+      - "schemas/buy-void-observe-and-claim-candidate-watch-health-v1.schema.json"
+      - "docs/operators/buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.md"
+      - "examples/systemd/void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.*"
+      - ".github/workflows/buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck src/economic/buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts scripts/buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_candidate_watch_notification_bridge_guard_v1.ts
+      - run: npm run build
