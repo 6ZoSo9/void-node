@@ -1,0 +1,55 @@
+{
+  "schema": "void.official-network-authenticity-root-admission.v2.1",
+  "marker": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_PUBLIC_ADMISSION_V2_1",
+  "status": "admitted_unactivated",
+  "project": "VOID Network",
+  "repository": "6ZoSo9/void-node",
+  "source_repository_commit": "a3e53f5560b92b81744d962b30cc7bac37e24c96",
+  "source_public_return_zip_sha256": "8a920f18636c86fff4d6386073b2980092df3c6b95a180bfd8ce04f5e22969d9",
+  "root": {
+    "key_id": "ed25519:00e7609bf643b41c7cae625c3ae51f5d55c06ec1adba35e8eb80300c64e77a7c",
+    "payload_sha256": "3c3af2b3f7753e03e244c6f2520bcc0501b1b6f1eacea583a9a8e4fe32b8cdf3",
+    "immutable_ceremony_status": "ceremony_complete_unpublished",
+    "public_key_path": "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-public.pem",
+    "root_record_path": "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2.json",
+    "payload_path": "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-payload.json"
+  },
+  "network_identity": {
+    "official_network_name": "VOID Mainnet-0",
+    "legacy_genesis_name": "VOID-DEV",
+    "chain_id": 2050,
+    "correction_commit": "103e90d1ec061829223a306e3dc42b14f362bff1",
+    "correction_tag": "ckpt-official-network-identity-mainnet0-correction-v2-1-post-merge-exact-green-20260724T215316Z"
+  },
+  "supersession": {
+    "superseded_payload_sha256": "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e",
+    "quarantined_key_id": "ed25519:0ccca842c156fc87af3279b15830fca826db1225d669b790e97705e2b402362b",
+    "quarantined_candidate_admitted": false
+  },
+  "artifact_sha256": {
+    "CEREMONY-PUBLIC-SHA256SUMS.txt": "f70abaeb9cbdcbdc51a9e415c1600b07b6ada5627483cecb39db8860070d662d",
+    "OFFLINE-CEREMONY-RECEIPT-v2-1.txt": "9e87bac3e65082a301fb8ea7fb4549a569b40fab9122cc2abc5c278c576782c8",
+    "RETURN-SHA256SUMS.txt": "0482829bd3c3581e8d2c72cbab1e3adbaead5eef469a5004bfe7f0d93aa9923d",
+    "official-network-authenticity-root-v2-payload.json": "3c3af2b3f7753e03e244c6f2520bcc0501b1b6f1eacea583a9a8e4fe32b8cdf3",
+    "official-network-authenticity-root-v2-preparation-receipt.json": "f29069a6a5f6fe2a5d483608298190ec5b18eb681e63456780e7224ea9430c32",
+    "official-network-authenticity-root-v2-public.pem": "8893477662a9916896e59e2f1dd107fe3da1b7cff857a32159640fbff5c94c0f",
+    "official-network-authenticity-root-v2.json": "530e1cbda5d8acf2d7f7b216b441c4e6af3e613033cdf13ddd9730487ebe79da"
+  },
+  "authority_boundary": {
+    "repository_publication": "public_root_only",
+    "verification_trust": "admitted",
+    "runtime_binding": "none",
+    "service_enablement": "none",
+    "wallet_authority": "none",
+    "validator_authority": "none",
+    "work_credit_authority": "none",
+    "buy_void_authority": "none",
+    "economic_authority": "none",
+    "third_party_network_control": "none"
+  },
+  "private_key": {
+    "present_in_repository": false,
+    "present_in_public_return": false,
+    "storage_location": "offline_VOID_AUTHORITY_only"
+  }
+}
