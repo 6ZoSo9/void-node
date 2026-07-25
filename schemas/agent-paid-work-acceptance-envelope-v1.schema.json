@@ -128,7 +128,10 @@
         "acceptance_is_not_payment_instruction",
         "acceptance_is_not_execution_instruction",
         "payment_authorization_granted",
-        "execution_authorization_granted"
+        "execution_authorization_granted",
+        "acceptance_replay_protection_required",
+        "single_active_acceptance_per_quote_required",
+        "acceptance_is_not_funds_reservation"
       ],
       "properties": {
         "quote_terms_accepted": {
@@ -157,6 +160,15 @@
         },
         "execution_authorization_granted": {
           "const": false
+        },
+        "acceptance_replay_protection_required": {
+          "const": true
+        },
+        "single_active_acceptance_per_quote_required": {
+          "const": true
+        },
+        "acceptance_is_not_funds_reservation": {
+          "const": true
         }
       }
     },

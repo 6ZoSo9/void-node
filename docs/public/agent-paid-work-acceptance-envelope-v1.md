@@ -27,9 +27,9 @@ The paid-work lifecycle remains split:
 V1 covers step 3 only.
 
 An acceptance is not a payment instruction and is not an execution instruction.
-It grants no authority to debit funds, resolve a payment destination, access a
-wallet, move money, execute work, perform external side effects, mutate Work
-Credits, settle WC to VOID, fulfill Buy VOID, or change validator state.
+It grants no authority to reserve or debit funds, resolve a payment destination,
+access a wallet, move money, execute work, perform external side effects, mutate
+Work Credits, settle WC to VOID, fulfill Buy VOID, or change validator state.
 
 ## Authentication boundary
 
@@ -43,10 +43,16 @@ The acceptance therefore requires:
 - `provider_authentication_required=true`
 - `separate_payment_authorization_required=true`
 - `separate_execution_authorization_required=true`
+- `acceptance_replay_protection_required=true`
+- `single_active_acceptance_per_quote_required=true`
+- `acceptance_is_not_funds_reservation=true`
 - `payment_authorization_granted=false`
 - `execution_authorization_granted=false`
 
-A downstream system must reject an unauthenticated acceptance.
+A downstream system must reject an unauthenticated acceptance. It must also
+atomically prevent replay of an already consumed acceptance ID and prevent more
+than one active acceptance for the same quote. Expired or superseded acceptance
+records must not authorize a later payment-intent or execution lane.
 
 ## Deterministic identity
 
@@ -75,6 +81,9 @@ The implementation enforces:
 - Acceptance expiry no later than quote or work-order expiry
 - Provider authentication remains required
 - Requester authentication remains required
+- Replay protection remains required
+- At most one active acceptance may exist for a quote
+- Acceptance reserves no funds
 - Payment and execution authorization remain separate and ungranted
 
 ## CLI
@@ -115,7 +124,7 @@ VOID_AGENT_PAID_WORK_ACCEPTANCE_ENVELOPE_V1_PROOF_GREEN
 ## Non-goals
 
 This lane does not add a public HTTP route, mutate `src/index.ts`, authenticate
-a live requester or provider, resolve payment details, create an invoice, debit
-funds, receive funds, access a wallet or signer, broadcast a transaction,
+a live requester or provider, resolve payment details, create an invoice, reserve
+or debit funds, receive funds, access a wallet or signer, broadcast a transaction,
 execute work, deliver outputs, award WC, settle WC to VOID, or activate Buy
 VOID fulfillment.

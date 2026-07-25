@@ -344,6 +344,45 @@ expectReject("acceptance treated as execution instruction", () =>
   ),
 );
 
+const replayProtectionDisabled =
+  structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  replayProtectionDisabled.terms as Record<string, unknown>
+).acceptance_replay_protection_required = false;
+expectReject("acceptance replay protection disabled", () =>
+  validateAgentPaidWorkAcceptanceDraft(
+    workOrder,
+    quote,
+    replayProtectionDisabled,
+  ),
+);
+
+const multipleActiveAcceptances =
+  structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  multipleActiveAcceptances.terms as Record<string, unknown>
+).single_active_acceptance_per_quote_required = false;
+expectReject("multiple active acceptances allowed", () =>
+  validateAgentPaidWorkAcceptanceDraft(
+    workOrder,
+    quote,
+    multipleActiveAcceptances,
+  ),
+);
+
+const fundsReservation =
+  structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  fundsReservation.terms as Record<string, unknown>
+).acceptance_is_not_funds_reservation = false;
+expectReject("acceptance treated as funds reservation", () =>
+  validateAgentPaidWorkAcceptanceDraft(
+    workOrder,
+    quote,
+    fundsReservation,
+  ),
+);
+
 const paymentGranted =
   structuredClone(draft) as unknown as Record<string, unknown>;
 (
@@ -417,9 +456,12 @@ const normalizedDocs = docs.replace(/\s+/g, " ");
 for (const boundary of [
   "An acceptance is not a payment instruction",
   "is not an execution instruction",
-  "grants no authority to debit funds",
+  "grants no authority to reserve or debit funds",
   "requester_authentication_required=true",
   "provider_authentication_required=true",
+  "acceptance_replay_protection_required=true",
+  "single_active_acceptance_per_quote_required=true",
+  "acceptance_is_not_funds_reservation=true",
   "payment_authorization_granted=false",
   "execution_authorization_granted=false",
   "does not add a public HTTP route",
@@ -450,6 +492,9 @@ console.log("commercial_binding_verified=yes");
 console.log("expiry_window_guard=yes");
 console.log("requester_authentication_required=yes");
 console.log("provider_authentication_required=yes");
+console.log("acceptance_replay_protection_required=yes");
+console.log("single_active_acceptance_per_quote_required=yes");
+console.log("acceptance_is_not_funds_reservation=yes");
 console.log("payment_authorization_separate_and_ungranted=yes");
 console.log("execution_authorization_separate_and_ungranted=yes");
 console.log("acceptance_not_payment_instruction=yes");

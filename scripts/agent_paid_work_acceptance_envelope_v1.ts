@@ -48,6 +48,9 @@ export interface AgentPaidWorkAcceptanceDraft {
     separate_execution_authorization_required: true;
     acceptance_is_not_payment_instruction: true;
     acceptance_is_not_execution_instruction: true;
+    acceptance_replay_protection_required: true;
+    single_active_acceptance_per_quote_required: true;
+    acceptance_is_not_funds_reservation: true;
     payment_authorization_granted: false;
     execution_authorization_granted: false;
   };
@@ -324,6 +327,9 @@ function validateDraftShape(
     "separate_execution_authorization_required",
     "acceptance_is_not_payment_instruction",
     "acceptance_is_not_execution_instruction",
+    "acceptance_replay_protection_required",
+    "single_active_acceptance_per_quote_required",
+    "acceptance_is_not_funds_reservation",
     "payment_authorization_granted",
     "execution_authorization_granted",
   ]);
@@ -354,6 +360,18 @@ function validateDraftShape(
   assertCondition(
     terms.acceptance_is_not_execution_instruction === true,
     "terms.acceptance_is_not_execution_instruction must be true",
+  );
+  assertCondition(
+    terms.acceptance_replay_protection_required === true,
+    "terms.acceptance_replay_protection_required must be true",
+  );
+  assertCondition(
+    terms.single_active_acceptance_per_quote_required === true,
+    "terms.single_active_acceptance_per_quote_required must be true",
+  );
+  assertCondition(
+    terms.acceptance_is_not_funds_reservation === true,
+    "terms.acceptance_is_not_funds_reservation must be true",
   );
   assertCondition(
     terms.payment_authorization_granted === false,
@@ -399,6 +417,9 @@ function validateDraftShape(
       separate_execution_authorization_required: true,
       acceptance_is_not_payment_instruction: true,
       acceptance_is_not_execution_instruction: true,
+      acceptance_replay_protection_required: true,
+      single_active_acceptance_per_quote_required: true,
+      acceptance_is_not_funds_reservation: true,
       payment_authorization_granted: false,
       execution_authorization_granted: false,
     },

@@ -26,8 +26,11 @@
     "acceptance_is_not_payment_instruction": true,
     "acceptance_is_not_execution_instruction": true,
     "payment_authorization_granted": false,
-    "execution_authorization_granted": false
+    "execution_authorization_granted": false,
+    "acceptance_replay_protection_required": true,
+    "single_active_acceptance_per_quote_required": true,
+    "acceptance_is_not_funds_reservation": true
   },
   "nonce": "acceptance-example-20260725-0001",
-  "acceptance_id": "voidawa1_fd86c885fb5756c186bbe333eb2b96202308e5cad76df8c3f1d07220e9ca0444"
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5"
 }
