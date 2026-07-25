@@ -24,6 +24,17 @@ function expectReject(label: string, action: () => void): void {
   assertCondition(rejected, `${label} was unexpectedly accepted`);
 }
 
+function requireRecord(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  assertCondition(
+    typeof value === "object" && value !== null && !Array.isArray(value),
+    `${label} must be an object`,
+  );
+  return value as Record<string, unknown>;
+}
+
 function readText(path: string): string {
   return readFileSync(resolve(path), "utf8");
 }
@@ -108,16 +119,129 @@ expectReject("wallet access", () =>
   validateAgentPaidWorkOrderDraft(walletAccess),
 );
 
+
+const externalSideEffects = structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  (externalSideEffects.execution_limits as Record<string, unknown>)
+).external_side_effects_allowed = true;
+expectReject("external side effects", () =>
+  validateAgentPaidWorkOrderDraft(externalSideEffects),
+);
+
+const unpaidExecution = structuredClone(draft) as unknown as Record<string, unknown>;
+(
+  (unpaidExecution.commercial as Record<string, unknown>)
+).payment_required_before_execution = false;
+expectReject("execution before payment", () =>
+  validateAgentPaidWorkOrderDraft(unpaidExecution),
+);
+
+const insecureCallback = structuredClone(draft);
+insecureCallback.requester.callback_uri = "http://agent.example.invalid/callback";
+expectReject("non-HTTPS callback", () =>
+  validateAgentPaidWorkOrderDraft(insecureCallback),
+);
+
+const credentialCallback = structuredClone(draft);
+credentialCallback.requester.callback_uri =
+  "https://user:password@agent.example.invalid/callback";
+expectReject("credential-bearing callback", () =>
+  validateAgentPaidWorkOrderDraft(credentialCallback),
+);
+
+const fragmentCallback = structuredClone(draft);
+fragmentCallback.requester.callback_uri =
+  "https://agent.example.invalid/callback#fragment";
+expectReject("callback fragment", () =>
+  validateAgentPaidWorkOrderDraft(fragmentCallback),
+);
+
+const unsafeOutput = structuredClone(draft);
+unsafeOutput.service.expected_outputs = ["../../result.json"];
+expectReject("unsafe output label", () =>
+  validateAgentPaidWorkOrderDraft(unsafeOutput),
+);
+
 const zeroBudget = structuredClone(draft) as unknown as Record<string, unknown>;
 ((zeroBudget.commercial as Record<string, unknown>)).max_total = "0";
 expectReject("zero max_total", () =>
   validateAgentPaidWorkOrderDraft(zeroBudget),
 );
 
+
+const oversizedBudget = structuredClone(draft) as unknown as Record<string, unknown>;
+((oversizedBudget.commercial as Record<string, unknown>)).max_total =
+  "123456789012345678901234567890123";
+expectReject("oversized max_total", () =>
+  validateAgentPaidWorkOrderDraft(oversizedBudget),
+);
+
 const expired = structuredClone(draft);
 expired.expires_at_utc = expired.created_at_utc;
 expectReject("non-forward expiry", () =>
   validateAgentPaidWorkOrderDraft(expired),
+);
+
+const schemaValue = readJson(schemaPath);
+const schemaRoot = requireRecord(schemaValue, "schema");
+assertCondition(
+  schemaRoot.$schema === "https://json-schema.org/draft/2020-12/schema",
+  "schema draft declaration mismatch",
+);
+const schemaProperties = requireRecord(schemaRoot.properties, "schema.properties");
+const requesterSchema = requireRecord(
+  schemaProperties.requester,
+  "schema.properties.requester",
+);
+const requesterProperties = requireRecord(
+  requesterSchema.properties,
+  "schema requester properties",
+);
+const callbackSchema = requireRecord(
+  requesterProperties.callback_uri,
+  "schema callback_uri",
+);
+assertCondition(
+  callbackSchema.pattern === "^https://[^\\s#]+$",
+  "schema callback_uri must require lowercase HTTPS and reject fragments",
+);
+
+const serviceSchema = requireRecord(
+  schemaProperties.service,
+  "schema.properties.service",
+);
+const serviceProperties = requireRecord(
+  serviceSchema.properties,
+  "schema service properties",
+);
+const expectedOutputsSchema = requireRecord(
+  serviceProperties.expected_outputs,
+  "schema expected_outputs",
+);
+const expectedOutputItems = requireRecord(
+  expectedOutputsSchema.items,
+  "schema expected_outputs items",
+);
+assertCondition(
+  expectedOutputItems.pattern === "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+  "schema expected_outputs must require machine-safe logical labels",
+);
+
+const commercialSchema = requireRecord(
+  schemaProperties.commercial,
+  "schema.properties.commercial",
+);
+const commercialProperties = requireRecord(
+  commercialSchema.properties,
+  "schema commercial properties",
+);
+const maxTotalSchema = requireRecord(
+  commercialProperties.max_total,
+  "schema max_total",
+);
+assertCondition(
+  maxTotalSchema.maxLength === 51,
+  "schema max_total length bound mismatch",
 );
 
 const schema = readText(schemaPath);
@@ -164,6 +288,12 @@ console.log(`canonical_bytes=${Buffer.byteLength(canonicalJson(draft), "utf8")}`
 console.log("tampered_id_rejected=yes");
 console.log("money_movement_rejected=yes");
 console.log("wallet_access_rejected=yes");
+console.log("external_side_effects_rejected=yes");
+console.log("execution_before_payment_rejected=yes");
+console.log("unsafe_callback_rejected=yes");
+console.log("unsafe_output_label_rejected=yes");
 console.log("zero_budget_rejected=yes");
+console.log("oversized_budget_rejected=yes");
 console.log("non_forward_expiry_rejected=yes");
+console.log("schema_parse_and_hardening_checks=yes");
 console.log("VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1_PROOF_GREEN");

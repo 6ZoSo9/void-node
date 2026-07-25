@@ -49,12 +49,20 @@ V1 requires:
 - `external_side_effects_allowed=false`
 - `wallet_access_allowed=false`
 - `money_movement_allowed=false`
-- A positive decimal `max_total`
+- A lowercase `https://` callback URI without embedded credentials or fragments
+- A positive decimal `max_total` with at most 32 integer digits and 18
+  fractional digits
 - A forward expiration time
-- At least one input reference and expected output
+- At least one input reference
+- At least one machine-safe logical output label
 
 A later capability-specific lane may define additional policy, but it must not
-silently weaken this envelope.
+silently weaken this envelope. `expected_outputs` values are logical labels, not
+filesystem paths. A provider must never treat them as trusted pathnames.
+
+The envelope proves only that `expires_at_utc` is later than `created_at_utc`.
+A later intake or acceptance lane must compare expiration against a trusted
+current clock and reject stale work orders.
 
 ## CLI
 
@@ -64,6 +72,9 @@ Materialize a draft:
 npx tsx scripts/agent_paid_work_order_envelope_v1.ts \
   materialize draft.json work-order.json
 ```
+
+Materialization creates the output with mode `0600` and refuses to overwrite an
+existing path.
 
 Verify a materialized envelope:
 

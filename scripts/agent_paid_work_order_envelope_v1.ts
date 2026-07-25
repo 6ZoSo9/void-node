@@ -153,22 +153,39 @@ function requireIsoUtc(value: unknown, label: string): string {
   return text;
 }
 
-function requireUri(value: unknown, label: string): string {
-  const text = requireTrimmedString(value, label, 3, 2048);
+function requireHttpsCallbackUri(value: unknown, label: string): string {
+  const text = requireTrimmedString(value, label, 12, 2048);
   assertCondition(
-    /^[A-Za-z][A-Za-z0-9+.-]*:[^\s]+$/.test(text),
-    `${label} must be an absolute URI`,
+    text.startsWith("https://"),
+    `${label} must use lowercase https://`,
   );
+
+  let parsed: URL;
+  try {
+    parsed = new URL(text);
+  } catch {
+    return fail(`${label} must be a valid HTTPS URI`);
+  }
+
+  assertCondition(
+    parsed.protocol === "https:" && parsed.hostname.length > 0,
+    `${label} must include an HTTPS hostname`,
+  );
+  assertCondition(
+    parsed.username === "" && parsed.password === "",
+    `${label} must not embed credentials`,
+  );
+  assertCondition(!text.includes("#"), `${label} must not include a fragment`);
   return text;
 }
 
 function requireDecimalAmount(value: unknown, label: string): string {
   const text = requireTrimmedString(value, label, 1, 64);
   assertCondition(
-    /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(text),
-    `${label} must be a non-negative decimal string with up to 18 decimals`,
+    /^(?:0|[1-9]\d{0,31})(?:\.\d{1,18})?$/.test(text),
+    `${label} must use at most 32 integer digits and 18 fractional digits`,
   );
-  assertCondition(Number(text) > 0, `${label} must be greater than zero`);
+  assertCondition(/[1-9]/.test(text), `${label} must be greater than zero`);
   return text;
 }
 
@@ -219,7 +236,10 @@ function validateDraftShape(value: unknown, includeId: boolean): AgentPaidWorkOr
     /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(agentId),
     "requester.agent_id contains unsupported characters",
   );
-  const callbackUri = requireUri(requester.callback_uri, "requester.callback_uri");
+  const callbackUri = requireHttpsCallbackUri(
+    requester.callback_uri,
+    "requester.callback_uri",
+  );
 
   const service = requireRecord(root.service, "service");
   assertExactKeys(
@@ -257,6 +277,12 @@ function validateDraftShape(value: unknown, includeId: boolean): AgentPaidWorkOr
     64,
     256,
   );
+  for (const [index, output] of expectedOutputs.entries()) {
+    assertCondition(
+      /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(output),
+      `service.expected_outputs[${index}] must be a machine-safe logical label`,
+    );
+  }
 
   const commercial = requireRecord(root.commercial, "commercial");
   assertExactKeys(
@@ -374,7 +400,7 @@ function toJsonValue(value: unknown, label = "value"): JsonValue {
     return value.map((item, index) => toJsonValue(item, `${label}[${index}]`));
   }
   if (isRecord(value)) {
-    const result: Record<string, JsonValue> = {};
+    const result = Object.create(null) as Record<string, JsonValue>;
     for (const key of Object.keys(value).sort()) {
       result[key] = toJsonValue(value[key], `${label}.${key}`);
     }
@@ -454,6 +480,7 @@ function main(): void {
     const envelope = materializeAgentPaidWorkOrder(readJson(resolve(inputPath)));
     writeFileSync(resolve(outputPath), `${JSON.stringify(envelope, null, 2)}\n`, {
       encoding: "utf8",
+      flag: "wx",
       mode: 0o600,
     });
     console.log(`marker=${envelope.marker}`);

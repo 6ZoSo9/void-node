@@ -47,9 +47,9 @@
         },
         "callback_uri": {
           "type": "string",
-          "minLength": 3,
+          "minLength": 12,
           "maxLength": 2048,
-          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$"
+          "pattern": "^https://[^\\s#]+$"
         }
       }
     },
@@ -93,7 +93,8 @@
           "items": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
           }
         }
       }
@@ -116,10 +117,10 @@
         "max_total": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 64,
+          "maxLength": 51,
           "allOf": [
             {
-              "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,18})?$"
+              "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
             },
             {
               "not": {
