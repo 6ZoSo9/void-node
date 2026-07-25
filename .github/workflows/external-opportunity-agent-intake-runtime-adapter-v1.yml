@@ -1,0 +1,48 @@
+name: External Opportunity Agent Intake Runtime Adapter v1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-runtime-adapter-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-runtime-adapter-v1.md"
+      - "fixtures/external-opportunity/agent-intake-runtime-adapter-v1.example.json"
+      - "schemas/external-opportunity-agent-intake-runtime-adapter-v1.schema.json"
+      - "scripts/prove_external_opportunity_agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_capability_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-runtime-adapter-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-runtime-adapter-v1.md"
+      - "fixtures/external-opportunity/agent-intake-runtime-adapter-v1.example.json"
+      - "schemas/external-opportunity-agent-intake-runtime-adapter-v1.schema.json"
+      - "scripts/prove_external_opportunity_agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_runtime_adapter_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_capability_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove runtime adapter
+        run: npx tsx scripts/prove_external_opportunity_agent_intake_runtime_adapter_v1.ts
+
+      - name: Build
+        run: npm run build
