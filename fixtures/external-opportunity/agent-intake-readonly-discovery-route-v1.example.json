@@ -1,0 +1,40 @@
+{
+  "schema": "void-external-opportunity-agent-intake-readonly-discovery-route-v1",
+  "marker": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_READONLY_DISCOVERY_ROUTE_V1",
+  "version": 1,
+  "route": {
+    "path": "/.well-known/void-agent-intake-capability-v1.json",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "allow": "GET, HEAD",
+    "cors_origin": "*",
+    "content_type": "application/json; charset=utf-8",
+    "cache_control": "public, max-age=300, must-revalidate",
+    "etag": "\"sha256-c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a\"",
+    "conditional_header": "If-None-Match",
+    "conditional_status": 304,
+    "unsupported_method_status": 405,
+    "noncanonical_path_status": 404
+  },
+  "capability_binding": {
+    "marker": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+    "manifest_fingerprint_sha256": "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
+    "response_body_sha256": "a085c9d38ad6d1ab9358c3166a4e60f468ed5dd145060f3edf85e23f54227c97"
+  },
+  "behavior": {
+    "get_body": true,
+    "head_body": false,
+    "conditional_get": true,
+    "conditional_head": true,
+    "strong_etag": true,
+    "weak_if_none_match_accepted": true,
+    "wildcard_if_none_match_accepted": true,
+    "exact_path_only": true,
+    "pure_handler_contract": true,
+    "route_binding": false,
+    "network_listener": false,
+    "deployment": false
+  }
+}
