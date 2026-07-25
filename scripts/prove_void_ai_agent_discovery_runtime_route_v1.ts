@@ -10,6 +10,11 @@ import {
   voidAiAgentDiscoveryRuntimeRoutesV1,
 } from "../src/ai-agent-discovery-runtime-route-v1.js";
 import { mountLocalMultiboxRuntimeRouteV1 } from "../src/local-multibox-runtime-route-v1.js";
+import {
+  VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_CACHE_CONTROL_V1,
+  VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_ETAG_V1,
+  VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1,
+} from "../src/external_opportunity/agent_intake_readonly_discovery_route_v1.js";
 
 const proofMarker =
   "VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1_PROOF_GREEN";
@@ -109,6 +114,37 @@ assert.equal(
   0,
   "src/index.ts remains free of direct agent-route wiring",
 );
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'from "./external_opportunity/agent_intake_runtime_adapter_v1.js";',
+  ),
+  1,
+  "agent-intake adapter import path count",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    "mountExternalOpportunityAgentIntakeRuntimeAdapterV1(app);",
+  ),
+  1,
+  "agent-intake adapter mount count",
+);
+assert.equal(
+  count(runtimeModuleSource, "mountExternalOpportunityAgentIntakeRuntimeAdapterV1"),
+  2,
+  "agent-intake adapter symbol count",
+);
+assert.equal(
+  count(indexSource, "mountExternalOpportunityAgentIntakeRuntimeAdapterV1"),
+  0,
+  "src/index.ts remains free of direct agent-intake adapter wiring",
+);
+assert.equal(
+  count(indexSource, VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1),
+  0,
+  "src/index.ts remains free of direct agent-intake path wiring",
+);
 
 for (const forbidden of [
   ".post(",
@@ -205,6 +241,75 @@ try {
       );
     }
   }
+
+  const agentIntakeGetResponse = await fetch(
+    base + VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1,
+  );
+  const agentIntakeGetBytes = Buffer.from(
+    await agentIntakeGetResponse.arrayBuffer(),
+  );
+  assert.equal(agentIntakeGetResponse.status, 200);
+  assert.equal(
+    agentIntakeGetResponse.headers.get("content-type"),
+    "application/json; charset=utf-8",
+  );
+  assert.equal(
+    agentIntakeGetResponse.headers.get("access-control-allow-origin"),
+    "*",
+  );
+  assert.equal(
+    agentIntakeGetResponse.headers.get("cache-control"),
+    VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_CACHE_CONTROL_V1,
+  );
+  assert.equal(
+    agentIntakeGetResponse.headers.get("etag"),
+    VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_ETAG_V1,
+  );
+  assert.equal(
+    agentIntakeGetResponse.headers.get("content-length"),
+    String(agentIntakeGetBytes.length),
+  );
+  assert.equal(agentIntakeGetBytes.length, 4728);
+  assert.equal(
+    JSON.parse(agentIntakeGetBytes.toString("utf8")).marker,
+    "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+  );
+
+  const agentIntakeHeadResponse = await fetch(
+    base + VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1,
+    { method: "HEAD" },
+  );
+  assert.equal(agentIntakeHeadResponse.status, 200);
+  assert.equal(
+    Buffer.from(await agentIntakeHeadResponse.arrayBuffer()).length,
+    0,
+  );
+  assert.equal(
+    agentIntakeHeadResponse.headers.get("etag"),
+    VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_ETAG_V1,
+  );
+
+  const agentIntakeConditionalResponse = await fetch(
+    base + VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1,
+    {
+      headers: {
+        "If-None-Match":
+          VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_ETAG_V1,
+      },
+    },
+  );
+  assert.equal(agentIntakeConditionalResponse.status, 304);
+  assert.equal(
+    Buffer.from(await agentIntakeConditionalResponse.arrayBuffer()).length,
+    0,
+  );
+
+  const agentIntakeMethodResponse = await fetch(
+    base + VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_DISCOVERY_PATH_V1,
+    { method: "POST" },
+  );
+  assert.equal(agentIntakeMethodResponse.status, 405);
+  assert.equal(agentIntakeMethodResponse.headers.get("allow"), "GET, HEAD");
 
   const pointer = JSON.parse(
     fs.readFileSync(
@@ -341,6 +446,13 @@ console.log("authenticity_schema_head=200");
 console.log("missing_artifact_status=404");
 console.log("malformed_json_status=500");
 console.log("mutation_routes_mounted=0");
+console.log("agent_intake_get=200");
+console.log("agent_intake_head=200");
+console.log("agent_intake_conditional_status=304");
+console.log("agent_intake_method_guard_status=405");
+console.log("agent_intake_response_body_bytes=4728");
+console.log("agent_intake_runtime_mount_count=1");
+console.log("agent_intake_src_index_direct_wiring=0");
 console.log("mutation_authority_granted=false");
 console.log("buy_void_automatic_fulfillment_enabled=false");
 console.log("validator_activation_enabled=false");

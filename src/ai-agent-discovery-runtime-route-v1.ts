@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  mountExternalOpportunityAgentIntakeRuntimeAdapterV1,
+} from "./external_opportunity/agent_intake_runtime_adapter_v1.js";
+
 export const VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1 =
   "VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1" as const;
 
@@ -76,9 +80,13 @@ function mountJsonFileRoute(
 }
 
 export function mountAiAgentDiscoveryRuntimeRouteV1(app: any): void {
-  if (!app || typeof app.get !== "function") {
+  if (
+    !app ||
+    typeof app.get !== "function" ||
+    typeof app.all !== "function"
+  ) {
     throw new TypeError(
-      "VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1 requires an Express-like app.get",
+      "VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1 requires Express-like app.get and app.all",
     );
   }
 
@@ -90,4 +98,6 @@ export function mountAiAgentDiscoveryRuntimeRouteV1(app: any): void {
   for (const entry of voidAiAgentDiscoveryRuntimeRoutesV1) {
     mountJsonFileRoute(app, entry.route, entry.relativePath);
   }
+
+  mountExternalOpportunityAgentIntakeRuntimeAdapterV1(app);
 }
