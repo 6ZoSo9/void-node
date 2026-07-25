@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-candidate-operator-delivery-health-v1",
+  "title": "Buy VOID candidate operator delivery health V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "observed_at",
+    "health_receipt_sha256",
+    "healthy",
+    "health_status",
+    "health_reasons",
+    "config_enabled",
+    "endpoint_fingerprint_sha256",
+    "notification_file_count",
+    "attempted_notification_count",
+    "pending_notification_count",
+    "selected_notification_id_sha256",
+    "last_delivery_outcome",
+    "automatic_retry",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_candidate_operator_delivery_health_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CANDIDATE_OPERATOR_DELIVERY_HEALTH_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "health_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "healthy": {
+      "type": "boolean"
+    },
+    "health_status": {
+      "enum": [
+        "healthy",
+        "degraded",
+        "held"
+      ]
+    },
+    "health_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "config_enabled": {
+      "type": "boolean"
+    },
+    "endpoint_fingerprint_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "notification_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempted_notification_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pending_notification_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selected_notification_id_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "last_delivery_outcome": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "delivered",
+        "http_rejected",
+        "possible_delivery",
+        "transport_failed",
+        null
+      ]
+    },
+    "automatic_retry": {
+      "const": false
+    },
+    "authority": {
+      "type": "object"
+    }
+  }
+}

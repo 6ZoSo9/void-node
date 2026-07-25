@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic VOID candidate operator webhook delivery health V1
+
+[Timer]
+OnActiveSec=1min
+OnUnitInactiveSec=10min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=void-buy-void-candidate-watch-operator-webhook-delivery-v1.service
+
+[Install]
+WantedBy=timers.target
