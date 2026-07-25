@@ -90,12 +90,30 @@ try {
   });
 
   const base = `http://127.0.0.1:${gatewayPort}`;
+  let started = false;
+  let lastStartupError = "";
+
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
-      if ((await fetch(base + "/__void/public-app/status.json")).status === 200) break;
-    } catch {}
+      const response = await fetch(
+        base + "/__void/public-app/status.json",
+      );
+      if (response.status === 200) {
+        started = true;
+        break;
+      }
+      lastStartupError = `unexpected status ${response.status}`;
+    } catch (error) {
+      lastStartupError = String(error?.message || error);
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 50));
-    if (attempt === 99) throw new Error("gateway start failed");
+  }
+
+  if (!started) {
+    throw new Error(
+      `gateway start failed: ${lastStartupError || "no response"}`,
+    );
   }
 
   for (const [route, , marker] of routes) {
@@ -164,8 +182,9 @@ try {
   console.log("VOID_OFFICIAL_NETWORK_AUTHENTICITY_COMPOSITION_GATEWAY_V1_PROOF_GREEN");
 } finally {
   if (child && child.exitCode === null) {
+    const exited = once(child, "exit");
     child.kill("SIGTERM");
-    await once(child, "exit").catch(() => {});
+    await exited;
   }
   await Promise.all([
     new Promise((resolve) => nodeServer.close(resolve)),
