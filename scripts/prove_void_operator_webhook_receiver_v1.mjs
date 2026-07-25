@@ -69,7 +69,7 @@ for (let attempt = 0; attempt < 100; attempt += 1) {
       `${base}/__void/operator-webhook-receiver-v1/health`,
     );
     if (response.status === 200) break;
-  } catch {}
+  } catch (error) { void error; }
   await new Promise((resolve) => setTimeout(resolve, 25));
   if (attempt === 99) {
     throw new Error(
@@ -87,7 +87,7 @@ async function request(pathname, options = {}) {
   let json = null;
   try {
     json = JSON.parse(text);
-  } catch {}
+  } catch (error) { void error; }
   return { response, text, json };
 }
 
