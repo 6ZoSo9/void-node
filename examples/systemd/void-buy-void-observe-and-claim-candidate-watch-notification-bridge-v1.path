@@ -1,0 +1,9 @@
+[Unit]
+Description=Trigger VOID Buy VOID candidate-watch notification bridge on watch updates
+
+[Path]
+PathChanged=%h/void-precision-smoke/buy-void-observe-and-claim-candidate-watch-latest.json
+Unit=void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.service
+
+[Install]
+WantedBy=default.target
