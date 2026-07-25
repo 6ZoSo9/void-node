@@ -1,0 +1,45 @@
+name: official-network-authenticity-well-known-v1
+on:
+  push:
+    paths:
+      - ".github/workflows/official-network-authenticity-well-known-v1.yml"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
+      - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "docs/public/official-network-authenticity-well-known-v1.md"
+  pull_request:
+    paths:
+      - ".github/workflows/official-network-authenticity-well-known-v1.yml"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
+      - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "docs/public/official-network-authenticity-well-known-v1.md"
+permissions:
+  contents: read
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_official_network_authenticity_wall_v1.mjs
+      - run: node scripts/prove_official_network_authenticity_root_v2.mjs
+      - run: node scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs
+      - run: node scripts/prove_official_network_authenticity_root_public_admission_v2_1.mjs
+      - run: node scripts/prove_official_network_authenticity_well_known_v1.mjs
+      - run: node scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs
+      - run: npx tsx scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts
+      - run: npm run build
+      - run: git diff --check

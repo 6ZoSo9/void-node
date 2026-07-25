@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import express from "express";
 import {
@@ -34,15 +35,43 @@ const expectedRoutes = [
     relativePath: "public/.well-known/void-agent-discovery.schema.json",
     marker: null,
   },
+  {
+    route: "/.well-known/void-network-authenticity.json",
+    relativePath: "public/.well-known/void-network-authenticity.json",
+    marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
+  },
+  {
+    route: "/.well-known/void-network-authenticity.schema.json",
+    relativePath: "public/.well-known/void-network-authenticity.schema.json",
+    marker: null,
+  },
 ] as const;
 
 assert.equal(
   VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1,
   "VOID_AI_AGENT_DISCOVERY_RUNTIME_ROUTE_V1",
 );
+assert.equal(
+  voidAiAgentDiscoveryRuntimeRoutesV1.length,
+  6,
+  "exactly six runtime routes",
+);
 assert.deepEqual(
   voidAiAgentDiscoveryRuntimeRoutesV1,
   expectedRoutes.map(({ route, relativePath }) => ({ route, relativePath })),
+  "runtime route array is exact",
+);
+assert.equal(
+  new Set(voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.route)).size,
+  6,
+  "no duplicate runtime routes",
+);
+assert.equal(
+  new Set(
+    voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.relativePath),
+  ).size,
+  6,
+  "no duplicate runtime relative paths",
 );
 
 const runtimeModulePath = path.resolve(
@@ -98,6 +127,23 @@ for (const forbidden of [
   );
 }
 
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/.well-known/void-network-authenticity.json"',
+  ),
+  1,
+  "authenticity route appears exactly once",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/.well-known/void-network-authenticity.schema.json"',
+  ),
+  1,
+  "authenticity schema route appears exactly once",
+);
+
 const app = express();
 mountLocalMultiboxRuntimeRouteV1(app);
 mountAiAgentDiscoveryRuntimeRouteV1(app);
@@ -147,6 +193,17 @@ try {
       0,
       `${expected.route} HEAD body empty`,
     );
+
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      const mutationResponse = await fetch(base + expected.route, {
+        method,
+      });
+      assert.equal(
+        mutationResponse.status,
+        404,
+        `${expected.route} ${method} is not mounted`,
+      );
+    }
   }
 
   const pointer = JSON.parse(
@@ -174,6 +231,10 @@ try {
     pointer.canonical_discovery,
     "/public-node/agents/discovery-v1.json",
   );
+  assert.equal(
+    pointer.network_authenticity,
+    "/.well-known/void-network-authenticity.json",
+  );
 
   assert.equal(canonical.network.chain_id, 2050);
   assert.equal(canonical.authority.mutation_authority_granted, false);
@@ -196,6 +257,75 @@ try {
   });
 }
 
+async function withTemporaryCwd(
+  files: Record<string, string>,
+  check: (base: string) => Promise<void>,
+): Promise<void> {
+  const previous = process.cwd();
+  const temporary = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-agent-route-proof-"),
+  );
+
+  try {
+    for (const [relativePath, content] of Object.entries(files)) {
+      const target = path.join(temporary, relativePath);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, content, "utf8");
+    }
+
+    process.chdir(temporary);
+    const isolated = express();
+    mountAiAgentDiscoveryRuntimeRouteV1(isolated);
+    const isolatedServer = http.createServer(isolated);
+
+    await new Promise<void>((resolve, reject) => {
+      isolatedServer.once("error", reject);
+      isolatedServer.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const address = isolatedServer.address();
+      assert.ok(address && typeof address === "object");
+      await check(`http://127.0.0.1:${address.port}`);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        isolatedServer.close((error) =>
+          error ? reject(error) : resolve(),
+        );
+      });
+    }
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+await withTemporaryCwd({}, async (base) => {
+  const response = await fetch(
+    base + "/.well-known/void-network-authenticity.json",
+  );
+  assert.equal(response.status, 404, "missing artifact returns 404");
+  const payload = await response.json();
+  assert.equal(payload.error, "missing_public_artifact");
+});
+
+await withTemporaryCwd(
+  {
+    "public/.well-known/void-network-authenticity.json": "{not-json",
+  },
+  async (base) => {
+    const response = await fetch(
+      base + "/.well-known/void-network-authenticity.json",
+    );
+    assert.equal(response.status, 500, "malformed JSON returns 500");
+    const payload = await response.json();
+    assert.equal(payload.ok, false);
+  },
+);
+
+console.log("runtime_route_count=6");
+console.log("runtime_route_duplicates=0");
+console.log("runtime_relative_path_duplicates=0");
 console.log("canonical_discovery_get=200");
 console.log("canonical_discovery_head=200");
 console.log("canonical_schema_get=200");
@@ -204,6 +334,13 @@ console.log("well_known_pointer_get=200");
 console.log("well_known_pointer_head=200");
 console.log("well_known_schema_get=200");
 console.log("well_known_schema_head=200");
+console.log("authenticity_get=200");
+console.log("authenticity_head=200");
+console.log("authenticity_schema_get=200");
+console.log("authenticity_schema_head=200");
+console.log("missing_artifact_status=404");
+console.log("malformed_json_status=500");
+console.log("mutation_routes_mounted=0");
 console.log("mutation_authority_granted=false");
 console.log("buy_void_automatic_fulfillment_enabled=false");
 console.log("validator_activation_enabled=false");
