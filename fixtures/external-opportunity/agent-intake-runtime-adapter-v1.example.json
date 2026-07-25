@@ -1,0 +1,38 @@
+{
+  "schema": "void-external-opportunity-agent-intake-runtime-adapter-v1",
+  "marker": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_RUNTIME_ADAPTER_V1",
+  "version": 1,
+  "registration": {
+    "path": "/.well-known/void-agent-intake-capability-v1.json",
+    "method": "all",
+    "registration_count_per_mount": 1,
+    "exact_path_only": true
+  },
+  "handler_binding": {
+    "marker": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_READONLY_DISCOVERY_ROUTE_V1",
+    "handler": "handleExternalOpportunityAgentIntakeDiscoveryV1",
+    "etag": "\"sha256-c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a\"",
+    "response_body_sha256": "a085c9d38ad6d1ab9358c3166a4e60f468ed5dd145060f3edf85e23f54227c97"
+  },
+  "response_mapping": {
+    "status": "status",
+    "headers": "setHeader",
+    "body": "send_or_end",
+    "empty_body": "end"
+  },
+  "behavior": {
+    "get": true,
+    "head": true,
+    "conditional_304": true,
+    "unsupported_method_405": true,
+    "noncanonical_path_404": true,
+    "structural_application_interface": true,
+    "express_import": false,
+    "production_mount": false,
+    "runtime_host_mutation": false,
+    "index_mutation": false,
+    "network_listener": false,
+    "outbound_network_request": false,
+    "deployment": false
+  }
+}
