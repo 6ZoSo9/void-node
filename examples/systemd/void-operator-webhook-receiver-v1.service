@@ -16,14 +16,18 @@ Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
-PrivateDevices=true
+# PrivateDevices=true performs capability-bounding operations that are
+# unavailable in the unprivileged systemd user manager on supported hosts.
+PrivateDevices=false
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.local/state/void-operator-webhook-receiver-v1 %h/void-precision-smoke
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictSUIDSGID=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Node.js V8 and bundled Undici require executable memory and WebAssembly.
+# Preserve the remaining sandbox and disable only this incompatible switch.
+MemoryDenyWriteExecute=false
 UMask=0077
 
 [Install]

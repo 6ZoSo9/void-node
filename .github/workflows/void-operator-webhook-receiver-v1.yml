@@ -27,6 +27,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/prove_void_operator_webhook_receiver_v1.mjs
+
+      - run: node scripts/prove_void_operator_webhook_receiver_user_manager_node_compat_v1.mjs
       - run: node scripts/prove_void_operator_webhook_receiver_gateway_integration_v1.mjs
       - run: node scripts/prove_void_operator_webhook_receiver_guard_v1.mjs
       - run: node scripts/prove_public_app_composition_gateway_v1.mjs
