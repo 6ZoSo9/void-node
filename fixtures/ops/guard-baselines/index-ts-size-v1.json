@@ -2,7 +2,7 @@
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
   "reason": "Raised for the reviewed validator positive-readiness public route. The added index code is limited to one read-only GET mount and one public route discovery entry; public validator registration remains disabled, and no validator admission, active-set mutation, or money movement is enabled.",
   "path": "src/index.ts",
-  "baseline_bytes": 3836039,
+  "baseline_bytes": 3848158,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {

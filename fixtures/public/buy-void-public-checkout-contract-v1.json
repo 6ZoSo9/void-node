@@ -1,0 +1,61 @@
+{
+  "schema": "void.buy-void-public-checkout-contract.v1",
+  "marker": "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  "status": "source_bound_ready_fulfillment_authority_false",
+  "source_context_snapshot": "93d6d35fe956e66ef91429520e9b279cbd82df2b",
+  "payment": {
+    "chain": "base",
+    "chain_id": 8453,
+    "asset": "USDC",
+    "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "token_decimals": 6,
+    "receiver": "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
+    "receiver_control_proof_marker": "VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",
+    "receiver_control_proof_manifest_sha256": "dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830"
+  },
+  "delivery": {
+    "chain": "void",
+    "chain_id": 2050,
+    "destination_field": "void_destination_address",
+    "payment_sender_must_equal_destination": true
+  },
+  "economics": {
+    "price_usdc_per_void": "0.50",
+    "rate_void_per_usdc": "2",
+    "pool_void_total": 10000000,
+    "max_raise_usdc": 5000000,
+    "default_min_usdc": 1,
+    "default_max_usdc": 500
+  },
+  "request_contract": {
+    "page": "/buy-void",
+    "config_route": "/__void/buy-void/config.json",
+    "route": "/__void/buy-void/request",
+    "method": "POST",
+    "legacy_get_route": "/__void/buy-void/request.json",
+    "legacy_get_status": 405,
+    "request_before_payment_required": true,
+    "tx_hash_at_creation_allowed": false,
+    "one_active_request_per_void_destination": true,
+    "same_destination_same_amount_is_idempotent": true
+  },
+  "required_acknowledgements": [
+    "ack_self_custody",
+    "ack_base_native_usdc",
+    "ack_request_before_payment",
+    "ack_sender_equals_void_destination",
+    "ack_no_automatic_fulfillment"
+  ],
+  "authority": {
+    "bounded_public_request_write": true,
+    "public_payment_send": false,
+    "public_token_approval": false,
+    "public_payment_hash_binding": false,
+    "automatic_fulfillment": false,
+    "wallet_signing": false,
+    "transaction_broadcast": false,
+    "money_movement": false,
+    "void_transfer": false,
+    "node_restart": false
+  }
+}

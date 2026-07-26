@@ -50,7 +50,7 @@ restart Precision, Nimo, or Alienware.
 ## Index-size baseline fixture
 
 This runtime integration increases `src/index.ts` from `3835145` to
-`3836039` bytes, an intentional increase of `894` bytes.
+`3848158` bytes, an intentional increase of `13013` bytes.
 
 The shared guard reads the integer field `baseline_bytes` from:
 
