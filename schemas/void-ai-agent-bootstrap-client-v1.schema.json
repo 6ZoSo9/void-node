@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-ai-agent-bootstrap-client-v1.schema.json",
+  "title": "VOID AI Agent Bootstrap Result V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "schema",
+    "version",
+    "base_origin",
+    "network",
+    "official_entrypoint",
+    "surfaces",
+    "readiness",
+    "next_steps",
+    "safety"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AI_AGENT_BOOTSTRAP_CLIENT_V1"
+    },
+    "schema": {
+      "const": "void_ai_agent_bootstrap_result_v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "base_origin": {
+      "type": "string",
+      "format": "uri"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "chain_id"
+      ],
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "chain_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "official_entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "route",
+        "marker",
+        "protocol",
+        "canonical_discovery",
+        "authority_default",
+        "mutation_authority_granted"
+      ],
+      "properties": {
+        "verified": {
+          "const": true
+        },
+        "route": {
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1"
+        },
+        "protocol": {
+          "const": "void-agent-discovery-well-known/1"
+        },
+        "canonical_discovery": {
+          "type": "string"
+        },
+        "authority_default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mutation_authority_granted": {
+          "const": false
+        }
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_discovery",
+        "capabilities",
+        "authentication",
+        "first_contact",
+        "external_opportunity_intake"
+      ],
+      "properties": {
+        "canonical_discovery": {
+          "$ref": "#/$defs/surface"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/surface"
+        },
+        "authentication": {
+          "$ref": "#/$defs/surface"
+        },
+        "first_contact": {
+          "$ref": "#/$defs/surface"
+        },
+        "external_opportunity_intake": {
+          "$ref": "#/$defs/surface"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only_connection_ready",
+        "onboarding_surface_complete",
+        "paid_work_execution_promised",
+        "work_credit_earning_promised",
+        "mutation_authority_granted",
+        "wallet_or_signer_access_granted",
+        "payment_authority_granted",
+        "buy_void_fulfillment_authority_granted"
+      ],
+      "properties": {
+        "read_only_connection_ready": {
+          "type": "boolean"
+        },
+        "onboarding_surface_complete": {
+          "type": "boolean"
+        },
+        "paid_work_execution_promised": {
+          "const": false
+        },
+        "work_credit_earning_promised": {
+          "const": false
+        },
+        "mutation_authority_granted": {
+          "const": false
+        },
+        "wallet_or_signer_access_granted": {
+          "const": false
+        },
+        "payment_authority_granted": {
+          "const": false
+        },
+        "buy_void_fulfillment_authority_granted": {
+          "const": false
+        }
+      }
+    },
+    "next_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "http_methods_used",
+        "same_origin_only",
+        "redirects_followed",
+        "credentials_sent",
+        "authorization_header_sent",
+        "cookies_sent",
+        "wallet_material_sent",
+        "operator_keys_sent",
+        "request_body_sent",
+        "mutation_performed",
+        "payment_performed",
+        "transaction_broadcast_performed",
+        "wc_ledger_write_performed"
+      ],
+      "properties": {
+        "http_methods_used": {
+          "const": [
+            "GET"
+          ]
+        },
+        "same_origin_only": {
+          "const": true
+        },
+        "redirects_followed": {
+          "const": false
+        },
+        "credentials_sent": {
+          "const": false
+        },
+        "authorization_header_sent": {
+          "const": false
+        },
+        "cookies_sent": {
+          "const": false
+        },
+        "wallet_material_sent": {
+          "const": false
+        },
+        "operator_keys_sent": {
+          "const": false
+        },
+        "request_body_sent": {
+          "const": false
+        },
+        "mutation_performed": {
+          "const": false
+        },
+        "payment_performed": {
+          "const": false
+        },
+        "transaction_broadcast_performed": {
+          "const": false
+        },
+        "wc_ledger_write_performed": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "route",
+        "http_status",
+        "response_bytes",
+        "marker",
+        "public_marker_valid",
+        "error"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "route": {
+          "type": "string"
+        },
+        "http_status": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "response_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "public_marker_valid": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}
