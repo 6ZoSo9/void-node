@@ -1,0 +1,66 @@
+{
+  "marker": "VOID_AI_AGENT_PAID_WORK_CLIENT_V1",
+  "schema": "void_ai_agent_paid_work_client_result_v1",
+  "version": 1,
+  "mode": "submit",
+  "base_origin": "https://agent-gateway.example.invalid",
+  "route": "/__void/agents/paid-work/submissions/v1",
+  "submission_id": "agent-submission-example-v1",
+  "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111",
+  "request_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "request_bytes": 1024,
+  "http_status": 202,
+  "route_header": "v1",
+  "successful_authentication": true,
+  "accepted_for_review": true,
+  "duplicate": false,
+  "conflicting_duplicate": false,
+  "receipt_id": "voidawsi1_3333333333333333333333333333333333333333333333333333333333333333",
+  "response_bytes": 2048,
+  "receipt": {
+    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+    "version": 1,
+    "receipt_id": "voidawsi1_3333333333333333333333333333333333333333333333333333333333333333",
+    "submission_id": "agent-submission-example-v1",
+    "authorization_verified": true,
+    "loopback_source": true,
+    "admission": {
+      "decision": "accepted_for_review"
+    },
+    "authority": {
+      "provider_selected": false,
+      "quote_created": false,
+      "payment_authorized": false,
+      "work_execution_authorized": false,
+      "work_dispatched": false,
+      "wc_award_authorized": false,
+      "wc_ledger_write_authorized": false,
+      "wallet_or_signer_access_granted": false,
+      "buy_void_fulfillment_authority_granted": false
+    }
+  },
+  "safety": {
+    "https_or_loopback_http_only": true,
+    "same_origin_only": true,
+    "redirects_followed": false,
+    "automatic_retry": false,
+    "token_source": "private_file",
+    "token_output": false,
+    "token_in_command_arguments": false,
+    "cookies_sent": false,
+    "maximum_request_bytes": 65536
+  },
+  "authority": {
+    "provider_selected": false,
+    "quote_created": false,
+    "payment_authorized": false,
+    "work_execution_authorized": false,
+    "work_dispatched": false,
+    "wc_award_authorized": false,
+    "wc_ledger_write_authorized": false,
+    "wallet_or_signer_access": false,
+    "signing_authority": false,
+    "transaction_broadcast_authority": false,
+    "buy_void_fulfillment_authority": false
+  }
+}

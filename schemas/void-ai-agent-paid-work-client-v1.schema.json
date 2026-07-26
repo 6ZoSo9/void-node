@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-ai-agent-paid-work-client-v1.schema.json",
+  "title": "VOID AI Agent Paid Work Client Result V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "marker",
+    "schema",
+    "version",
+    "mode",
+    "base_origin",
+    "route",
+    "safety",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AI_AGENT_PAID_WORK_CLIENT_V1"
+    },
+    "schema": {
+      "const": "void_ai_agent_paid_work_client_result_v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "mode": {
+      "enum": [
+        "probe",
+        "submit"
+      ]
+    },
+    "base_origin": {
+      "type": "string",
+      "format": "uri"
+    },
+    "route": {
+      "const": "/__void/agents/paid-work/submissions/v1"
+    },
+    "submission_id": {
+      "type": "string"
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65536
+    },
+    "http_status": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "route_header": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "successful_authentication": {
+      "type": "boolean"
+    },
+    "accepted_for_review": {
+      "type": "boolean"
+    },
+    "duplicate": {
+      "type": "boolean"
+    },
+    "conflicting_duplicate": {
+      "type": "boolean"
+    },
+    "receipt_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^voidawsi1_[0-9a-f]{64}$"
+    },
+    "response_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "receipt": {
+      "type": "object"
+    },
+    "discovery": {
+      "type": "object"
+    },
+    "submission_route": {
+      "type": "object"
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "https_or_loopback_http_only",
+        "same_origin_only",
+        "redirects_followed",
+        "automatic_retry",
+        "token_source",
+        "token_output",
+        "token_in_command_arguments",
+        "cookies_sent",
+        "maximum_request_bytes"
+      ],
+      "properties": {
+        "https_or_loopback_http_only": {
+          "const": true
+        },
+        "same_origin_only": {
+          "const": true
+        },
+        "redirects_followed": {
+          "const": false
+        },
+        "automatic_retry": {
+          "const": false
+        },
+        "token_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "private_file",
+            null
+          ]
+        },
+        "token_output": {
+          "const": false
+        },
+        "token_in_command_arguments": {
+          "const": false
+        },
+        "cookies_sent": {
+          "const": false
+        },
+        "maximum_request_bytes": {
+          "const": 65536
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_selected",
+        "quote_created",
+        "payment_authorized",
+        "work_execution_authorized",
+        "work_dispatched",
+        "wc_award_authorized",
+        "wc_ledger_write_authorized",
+        "wallet_or_signer_access",
+        "signing_authority",
+        "transaction_broadcast_authority",
+        "buy_void_fulfillment_authority"
+      ],
+      "properties": {
+        "provider_selected": {
+          "const": false
+        },
+        "quote_created": {
+          "const": false
+        },
+        "payment_authorized": {
+          "const": false
+        },
+        "work_execution_authorized": {
+          "const": false
+        },
+        "work_dispatched": {
+          "const": false
+        },
+        "wc_award_authorized": {
+          "const": false
+        },
+        "wc_ledger_write_authorized": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "signing_authority": {
+          "const": false
+        },
+        "transaction_broadcast_authority": {
+          "const": false
+        },
+        "buy_void_fulfillment_authority": {
+          "const": false
+        }
+      }
+    }
+  }
+}
