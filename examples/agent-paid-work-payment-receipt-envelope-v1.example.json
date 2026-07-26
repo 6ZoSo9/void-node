@@ -63,8 +63,15 @@
     "service_total_exact": true,
     "payment_total_exact": true,
     "receipt_is_not_transaction_signature": true,
-    "receipt_is_not_funds_reservation": true
+    "receipt_is_not_funds_reservation": true,
+    "single_success_receipt_per_authorization_required": true,
+    "executor_attempt_id_unique_required": true,
+    "authorization_consumption_id_unique_required": true,
+    "rail_receipt_id_unique_required": true,
+    "executor_signature_binds_receipt_and_evidence": true,
+    "receipt_immutable_and_non_superseding": true,
+    "failure_receipt_separate_required": true
   },
   "nonce": "payment-receipt-example-20260725-0001",
-  "payment_receipt_id": "voidawper1_5b76b59b1be9d3933df957959d86a73fd19226f263420430c702f43d92bb16fb"
+  "payment_receipt_id": "voidawper1_33457cefe699a95b5ddad768272e09e9c3593ad1b524f12d7bf0a3c68d06de51"
 }

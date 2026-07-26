@@ -43,10 +43,16 @@ These are not wallet addresses, account numbers, transaction payloads, private
 keys, or payment destinations. The content-derived receipt ID proves payload
 integrity, not executor authorship or independent settlement confirmation.
 
-A downstream confirmer must authenticate the executor, verify its signature,
-resolve the opaque rail receipt through an allowlisted rail, verify the evidence
-digest, and independently confirm that settlement reached the provider-bound
-destination.
+A downstream confirmer must authenticate the executor, verify a signature that
+binds the canonical receipt ID and payment evidence digest, resolve the opaque
+rail receipt through an allowlisted rail, verify the evidence digest, and
+independently confirm that settlement reached the provider-bound destination.
+
+A successful authorization may have at most one successful receipt. The
+`executor_attempt_id`, `authorization_consumption_id`, and `rail_receipt_id`
+must be unique in the downstream receipt registry. Successful receipts are
+immutable and cannot supersede one another; failed attempts require a separate
+failure-receipt contract and cannot be represented by this success-only lane.
 
 ## Financial and replay boundaries
 
@@ -62,6 +68,10 @@ The validator enforces:
 - Payment total at or below the authorized maximum and work-order maximum
 - Exact rail, rail-resolution, and provider-destination binding identifiers
 - One-time use, atomic consumption, replay, and duplicate-payment verification
+- At most one successful receipt per payment-execution authorization
+- Unique executor-attempt, authorization-consumption, and rail-receipt IDs
+- Executor signature binds the canonical receipt ID and evidence digest
+- Successful receipts are immutable, non-superseding, and distinct from failure receipts
 - Current, unrevoked, unsuperseded resolution records revalidated at execution
 - Unused fee allowance remains uncharged
 - Independent payment confirmation remains required

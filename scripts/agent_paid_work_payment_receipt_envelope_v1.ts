@@ -96,6 +96,13 @@ export interface AgentPaidWorkPaymentReceiptDraft {
     payment_total_exact: true;
     receipt_is_not_transaction_signature: true;
     receipt_is_not_funds_reservation: true;
+    single_success_receipt_per_authorization_required: true;
+    executor_attempt_id_unique_required: true;
+    authorization_consumption_id_unique_required: true;
+    rail_receipt_id_unique_required: true;
+    executor_signature_binds_receipt_and_evidence: true;
+    receipt_immutable_and_non_superseding: true;
+    failure_receipt_separate_required: true;
   };
   nonce: string;
 }
@@ -263,6 +270,13 @@ const ATTESTATION_TRUE_KEYS = [
   "payment_total_exact",
   "receipt_is_not_transaction_signature",
   "receipt_is_not_funds_reservation",
+  "single_success_receipt_per_authorization_required",
+  "executor_attempt_id_unique_required",
+  "authorization_consumption_id_unique_required",
+  "rail_receipt_id_unique_required",
+  "executor_signature_binds_receipt_and_evidence",
+  "receipt_immutable_and_non_superseding",
+  "failure_receipt_separate_required",
 ] as const;
 
 const ATTESTATION_KEYS = [
@@ -595,6 +609,13 @@ function validateDraftShape(
       payment_total_exact: true,
       receipt_is_not_transaction_signature: true,
       receipt_is_not_funds_reservation: true,
+      single_success_receipt_per_authorization_required: true,
+      executor_attempt_id_unique_required: true,
+      authorization_consumption_id_unique_required: true,
+      rail_receipt_id_unique_required: true,
+      executor_signature_binds_receipt_and_evidence: true,
+      receipt_immutable_and_non_superseding: true,
+      failure_receipt_separate_required: true,
     },
     nonce,
   };

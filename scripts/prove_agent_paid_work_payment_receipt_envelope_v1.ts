@@ -357,6 +357,13 @@ const trueKeys = [
   "payment_total_exact",
   "receipt_is_not_transaction_signature",
   "receipt_is_not_funds_reservation",
+  "single_success_receipt_per_authorization_required",
+  "executor_attempt_id_unique_required",
+  "authorization_consumption_id_unique_required",
+  "rail_receipt_id_unique_required",
+  "executor_signature_binds_receipt_and_evidence",
+  "receipt_immutable_and_non_superseding",
+  "failure_receipt_separate_required",
 ] as const;
 
 for (const key of trueKeys) {
@@ -458,6 +465,11 @@ for (const boundary of [
   "A separate independent payment-confirmation lane verifies settlement",
   "no more than 300 seconds later",
   "Actual fee at or below the authorized fee ceiling",
+  "At most one successful receipt per payment-execution authorization",
+  "must be unique in the downstream receipt registry",
+  "signature that binds the canonical receipt ID and payment evidence digest",
+  "immutable and cannot supersede one another",
+  "failed attempts require a separate failure-receipt contract",
   "Independent payment confirmation remains required",
   "Work-execution authority remains separate and ungranted",
   "does not add a public HTTP route",
@@ -490,6 +502,11 @@ console.log("authorization_atomic_consumption_verified=yes");
 console.log("replay_and_duplicate_payment_prevention_verified=yes");
 console.log("opaque_rail_receipt_and_evidence_digest_required=yes");
 console.log("executor_authentication_and_signature_required=yes");
+console.log("single_success_receipt_per_authorization_required=yes");
+console.log("receipt_registry_uniqueness_required=yes");
+console.log("executor_signature_binds_receipt_and_evidence=yes");
+console.log("receipt_immutable_non_superseding=yes");
+console.log("failure_receipt_separate_required=yes");
 console.log("independent_payment_confirmation_still_required=yes");
 console.log("work_execution_authority_separate_and_ungranted=yes");
 console.log("raw_destination_wallet_signer_transaction_payload_rejected=yes");
