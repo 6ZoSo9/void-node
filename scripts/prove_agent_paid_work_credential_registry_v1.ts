@@ -448,7 +448,9 @@ while (Date.now() < deadline && port === 0) {
         );
         break;
       }
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   }
   if (port === 0) {
     await new Promise((resolve) =>
