@@ -4593,6 +4593,12 @@ app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, 
 (globalThis as any).__void_http_app = app;
 
 // ---- EARLY MINIMAL BOOT MODE (short-circuit before additive IIFE storm) ----
+const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
+  firstContactRoute: "/public-node/agents/first-contact-v1.json",
+  joinRoute: "/public-node/agents/join-v1.html",
+  firstContactFile: `${process.cwd()}/public/public-node/agents/first-contact-v1.json`,
+  joinFile: `${process.cwd()}/public/public-node/agents/join-v1.html`,
+});
 if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
   try {
     app.get(["/health", "/api/health"], (_req:any, res:any) => {
@@ -4860,12 +4866,6 @@ app.get("/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-sum
 });
 
 // VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1_BEGIN
-const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
-  firstContactRoute: "/public-node/agents/first-contact-v1.json",
-  joinRoute: "/public-node/agents/join-v1.html",
-  firstContactFile: `${process.cwd()}/public/public-node/agents/first-contact-v1.json`,
-  joinFile: `${process.cwd()}/public/public-node/agents/join-v1.html`,
-});
 
 app.get(VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1.firstContactRoute, (_req, res) => {
   res.setHeader("Cache-Control", "public, max-age=60");

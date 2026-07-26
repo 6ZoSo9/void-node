@@ -1,0 +1,43 @@
+name: VOID AI Agent First Contact Runtime Control-Flow Repair V1
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove control-flow repair
+        run: node scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs
+
+      - name: Prove original runtime contract
+        run: node scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs
+
+      - name: Enforce shared index guard
+        run: bash tools/check_index_size.sh
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Check whitespace errors
+        run: git diff --check HEAD^ HEAD
