@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-payment-execution-authorization-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Payment Execution Authorization Envelope V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "created_at_utc",
+    "expires_at_utc",
+    "requester",
+    "provider",
+    "executor",
+    "authorizer",
+    "resolution",
+    "commercial",
+    "authorization",
+    "nonce",
+    "payment_execution_authorization_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_PAYMENT_EXECUTION_AUTHORIZATION_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolver_id",
+        "payment_rail_resolution_id",
+        "provider_destination_binding_id",
+        "resolved_at_utc"
+      ],
+      "properties": {
+        "resolver_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "payment_rail_resolution_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "provider_destination_binding_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "resolved_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        }
+      }
+    },
+    "commercial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quote_asset",
+        "service_total",
+        "max_fee_total",
+        "max_payment_total",
+        "payment_rail_id"
+      ],
+      "properties": {
+        "quote_asset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Z][A-Z0-9._:-]{0,31}$"
+        },
+        "service_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "allOf": [
+            {
+              "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+            },
+            {
+              "not": {
+                "pattern": "^0(?:\\.0{1,18})?$"
+              }
+            }
+          ]
+        },
+        "max_fee_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+        },
+        "max_payment_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "allOf": [
+            {
+              "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+            },
+            {
+              "not": {
+                "pattern": "^0(?:\\.0{1,18})?$"
+              }
+            }
+          ]
+        },
+        "payment_rail_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payment_execution_authorized",
+        "exact_payment_intent_only",
+        "one_time_use_required",
+        "duplicate_payment_prevention_required",
+        "replay_protection_required",
+        "atomic_consumption_required",
+        "single_active_execution_authorization_per_intent_required",
+        "requester_authentication_required",
+        "provider_authentication_required",
+        "executor_authentication_required",
+        "resolver_authentication_required",
+        "destination_binding_verified",
+        "allowlisted_payment_rail_required",
+        "rail_asset_compatibility_verified",
+        "service_total_exact",
+        "actual_fee_not_to_exceed_max_required",
+        "actual_fee_evidence_required",
+        "unused_fee_not_chargeable",
+        "payment_amount_not_to_exceed_max_total",
+        "payment_receipt_required",
+        "payment_confirmation_required_before_work_execution",
+        "failure_must_not_grant_partial_authority",
+        "work_execution_authorization_separate",
+        "work_execution_authorization_granted",
+        "authorization_is_not_payment_receipt",
+        "authorization_is_not_work_execution_instruction",
+        "authorization_is_not_funds_reservation",
+        "authorizer_authentication_required",
+        "authorization_signature_required",
+        "authority_policy_binding_required",
+        "authorizer_executor_separation_required",
+        "authorizer_resolver_separation_required",
+        "executor_resolver_separation_required",
+        "resolution_records_current_required",
+        "resolution_records_unrevoked_required",
+        "resolution_records_not_superseded_required",
+        "executor_resolution_revalidation_at_execution_required",
+        "authorization_is_not_transaction_signature"
+      ],
+      "properties": {
+        "payment_execution_authorized": {
+          "const": true
+        },
+        "exact_payment_intent_only": {
+          "const": true
+        },
+        "one_time_use_required": {
+          "const": true
+        },
+        "duplicate_payment_prevention_required": {
+          "const": true
+        },
+        "replay_protection_required": {
+          "const": true
+        },
+        "atomic_consumption_required": {
+          "const": true
+        },
+        "single_active_execution_authorization_per_intent_required": {
+          "const": true
+        },
+        "requester_authentication_required": {
+          "const": true
+        },
+        "provider_authentication_required": {
+          "const": true
+        },
+        "executor_authentication_required": {
+          "const": true
+        },
+        "resolver_authentication_required": {
+          "const": true
+        },
+        "destination_binding_verified": {
+          "const": true
+        },
+        "allowlisted_payment_rail_required": {
+          "const": true
+        },
+        "rail_asset_compatibility_verified": {
+          "const": true
+        },
+        "service_total_exact": {
+          "const": true
+        },
+        "actual_fee_not_to_exceed_max_required": {
+          "const": true
+        },
+        "actual_fee_evidence_required": {
+          "const": true
+        },
+        "unused_fee_not_chargeable": {
+          "const": true
+        },
+        "payment_amount_not_to_exceed_max_total": {
+          "const": true
+        },
+        "payment_receipt_required": {
+          "const": true
+        },
+        "payment_confirmation_required_before_work_execution": {
+          "const": true
+        },
+        "failure_must_not_grant_partial_authority": {
+          "const": true
+        },
+        "work_execution_authorization_separate": {
+          "const": true
+        },
+        "work_execution_authorization_granted": {
+          "const": false
+        },
+        "authorization_is_not_payment_receipt": {
+          "const": true
+        },
+        "authorization_is_not_work_execution_instruction": {
+          "const": true
+        },
+        "authorization_is_not_funds_reservation": {
+          "const": true
+        },
+        "authorizer_authentication_required": {
+          "const": true
+        },
+        "authorization_signature_required": {
+          "const": true
+        },
+        "authority_policy_binding_required": {
+          "const": true
+        },
+        "authorizer_executor_separation_required": {
+          "const": true
+        },
+        "authorizer_resolver_separation_required": {
+          "const": true
+        },
+        "executor_resolver_separation_required": {
+          "const": true
+        },
+        "resolution_records_current_required": {
+          "const": true
+        },
+        "resolution_records_unrevoked_required": {
+          "const": true
+        },
+        "resolution_records_not_superseded_required": {
+          "const": true
+        },
+        "executor_resolution_revalidation_at_execution_required": {
+          "const": true
+        },
+        "authorization_is_not_transaction_signature": {
+          "const": true
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "authorizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_policy_id"
+      ],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    }
+  }
+}
