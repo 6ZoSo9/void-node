@@ -1,0 +1,92 @@
+name: Agent Paid Work Public Discovery V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-paid-work-public-discovery-v1.yml"
+      - "docs/public/agent-paid-work-public-discovery-v1.json"
+      - "docs/public/agent-paid-work-public-discovery-v1.md"
+      - "schemas/agent-paid-work-public-discovery-v1.schema.json"
+      - "scripts/agent_paid_work_public_discovery_v1.ts"
+      - "scripts/prove_agent_paid_work_public_discovery_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-paid-work-public-discovery-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Verify reviewed discovery artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha256sum --check --strict <<'SUMS'
+          1c1b12e59f2cd6f06434231bd8cbe17c427b239e93f20b26fd67481c852c4f6f  docs/public/agent-paid-work-public-discovery-v1.json
+          a0358236db2dad16258849c925a0ef4eb1095459c6ed4183ac75674e08b8fe3d  docs/public/agent-paid-work-public-discovery-v1.md
+          addf5b7835e2421cd6cb5e0d153d1e559f1c1926b7aea97997de5cd507002c03  schemas/agent-paid-work-public-discovery-v1.schema.json
+          ebd405c91af434752570f583183b64c9e467c61102c08c236829df1c00300302  scripts/agent_paid_work_public_discovery_v1.ts
+          b48c2bb67277ade58025c31f1f71258a498189e968dcbde7ee10ddc55721da42  scripts/prove_agent_paid_work_public_discovery_v1.ts
+          SUMS
+
+      - name: Run focused public-discovery proof
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --no-install tsx             scripts/prove_agent_paid_work_public_discovery_v1.ts |
+            tee /tmp/agent-paid-work-public-discovery-proof.log
+
+          grep -Fx             "VOID_AGENT_PAID_WORK_PUBLIC_DISCOVERY_V1_PROOF_GREEN"             /tmp/agent-paid-work-public-discovery-proof.log
+
+          grep -Fx "verified_file_count=60"             /tmp/agent-paid-work-public-discovery-proof.log
+
+          grep -Fx "verified_example_marker_count=12"             /tmp/agent-paid-work-public-discovery-proof.log
+
+      - name: Run strict focused TypeScript check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --no-install tsc             --noEmit             --strict             --target ES2022             --module NodeNext             --moduleResolution NodeNext             --types node             --skipLibCheck             scripts/agent_paid_work_public_discovery_v1.ts             scripts/prove_agent_paid_work_public_discovery_v1.ts
+
+      - name: Verify repository remains unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          echo "runtime_route_available=no"
+          echo "live_submission_available=no"
+          echo "live_payment_execution_available=no"
+          echo "real_wc_ledger_write_available=no"
+          echo "wc_to_void_settlement_available=no"
+          echo "buy_void_auto_fulfillment_available=no"
+          echo "runtime_mutation=none"
+          echo "payment_mutation=none"
+          echo "real_wc_ledger_write=none"
+          echo "real_wc_balance_mutation=none"
+          echo "VOID_AGENT_PAID_WORK_PUBLIC_DISCOVERY_V1_CI_GREEN"
