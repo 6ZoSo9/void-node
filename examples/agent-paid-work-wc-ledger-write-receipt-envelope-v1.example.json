@@ -1,0 +1,99 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_WC_LEDGER_WRITE_RECEIPT_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2",
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b",
+  "payment_receipt_id": "voidawper1_33457cefe699a95b5ddad768272e09e9c3593ad1b524f12d7bf0a3c68d06de51",
+  "payment_confirmation_id": "voidawpc1_1c18c9fa3e208faab438b3a1f74a10cc7279096e2b87b6353634ef715d92e668",
+  "work_execution_authorization_id": "voidawwea1_7faf87a936133920fc790700c3fa0a5ff07e8cb5e0c111f3f5952e15babf9a78",
+  "work_completion_receipt_id": "voidawcr1_5886aa766fed6179f78893e30b13d6edf7d011fff103aa3eabdcf5493ba5143e",
+  "independent_completion_verification_id": "voidawicv1_0f223b9327fec26b8e824b69e46fd72c65e53e1b28bc84b84ce8909cec38e88e",
+  "wc_award_authorization_id": "voidawwcaa1_a1fa5ffae0f39928ac69890f7802b6c8d7eb9470d913afafafff885f6073f1d2",
+  "receipt_created_at_utc": "2026-07-25T23:00:05Z",
+  "beneficiary": {
+    "executor_id": "void.executor.work.datanet.nimo",
+    "provider_id": "void.provider.datanet.verify.precision",
+    "wc_account_id": "void-paid-work-executor-nimo-example-v1"
+  },
+  "award": {
+    "denomination": "WC",
+    "amount_wc": 3,
+    "award_reason_code": "verified_paid_work_completion",
+    "award_policy_id": "void.policy.paid-work-wc-award.v1",
+    "score_basis_sha256": "sha256:b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4"
+  },
+  "ledger_write": {
+    "ledger_write_id": "void.wc.ledger-write.example.20260725.0001",
+    "ledger_id": "void.wc.production.ledger.v1",
+    "ledger_entry_id": "void.wc.ledger-entry.example.20260725.0001",
+    "entry_type": "earn",
+    "status": "applied",
+    "authorization_consumed": true,
+    "authorization_consumed_at_utc": "2026-07-25T23:00:01Z",
+    "applied_at_utc": "2026-07-25T23:00:02Z",
+    "uniqueness_key": "paid-work-verification:voidawicv1_0f223b9327fec26b8e824b69e46fd72c65e53e1b28bc84b84ce8909cec38e88e",
+    "atomic_write_confirmed": true,
+    "uniqueness_key_enforced": true,
+    "prestate_matched": true,
+    "duplicate_detected": false
+  },
+  "state_transition": {
+    "expected_prestate_sha256": "sha256:c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5",
+    "observed_prestate_sha256": "sha256:c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5",
+    "poststate_sha256": "sha256:d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8",
+    "ledger_sequence_before": 0,
+    "ledger_sequence_after": 1,
+    "pre_balance": {
+      "earned_wc": 0,
+      "debited_wc": 0,
+      "redeemable_wc": 0
+    },
+    "post_balance": {
+      "earned_wc": 3,
+      "debited_wc": 0,
+      "redeemable_wc": 3
+    }
+  },
+  "receipt_evidence": {
+    "ledger_entry_sha256": "sha256:e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9",
+    "append_log_sha256": "sha256:fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+    "authorization_verification_sha256": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "uniqueness_registry_sha256": "sha256:1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c",
+    "balance_snapshot_sha256": "sha256:2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d"
+  },
+  "ledger_executor": {
+    "executor_id": "void.executor.wc-ledger.precision",
+    "execution_policy_id": "void.policy.wc-ledger-write.v1",
+    "signing_key_id": "void.key.wc-ledger.precision.example.v1",
+    "signature_scheme": "ed25519",
+    "signed_payload_sha256": "sha256:3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e",
+    "signature_evidence_sha256": "sha256:4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+  },
+  "attestation": {
+    "exact_wc_award_authorization_consumed_once": true,
+    "atomic_ledger_write_applied": true,
+    "single_ledger_entry_created": true,
+    "single_award_per_verification_enforced": true,
+    "beneficiary_binding_verified": true,
+    "award_amount_and_cap_verified": true,
+    "ledger_destination_verified": true,
+    "uniqueness_key_verified": true,
+    "expected_prestate_verified": true,
+    "poststate_verified": true,
+    "ledger_receipt_immutable": true,
+    "ledger_entry_immutable": true,
+    "wc_balance_mutation_recorded": true,
+    "wc_to_void_settlement_separate": true,
+    "payment_state_unchanged": true,
+    "wallet_or_signer_not_accessed": true,
+    "runtime_not_administered": true,
+    "buy_void_fulfillment_unchanged": true,
+    "receipt_is_not_wc_to_void_settlement": true,
+    "receipt_is_not_payment_instruction": true
+  },
+  "nonce": "wc-ledger-write-receipt-example-20260725-0001",
+  "wc_ledger_write_receipt_id": "voidawwclwr1_06cebc9e939f802df1ee79f3304f9404736cc8fa013e2a4ea07c037ff97b6e1a"
+}

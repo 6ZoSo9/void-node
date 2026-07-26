@@ -1,0 +1,85 @@
+name: Agent Paid Work WC Ledger Write Receipt Envelope V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-paid-work-wc-ledger-write-receipt-envelope-v1.yml"
+      - "docs/public/agent-paid-work-wc-ledger-write-receipt-envelope-v1.md"
+      - "examples/agent-paid-work-wc-ledger-write-receipt-envelope-v1.example.json"
+      - "schemas/agent-paid-work-wc-ledger-write-receipt-envelope-v1.schema.json"
+      - "scripts/agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts"
+      - "scripts/prove_agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-paid-work-wc-ledger-write-receipt-envelope-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: prove
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Verify reviewed supporting artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha256sum --check --strict <<'SUMS'
+          51f5444f36a17e276c7e844ffb9b5abee3829d184acabff15ec58611176febae  examples/agent-paid-work-wc-ledger-write-receipt-envelope-v1.example.json
+          3a975318a029b093b89716afef634024c9cbbd8419b2c61c57fcaa1f7976c09f  schemas/agent-paid-work-wc-ledger-write-receipt-envelope-v1.schema.json
+          827b1c8462c08caa1e2e2daa116f29ec1a59f3850cdc835670700720a677b9d8  docs/public/agent-paid-work-wc-ledger-write-receipt-envelope-v1.md
+          8325395c72cf04ce6384f21e81ae078640f6e1c92ecc07c1c92f6efe83fd370f  scripts/agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
+          8a4eeb581608b2b26ded61fcf5e73db0ee484fcbf34a47a70f053dace46db1d6  scripts/prove_agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
+          SUMS
+
+      - name: Run focused protocol proof
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --no-install tsx             scripts/prove_agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts |
+            tee /tmp/wc-ledger-write-receipt-proof.log
+
+          grep -Fx             "VOID_AGENT_PAID_WORK_WC_LEDGER_WRITE_RECEIPT_ENVELOPE_V1_PROOF_GREEN"             /tmp/wc-ledger-write-receipt-proof.log
+
+      - name: Run strict focused TypeScript check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --no-install tsc             --noEmit             --strict             --target ES2022             --module NodeNext             --moduleResolution NodeNext             --types node             --skipLibCheck             scripts/agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts             scripts/prove_agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
+
+      - name: Verify repository remains unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          echo "real_wc_ledger_write=none"
+          echo "real_wc_balance_mutation=none"
+          echo "wc_to_void_settlement=none"
+          echo "payment_mutation=none"
+          echo "wallet_or_signer_access=none"
+          echo "runtime_mutation=none"
+          echo "buy_void_fulfillment_mutation=none"
+          echo "VOID_AGENT_PAID_WORK_WC_LEDGER_WRITE_RECEIPT_ENVELOPE_V1_CI_GREEN"
