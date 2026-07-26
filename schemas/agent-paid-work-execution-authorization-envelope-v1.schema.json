@@ -1,0 +1,486 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-execution-authorization-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Execution Authorization Envelope V1",
+  "description": "A deterministic, bounded authorization for one exact paid-work execution after independent payment confirmation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "payment_confirmation_id",
+    "created_at_utc",
+    "expires_at_utc",
+    "requester",
+    "provider",
+    "executor",
+    "authorizer",
+    "completion_verifier",
+    "work_contract",
+    "resource_limits",
+    "capability_policy",
+    "authorization",
+    "nonce",
+    "work_execution_authorization_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_EXECUTION_AUTHORIZATION_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "authorizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_policy_id"
+      ],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "completion_verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier_id",
+        "verification_policy_id"
+      ],
+      "properties": {
+        "verifier_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "verification_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "work_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_type",
+        "task_spec_sha256",
+        "input_manifest_sha256",
+        "expected_output_schema_sha256",
+        "result_delivery_channel_id"
+      ],
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+        },
+        "task_spec_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_manifest_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "expected_output_schema_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_delivery_channel_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "resource_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_wall_clock_seconds",
+        "max_cpu_seconds",
+        "max_memory_bytes",
+        "max_output_bytes",
+        "max_network_requests",
+        "max_retry_count"
+      ],
+      "properties": {
+        "max_wall_clock_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_cpu_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_memory_bytes": {
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 68719476736
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "max_network_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "max_retry_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "capability_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_capability_ids",
+        "network_allowlist_ids",
+        "data_classification",
+        "sandbox_required",
+        "secrets_allowed",
+        "wallet_access_allowed",
+        "payment_mutation_allowed",
+        "work_credit_mutation_allowed",
+        "buy_void_fulfillment_allowed",
+        "runtime_administration_allowed",
+        "host_filesystem_write_allowed",
+        "external_side_effects_allowed"
+      ],
+      "properties": {
+        "allowed_capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          }
+        },
+        "network_allowlist_ids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          }
+        },
+        "data_classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "sandbox_required": {
+          "const": true
+        },
+        "secrets_allowed": {
+          "const": false
+        },
+        "wallet_access_allowed": {
+          "const": false
+        },
+        "payment_mutation_allowed": {
+          "const": false
+        },
+        "work_credit_mutation_allowed": {
+          "const": false
+        },
+        "buy_void_fulfillment_allowed": {
+          "const": false
+        },
+        "runtime_administration_allowed": {
+          "const": false
+        },
+        "host_filesystem_write_allowed": {
+          "const": false
+        },
+        "external_side_effects_allowed": {
+          "const": false
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_execution_authorized",
+        "exact_payment_confirmation_only",
+        "exact_task_spec_only",
+        "one_time_use_required",
+        "replay_protection_required",
+        "atomic_consumption_required",
+        "single_active_execution_authorization_per_confirmation_required",
+        "requester_authentication_required",
+        "provider_authentication_required",
+        "executor_authentication_required",
+        "authorizer_authentication_required",
+        "authorization_signature_required",
+        "authority_policy_binding_required",
+        "provider_executor_binding_required",
+        "authorizer_executor_separation_required",
+        "completion_verifier_executor_separation_required",
+        "completion_verifier_authorizer_separation_required",
+        "resource_limits_enforced",
+        "capability_allowlist_enforced",
+        "network_allowlist_enforced",
+        "input_integrity_verification_required",
+        "output_commitment_required",
+        "completion_receipt_required",
+        "independent_completion_verification_required",
+        "payment_state_immutable",
+        "authorization_is_not_completion_receipt",
+        "authorization_is_not_work_completion_confirmation",
+        "authorization_is_not_wc_award_instruction",
+        "authorization_is_not_payment_instruction"
+      ],
+      "properties": {
+        "work_execution_authorized": {
+          "const": true
+        },
+        "exact_payment_confirmation_only": {
+          "const": true
+        },
+        "exact_task_spec_only": {
+          "const": true
+        },
+        "one_time_use_required": {
+          "const": true
+        },
+        "replay_protection_required": {
+          "const": true
+        },
+        "atomic_consumption_required": {
+          "const": true
+        },
+        "single_active_execution_authorization_per_confirmation_required": {
+          "const": true
+        },
+        "requester_authentication_required": {
+          "const": true
+        },
+        "provider_authentication_required": {
+          "const": true
+        },
+        "executor_authentication_required": {
+          "const": true
+        },
+        "authorizer_authentication_required": {
+          "const": true
+        },
+        "authorization_signature_required": {
+          "const": true
+        },
+        "authority_policy_binding_required": {
+          "const": true
+        },
+        "provider_executor_binding_required": {
+          "const": true
+        },
+        "authorizer_executor_separation_required": {
+          "const": true
+        },
+        "completion_verifier_executor_separation_required": {
+          "const": true
+        },
+        "completion_verifier_authorizer_separation_required": {
+          "const": true
+        },
+        "resource_limits_enforced": {
+          "const": true
+        },
+        "capability_allowlist_enforced": {
+          "const": true
+        },
+        "network_allowlist_enforced": {
+          "const": true
+        },
+        "input_integrity_verification_required": {
+          "const": true
+        },
+        "output_commitment_required": {
+          "const": true
+        },
+        "completion_receipt_required": {
+          "const": true
+        },
+        "independent_completion_verification_required": {
+          "const": true
+        },
+        "payment_state_immutable": {
+          "const": true
+        },
+        "authorization_is_not_completion_receipt": {
+          "const": true
+        },
+        "authorization_is_not_work_completion_confirmation": {
+          "const": true
+        },
+        "authorization_is_not_wc_award_instruction": {
+          "const": true
+        },
+        "authorization_is_not_payment_instruction": {
+          "const": true
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "work_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawwea1_[0-9a-f]{64}$"
+    }
+  }
+}
