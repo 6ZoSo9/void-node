@@ -31,8 +31,7 @@ Authentication contract:
 - `/.well-known/void-agent-authentication.json`
 - `/.well-known/void-agent-authentication.schema.json`
 
-Only `GET` and `HEAD` are accepted. Unknown paths return `404`. Other methods
-return `405` with `Allow: GET, HEAD`.
+Discovery, capability, and authentication routes accept only `GET` and `HEAD`. The sole mutation-method exception is exact authenticated `POST /__void/operator-notifications/v1/candidate`, and it remains disabled unless the loopback receiver upstream is explicitly configured. Unknown paths return `404`; non-exact methods return `405`. The exception grants no generic mutation, wallet, signing, transaction-broadcast, RPC-mutation, or money-movement authority.
 
 Capability negotiation remains client-side intersection. The authentication
 contract is published for interoperability, but there is no authentication verifier runtime, no session issuance, no challenge endpoint, no protected route, no authorization-header intake, and no signed-envelope intake.
@@ -62,3 +61,11 @@ Funnel, restart VOID, access a remote machine, or touch Nimo.
 
 Deployment and independent public verification remain separate gated
 operations after merge.
+
+### Operator-notification exception
+
+The route is implemented in `ops/void-ai-agent-public-gateway-v1.mjs` and is
+disabled by default. The example systemd drop-in only provides the loopback
+upstream after explicit activation approval.
+
+Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1`

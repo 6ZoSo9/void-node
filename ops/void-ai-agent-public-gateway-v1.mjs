@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import http from "node:http";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -7,6 +8,33 @@ import { fileURLToPath } from "node:url";
 const MARKER = "VOID_AI_AGENT_PUBLIC_GATEWAY_V1";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4112;
+const OPERATOR_WEBHOOK_INTEGRATION_MARKER =
+  "VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1";
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
+  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || ""
+).replace(/\/+$/, "");
+const OPERATOR_WEBHOOK_RECEIVER_PATH =
+  "/__void/operator-notifications/v1/candidate";
+const OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES ||
+      String(64 * 1024),
+  ),
+);
+const OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS = Math.max(
+  1000,
+  Number(
+    process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS || "15000",
+  ),
+);
+const OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES ||
+      String(4 * 1024 * 1024),
+  ),
+);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(
@@ -92,6 +120,25 @@ if (
   fail(`invalid gateway port: ${rawPort}`);
 }
 
+for (const [name, value] of [
+  [
+    "VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES",
+    OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES,
+  ],
+  [
+    "VOID_OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS",
+    OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
+  ],
+  [
+    "VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES",
+    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES,
+  ],
+]) {
+  if (!Number.isFinite(value) || value < 1) {
+    fail(`invalid ${name}`);
+  }
+}
+
 const payloads = new Map();
 
 for (const [route, relativePath] of routeFiles.entries()) {
@@ -130,19 +177,295 @@ function emptyResponse(response, statusCode, extraHeaders = {}) {
   response.end();
 }
 
-const server = http.createServer((request, response) => {
-  const method = request.method || "";
+function bodyResponse(
+  response,
+  statusCode,
+  body,
+  extraHeaders = {},
+  method = "GET",
+) {
+  const bytes = Buffer.isBuffer(body)
+    ? body
+    : Buffer.from(String(body ?? ""));
 
-  if (method !== "GET" && method !== "HEAD") {
-    emptyResponse(response, 405, { Allow: "GET, HEAD" });
+  response.writeHead(statusCode, {
+    ...commonHeaders(),
+    "Content-Length": String(bytes.length),
+    ...extraHeaders,
+  });
+
+  if (method === "HEAD") {
+    response.end();
     return;
   }
 
-  let parsed;
+  response.end(bytes);
+}
+
+function jsonResponse(
+  response,
+  statusCode,
+  value,
+  extraHeaders = {},
+  method = "GET",
+) {
+  bodyResponse(
+    response,
+    statusCode,
+    Buffer.from(JSON.stringify(value) + "\n"),
+    {
+      "Content-Type": "application/json; charset=utf-8",
+      ...extraHeaders,
+    },
+    method,
+  );
+}
+
+function readBoundedRequestBody(request, maximum) {
+  return new Promise((resolve, reject) => {
+    const declared = Number(request.headers["content-length"] || 0);
+
+    if (Number.isFinite(declared) && declared > maximum) {
+      request.resume();
+      reject(new Error("request_body_too_large"));
+      return;
+    }
+
+    const chunks = [];
+    let total = 0;
+    let tooLarge = false;
+
+    request.on("data", (chunk) => {
+      total += chunk.length;
+
+      if (total > maximum) {
+        tooLarge = true;
+        chunks.length = 0;
+        return;
+      }
+
+      if (!tooLarge) {
+        chunks.push(chunk);
+      }
+    });
+
+    request.on("end", () => {
+      if (tooLarge) {
+        reject(new Error("request_body_too_large"));
+        return;
+      }
+
+      resolve(Buffer.concat(chunks));
+    });
+
+    request.on("error", reject);
+  });
+}
+
+function copyOperatorResponseHeaders(upstreamResponse) {
+  const headers = {};
+
+  for (const [key, value] of upstreamResponse.headers.entries()) {
+    const lower = key.toLowerCase();
+
+    if (
+      [
+        "connection",
+        "content-length",
+        "keep-alive",
+        "location",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "set-cookie",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+      ].includes(lower)
+    ) {
+      continue;
+    }
+
+    headers[key] = value;
+  }
+
+  headers["Cache-Control"] = "no-store";
+  headers["X-Void-Operator-Webhook-Route"] = "v1";
+  return headers;
+}
+
+async function proxyOperatorWebhookReceiver(request, response, url) {
+  if (!OPERATOR_WEBHOOK_RECEIVER_UPSTREAM) {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "operator_webhook_receiver_unavailable",
+    });
+    return;
+  }
+
+  if (
+    url.pathname !== OPERATOR_WEBHOOK_RECEIVER_PATH ||
+    url.search ||
+    url.hash
+  ) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "query_not_allowed",
+    });
+    return;
+  }
+
+  const contentType = String(
+    request.headers["content-type"] || "",
+  ).toLowerCase();
+
+  if (!contentType.startsWith("application/json")) {
+    jsonResponse(response, 415, {
+      ok: false,
+      error: "application_json_required",
+    });
+    return;
+  }
+
+  const authorization = String(
+    request.headers.authorization || "",
+  ).trim();
+
+  if (!/^Bearer [^\s]{16,8192}$/.test(authorization)) {
+    jsonResponse(response, 401, {
+      ok: false,
+      error: "bearer_authorization_required",
+    });
+    return;
+  }
+
+  let body;
+
   try {
-    parsed = new URL(request.url || "/", "http://127.0.0.1");
+    body = await readBoundedRequestBody(
+      request,
+      OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES,
+    );
+  } catch (error) {
+    if (
+      String(error?.message || "") ===
+      "request_body_too_large"
+    ) {
+      jsonResponse(response, 413, {
+        ok: false,
+        error: "request_body_too_large",
+      });
+      return;
+    }
+
+    throw error;
+  }
+
+  const bodySha = crypto
+    .createHash("sha256")
+    .update(body)
+    .digest("hex");
+  const declaredSha = String(
+    request.headers["x-void-payload-sha256"] || "",
+  ).toLowerCase();
+
+  if (!/^[0-9a-f]{64}$/.test(declaredSha)) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_required",
+    });
+    return;
+  }
+
+  if (declaredSha !== bodySha) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_mismatch",
+    });
+    return;
+  }
+
+  try {
+    JSON.parse(body.toString("utf8"));
+  } catch {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "invalid_json",
+    });
+    return;
+  }
+
+  const upstreamResponse = await fetch(
+    `${OPERATOR_WEBHOOK_RECEIVER_UPSTREAM}${OPERATOR_WEBHOOK_RECEIVER_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization,
+        "content-type": "application/json",
+        "content-length": String(body.length),
+        "user-agent": "void-ai-agent-public-gateway-v1",
+        "x-void-payload-sha256": bodySha,
+      },
+      body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(
+        OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
+      ),
+    },
+  );
+
+  const responseBody = Buffer.from(
+    await upstreamResponse.arrayBuffer(),
+  );
+
+  if (
+    responseBody.length >
+    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES
+  ) {
+    throw new Error("operator_webhook_receiver_response_too_large");
+  }
+
+  bodyResponse(
+    response,
+    upstreamResponse.status,
+    responseBody,
+    copyOperatorResponseHeaders(upstreamResponse),
+    "POST",
+  );
+}
+
+async function handleRequest(request, response) {
+  const method = String(request.method || "").toUpperCase();
+
+  let parsed;
+
+  try {
+    parsed = new URL(
+      request.url || "/",
+      "http://127.0.0.1",
+    );
   } catch {
     emptyResponse(response, 400);
+    return;
+  }
+
+  if (parsed.pathname === OPERATOR_WEBHOOK_RECEIVER_PATH) {
+    if (method === "POST") {
+      await proxyOperatorWebhookReceiver(
+        request,
+        response,
+        parsed,
+      );
+      return;
+    }
+
+    emptyResponse(response, 405, { Allow: "POST" });
+    return;
+  }
+
+  if (method !== "GET" && method !== "HEAD") {
+    emptyResponse(response, 405, { Allow: "GET, HEAD" });
     return;
   }
 
@@ -152,23 +475,37 @@ const server = http.createServer((request, response) => {
   }
 
   const bytes = payloads.get(parsed.pathname);
+
   if (!bytes) {
     emptyResponse(response, 404);
     return;
   }
 
-  response.writeHead(200, {
-    ...commonHeaders(),
-    "Content-Length": String(bytes.length),
-    "Content-Type": "application/json; charset=utf-8",
+  bodyResponse(
+    response,
+    200,
+    bytes,
+    { "Content-Type": "application/json; charset=utf-8" },
+    method,
+  );
+}
+
+const server = http.createServer((request, response) => {
+  void handleRequest(request, response).catch((error) => {
+    process.stderr.write(
+      `${MARKER} request_error=${String(error)}\n`,
+    );
+
+    if (!response.headersSent) {
+      jsonResponse(response, 502, {
+        ok: false,
+        error: "operator_webhook_receiver_upstream_failed",
+      });
+      return;
+    }
+
+    response.destroy();
   });
-
-  if (method === "HEAD") {
-    response.end();
-    return;
-  }
-
-  response.end(bytes);
 });
 
 server.requestTimeout = 5_000;
@@ -225,6 +562,23 @@ server.listen({ host, port, exclusive: true }, () => {
       allowed_routes: [...routeFiles.keys()],
       mutation_authority: false,
       proxy_authority: false,
+      bounded_operator_notification_proxy_authority:
+        Boolean(OPERATOR_WEBHOOK_RECEIVER_UPSTREAM),
+      operator_notification_integration_marker:
+        OPERATOR_WEBHOOK_INTEGRATION_MARKER,
+      operator_notification_route: {
+        path: OPERATOR_WEBHOOK_RECEIVER_PATH,
+        methods: ["POST"],
+        configured: Boolean(
+          OPERATOR_WEBHOOK_RECEIVER_UPSTREAM,
+        ),
+        generic_mutation: false,
+        wallet_access: false,
+        signing: false,
+        transaction_broadcast: false,
+        rpc_mutation: false,
+        money_movement: false,
+      },
     }) + "\n",
   );
 });

@@ -58,3 +58,20 @@ and `UMask=0077`. Bearer authentication, the request body limit, payload digest
 binding, and append-once receipts remain unchanged.
 
 Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_USER_MANAGER_NODE_COMPAT_V1`
+
+## Live public ingress ownership correction
+
+The production ingress for the exact operator-notification route is
+`void-ai-agent-public-gateway-v1.service`, implemented by
+`ops/void-ai-agent-public-gateway-v1.mjs`. The public-app composition source is
+not the installed target for this route.
+
+The route remains disabled unless
+`VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM=http://127.0.0.1:4186` is configured
+for that AI-agent gateway service. The gateway accepts only exact authenticated
+`POST /__void/operator-notifications/v1/candidate`, binds the body to
+`x-void-payload-sha256`, enforces bounded request and response sizes, strips
+redirect and cookie headers, and exposes no generic mutation, wallet, signing,
+transaction-broadcast, RPC-mutation, or money-movement authority.
+
+Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1`
