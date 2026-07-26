@@ -234,7 +234,7 @@ assert.equal(
 );
 assert.equal(
   aiDoc.includes(
-    "sole mutation-method exception",
+    "only mutation-method exceptions",
   ),
   true,
   "AI gateway documentation exception boundary missing",
