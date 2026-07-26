@@ -40,8 +40,8 @@ assert cfg.get("request_before_payment_required") is True, cfg
 assert cfg.get("payment_sender_must_equal_void_destination") is True, cfg
 assert cfg.get("one_active_request_per_void_destination") is True, cfg
 assert cfg.get("automatic_fulfillment") is False, cfg
-assert cfg.get("wallet_send_by_page") is False, cfg
-assert cfg.get("token_approval_by_page") is False, cfg
+assert cfg.get("activation_required") is True, cfg
+assert cfg.get("manual_review_required") is True, cfg
 
 assert sale.get("schema") == "void_buy_void_sale_state_v1", sale
 assert sale.get("pool_void_total") == 10000000, sale
@@ -59,6 +59,12 @@ grep -Fq "Buy VOID with Base USDC" \
 grep -Fq "Native VOID destination address (chain ID 2050)" \
   /tmp/void-buy-public-checkout-page-v1.html
 grep -Fq "Do not send a blind deposit" \
+  /tmp/void-buy-public-checkout-page-v1.html
+grep -Fq 'id="buyReceiver"' \
+  /tmp/void-buy-public-checkout-page-v1.html
+grep -Fq 'fetch("/__void/buy-void/config.json")' \
+  /tmp/void-buy-public-checkout-page-v1.html
+grep -Fq 'buyText("buyReceiver",cfg.receive_address || "Unavailable")' \
   /tmp/void-buy-public-checkout-page-v1.html
 
 HTTP_CODE="$(
