@@ -16,6 +16,10 @@
   "executor": {
     "executor_id": "void.executor.payment.precision"
   },
+  "authorizer": {
+    "authority_id": "void.authority.payment.operator",
+    "authority_policy_id": "void.policy.paid-work-payment-execution.v1"
+  },
   "resolution": {
     "resolver_id": "void.resolver.payment.precision",
     "payment_rail_resolution_id": "void.prr.example.20260725.0001",
@@ -56,8 +60,19 @@
     "work_execution_authorization_granted": false,
     "authorization_is_not_payment_receipt": true,
     "authorization_is_not_work_execution_instruction": true,
-    "authorization_is_not_funds_reservation": true
+    "authorization_is_not_funds_reservation": true,
+    "authorizer_authentication_required": true,
+    "authorization_signature_required": true,
+    "authority_policy_binding_required": true,
+    "authorizer_executor_separation_required": true,
+    "authorizer_resolver_separation_required": true,
+    "executor_resolver_separation_required": true,
+    "resolution_records_current_required": true,
+    "resolution_records_unrevoked_required": true,
+    "resolution_records_not_superseded_required": true,
+    "executor_resolution_revalidation_at_execution_required": true,
+    "authorization_is_not_transaction_signature": true
   },
   "nonce": "payment-execution-auth-example-20260725-0001",
-  "payment_execution_authorization_id": "voidawpea1_13be6343f319791450b3e89741b8821cbf1b76bc739603beca41d13c820f1565"
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b"
 }

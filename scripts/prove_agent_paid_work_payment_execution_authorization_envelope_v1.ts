@@ -216,6 +216,45 @@ for (const [label, mutate] of [
   );
 }
 
+const authorizerEqualsExecutor = structuredClone(draft);
+authorizerEqualsExecutor.authorizer.authority_id =
+  authorizerEqualsExecutor.executor.executor_id;
+expectReject("authorizer equals executor", () =>
+  validateAgentPaidWorkPaymentExecutionAuthorizationDraft(
+    work,
+    quote,
+    acceptance,
+    intent,
+    authorizerEqualsExecutor,
+  ),
+);
+
+const authorizerEqualsResolver = structuredClone(draft);
+authorizerEqualsResolver.authorizer.authority_id =
+  authorizerEqualsResolver.resolution.resolver_id;
+expectReject("authorizer equals resolver", () =>
+  validateAgentPaidWorkPaymentExecutionAuthorizationDraft(
+    work,
+    quote,
+    acceptance,
+    intent,
+    authorizerEqualsResolver,
+  ),
+);
+
+const executorEqualsResolver = structuredClone(draft);
+executorEqualsResolver.executor.executor_id =
+  executorEqualsResolver.resolution.resolver_id;
+expectReject("executor equals resolver", () =>
+  validateAgentPaidWorkPaymentExecutionAuthorizationDraft(
+    work,
+    quote,
+    acceptance,
+    intent,
+    executorEqualsResolver,
+  ),
+);
+
 const excessiveFee = structuredClone(draft);
 excessiveFee.commercial.max_fee_total = "0.26";
 excessiveFee.commercial.max_payment_total = "3.76";
@@ -290,9 +329,19 @@ const trueKeys = [
   "provider_authentication_required",
   "executor_authentication_required",
   "resolver_authentication_required",
+  "authorizer_authentication_required",
+  "authorization_signature_required",
+  "authority_policy_binding_required",
+  "authorizer_executor_separation_required",
+  "authorizer_resolver_separation_required",
+  "executor_resolver_separation_required",
   "destination_binding_verified",
   "allowlisted_payment_rail_required",
   "rail_asset_compatibility_verified",
+  "resolution_records_current_required",
+  "resolution_records_unrevoked_required",
+  "resolution_records_not_superseded_required",
+  "executor_resolution_revalidation_at_execution_required",
   "service_total_exact",
   "actual_fee_not_to_exceed_max_required",
   "actual_fee_evidence_required",
@@ -305,6 +354,7 @@ const trueKeys = [
   "authorization_is_not_payment_receipt",
   "authorization_is_not_work_execution_instruction",
   "authorization_is_not_funds_reservation",
+  "authorization_is_not_transaction_signature",
 ] as const;
 
 for (const key of trueKeys) {
@@ -404,6 +454,11 @@ for (const boundary of [
   "grants payment-execution authority within those exact limits",
   "does not execute payment",
   "opaque identifiers for separately authenticated records",
+  "authenticate an explicit `authority_id`",
+  "verify an `authority_policy_id`",
+  "not a transaction signature",
+  "separation of duties",
+  "revalidated immediately before payment execution",
   "Short execution lifetime of at most 900 seconds",
   "At most one active execution authorization per payment intent",
   "Unused fee allowance must remain uncharged",
@@ -433,6 +488,11 @@ console.log(
 console.log("tampered_authorization_id_rejected=yes");
 console.log("full_paid_work_lineage_binding_verified=yes");
 console.log("requester_provider_executor_binding_verified=yes");
+console.log("authorizer_identity_and_policy_binding_required=yes");
+console.log("authorizer_executor_resolver_separation_required=yes");
+console.log("authorization_signature_required=yes");
+console.log("resolution_records_current_unrevoked_unsuperseded_required=yes");
+console.log("executor_resolution_revalidation_at_execution_required=yes");
 console.log("opaque_resolution_records_required=yes");
 console.log("fee_and_max_payment_caps_verified=yes");
 console.log("short_execution_window_guard=yes");

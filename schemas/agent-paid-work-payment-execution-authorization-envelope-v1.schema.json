@@ -16,6 +16,7 @@
     "requester",
     "provider",
     "executor",
+    "authorizer",
     "resolution",
     "commercial",
     "authorization",
@@ -223,7 +224,18 @@
         "work_execution_authorization_granted",
         "authorization_is_not_payment_receipt",
         "authorization_is_not_work_execution_instruction",
-        "authorization_is_not_funds_reservation"
+        "authorization_is_not_funds_reservation",
+        "authorizer_authentication_required",
+        "authorization_signature_required",
+        "authority_policy_binding_required",
+        "authorizer_executor_separation_required",
+        "authorizer_resolver_separation_required",
+        "executor_resolver_separation_required",
+        "resolution_records_current_required",
+        "resolution_records_unrevoked_required",
+        "resolution_records_not_superseded_required",
+        "executor_resolution_revalidation_at_execution_required",
+        "authorization_is_not_transaction_signature"
       ],
       "properties": {
         "payment_execution_authorized": {
@@ -306,6 +318,39 @@
         },
         "authorization_is_not_funds_reservation": {
           "const": true
+        },
+        "authorizer_authentication_required": {
+          "const": true
+        },
+        "authorization_signature_required": {
+          "const": true
+        },
+        "authority_policy_binding_required": {
+          "const": true
+        },
+        "authorizer_executor_separation_required": {
+          "const": true
+        },
+        "authorizer_resolver_separation_required": {
+          "const": true
+        },
+        "executor_resolver_separation_required": {
+          "const": true
+        },
+        "resolution_records_current_required": {
+          "const": true
+        },
+        "resolution_records_unrevoked_required": {
+          "const": true
+        },
+        "resolution_records_not_superseded_required": {
+          "const": true
+        },
+        "executor_resolution_revalidation_at_execution_required": {
+          "const": true
+        },
+        "authorization_is_not_transaction_signature": {
+          "const": true
         }
       }
     },
@@ -318,6 +363,28 @@
     "payment_execution_authorization_id": {
       "type": "string",
       "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "authorizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_policy_id"
+      ],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
     }
   }
 }

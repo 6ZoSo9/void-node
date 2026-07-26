@@ -50,6 +50,10 @@ export interface AgentPaidWorkPaymentExecutionAuthorizationDraft {
   executor: {
     executor_id: string;
   };
+  authorizer: {
+    authority_id: string;
+    authority_policy_id: string;
+  };
   resolution: {
     resolver_id: string;
     payment_rail_resolution_id: string;
@@ -75,9 +79,19 @@ export interface AgentPaidWorkPaymentExecutionAuthorizationDraft {
     provider_authentication_required: true;
     executor_authentication_required: true;
     resolver_authentication_required: true;
+    authorizer_authentication_required: true;
+    authorization_signature_required: true;
+    authority_policy_binding_required: true;
+    authorizer_executor_separation_required: true;
+    authorizer_resolver_separation_required: true;
+    executor_resolver_separation_required: true;
     destination_binding_verified: true;
     allowlisted_payment_rail_required: true;
     rail_asset_compatibility_verified: true;
+    resolution_records_current_required: true;
+    resolution_records_unrevoked_required: true;
+    resolution_records_not_superseded_required: true;
+    executor_resolution_revalidation_at_execution_required: true;
     service_total_exact: true;
     actual_fee_not_to_exceed_max_required: true;
     actual_fee_evidence_required: true;
@@ -91,6 +105,7 @@ export interface AgentPaidWorkPaymentExecutionAuthorizationDraft {
     authorization_is_not_payment_receipt: true;
     authorization_is_not_work_execution_instruction: true;
     authorization_is_not_funds_reservation: true;
+    authorization_is_not_transaction_signature: true;
   };
   nonce: string;
 }
@@ -251,9 +266,19 @@ const AUTHORIZATION_TRUE_KEYS = [
   "provider_authentication_required",
   "executor_authentication_required",
   "resolver_authentication_required",
+  "authorizer_authentication_required",
+  "authorization_signature_required",
+  "authority_policy_binding_required",
+  "authorizer_executor_separation_required",
+  "authorizer_resolver_separation_required",
+  "executor_resolver_separation_required",
   "destination_binding_verified",
   "allowlisted_payment_rail_required",
   "rail_asset_compatibility_verified",
+  "resolution_records_current_required",
+  "resolution_records_unrevoked_required",
+  "resolution_records_not_superseded_required",
+  "executor_resolution_revalidation_at_execution_required",
   "service_total_exact",
   "actual_fee_not_to_exceed_max_required",
   "actual_fee_evidence_required",
@@ -266,6 +291,7 @@ const AUTHORIZATION_TRUE_KEYS = [
   "authorization_is_not_payment_receipt",
   "authorization_is_not_work_execution_instruction",
   "authorization_is_not_funds_reservation",
+  "authorization_is_not_transaction_signature",
 ] as const;
 
 const AUTHORIZATION_KEYS = [
@@ -290,6 +316,7 @@ function validateDraftShape(
     "requester",
     "provider",
     "executor",
+    "authorizer",
     "resolution",
     "commercial",
     "authorization",
@@ -380,6 +407,26 @@ function validateDraftShape(
   const executorId = requirePattern(
     executor.executor_id,
     "executor.executor_id",
+    /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/,
+    3,
+    128,
+  );
+
+  const authorizer = requireRecord(root.authorizer, "authorizer");
+  requireExactKeys(authorizer, "authorizer", [
+    "authority_id",
+    "authority_policy_id",
+  ]);
+  const authorityId = requirePattern(
+    authorizer.authority_id,
+    "authorizer.authority_id",
+    /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/,
+    3,
+    128,
+  );
+  const authorityPolicyId = requirePattern(
+    authorizer.authority_policy_id,
+    "authorizer.authority_policy_id",
     /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/,
     3,
     128,
@@ -502,6 +549,10 @@ function validateDraftShape(
     executor: {
       executor_id: executorId,
     },
+    authorizer: {
+      authority_id: authorityId,
+      authority_policy_id: authorityPolicyId,
+    },
     resolution: {
       resolver_id: resolverId,
       payment_rail_resolution_id: railResolutionId,
@@ -527,9 +578,19 @@ function validateDraftShape(
       provider_authentication_required: true,
       executor_authentication_required: true,
       resolver_authentication_required: true,
+      authorizer_authentication_required: true,
+      authorization_signature_required: true,
+      authority_policy_binding_required: true,
+      authorizer_executor_separation_required: true,
+      authorizer_resolver_separation_required: true,
+      executor_resolver_separation_required: true,
       destination_binding_verified: true,
       allowlisted_payment_rail_required: true,
       rail_asset_compatibility_verified: true,
+      resolution_records_current_required: true,
+      resolution_records_unrevoked_required: true,
+      resolution_records_not_superseded_required: true,
+      executor_resolution_revalidation_at_execution_required: true,
       service_total_exact: true,
       actual_fee_not_to_exceed_max_required: true,
       actual_fee_evidence_required: true,
@@ -543,6 +604,7 @@ function validateDraftShape(
       authorization_is_not_payment_receipt: true,
       authorization_is_not_work_execution_instruction: true,
       authorization_is_not_funds_reservation: true,
+      authorization_is_not_transaction_signature: true,
     },
     nonce,
   };
@@ -584,6 +646,21 @@ function validateBindings(
   assertCondition(
     authorization.provider.provider_id === intent.provider.provider_id,
     "provider mismatch",
+  );
+  assertCondition(
+    authorization.authorizer.authority_id !==
+      authorization.executor.executor_id,
+    "authorizer and executor identities must be distinct",
+  );
+  assertCondition(
+    authorization.authorizer.authority_id !==
+      authorization.resolution.resolver_id,
+    "authorizer and resolver identities must be distinct",
+  );
+  assertCondition(
+    authorization.executor.executor_id !==
+      authorization.resolution.resolver_id,
+    "executor and resolver identities must be distinct",
   );
   assertCondition(
     authorization.commercial.quote_asset === intent.commercial.quote_asset,

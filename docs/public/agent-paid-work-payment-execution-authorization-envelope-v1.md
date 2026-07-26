@@ -17,6 +17,12 @@ does not execute payment, expose a raw destination, access a wallet or signer,
 construct or broadcast a transaction, confirm settlement, or authorize work
 execution.
 
+The content-derived authorization ID proves payload integrity, not authorship.
+A downstream executor must authenticate an explicit `authority_id`, verify an
+`authority_policy_id`, and verify a separately signed authorization before
+treating the envelope as usable authority. The envelope itself is not a
+transaction signature.
+
 ## Lifecycle boundary
 
 1. The requester creates a bounded work order.
@@ -42,8 +48,11 @@ registry and verify that:
 
 - the destination is bound to the quoted provider;
 - the rail supports the quoted asset;
-- the resolver and executor identities are authenticated;
-- neither record is expired, revoked, superseded, or replayed.
+- the authorizer, resolver, and executor identities are authenticated;
+- authorizer, resolver, and executor identities satisfy separation of duties;
+- the authorization is signed under the bound authority policy;
+- neither record is expired, revoked, superseded, or replayed;
+- both records are revalidated immediately before payment execution.
 
 ## Financial boundaries
 
@@ -58,6 +67,10 @@ The validator enforces:
 - Short execution lifetime of at most 900 seconds
 - One-time use, replay protection, atomic consumption, and duplicate-payment prevention
 - At most one active execution authorization per payment intent
+- Explicit authenticated authorizer and bound authority policy
+- Authorizer, resolver, and executor separation of duties
+- Current, unrevoked, unsuperseded resolution records
+- Mandatory resolution revalidation at execution time
 - Actual fee at or below the authorized ceiling with evidence
 - Unused fee allowance must remain uncharged
 - Payment receipt required after execution
@@ -119,6 +132,7 @@ VOID_AGENT_PAID_WORK_PAYMENT_EXECUTION_AUTHORIZATION_ENVELOPE_V1_PROOF_GREEN
 
 This lane does not add a public HTTP route, mutate `src/index.ts`, authenticate a
 live executor or resolver, expose or resolve raw payment destinations, reserve
-or debit funds, access a wallet or signer, construct or broadcast a transaction,
-confirm payment, authorize work execution, award WC, settle WC to VOID, or
+or debit funds, access a wallet or signer, create a transaction signature,
+construct or broadcast a transaction, confirm payment, authorize work execution,
+award WC, settle WC to VOID, or
 activate Buy VOID fulfillment.
