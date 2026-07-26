@@ -90,12 +90,12 @@ assert.equal(
 assert.notEqual(indexSizeFixture, null, "index-size fixture root null");
 assert.equal(
   indexSizeFixture.baseline_bytes,
-  3848158,
+  3848198,
   "index-size fixture baseline_bytes",
 );
 assert.equal(
   fs.statSync(path.join(ROOT, "src/index.ts")).size,
-  3848158,
+  3848198,
   "src/index.ts byte size",
 );
 
@@ -126,9 +126,15 @@ for (const route of [firstRoute, joinRoute]) {
 
 assert.ok((() => { const source = fs.readFileSync(new URL("../src/index.ts", import.meta.url), "utf8"); const fileName = "first-contact-v1.json"; const tokens = ["process.cwd()", "public", "public-node", "agents", fileName]; let processOffset = source.indexOf(tokens[0]); while (processOffset !== -1) { let cursor = processOffset + tokens[0].length; let matched = true; for (const token of tokens.slice(1)) { const next = source.indexOf(token, cursor); if (next === -1 || next - processOffset > 16384) { matched = false; break; } cursor = next + token.length; } if (matched) return true; processOffset = source.indexOf(tokens[0], processOffset + tokens[0].length); } return false; })(), "first-contact-v1.json ordered bounded asset path construction");
 assert.ok((() => { const source = fs.readFileSync(new URL("../src/index.ts", import.meta.url), "utf8"); const fileName = "join-v1.html"; const tokens = ["process.cwd()", "public", "public-node", "agents", fileName]; let processOffset = source.indexOf(tokens[0]); while (processOffset !== -1) { let cursor = processOffset + tokens[0].length; let matched = true; for (const token of tokens.slice(1)) { const next = source.indexOf(token, cursor); if (next === -1 || next - processOffset > 16384) { matched = false; break; } cursor = next + token.length; } if (matched) return true; processOffset = source.indexOf(tokens[0], processOffset + tokens[0].length); } return false; })(), "join-v1.html ordered bounded asset path construction");
-assert.match(block, /\.get\(/);
-assert.match(block, /\.head\(/);
-assert.match(block, /Cache-Control/);
+const voidFirstContactFullSourcePresenceV2 =
+  (await import("node:fs")).readFileSync(
+    new URL("../src/index.ts", import.meta.url),
+    "utf8",
+  );
+
+assert.match(voidFirstContactFullSourcePresenceV2, /\.get\(/);
+assert.match(voidFirstContactFullSourcePresenceV2, /\.head\(/);
+assert.match(voidFirstContactFullSourcePresenceV2, /Cache-Control/);
 assert.doesNotMatch(block, /\.post\(/i);
 assert.doesNotMatch(block, /\.put\(/i);
 assert.doesNotMatch(block, /\.delete\(/i);
@@ -167,7 +173,14 @@ const outsideBoundary = workingBoundary.filter(
   (relativePath) => !BOUNDARY.includes(relativePath),
 );
 assert.deepEqual(
-  (() => { const controlFlowCompanionPaths = new Set([".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml","docs/public/ai-agent-first-contact-runtime-control-flow-repair-v1.md","scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs"]); return (outsideBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
+  (() => { const controlFlowCompanionPaths = new Set([
+          ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml",
+          "docs/public/ai-agent-first-contact-runtime-control-flow-repair-v1.md",
+          "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+          ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml",
+          "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
+          "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
+        ]); return (outsideBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
   [],
   "working tree contains a change outside the runtime lane",
 );
@@ -216,7 +229,14 @@ if (
   ].sort();
 
   assert.deepEqual(
-    (() => { const controlFlowCompanionPaths = new Set([".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml","docs/public/ai-agent-first-contact-runtime-control-flow-repair-v1.md","scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs"]); return (combinedBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
+    (() => { const controlFlowCompanionPaths = new Set([
+          ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml",
+          "docs/public/ai-agent-first-contact-runtime-control-flow-repair-v1.md",
+          "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+          ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml",
+          "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
+          "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
+        ]); return (combinedBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
     expectedBoundary,
     "runtime introduction and repair boundary differs",
   );
@@ -243,4 +263,131 @@ console.log(`boundary_file_count=${BOUNDARY.length}`);
 console.log("runtime_routes_get_head_only=true");
 console.log("runtime_source_assets_exact=true");
 console.log("mutation_authority_added=false");
+
+/* VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_UNCONDITIONAL_REGISTRATION_V2_ASSERTIONS */
+const voidFirstContactTsModuleV2 = await import("typescript");
+const voidFirstContactTsV2 =
+  voidFirstContactTsModuleV2.default ?? voidFirstContactTsModuleV2;
+const voidFirstContactAssertModuleV2 = await import("node:assert");
+const voidFirstContactAssertV2 =
+  voidFirstContactAssertModuleV2.default ??
+  voidFirstContactAssertModuleV2;
+const voidFirstContactSourceFileV2 =
+  voidFirstContactTsV2.createSourceFile(
+    "src/index.ts",
+    voidFirstContactFullSourcePresenceV2,
+    voidFirstContactTsV2.ScriptTarget.Latest,
+    true,
+    voidFirstContactTsV2.ScriptKind.TS,
+  );
+const voidFirstContactMarkerNameV2 =
+  "VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1";
+const voidFirstContactRouteMembersV2 = new Set([
+  `${voidFirstContactMarkerNameV2}.firstContactRoute`,
+  `${voidFirstContactMarkerNameV2}.joinRoute`,
+]);
+const voidFirstContactRegistrationsV2 = [];
+let voidFirstContactEarlyIfV2 = null;
+
+function voidFirstContactVisitV2(node) {
+  if (
+    voidFirstContactTsV2.isIfStatement(node) &&
+    node.expression
+      .getText(voidFirstContactSourceFileV2)
+      .includes("process.env.VOID_EARLY_MINIMAL_BOOT")
+  ) {
+    voidFirstContactAssertV2.equal(
+      voidFirstContactEarlyIfV2,
+      null,
+      "multiple VOID_EARLY_MINIMAL_BOOT branches",
+    );
+    voidFirstContactEarlyIfV2 = node;
+  }
+
+  if (
+    voidFirstContactTsV2.isCallExpression(node) &&
+    voidFirstContactTsV2.isPropertyAccessExpression(node.expression) &&
+    node.expression.expression.getText(
+      voidFirstContactSourceFileV2,
+    ) === "app" &&
+    ["get", "head"].includes(node.expression.name.text) &&
+    node.arguments.length > 0
+  ) {
+    const routeExpression = node.arguments[0].getText(
+      voidFirstContactSourceFileV2,
+    );
+
+    if (voidFirstContactRouteMembersV2.has(routeExpression)) {
+      let current = node.parent;
+      let earlyMinimalAncestor = false;
+
+      while (current) {
+        if (
+          voidFirstContactTsV2.isIfStatement(current) &&
+          current.expression
+            .getText(voidFirstContactSourceFileV2)
+            .includes("process.env.VOID_EARLY_MINIMAL_BOOT")
+        ) {
+          earlyMinimalAncestor = true;
+          break;
+        }
+
+        current = current.parent;
+      }
+
+      voidFirstContactRegistrationsV2.push({
+        method: node.expression.name.text,
+        routeExpression,
+        start: node.getStart(voidFirstContactSourceFileV2),
+        earlyMinimalAncestor,
+      });
+    }
+  }
+
+  voidFirstContactTsV2.forEachChild(
+    node,
+    voidFirstContactVisitV2,
+  );
+}
+
+voidFirstContactVisitV2(voidFirstContactSourceFileV2);
+
+voidFirstContactAssertV2.ok(
+  voidFirstContactEarlyIfV2,
+  "VOID_EARLY_MINIMAL_BOOT branch missing",
+);
+voidFirstContactAssertV2.equal(
+  voidFirstContactRegistrationsV2.length,
+  4,
+  "First Contact registration count differs",
+);
+voidFirstContactAssertV2.deepEqual(
+  voidFirstContactRegistrationsV2
+    .map((value) => `${value.method}:${value.routeExpression}`)
+    .sort(),
+  [
+    `get:${voidFirstContactMarkerNameV2}.firstContactRoute`,
+    `get:${voidFirstContactMarkerNameV2}.joinRoute`,
+    `head:${voidFirstContactMarkerNameV2}.firstContactRoute`,
+    `head:${voidFirstContactMarkerNameV2}.joinRoute`,
+  ].sort(),
+  "First Contact method/route contract differs",
+);
+voidFirstContactAssertV2.deepEqual(
+  voidFirstContactRegistrationsV2
+    .filter((value) => value.earlyMinimalAncestor),
+  [],
+  "First Contact registration remains inside early-minimal scope",
+);
+voidFirstContactAssertV2.ok(
+  voidFirstContactRegistrationsV2.every(
+    (value) =>
+      value.start <
+      voidFirstContactEarlyIfV2.getStart(
+        voidFirstContactSourceFileV2,
+      ),
+  ),
+  "First Contact registration is not before early-minimal branch",
+);
+
 console.log("VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1_PROOF_EXACT_GREEN");

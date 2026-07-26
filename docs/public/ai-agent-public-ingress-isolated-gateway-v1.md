@@ -31,7 +31,7 @@ Authentication contract:
 - `/.well-known/void-agent-authentication.json`
 - `/.well-known/void-agent-authentication.schema.json`
 
-Discovery, capability, and authentication routes accept only `GET` and `HEAD`. The sole mutation-method exception is exact authenticated `POST /__void/operator-notifications/v1/candidate`, and it remains disabled unless the loopback receiver upstream is explicitly configured. Unknown paths return `404`; non-exact methods return `405`. The exception grants no generic mutation, wallet, signing, transaction-broadcast, RPC-mutation, or money-movement authority.
+Discovery, capability, and authentication routes accept only `GET` and `HEAD`. The only mutation-method exceptions are exact authenticated `POST /__void/operator-notifications/v1/candidate` and exact authenticated `POST /__void/agents/paid-work/submissions/v1`. Each remains disabled unless its own loopback receiver upstream is explicitly configured. Unknown paths return `404`; non-exact methods return `405`. The exceptions grant no generic mutation, wallet, signing, transaction-broadcast, RPC-mutation, payment, work-dispatch, WC-ledger-write, or money-movement authority.
 
 Capability negotiation remains client-side intersection. The authentication
 contract is published for interoperability, but there is no authentication verifier runtime, no session issuance, no challenge endpoint, no protected route, no authorization-header intake, and no signed-envelope intake.
@@ -69,3 +69,13 @@ disabled by default. The example systemd drop-in only provides the loopback
 upstream after explicit activation approval.
 
 Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1`
+
+### Agent paid-work submission exception
+
+The paid-work submission route is implemented in
+`ops/void-ai-agent-public-gateway-v1.mjs` as a bounded proxy to a separate
+loopback-only receiver. It is disabled by default and accepts only bearer-bound,
+SHA-256-bound JSON requests. A source merge does not install the receiver,
+create credentials, restart the gateway, or activate the public route.
+
+Marker: `VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1`

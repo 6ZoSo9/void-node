@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-submission-intake-receipt-v1.schema.json",
+  "title": "VOID Agent Paid Work Submission Intake Receipt V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "receipt_id",
+    "submission_id",
+    "work_order_id",
+    "request_payload_sha256",
+    "canonical_request_sha256",
+    "admission_id",
+    "admission",
+    "received_at_utc",
+    "authorization_verified",
+    "loopback_source",
+    "duplicate",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^voidawsi1_[0-9a-f]{64}$"
+    },
+    "submission_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "request_payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "canonical_request_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "admission_id": {
+      "type": "string",
+      "pattern": "^voidawsa1_[0-9a-f]{64}$"
+    },
+    "admission": {
+      "$ref": "agent-paid-work-submission-admission-v1.schema.json"
+    },
+    "received_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "authorization_verified": {
+      "const": true
+    },
+    "loopback_source": {
+      "const": true
+    },
+    "duplicate": {
+      "type": "boolean"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_selected",
+        "quote_created",
+        "payment_authorized",
+        "work_execution_authorized",
+        "work_dispatched",
+        "wc_award_authorized",
+        "wc_ledger_write_authorized",
+        "mutation_authority_granted",
+        "wallet_or_signer_access_granted",
+        "buy_void_fulfillment_authority_granted"
+      ],
+      "properties": {
+        "provider_selected": {
+          "const": false
+        },
+        "quote_created": {
+          "const": false
+        },
+        "payment_authorized": {
+          "const": false
+        },
+        "work_execution_authorized": {
+          "const": false
+        },
+        "work_dispatched": {
+          "const": false
+        },
+        "wc_award_authorized": {
+          "const": false
+        },
+        "wc_ledger_write_authorized": {
+          "const": false
+        },
+        "mutation_authority_granted": {
+          "const": false
+        },
+        "wallet_or_signer_access_granted": {
+          "const": false
+        },
+        "buy_void_fulfillment_authority_granted": {
+          "const": false
+        }
+      }
+    }
+  }
+}

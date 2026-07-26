@@ -1,0 +1,28 @@
+[Unit]
+Description=VOID Agent Paid Work Submission Receiver V1
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=NODE_ENV=production
+Environment=VOID_AGENT_PAID_WORK_SUBMISSION_CONFIG=%h/.config/void/agent-paid-work-submission-intake-v1.json
+Environment=VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE=%h/.config/void/credentials/agent-paid-work-submission-token-v1
+Environment=VOID_AGENT_PAID_WORK_SUBMISSION_STATE_DIR=%h/.local/state/void-agent-paid-work-submission-receiver-v1
+ExecStart=%h/dev/void-node/node_modules/.bin/tsx scripts/agent_paid_work_submission_receiver_v1.ts
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/void-agent-paid-work-submission-receiver-v1
+PrivateDevices=false
+MemoryDenyWriteExecute=false
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

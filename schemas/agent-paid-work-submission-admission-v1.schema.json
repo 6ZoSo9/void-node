@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-submission-admission-v1.schema.json",
+  "title": "VOID Agent Paid Work Submission Admission V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "admission_id",
+    "work_order_id",
+    "policy_id",
+    "evaluated_at_utc",
+    "decision",
+    "reason_codes",
+    "normalized",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "admission_id": {
+      "type": "string",
+      "pattern": "^voidawsa1_[0-9a-f]{64}$"
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "evaluated_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "accepted_for_review",
+        "rejected"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "callback_loopback_forbidden",
+          "callback_private_ip_literal_forbidden",
+          "capability_not_allowed",
+          "created_in_future",
+          "expired",
+          "expected_output_count_exceeds_policy",
+          "input_ref_count_exceeds_policy",
+          "max_total_exceeds_policy",
+          "output_bytes_exceeds_policy",
+          "quote_asset_not_allowed",
+          "runtime_exceeds_policy",
+          "ttl_exceeds_policy"
+        ]
+      }
+    },
+    "normalized": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_id",
+        "quote_asset",
+        "max_total",
+        "max_runtime_seconds",
+        "max_output_bytes",
+        "input_ref_count",
+        "expected_output_count",
+        "callback_scheme",
+        "callback_host",
+        "ttl_seconds"
+      ],
+      "properties": {
+        "capability_id": {
+          "type": "string"
+        },
+        "quote_asset": {
+          "type": "string"
+        },
+        "max_total": {
+          "type": "string"
+        },
+        "max_runtime_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_ref_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_output_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "callback_scheme": {
+          "type": "string"
+        },
+        "callback_host": {
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "type": "integer"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_selected",
+        "quote_created",
+        "payment_authorized",
+        "work_execution_authorized",
+        "work_dispatched",
+        "wc_award_authorized",
+        "wc_ledger_write_authorized",
+        "mutation_authority_granted",
+        "wallet_or_signer_access_granted",
+        "buy_void_fulfillment_authority_granted"
+      ],
+      "properties": {
+        "provider_selected": {
+          "const": false
+        },
+        "quote_created": {
+          "const": false
+        },
+        "payment_authorized": {
+          "const": false
+        },
+        "work_execution_authorized": {
+          "const": false
+        },
+        "work_dispatched": {
+          "const": false
+        },
+        "wc_award_authorized": {
+          "const": false
+        },
+        "wc_ledger_write_authorized": {
+          "const": false
+        },
+        "mutation_authority_granted": {
+          "const": false
+        },
+        "wallet_or_signer_access_granted": {
+          "const": false
+        },
+        "buy_void_fulfillment_authority_granted": {
+          "const": false
+        }
+      }
+    }
+  }
+}

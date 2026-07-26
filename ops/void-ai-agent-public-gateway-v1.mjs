@@ -36,6 +36,34 @@ const OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES = Math.max(
   ),
 );
 
+const AGENT_PAID_WORK_SUBMISSION_INTEGRATION_MARKER =
+  "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1";
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM = (
+  process.env.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM || ""
+).replace(/\/+$/, "");
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH =
+  "/__void/agents/paid-work/submissions/v1";
+const AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES ||
+      String(64 * 1024),
+  ),
+);
+const AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS = Math.max(
+  1000,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS || "15000",
+  ),
+);
+const AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES ||
+      String(4 * 1024 * 1024),
+  ),
+);
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(
   process.env.VOID_REPO_ROOT || path.join(here, ".."),
@@ -132,6 +160,25 @@ for (const [name, value] of [
   [
     "VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES",
     OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES,
+  ],
+]) {
+  if (!Number.isFinite(value) || value < 1) {
+    fail(`invalid ${name}`);
+  }
+}
+
+for (const [name, value] of [
+  [
+    "VOID_AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES",
+    AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES,
+  ],
+  [
+    "VOID_AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS",
+    AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
+  ],
+  [
+    "VOID_AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES",
+    AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES,
   ],
 ]) {
   if (!Number.isFinite(value) || value < 1) {
@@ -435,6 +482,197 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
   );
 }
 
+function copyPaidWorkSubmissionResponseHeaders(
+  upstreamResponse,
+) {
+  const headers = {};
+
+  for (const [key, value] of upstreamResponse.headers.entries()) {
+    const lower = key.toLowerCase();
+
+    if (
+      [
+        "connection",
+        "content-length",
+        "keep-alive",
+        "location",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "set-cookie",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+      ].includes(lower)
+    ) {
+      continue;
+    }
+
+    headers[key] = value;
+  }
+
+  headers["Cache-Control"] = "no-store";
+  headers["X-Void-Agent-Paid-Work-Submission-Route"] = "v1";
+  return headers;
+}
+
+async function proxyAgentPaidWorkSubmission(
+  request,
+  response,
+  url,
+) {
+  if (!AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM) {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "agent_paid_work_submission_receiver_unavailable",
+    });
+    return;
+  }
+
+  if (
+    url.pathname !== AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH ||
+    url.search ||
+    url.hash
+  ) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "query_not_allowed",
+    });
+    return;
+  }
+
+  const contentType = String(
+    request.headers["content-type"] || "",
+  ).toLowerCase();
+
+  if (!contentType.startsWith("application/json")) {
+    jsonResponse(response, 415, {
+      ok: false,
+      error: "application_json_required",
+    });
+    return;
+  }
+
+  const authorization = String(
+    request.headers.authorization || "",
+  ).trim();
+
+  if (!/^Bearer [^\s]{16,8192}$/.test(authorization)) {
+    jsonResponse(response, 401, {
+      ok: false,
+      error: "bearer_authorization_required",
+    });
+    return;
+  }
+
+  let body;
+
+  try {
+    body = await readBoundedRequestBody(
+      request,
+      AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES,
+    );
+  } catch (error) {
+    if (
+      String(error?.message || "") ===
+      "request_body_too_large"
+    ) {
+      jsonResponse(response, 413, {
+        ok: false,
+        error: "request_body_too_large",
+      });
+      return;
+    }
+
+    throw error;
+  }
+
+  const bodySha = crypto
+    .createHash("sha256")
+    .update(body)
+    .digest("hex");
+  const declaredSha = String(
+    request.headers["x-void-payload-sha256"] || "",
+  ).toLowerCase();
+
+  if (!/^[0-9a-f]{64}$/.test(declaredSha)) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_required",
+    });
+    return;
+  }
+
+  if (declaredSha !== bodySha) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_mismatch",
+    });
+    return;
+  }
+
+  try {
+    JSON.parse(body.toString("utf8"));
+  } catch {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "invalid_json",
+    });
+    return;
+  }
+
+  try {
+    const upstreamResponse = await fetch(
+      `${AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM}${AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH}`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization,
+          "content-type": "application/json",
+          "content-length": String(body.length),
+          "user-agent": "void-ai-agent-public-gateway-v1",
+          "x-void-payload-sha256": bodySha,
+        },
+        body,
+        redirect: "manual",
+        signal: AbortSignal.timeout(
+          AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
+        ),
+      },
+    );
+
+    const responseBody = Buffer.from(
+      await upstreamResponse.arrayBuffer(),
+    );
+
+    if (
+      responseBody.length >
+      AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES
+    ) {
+      throw new Error(
+        "agent_paid_work_submission_response_too_large",
+      );
+    }
+
+    bodyResponse(
+      response,
+      upstreamResponse.status,
+      responseBody,
+      copyPaidWorkSubmissionResponseHeaders(upstreamResponse),
+      "POST",
+    );
+  } catch (error) {
+    process.stderr.write(
+      `${MARKER} paid_work_submission_upstream_error=${String(error)}\n`,
+    );
+    jsonResponse(response, 502, {
+      ok: false,
+      error: "agent_paid_work_submission_receiver_upstream_failed",
+    });
+  }
+}
+
 async function handleRequest(request, response) {
   const method = String(request.method || "").toUpperCase();
 
@@ -447,6 +685,23 @@ async function handleRequest(request, response) {
     );
   } catch {
     emptyResponse(response, 400);
+    return;
+  }
+
+  if (
+    parsed.pathname ===
+    AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH
+  ) {
+    if (method === "POST") {
+      await proxyAgentPaidWorkSubmission(
+        request,
+        response,
+        parsed,
+      );
+      return;
+    }
+
+    emptyResponse(response, 405, { Allow: "POST" });
     return;
   }
 
@@ -562,6 +817,31 @@ server.listen({ host, port, exclusive: true }, () => {
       allowed_routes: [...routeFiles.keys()],
       mutation_authority: false,
       proxy_authority: false,
+      bounded_paid_work_submission_proxy_authority:
+        Boolean(
+          AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM,
+        ),
+      paid_work_submission_integration_marker:
+        AGENT_PAID_WORK_SUBMISSION_INTEGRATION_MARKER,
+      paid_work_submission_route: {
+        path: AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH,
+        methods: ["POST"],
+        configured: Boolean(
+          AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM,
+        ),
+        accepted_for_review_only: true,
+        provider_selection: false,
+        quote_creation: false,
+        payment_authority: false,
+        work_execution_authority: false,
+        work_dispatch: false,
+        wc_award_authority: false,
+        wc_ledger_write_authority: false,
+        wallet_access: false,
+        signing: false,
+        transaction_broadcast: false,
+        buy_void_fulfillment: false,
+      },
       bounded_operator_notification_proxy_authority:
         Boolean(OPERATOR_WEBHOOK_RECEIVER_UPSTREAM),
       operator_notification_integration_marker:
