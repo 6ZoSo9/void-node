@@ -1,0 +1,42 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_PAYMENT_INTENT_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "created_at_utc": "2026-07-25T22:45:00Z",
+  "expires_at_utc": "2026-07-26T19:30:00Z",
+  "requester": {
+    "agent_id": "agent.example.researcher"
+  },
+  "provider": {
+    "provider_id": "void.provider.datanet.verify.precision"
+  },
+  "commercial": {
+    "quote_asset": "USD",
+    "total": "3.50",
+    "max_fee_total": "0.25",
+    "payment_rail_id": "void.external.prepaid.v1"
+  },
+  "authorization": {
+    "payment_authorization_requested": true,
+    "exact_quote_total_only": true,
+    "max_fee_enforced": true,
+    "one_time_use_required": true,
+    "replay_protection_required": true,
+    "single_active_payment_intent_per_acceptance_required": true,
+    "requester_authentication_required": true,
+    "provider_authentication_required": true,
+    "destination_resolution_required": true,
+    "allowlisted_payment_rail_required": true,
+    "separate_payment_execution_required": true,
+    "separate_work_execution_authorization_required": true,
+    "payment_execution_granted": false,
+    "work_execution_authorization_granted": false,
+    "intent_is_not_payment_receipt": true,
+    "intent_is_not_funds_transfer": true,
+    "intent_is_not_funds_reservation": true
+  },
+  "nonce": "payment-intent-example-20260725-0001",
+  "payment_intent_id": "voidawpi1_da03434da6c9e04ec6fcc41743902359634fa5a618366441e398401ac7e53fa9"
+}
