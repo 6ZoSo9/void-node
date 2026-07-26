@@ -1,0 +1,74 @@
+name: agent-paid-work-payment-receipt-envelope-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-paid-work-payment-receipt-envelope-v1.yml"
+      - "docs/public/agent-paid-work-payment-receipt-envelope-v1.md"
+      - "examples/agent-paid-work-payment-receipt-envelope-v1.example.json"
+      - "schemas/agent-paid-work-payment-receipt-envelope-v1.schema.json"
+      - "scripts/agent_paid_work_payment_receipt_envelope_v1.ts"
+      - "scripts/prove_agent_paid_work_payment_receipt_envelope_v1.ts"
+      - "examples/agent-paid-work-order-envelope-v1.example.json"
+      - "examples/agent-paid-work-quote-envelope-v1.example.json"
+      - "examples/agent-paid-work-acceptance-envelope-v1.example.json"
+      - "examples/agent-paid-work-payment-intent-envelope-v1.example.json"
+      - "examples/agent-paid-work-payment-execution-authorization-envelope-v1.example.json"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/agent_paid_work_acceptance_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_intent_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_execution_authorization_envelope_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/agent-paid-work-payment-receipt-envelope-v1.yml"
+      - "docs/public/agent-paid-work-payment-receipt-envelope-v1.md"
+      - "examples/agent-paid-work-payment-receipt-envelope-v1.example.json"
+      - "schemas/agent-paid-work-payment-receipt-envelope-v1.schema.json"
+      - "scripts/agent_paid_work_payment_receipt_envelope_v1.ts"
+      - "scripts/prove_agent_paid_work_payment_receipt_envelope_v1.ts"
+      - "examples/agent-paid-work-order-envelope-v1.example.json"
+      - "examples/agent-paid-work-quote-envelope-v1.example.json"
+      - "examples/agent-paid-work-acceptance-envelope-v1.example.json"
+      - "examples/agent-paid-work-payment-intent-envelope-v1.example.json"
+      - "examples/agent-paid-work-payment-execution-authorization-envelope-v1.example.json"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/agent_paid_work_acceptance_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_intent_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_execution_authorization_envelope_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-paid-work-payment-receipt-envelope-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run focused proof
+        run: npx tsx scripts/prove_agent_paid_work_payment_receipt_envelope_v1.ts
+      - name: Focused TypeScript check
+        run: >-
+          npx tsc
+          --noEmit
+          --strict
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --types node
+          --skipLibCheck
+          scripts/agent_paid_work_payment_receipt_envelope_v1.ts
+          scripts/prove_agent_paid_work_payment_receipt_envelope_v1.ts
