@@ -44,14 +44,22 @@ expose private node routes.
 
 The source includes a disabled-by-default exact proxy route:
 
-- `POST /__void/operator-notifications/v1/candidate`
+- Operator-notification ingress is not served by the public-app composition gateway.
 
 The route is unavailable unless the composition gateway receives the
 operator-local environment binding
-`VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM=http://127.0.0.1:4186`.
+`VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM=http://127.0.0.1:4186` belongs to the isolated AI-agent public gateway service, not this composition gateway.
 
 The gateway requires JSON, a bearer authorization header, a matching raw-body
 SHA-256 header, no query string, and a bounded request body. It follows no
 redirects and proxies no other receiver path. The loopback receiver performs
 the actual token comparison, payload validation, duplicate suppression, and
 append-once receipt write.
+
+### Receiver ingress ownership
+
+The dormant compatibility implementation in the composition source is not the
+installed production ingress. Live ownership is the isolated AI-agent gateway
+on its dedicated service.
+
+Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1`
