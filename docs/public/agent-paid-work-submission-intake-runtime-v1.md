@@ -46,8 +46,10 @@ The gateway and receiver independently enforce:
 - no query string or fragment;
 - exact POST-only routing.
 
-The receiver verifies the bearer token against a local mode-0600 token file
-using a timing-safe comparison. It accepts only loopback sources.
+The receiver verifies bearer authorization using a timing-safe comparison.
+The default compatibility mode reads one local mode-0600 token file. An
+optional per-agent registry mode reads SHA-256 token digests from a separate
+owner-private registry file. It accepts only loopback sources.
 
 ## Admission result
 
@@ -136,3 +138,38 @@ unauthorized canary before any real submission is invited.
 - `fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json`
 - `examples/systemd/void-agent-paid-work-submission-receiver-v1.service`
 - `examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf`
+## Optional per-agent credential registry
+
+The receiver also supports an optional operator-controlled credential registry
+through:
+
+```text
+VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE
+```
+
+When this variable is absent, the existing mode-0600 single-token file remains
+the exact fallback path. When the registry variable is present, registry
+authentication takes precedence and the fallback token is not read.
+
+The registry stores SHA-256 token digests only. It never stores raw bearer
+tokens. Each credential binds:
+
+- one deterministic credential ID;
+- one bounded agent ID;
+- the exact `agent_paid_work_submit` scope;
+- issuance and required expiration times;
+- an optional revocation time.
+
+Registry authentication uses a timing-safe comparison across the bounded
+credential set. Failed, expired, future, revoked, and unknown credentials all
+return the same external `401 unauthorized` response and create no receipt.
+
+A new receipt records the authentication mode. Registry-authenticated receipts
+also bind the registry ID, credential ID, agent ID, and exact submission scope.
+The authentication binding does not grant provider selection, quote, payment,
+execution, dispatch, Work Credit, wallet, signer, transaction, or Buy VOID
+authority.
+
+This source lane does not create a credential registry, issue a token, read the
+live fallback token, install a registry path, restart the receiver, or deploy
+the integration.

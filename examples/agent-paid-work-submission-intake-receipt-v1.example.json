@@ -56,5 +56,12 @@
     "wallet_or_signer_access_granted": false,
     "buy_void_fulfillment_authority_granted": false
   },
-  "receipt_id": "voidawsi1_b22ab4d8392dbcb9685d3e9d2fcf91ed41c627f692dc99cc1d1066449c9f9664"
+  "receipt_id": "voidawsi1_6af2150c2d43bb07e18a5e5979822ac99227b88a1550cba21eaaceb744c3a3e5",
+  "authentication": {
+    "mode": "credential_registry",
+    "registry_id": "voidapwcr1_1060f4ffd521d3c90f83706545632a766fbd8893d89aa0ec92cc733db3ccb025",
+    "credential_id": "voidapwc1_dd6de29216de296806cfcec5cbd6540417bc3eea41f5f09ef32ee8f24f068e82",
+    "agent_id": "void.agent.example.alpha",
+    "scope": "agent_paid_work_submit"
+  }
 }

@@ -22,6 +22,28 @@ const gatewayProof = read(
 const receiverProof = read(
   "scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts",
 );
+const credentialRegistry = read(
+  "scripts/agent_paid_work_credential_registry_v1.ts",
+);
+const credentialRegistryProof = read(
+  "scripts/prove_agent_paid_work_credential_registry_v1.ts",
+);
+const credentialRegistryExample = JSON.parse(
+  read(
+    "examples/agent-paid-work-credential-registry-v1.example.json",
+  ),
+);
+const credentialRegistrySchema = JSON.parse(
+  read(
+    "schemas/agent-paid-work-credential-registry-v1.schema.json",
+  ),
+);
+const credentialRegistryWorkflow = read(
+  ".github/workflows/agent-paid-work-credential-registry-v1.yml",
+);
+const credentialRegistryDocs = read(
+  "docs/operators/agent-paid-work-credential-registry-v1.md",
+);
 const config = JSON.parse(
   read(
     "fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json",
@@ -358,6 +380,140 @@ for (const expected of [
   );
 }
 
+
+for (const expected of [
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE",
+  "parseAgentPaidWorkCredentialRegistryV1",
+  "authenticateAgentPaidWorkCredentialV1",
+  '"credential_registry"',
+  '"single_token_fallback"',
+  "credential_registry_id:",
+  "credential_count:",
+  "authentication,",
+  "AGENT_PAID_WORK_SUBMIT_SCOPE",
+]) {
+  assert.equal(
+    receiver.includes(expected),
+    true,
+    `receiver credential integration missing ${expected}`,
+  );
+}
+
+for (const expected of [
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1",
+  "voidapwc1_",
+  "voidapwcr1_",
+  "agent_paid_work_submit",
+  "token_sha256",
+  "expires_at_utc",
+  "revoked_at_utc",
+  "timingSafeEqual",
+  "duplicate token_sha256",
+  "credential_revoked",
+  "credential_expired",
+]) {
+  assert.equal(
+    credentialRegistry.includes(expected),
+    true,
+    `credential registry missing ${expected}`,
+  );
+}
+
+assert.equal(
+  credentialRegistrySchema.properties.marker.const,
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1",
+);
+assert.equal(
+  credentialRegistryExample.marker,
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1",
+);
+assert.equal(
+  JSON.stringify(
+    credentialRegistryExample,
+  ).includes('"token":'),
+  false,
+  "raw token field appears in credential registry example",
+);
+assert.equal(
+  credentialRegistryExample.credentials.every(
+    (credential) =>
+      credential.scopes.length === 1 &&
+      credential.scopes[0] ===
+        "agent_paid_work_submit" &&
+      /^[0-9a-f]{64}$/.test(
+        credential.token_sha256,
+      ),
+  ),
+  true,
+);
+
+assert.equal(
+  receiptSchema.required.includes(
+    "authentication",
+  ),
+  true,
+);
+assert.equal(
+  receiptExample.authentication.mode,
+  "credential_registry",
+);
+assert.equal(
+  receiptExample.authentication.scope,
+  "agent_paid_work_submit",
+);
+assert.match(
+  receiptExample.authentication.credential_id,
+  /^voidapwc1_[0-9a-f]{64}$/,
+);
+assert.match(
+  receiptExample.authentication.registry_id,
+  /^voidapwcr1_[0-9a-f]{64}$/,
+);
+
+for (const expected of [
+  "sha256_digest_only=1",
+  "raw_token_in_registry=0",
+  "per_agent_identity=1",
+  "expiration_required=1",
+  "revocation_supported=1",
+  "receipt_credential_binding=1",
+  "invalid_credentials_receipt_write=0",
+]) {
+  assert.equal(
+    credentialRegistryProof.includes(expected),
+    true,
+    `credential registry proof missing ${expected}`,
+  );
+}
+
+for (const expected of [
+  "prove_agent_paid_work_credential_registry_v1.ts",
+  "prove_agent_paid_work_submission_intake_runtime_v1.ts",
+  "prove_agent_paid_work_submission_intake_guard_v1.mjs",
+  "npm run build",
+]) {
+  assert.equal(
+    credentialRegistryWorkflow.includes(expected),
+    true,
+    `credential registry workflow missing ${expected}`,
+  );
+}
+
+for (const expected of [
+  "SHA-256 token digests only",
+  "agent_paid_work_submit",
+  "required expiration",
+  "revocation",
+  "single-token",
+  "create or issue a live credential",
+]) {
+  assert.equal(
+    credentialRegistryDocs.includes(expected),
+    true,
+    `credential registry docs missing ${expected}`,
+  );
+}
+
 console.log(
   "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GUARD_V1_GREEN",
 );
@@ -382,3 +538,11 @@ console.log("wc_award_authority=0");
 console.log("wc_ledger_write=0");
 console.log("wallet_or_signer_access=0");
 console.log("buy_void_fulfillment=0");
+console.log("credential_registry_source=1");
+console.log("sha256_digest_only=1");
+console.log("raw_token_in_registry=0");
+console.log("per_agent_identity=1");
+console.log("credential_expiration=1");
+console.log("credential_revocation=1");
+console.log("single_token_fallback=1");
+console.log("receipt_credential_binding=1");

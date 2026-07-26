@@ -7,6 +7,7 @@ import {
   closeSync,
   existsSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -32,6 +33,13 @@ import {
   type AgentPaidWorkSubmissionAdmissionPolicyV1,
   type AgentPaidWorkSubmissionAdmissionV1,
 } from "./agent_paid_work_submission_admission_v1.js";
+import {
+  AGENT_PAID_WORK_SUBMIT_SCOPE,
+  authenticateAgentPaidWorkCredentialV1,
+  parseAgentPaidWorkCredentialRegistryV1,
+  type AgentPaidWorkCredentialAuthenticationV1,
+  type AgentPaidWorkCredentialRegistryV1,
+} from "./agent_paid_work_credential_registry_v1.js";
 
 export const AGENT_PAID_WORK_SUBMISSION_RECEIVER_MARKER =
   "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_V1" as const;
@@ -77,6 +85,16 @@ type SubmissionReceiptDraft = {
   admission: AgentPaidWorkSubmissionAdmissionV1;
   received_at_utc: string;
   authorization_verified: true;
+  authentication:
+    | AgentPaidWorkCredentialAuthenticationV1
+    | {
+        mode: "single_token_fallback";
+        registry_id: null;
+        credential_id: null;
+        agent_id: null;
+        scope:
+          typeof AGENT_PAID_WORK_SUBMIT_SCOPE;
+      };
   loopback_source: true;
   duplicate: false;
   authority: {
@@ -489,6 +507,22 @@ function safeCount(pathname: string): number {
   }
 }
 
+function assertOwnerPrivateRegularFile(
+  pathname: string,
+  label: string,
+): void {
+  const metadata = lstatSync(pathname);
+  assertCondition(
+    metadata.isFile() &&
+      !metadata.isSymbolicLink(),
+    `${label} must be a regular non-symlink file`,
+  );
+  assertCondition(
+    (metadata.mode & 0o077) === 0,
+    `${label} must not grant group or other permissions`,
+  );
+}
+
 function bearerMatches(
   authorization: string,
   token: string,
@@ -556,13 +590,16 @@ async function main(): Promise<void> {
     1,
     4096,
   );
-  const tokenPath = requireString(
+  const credentialRegistryPath = String(
     process.env
-      .VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE,
-    "VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE",
-    1,
-    4096,
-  );
+      .VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE ||
+      "",
+  ).trim();
+  const tokenPath = String(
+    process.env
+      .VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE ||
+      "",
+  ).trim();
   const stateDir = requireString(
     process.env
       .VOID_AGENT_PAID_WORK_SUBMISSION_STATE_DIR,
@@ -579,14 +616,43 @@ async function main(): Promise<void> {
     "receiver is disabled by config",
   );
 
-  const token = readFileSync(
-    tokenPath,
-    "utf8",
-  ).trim();
-  assertCondition(
-    /^[^\s]{16,8192}$/.test(token),
-    "receiver bearer token format invalid",
-  );
+  let credentialRegistry:
+    AgentPaidWorkCredentialRegistryV1 | null = null;
+  let fallbackToken: string | null = null;
+
+  if (credentialRegistryPath) {
+    assertOwnerPrivateRegularFile(
+      credentialRegistryPath,
+      "credential registry file",
+    );
+    credentialRegistry =
+      parseAgentPaidWorkCredentialRegistryV1(
+        readJsonFile(
+          credentialRegistryPath,
+        ),
+      );
+  } else {
+    const requiredTokenPath = requireString(
+      tokenPath,
+      "VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE",
+      1,
+      4096,
+    );
+    assertOwnerPrivateRegularFile(
+      requiredTokenPath,
+      "fallback token file",
+    );
+    fallbackToken = readFileSync(
+      requiredTokenPath,
+      "utf8",
+    ).trim();
+    assertCondition(
+      /^[^\s]{16,8192}$/.test(
+        fallbackToken,
+      ),
+      "receiver bearer token format invalid",
+    );
+  }
 
   const root = path.resolve(stateDir);
   const receiptsDir = path.join(
@@ -656,6 +722,16 @@ async function main(): Promise<void> {
             config.max_body_bytes,
           admission_policy_id:
             config.admission_policy.policy_id,
+          authentication_mode:
+            credentialRegistry
+              ? "credential_registry"
+              : "single_token_fallback",
+          credential_registry_id:
+            credentialRegistry?.registry_id ||
+            null,
+          credential_count:
+            credentialRegistry?.credentials
+              .length || 1,
           receipt_count:
             safeCount(receiptsDir),
           submission_index_count:
@@ -719,17 +795,51 @@ async function main(): Promise<void> {
     const authorization = String(
       request.headers.authorization || "",
     ).trim();
-    if (
-      !bearerMatches(
-        authorization,
-        token,
-      )
-    ) {
-      jsonResponse(response, 401, {
-        ok: false,
-        error: "unauthorized",
-      });
-      return;
+    const evaluatedAt = utcNow();
+    let authentication:
+      SubmissionReceiptDraft["authentication"];
+
+    if (credentialRegistry) {
+      const result =
+        authenticateAgentPaidWorkCredentialV1(
+          authorization,
+          credentialRegistry,
+          evaluatedAt,
+        );
+      if (!result.ok) {
+        jsonResponse(response, 401, {
+          ok: false,
+          error: "unauthorized",
+        });
+        return;
+      }
+      authentication =
+        result.authentication;
+    } else {
+      assertCondition(
+        fallbackToken !== null,
+        "fallback token unavailable",
+      );
+      if (
+        !bearerMatches(
+          authorization,
+          fallbackToken,
+        )
+      ) {
+        jsonResponse(response, 401, {
+          ok: false,
+          error: "unauthorized",
+        });
+        return;
+      }
+      authentication = {
+        mode: "single_token_fallback",
+        registry_id: null,
+        credential_id: null,
+        agent_id: null,
+        scope:
+          AGENT_PAID_WORK_SUBMIT_SCOPE,
+      };
     }
 
     const contentType = String(
@@ -872,7 +982,6 @@ async function main(): Promise<void> {
       return;
     }
 
-    const evaluatedAt = utcNow();
     const admission =
       materializeAgentPaidWorkSubmissionAdmissionV1(
         submission.work_order,
@@ -895,6 +1004,7 @@ async function main(): Promise<void> {
       admission,
       received_at_utc: evaluatedAt,
       authorization_verified: true,
+      authentication,
       loopback_source: true,
       duplicate: false,
       authority: {
@@ -1067,6 +1177,16 @@ async function main(): Promise<void> {
             config.max_body_bytes,
           admission_policy_id:
             config.admission_policy.policy_id,
+          authentication_mode:
+            credentialRegistry
+              ? "credential_registry"
+              : "single_token_fallback",
+          credential_registry_id:
+            credentialRegistry?.registry_id ||
+            null,
+          credential_count:
+            credentialRegistry?.credentials
+              .length || 1,
           append_once_receipts: true,
           identical_duplicate_suppression:
             true,
