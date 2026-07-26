@@ -28,7 +28,8 @@
     "readiness": "/__void/ready.json",
     "participant_app": "/app/",
     "capability_negotiation": "/public-node/agents/capabilities-v1.json",
-    "authentication_contract": "/public-node/agents/authentication-v1.json"
+    "authentication_contract": "/public-node/agents/authentication-v1.json",
+    "paid_work_protocol": "/public-node/agents/paid-work-v1.json"
   },
   "capabilities": [
     {
@@ -54,6 +55,12 @@
       "state": "live",
       "authority": "read_only",
       "discovery": "/public-node/agents/authentication-v1.json"
+    },
+    {
+      "id": "paid_work_protocol_discovery",
+      "state": "live",
+      "authority": "read_only",
+      "discovery": "/public-node/agents/paid-work-v1.json"
     },
     {
       "id": "datanet_public_read_and_verify",
@@ -132,6 +139,13 @@
       },
       {
         "order": 7,
+        "action": "fetch",
+        "method": "GET",
+        "path": "/public-node/agents/paid-work-v1.json",
+        "required": false
+      },
+      {
+        "order": 8,
         "action": "enforce_authority_boundary",
         "required": true,
         "rule": "Use only routes and methods explicitly advertised by a fetched capability. Stop before mutation when authority is absent, guarded, ambiguous, expired, or unverifiable."

@@ -41,6 +41,16 @@ const expectedRoutes = [
     marker: null,
   },
   {
+    route: "/public-node/agents/paid-work-v1.json",
+    relativePath: "public/public-node/agents/paid-work-v1.json",
+    marker: "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1",
+  },
+  {
+    route: "/public-node/agents/paid-work-v1.schema.json",
+    relativePath: "public/public-node/agents/paid-work-v1.schema.json",
+    marker: null,
+  },
+  {
     route: "/.well-known/void-network-authenticity.json",
     relativePath: "public/.well-known/void-network-authenticity.json",
     marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
@@ -58,8 +68,8 @@ assert.equal(
 );
 assert.equal(
   voidAiAgentDiscoveryRuntimeRoutesV1.length,
-  6,
-  "exactly six runtime routes",
+  8,
+  "exactly eight runtime routes",
 );
 assert.deepEqual(
   voidAiAgentDiscoveryRuntimeRoutesV1,
@@ -68,14 +78,14 @@ assert.deepEqual(
 );
 assert.equal(
   new Set(voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.route)).size,
-  6,
+  8,
   "no duplicate runtime routes",
 );
 assert.equal(
   new Set(
     voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.relativePath),
   ).size,
-  6,
+  8,
   "no duplicate runtime relative paths",
 );
 
@@ -162,6 +172,23 @@ for (const forbidden of [
     `runtime module forbids ${forbidden}`,
   );
 }
+
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/public-node/agents/paid-work-v1.json"',
+  ),
+  1,
+  "paid-work discovery route appears exactly once",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/public-node/agents/paid-work-v1.schema.json"',
+  ),
+  1,
+  "paid-work discovery schema route appears exactly once",
+);
 
 assert.equal(
   count(
@@ -330,6 +357,16 @@ try {
     ),
   );
 
+  const paidWork = JSON.parse(
+    fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        "public/public-node/agents/paid-work-v1.json",
+      ),
+      "utf8",
+    ),
+  );
+
   assert.equal(pointer.network.chain_id, 2050);
   assert.equal(pointer.authority.mutation_authority_granted, false);
   assert.equal(
@@ -344,6 +381,74 @@ try {
   assert.equal(canonical.network.chain_id, 2050);
   assert.equal(canonical.authority.mutation_authority_granted, false);
   assert.deepEqual(canonical.authority.granted_http_methods, ["GET", "HEAD"]);
+  assert.equal(
+    canonical.entrypoints.paid_work_protocol,
+    "/public-node/agents/paid-work-v1.json",
+  );
+  assert.equal(
+    canonical.capabilities.find(
+      (entry: any) => entry.id === "paid_work_protocol_discovery",
+    )?.state,
+    "live",
+  );
+  assert.equal(
+    canonical.capabilities.find(
+      (entry: any) => entry.id === "paid_work_protocol_discovery",
+    )?.authority,
+    "read_only",
+  );
+  assert.equal(
+    canonical.capabilities.find(
+      (entry: any) => entry.id === "paid_work_protocol_discovery",
+    )?.discovery,
+    "/public-node/agents/paid-work-v1.json",
+  );
+
+  assert.equal(
+    paidWork.marker,
+    "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1",
+  );
+  assert.equal(
+    paidWork.protocol,
+    "void-agent-paid-work-runtime-discovery/1",
+  );
+  assert.equal(
+    paidWork.runtime_discovery_id,
+    "voidawprd1_556277132f4a43da05dd025b624e500b0dc460593a6120675da8947987c50e7e",
+  );
+  assert.equal(
+    paidWork.repository_binding.manifest_id,
+    "voidawpd1_cfe29c4adaf977ceda8b00a5425cda09cf4eb751463521379e25fe08c2ff4b2d",
+  );
+  assert.equal(paidWork.repository_binding.stage_count, 12);
+  assert.equal(paidWork.repository_binding.artifact_count, 60);
+  assert.equal(paidWork.authority.default, "read_only");
+  assert.deepEqual(
+    paidWork.authority.granted_http_methods,
+    ["GET", "HEAD"],
+  );
+  assert.equal(paidWork.authority.mutation_authority_granted, false);
+  assert.equal(
+    paidWork.runtime_capabilities.live_work_order_submission,
+    "unavailable",
+  );
+  assert.equal(
+    paidWork.runtime_capabilities.live_payment_execution,
+    "unavailable",
+  );
+  assert.equal(
+    paidWork.runtime_capabilities.live_wc_ledger_write,
+    "unavailable",
+  );
+  assert.equal(
+    paidWork.runtime_capabilities.wc_to_void_settlement,
+    "unavailable",
+  );
+  assert.equal(
+    paidWork.runtime_capabilities.buy_void_auto_fulfillment,
+    "unavailable",
+  );
+
   assert.equal(
     canonical.capabilities.find(
       (entry: any) => entry.id === "buy_void_automatic_fulfillment",
@@ -428,7 +533,7 @@ await withTemporaryCwd(
   },
 );
 
-console.log("runtime_route_count=6");
+console.log("runtime_route_count=8");
 console.log("runtime_route_duplicates=0");
 console.log("runtime_relative_path_duplicates=0");
 console.log("canonical_discovery_get=200");
@@ -439,6 +544,23 @@ console.log("well_known_pointer_get=200");
 console.log("well_known_pointer_head=200");
 console.log("well_known_schema_get=200");
 console.log("well_known_schema_head=200");
+console.log("paid_work_discovery_get=200");
+console.log("paid_work_discovery_head=200");
+console.log("paid_work_schema_get=200");
+console.log("paid_work_schema_head=200");
+console.log(
+  "paid_work_runtime_discovery_id=voidawprd1_556277132f4a43da05dd025b624e500b0dc460593a6120675da8947987c50e7e",
+);
+console.log(
+  "paid_work_repository_manifest_id=voidawpd1_cfe29c4adaf977ceda8b00a5425cda09cf4eb751463521379e25fe08c2ff4b2d",
+);
+console.log("paid_work_repository_stage_count=12");
+console.log("paid_work_repository_artifact_count=60");
+console.log("paid_work_live_submission=unavailable");
+console.log("paid_work_live_payment_execution=unavailable");
+console.log("paid_work_live_wc_ledger_write=unavailable");
+console.log("paid_work_wc_to_void_settlement=unavailable");
+console.log("paid_work_buy_void_auto_fulfillment=unavailable");
 console.log("authenticity_get=200");
 console.log("authenticity_head=200");
 console.log("authenticity_schema_get=200");
