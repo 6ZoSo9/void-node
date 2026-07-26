@@ -1,0 +1,96 @@
+{
+  "marker": "VOID_AI_AGENT_BOOTSTRAP_CLIENT_V1",
+  "schema": "void_ai_agent_bootstrap_result_v1",
+  "version": 1,
+  "base_origin": "https://node.example.invalid",
+  "network": {
+    "name": "VOID Mainnet-0",
+    "chain_id": 2050
+  },
+  "official_entrypoint": {
+    "verified": true,
+    "route": "/.well-known/void-agent-discovery.json",
+    "marker": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
+    "protocol": "void-agent-discovery-well-known/1",
+    "canonical_discovery": "/public-node/agents/discovery-v1.json",
+    "authority_default": "read_only",
+    "mutation_authority_granted": false
+  },
+  "surfaces": {
+    "canonical_discovery": {
+      "available": true,
+      "route": "/public-node/agents/discovery-v1.json",
+      "http_status": 200,
+      "response_bytes": 512,
+      "marker": "VOID_AI_AGENT_DISCOVERY_V1",
+      "public_marker_valid": true,
+      "error": null
+    },
+    "capabilities": {
+      "available": true,
+      "route": "/.well-known/void-agent-capabilities.json",
+      "http_status": 200,
+      "response_bytes": 512,
+      "marker": "VOID_AI_AGENT_CAPABILITIES_WELL_KNOWN_V1",
+      "public_marker_valid": true,
+      "error": null
+    },
+    "authentication": {
+      "available": true,
+      "route": "/.well-known/void-agent-authentication.json",
+      "http_status": 200,
+      "response_bytes": 512,
+      "marker": "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
+      "public_marker_valid": true,
+      "error": null
+    },
+    "first_contact": {
+      "available": true,
+      "route": "/public-node/agents/first-contact-v1.json",
+      "http_status": 200,
+      "response_bytes": 512,
+      "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1",
+      "public_marker_valid": true,
+      "error": null
+    },
+    "external_opportunity_intake": {
+      "available": true,
+      "route": "/.well-known/void-agent-intake-capability-v1.json",
+      "http_status": 200,
+      "response_bytes": 512,
+      "marker": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+      "public_marker_valid": true,
+      "error": null
+    }
+  },
+  "readiness": {
+    "read_only_connection_ready": true,
+    "onboarding_surface_complete": true,
+    "paid_work_execution_promised": false,
+    "work_credit_earning_promised": false,
+    "mutation_authority_granted": false,
+    "wallet_or_signer_access_granted": false,
+    "payment_authority_granted": false,
+    "buy_void_fulfillment_authority_granted": false
+  },
+  "next_steps": [
+    "select_explicit_read_only_capability"
+  ],
+  "safety": {
+    "http_methods_used": [
+      "GET"
+    ],
+    "same_origin_only": true,
+    "redirects_followed": false,
+    "credentials_sent": false,
+    "authorization_header_sent": false,
+    "cookies_sent": false,
+    "wallet_material_sent": false,
+    "operator_keys_sent": false,
+    "request_body_sent": false,
+    "mutation_performed": false,
+    "payment_performed": false,
+    "transaction_broadcast_performed": false,
+    "wc_ledger_write_performed": false
+  }
+}

@@ -1,0 +1,49 @@
+name: VOID AI Agent Bootstrap Client V1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/void-ai-agent-bootstrap-client-v1.yml"
+      - "docs/public/ai-agent-bootstrap-client-v1.md"
+      - "examples/void-ai-agent-bootstrap-client-v1.example.json"
+      - "schemas/void-ai-agent-bootstrap-client-v1.schema.json"
+      - "scripts/prove_void_ai_agent_bootstrap_client_v1.mjs"
+      - "tools/void-ai-agent-bootstrap-client-v1.mjs"
+  pull_request:
+    paths:
+      - ".github/workflows/void-ai-agent-bootstrap-client-v1.yml"
+      - "docs/public/ai-agent-bootstrap-client-v1.md"
+      - "examples/void-ai-agent-bootstrap-client-v1.example.json"
+      - "schemas/void-ai-agent-bootstrap-client-v1.schema.json"
+      - "scripts/prove_void_ai_agent_bootstrap_client_v1.mjs"
+      - "tools/void-ai-agent-bootstrap-client-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Prove bootstrap client
+        run: node scripts/prove_void_ai_agent_bootstrap_client_v1.mjs
+
+      - name: Verify CLI help
+        run: node tools/void-ai-agent-bootstrap-client-v1.mjs --help
+
+      - name: TypeScript baseline
+        run: |
+          npm ci
+          npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
