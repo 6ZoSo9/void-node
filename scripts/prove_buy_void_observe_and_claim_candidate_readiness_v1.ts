@@ -5,7 +5,7 @@ import {
 } from "../src/economic/buy_void_observe_and_claim_candidate_readiness_v1.js";
 
 const base = {
-  public_status: "payment_submitted_pending_manual_review",
+  public_status: "payment_verified",
   claim_status: "missing",
   attempt_status: "missing",
   broadcast_status: "none",

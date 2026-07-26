@@ -87,6 +87,7 @@ export function normalizeBuyVoidObserveAndClaimCandidateRecordV1(
     input.plan_fingerprint_sha256,
   );
   const selectedStage = nullable(input.selected_stage);
+  const publicStatus = nullable(input.public_status);
   const orchestratorStatus = normalized(
     input.orchestrator_status,
   );
@@ -104,6 +105,7 @@ export function normalizeBuyVoidObserveAndClaimCandidateRecordV1(
 
   const eligible =
     SAFE_REQUEST_ID.test(requestId)
+    && publicStatus === "payment_verified"
     && orchestratorStatus === "dry_run"
     && selectedStage === "observe_and_claim"
     && activationStatus === "planned"
@@ -116,7 +118,7 @@ export function normalizeBuyVoidObserveAndClaimCandidateRecordV1(
 
   return {
     request_id: requestId,
-    public_status: nullable(input.public_status),
+    public_status: publicStatus,
     claim_status: nullable(input.claim_status),
     attempt_status: nullable(input.attempt_status),
     broadcast_status: nullable(input.broadcast_status),
