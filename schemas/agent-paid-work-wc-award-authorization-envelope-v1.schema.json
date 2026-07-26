@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-wc-award-authorization-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work WC Award Authorization Envelope V1",
+  "description": "A deterministic authorization for one bounded Work Credit award after one exact final verified paid-work completion. The envelope does not itself write the WC ledger, settle WC to VOID, move money, access wallets, administer runtime state, or activate Buy VOID.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "payment_confirmation_id",
+    "work_execution_authorization_id",
+    "work_completion_receipt_id",
+    "independent_completion_verification_id",
+    "authorized_at_utc",
+    "expires_at_utc",
+    "beneficiary",
+    "verified_completion",
+    "award",
+    "ledger_target",
+    "authorizer",
+    "authorization",
+    "nonce",
+    "wc_award_authorization_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_WC_AWARD_AUTHORIZATION_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    },
+    "work_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawwea1_[0-9a-f]{64}$"
+    },
+    "work_completion_receipt_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawcr1_[0-9a-f]{64}$"
+    },
+    "independent_completion_verification_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawicv1_[0-9a-f]{64}$"
+    },
+    "authorized_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "beneficiary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id",
+        "provider_id",
+        "wc_account_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "wc_account_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "verified_completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier_id",
+        "verification_policy_id",
+        "decision_status",
+        "completion_verified"
+      ],
+      "properties": {
+        "verifier_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "verification_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "decision_status": {
+          "const": "verified"
+        },
+        "completion_verified": {
+          "const": true
+        }
+      }
+    },
+    "award": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "denomination",
+        "amount_wc",
+        "maximum_authorized_amount_wc",
+        "award_reason_code",
+        "award_policy_id",
+        "score_basis_sha256"
+      ],
+      "properties": {
+        "denomination": {
+          "const": "WC"
+        },
+        "amount_wc": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000
+        },
+        "maximum_authorized_amount_wc": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000
+        },
+        "award_reason_code": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+        },
+        "award_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "score_basis_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ledger_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_id",
+        "entry_type",
+        "destination_account_id",
+        "uniqueness_key",
+        "expected_prestate_sha256",
+        "ledger_receipt_schema_id"
+      ],
+      "properties": {
+        "ledger_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "entry_type": {
+          "const": "earn"
+        },
+        "destination_account_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "uniqueness_key": {
+          "type": "string",
+          "minLength": 98,
+          "maxLength": 98,
+          "pattern": "^paid-work-verification:voidawicv1_[0-9a-f]{64}$"
+        },
+        "expected_prestate_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "ledger_receipt_schema_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        }
+      }
+    },
+    "authorizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_policy_id",
+        "signing_key_id",
+        "signature_scheme",
+        "signed_payload_sha256",
+        "signature_evidence_sha256"
+      ],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "authority_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "signing_key_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,159}$"
+        },
+        "signature_scheme": {
+          "const": "ed25519"
+        },
+        "signed_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signature_evidence_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wc_award_authorized",
+        "exact_independent_verification_only",
+        "exact_completion_receipt_only",
+        "verified_completion_required",
+        "one_time_use_required",
+        "replay_protection_required",
+        "atomic_ledger_write_required",
+        "single_award_per_verification_required",
+        "beneficiary_binding_required",
+        "authorizer_authentication_required",
+        "authorization_signature_required",
+        "authority_policy_binding_required",
+        "authorizer_beneficiary_separation_required",
+        "authorizer_provider_separation_required",
+        "authorizer_verifier_separation_required",
+        "award_amount_cap_enforced",
+        "ledger_uniqueness_enforced",
+        "ledger_receipt_required",
+        "ledger_write_is_separate_execution",
+        "wc_to_void_settlement_separate",
+        "payment_mutation_forbidden",
+        "wallet_access_forbidden",
+        "runtime_administration_forbidden",
+        "buy_void_fulfillment_forbidden",
+        "authorization_is_not_ledger_write",
+        "authorization_is_not_wc_to_void_settlement",
+        "authorization_is_not_payment_instruction"
+      ],
+      "properties": {
+        "wc_award_authorized": {
+          "const": true
+        },
+        "exact_independent_verification_only": {
+          "const": true
+        },
+        "exact_completion_receipt_only": {
+          "const": true
+        },
+        "verified_completion_required": {
+          "const": true
+        },
+        "one_time_use_required": {
+          "const": true
+        },
+        "replay_protection_required": {
+          "const": true
+        },
+        "atomic_ledger_write_required": {
+          "const": true
+        },
+        "single_award_per_verification_required": {
+          "const": true
+        },
+        "beneficiary_binding_required": {
+          "const": true
+        },
+        "authorizer_authentication_required": {
+          "const": true
+        },
+        "authorization_signature_required": {
+          "const": true
+        },
+        "authority_policy_binding_required": {
+          "const": true
+        },
+        "authorizer_beneficiary_separation_required": {
+          "const": true
+        },
+        "authorizer_provider_separation_required": {
+          "const": true
+        },
+        "authorizer_verifier_separation_required": {
+          "const": true
+        },
+        "award_amount_cap_enforced": {
+          "const": true
+        },
+        "ledger_uniqueness_enforced": {
+          "const": true
+        },
+        "ledger_receipt_required": {
+          "const": true
+        },
+        "ledger_write_is_separate_execution": {
+          "const": true
+        },
+        "wc_to_void_settlement_separate": {
+          "const": true
+        },
+        "payment_mutation_forbidden": {
+          "const": true
+        },
+        "wallet_access_forbidden": {
+          "const": true
+        },
+        "runtime_administration_forbidden": {
+          "const": true
+        },
+        "buy_void_fulfillment_forbidden": {
+          "const": true
+        },
+        "authorization_is_not_ledger_write": {
+          "const": true
+        },
+        "authorization_is_not_wc_to_void_settlement": {
+          "const": true
+        },
+        "authorization_is_not_payment_instruction": {
+          "const": true
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "wc_award_authorization_id": {
+      "type": "string",
+      "minLength": 76,
+      "maxLength": 76,
+      "pattern": "^voidawwcaa1_[0-9a-f]{64}$"
+    }
+  }
+}
