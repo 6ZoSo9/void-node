@@ -9,6 +9,140 @@
 import crypto from "node:crypto";
 import http from "node:http";
 
+// VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
+
+async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
+  try {
+    const chunks = [];
+    let totalBytes = 0;
+
+    for await (const chunk of req) {
+      const normalized = Buffer.from(chunk);
+      totalBytes += normalized.length;
+
+      if (
+        totalBytes >
+        VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES
+      ) {
+        res.statusCode = 413;
+        res.setHeader(
+          "content-type",
+          "application/json; charset=utf-8",
+        );
+        res.setHeader("cache-control", "no-store");
+        res.setHeader(
+          "x-content-type-options",
+          "nosniff",
+        );
+        res.setHeader(
+          "x-void-public-buy-void-post-proxy",
+          "v1",
+        );
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: "request_body_too_large",
+            max_bytes:
+              VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES,
+          }),
+        );
+        return;
+      }
+
+      chunks.push(normalized);
+    }
+
+    const upstreamBase = String(
+      process.env.VOID_NODE_UPSTREAM
+        || "http://127.0.0.1:4100",
+    );
+    const upstreamUrl = new URL(
+      "/__void/buy-void/request",
+      upstreamBase,
+    );
+    const contentType = String(
+      req.headers["content-type"]
+        || "application/json",
+    );
+
+    const upstreamResponse = await fetch(
+      upstreamUrl,
+      {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          "content-type": contentType,
+          "user-agent":
+            "void-public-app-composition-gateway-buy-void-post-proxy-v1",
+        },
+        body: Buffer.concat(chunks),
+      },
+    );
+
+    const responseBody = Buffer.from(
+      await upstreamResponse.arrayBuffer(),
+    );
+
+    res.statusCode = upstreamResponse.status;
+
+    for (
+      const headerName
+      of [
+        "content-type",
+        "cache-control",
+        "etag",
+        "x-content-type-options",
+      ]
+    ) {
+      const headerValue =
+        upstreamResponse.headers.get(headerName);
+      if (headerValue) {
+        res.setHeader(
+          headerName,
+          headerValue,
+        );
+      }
+    }
+
+    res.setHeader(
+      "x-void-public-buy-void-post-proxy",
+      "v1",
+    );
+    res.setHeader(
+      "content-length",
+      String(responseBody.length),
+    );
+    res.end(responseBody);
+  } catch (_error) {
+    if (res.writableEnded) {
+      return;
+    }
+
+    res.statusCode = 502;
+    res.setHeader(
+      "content-type",
+      "application/json; charset=utf-8",
+    );
+    res.setHeader("cache-control", "no-store");
+    res.setHeader(
+      "x-content-type-options",
+      "nosniff",
+    );
+    res.setHeader(
+      "x-void-public-buy-void-post-proxy",
+      "v1",
+    );
+    res.end(
+      JSON.stringify({
+        ok: false,
+        error: "buy_void_request_upstream_unavailable",
+      }),
+    );
+  }
+}
+
+
 const HOST = process.env.VOID_COMPOSITION_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_COMPOSITION_PORT || "8082");
 const PUBLIC_UPSTREAM = (process.env.VOID_PUBLIC_GATEWAY_UPSTREAM || "http://127.0.0.1:8080").replace(/\/+$/, "");
@@ -1250,6 +1384,30 @@ async function proxy(
 }
 
 const server = http.createServer(async (req, res) => {
+
+  // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_ROUTE
+  try {
+    const voidBuyVoidPublicEdgeUrlV1 = new URL(
+      String(req.url || "/"),
+      "http://127.0.0.1",
+    );
+
+    if (
+      String(req.method || "").toUpperCase() === "POST"
+      && voidBuyVoidPublicEdgeUrlV1.pathname
+        === "/__void/buy-void/request"
+    ) {
+      voidBuyVoidPublicEdgePostProxyV1(
+        req,
+        res,
+      );
+      return;
+    }
+  } catch (_voidBuyVoidPublicEdgeRouteErrorV1) {
+    // Existing composition-gateway routing remains authoritative
+    // for malformed URLs and every non-allowlisted request.
+  }
+
   try {
     const method = String(req.method || "GET").toUpperCase();
     const url = new URL(req.url || "/", "http://composition.local");
