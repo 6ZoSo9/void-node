@@ -37,3 +37,24 @@ This lane does not install or enable the receiver service, does not install the
 gateway drop-in, does not read the live bearer token, and does not expose the
 route publicly. Deployment and the first authenticated canary are separate
 reviewed lanes.
+
+## User-manager and Node.js compatibility
+
+The receiver is installed as a systemd **user** service. Its source unit uses
+`PrivateDevices=false` because enabling `PrivateDevices` performs capability
+bounding-set operations that are unavailable in the unprivileged user manager on
+the supported deployment host.
+
+The source unit also uses `MemoryDenyWriteExecute=false`. Node.js V8 requires
+executable memory for normal runtime operation, and Node.js 22's bundled Undici
+requires WebAssembly. `MemoryDenyWriteExecute=true` terminates V8, while
+`--jitless` removes WebAssembly and prevents Undici from initializing.
+
+This is a narrow runtime-compatibility exception. The receiver remains loopback
+only and preserves `NoNewPrivileges=true`, `PrivateTmp=true`,
+`ProtectSystem=strict`, `ProtectHome=read-only`, explicit `ReadWritePaths`,
+restricted address families, `RestrictSUIDSGID=true`, `LockPersonality=true`,
+and `UMask=0077`. Bearer authentication, the request body limit, payload digest
+binding, and append-once receipts remain unchanged.
+
+Marker: `VOID_OPERATOR_WEBHOOK_RECEIVER_USER_MANAGER_NODE_COMPAT_V1`
