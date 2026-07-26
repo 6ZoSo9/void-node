@@ -16,6 +16,7 @@
     "admission",
     "received_at_utc",
     "authorization_verified",
+    "authentication",
     "loopback_source",
     "duplicate",
     "authority"
@@ -116,6 +117,105 @@
           "const": false
         }
       }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "registry_id",
+        "credential_id",
+        "agent_id",
+        "scope"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "credential_registry",
+            "single_token_fallback"
+          ]
+        },
+        "registry_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^voidapwcr1_[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "credential_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^voidapwc1_[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "const": "agent_paid_work_submit"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "credential_registry"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "registry_id": {
+                "type": "string",
+                "pattern": "^voidapwcr1_[0-9a-f]{64}$"
+              },
+              "credential_id": {
+                "type": "string",
+                "pattern": "^voidapwc1_[0-9a-f]{64}$"
+              },
+              "agent_id": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "registry_id": {
+                "type": "null"
+              },
+              "credential_id": {
+                "type": "null"
+              },
+              "agent_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
