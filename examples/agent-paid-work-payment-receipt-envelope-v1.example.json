@@ -1,0 +1,70 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_PAYMENT_RECEIPT_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2",
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b",
+  "executed_at_utc": "2026-07-25T22:52:00Z",
+  "observed_at_utc": "2026-07-25T22:52:10Z",
+  "requester": {
+    "agent_id": "agent.example.researcher"
+  },
+  "provider": {
+    "provider_id": "void.provider.datanet.verify.precision"
+  },
+  "executor": {
+    "executor_id": "void.executor.payment.precision"
+  },
+  "authorizer": {
+    "authority_id": "void.authority.payment.operator",
+    "authority_policy_id": "void.policy.paid-work-payment-execution.v1"
+  },
+  "resolution": {
+    "resolver_id": "void.resolver.payment.precision",
+    "payment_rail_resolution_id": "void.prr.example.20260725.0001",
+    "provider_destination_binding_id": "void.pdb.example.20260725.0001"
+  },
+  "commercial": {
+    "quote_asset": "USD",
+    "service_total": "3.50",
+    "actual_fee_total": "0.18",
+    "payment_total": "3.68",
+    "payment_rail_id": "void.external.prepaid.v1"
+  },
+  "evidence": {
+    "executor_attempt_id": "void.payexec.attempt.example.20260725.0001",
+    "authorization_consumption_id": "void.peac.example.20260725.0001",
+    "rail_receipt_id": "void.rail.receipt.example.20260725.0001",
+    "payment_evidence_sha256": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+  },
+  "attestation": {
+    "payment_execution_succeeded": true,
+    "exact_authorization_consumed": true,
+    "one_time_use_verified": true,
+    "duplicate_payment_prevention_verified": true,
+    "replay_protection_verified": true,
+    "atomic_consumption_verified": true,
+    "executor_authentication_required": true,
+    "executor_signature_required": true,
+    "payment_rail_confirmation_required": true,
+    "independent_confirmation_required": true,
+    "receipt_is_not_independent_confirmation": true,
+    "receipt_is_not_work_execution_instruction": true,
+    "work_execution_authorization_separate": true,
+    "work_execution_authorization_granted": false,
+    "actual_fee_evidence_required": true,
+    "unused_fee_not_charged": true,
+    "provider_destination_binding_revalidated": true,
+    "rail_asset_compatibility_revalidated": true,
+    "resolution_records_current_unrevoked_unsuperseded_verified": true,
+    "payment_amount_within_authorization": true,
+    "service_total_exact": true,
+    "payment_total_exact": true,
+    "receipt_is_not_transaction_signature": true,
+    "receipt_is_not_funds_reservation": true
+  },
+  "nonce": "payment-receipt-example-20260725-0001",
+  "payment_receipt_id": "voidawper1_5b76b59b1be9d3933df957959d86a73fd19226f263420430c702f43d92bb16fb"
+}
