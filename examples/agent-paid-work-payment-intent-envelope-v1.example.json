@@ -22,6 +22,9 @@
     "payment_authorization_requested": true,
     "exact_quote_total_only": true,
     "max_fee_enforced": true,
+    "max_fee_is_ceiling_not_charge": true,
+    "actual_fee_evidence_required": true,
+    "unused_fee_must_not_be_charged": true,
     "one_time_use_required": true,
     "replay_protection_required": true,
     "single_active_payment_intent_per_acceptance_required": true,
@@ -29,7 +32,11 @@
     "provider_authentication_required": true,
     "destination_resolution_required": true,
     "allowlisted_payment_rail_required": true,
+    "provider_destination_binding_required": true,
+    "rail_asset_compatibility_required": true,
     "separate_payment_execution_required": true,
+    "payment_amount_cap_enforced": true,
+    "payment_confirmation_required_before_work_execution": true,
     "separate_work_execution_authorization_required": true,
     "payment_execution_granted": false,
     "work_execution_authorization_granted": false,
@@ -38,5 +45,5 @@
     "intent_is_not_funds_reservation": true
   },
   "nonce": "payment-intent-example-20260725-0001",
-  "payment_intent_id": "voidawpi1_da03434da6c9e04ec6fcc41743902359634fa5a618366441e398401ac7e53fa9"
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2"
 }

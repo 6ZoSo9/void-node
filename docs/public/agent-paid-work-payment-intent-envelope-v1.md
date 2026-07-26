@@ -38,17 +38,25 @@ The validator enforces:
 - Exact quote total; the intent cannot alter the provider's price
 - Exact quote asset and opaque payment-rail registry key
 - `total + max_fee_total <= work_order.max_total` using decimal-string math
+- `max_fee_total` is a ceiling, not an automatic charge
+- Actual fee evidence is required; unused fee allowance must not be charged
 - One-time use and replay protection
 - At most one active payment intent per acceptance
 - Requester and provider authentication before downstream use
 - Destination resolution through an authenticated allowlisted rail
+- The resolved destination must be bound to the quoted provider
+- The selected rail must support the quoted asset
+- Executed payment amount must not exceed `total + max_fee_total`
+- Payment confirmation is required before work execution
 - No wallet address, destination URI, invoice, or transaction payload field
 - No payment receipt, funds transfer, or funds reservation claim
 - No payment-execution or work-execution authority
 
 The content-derived ID proves payload integrity, not authorship. A downstream
-executor must authenticate the requester, atomically consume the intent ID, and
-reject expired, replayed, superseded, or concurrently active intents.
+executor must authenticate the requester, atomically consume the intent ID,
+verify actual fee evidence, bind the resolved destination to the provider and
+asset-compatible rail, and reject expired, replayed, superseded, or concurrently
+active intents. Any unused fee allowance remains unspent.
 
 ## Deterministic identity
 

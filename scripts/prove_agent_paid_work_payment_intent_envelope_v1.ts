@@ -143,6 +143,9 @@ const trueKeys = [
   "payment_authorization_requested",
   "exact_quote_total_only",
   "max_fee_enforced",
+  "max_fee_is_ceiling_not_charge",
+  "actual_fee_evidence_required",
+  "unused_fee_must_not_be_charged",
   "one_time_use_required",
   "replay_protection_required",
   "single_active_payment_intent_per_acceptance_required",
@@ -150,7 +153,11 @@ const trueKeys = [
   "provider_authentication_required",
   "destination_resolution_required",
   "allowlisted_payment_rail_required",
+  "provider_destination_binding_required",
+  "rail_asset_compatibility_required",
   "separate_payment_execution_required",
+  "payment_amount_cap_enforced",
+  "payment_confirmation_required_before_work_execution",
   "separate_work_execution_authorization_required",
   "intent_is_not_payment_receipt",
   "intent_is_not_funds_transfer",
@@ -204,6 +211,12 @@ for (const boundary of [
   "payment_execution_granted=false",
   "total + max_fee_total <= work_order.max_total",
   "At most one active payment intent per acceptance",
+  "`max_fee_total` is a ceiling, not an automatic charge",
+  "Actual fee evidence is required; unused fee allowance must not be charged",
+  "The resolved destination must be bound to the quoted provider",
+  "The selected rail must support the quoted asset",
+  "Executed payment amount must not exceed `total + max_fee_total`",
+  "Payment confirmation is required before work execution",
   "No wallet address, destination URI, invoice, or transaction payload field",
   "does not add a public HTTP route",
   "or activate Buy VOID fulfillment",
@@ -226,6 +239,11 @@ console.log("expiry_window_guard=yes");
 console.log("one_time_and_replay_protection_required=yes");
 console.log("single_active_intent_per_acceptance_required=yes");
 console.log("authentication_and_allowlisted_resolution_required=yes");
+console.log("max_fee_ceiling_and_actual_fee_evidence_required=yes");
+console.log("unused_fee_must_not_be_charged=yes");
+console.log("provider_destination_and_rail_asset_binding_required=yes");
+console.log("payment_amount_cap_enforced=yes");
+console.log("payment_confirmation_before_work_execution_required=yes");
 console.log("payment_execution_separate_and_ungranted=yes");
 console.log("work_execution_separate_and_ungranted=yes");
 console.log("no_destination_or_transaction_payload=yes");

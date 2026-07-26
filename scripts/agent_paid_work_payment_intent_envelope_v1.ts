@@ -46,6 +46,9 @@ export interface AgentPaidWorkPaymentIntentDraft {
     payment_authorization_requested: true;
     exact_quote_total_only: true;
     max_fee_enforced: true;
+    max_fee_is_ceiling_not_charge: true;
+    actual_fee_evidence_required: true;
+    unused_fee_must_not_be_charged: true;
     one_time_use_required: true;
     replay_protection_required: true;
     single_active_payment_intent_per_acceptance_required: true;
@@ -53,7 +56,11 @@ export interface AgentPaidWorkPaymentIntentDraft {
     provider_authentication_required: true;
     destination_resolution_required: true;
     allowlisted_payment_rail_required: true;
+    provider_destination_binding_required: true;
+    rail_asset_compatibility_required: true;
     separate_payment_execution_required: true;
+    payment_amount_cap_enforced: true;
+    payment_confirmation_required_before_work_execution: true;
     separate_work_execution_authorization_required: true;
     payment_execution_granted: false;
     work_execution_authorization_granted: false;
@@ -298,6 +305,9 @@ function validateDraftShape(
     "payment_authorization_requested",
     "exact_quote_total_only",
     "max_fee_enforced",
+    "max_fee_is_ceiling_not_charge",
+    "actual_fee_evidence_required",
+    "unused_fee_must_not_be_charged",
     "one_time_use_required",
     "replay_protection_required",
     "single_active_payment_intent_per_acceptance_required",
@@ -305,7 +315,11 @@ function validateDraftShape(
     "provider_authentication_required",
     "destination_resolution_required",
     "allowlisted_payment_rail_required",
+    "provider_destination_binding_required",
+    "rail_asset_compatibility_required",
     "separate_payment_execution_required",
+    "payment_amount_cap_enforced",
+    "payment_confirmation_required_before_work_execution",
     "separate_work_execution_authorization_required",
     "payment_execution_granted",
     "work_execution_authorization_granted",
@@ -358,6 +372,9 @@ function validateDraftShape(
       payment_authorization_requested: true,
       exact_quote_total_only: true,
       max_fee_enforced: true,
+      max_fee_is_ceiling_not_charge: true,
+      actual_fee_evidence_required: true,
+      unused_fee_must_not_be_charged: true,
       one_time_use_required: true,
       replay_protection_required: true,
       single_active_payment_intent_per_acceptance_required: true,
@@ -365,7 +382,11 @@ function validateDraftShape(
       provider_authentication_required: true,
       destination_resolution_required: true,
       allowlisted_payment_rail_required: true,
+      provider_destination_binding_required: true,
+      rail_asset_compatibility_required: true,
       separate_payment_execution_required: true,
+      payment_amount_cap_enforced: true,
+      payment_confirmation_required_before_work_execution: true,
       separate_work_execution_authorization_required: true,
       payment_execution_granted: false,
       work_execution_authorization_granted: false,
