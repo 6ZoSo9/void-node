@@ -245,16 +245,19 @@ async function main(): Promise<void> {
         ? activation.plan
         : null;
 
+    const publicStatus =
+      String(derived.snapshot.public_status || "") || null;
+
     const eligible =
-      decision.status === "dry_run"
+      publicStatus === "payment_verified"
+      && decision.status === "dry_run"
       && selectedStage === "observe_and_claim"
       && activation.status === "planned"
       && plan?.selected_stage === "observe_and_claim";
 
     records.push({
       request_id: requestId,
-      public_status:
-        String(derived.snapshot.public_status || "") || null,
+      public_status: publicStatus,
       claim_status:
         String(derived.snapshot.claim_status || "") || null,
       attempt_status:
