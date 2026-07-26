@@ -1,0 +1,712 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Independent Completion Verification Envelope V1",
+  "description": "A deterministic independent verification of one exact paid-work completion receipt without mutating the receipt or authorizing payment, Work Credits, wallet access, runtime administration, or Buy VOID fulfillment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "payment_confirmation_id",
+    "work_execution_authorization_id",
+    "work_completion_receipt_id",
+    "verified_at_utc",
+    "verifier",
+    "subject",
+    "work_contract",
+    "observed_result_commitments",
+    "verification_evidence",
+    "checks",
+    "decision",
+    "verifier_authentication",
+    "attestation",
+    "nonce",
+    "independent_completion_verification_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_INDEPENDENT_COMPLETION_VERIFICATION_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    },
+    "work_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawwea1_[0-9a-f]{64}$"
+    },
+    "work_completion_receipt_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawcr1_[0-9a-f]{64}$"
+    },
+    "verified_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier_id",
+        "verification_policy_id",
+        "verification_run_id"
+      ],
+      "properties": {
+        "verifier_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "verification_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "verification_run_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id",
+        "provider_id",
+        "execution_id",
+        "execution_status"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "execution_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "execution_status": {
+          "type": "string",
+          "enum": [
+            "succeeded",
+            "failed",
+            "timed_out",
+            "cancelled",
+            "policy_rejected"
+          ]
+        }
+      }
+    },
+    "work_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_type",
+        "task_spec_sha256",
+        "input_manifest_sha256",
+        "expected_output_schema_sha256",
+        "result_delivery_channel_id"
+      ],
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+        },
+        "task_spec_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_manifest_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "expected_output_schema_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_delivery_channel_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "observed_result_commitments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_manifest_sha256",
+        "result_payload_sha256",
+        "stdout_sha256",
+        "stderr_sha256",
+        "execution_log_sha256",
+        "evidence_bundle_sha256"
+      ],
+      "properties": {
+        "output_manifest_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "stdout_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "stderr_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "execution_log_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "evidence_bundle_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "verification_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_report_sha256",
+        "reproduction_log_sha256",
+        "schema_validation_report_sha256",
+        "policy_review_report_sha256",
+        "executor_signature_verification_sha256"
+      ],
+      "properties": {
+        "verification_report_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "reproduction_log_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "schema_validation_report_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "policy_review_report_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "executor_signature_verification_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completion_receipt_integrity_verified",
+        "execution_authorization_binding_verified",
+        "executor_signature_verified",
+        "task_spec_binding_verified",
+        "input_manifest_binding_verified",
+        "expected_output_schema_verified",
+        "result_payload_schema_valid",
+        "output_manifest_verified",
+        "evidence_bundle_verified",
+        "resource_limits_verified",
+        "policy_observation_verified",
+        "completion_requirements_satisfied"
+      ],
+      "properties": {
+        "completion_receipt_integrity_verified": {
+          "type": "boolean"
+        },
+        "execution_authorization_binding_verified": {
+          "type": "boolean"
+        },
+        "executor_signature_verified": {
+          "type": "boolean"
+        },
+        "task_spec_binding_verified": {
+          "type": "boolean"
+        },
+        "input_manifest_binding_verified": {
+          "type": "boolean"
+        },
+        "expected_output_schema_verified": {
+          "type": "boolean"
+        },
+        "result_payload_schema_valid": {
+          "type": "boolean"
+        },
+        "output_manifest_verified": {
+          "type": "boolean"
+        },
+        "evidence_bundle_verified": {
+          "type": "boolean"
+        },
+        "resource_limits_verified": {
+          "type": "boolean"
+        },
+        "policy_observation_verified": {
+          "type": "boolean"
+        },
+        "completion_requirements_satisfied": {
+          "type": "boolean"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "completion_verified",
+        "failure_reason_code",
+        "decision_final",
+        "supersedes_verification_id"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "rejected",
+            "inconclusive"
+          ]
+        },
+        "completion_verified": {
+          "type": "boolean"
+        },
+        "failure_reason_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_final": {
+          "type": "boolean"
+        },
+        "supersedes_verification_id": {
+          "const": null
+        }
+      }
+    },
+    "verifier_authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signer_id",
+        "signing_key_id",
+        "signature_scheme",
+        "signed_payload_sha256",
+        "signature_evidence_sha256"
+      ],
+      "properties": {
+        "signer_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "signing_key_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "signature_scheme": {
+          "const": "ed25519"
+        },
+        "signed_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signature_evidence_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_completion_receipt_only",
+        "independent_verifier_required",
+        "verifier_authentication_required",
+        "verifier_signature_verification_required",
+        "verifier_executor_separation_required",
+        "verifier_provider_separation_required",
+        "verifier_authorizer_separation_required",
+        "verification_evidence_immutable",
+        "one_final_verification_per_completion_receipt",
+        "replay_protection_required",
+        "completion_receipt_immutable",
+        "work_credit_award_separate",
+        "verification_is_not_work_execution_instruction",
+        "verification_is_not_work_credit_award_instruction",
+        "verification_is_not_payment_instruction",
+        "completion_receipt_mutation_authorized",
+        "work_credit_award_authorized",
+        "payment_mutation_authorized",
+        "wallet_or_signer_access_authorized",
+        "runtime_administration_authorized",
+        "buy_void_fulfillment_authorized"
+      ],
+      "properties": {
+        "exact_completion_receipt_only": {
+          "const": true
+        },
+        "independent_verifier_required": {
+          "const": true
+        },
+        "verifier_authentication_required": {
+          "const": true
+        },
+        "verifier_signature_verification_required": {
+          "const": true
+        },
+        "verifier_executor_separation_required": {
+          "const": true
+        },
+        "verifier_provider_separation_required": {
+          "const": true
+        },
+        "verifier_authorizer_separation_required": {
+          "const": true
+        },
+        "verification_evidence_immutable": {
+          "const": true
+        },
+        "one_final_verification_per_completion_receipt": {
+          "const": true
+        },
+        "replay_protection_required": {
+          "const": true
+        },
+        "completion_receipt_immutable": {
+          "const": true
+        },
+        "work_credit_award_separate": {
+          "const": true
+        },
+        "verification_is_not_work_execution_instruction": {
+          "const": true
+        },
+        "verification_is_not_work_credit_award_instruction": {
+          "const": true
+        },
+        "verification_is_not_payment_instruction": {
+          "const": true
+        },
+        "completion_receipt_mutation_authorized": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "payment_mutation_authorized": {
+          "const": false
+        },
+        "wallet_or_signer_access_authorized": {
+          "const": false
+        },
+        "runtime_administration_authorized": {
+          "const": false
+        },
+        "buy_void_fulfillment_authorized": {
+          "const": false
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "independent_completion_verification_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawicv1_[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "status": {
+                "const": "verified"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "execution_status": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "checks": {
+            "properties": {
+              "completion_receipt_integrity_verified": {
+                "const": true
+              },
+              "execution_authorization_binding_verified": {
+                "const": true
+              },
+              "executor_signature_verified": {
+                "const": true
+              },
+              "task_spec_binding_verified": {
+                "const": true
+              },
+              "input_manifest_binding_verified": {
+                "const": true
+              },
+              "expected_output_schema_verified": {
+                "const": true
+              },
+              "result_payload_schema_valid": {
+                "const": true
+              },
+              "output_manifest_verified": {
+                "const": true
+              },
+              "evidence_bundle_verified": {
+                "const": true
+              },
+              "resource_limits_verified": {
+                "const": true
+              },
+              "policy_observation_verified": {
+                "const": true
+              },
+              "completion_requirements_satisfied": {
+                "const": true
+              }
+            }
+          },
+          "decision": {
+            "properties": {
+              "completion_verified": {
+                "const": true
+              },
+              "failure_reason_code": {
+                "const": null
+              },
+              "decision_final": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "status": {
+                "const": "rejected"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "completion_verified": {
+                "const": false
+              },
+              "failure_reason_code": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+              },
+              "decision_final": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "status": {
+                "const": "inconclusive"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "completion_verified": {
+                "const": false
+              },
+              "failure_reason_code": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+              },
+              "decision_final": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
