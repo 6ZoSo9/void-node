@@ -414,7 +414,7 @@ for (const [document, required] of [
   [authDoc, "AI-agent read-only verifier runtime v1"],
   [capabilityDoc, "authentication_contract_discovery"],
   [capabilityDoc, "authenticated_readonly_agent_session"],
-  [gatewayDoc, "twelve repository-backed JSON documents"],
+  [gatewayDoc, "fourteen repository-backed JSON documents"],
   [gatewayDoc, "no authentication verifier runtime"],
 ]) {
   assert(document.includes(required), `documentation lacks ${required}`);
@@ -503,7 +503,7 @@ assert(
 
 process.stdout.write(
   `${MARKER}\n` +
-    `gateway_route_count=12\n` +
+    `gateway_route_count=14\n` +
     `catalog_capability_count=${catalog.capabilities.length}\n` +
     `authentication_contract_published=1\n` +
     `authentication_contract_discovery=live\n` +
