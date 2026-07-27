@@ -8,7 +8,7 @@ from the main node service and does not proxy the node's general HTTP surface.
 
 ## Exact surface
 
-The gateway binds to loopback only and serves twelve repository-backed JSON documents.
+The gateway binds to loopback only and serves fourteen repository-backed JSON documents.
 
 Discovery:
 
@@ -79,3 +79,14 @@ SHA-256-bound JSON requests. A source merge does not install the receiver,
 create credentials, restart the gateway, or activate the public route.
 
 Marker: `VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1`
+
+## Paid-work discovery routes
+
+The gateway also serves these repository-backed, read-only discovery surfaces:
+
+- `GET`/`HEAD /public-node/agents/paid-work-v1.json`
+- `GET`/`HEAD /public-node/agents/paid-work-v1.schema.json`
+
+These routes publish protocol and schema metadata only. They do not submit paid
+work, authenticate a paid-work request, collect payment, execute work, award
+Work Credits, access a wallet or signer, or grant mutation authority.

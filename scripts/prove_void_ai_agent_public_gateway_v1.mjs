@@ -23,6 +23,14 @@ const expectedRoutes = new Map([
     "public/public-node/agents/discovery-v1.schema.json",
   ],
   [
+    "/public-node/agents/paid-work-v1.json",
+    "public/public-node/agents/paid-work-v1.json",
+  ],
+  [
+    "/public-node/agents/paid-work-v1.schema.json",
+    "public/public-node/agents/paid-work-v1.schema.json",
+  ],
+  [
     "/.well-known/void-agent-discovery.json",
     "public/.well-known/void-agent-discovery.json",
   ],

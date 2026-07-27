@@ -309,7 +309,7 @@ for (const required of [
 }
 
 for (const required of [
-  "twelve repository-backed JSON",
+  "fourteen repository-backed JSON",
   "/public-node/agents/capabilities-v1.json",
   "/.well-known/void-agent-capabilities.json",
   "/public-node/agents/authentication-v1.json",
@@ -486,7 +486,7 @@ async function runClient(port) {
 try {
   const ready = await waitForReady();
   assert(
-    ready.allowed_routes.length === 12,
+    ready.allowed_routes.length === 14,
     "gateway allowed-route count differs",
   );
 
@@ -534,7 +534,7 @@ try {
 
   process.stdout.write(
     `${MARKER}\n` +
-      `gateway_route_count=12\n` +
+      `gateway_route_count=14\n` +
       `catalog_capability_count=${catalog.capabilities.length}\n` +
       `granted_count=${result.granted.length}\n` +
       `not_granted_count=${result.not_granted.length}\n` +
