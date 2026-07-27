@@ -1,0 +1,30 @@
+{
+  "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+  "catalog_id": "void.public-agent-services.v1",
+  "commercial": {
+    "max_total": "5.00",
+    "quote_asset": "USD"
+  },
+  "created_at_utc": "2030-01-01T00:00:00Z",
+  "execution_limits": {
+    "max_output_bytes": 1048576,
+    "max_runtime_seconds": 300
+  },
+  "expected_outputs": [
+    "verification_result.json",
+    "verification_receipt.json"
+  ],
+  "expires_at_utc": "2030-01-02T00:00:00Z",
+  "input_refs": [
+    "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  ],
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1",
+  "nonce": "service-order-example-20300101-0001",
+  "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+  "requester": {
+    "agent_id": "agent.example.researcher",
+    "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+  },
+  "service_id": "void.datanet.fetch-verify.v1",
+  "version": 1
+}
