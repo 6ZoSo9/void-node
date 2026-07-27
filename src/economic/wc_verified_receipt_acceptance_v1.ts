@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -780,4 +781,602 @@ export async function recoverFailedCapabilityReceiptOnce(
     wc,
     consumed_file: consumedFile,
   };
+}
+
+// VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_V1
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_MARKER =
+  "VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_V1";
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK =
+  "void-public-agent-integration-evidence-v1";
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC = 3;
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION =
+  "wcPaidWorkEntitlementAcceptance";
+
+export interface PaidWorkEntitlementAuthorityV1 {
+  reviewRaw: string;
+  entitlementRaw: string;
+  servicePublicKeyPem: string;
+}
+
+export interface PaidWorkEntitlementAcceptanceOptionsV1 {
+  dataDir?: string;
+  expectedSubmissionId?: string;
+  expectedTaskId?: string;
+  expectedAgentId?: string;
+  expectedAgentKeyFingerprintSha256?: string;
+  expectedReviewSha256?: string;
+  expectedEntitlementSha256?: string;
+  apply?: boolean;
+  confirmation?: string;
+  source?: string;
+}
+
+export class PaidWorkEntitlementAcceptanceError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message?: string) {
+    super(message || code);
+    this.name = "PaidWorkEntitlementAcceptanceError";
+    this.code = code;
+  }
+}
+
+function paidWorkFail(code: string, message?: string): never {
+  throw new PaidWorkEntitlementAcceptanceError(code, message);
+}
+
+function paidWorkSha256Hex(value: string | Buffer): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function paidWorkCanonicalValue(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map((item) => paidWorkCanonicalValue(item));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = paidWorkCanonicalValue(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function paidWorkCanonicalBytes(value: any): Buffer {
+  return Buffer.from(
+    JSON.stringify(paidWorkCanonicalValue(value)),
+    "utf8",
+  );
+}
+
+function paidWorkStrictJson(raw: string, label: string): JsonObject {
+  try {
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      paidWorkFail(`${label}_not_object`);
+    }
+    return value as JsonObject;
+  } catch (error: any) {
+    if (error instanceof PaidWorkEntitlementAcceptanceError) throw error;
+    paidWorkFail(`${label}_invalid_json`, String(error?.message || error));
+  }
+}
+
+function paidWorkStrictBase64(value: unknown, label: string): Buffer {
+  const text = String(value || "");
+  if (!text || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) {
+    paidWorkFail(`${label}_invalid_base64`);
+  }
+  const decoded = Buffer.from(text, "base64");
+  if (decoded.length !== 64) {
+    paidWorkFail(`${label}_invalid_signature_length`);
+  }
+  if (decoded.toString("base64") !== text) {
+    paidWorkFail(`${label}_noncanonical_base64`);
+  }
+  return decoded;
+}
+
+function paidWorkServiceKeyFingerprint(publicKeyPem: string): string {
+  try {
+    const key = crypto.createPublicKey(publicKeyPem);
+    const der = key.export({ type: "spki", format: "der" }) as Buffer;
+    return paidWorkSha256Hex(der);
+  } catch (error: any) {
+    paidWorkFail(
+      "service_public_key_invalid",
+      String(error?.message || error),
+    );
+  }
+}
+
+function paidWorkSignedCore(record: JsonObject): JsonObject {
+  const core: JsonObject = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      key === "service_signature_base64" ||
+      key === "service_key_fingerprint_sha256"
+    ) {
+      continue;
+    }
+    core[key] = value;
+  }
+  return core;
+}
+
+function verifyPaidWorkServiceRecord(
+  record: JsonObject,
+  publicKeyPem: string,
+  expectedFingerprint: string,
+  label: string,
+): void {
+  const recordFingerprint = String(
+    record.service_key_fingerprint_sha256 || "",
+  );
+  if (recordFingerprint !== expectedFingerprint) {
+    paidWorkFail(`${label}_service_key_fingerprint_mismatch`);
+  }
+
+  const signature = paidWorkStrictBase64(
+    record.service_signature_base64,
+    `${label}_service_signature`,
+  );
+  const payload = paidWorkCanonicalBytes(paidWorkSignedCore(record));
+
+  let verified = false;
+  try {
+    verified = crypto.verify(
+      null,
+      payload,
+      crypto.createPublicKey(publicKeyPem),
+      signature,
+    );
+  } catch (error: any) {
+    paidWorkFail(
+      `${label}_service_signature_verification_failed`,
+      String(error?.message || error),
+    );
+  }
+  if (!verified) {
+    paidWorkFail(`${label}_service_signature_invalid`);
+  }
+}
+
+function paidWorkExpected(
+  actual: unknown,
+  expected: string | undefined,
+  code: string,
+): void {
+  if (expected !== undefined && String(actual || "") !== expected) {
+    paidWorkFail(code);
+  }
+}
+
+function paidWorkFalse(value: unknown, code: string): void {
+  if (value !== false) paidWorkFail(code);
+}
+
+function normalizePaidWorkAuthority(
+  authority: PaidWorkEntitlementAuthorityV1,
+  options: PaidWorkEntitlementAcceptanceOptionsV1,
+): JsonObject {
+  if (!authority || typeof authority !== "object") {
+    paidWorkFail("authority_required");
+  }
+  const reviewRaw = String(authority.reviewRaw || "");
+  const entitlementRaw = String(authority.entitlementRaw || "");
+  const servicePublicKeyPem = String(authority.servicePublicKeyPem || "");
+
+  if (!reviewRaw) paidWorkFail("review_raw_required");
+  if (!entitlementRaw) paidWorkFail("entitlement_raw_required");
+  if (!servicePublicKeyPem) paidWorkFail("service_public_key_required");
+
+  const reviewSha256 = paidWorkSha256Hex(reviewRaw);
+  const entitlementSha256 = paidWorkSha256Hex(entitlementRaw);
+
+  paidWorkExpected(
+    reviewSha256,
+    options.expectedReviewSha256,
+    "review_sha256_mismatch",
+  );
+  paidWorkExpected(
+    entitlementSha256,
+    options.expectedEntitlementSha256,
+    "entitlement_sha256_mismatch",
+  );
+
+  const review = paidWorkStrictJson(reviewRaw, "review");
+  const entitlement = paidWorkStrictJson(
+    entitlementRaw,
+    "entitlement",
+  );
+
+  const serviceFingerprint = paidWorkServiceKeyFingerprint(
+    servicePublicKeyPem,
+  );
+  verifyPaidWorkServiceRecord(
+    review,
+    servicePublicKeyPem,
+    serviceFingerprint,
+    "review",
+  );
+  verifyPaidWorkServiceRecord(
+    entitlement,
+    servicePublicKeyPem,
+    serviceFingerprint,
+    "entitlement",
+  );
+
+  const submissionId = String(review.submission_id || "");
+  const taskId = String(review.task_id || "");
+  const agentId = String(
+    review.agent_id || entitlement.agent_id || "",
+  );
+  const agentFingerprint = String(
+    review.agent_key_fingerprint_sha256 || "",
+  );
+
+  if (!submissionId) paidWorkFail("submission_id_required");
+  if (taskId !== VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK) {
+    paidWorkFail("paid_work_task_mismatch");
+  }
+  if (!agentId) paidWorkFail("agent_id_required");
+  if (!/^[a-f0-9]{64}$/.test(agentFingerprint)) {
+    paidWorkFail("agent_key_fingerprint_invalid");
+  }
+
+  paidWorkExpected(
+    submissionId,
+    options.expectedSubmissionId,
+    "expected_submission_id_mismatch",
+  );
+  paidWorkExpected(
+    taskId,
+    options.expectedTaskId,
+    "expected_task_id_mismatch",
+  );
+  paidWorkExpected(
+    agentId,
+    options.expectedAgentId,
+    "expected_agent_id_mismatch",
+  );
+  paidWorkExpected(
+    agentFingerprint,
+    options.expectedAgentKeyFingerprintSha256,
+    "expected_agent_key_fingerprint_mismatch",
+  );
+
+  if (String(review.decision || "") !== "approve") {
+    paidWorkFail("review_decision_not_approve");
+  }
+  if (
+    String(review.status || "") !==
+    "approved_pilot_wc_entitlement_issued"
+  ) {
+    paidWorkFail("review_status_invalid");
+  }
+  if (String(review.award_type || "") !== "pilot_wc_entitlement") {
+    paidWorkFail("review_award_type_invalid");
+  }
+  if (
+    Number(review.award_wc) !==
+    VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
+  ) {
+    paidWorkFail("review_award_wc_mismatch");
+  }
+  paidWorkFalse(
+    review.canonical_wc_ledger_credit_performed,
+    "review_canonical_credit_already_performed",
+  );
+  paidWorkFalse(
+    review.void_settlement_performed,
+    "review_void_settlement_performed",
+  );
+
+  if (String(entitlement.submission_id || "") !== submissionId) {
+    paidWorkFail("entitlement_submission_id_mismatch");
+  }
+  if (String(entitlement.task_id || "") !== taskId) {
+    paidWorkFail("entitlement_task_id_mismatch");
+  }
+  if (
+    entitlement.agent_id !== undefined &&
+    String(entitlement.agent_id || "") !== agentId
+  ) {
+    paidWorkFail("entitlement_agent_id_mismatch");
+  }
+  if (
+    String(entitlement.agent_key_fingerprint_sha256 || "") !==
+    agentFingerprint
+  ) {
+    paidWorkFail("entitlement_agent_key_fingerprint_mismatch");
+  }
+  if (
+    String(entitlement.status || "") !==
+    "pilot_wc_entitlement_issued"
+  ) {
+    paidWorkFail("entitlement_status_invalid");
+  }
+  if (
+    entitlement.award_type !== undefined &&
+    String(entitlement.award_type || "") !== "pilot_wc_entitlement"
+  ) {
+    paidWorkFail("entitlement_award_type_invalid");
+  }
+  if (
+    Number(entitlement.award_wc) !==
+    VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
+  ) {
+    paidWorkFail("entitlement_award_wc_mismatch");
+  }
+  paidWorkFalse(
+    entitlement.canonical_wc_ledger_credit_performed,
+    "entitlement_canonical_credit_already_performed",
+  );
+  paidWorkFalse(
+    entitlement.void_settlement_performed,
+    "entitlement_void_settlement_performed",
+  );
+
+  const idempotencyKey =
+    `paid-work-entitlement:${submissionId}:` +
+    `${entitlementSha256}:award-` +
+    `${VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC}`;
+
+  return {
+    review,
+    entitlement,
+    review_sha256: reviewSha256,
+    entitlement_sha256: entitlementSha256,
+    service_key_fingerprint_sha256: serviceFingerprint,
+    submission_id: submissionId,
+    task_id: taskId,
+    account: agentId,
+    agent_key_fingerprint_sha256: agentFingerprint,
+    idempotency_key: idempotencyKey,
+  };
+}
+
+async function existingPaidWorkEntitlementCredit(
+  normalized: JsonObject,
+  raw?: string,
+): Promise<{
+  entry: JsonObject | null;
+  malformed: number;
+}> {
+  let text = "";
+  try {
+    text = await fsp.readFile(ledgerFile(raw), "utf8");
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return { entry: null, malformed: 0 };
+    }
+    throw error;
+  }
+
+  let malformed = 0;
+  let exact: JsonObject | null = null;
+  for (const sourceLine of text.split(/\r?\n/)) {
+    const line = sourceLine.trim();
+    if (!line) continue;
+
+    let entry: JsonObject;
+    try {
+      const parsed = JSON.parse(line);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        malformed += 1;
+        continue;
+      }
+      entry = parsed as JsonObject;
+    } catch {
+      malformed += 1;
+      continue;
+    }
+
+    const sameSubmission =
+      String(entry.submission_id || "") === normalized.submission_id;
+    const sameEntitlement =
+      String(entry.entitlement_sha256 || "") ===
+      normalized.entitlement_sha256;
+    const sameIdempotency =
+      String(entry.idempotency_key || "") === normalized.idempotency_key;
+
+    if (!sameSubmission && !sameEntitlement && !sameIdempotency) {
+      continue;
+    }
+
+    const exactMatch =
+      sameSubmission &&
+      sameEntitlement &&
+      sameIdempotency &&
+      String(entry.account || "") === normalized.account &&
+      Number(entry.delta) ===
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC &&
+      String(entry.reason || "") ===
+        "paid_work_entitlement_acceptance_v1";
+
+    if (!exactMatch) {
+      paidWorkFail("duplicate_credit_conflict");
+    }
+    exact = entry;
+  }
+
+  return { entry: exact, malformed };
+}
+
+function paidWorkEntitlementEntry(
+  normalized: JsonObject,
+  options: PaidWorkEntitlementAcceptanceOptionsV1,
+): JsonObject {
+  return {
+    kind: "credit",
+    account: normalized.account,
+    delta: VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC,
+    ts_ms: Date.now(),
+    reason: "paid_work_entitlement_acceptance_v1",
+    submission_id: normalized.submission_id,
+    task_id: normalized.task_id,
+    agent_key_fingerprint_sha256:
+      normalized.agent_key_fingerprint_sha256,
+    entitlement_sha256: normalized.entitlement_sha256,
+    review_sha256: normalized.review_sha256,
+    idempotency_key: normalized.idempotency_key,
+    reward_meta: {
+      source: "void_agent_paid_work_intake_v1",
+      policy: "approved_signed_pilot_entitlement_only",
+      server_controlled_award: true,
+      fixed_award_wc:
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC,
+      duplicate_guard: [
+        "submission_id",
+        "entitlement_sha256",
+        "idempotency_key",
+      ],
+      operator_approval_verified: true,
+      review_service_signature_verified: true,
+      entitlement_service_signature_verified: true,
+      service_key_fingerprint_sha256:
+        normalized.service_key_fingerprint_sha256,
+      canonical_wc_ledger_credit_automatic: false,
+      void_settlement_performed: false,
+      wallet_transaction_payment_performed: false,
+      caller: safeId(options.source, 128) || "unspecified",
+      accepted_at_ms: Date.now(),
+    },
+  };
+}
+
+export async function inspectPaidWorkEntitlementAcceptance(
+  authority: PaidWorkEntitlementAuthorityV1,
+  options: PaidWorkEntitlementAcceptanceOptionsV1 = {},
+): Promise<JsonObject> {
+  const normalized = normalizePaidWorkAuthority(authority, options);
+  const lock = await acquireLock(options.dataDir);
+  try {
+    const existing = await existingPaidWorkEntitlementCredit(
+      normalized,
+      options.dataDir,
+    );
+    const wc = await readCanonicalWcState(
+      normalized.account,
+      options.dataDir,
+    );
+    return {
+      ok: true,
+      marker: VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_MARKER,
+      eligible: existing.entry === null,
+      duplicate: existing.entry !== null,
+      would_credit: existing.entry === null,
+      award_wc:
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC,
+      account: normalized.account,
+      submission_id: normalized.submission_id,
+      task_id: normalized.task_id,
+      entitlement_sha256: normalized.entitlement_sha256,
+      idempotency_key: normalized.idempotency_key,
+      entry: existing.entry,
+      wc,
+      historical_malformed_ledger_lines: existing.malformed,
+      mutated: false,
+      canonical_wc_ledger_credit_automatic: false,
+      void_settlement_performed: false,
+      wallet_transaction_payment_performed: false,
+    };
+  } finally {
+    await releaseLock(lock);
+  }
+}
+
+export async function acceptPaidWorkEntitlementOnce(
+  authority: PaidWorkEntitlementAuthorityV1,
+  options: PaidWorkEntitlementAcceptanceOptionsV1 = {},
+): Promise<JsonObject> {
+  const normalized = normalizePaidWorkAuthority(authority, options);
+
+  if (options.apply !== true) {
+    return inspectPaidWorkEntitlementAcceptance(authority, options);
+  }
+  if (
+    options.confirmation !==
+    VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION
+  ) {
+    paidWorkFail("explicit_confirmation_required");
+  }
+
+  const lock = await acquireLock(options.dataDir);
+  try {
+    const existing = await existingPaidWorkEntitlementCredit(
+      normalized,
+      options.dataDir,
+    );
+    if (existing.entry) {
+      const wc = await readCanonicalWcState(
+        normalized.account,
+        options.dataDir,
+      );
+      return {
+        ok: true,
+        marker: VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_MARKER,
+        credited: false,
+        duplicate: true,
+        mutated: false,
+        award_wc:
+          VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC,
+        account: normalized.account,
+        submission_id: normalized.submission_id,
+        task_id: normalized.task_id,
+        entitlement_sha256: normalized.entitlement_sha256,
+        idempotency_key: normalized.idempotency_key,
+        entry: existing.entry,
+        wc,
+        historical_malformed_ledger_lines: existing.malformed,
+        canonical_wc_ledger_credit_automatic: false,
+        void_settlement_performed: false,
+        wallet_transaction_payment_performed: false,
+      };
+    }
+
+    const entry = paidWorkEntitlementEntry(normalized, options);
+    await fsp.mkdir(wcDir(options.dataDir), {
+      recursive: true,
+      mode: 0o700,
+    });
+    await fsp.appendFile(
+      ledgerFile(options.dataDir),
+      jsonLine(entry),
+      {
+        encoding: "utf8",
+        mode: 0o600,
+        flag: "a",
+      },
+    );
+
+    const wc = await readCanonicalWcState(
+      normalized.account,
+      options.dataDir,
+    );
+    return {
+      ok: true,
+      marker: VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_MARKER,
+      credited: true,
+      duplicate: false,
+      mutated: true,
+      award_wc:
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC,
+      account: normalized.account,
+      submission_id: normalized.submission_id,
+      task_id: normalized.task_id,
+      entitlement_sha256: normalized.entitlement_sha256,
+      idempotency_key: normalized.idempotency_key,
+      entry,
+      wc,
+      historical_malformed_ledger_lines: existing.malformed,
+      canonical_wc_ledger_credit_automatic: false,
+      void_settlement_performed: false,
+      wallet_transaction_payment_performed: false,
+    };
+  } finally {
+    await releaseLock(lock);
+  }
 }
