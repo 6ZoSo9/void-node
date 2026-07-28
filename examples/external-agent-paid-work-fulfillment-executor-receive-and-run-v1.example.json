@@ -1,0 +1,47 @@
+{
+  "executor_profile": {
+    "coordinator_enabled": false,
+    "created_at_utc": "2026-07-28T23:30:00Z",
+    "executor_enabled": true,
+    "http_base": "http://100.122.198.38:4101",
+    "identity_verified": true,
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_RECEIVE_RUN_PROFILE_V1",
+    "node_id": "befd84d4fe47341af81b1a8aef8bcb97",
+    "tailscale_ip": "100.122.198.38",
+    "verification_method": "tailscale_and_runtime_status_v1",
+    "version": 1
+  },
+  "participant_run_profile": {
+    "command_argv": [
+      "bash",
+      "{participant_cli_path}",
+      "--operator-ticket",
+      "{operator_ticket_path}",
+      "--participant-receipt",
+      "{participant_receipt_path}",
+      "--execution-dir",
+      "{execution_dir}"
+    ],
+    "expected_receipt_marker": "VOID_WC_PUBLIC_EARNING_PARTICIPANT_EXECUTION_RECEIPT_V1",
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_PARTICIPANT_RUN_PROFILE_V1",
+    "receipt_bindings": {
+      "account": "/ticket/account",
+      "dataset_id": "/ticket/dataset_id",
+      "executor_node_id": "/ticket/executor_node_id",
+      "expected_input_hash": "/ticket/expected_input_hash",
+      "participant_cli_sha256": "/runtime/participant_cli_sha256",
+      "receipt_id": "/receipt_id",
+      "task_class": "/ticket/task_class",
+      "ticket_consumed_once": "/verification/ticket_consumed_once",
+      "ticket_id": "/ticket/ticket_id",
+      "token_artifact_deleted": "/verification/token_artifact_deleted",
+      "wc_after": "/wc/after",
+      "wc_before": "/wc/before",
+      "wc_delta": "/wc/delta"
+    },
+    "runner_id": "participant_cli_execute_local_v1",
+    "success_exit_code": 0,
+    "timeout_ms": 300000,
+    "version": 1
+  }
+}
