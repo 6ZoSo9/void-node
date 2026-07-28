@@ -1,0 +1,251 @@
+{
+  "authenticated_quote_acceptance_handoff_input": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_AUTHENTICATED_QUOTE_ACCEPTANCE_HANDOFF_V1",
+    "provider_authentication_input": {
+      "authentication_envelope": {
+        "authentication_id": "voidawqa1_63798b41fd72559ef02a8e95ae3d8983dc8aa5eb9ae6598acc449ae49425a6a3",
+        "authentication_nonce": "provider-authentication-example-20300101-0001",
+        "canonicalization": "void-canonical-json-v1",
+        "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+        "created_at_utc": "2030-01-01T00:04:00Z",
+        "expires_at_utc": "2030-01-01T21:00:00Z",
+        "handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_EVIDENCE_V1",
+        "provider_id": "void.provider.example.datanet.verify",
+        "provider_key_binding_id": "voidapkb1_e08c544901a19885cfdf747f745ac8a9675724574ef306b7050c9f2d1f045153",
+        "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+        "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+        "request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+        "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+        "signature_base64": "bvdP3OF3A7JLBjWvT2KolbaXQpjvtvS6AM62wUlkWsDUFSHzBKFzhEiLlCAdAsAHlKfwJ1wcvwxEyKIymB7qCw==",
+        "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+        "signature_scheme": "ed25519-spki-sha256-v1",
+        "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+        "version": 1,
+        "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+      },
+      "evidence_mode": "example_fixture",
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+      "provider_key_binding": {
+        "authority_scope": "provider_quote_response_authenticate",
+        "binding_id": "voidapkb1_e08c544901a19885cfdf747f745ac8a9675724574ef306b7050c9f2d1f045153",
+        "binding_nonce": "provider-key-binding-example-20300101-0001",
+        "binding_status": "example_fixture",
+        "expires_at_utc": "2030-02-01T00:00:00Z",
+        "key_id": "ed25519:c757b9733573942b2838751946e1b19e2ad7bf84acd35b89b5c86e61c9605eba",
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+        "provider_id": "void.provider.example.datanet.verify",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAalED6GX/BFiv35JGyaFALABiNlJEx5z6sTXunsOMPA8=\n-----END PUBLIC KEY-----\n",
+        "revoked_at_utc": null,
+        "valid_from_utc": "2030-01-01T00:00:00Z",
+        "version": 1
+      },
+      "provider_quote_response_input": {
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_V1",
+        "quote_envelope": {
+          "commercial": {
+            "payment_rail_id": "void.external.prepaid.v1",
+            "quote_asset": "USD",
+            "total": "3.50"
+          },
+          "created_at_utc": "2030-01-01T00:03:00Z",
+          "execution_commitment": {
+            "external_side_effects_allowed": false,
+            "max_output_bytes": 524288,
+            "max_runtime_seconds": 240,
+            "money_movement_allowed": false,
+            "output_labels": [
+              "verification_result.json",
+              "verification_receipt.json"
+            ],
+            "wallet_access_allowed": false
+          },
+          "expires_at_utc": "2030-01-01T22:00:00Z",
+          "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+          "nonce": "provider-quote-response-example-20300101-0001",
+          "provider": {
+            "capability_id": "datanet.fetch_verify",
+            "provider_id": "void.provider.example.datanet.verify"
+          },
+          "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+          "terms": {
+            "payment_required_before_execution": true,
+            "provider_authentication_required": true,
+            "quote_grants_no_execution_authority": true,
+            "quote_is_not_payment_instruction": true,
+            "separate_acceptance_required": true
+          },
+          "version": 1,
+          "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+        },
+        "quote_handoff_input": {
+          "created_at_utc": "2030-01-01T00:02:00Z",
+          "evidence_mode": "example_fixture",
+          "expires_at_utc": "2030-01-01T23:00:00Z",
+          "handoff_nonce": "quote-handoff-example-20300101-0001",
+          "intake_receipt": {
+            "admission": {
+              "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+              "authority": {
+                "buy_void_fulfillment_authority_granted": false,
+                "mutation_authority_granted": false,
+                "payment_authorized": false,
+                "provider_selected": false,
+                "quote_created": false,
+                "wallet_or_signer_access_granted": false,
+                "wc_award_authorized": false,
+                "wc_ledger_write_authorized": false,
+                "work_dispatched": false,
+                "work_execution_authorized": false
+              },
+              "decision": "accepted_for_review",
+              "evaluated_at_utc": "2030-01-01T00:01:00Z",
+              "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1",
+              "normalized": {
+                "callback_host": "agent.example.invalid",
+                "callback_scheme": "https",
+                "capability_id": "datanet.fetch_verify",
+                "expected_output_count": 2,
+                "input_ref_count": 1,
+                "max_output_bytes": 1048576,
+                "max_runtime_seconds": 300,
+                "max_total": "5.00",
+                "quote_asset": "USD",
+                "ttl_seconds": 86400
+              },
+              "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+              "reason_codes": [],
+              "version": 1,
+              "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+            },
+            "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+            "authentication": {
+              "agent_id": "void.agent.example.researcher",
+              "credential_id": "voidapwc1_5555555555555555555555555555555555555555555555555555555555555555",
+              "mode": "credential_registry",
+              "registry_id": "voidapwcr1_4444444444444444444444444444444444444444444444444444444444444444",
+              "scope": "agent_paid_work_submit"
+            },
+            "authority": {
+              "buy_void_fulfillment_authority_granted": false,
+              "mutation_authority_granted": false,
+              "payment_authorized": false,
+              "provider_selected": false,
+              "quote_created": false,
+              "wallet_or_signer_access_granted": false,
+              "wc_award_authorized": false,
+              "wc_ledger_write_authorized": false,
+              "work_dispatched": false,
+              "work_execution_authorized": false
+            },
+            "authorization_verified": true,
+            "canonical_request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+            "duplicate": false,
+            "loopback_source": true,
+            "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+            "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+            "received_at_utc": "2030-01-01T00:01:00Z",
+            "request_payload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+            "version": 1,
+            "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+          },
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_V1",
+          "submission_input": {
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_SUBMISSION_V1",
+            "order_request": {
+              "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+              "catalog_id": "void.public-agent-services.v1",
+              "commercial": {
+                "max_total": "5.00",
+                "quote_asset": "USD"
+              },
+              "created_at_utc": "2030-01-01T00:00:00Z",
+              "execution_limits": {
+                "max_output_bytes": 1048576,
+                "max_runtime_seconds": 300
+              },
+              "expected_outputs": [
+                "verification_result.json",
+                "verification_receipt.json"
+              ],
+              "expires_at_utc": "2030-01-02T00:00:00Z",
+              "input_refs": [
+                "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+              ],
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1",
+              "nonce": "service-order-example-20300101-0001",
+              "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+              "requester": {
+                "agent_id": "agent.example.researcher",
+                "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+              },
+              "service_id": "void.datanet.fetch-verify.v1",
+              "version": 1
+            },
+            "submission_nonce": "submission-example-20300101-0001",
+            "version": 1
+          },
+          "version": 1
+        },
+        "response_nonce": "provider-quote-response-packet-20300101-0001",
+        "version": 1
+      },
+      "version": 1
+    },
+    "requester_intent": {
+      "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+      "created_at_utc": "2030-01-01T00:05:00Z",
+      "expires_at_utc": "2030-01-01T20:00:00Z",
+      "requester_agent_id": "agent.example.researcher",
+      "requester_authentication": {
+        "mode": "not_provided",
+        "required_scope": "agent_paid_work_accept",
+        "verified": false
+      }
+    },
+    "version": 1
+  },
+  "evidence_mode": "example_fixture",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+  "requester_authentication_envelope": {
+    "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+    "authentication_nonce": "requester-acceptance-authentication-example-20300101-0001",
+    "canonicalization": "void-canonical-json-v1",
+    "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+    "created_at_utc": "2030-01-01T00:06:00Z",
+    "expires_at_utc": "2030-01-01T19:30:00Z",
+    "handoff_id": "voidawah1_372c59ebf27c315b9951167b99756980e659fc4016c8ac58922644a4c16ca0c1",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_EVIDENCE_V1",
+    "provider_authentication_id": "voidawqa1_63798b41fd72559ef02a8e95ae3d8983dc8aa5eb9ae6598acc449ae49425a6a3",
+    "provider_id": "void.provider.example.datanet.verify",
+    "provider_key_binding_id": "voidapkb1_e08c544901a19885cfdf747f745ac8a9675724574ef306b7050c9f2d1f045153",
+    "provider_key_id": "ed25519:c757b9733573942b2838751946e1b19e2ad7bf84acd35b89b5c86e61c9605eba",
+    "quote_handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+    "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+    "requester_agent_id": "agent.example.researcher",
+    "requester_authentication_id": "voidawra1_d566ba5e3fea270705277320c73659cabd1bbaf1313ca8527d80baadcb0e2125",
+    "requester_key_binding_id": "voidarkb1_8facf1e0d2d79381de3d6203a1f292e1ca7ca56860da560296194cf2634bb769",
+    "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+    "signature_base64": "v9j/pLKza4mcUaXCTolfXqKOIBFuwh+sa1q6/Qy+UiQx6Gz69oYHap0LPCiOszctfnbY/qrOMD+2GfnRef52Cg==",
+    "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+    "signature_scheme": "ed25519-spki-sha256-v1",
+    "version": 1,
+    "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+  },
+  "requester_key_binding": {
+    "authority_scope": "agent_paid_work_accept",
+    "binding_id": "voidarkb1_8facf1e0d2d79381de3d6203a1f292e1ca7ca56860da560296194cf2634bb769",
+    "binding_nonce": "requester-acceptance-key-binding-example-20300101-0001",
+    "binding_status": "example_fixture",
+    "expires_at_utc": "2030-02-01T00:00:00Z",
+    "key_id": "ed25519:e8ba0912271f3e8158e501c136a5ba7e53b055620f3b31eab021b5e9317e8361",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_KEY_BINDING_V1",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEABQ0tqeAfZN4aX5IEZ9lhPkfMRPxpehw87+SzPY196ic=\n-----END PUBLIC KEY-----\n",
+    "requester_agent_id": "agent.example.researcher",
+    "revoked_at_utc": null,
+    "valid_from_utc": "2030-01-01T00:00:00Z",
+    "version": 1
+  },
+  "version": 1
+}
