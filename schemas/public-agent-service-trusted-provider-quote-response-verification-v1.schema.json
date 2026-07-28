@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-provider-quote-response-verification-v1.schema.json",
+  "title": "VOID Public Agent Service Trusted Provider Quote-Response Verification V1 Example Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "input",
+    "packet"
+  ],
+  "properties": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "evidence_mode",
+        "expected_trust_root_id",
+        "provider_trust_registry_snapshot_input",
+        "provider_quote_response_authentication_input",
+        "catalog_value"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_PROVIDER_QUOTE_RESPONSE_VERIFICATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "evidence_mode": {
+          "enum": [
+            "example_fixture",
+            "external_provider_evidence"
+          ]
+        },
+        "expected_trust_root_id": {
+          "type": "string",
+          "pattern": "^voidaptr1_[0-9a-f]{64}$"
+        },
+        "provider_trust_registry_snapshot_input": {
+          "type": "object"
+        },
+        "provider_quote_response_authentication_input": {
+          "type": "object"
+        },
+        "catalog_value": {
+          "type": "object"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "source",
+        "resolved_provider_key_binding",
+        "trust_snapshot_packet",
+        "provider_authentication_packet",
+        "verification",
+        "separate_acceptance_gate",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_PROVIDER_QUOTE_RESPONSE_VERIFICATION_PACKET_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "example_only",
+            "trusted_provider_quote_response_verified"
+          ]
+        },
+        "source": {
+          "type": "object"
+        },
+        "resolved_provider_key_binding": {
+          "type": "object"
+        },
+        "trust_snapshot_packet": {
+          "type": "object"
+        },
+        "provider_authentication_packet": {
+          "type": "object"
+        },
+        "verification": {
+          "type": "object"
+        },
+        "separate_acceptance_gate": {
+          "type": "object"
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+}
