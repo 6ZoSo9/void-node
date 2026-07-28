@@ -1,0 +1,56 @@
+{
+  "coordinator_snapshot": {
+    "caps": {
+      "account_total": 0,
+      "active_issued": 0,
+      "consumed": 7,
+      "global": 10,
+      "per_account": 1
+    },
+    "captured_at_utc": "2026-07-28T22:01:00Z",
+    "coordinator_base": "http://100.122.245.125:4100",
+    "coordinator_enabled": true,
+    "executor_enabled": false,
+    "fixed_award_wc": 3,
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_COORDINATOR_STATUS_SNAPSHOT_V1",
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "version": 1
+  },
+  "nonce": "bounded-transition-executor-example-v1",
+  "prepared_at_utc": "2026-07-28T22:02:00Z",
+  "runtime_snapshot": {
+    "captured_at_utc": "2026-07-28T22:01:02Z",
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_RUNTIME_SNAPSHOT_V1",
+    "runtime": {
+      "acceptance_source_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "adapter_core_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "participant_cli_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "pilot_source_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "selection_policy": "content_addressed_exact_sha_only",
+    "version": 1
+  },
+  "ticket_policy_snapshot": {
+    "account_active_ticket_count": 0,
+    "captured_at_utc": "2026-07-28T22:01:03Z",
+    "fixed_award_wc": 3,
+    "global_active_ticket_count": 0,
+    "global_consumed_ticket_count": 7,
+    "global_ticket_cap": 10,
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_ISSUE_POLICY_SNAPSHOT_V1",
+    "max_uses": 1,
+    "per_account_ticket_cap": 1,
+    "requested_ticket_ttl_ms": 3600000,
+    "version": 1
+  },
+  "wc_balance_snapshot": {
+    "account": "void-agent-example-v1",
+    "captured_at_utc": "2026-07-28T22:01:01Z",
+    "debited": 0,
+    "earned": 0,
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_WC_BALANCE_SNAPSHOT_V1",
+    "redeemable": 0,
+    "redeemed": 0,
+    "version": 1
+  }
+}
