@@ -1,0 +1,2 @@
+36046bbc8ef7d190c6a2f719a61010ce8e8d603517d4da8da4bc4d4fed07653a  public-operator-evidence-v1.json
+c0212d886cdce1b56ff934a34c9271926382e958e798b5c77e4d0955c5247efe  operator-verification-v1.md
