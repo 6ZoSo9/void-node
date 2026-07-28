@@ -1,0 +1,32 @@
+name: External Agent Paid-Work Fulfillment Orchestrator V1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/external_agent_paid_work_fulfillment_orchestrator_v1.ts"
+      - "scripts/prove_external_agent_paid_work_fulfillment_orchestrator_v1.ts"
+      - "schemas/external-agent-paid-work-fulfillment-orchestrator-v1.schema.json"
+      - "examples/external-agent-paid-work-fulfillment-orchestrator-v1.example.json"
+      - "docs/public-agent/external-agent-paid-work-fulfillment-orchestrator-v1.md"
+      - ".github/workflows/external-agent-paid-work-fulfillment-orchestrator-v1.yml"
+  push:
+    paths:
+      - "scripts/external_agent_paid_work_fulfillment_orchestrator_v1.ts"
+      - "scripts/prove_external_agent_paid_work_fulfillment_orchestrator_v1.ts"
+      - "schemas/external-agent-paid-work-fulfillment-orchestrator-v1.schema.json"
+      - "examples/external-agent-paid-work-fulfillment-orchestrator-v1.example.json"
+      - "docs/public-agent/external-agent-paid-work-fulfillment-orchestrator-v1.md"
+      - ".github/workflows/external-agent-paid-work-fulfillment-orchestrator-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npx --yes tsx scripts/prove_external_agent_paid_work_fulfillment_orchestrator_v1.ts
