@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-verification-v1.schema.json",
+  "title": "VOID Public Agent Service Trusted Requester Acceptance Verification V1 Example Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "input",
+    "packet"
+  ],
+  "properties": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "evidence_mode",
+        "trusted_provider_quote_response_verification_input",
+        "requester_acceptance_authentication_input"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_VERIFICATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "evidence_mode": {
+          "enum": [
+            "example_fixture",
+            "external_requester_evidence"
+          ]
+        },
+        "trusted_provider_quote_response_verification_input": {
+          "type": "object"
+        },
+        "requester_acceptance_authentication_input": {
+          "type": "object"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "source",
+        "trusted_provider_packet",
+        "requester_authentication_packet",
+        "verification",
+        "acceptance_materialization_gate",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_VERIFICATION_PACKET_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "example_only",
+            "trusted_provider_requester_acceptance_intent_verified"
+          ]
+        },
+        "source": {
+          "type": "object"
+        },
+        "trusted_provider_packet": {
+          "type": "object"
+        },
+        "requester_authentication_packet": {
+          "type": "object"
+        },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "requester_binding_provenance_verified": {
+              "const": false
+            }
+          },
+          "required": [
+            "requester_binding_provenance_verified"
+          ]
+        },
+        "acceptance_materialization_gate": {
+          "type": "object",
+          "properties": {
+            "eligible_for_acceptance_materialization": {
+              "const": false
+            },
+            "requester_binding_provenance_required": {
+              "const": true
+            },
+            "quote_acceptance_not_performed": {
+              "const": true
+            }
+          },
+          "required": [
+            "eligible_for_acceptance_materialization",
+            "requester_binding_provenance_required",
+            "quote_acceptance_not_performed"
+          ]
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+}
