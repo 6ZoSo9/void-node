@@ -1,0 +1,58 @@
+{
+  "authentication_envelope": {
+    "authentication_id": "voidaptsa1_b0cb2703adbff82aacb425d4778e72e58c6ebc1b46d58f314278fafc0133ca2b",
+    "canonicalization": "void-canonical-json-v1",
+    "key_id": "ed25519:26a9e27df38fd1b1cfe7860cfc92e349df855ae2f6a8c597b8fdcb612529d7ff",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_AUTHENTICATION_V1",
+    "signature_base64": "Kfmo5mWbuqY6n67A6x5WW8hm1Q2oWW7RyVQBHsKOY56jctqrRKmIx9ANSxY8TKox8KGtfGf1qT12Ca6oW4xACg==",
+    "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1",
+    "signature_scheme": "ed25519-spki-sha256-v1",
+    "signed_at_utc": "2030-01-01T00:00:00Z",
+    "snapshot_id": "voidapts1_78cd5170e4f117c77650bc1754b3e0b5065b04c48e5f8b140b6c5301e629cfb1",
+    "trust_root_id": "voidaptr1_ee742afbf732be7850d299322a273ab329cc4b30aa355bb8c204de5728f68185",
+    "version": 1
+  },
+  "evidence_mode": "example_fixture",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1",
+  "snapshot_body": {
+    "expires_at_utc": "2030-01-02T00:00:00Z",
+    "generated_at_utc": "2030-01-01T00:00:00Z",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_BODY_V1",
+    "previous_snapshot_id": null,
+    "provider_key_bindings": [
+      {
+        "authority_scope": "provider_quote_response_authenticate",
+        "binding_id": "voidapkb1_e08c544901a19885cfdf747f745ac8a9675724574ef306b7050c9f2d1f045153",
+        "binding_nonce": "provider-key-binding-example-20300101-0001",
+        "binding_status": "example_fixture",
+        "expires_at_utc": "2030-02-01T00:00:00Z",
+        "key_id": "ed25519:c757b9733573942b2838751946e1b19e2ad7bf84acd35b89b5c86e61c9605eba",
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+        "provider_id": "void.provider.example.datanet.verify",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAalED6GX/BFiv35JGyaFALABiNlJEx5z6sTXunsOMPA8=\n-----END PUBLIC KEY-----\n",
+        "revoked_at_utc": null,
+        "valid_from_utc": "2030-01-01T00:00:00Z",
+        "version": 1
+      }
+    ],
+    "registry_id": "void.public-agent.provider-trust-registry.v1",
+    "sequence": 1,
+    "snapshot_nonce": "provider-trust-snapshot-example-20300101-0001",
+    "snapshot_status": "example_fixture",
+    "version": 1
+  },
+  "trust_root": {
+    "authority_scope": "provider_trust_registry_snapshot_verify",
+    "expires_at_utc": "2030-03-01T00:00:00Z",
+    "key_id": "ed25519:26a9e27df38fd1b1cfe7860cfc92e349df855ae2f6a8c597b8fdcb612529d7ff",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_ROOT_V1",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+U5kv4/2TXVYs+oeGa+WiO1DEPcX0ECfJ0UsxdvgFZs=\n-----END PUBLIC KEY-----\n",
+    "revoked_at_utc": null,
+    "root_id": "voidaptr1_ee742afbf732be7850d299322a273ab329cc4b30aa355bb8c204de5728f68185",
+    "root_nonce": "provider-trust-root-example-20300101-0001",
+    "trust_status": "example_fixture",
+    "valid_from_utc": "2029-12-01T00:00:00Z",
+    "version": 1
+  },
+  "version": 1
+}
