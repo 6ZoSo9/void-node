@@ -1,0 +1,108 @@
+{
+  "adapter": {
+    "adapter_receipt_id": "voidapwear1_ca2e39c12b96e00152637491433604aa06a20d996332b83b80b67ef3582bb7bb",
+    "adapter_receipt_sha256": "3cbdefc92b84bdab5f303236f6b08787a619d6c91cbc6124e7637bfb0f679e4e",
+    "duplicate_finalization_verified": true,
+    "duplicate_second_wc_credit": false,
+    "finalization_receipt_sha256": "9ec7437ed3af310513ecf4e1482c555af6d173892934d979a203067d43ef6b91",
+    "participant_invoked_during_finalization": false,
+    "participant_receipt_sha256": "a15ff7f74f9a6a414663f4c7430545e55574523aa2ee125153f163567dece03a",
+    "plan_id": "voidapweap1_221119bad600e741648109a87fedc43685b8449da45829a8c210acdb21429cc4",
+    "recovered_from_existing_participant_receipt": true,
+    "returned_receipt_zip_sha256": "5ad2fe64563220dd88202b20250a165dd32d35388a90234e429bdc787f701def"
+  },
+  "authority": {
+    "deployment": false,
+    "live_work_execution": true,
+    "payment_transfer": false,
+    "service_restart": false,
+    "wallet_or_signer_access": false,
+    "wc_ledger_write": true,
+    "wc_to_void_settlement": false
+  },
+  "binding": {
+    "binding_id": "voidapwcb1_1b83d660cc6e67b17b445a883ed516dbd3658fd2a815fc41ec5af0477c3bfff6",
+    "binding_registry_id": "voidapwcbr1_7d12bc972d3118b0e3ed9c7e5e02d8dc644d3cdd271ac18e24bd1909a1c88f45",
+    "binding_registry_sha256": "29aa28de3d6ac870fac74125c55afcc1396039769db26539327a07a387a91266",
+    "destination_wc_account": "void-agent-nimo-public-packet-canary-v1"
+  },
+  "captured_at_utc": "2026-07-28T20:20:28Z",
+  "marker": "VOID_FIRST_EXTERNAL_AGENT_PAID_WORK_TO_WC_PUBLIC_EVIDENCE_V1",
+  "milestone_id": "voidapwmil1_6f3345d7bed9598f3fdd8275715856d9fa3932beb427b7ccac1ce70ea5aa2cfb",
+  "network": "VOID mainnet-0",
+  "paid_work": {
+    "agent_id": "void.agent.nimo.public-packet-canary-v1",
+    "capability_id": "datanet.fetch_verify",
+    "coordinator_node_id": "9d89483769e469e0473b489dc50dba96",
+    "credential_id": "voidapwc1_bf7270b6181ef08a2275fe8a04ff035cb39ecf7dcfeaaa3e7f41c213c3e12b36",
+    "dataset_id": "ds_1784030896407_2112d9307da856fd",
+    "executor_node_id": "befd84d4fe47341af81b1a8aef8bcb97",
+    "expected_input_hash": "2112d9307da856fdb027aede7fff64c243bc99458de2fc385b7f526a36e73194",
+    "submission_id": "agent-nimo-real-datanet-live-v1-20260728T155930Z",
+    "submission_receipt_id": "voidawsi1_24fe64ac5bb3dd57b413acdd4a8dbd86967487f65710b9025ca61db89d6b0db7",
+    "task_class": "datanet_fetch_verify",
+    "transport_mode": "inbound_fetch",
+    "work_order_id": "voidawo1_0ee322c3c933adf3791a746e1e6e6372fb721499b7ef699d4b5801b0df8d3b17"
+  },
+  "repository": {
+    "adapter_checkpoint": "ckpt-agent-paid-work-wc-earning-adapter-v1-post-merge-exact-green-20260728T151101Z",
+    "adapter_merge_commit": "4c8dd76254e48cfde4eb5faca9f1a3fdf9fdcf43",
+    "milestone_baseline_main": "bb3fb1737656bf45725d6e107f33cca9415dc0c7",
+    "relevant_runtime_paths_unchanged": true,
+    "verified_current_main": "bb3fb1737656bf45725d6e107f33cca9415dc0c7"
+  },
+  "runtime_after": {
+    "active_issued": 0,
+    "consumed": 7,
+    "destination_account_total": 1,
+    "global_cap": 10,
+    "per_account_cap": 1,
+    "wc_earned": 3,
+    "wc_redeemable": 3
+  },
+  "runtime_provenance": {
+    "adapter_core_sha256": "a723a9d065f47e0a9c334e4f24f74b1b1815caeceef515ed24fe8ce60b896786",
+    "participant_cli_sha256": "382bdf28f7ad39e7cc86b3e3e0852fa00c6c8071e93719128d6a4ee47833cd63",
+    "pilot_source_sha256": "78f4c73614d6d06699bbcc921f457176c204081c5dc3b125e682559431345887",
+    "selection_policy": "content-addressed exact SHA only",
+    "verified_receipt_acceptance_source_sha256": "b6e6b1cb1677f27622238cdb82a90d4ee133c2d089fd719b55758cdacbe972b3"
+  },
+  "scope_note": "This evidence documents one bounded live canary in which an authenticated external agent submission was bound to a WC account, executed once by Nimo, verified by Precision, credited exactly 3 WC, and finalized idempotently. It does not claim unrestricted public automation, payment transfer, WC-to-VOID settlement, or investment value.",
+  "security": {
+    "capability_token_in_public_evidence": false,
+    "capability_token_printed": false,
+    "precision_private_ticket_package_deleted": true,
+    "precision_token_bearing_ticket_deleted": true,
+    "token_artifact_scan_exact_green": true
+  },
+  "ticket": {
+    "consumed_once": true,
+    "final_status": "completed",
+    "issued_copy_absent": true,
+    "max_uses": 1,
+    "ticket_id": "e571c89a88dfc00b811983b4dda596d2"
+  },
+  "verification": {
+    "adapter_completed": true,
+    "adapter_inspection_valid": true,
+    "automatic_background_loop": false,
+    "capability_consumed": true,
+    "money_movement": false,
+    "participant_selected_award": false,
+    "remote_executor": true,
+    "remote_health_verified": true,
+    "remote_job_verified": true,
+    "remote_receipt_verified": true,
+    "signature_verified": true
+  },
+  "version": 1,
+  "wc": {
+    "after": 3,
+    "before": 0,
+    "canonical_redeemable": true,
+    "credited": true,
+    "delta": 3,
+    "duplicate": false,
+    "fixed_award_wc": 3
+  }
+}
