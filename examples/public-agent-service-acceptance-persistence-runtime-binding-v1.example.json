@@ -1,0 +1,60 @@
+{
+  "command": {
+    "acceptance_draft": {
+      "example_reference": "sealed requester acceptance draft"
+    },
+    "apply": false,
+    "confirmation": "",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_RUNTIME_COMMAND_V1",
+    "recorded_at_utc": "2030-01-01T00:10:00Z",
+    "requester_authentication_input": {
+      "example_reference": "sealed requester acceptance authentication evidence"
+    },
+    "version": 1
+  },
+  "config": {
+    "enabled": false,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_RUNTIME_CONFIG_V1",
+    "persistence_config": {
+      "allowed_root": "/var/lib/void-agent-paid-work-acceptance-persistence-v1",
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ADAPTER_V1",
+      "max_generation_count": 10000,
+      "max_generation_file_bytes": 4194304,
+      "max_pointer_bytes": 65536,
+      "recover_exact_orphaned_generation": true,
+      "version": 1
+    },
+    "version": 1
+  },
+  "environment": {
+    "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ROOT": "/var/lib/void-agent-paid-work-acceptance-persistence-v1",
+    "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_RUNTIME_ENABLED": "0"
+  },
+  "example_only": true,
+  "expected": {
+    "acceptance_persisted": false,
+    "apply_confirmation_required_before_store_read": true,
+    "disabled_short_circuit": true,
+    "execution_authorization": false,
+    "http_submission": false,
+    "money_movement": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "production_acceptance_persistence_performed": false,
+    "production_replay_write_performed": false,
+    "runtime_mutation": false,
+    "status": "disabled",
+    "store_inspected": false,
+    "trusted_context_loaded": false,
+    "work_dispatch": false
+  },
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_RUNTIME_BINDING_V1",
+  "sealed_contracts": {
+    "persistence_adapter_checkpoint_tag": "ckpt-public-agent-service-acceptance-persistence-adapter-v1-pr804-post-merge-exact-green-b6354ff1c8b1",
+    "persistence_adapter_merge": "b6354ff1c8b15a51e3f6379077982355b5a4b258",
+    "source_evidence_pack_sha256": "4c9c495e74d12aa8b07383ee5af55694773f03d654385f9f6296aef5c5d853ec",
+    "transition_checkpoint_tag": "ckpt-public-agent-service-acceptance-materialization-replay-consumer-v1-pr800-post-merge-exact-green-525e1c8f6200",
+    "transition_merge": "525e1c8f6200f1a590de42270d5a08ad21c6281b"
+  },
+  "version": 1
+}
