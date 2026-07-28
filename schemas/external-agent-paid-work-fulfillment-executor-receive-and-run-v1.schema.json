@@ -1,0 +1,397 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "deployment": {
+          "const": false
+        },
+        "local_wc_ledger_write": {
+          "const": false
+        },
+        "next_event_write": {
+          "const": true
+        },
+        "participant_cli_execute": {
+          "const": true
+        },
+        "participant_cli_materialize": {
+          "const": true
+        },
+        "participant_receipt_acceptance": {
+          "const": false
+        },
+        "participant_receipt_write": {
+          "const": true
+        },
+        "payment_transfer": {
+          "const": false
+        },
+        "private_execution_state_write": {
+          "const": true
+        },
+        "private_plan_advance": {
+          "const": true
+        },
+        "received_package_read": {
+          "const": true
+        },
+        "return_package_write": {
+          "const": true
+        },
+        "service_restart": {
+          "const": false
+        },
+        "ticket_consumption": {
+          "const": true
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "wc_to_void_settlement": {
+          "const": false
+        }
+      },
+      "required": [
+        "received_package_read",
+        "private_execution_state_write",
+        "private_plan_advance",
+        "participant_cli_materialize",
+        "participant_cli_execute",
+        "ticket_consumption",
+        "participant_receipt_write",
+        "return_package_write",
+        "next_event_write",
+        "participant_receipt_acceptance",
+        "local_wc_ledger_write",
+        "payment_transfer",
+        "wc_to_void_settlement",
+        "wallet_or_signer_access",
+        "service_restart",
+        "deployment"
+      ],
+      "type": "object"
+    },
+    "jsonPointer": {
+      "pattern": "^(?:/(?:[^~/]|~0|~1)*)+$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-fulfillment-executor-receive-and-run-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Executor identity and participant runner profiles plus private operation-state and sanitized receipt contracts for at-most-once participant execution.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coordinator_enabled": {
+          "const": false
+        },
+        "created_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "executor_enabled": {
+          "const": true
+        },
+        "http_base": {
+          "format": "uri",
+          "type": "string"
+        },
+        "identity_verified": {
+          "const": true
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_RECEIVE_RUN_PROFILE_V1"
+        },
+        "node_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "tailscale_ip": {
+          "minLength": 7,
+          "type": "string"
+        },
+        "verification_method": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "created_at_utc",
+        "tailscale_ip",
+        "node_id",
+        "http_base",
+        "identity_verified",
+        "coordinator_enabled",
+        "executor_enabled",
+        "verification_method"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "command_argv": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "minItems": 2,
+          "type": "array"
+        },
+        "expected_receipt_marker": {
+          "pattern": "^[A-Z][A-Z0-9_]{12,220}$",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_PARTICIPANT_RUN_PROFILE_V1"
+        },
+        "receipt_bindings": {
+          "additionalProperties": false,
+          "properties": {
+            "account": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "dataset_id": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "executor_node_id": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "expected_input_hash": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "participant_cli_sha256": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "receipt_id": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "task_class": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "ticket_consumed_once": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "ticket_id": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "token_artifact_deleted": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "wc_after": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "wc_before": {
+              "$ref": "#/$defs/jsonPointer"
+            },
+            "wc_delta": {
+              "$ref": "#/$defs/jsonPointer"
+            }
+          },
+          "required": [
+            "receipt_id",
+            "ticket_id",
+            "account",
+            "executor_node_id",
+            "task_class",
+            "dataset_id",
+            "expected_input_hash",
+            "participant_cli_sha256",
+            "ticket_consumed_once",
+            "token_artifact_deleted",
+            "wc_before",
+            "wc_after",
+            "wc_delta"
+          ],
+          "type": "object"
+        },
+        "runner_id": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "success_exit_code": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "maximum": 3600000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "runner_id",
+        "success_exit_code",
+        "timeout_ms",
+        "command_argv",
+        "expected_receipt_marker",
+        "receipt_bindings"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_RECEIVE_RUN_OPERATION_STATE_V1"
+        },
+        "operation_id": {
+          "pattern": "^voidapwfrunop1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "participant_cli_invoked": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "prepared",
+            "running",
+            "participant_receipt_persisted",
+            "complete",
+            "ambiguous_after_run_attempt"
+          ]
+        },
+        "ticket_consumed": {
+          "type": "boolean"
+        },
+        "token_artifacts_deleted": {
+          "type": "boolean"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "operation_id",
+        "phase",
+        "participant_cli_invoked",
+        "ticket_consumed",
+        "token_artifacts_deleted",
+        "authority"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "execution": {
+          "type": "object"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_RUN_RECEIPT_V1"
+        },
+        "operation_id": {
+          "pattern": "^voidapwfrunop1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "participant_receipt_id": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "ticket": {
+          "properties": {
+            "capability_token_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "fixed_award_wc": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_uses": {
+              "const": 1
+            },
+            "ticket_id": {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "capability_token_sha256",
+            "max_uses",
+            "fixed_award_wc"
+          ],
+          "type": "object"
+        },
+        "verification": {
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "operation_id",
+        "participant_receipt_id",
+        "ticket",
+        "execution",
+        "verification",
+        "authority"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "adapter_finalization_planned_event": {
+          "type": "object"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_PARTICIPANT_RECEIPT_RETURN_PACKAGE_V1"
+        },
+        "operation_id": {
+          "pattern": "^voidapwfrunop1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "participant_receipt": {
+          "type": "object"
+        },
+        "requirements": {
+          "type": "object"
+        },
+        "sanitized_executor_run_receipt": {
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "operation_id",
+        "participant_receipt",
+        "sanitized_executor_run_receipt",
+        "adapter_finalization_planned_event",
+        "requirements"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "VOID External Agent Paid-Work Fulfillment Executor Receive-and-Run V1"
+}
