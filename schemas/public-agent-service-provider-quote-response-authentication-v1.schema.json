@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "authentication_envelope": {
+      "additionalProperties": false,
+      "properties": {
+        "authentication_id": {
+          "pattern": "^voidawqa1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "authentication_nonce": {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+          "type": "string"
+        },
+        "canonicalization": {
+          "const": "void-canonical-json-v1"
+        },
+        "catalog_fingerprint_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "created_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "handoff_id": {
+          "pattern": "^voidawqh1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_EVIDENCE_V1"
+        },
+        "provider_id": {
+          "maxLength": 128,
+          "minLength": 3,
+          "type": "string"
+        },
+        "provider_key_binding_id": {
+          "pattern": "^voidapkb1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "quote_id": {
+          "pattern": "^voidawq1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "receipt_id": {
+          "pattern": "^voidawsi1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "response_id": {
+          "pattern": "^voidawqr1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "signature_base64": {
+          "maxLength": 88,
+          "minLength": 88,
+          "type": "string"
+        },
+        "signature_domain": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1"
+        },
+        "signature_scheme": {
+          "const": "ed25519-spki-sha256-v1"
+        },
+        "submission_id": {
+          "pattern": "^voidawsr1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        },
+        "work_order_id": {
+          "pattern": "^voidawo1_[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "signature_scheme",
+        "signature_domain",
+        "canonicalization",
+        "response_id",
+        "quote_id",
+        "handoff_id",
+        "work_order_id",
+        "submission_id",
+        "request_sha256",
+        "receipt_id",
+        "provider_id",
+        "catalog_fingerprint_sha256",
+        "provider_key_binding_id",
+        "authentication_nonce",
+        "created_at_utc",
+        "expires_at_utc",
+        "signature_base64",
+        "authentication_id"
+      ],
+      "type": "object"
+    },
+    "provider_key_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_scope": {
+          "const": "provider_quote_response_authenticate"
+        },
+        "binding_id": {
+          "pattern": "^voidapkb1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "binding_nonce": {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+          "type": "string"
+        },
+        "binding_status": {
+          "enum": [
+            "example_fixture",
+            "operator_approved_snapshot"
+          ]
+        },
+        "expires_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "key_id": {
+          "pattern": "^ed25519:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1"
+        },
+        "provider_id": {
+          "maxLength": 128,
+          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$",
+          "type": "string"
+        },
+        "public_key_pem": {
+          "maxLength": 2048,
+          "minLength": 80,
+          "type": "string"
+        },
+        "revoked_at_utc": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "format": "date-time",
+              "type": "string"
+            }
+          ]
+        },
+        "valid_from_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "binding_status",
+        "provider_id",
+        "authority_scope",
+        "key_id",
+        "public_key_pem",
+        "valid_from_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "binding_nonce",
+        "binding_id"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/public-agent-service-provider-quote-response-authentication-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authentication_envelope": {
+      "$ref": "#/$defs/authentication_envelope"
+    },
+    "evidence_mode": {
+      "enum": [
+        "example_fixture",
+        "external_provider_evidence"
+      ]
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1"
+    },
+    "provider_key_binding": {
+      "$ref": "#/$defs/provider_key_binding"
+    },
+    "provider_quote_response_input": {
+      "$ref": "public-agent-service-provider-quote-response-v1.schema.json"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "evidence_mode",
+    "provider_quote_response_input",
+    "provider_key_binding",
+    "authentication_envelope"
+  ],
+  "title": "VOID Public Agent Service Provider Quote Response Authentication V1",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_SCHEMA_V1"
+}
