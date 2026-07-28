@@ -1,0 +1,52 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-submission-quote-handoff-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "created_at_utc": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "type": "string"
+    },
+    "evidence_mode": {
+      "enum": [
+        "example_fixture",
+        "external_receiver_receipt"
+      ]
+    },
+    "expires_at_utc": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "type": "string"
+    },
+    "handoff_nonce": {
+      "maxLength": 128,
+      "minLength": 8,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+      "type": "string"
+    },
+    "intake_receipt": {
+      "$ref": "agent-paid-work-submission-intake-receipt-v1.schema.json"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_V1"
+    },
+    "submission_input": {
+      "$ref": "public-agent-service-order-submission-v1.schema.json"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "evidence_mode",
+    "created_at_utc",
+    "expires_at_utc",
+    "handoff_nonce",
+    "submission_input",
+    "intake_receipt"
+  ],
+  "title": "VOID Public Agent Service Submission Quote Handoff V1",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_SCHEMA_V1"
+}
