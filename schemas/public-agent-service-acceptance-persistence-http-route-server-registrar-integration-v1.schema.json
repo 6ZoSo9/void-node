@@ -1,0 +1,234 @@
+{
+  "$id": "https://void.network/schemas/public-agent-service-acceptance-persistence-http-route-server-registrar-integration-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_COMMAND_V1"
+        },
+        "mount_confirmation": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "mount_confirmation"
+      ],
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "authority": {
+          "additionalProperties": false,
+          "properties": {
+            "execution_authorization": {
+              "const": false
+            },
+            "external_http_submission": {
+              "const": false
+            },
+            "money_movement": {
+              "const": false
+            },
+            "network_listener_creation": {
+              "const": false
+            },
+            "payment_authorization": {
+              "const": false
+            },
+            "payment_execution": {
+              "const": false
+            },
+            "production_acceptance_persistence": {
+              "const": false
+            },
+            "production_replay_write": {
+              "const": false
+            },
+            "production_signing": {
+              "const": false
+            },
+            "server_route_registry_compare_and_swap": {
+              "type": "boolean"
+            },
+            "server_route_registry_snapshot_read": {
+              "type": "boolean"
+            },
+            "transaction_broadcast": {
+              "const": false
+            },
+            "work_credit_write": {
+              "const": false
+            },
+            "work_dispatch": {
+              "const": false
+            }
+          },
+          "required": [
+            "server_route_registry_snapshot_read",
+            "server_route_registry_compare_and_swap",
+            "network_listener_creation",
+            "external_http_submission",
+            "production_acceptance_persistence",
+            "production_replay_write",
+            "payment_authorization",
+            "payment_execution",
+            "execution_authorization",
+            "work_dispatch",
+            "production_signing",
+            "transaction_broadcast",
+            "work_credit_write",
+            "money_movement"
+          ],
+          "type": "object"
+        },
+        "confirmation_verified": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "exact_route_count_after": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_RESULT_V1"
+        },
+        "mount": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mount_confirmation_verified": {
+          "type": "boolean"
+        },
+        "registry_compare_and_swap_applied": {
+          "type": "boolean"
+        },
+        "registry_compare_and_swap_attempted": {
+          "type": "boolean"
+        },
+        "registry_revision_after": {
+          "maxLength": 128,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registry_revision_before": {
+          "maxLength": 128,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registry_snapshot_read": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "mount_disabled",
+            "route_disabled",
+            "planned",
+            "mounted",
+            "already_mounted"
+          ]
+        },
+        "unrelated_route_count_after": {
+          "maximum": 4096,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unrelated_route_count_before": {
+          "maximum": 4096,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "apply",
+        "confirmation_verified",
+        "mount_confirmation_verified",
+        "registry_snapshot_read",
+        "registry_compare_and_swap_attempted",
+        "registry_compare_and_swap_applied",
+        "registry_revision_before",
+        "registry_revision_after",
+        "unrelated_route_count_before",
+        "unrelated_route_count_after",
+        "exact_route_count_after",
+        "mount",
+        "authority"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "config",
+    "command",
+    "result"
+  ],
+  "title": "VOID Public Agent Service Acceptance Persistence HTTP Route Server Registrar Integration V1",
+  "type": "object"
+}
