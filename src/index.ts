@@ -11910,6 +11910,7 @@ if (
 
 // ---------------- [ADD] txRoot + metrics wrapper ----------------
 import { computeTxRoot } from "./util/txroot.js";
+import { readCanonicalWcState } from "./economic/wc_verified_receipt_acceptance_v1";
 (function installTxRootSealHook(){
   try{
     const g:any = globalThis as any;
@@ -64759,107 +64760,164 @@ a{color:#93c5fd;text-decoration:none}
     ensureDirs();
 
     // === wc-production-visibility-v1 BEGIN ===
-    app.get("/wc/production/balance", (req:any, res:any) => {
+function wcProductionCanonicalLedgerFile(): string {
+  return path.join(DATA_DIR, "wc_v1", "ledger.jsonl");
+}
+
+function wcProductionCanonicalEntryAccount(
+  entry: Record<string, unknown>,
+): string {
+  const value =
+    entry["account"] ??
+    entry["agent_id"] ??
+    entry["participant_id"] ??
+    entry["account_id"];
+  return typeof value === "string" ? value : "";
+}
+
+function readWcProductionCanonicalVisibilityState(): {
+  entries: Record<string, unknown>[];
+  malformed: number;
+  unexpected: number;
+} {
+  const file = wcProductionCanonicalLedgerFile();
+  if (!fs.existsSync(file)) {
+    return { entries: [], malformed: 0, unexpected: 0 };
+  }
+
+  const entries: Record<string, unknown>[] = [];
+  let malformed = 0;
+  let unexpected = 0;
+
+  for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      malformed += 1;
+      continue;
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      unexpected += 1;
+      continue;
+    }
+
+    entries.push(parsed as Record<string, unknown>);
+  }
+
+  return { entries, malformed, unexpected };
+}
+
+    app.get("/wc/production/balance", async (req:any, res:any) => {
       try {
-        const fs = require("node:fs");
-        const account = safeStr(req.query?.account || "", 128);
-        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+    const fs = require("node:fs");
+    const account = safeStr(req.query?.account || "", 128);
+    if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
 
-        const state = wcProductionCanaryLedgerState();
-        if (state.malformed > 0 || state.unexpected > 0) {
-          return res.status(503).json({
-            ok:false,
-            error:"production_wc_ledger_integrity_failure",
-            marker:"VOID_WC_PRODUCTION_BALANCE_V1",
-            malformed_entries:state.malformed,
-            unexpected_entries:state.unexpected,
-            read_only:true,
-            mutation:false
-          });
-        }
+    const canonicalState = await readCanonicalWcState(
+      account,
+      DATA_DIR,
+    );
+    const state = readWcProductionCanonicalVisibilityState();
+    if (state.malformed > 0 || state.unexpected > 0) {
+      return res.status(500).json({
+        ok: false,
+        error: "production_wc_ledger_integrity_failure",
+        marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+        malformed_entries: state.malformed,
+        unexpected_entries: state.unexpected,
+        read_only: true,
+        mutation: false,
+      });
+    }
+    const events = state.entries.filter(
+      (entry) =>
+        wcProductionCanonicalEntryAccount(entry) === account,
+    );
+    const balance = canonicalState.earned;
 
-        const events = state.entries.filter(
-          (entry:any) => String(entry?.account || "") === account
-        );
-
-        const balance = Math.round(
-          events.reduce(
-            (sum:number, entry:any) => sum + Number(entry?.delta || 0),
-            0
-          ) * 1e9
-        ) / 1e9;
-
-        return res.json({
-          ok:true,
-          marker:"VOID_WC_PRODUCTION_BALANCE_V1",
-          account,
-          balance,
-          count:events.length,
-          ledger_version:"production-canary-v1",
-          ledger_exists:fs.existsSync(wcProductionCanaryLedgerFile()),
-          read_only:true,
-          spendable:false,
-          redeemable:false,
-          redeemable_wc:0,
-          transferable:false,
-          included_in_legacy_balance:false,
-          automatic_runner_activation:false,
-          wc_to_void:false,
-          money_movement:false
-        });
-      } catch (e:any) {
+    return res.json({
+      ok: true,
+      marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+      account,
+      balance,
+      count: events.length,
+      ledger_version: "wc-v1",
+      ledger_exists: fs.existsSync(
+        wcProductionCanonicalLedgerFile(),
+      ),
+      read_only: true,
+      spendable: false,
+      redeemable: canonicalState.redeemable > 0,
+      redeemable_wc: canonicalState.redeemable,
+      transferable: false,
+      included_in_legacy_balance: false,
+      automatic_runner_activation: false,
+      wc_to_void: false,
+      money_movement: false,
+    });
+  } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
     });
 
-    app.get("/wc/production/ledger", (req:any, res:any) => {
+    app.get("/wc/production/ledger", async (req:any, res:any) => {
       try {
-        const fs = require("node:fs");
-        const account = safeStr(req.query?.account || "", 128);
-        const limit = Math.max(
-          1,
-          Math.min(100, Number(req.query?.limit || 20) || 20)
-        );
+    const fs = require("node:fs");
+    const account = safeStr(req.query?.account || "", 128);
+    const limit = Math.max(
+              1,
+              Math.min(100, Number(req.query?.limit || 20) || 20)
+            );
+    if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
 
-        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+    const canonicalState = await readCanonicalWcState(
+      account,
+      DATA_DIR,
+    );
+    const state = readWcProductionCanonicalVisibilityState();
+    if (state.malformed > 0 || state.unexpected > 0) {
+      return res.status(500).json({
+        ok: false,
+        error: "production_wc_ledger_integrity_failure",
+        marker: "VOID_WC_PRODUCTION_LEDGER_V1",
+        malformed_entries: state.malformed,
+        unexpected_entries: state.unexpected,
+        read_only: true,
+        mutation: false,
+      });
+    }
+    const matching = state.entries.filter(
+      (entry) =>
+        wcProductionCanonicalEntryAccount(entry) === account,
+    );
 
-        const state = wcProductionCanaryLedgerState();
-        if (state.malformed > 0 || state.unexpected > 0) {
-          return res.status(503).json({
-            ok:false,
-            error:"production_wc_ledger_integrity_failure",
-            marker:"VOID_WC_PRODUCTION_LEDGER_V1",
-            malformed_entries:state.malformed,
-            unexpected_entries:state.unexpected,
-            read_only:true,
-            mutation:false
-          });
-        }
-
-        const matching = state.entries.filter(
-          (entry:any) => String(entry?.account || "") === account
-        );
-
-        return res.json({
-          ok:true,
-          marker:"VOID_WC_PRODUCTION_LEDGER_V1",
-          account,
-          count:matching.length,
-          returned:Math.min(limit, matching.length),
-          events:matching.slice(-limit).reverse(),
-          ledger_version:"production-canary-v1",
-          ledger_exists:fs.existsSync(wcProductionCanaryLedgerFile()),
-          read_only:true,
-          mutation:false,
-          spendable:false,
-          redeemable:false,
-          transferable:false,
-          included_in_legacy_balance:false,
-          automatic_runner_activation:false,
-          wc_to_void:false,
-          money_movement:false
-        });
-      } catch (e:any) {
+    return res.json({
+      ok: true,
+      marker: "VOID_WC_PRODUCTION_LEDGER_V1",
+      account,
+      count: matching.length,
+      returned: Math.min(limit, matching.length),
+      events: matching.slice(-limit).reverse(),
+      ledger_version: "wc-v1",
+      ledger_exists: fs.existsSync(
+        wcProductionCanonicalLedgerFile(),
+      ),
+      read_only: true,
+      mutation: false,
+      spendable: false,
+      redeemable: canonicalState.redeemable > 0,
+      transferable: false,
+      included_in_legacy_balance: false,
+      automatic_runner_activation: false,
+      wc_to_void: false,
+      money_movement: false,
+    });
+  } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
     });
