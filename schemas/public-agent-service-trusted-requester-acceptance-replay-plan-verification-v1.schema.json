@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-replay-plan-verification-v1.schema.json",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REPLAY_PLAN_VERIFICATION_SCHEMA_V1",
+  "title": "VOID Public Agent Service Trusted Requester Acceptance Replay Plan Verification V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "input",
+    "packet"
+  ],
+  "properties": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "evidence_mode",
+        "trusted_requester_acceptance_registry_verification_input",
+        "acceptance_materialization_replay_consumer_input",
+        "catalog_value",
+        "work_order_value",
+        "quote_value"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REPLAY_PLAN_VERIFICATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "evidence_mode": {
+          "enum": [
+            "example_fixture",
+            "external_requester_evidence"
+          ]
+        },
+        "trusted_requester_acceptance_registry_verification_input": {
+          "type": "object"
+        },
+        "acceptance_materialization_replay_consumer_input": {
+          "type": "object"
+        },
+        "catalog_value": {},
+        "work_order_value": {
+          "type": "object"
+        },
+        "quote_value": {
+          "type": "object"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "source",
+        "trusted_requester_registry_packet",
+        "acceptance_replay_plan_packet",
+        "verification",
+        "persistence_handoff_gate",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REPLAY_PLAN_VERIFICATION_PACKET_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "example_only",
+            "trusted_requester_acceptance_replay_plan_verified"
+          ]
+        },
+        "source": {
+          "type": "object"
+        },
+        "trusted_requester_registry_packet": {
+          "type": "object"
+        },
+        "acceptance_replay_plan_packet": {
+          "type": "object"
+        },
+        "verification": {
+          "type": "object",
+          "required": [
+            "trusted_requester_registry_verification_verified",
+            "requester_binding_provenance_verified",
+            "acceptance_materialization_eligibility_verified",
+            "requester_authentication_input_exact_match_verified",
+            "requester_authentication_identity_verified",
+            "provider_authentication_identity_verified",
+            "handoff_identity_verified",
+            "quote_identity_verified",
+            "work_order_identity_verified",
+            "requester_identity_verified",
+            "provider_identity_verified",
+            "acceptance_nonce_verified",
+            "acceptance_replay_plan_verified",
+            "acceptance_materialized_in_memory",
+            "canonical_acceptance_verified",
+            "requester_authentication_replay_checked",
+            "provider_authentication_replay_checked",
+            "acceptance_replay_checked",
+            "atomic_three_id_transition_verified",
+            "single_active_acceptance_per_quote_verified",
+            "expected_revision_verified",
+            "all_or_nothing_transition_verified",
+            "persistence_handoff_packet_validated"
+          ]
+        },
+        "persistence_handoff_gate": {
+          "type": "object",
+          "required": [
+            "eligible_for_operator_confirmed_persistence",
+            "reason",
+            "separate_operator_confirmation_required",
+            "persistence_request_not_constructed",
+            "persistence_confirmation_not_supplied",
+            "persistence_adapter_invoked",
+            "production_persistence_performed",
+            "acceptance_created_in_durable_state",
+            "requester_authentication_replay_write_performed",
+            "provider_authentication_replay_write_performed",
+            "acceptance_replay_write_performed",
+            "authentication_ids_consumed_in_durable_state",
+            "acceptance_id_consumed_in_durable_state",
+            "quote_acceptance_recorded"
+          ]
+        },
+        "authority": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
