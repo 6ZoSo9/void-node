@@ -90,12 +90,12 @@ assert.equal(
 assert.notEqual(indexSizeFixture, null, "index-size fixture root null");
 assert.equal(
   indexSizeFixture.baseline_bytes,
-  3848198,
+  3849581,
   "index-size fixture baseline_bytes",
 );
 assert.equal(
   fs.statSync(path.join(ROOT, "src/index.ts")).size,
-  3848198,
+  3849581,
   "src/index.ts byte size",
 );
 
