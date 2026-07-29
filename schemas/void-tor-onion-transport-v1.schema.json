@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:void:schemas:tor-onion-transport:v1",
+  "title": "VOID Tor Onion Transport V1 Descriptor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "status",
+    "generated_at",
+    "transport",
+    "surface",
+    "identity",
+    "authority"
+  ],
+  "properties": {
+    "marker": { "const": "VOID_TOR_ONION_TRANSPORT_V1" },
+    "version": { "const": 1 },
+    "status": { "enum": ["active", "planned", "unavailable"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "uri",
+        "onion_hostname",
+        "virtual_port",
+        "address_role"
+      ],
+      "properties": {
+        "protocol": { "const": "tor-v3" },
+        "uri": {
+          "type": "string",
+          "pattern": "^http://[a-z2-7]{56}\\.onion$"
+        },
+        "onion_hostname": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{56}\\.onion$"
+        },
+        "virtual_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "address_role": { "const": "transport-endpoint" }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "methods", "descriptor_paths", "local_target"],
+      "properties": {
+        "id": { "const": "void-public-node-static-read-only-v1" },
+        "methods": {
+          "type": "array",
+          "prefixItems": [{ "const": "GET" }, { "const": "HEAD" }],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "descriptor_paths": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "/.well-known/void-tor-onion-transport-v1.json" },
+            { "const": "/public-node/transports/tor-v1.json" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "local_target": {
+          "type": "string",
+          "pattern": "^http://127\\.0\\.0\\.1:[0-9]{1,5}$"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_void_node_identity",
+        "signed_void_node_binding",
+        "tor_self_authentication",
+        "binding_status"
+      ],
+      "properties": {
+        "canonical_void_node_identity": { "const": false },
+        "signed_void_node_binding": { "const": false },
+        "tor_self_authentication": { "const": true },
+        "binding_status": { "const": "operator-local-unbound-v1" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "transaction_submission",
+        "p2p_listener",
+        "mcp_listener",
+        "wallet_or_signer_access",
+        "work_credit_write",
+        "void_settlement",
+        "node_runtime_mutation",
+        "operator_control"
+      ],
+      "properties": {
+        "read_only": { "const": true },
+        "transaction_submission": { "const": false },
+        "p2p_listener": { "const": false },
+        "mcp_listener": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "work_credit_write": { "const": false },
+        "void_settlement": { "const": false },
+        "node_runtime_mutation": { "const": false },
+        "operator_control": { "const": false }
+      }
+    }
+  }
+}
