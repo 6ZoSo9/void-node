@@ -1,0 +1,32 @@
+name: External Agent Paid-Work Return Acceptance and Adapter Finalize V1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts"
+      - "scripts/prove_external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts"
+      - "schemas/external-agent-paid-work-fulfillment-return-package-acceptance-and-adapter-finalize-v1.schema.json"
+      - "examples/external-agent-paid-work-fulfillment-return-package-acceptance-and-adapter-finalize-v1.example.json"
+      - "docs/public-agent/external-agent-paid-work-fulfillment-return-package-acceptance-and-adapter-finalize-v1.md"
+      - ".github/workflows/external-agent-paid-work-fulfillment-return-package-acceptance-and-adapter-finalize-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts"
+      - "scripts/prove_external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install tsx scripts/prove_external_agent_paid_work_fulfillment_return_package_acceptance_and_adapter_finalize_v1.ts
