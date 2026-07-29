@@ -91,6 +91,7 @@ import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_G
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
 import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
+import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
 
 
 // __VOID_TS_DECLARES_V1__
@@ -4591,6 +4592,25 @@ app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, 
   }
 })();
 (globalThis as any).__void_http_app = app;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_BEGIN
+const __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1 =
+  await executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1(
+    process.env,
+    () => app,
+    () => {
+      const provider =
+        (globalThis as any).__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1;
+      if (typeof provider !== "function") {
+        throw new Error(
+          "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_V1 is unavailable",
+        );
+      }
+      return provider();
+    },
+  );
+(globalThis as any).__void_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1_result =
+  __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_END
 
 // ---- EARLY MINIMAL BOOT MODE (short-circuit before additive IIFE storm) ----
 const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
@@ -11910,7 +11930,7 @@ if (
 
 // ---------------- [ADD] txRoot + metrics wrapper ----------------
 import { computeTxRoot } from "./util/txroot.js";
-import { readCanonicalWcState } from "./economic/wc_verified_receipt_acceptance_v1";
+import { projectWcProductionBalance, projectWcProductionLedger } from "./economic/wc_production_visibility_projection_v1.js";
 (function installTxRootSealHook(){
   try{
     const g:any = globalThis as any;
@@ -64759,107 +64779,13 @@ a{color:#93c5fd;text-decoration:none}
     ensureExpressJson(app);
     ensureDirs();
 
-    // === wc-production-visibility-v1 BEGIN ===
-function wcProductionCanonicalLedgerFile(): string {
-  return path.join(DATA_DIR, "wc_v1", "ledger.jsonl");
-}
-
-function wcProductionCanonicalEntryAccount(
-  entry: Record<string, unknown>,
-): string {
-  const value =
-    entry["account"] ??
-    entry["agent_id"] ??
-    entry["participant_id"] ??
-    entry["account_id"];
-  return typeof value === "string" ? value : "";
-}
-
-function readWcProductionCanonicalVisibilityState(): {
-  entries: Record<string, unknown>[];
-  malformed: number;
-  unexpected: number;
-} {
-  const file = wcProductionCanonicalLedgerFile();
-  if (!fs.existsSync(file)) {
-    return { entries: [], malformed: 0, unexpected: 0 };
-  }
-
-  const entries: Record<string, unknown>[] = [];
-  let malformed = 0;
-  let unexpected = 0;
-
-  for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      malformed += 1;
-      continue;
-    }
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      unexpected += 1;
-      continue;
-    }
-
-    entries.push(parsed as Record<string, unknown>);
-  }
-
-  return { entries, malformed, unexpected };
-}
-
     app.get("/wc/production/balance", async (req:any, res:any) => {
       try {
     const fs = require("node:fs");
     const account = safeStr(req.query?.account || "", 128);
     if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
-
-    const canonicalState = await readCanonicalWcState(
-      account,
-      DATA_DIR,
-    );
-    const state = readWcProductionCanonicalVisibilityState();
-    if (state.malformed > 0 || state.unexpected > 0) {
-      return res.status(500).json({
-        ok: false,
-        error: "production_wc_ledger_integrity_failure",
-        marker: "VOID_WC_PRODUCTION_BALANCE_V1",
-        malformed_entries: state.malformed,
-        unexpected_entries: state.unexpected,
-        read_only: true,
-        mutation: false,
-      });
-    }
-    const events = state.entries.filter(
-      (entry) =>
-        wcProductionCanonicalEntryAccount(entry) === account,
-    );
-    const balance = canonicalState.earned;
-
-    return res.json({
-      ok: true,
-      marker: "VOID_WC_PRODUCTION_BALANCE_V1",
-      account,
-      balance,
-      count: events.length,
-      ledger_version: "wc-v1",
-      ledger_exists: fs.existsSync(
-        wcProductionCanonicalLedgerFile(),
-      ),
-      read_only: true,
-      spendable: false,
-      redeemable: canonicalState.redeemable > 0,
-      redeemable_wc: canonicalState.redeemable,
-      transferable: false,
-      included_in_legacy_balance: false,
-      automatic_runner_activation: false,
-      wc_to_void: false,
-      money_movement: false,
-    });
+    const projection = await projectWcProductionBalance(account, DATA_DIR, "VOID_WC_PRODUCTION_BALANCE_V1");
+    return res.status(projection.status).json(projection.body);
   } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
@@ -64870,53 +64796,12 @@ function readWcProductionCanonicalVisibilityState(): {
     const fs = require("node:fs");
     const account = safeStr(req.query?.account || "", 128);
     const limit = Math.max(
-              1,
-              Math.min(100, Number(req.query?.limit || 20) || 20)
-            );
+                  1,
+                  Math.min(100, Number(req.query?.limit || 20) || 20)
+                );
     if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
-
-    const canonicalState = await readCanonicalWcState(
-      account,
-      DATA_DIR,
-    );
-    const state = readWcProductionCanonicalVisibilityState();
-    if (state.malformed > 0 || state.unexpected > 0) {
-      return res.status(500).json({
-        ok: false,
-        error: "production_wc_ledger_integrity_failure",
-        marker: "VOID_WC_PRODUCTION_LEDGER_V1",
-        malformed_entries: state.malformed,
-        unexpected_entries: state.unexpected,
-        read_only: true,
-        mutation: false,
-      });
-    }
-    const matching = state.entries.filter(
-      (entry) =>
-        wcProductionCanonicalEntryAccount(entry) === account,
-    );
-
-    return res.json({
-      ok: true,
-      marker: "VOID_WC_PRODUCTION_LEDGER_V1",
-      account,
-      count: matching.length,
-      returned: Math.min(limit, matching.length),
-      events: matching.slice(-limit).reverse(),
-      ledger_version: "wc-v1",
-      ledger_exists: fs.existsSync(
-        wcProductionCanonicalLedgerFile(),
-      ),
-      read_only: true,
-      mutation: false,
-      spendable: false,
-      redeemable: canonicalState.redeemable > 0,
-      transferable: false,
-      included_in_legacy_balance: false,
-      automatic_runner_activation: false,
-      wc_to_void: false,
-      money_movement: false,
-    });
+    const projection = await projectWcProductionLedger(account, DATA_DIR, limit, "VOID_WC_PRODUCTION_LEDGER_V1");
+    return res.status(projection.status).json(projection.body);
   } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }

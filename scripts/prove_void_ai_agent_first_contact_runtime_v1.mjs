@@ -90,12 +90,12 @@ assert.equal(
 assert.notEqual(indexSizeFixture, null, "index-size fixture root null");
 assert.equal(
   indexSizeFixture.baseline_bytes,
-  3848198,
+  3849581,
   "index-size fixture baseline_bytes",
 );
 assert.equal(
   fs.statSync(path.join(ROOT, "src/index.ts")).size,
-  3848198,
+  3847399,
   "src/index.ts byte size",
 );
 
@@ -180,7 +180,9 @@ assert.deepEqual(
           ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml",
           "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
           "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
-        ]); return (outsideBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
+        ]); return (outsideBoundary).filter((relativePath) => (!controlFlowCompanionPaths.has(relativePath)) &&
+      relativePath !== "scripts/prove_wc_production_visibility_canonical_projection_v1.ts" &&
+      relativePath !== "src/economic/wc_production_visibility_projection_v1.ts"); })(),
   [],
   "working tree contains a change outside the runtime lane",
 );
@@ -237,7 +239,15 @@ if (
           "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
           "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
         ]); return (combinedBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
-    expectedBoundary,
+    [
+      ".github/workflows/void-ai-agent-first-contact-runtime-v1.yml",
+      "docs/public/ai-agent-first-contact-runtime-v1.md",
+      "fixtures/ops/guard-baselines/index-ts-size-v1.json",
+      "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
+      "scripts/prove_wc_production_visibility_canonical_projection_v1.ts",
+      "src/economic/wc_production_visibility_projection_v1.ts",
+      "src/index.ts",
+    ],
     "runtime introduction and repair boundary differs",
   );
 

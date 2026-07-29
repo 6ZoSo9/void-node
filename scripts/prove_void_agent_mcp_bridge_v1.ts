@@ -17,12 +17,16 @@ const EXPECTED_FILES = [
   "integrations/mcp/tsconfig.json",
   "integrations/mcp/src/bridge.ts",
   "integrations/mcp/src/config.ts",
+  "integrations/mcp/src/http-config.ts",
+  "integrations/mcp/src/http-server.ts",
+  "integrations/mcp/src/http.ts",
   "integrations/mcp/src/json.ts",
   "integrations/mcp/src/process.ts",
   "integrations/mcp/src/server.ts",
   "integrations/mcp/src/stdio.ts",
   "integrations/mcp/test/bridge.test.ts",
   "integrations/mcp/test/fixtures.ts",
+  "integrations/mcp/test/http.test.ts",
   "integrations/mcp/test/protocol-compatibility.test.ts",
   "integrations/mcp/test/server.test.ts",
   "scripts/prove_void_agent_mcp_bridge_v1.ts",
@@ -188,6 +192,10 @@ const devDependencies = packageJson.devDependencies;
 assertCondition(isRecord(dependencies), "dependencies missing");
 assertCondition(isRecord(devDependencies), "devDependencies missing");
 assertCondition(
+  dependencies["@modelcontextprotocol/node"] === "2.0.0",
+  "Node HTTP middleware SDK must be pinned to 2.0.0",
+);
+assertCondition(
   dependencies["@modelcontextprotocol/server"] === "2.0.0",
   "server SDK must be pinned to 2.0.0",
 );
@@ -207,6 +215,12 @@ assertCondition(
   devDependencies["@types/node"] === "22.15.3",
   "@types/node pin mismatch",
 );
+const packageScripts = packageJson.scripts;
+assertCondition(isRecord(packageScripts), "package scripts missing");
+assertCondition(
+  packageScripts["start:http"] === "node dist/src/http.js",
+  "read-only HTTP start script mismatch",
+);
 
 const lock = JSON.parse(
   read("integrations/mcp/package-lock.json"),
@@ -225,6 +239,21 @@ assertCondition(
   canonicalJson(lockRoot.devDependencies)
     === canonicalJson(devDependencies),
   "package-lock development dependency pins drifted",
+);
+const nodeMiddlewareLock =
+  lockPackages["node_modules/@modelcontextprotocol/node"];
+assertCondition(
+  isRecord(nodeMiddlewareLock),
+  "Node HTTP middleware lock entry missing",
+);
+assertCondition(
+  nodeMiddlewareLock.version === "2.0.0",
+  "Node HTTP middleware lock version drifted",
+);
+assertCondition(
+  typeof nodeMiddlewareLock.integrity === "string"
+    && nodeMiddlewareLock.integrity.startsWith("sha512-"),
+  "Node HTTP middleware lock integrity missing",
 );
 
 const bootstrapClient = read(
@@ -317,6 +346,9 @@ for (const key of [
 const runtimeSources = [
   "integrations/mcp/src/bridge.ts",
   "integrations/mcp/src/config.ts",
+  "integrations/mcp/src/http-config.ts",
+  "integrations/mcp/src/http-server.ts",
+  "integrations/mcp/src/http.ts",
   "integrations/mcp/src/json.ts",
   "integrations/mcp/src/process.ts",
   "integrations/mcp/src/server.ts",
@@ -369,6 +401,18 @@ for (const required of [
   "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
   "Allow: POST",
   "Do not use the general VOID node HTTP origin.",
+  "Run read-only over Streamable HTTP",
+  'VOID_MCP_HTTP_HOST="127.0.0.1"',
+  'VOID_MCP_HTTP_PORT="4114"',
+  "trusted TLS reverse proxy",
+  "authenticate every public caller",
+  "OAuth or mutual TLS",
+  "This source lane does not deploy the listener",
+  "Never bind this process to `0.0.0.0`",
+  "VOID_MCP_HTTP_ALLOWED_HOSTS",
+  "VOID_MCP_HTTP_ALLOWED_ORIGINS",
+  "VOID_MCP_HTTP_MAX_REQUEST_BYTES",
+  "VOID_MCP_HTTP_MAX_CONCURRENT_REQUESTS",
 ]) {
   assertCondition(
     readmeSource.includes(required),
@@ -383,6 +427,61 @@ for (const forbidden of [
   assertCondition(
     !readmeSource.includes(forbidden),
     `MCP gateway-origin guidance contains stale value: ${forbidden}`,
+  );
+}
+const httpConfigSource = read("integrations/mcp/src/http-config.ts");
+for (const required of [
+  'const DEFAULT_HTTP_HOST = "127.0.0.1"',
+  'const DEFAULT_HTTP_PATH = "/mcp"',
+  "VOID MCP HTTP transport is read-only",
+  "VOID MCP HTTP transport forbids VOID_MCP_TOKEN_FILE",
+  "trusted TLS reverse proxy",
+  "VOID_MCP_HTTP_MAX_REQUEST_BYTES",
+  "VOID_MCP_HTTP_MAX_CONCURRENT_REQUESTS",
+  'VOID_MCP_ALLOW_SUBMIT: "0"',
+]) {
+  assertCondition(
+    httpConfigSource.includes(required),
+    `HTTP configuration boundary missing: ${required}`,
+  );
+}
+for (const forbidden of [
+  'DEFAULT_HTTP_HOST = "0.0.0.0"',
+  "VOID_MCP_HTTP_ALLOW_SUBMIT",
+]) {
+  assertCondition(
+    !httpConfigSource.includes(forbidden),
+    `HTTP configuration contains forbidden authority: ${forbidden}`,
+  );
+}
+const httpServerSource = read("integrations/mcp/src/http-server.ts");
+for (const required of [
+  "createMcpHandler",
+  "hostHeaderValidation",
+  "originValidation",
+  "toNodeHandler",
+  "config.bridge.allowSubmit",
+  "config.bridge.tokenFile !== null",
+  "MCP request body is too large",
+  "MCP HTTP concurrency limit reached",
+  "server.maxRequestsPerSocket = 100",
+  "server.maxConnections = Math.max",
+  'Allow: "GET, POST, DELETE"',
+]) {
+  assertCondition(
+    httpServerSource.includes(required),
+    `HTTP server boundary missing: ${required}`,
+  );
+}
+const httpEntrySource = read("integrations/mcp/src/http.ts");
+for (const required of [
+  "submit_tool=disabled",
+  "bind_scope=loopback_only",
+  "tls_termination=external_reverse_proxy_required",
+]) {
+  assertCondition(
+    httpEntrySource.includes(required),
+    `HTTP entry honesty marker missing: ${required}`,
   );
 }
 const processSource = read("integrations/mcp/src/process.ts");
@@ -445,6 +544,14 @@ process.stdout.write(
     "gateway_origin_guidance=true",
     "main_node_origin_example=false",
     "canonical_repo_paths=true",
+    "http_transport_read_only=true",
+    "http_loopback_only=true",
+    "http_host_validation=true",
+    "http_origin_validation=true",
+    "http_request_body_bounded=true",
+    "http_concurrency_bounded=true",
+    "http_reverse_proxy_authentication_required=true",
+    "http_deployment=false",
     "",
   ].join("\n"),
 );

@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Raised for the reviewed validator positive-readiness public route. The added index code is limited to one read-only GET mount and one public route discovery entry; public validator registration remains disabled, and no validator admission, active-set mutation, or money movement is enabled.",
+  "reason": "Raised for the reviewed public-agent acceptance-persistence HTTP route-server bootstrap call-site integration. The added index code is limited to one import and one disabled-by-default startup call after the primary app export and before the first listener; while disabled, no production route is mounted, no listener is created, no persistence or replay write occurs, and no Work Credit or money movement is enabled.",
   "path": "src/index.ts",
-  "baseline_bytes": 3848198,
+  "baseline_bytes": 3849581,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {
@@ -12,13 +12,13 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "reviewed validator positive-readiness public route minimal index wiring adds 354 bytes",
+    "baseline_update_reason": "reviewed public-agent acceptance-persistence HTTP route-server bootstrap call-site integration adds 1383 bytes of disabled-by-default index wiring",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
     "well_known_public_node_card_index_link_only": true,
     "well_known_runtime_closeout_rollup_link_only": true
   },
-  "previous_baseline_bytes": 3834791,
-  "note": "Raised by exactly 354 bytes from 3834791 to 3835145. The guard remains an exact ceiling and rejects any future index growth beyond 3835145."
+  "previous_baseline_bytes": 3848198,
+  "note": "Raised by exactly 1383 bytes from 3848198 to 3849581. The guard remains an exact ceiling and rejects any future index growth beyond 3849581."
 }

@@ -85,6 +85,48 @@ Do not use the general VOID node HTTP origin.
 
 `stdout` is reserved for MCP protocol traffic. Diagnostics go to `stderr`.
 
+## Run read-only over Streamable HTTP
+
+The HTTP entrypoint exposes the same three resources and three read-only tools
+through one dual-era `/mcp` endpoint. It is deliberately unable to register
+`void_submit_paid_work`:
+
+- it binds only to exact loopback `127.0.0.1`;
+- it refuses startup when `VOID_MCP_ALLOW_SUBMIT` is anything other than unset,
+  empty, or exact `0`;
+- it refuses startup when `VOID_MCP_TOKEN_FILE` is present;
+- it validates `Host` and any browser-supplied `Origin` before MCP dispatch;
+- it accepts only `GET`, `POST`, and `DELETE` on exact path `/mcp`;
+- it bounds JSON request bodies and concurrent requests.
+
+Build and start it behind a trusted TLS reverse proxy:
+
+```bash
+export VOID_MCP_REPO_ROOT="$HOME/dev/void-node"
+export VOID_MCP_BASE_URL="http://127.0.0.1:4112"
+export VOID_MCP_HTTP_HOST="127.0.0.1"
+export VOID_MCP_HTTP_PORT="4114"
+export VOID_MCP_HTTP_ALLOWED_HOSTS="localhost,127.0.0.1,mcp.example.invalid"
+export VOID_MCP_HTTP_ALLOWED_ORIGINS="localhost,127.0.0.1,mcp.example.invalid"
+
+npm --prefix integrations/mcp run build
+node integrations/mcp/dist/src/http.js
+```
+
+`VOID_MCP_BASE_URL` remains the upstream isolated VOID agent gateway. Port
+`4114` in this example is the separate loopback MCP listener. The reverse proxy
+must terminate HTTPS, authenticate every public caller with an operator-approved
+mechanism such as OAuth or mutual TLS, forward only `/mcp`, preserve an
+allow-listed `Host`, and connect to `127.0.0.1:4114`.
+Never bind this process to `0.0.0.0` and never place credential or submission
+environment variables in its service unit.
+This source lane does not deploy the listener or configure that proxy.
+
+Non-browser MCP clients normally omit `Origin`; those requests still require an
+allow-listed `Host`. A present `Origin` is accepted only when its hostname is in
+`VOID_MCP_HTTP_ALLOWED_ORIGINS`. Wildcards, schemes, ports, paths, and duplicate
+entries are rejected from both allowlists.
+
 ## MCP host configuration
 
 Use absolute paths:
@@ -146,8 +188,16 @@ existing VOID intake semantics.
 | `VOID_MCP_TOKEN_FILE` | with submit | Owner-private paid-work token file |
 | `VOID_MCP_TIMEOUT_MS` | no | `1..60000`, default `10000` |
 | `VOID_MCP_MAX_RESPONSE_BYTES` | no | `1..4194304`, default `1048576` |
+| `VOID_MCP_HTTP_HOST` | HTTP only | Must be exact `127.0.0.1` |
+| `VOID_MCP_HTTP_PORT` | HTTP only | `1024..65535`, default `4114` |
+| `VOID_MCP_HTTP_ALLOWED_HOSTS` | HTTP only | Comma-separated hostnames accepted in `Host` |
+| `VOID_MCP_HTTP_ALLOWED_ORIGINS` | HTTP only | Comma-separated hostnames accepted in a present `Origin` |
+| `VOID_MCP_HTTP_MAX_REQUEST_BYTES` | HTTP only | `1..1048576`, default `65536` |
+| `VOID_MCP_HTTP_MAX_CONCURRENT_REQUESTS` | HTTP only | `1..64`, default `8` |
 
-Any value other than exact `1` keeps submission disabled.
+Any value other than exact `1` keeps submission disabled on `stdio`. The HTTP
+entrypoint is always read-only and refuses startup when submission or token-file
+environment is present.
 
 ## Inspector
 
