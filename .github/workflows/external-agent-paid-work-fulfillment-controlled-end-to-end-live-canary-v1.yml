@@ -1,5 +1,4 @@
 name: External Agent Paid-Work Controlled E2E Live Canary V1
-
 on:
   pull_request:
     paths:
@@ -17,7 +16,6 @@ on:
       - "examples/external-agent-paid-work-fulfillment-controlled-end-to-end-live-canary-v1.example.json"
       - "docs/public-agent/external-agent-paid-work-fulfillment-controlled-end-to-end-live-canary-v1.md"
       - ".github/workflows/external-agent-paid-work-fulfillment-controlled-end-to-end-live-canary-v1.yml"
-
 jobs:
   proof:
     runs-on: ubuntu-latest
@@ -27,7 +25,11 @@ jobs:
         with:
           node-version: "22"
       - run: npx --yes tsx scripts/prove_external_agent_paid_work_fulfillment_controlled_end_to_end_live_canary_v1.ts | tee /tmp/proof.json
-      - run: grep -F '"exact_green": true' /tmp/proof.json
-      - run: grep -F '"live_mode_requires_allow_live": true' /tmp/proof.json
-      - run: grep -F '"recovery_verified_for_every_phase": true' /tmp/proof.json
-      - run: grep -F '"raw_capability_token_printed": false' /tmp/proof.json
+      - run: |
+          grep -F '"exact_green": true' /tmp/proof.json
+      - run: |
+          grep -F '"live_mode_requires_allow_live": true' /tmp/proof.json
+      - run: |
+          grep -F '"recovery_verified_for_every_phase": true' /tmp/proof.json
+      - run: |
+          grep -F '"raw_capability_token_printed": false' /tmp/proof.json
