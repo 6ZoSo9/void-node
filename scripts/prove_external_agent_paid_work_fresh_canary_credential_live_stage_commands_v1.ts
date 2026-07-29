@@ -17,8 +17,10 @@ import {
   PHASE_CONFIRMATIONS,
   PHASES,
   RESULT_MARKERS,
+  executeNimoLocalRequest,
   executeStage,
   recoverStage,
+  verifyNimoHost,
   type CommandProfile,
   type Phase,
   type StageRequest,
@@ -88,32 +90,37 @@ async function main(): Promise<void> {
     bindings: [],
   });
 
-  const tokenHash = sha("mock-private-token");
-  const pathHash = sha("/mock/nimo/token");
   let remoteRequestCalls = 0;
+  const nimoIdentity = () => "100.122.198.38";
+  const precisionIdentity = () => "100.122.245.125";
   const remoteRequest = async (
     request: StageRequest,
   ): Promise<Record<string, unknown>> => {
     remoteRequestCalls += 1;
-
-    return {
-      marker: RESULT_MARKERS.request,
-      version: 1,
-      ok: true,
-      phase: "request",
-      operation_id: request.operation_id,
-      request_id: request.request_id,
-      credential_id: request.credential_id,
-      agent_id: request.agent_id,
-      token_hash: tokenHash,
-      request_status: "created",
-      private_token_persisted_on_nimo: true,
-      private_token_path_sha256: pathHash,
-      raw_token_returned: false,
-    };
+    verifyNimoHost(profile, nimoIdentity);
+    return executeNimoLocalRequest(request, profile);
   };
-  const nimoIdentity = () => "100.122.198.38";
-  const precisionIdentity = () => "100.122.245.125";
+
+  let nimoHostVerified = false;
+  let wrongNimoHostRejected = false;
+
+  verifyNimoHost(profile, nimoIdentity);
+  nimoHostVerified = true;
+
+  try {
+    verifyNimoHost(profile, precisionIdentity);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.startsWith(
+        "Nimo request token generation host mismatch:",
+      )
+    ) {
+      throw error;
+    }
+
+    wrongNimoHostRejected = true;
+  }
 
   let confirmationRejected = false;
   let liveGateRejected = false;
@@ -126,7 +133,7 @@ async function main(): Promise<void> {
       profile,
       confirmation: "wrong",
       allowLive: false,
-      hostIdentityResolver: nimoIdentity,
+      hostIdentityResolver: precisionIdentity,
       remoteRequestTransport: remoteRequest,
     });
   } catch (error) {
@@ -152,7 +159,7 @@ async function main(): Promise<void> {
       profile: liveProfile,
       confirmation: PHASE_CONFIRMATIONS.request,
       allowLive: false,
-      hostIdentityResolver: nimoIdentity,
+      hostIdentityResolver: precisionIdentity,
       remoteRequestTransport: remoteRequest,
     });
   } catch (error) {
@@ -173,7 +180,7 @@ async function main(): Promise<void> {
       profile,
       confirmation: PHASE_CONFIRMATIONS.request,
       allowLive: false,
-      hostIdentityResolver: precisionIdentity,
+      hostIdentityResolver: nimoIdentity,
       remoteRequestTransport: remoteRequest,
     });
   } catch (error) {
@@ -193,8 +200,7 @@ async function main(): Promise<void> {
 
   for (const phase of PHASES) {
     const request = requestFor(phase, prior);
-    const resolver =
-      phase === "request" ? nimoIdentity : precisionIdentity;
+    const resolver = precisionIdentity;
     const first = await executeStage({
       phase,
       request,
@@ -228,8 +234,7 @@ async function main(): Promise<void> {
 
   for (const phase of PHASES) {
     const request = requestFor(phase, prior);
-    const resolver =
-      phase === "request" ? nimoIdentity : precisionIdentity;
+    const resolver = precisionIdentity;
     const value = recoverStage({
       phase,
       request,
@@ -257,6 +262,19 @@ async function main(): Promise<void> {
   };
   const credential = credentialRegistry.credentials[0];
   const binding = bindingRegistry.bindings[0];
+  const nimoPrivateRegistry = JSON.parse(
+    readFileSync(profile.nimo_private_registry_path, "utf8"),
+  ) as {
+    credentials: Record<string, unknown>[];
+  };
+  const nimoTokenPath = join(
+    profile.nimo_private_token_root,
+    "void-e2e-canary-credential-v1",
+    "credential-token-v1.txt",
+  );
+  const nimoPrivateRegistryMode =
+    statSync(profile.nimo_private_registry_path).mode & 0o777;
+  const nimoTokenMode = statSync(nimoTokenPath).mode & 0o777;
   const stageRootMode =
     statSync(profile.stage_state_root).mode & 0o777;
   const credentialRegistryMode =
@@ -276,12 +294,17 @@ async function main(): Promise<void> {
     marker:
       "VOID_EXTERNAL_AGENT_PAID_WORK_FRESH_CANARY_CREDENTIAL_LIVE_STAGE_COMMANDS_PROOF_V1",
     exact_green:
+      nimoHostVerified &&
+      wrongNimoHostRejected &&
       confirmationRejected &&
       liveGateRejected &&
       wrongHostRejected &&
       remoteRequestCalls === 1 &&
       credentialRegistry.credentials.length === 1 &&
       bindingRegistry.bindings.length === 1 &&
+      nimoPrivateRegistry.credentials.length === 1 &&
+      nimoPrivateRegistryMode === 0o600 &&
+      nimoTokenMode === 0o600 &&
       credential.status === "active" &&
       credential.active === true &&
       credential.enabled === true &&
@@ -294,7 +317,9 @@ async function main(): Promise<void> {
       bindingRegistryMode === 0o600,
     prepared_without_live_mutation: true,
     all_five_concrete_stage_commands_verified: true,
-    request_bound_to_nimo: true,
+    request_orchestration_bound_to_precision: true,
+    request_raw_token_generation_bound_to_nimo:
+      nimoHostVerified && wrongNimoHostRejected,
     review_activate_bind_probe_bound_to_precision: true,
     request_remote_transport_called_once: remoteRequestCalls === 1,
     duplicate_execute_no_second_request_or_binding:
@@ -314,6 +339,9 @@ async function main(): Promise<void> {
     raw_credential_token_private_on_nimo_only: true,
     raw_credential_token_printed: false,
     raw_credential_token_in_sanitized_results: false,
+    nimo_private_registry_mode_0600:
+      nimoPrivateRegistryMode === 0o600,
+    nimo_private_token_mode_0600: nimoTokenMode === 0o600,
     private_state_root_mode_0700: stageRootMode === 0o700,
     credential_registry_mode_0600: credentialRegistryMode === 0o600,
     binding_registry_mode_0600: bindingRegistryMode === 0o600,

@@ -72,7 +72,7 @@ function writeJson(p:string,v:unknown):void{ensureDir(dirname(p));const t=`${p}.
 function readJson(p:string):Record<string,unknown>{if(!statSync(p).isFile())throw new Error(`not a regular file: ${p}`);return JSON.parse(readFileSync(p,'utf8')) as Record<string,unknown>;}
 function clean(v:unknown,label:string):void{const walk=(n:unknown,p='$'):void=>{if(typeof n==='string'){if(CAP.test(n))throw new Error(`${label} raw capability token at ${p}`);return;}if(Array.isArray(n)){n.forEach((x,i)=>walk(x,`${p}[${i}]`));return;}if(!n||typeof n!=='object')return;for(const [k,x] of Object.entries(n as Record<string,unknown>)){if(BAD_KEYS.has(k.toLowerCase().replace(/[^a-z0-9_]/g,'')))throw new Error(`${label} prohibited key ${p}.${k}`);walk(x,`${p}.${k}`);}};walk(v);}
 function s(v:unknown,label:string,pat=ID):string{if(typeof v!=='string'||!pat.test(v))throw new Error(`${label} format mismatch`);return v;}
-function hostFor(p:Phase):HostRole{return p==='request'?'nimo':'precision';}
+function hostFor(_phase:Phase):HostRole{return 'precision';}
 function policyFor(p:Phase):StageProfile['raw_token_policy']{return p==='request'?'persist_raw_token_on_nimo_private_storage_only':'never_return_raw_token';}
 export function profileDigest(stage:Omit<StageProfile,'command_profile_sha256'>):string{return hash(stable(stage));}
 

@@ -298,8 +298,8 @@ function requireUtc(value: unknown, label: string): string {
   return value;
 }
 
-function expectedHost(phase: Phase): HostRole {
-  return phase === "request" ? "nimo" : "precision";
+function expectedHost(_phase: Phase): HostRole {
+  return "precision";
 }
 
 export function validateRequest(
@@ -599,6 +599,38 @@ function verifyHost(
   if (actual !== expected) {
     throw new Error(
       `${phase} host mismatch: expected ${expected}, got ${actual}`,
+    );
+  }
+}
+
+export function verifyNimoHost(
+  profile: CommandProfile,
+  resolver?: HostIdentityResolver,
+): void {
+  const actual = resolver
+    ? resolver()
+    : (() => {
+        const child = spawnSync("tailscale", ["ip", "-4"], {
+          encoding: "utf8",
+          timeout: 10_000,
+        });
+
+        if (child.error) {
+          throw child.error;
+        }
+
+        if (child.status !== 0) {
+          throw new Error(
+            `tailscale identity failed: ${child.stderr}`,
+          );
+        }
+
+        return child.stdout.trim().split(/\s+/)[0];
+      })();
+
+  if (actual !== profile.expected_nimo_ip) {
+    throw new Error(
+      `Nimo request token generation host mismatch: expected ${profile.expected_nimo_ip}, got ${actual}`,
     );
   }
 }
@@ -1227,7 +1259,7 @@ async function cli(): Promise<void> {
     };
     const profile = validateProfile(payload.profile);
     const request = validateRequest(payload.request, "request");
-    verifyHost("request", profile);
+    verifyNimoHost(profile);
     const result = executeNimoLocalRequest(request, profile);
     assertSanitized(result, "remote request result");
     console.log(JSON.stringify(result));
