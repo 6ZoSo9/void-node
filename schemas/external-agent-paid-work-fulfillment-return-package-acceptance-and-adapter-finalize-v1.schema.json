@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.local/schemas/external-agent-paid-work-fulfillment-return-package-acceptance-and-adapter-finalize-v1.schema.json",
+  "title": "VOID External-Agent Paid-Work Return-Package Acceptance and Adapter Finalize V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "return_package_path",
+    "executor_receipt_expected_plan_path",
+    "finalization_profile_path",
+    "binding_registry_path",
+    "started_at_utc"
+  ],
+  "properties": {
+    "return_package_path": { "type": "string", "minLength": 2, "maxLength": 4096 },
+    "executor_receipt_expected_plan_path": { "type": "string", "minLength": 2, "maxLength": 4096 },
+    "finalization_profile_path": { "type": "string", "minLength": 2, "maxLength": 4096 },
+    "binding_registry_path": { "type": "string", "minLength": 2, "maxLength": 4096 },
+    "started_at_utc": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "coordinator",
+        "fixed_award_wc",
+        "runtime",
+        "transports"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_PRECISION_FINALIZATION_PROFILE_V1"
+        },
+        "version": { "const": 1 },
+        "coordinator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tailscale_ip", "node_id"],
+          "properties": {
+            "tailscale_ip": { "type": "string" },
+            "node_id": { "type": "string", "pattern": "^[0-9a-f]{32}$" }
+          }
+        },
+        "fixed_award_wc": { "const": 3 },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["acceptance_source", "adapter_cli", "adapter_core"],
+          "properties": {
+            "acceptance_source": { "$ref": "#/$defs/fileReference" },
+            "adapter_cli": { "$ref": "#/$defs/fileReference" },
+            "adapter_core": { "$ref": "#/$defs/fileReference" }
+          }
+        },
+        "transports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["acceptance", "adapter"],
+          "properties": {
+            "acceptance": { "$ref": "#/$defs/transport" },
+            "adapter": { "$ref": "#/$defs/transport" }
+          }
+        }
+      }
+    },
+    "fileReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 2, "maxLength": 4096 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runner_id",
+        "command",
+        "argv",
+        "timeout_ms",
+        "success_exit_code"
+      ],
+      "properties": {
+        "runner_id": { "type": "string", "minLength": 4, "maxLength": 240 },
+        "command": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "argv": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "type": "string", "maxLength": 4096 }
+        },
+        "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 600000 },
+        "success_exit_code": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    }
+  }
+}
