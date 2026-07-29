@@ -4,7 +4,8 @@ This module supplies the concrete credential lifecycle commands required by the 
 
 ## Stage authority
 
-- **Request — Nimo:** Generates one submit-only raw credential token, stores it only in Nimo private mode-0600 storage, and returns only its SHA-256 plus a SHA-256 of the private path.
+- **Request orchestration — Precision:** Persists attempt state, accepts the sanitized Nimo result, and writes the sanitized credential record on Precision.
+- **Raw-token generation — Nimo:** Generates one submit-only raw credential token, stores it only in Nimo private mode-0600 storage, and returns only its SHA-256 plus a SHA-256 of the private path.
 - **Review — Precision:** Approves the exact credential, agent, scope, and destination WC account once.
 - **Activate — Precision:** Activates the reviewed submit-only credential once.
 - **Bind — Precision:** Atomically creates one active credential-to-WC-account binding.
