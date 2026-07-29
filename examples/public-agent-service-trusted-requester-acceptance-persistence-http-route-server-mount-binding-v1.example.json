@@ -1,0 +1,59 @@
+{
+  "command": {
+    "apply": false,
+    "confirmation": "",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_COMMAND_V1",
+    "version": 1
+  },
+  "config": {
+    "enabled": true,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_CONFIG_V1",
+    "version": 1
+  },
+  "example_only": true,
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_EXAMPLE_V1",
+  "result": {
+    "already_mounted_route_count": 0,
+    "apply": false,
+    "atomic_registration_verified": false,
+    "authority": {
+      "credential_change": false,
+      "credential_issue": false,
+      "deployment": false,
+      "express_app_modification": false,
+      "money_movement": false,
+      "network_listener_creation": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "production_acceptance_persistence": false,
+      "production_http_route_mount": false,
+      "production_http_submission": false,
+      "production_replay_write": false,
+      "production_signing": false,
+      "route_registrar_integration": false,
+      "runtime_mutation": false,
+      "service_restart": false,
+      "source_level_exact_route_registration": false,
+      "src_index_modification": false,
+      "transaction_broadcast": false,
+      "wallet_or_signer_access": false,
+      "work_credit_settlement": false,
+      "work_credit_write": false,
+      "work_dispatch": false,
+      "work_execution_authorization": false
+    },
+    "confirmation_verified": false,
+    "enabled": true,
+    "handler_identity_exact": true,
+    "inspected_route_count": 0,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_RESULT_V1",
+    "mounted_route_count": 0,
+    "registrar_inspected": false,
+    "registrar_registered": false,
+    "route_enabled": true,
+    "status": "planned",
+    "trusted_input_provider_deferred": true,
+    "version": 1
+  },
+  "version": 1
+}
