@@ -1,0 +1,1585 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_EXAMPLE_V1",
+  "version": 1,
+  "example_only": true,
+  "config": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_CONFIG_V1",
+    "version": 1,
+    "enabled": true,
+    "persistence_config": {
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ADAPTER_V1",
+      "version": 1,
+      "allowed_root": "/example/operator-owned-persistence-root-not-accessed",
+      "max_pointer_bytes": 65536,
+      "max_generation_file_bytes": 4194304,
+      "max_generation_count": 10000,
+      "recover_exact_orphaned_generation": true
+    }
+  },
+  "command": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_COMMAND_V1",
+    "version": 1,
+    "apply": false,
+    "confirmation": "",
+    "recorded_at_utc": "2030-01-01T00:10:00Z"
+  },
+  "trusted_replay_plan_input": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REPLAY_PLAN_VERIFICATION_V1",
+    "version": 1,
+    "evidence_mode": "example_fixture",
+    "trusted_requester_acceptance_registry_verification_input": {
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REGISTRY_VERIFICATION_V1",
+      "version": 1,
+      "evidence_mode": "example_fixture",
+      "expected_requester_trust_root_id": "voidartr1_5b3f89c484543bf30e868178e7f5d7f29363a8c916226788576284a606c4864e",
+      "requester_trust_registry_snapshot_input": {
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_V1",
+        "version": 1,
+        "evidence_mode": "example_fixture",
+        "trust_root": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_ROOT_V1",
+          "version": 1,
+          "trust_status": "example_fixture",
+          "authority_scope": "requester_trust_registry_snapshot_verify",
+          "key_id": "ed25519:a5c79d3dd2ce18d5f903161ebd62b924ccadbe3f5e150c5f0410f633e40514cf",
+          "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEApKaDqVPGGVm58XpV0CBjZWv1UHOMfcIN9C7KiTLN+9E=\n-----END PUBLIC KEY-----\n",
+          "valid_from_utc": "2030-01-01T00:00:00Z",
+          "expires_at_utc": "2030-03-01T00:00:00Z",
+          "revoked_at_utc": null,
+          "root_nonce": "trusted-requester-acceptance-registry-example-root-0001",
+          "root_id": "voidartr1_5b3f89c484543bf30e868178e7f5d7f29363a8c916226788576284a606c4864e"
+        },
+        "snapshot_body": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_BODY_V1",
+          "version": 1,
+          "snapshot_status": "example_fixture",
+          "registry_id": "void.public-agent.trusted-requester-acceptance-registry.example.v1",
+          "sequence": 1,
+          "previous_snapshot_id": null,
+          "generated_at_utc": "2030-01-01T00:00:00Z",
+          "expires_at_utc": "2030-03-01T00:00:00Z",
+          "snapshot_nonce": "trusted-requester-acceptance-registry-example-snapshot-0001",
+          "requester_key_bindings": [
+            {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_KEY_BINDING_V1",
+              "version": 1,
+              "binding_status": "example_fixture",
+              "requester_agent_id": "agent.example.researcher",
+              "authority_scope": "agent_paid_work_accept",
+              "key_id": "ed25519:0dddb50721302010d5283a5bf3f1ee01b215c3954b7d28ff56229cbfc9db2122",
+              "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5Kv8VYbzDwUgqg5DMTqKjG4hDagPQ+wG1npUY5dYJ90=\n-----END PUBLIC KEY-----\n",
+              "valid_from_utc": "2030-01-01T00:00:00Z",
+              "expires_at_utc": "2030-03-01T00:00:00Z",
+              "revoked_at_utc": null,
+              "binding_nonce": "trusted-requester-composition-example-binding-0001",
+              "binding_id": "voidarkb1_337436e9c8147cec6595f5ec3c9476a801f3377da58007482f14e297578fcd46"
+            }
+          ]
+        },
+        "authentication_envelope": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_AUTHENTICATION_V1",
+          "version": 1,
+          "signature_scheme": "ed25519-spki-sha256-v1",
+          "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_V1",
+          "canonicalization": "void-canonical-json-v1",
+          "snapshot_id": "voidarts1_6dfff622b7edbb9303e271f3b0872c342e8ffcd411730d749108e36f8389cb31",
+          "trust_root_id": "voidartr1_5b3f89c484543bf30e868178e7f5d7f29363a8c916226788576284a606c4864e",
+          "key_id": "ed25519:a5c79d3dd2ce18d5f903161ebd62b924ccadbe3f5e150c5f0410f633e40514cf",
+          "signed_at_utc": "2030-01-01T00:00:00Z",
+          "signature_base64": "Qte7SVDkSXjUpjg5wOZSubJB+uh192ReXopYEGCD58N8eRLEXEG/sxQquJ8zSPEcBzexydqn9I9kH/TrEC0nDA==",
+          "authentication_id": "voidartsa1_d1147eab712894609f4623aa50764a0bce5e84b8580ec5476bd1acf6448dd14c"
+        }
+      },
+      "trusted_requester_acceptance_verification_input": {
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_VERIFICATION_V1",
+        "version": 1,
+        "evidence_mode": "example_fixture",
+        "trusted_provider_quote_response_verification_input": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_PROVIDER_QUOTE_RESPONSE_VERIFICATION_V1",
+          "version": 1,
+          "evidence_mode": "example_fixture",
+          "expected_trust_root_id": "voidaptr1_d4c5bc60f86316f6c41ce47c5d5be39d202c9f58bef3a129074fd158a6b4ab43",
+          "provider_trust_registry_snapshot_input": {
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1",
+            "version": 1,
+            "evidence_mode": "example_fixture",
+            "trust_root": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_ROOT_V1",
+              "version": 1,
+              "trust_status": "example_fixture",
+              "authority_scope": "provider_trust_registry_snapshot_verify",
+              "key_id": "ed25519:fcaf48e128e703f6a37f55fd76d83b93cca2d2017490759d642cb9502fd04fcb",
+              "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbdjA2roQE+8ckW081lSJ6rmcyS9/KJ8MklcwAVcrRjw=\n-----END PUBLIC KEY-----\n",
+              "valid_from_utc": "2030-01-01T00:00:00Z",
+              "expires_at_utc": "2031-01-01T00:00:00Z",
+              "revoked_at_utc": null,
+              "root_nonce": "trusted-provider-composition-example-root-0001",
+              "root_id": "voidaptr1_d4c5bc60f86316f6c41ce47c5d5be39d202c9f58bef3a129074fd158a6b4ab43"
+            },
+            "snapshot_body": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_BODY_V1",
+              "version": 1,
+              "snapshot_status": "example_fixture",
+              "registry_id": "void.public-agent.trusted-provider-composition-example-registry.v1",
+              "sequence": 1,
+              "previous_snapshot_id": null,
+              "generated_at_utc": "2030-01-01T00:00:00Z",
+              "expires_at_utc": "2030-01-02T00:00:00Z",
+              "snapshot_nonce": "trusted-provider-composition-example-snapshot-0001",
+              "provider_key_bindings": [
+                {
+                  "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+                  "version": 1,
+                  "binding_status": "example_fixture",
+                  "provider_id": "void.provider.example.datanet.verify",
+                  "authority_scope": "provider_quote_response_authenticate",
+                  "key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+                  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwKz+4tuu2Xi3Y5LOs2yObT1eF7KmGm6I3kdfHaEy9KY=\n-----END PUBLIC KEY-----\n",
+                  "valid_from_utc": "2030-01-01T00:00:00Z",
+                  "expires_at_utc": "2030-03-01T00:00:00Z",
+                  "revoked_at_utc": null,
+                  "binding_nonce": "trusted-provider-composition-example-binding-0001",
+                  "binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8"
+                }
+              ]
+            },
+            "authentication_envelope": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_AUTHENTICATION_V1",
+              "version": 1,
+              "signature_scheme": "ed25519-spki-sha256-v1",
+              "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1",
+              "canonicalization": "void-canonical-json-v1",
+              "snapshot_id": "voidapts1_f6e79c2d36357f6a6b164a4ea8df6bbe6111e6e5a136dc7f702a7a14449456b8",
+              "trust_root_id": "voidaptr1_d4c5bc60f86316f6c41ce47c5d5be39d202c9f58bef3a129074fd158a6b4ab43",
+              "key_id": "ed25519:fcaf48e128e703f6a37f55fd76d83b93cca2d2017490759d642cb9502fd04fcb",
+              "signed_at_utc": "2030-01-01T00:00:00Z",
+              "signature_base64": "0+67NI55egmg8iD97r0RgypF0ZvLY/Oh6/6nN25jGEIW3oKJekAJScLYVcGPxtmB/wkn4KmFJAHAn9vPmMkKAQ==",
+              "authentication_id": "voidaptsa1_2df70e9a770dc2a2f4996659eb040ff301eaad9ef498bbc3eb7197f1d6edba75"
+            }
+          },
+          "provider_quote_response_authentication_input": {
+            "authentication_envelope": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_EVIDENCE_V1",
+              "version": 1,
+              "signature_scheme": "ed25519-spki-sha256-v1",
+              "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+              "canonicalization": "void-canonical-json-v1",
+              "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+              "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+              "handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+              "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+              "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+              "request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+              "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+              "provider_id": "void.provider.example.datanet.verify",
+              "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+              "provider_key_binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8",
+              "authentication_nonce": "trusted-provider-composition-example-authentication-0001",
+              "created_at_utc": "2030-01-01T00:04:00Z",
+              "expires_at_utc": "2030-01-01T21:00:00Z",
+              "signature_base64": "qB+0QOh2EscSoB1TY+0CHBjMD84cfsL39VVrixRes5vZHp4Azytmyo8L2aUGAhYE68pfcyrF0++kCpf0/ghwAA==",
+              "authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd"
+            },
+            "evidence_mode": "example_fixture",
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+            "provider_key_binding": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+              "version": 1,
+              "binding_status": "example_fixture",
+              "provider_id": "void.provider.example.datanet.verify",
+              "authority_scope": "provider_quote_response_authenticate",
+              "key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+              "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwKz+4tuu2Xi3Y5LOs2yObT1eF7KmGm6I3kdfHaEy9KY=\n-----END PUBLIC KEY-----\n",
+              "valid_from_utc": "2030-01-01T00:00:00Z",
+              "expires_at_utc": "2030-03-01T00:00:00Z",
+              "revoked_at_utc": null,
+              "binding_nonce": "trusted-provider-composition-example-binding-0001",
+              "binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8"
+            },
+            "provider_quote_response_input": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_V1",
+              "quote_envelope": {
+                "commercial": {
+                  "payment_rail_id": "void.external.prepaid.v1",
+                  "quote_asset": "USD",
+                  "total": "3.50"
+                },
+                "created_at_utc": "2030-01-01T00:03:00Z",
+                "execution_commitment": {
+                  "external_side_effects_allowed": false,
+                  "max_output_bytes": 524288,
+                  "max_runtime_seconds": 240,
+                  "money_movement_allowed": false,
+                  "output_labels": [
+                    "verification_result.json",
+                    "verification_receipt.json"
+                  ],
+                  "wallet_access_allowed": false
+                },
+                "expires_at_utc": "2030-01-01T22:00:00Z",
+                "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+                "nonce": "provider-quote-response-example-20300101-0001",
+                "provider": {
+                  "capability_id": "datanet.fetch_verify",
+                  "provider_id": "void.provider.example.datanet.verify"
+                },
+                "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+                "terms": {
+                  "payment_required_before_execution": true,
+                  "provider_authentication_required": true,
+                  "quote_grants_no_execution_authority": true,
+                  "quote_is_not_payment_instruction": true,
+                  "separate_acceptance_required": true
+                },
+                "version": 1,
+                "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+              },
+              "quote_handoff_input": {
+                "created_at_utc": "2030-01-01T00:02:00Z",
+                "evidence_mode": "example_fixture",
+                "expires_at_utc": "2030-01-01T23:00:00Z",
+                "handoff_nonce": "quote-handoff-example-20300101-0001",
+                "intake_receipt": {
+                  "admission": {
+                    "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                    "authority": {
+                      "buy_void_fulfillment_authority_granted": false,
+                      "mutation_authority_granted": false,
+                      "payment_authorized": false,
+                      "provider_selected": false,
+                      "quote_created": false,
+                      "wallet_or_signer_access_granted": false,
+                      "wc_award_authorized": false,
+                      "wc_ledger_write_authorized": false,
+                      "work_dispatched": false,
+                      "work_execution_authorized": false
+                    },
+                    "decision": "accepted_for_review",
+                    "evaluated_at_utc": "2030-01-01T00:01:00Z",
+                    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1",
+                    "normalized": {
+                      "callback_host": "agent.example.invalid",
+                      "callback_scheme": "https",
+                      "capability_id": "datanet.fetch_verify",
+                      "expected_output_count": 2,
+                      "input_ref_count": 1,
+                      "max_output_bytes": 1048576,
+                      "max_runtime_seconds": 300,
+                      "max_total": "5.00",
+                      "quote_asset": "USD",
+                      "ttl_seconds": 86400
+                    },
+                    "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+                    "reason_codes": [],
+                    "version": 1,
+                    "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                  },
+                  "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                  "authentication": {
+                    "agent_id": "void.agent.example.researcher",
+                    "credential_id": "voidapwc1_5555555555555555555555555555555555555555555555555555555555555555",
+                    "mode": "credential_registry",
+                    "registry_id": "voidapwcr1_4444444444444444444444444444444444444444444444444444444444444444",
+                    "scope": "agent_paid_work_submit"
+                  },
+                  "authority": {
+                    "buy_void_fulfillment_authority_granted": false,
+                    "mutation_authority_granted": false,
+                    "payment_authorized": false,
+                    "provider_selected": false,
+                    "quote_created": false,
+                    "wallet_or_signer_access_granted": false,
+                    "wc_award_authorized": false,
+                    "wc_ledger_write_authorized": false,
+                    "work_dispatched": false,
+                    "work_execution_authorized": false
+                  },
+                  "authorization_verified": true,
+                  "canonical_request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+                  "duplicate": false,
+                  "loopback_source": true,
+                  "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+                  "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+                  "received_at_utc": "2030-01-01T00:01:00Z",
+                  "request_payload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+                  "version": 1,
+                  "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                },
+                "marker": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_V1",
+                "submission_input": {
+                  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_SUBMISSION_V1",
+                  "order_request": {
+                    "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+                    "catalog_id": "void.public-agent-services.v1",
+                    "commercial": {
+                      "max_total": "5.00",
+                      "quote_asset": "USD"
+                    },
+                    "created_at_utc": "2030-01-01T00:00:00Z",
+                    "execution_limits": {
+                      "max_output_bytes": 1048576,
+                      "max_runtime_seconds": 300
+                    },
+                    "expected_outputs": [
+                      "verification_result.json",
+                      "verification_receipt.json"
+                    ],
+                    "expires_at_utc": "2030-01-02T00:00:00Z",
+                    "input_refs": [
+                      "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    ],
+                    "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1",
+                    "nonce": "service-order-example-20300101-0001",
+                    "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+                    "requester": {
+                      "agent_id": "agent.example.researcher",
+                      "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+                    },
+                    "service_id": "void.datanet.fetch-verify.v1",
+                    "version": 1
+                  },
+                  "submission_nonce": "submission-example-20300101-0001",
+                  "version": 1
+                },
+                "version": 1
+              },
+              "response_nonce": "provider-quote-response-packet-20300101-0001",
+              "version": 1
+            },
+            "version": 1
+          },
+          "catalog_value": {
+            "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+            "catalog_id": "void.public-agent-services.v1",
+            "catalog_status": "descriptive_only",
+            "honesty": {
+              "automatic_payment_execution_available": false,
+              "credential_issuance": false,
+              "external_paid_work_execution_available": false,
+              "money_movement": false,
+              "runtime_mutation": false,
+              "service_mutation": false,
+              "signing": false,
+              "transaction_broadcast": false,
+              "wallet_access": false
+            },
+            "marker": "VOID_PUBLIC_AGENT_SERVICES_CATALOG_V1",
+            "schema": "void.public-agent-services-catalog.v1",
+            "services": [
+              {
+                "availability": "public",
+                "category": "discovery",
+                "evidence": {
+                  "paths": [
+                    "docs/public/agent-paid-work-public-discovery-v1.json",
+                    "schemas/agent-paid-work-public-discovery-v1.schema.json"
+                  ]
+                },
+                "execution": {
+                  "external_available": false,
+                  "mode": "read_only",
+                  "mutation_authority": false
+                },
+                "interface": {
+                  "kind": "static_manifest",
+                  "method": "GET",
+                  "path": "docs/public/agent-paid-work-public-discovery-v1.json"
+                },
+                "maturity": "public_static",
+                "operator_notes": [
+                  "This surface is informational and read-only.",
+                  "It does not promise work, payment, WC earning, or execution."
+                ],
+                "pricing": {
+                  "amount": 0,
+                  "currency": null,
+                  "payment_execution_available": false,
+                  "status": "free"
+                },
+                "service_id": "void.agent-paid-work.protocol-discovery.v1",
+                "summary": "Read-only machine-readable discovery of the bounded agent paid-work protocol and ordered envelope lineage.",
+                "title": "Agent Paid-Work Protocol Discovery",
+                "verification": {
+                  "deterministic_receipts": true,
+                  "independent_verification_available": true,
+                  "receipt_paths": [
+                    ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+                    ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+                    "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+                    "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+                    "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+                    "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+                    "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+                    "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+                    "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+                  ]
+                }
+              },
+              {
+                "availability": "operator_review_required",
+                "category": "onboarding",
+                "evidence": {
+                  "paths": [
+                    ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+                    ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+                    "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+                    "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+                    "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+                    "scripts/agent_paid_work_credential_request_intake_v1.ts",
+                    "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+                    "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+                  ]
+                },
+                "execution": {
+                  "external_available": false,
+                  "mode": "operator_review",
+                  "mutation_authority": false
+                },
+                "interface": {
+                  "kind": "operator_cli",
+                  "method": null,
+                  "path": "scripts/agent_paid_work_credential_request_intake_v1.ts"
+                },
+                "maturity": "operator_review_required",
+                "operator_notes": [
+                  "Submitting a request does not issue a credential.",
+                  "Credential application remains a separate explicit operator action."
+                ],
+                "pricing": {
+                  "amount": 0,
+                  "currency": null,
+                  "payment_execution_available": false,
+                  "status": "free"
+                },
+                "service_id": "void.agent-paid-work.credential-request-intake.v1",
+                "summary": "Machine-readable operator-review intake for an external agent requesting the bounded agent_paid_work_submit scope.",
+                "title": "Paid-Work Credential Request Intake",
+                "verification": {
+                  "deterministic_receipts": true,
+                  "independent_verification_available": false,
+                  "receipt_paths": [
+                    ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+                    ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+                    "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+                    "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+                    "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+                    "scripts/agent_paid_work_credential_request_intake_v1.ts",
+                    "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+                    "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+                  ]
+                }
+              },
+              {
+                "availability": "conditional",
+                "category": "paid_work_intake",
+                "evidence": {
+                  "paths": [
+                    ".github/workflows/agent-paid-work-submission-admission-v1.yml",
+                    ".github/workflows/agent-paid-work-submission-intake-runtime-v1.yml",
+                    "docs/public/agent-paid-work-submission-admission-v1.md",
+                    "docs/public/agent-paid-work-submission-intake-runtime-v1.md",
+                    "examples/agent-paid-work-submission-admission-v1.example.json",
+                    "examples/agent-paid-work-submission-intake-receipt-v1.example.json",
+                    "examples/systemd/void-agent-paid-work-submission-receiver-v1.service",
+                    "examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf",
+                    "fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json",
+                    "fixtures/agent-paid-work/agent-paid-work-submission-request-v1.example.json",
+                    "schemas/agent-paid-work-submission-admission-v1.schema.json",
+                    "schemas/agent-paid-work-submission-intake-receipt-v1.schema.json",
+                    "schemas/agent-paid-work-submission-request-v1.schema.json",
+                    "scripts/agent_paid_work_submission_admission_v1.ts",
+                    "scripts/agent_paid_work_submission_receiver_v1.ts",
+                    "scripts/prove_agent_paid_work_submission_admission_v1.ts",
+                    "scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs",
+                    "scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs",
+                    "scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts"
+                  ]
+                },
+                "execution": {
+                  "external_available": false,
+                  "mode": "conditional_intake",
+                  "mutation_authority": false
+                },
+                "interface": {
+                  "kind": "http_route",
+                  "method": "POST",
+                  "path": "/__void/agents/paid-work/submissions/v1"
+                },
+                "maturity": "conditionally_available",
+                "operator_notes": [
+                  "The route is disabled unless its exact receiver upstream is configured.",
+                  "Successful intake does not itself dispatch work or execute payment."
+                ],
+                "pricing": {
+                  "amount": null,
+                  "currency": null,
+                  "payment_execution_available": false,
+                  "status": "quote_required"
+                },
+                "service_id": "void.agent-paid-work.submission-intake.v1",
+                "summary": "Bounded authenticated POST intake for agent paid-work requests when the dedicated loopback receiver is configured.",
+                "title": "Authenticated Paid-Work Submission Intake",
+                "verification": {
+                  "deterministic_receipts": true,
+                  "independent_verification_available": true,
+                  "receipt_paths": [
+                    ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+                    ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+                    "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+                    "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+                    "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+                    "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+                    "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+                    "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+                    "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+                  ]
+                }
+              },
+              {
+                "availability": "contract_only",
+                "category": "verifiable_work",
+                "evidence": {
+                  "paths": [
+                    "docs/public/void-public-earn-no-node-client-v1.md",
+                    "docs/public/wc-public-ticket-claim-v1.md",
+                    "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+                    "examples/agent-paid-work-execution-authorization-envelope-v1.example.json",
+                    "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+                    "ops/datanet-job-runner-v1.cjs",
+                    "ops/live-runner-publish-verify-redundancy-proof.sh",
+                    "ops/live-runner-selection-persistence-proof.sh",
+                    "ops/mainnet0/wc-public-earning-participant-v1.sh",
+                    "ops/mainnet0/wc-public-ticket-claim-v1.sh",
+                    "ops/pick2-isolated-proof-exporter.sh",
+                    "ops/pick2-weighted-mixed-proof.sh",
+                    "ops/prune_stale_jobs_v1.py",
+                    "ops/public/void-public-app-composition-gateway-v1.mjs",
+                    "ops/runner-safety-proof.sh",
+                    "ops/two-box-cross-machine-datanet-lifecycle-proof.sh",
+                    "ops/two-box-datanet-workloop-proof.sh",
+                    "ops/two-box-full-useful-work-loop-proof.sh",
+                    "ops/two-box-peer-fetch-repair-proof.sh",
+                    "ops/two-box-pick2-fairness-proof.sh"
+                  ]
+                },
+                "execution": {
+                  "external_available": false,
+                  "mode": "contract_only",
+                  "mutation_authority": false
+                },
+                "interface": {
+                  "kind": "work_type",
+                  "method": null,
+                  "path": "datanet_fetch_verify"
+                },
+                "maturity": "contract_defined",
+                "operator_notes": [
+                  "No public price or automatic payment rail is claimed.",
+                  "External execution remains unavailable until separately activated."
+                ],
+                "pricing": {
+                  "amount": null,
+                  "currency": null,
+                  "payment_execution_available": false,
+                  "status": "not_published"
+                },
+                "service_id": "void.datanet.fetch-verify.v1",
+                "summary": "Verifiable bounded work type for fetching DataNet content and returning deterministic review evidence.",
+                "title": "DataNet Fetch and Verification",
+                "verification": {
+                  "deterministic_receipts": true,
+                  "independent_verification_available": true,
+                  "receipt_paths": [
+                    ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+                    ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+                    "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+                    "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+                    "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+                    "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+                    "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+                    "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+                    "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+                    "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+                  ]
+                }
+              }
+            ],
+            "source_commit": "c13f214f2aeb353d4c639ba86dc62c9d7275fdd5",
+            "source_commit_time": "2026-07-27T15:27:49-05:00",
+            "version": 1
+          }
+        },
+        "requester_acceptance_authentication_input": {
+          "authenticated_quote_acceptance_handoff_input": {
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_AUTHENTICATED_QUOTE_ACCEPTANCE_HANDOFF_V1",
+            "provider_authentication_input": {
+              "authentication_envelope": {
+                "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_EVIDENCE_V1",
+                "version": 1,
+                "signature_scheme": "ed25519-spki-sha256-v1",
+                "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+                "canonicalization": "void-canonical-json-v1",
+                "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+                "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+                "handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+                "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+                "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+                "request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+                "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+                "provider_id": "void.provider.example.datanet.verify",
+                "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+                "provider_key_binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8",
+                "authentication_nonce": "trusted-provider-composition-example-authentication-0001",
+                "created_at_utc": "2030-01-01T00:04:00Z",
+                "expires_at_utc": "2030-01-01T21:00:00Z",
+                "signature_base64": "qB+0QOh2EscSoB1TY+0CHBjMD84cfsL39VVrixRes5vZHp4Azytmyo8L2aUGAhYE68pfcyrF0++kCpf0/ghwAA==",
+                "authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd"
+              },
+              "evidence_mode": "example_fixture",
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+              "provider_key_binding": {
+                "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+                "version": 1,
+                "binding_status": "example_fixture",
+                "provider_id": "void.provider.example.datanet.verify",
+                "authority_scope": "provider_quote_response_authenticate",
+                "key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+                "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwKz+4tuu2Xi3Y5LOs2yObT1eF7KmGm6I3kdfHaEy9KY=\n-----END PUBLIC KEY-----\n",
+                "valid_from_utc": "2030-01-01T00:00:00Z",
+                "expires_at_utc": "2030-03-01T00:00:00Z",
+                "revoked_at_utc": null,
+                "binding_nonce": "trusted-provider-composition-example-binding-0001",
+                "binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8"
+              },
+              "provider_quote_response_input": {
+                "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_V1",
+                "quote_envelope": {
+                  "commercial": {
+                    "payment_rail_id": "void.external.prepaid.v1",
+                    "quote_asset": "USD",
+                    "total": "3.50"
+                  },
+                  "created_at_utc": "2030-01-01T00:03:00Z",
+                  "execution_commitment": {
+                    "external_side_effects_allowed": false,
+                    "max_output_bytes": 524288,
+                    "max_runtime_seconds": 240,
+                    "money_movement_allowed": false,
+                    "output_labels": [
+                      "verification_result.json",
+                      "verification_receipt.json"
+                    ],
+                    "wallet_access_allowed": false
+                  },
+                  "expires_at_utc": "2030-01-01T22:00:00Z",
+                  "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+                  "nonce": "provider-quote-response-example-20300101-0001",
+                  "provider": {
+                    "capability_id": "datanet.fetch_verify",
+                    "provider_id": "void.provider.example.datanet.verify"
+                  },
+                  "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+                  "terms": {
+                    "payment_required_before_execution": true,
+                    "provider_authentication_required": true,
+                    "quote_grants_no_execution_authority": true,
+                    "quote_is_not_payment_instruction": true,
+                    "separate_acceptance_required": true
+                  },
+                  "version": 1,
+                  "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                },
+                "quote_handoff_input": {
+                  "created_at_utc": "2030-01-01T00:02:00Z",
+                  "evidence_mode": "example_fixture",
+                  "expires_at_utc": "2030-01-01T23:00:00Z",
+                  "handoff_nonce": "quote-handoff-example-20300101-0001",
+                  "intake_receipt": {
+                    "admission": {
+                      "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                      "authority": {
+                        "buy_void_fulfillment_authority_granted": false,
+                        "mutation_authority_granted": false,
+                        "payment_authorized": false,
+                        "provider_selected": false,
+                        "quote_created": false,
+                        "wallet_or_signer_access_granted": false,
+                        "wc_award_authorized": false,
+                        "wc_ledger_write_authorized": false,
+                        "work_dispatched": false,
+                        "work_execution_authorized": false
+                      },
+                      "decision": "accepted_for_review",
+                      "evaluated_at_utc": "2030-01-01T00:01:00Z",
+                      "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1",
+                      "normalized": {
+                        "callback_host": "agent.example.invalid",
+                        "callback_scheme": "https",
+                        "capability_id": "datanet.fetch_verify",
+                        "expected_output_count": 2,
+                        "input_ref_count": 1,
+                        "max_output_bytes": 1048576,
+                        "max_runtime_seconds": 300,
+                        "max_total": "5.00",
+                        "quote_asset": "USD",
+                        "ttl_seconds": 86400
+                      },
+                      "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+                      "reason_codes": [],
+                      "version": 1,
+                      "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                    },
+                    "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                    "authentication": {
+                      "agent_id": "void.agent.example.researcher",
+                      "credential_id": "voidapwc1_5555555555555555555555555555555555555555555555555555555555555555",
+                      "mode": "credential_registry",
+                      "registry_id": "voidapwcr1_4444444444444444444444444444444444444444444444444444444444444444",
+                      "scope": "agent_paid_work_submit"
+                    },
+                    "authority": {
+                      "buy_void_fulfillment_authority_granted": false,
+                      "mutation_authority_granted": false,
+                      "payment_authorized": false,
+                      "provider_selected": false,
+                      "quote_created": false,
+                      "wallet_or_signer_access_granted": false,
+                      "wc_award_authorized": false,
+                      "wc_ledger_write_authorized": false,
+                      "work_dispatched": false,
+                      "work_execution_authorized": false
+                    },
+                    "authorization_verified": true,
+                    "canonical_request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+                    "duplicate": false,
+                    "loopback_source": true,
+                    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+                    "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+                    "received_at_utc": "2030-01-01T00:01:00Z",
+                    "request_payload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                    "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+                    "version": 1,
+                    "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                  },
+                  "marker": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_V1",
+                  "submission_input": {
+                    "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_SUBMISSION_V1",
+                    "order_request": {
+                      "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+                      "catalog_id": "void.public-agent-services.v1",
+                      "commercial": {
+                        "max_total": "5.00",
+                        "quote_asset": "USD"
+                      },
+                      "created_at_utc": "2030-01-01T00:00:00Z",
+                      "execution_limits": {
+                        "max_output_bytes": 1048576,
+                        "max_runtime_seconds": 300
+                      },
+                      "expected_outputs": [
+                        "verification_result.json",
+                        "verification_receipt.json"
+                      ],
+                      "expires_at_utc": "2030-01-02T00:00:00Z",
+                      "input_refs": [
+                        "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                      ],
+                      "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1",
+                      "nonce": "service-order-example-20300101-0001",
+                      "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+                      "requester": {
+                        "agent_id": "agent.example.researcher",
+                        "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+                      },
+                      "service_id": "void.datanet.fetch-verify.v1",
+                      "version": 1
+                    },
+                    "submission_nonce": "submission-example-20300101-0001",
+                    "version": 1
+                  },
+                  "version": 1
+                },
+                "response_nonce": "provider-quote-response-packet-20300101-0001",
+                "version": 1
+              },
+              "version": 1
+            },
+            "requester_intent": {
+              "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+              "created_at_utc": "2030-01-01T00:05:00Z",
+              "expires_at_utc": "2030-01-01T20:00:00Z",
+              "requester_agent_id": "agent.example.researcher",
+              "requester_authentication": {
+                "mode": "not_provided",
+                "required_scope": "agent_paid_work_accept",
+                "verified": false
+              }
+            },
+            "version": 1
+          },
+          "evidence_mode": "example_fixture",
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+          "requester_authentication_envelope": {
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_EVIDENCE_V1",
+            "version": 1,
+            "signature_scheme": "ed25519-spki-sha256-v1",
+            "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+            "canonicalization": "void-canonical-json-v1",
+            "handoff_id": "voidawah1_0e6fe1447ca0bba5ada5b9b9142bdfae13ddfb5f24ee5c238371818e856dde58",
+            "provider_authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd",
+            "provider_key_binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8",
+            "provider_key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+            "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+            "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+            "quote_handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+            "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+            "requester_agent_id": "agent.example.researcher",
+            "provider_id": "void.provider.example.datanet.verify",
+            "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+            "requester_key_binding_id": "voidarkb1_337436e9c8147cec6595f5ec3c9476a801f3377da58007482f14e297578fcd46",
+            "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+            "authentication_nonce": "trusted-requester-composition-example-authentication-0001",
+            "created_at_utc": "2030-01-01T00:06:00Z",
+            "expires_at_utc": "2030-01-01T20:00:00Z",
+            "signature_base64": "mU/8ywQQmv+D3O1JWTr1m4BQtMDL4P9IjJW2HxkQ3UskSDaSf7/BZ7oSUKcg38+46HeEeqkrSETYdmlWZNlhCg==",
+            "requester_authentication_id": "voidawra1_8aaaea34810f4bb5649138ce1401686fe58218b40bba6864ecb3fc2358f98d40"
+          },
+          "requester_key_binding": {
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_KEY_BINDING_V1",
+            "version": 1,
+            "binding_status": "example_fixture",
+            "requester_agent_id": "agent.example.researcher",
+            "authority_scope": "agent_paid_work_accept",
+            "key_id": "ed25519:0dddb50721302010d5283a5bf3f1ee01b215c3954b7d28ff56229cbfc9db2122",
+            "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5Kv8VYbzDwUgqg5DMTqKjG4hDagPQ+wG1npUY5dYJ90=\n-----END PUBLIC KEY-----\n",
+            "valid_from_utc": "2030-01-01T00:00:00Z",
+            "expires_at_utc": "2030-03-01T00:00:00Z",
+            "revoked_at_utc": null,
+            "binding_nonce": "trusted-requester-composition-example-binding-0001",
+            "binding_id": "voidarkb1_337436e9c8147cec6595f5ec3c9476a801f3377da58007482f14e297578fcd46"
+          },
+          "version": 1
+        }
+      }
+    },
+    "acceptance_materialization_replay_consumer_input": {
+      "acceptance_draft": {
+        "commercial": {
+          "payment_rail_id": "void.external.prepaid.v1",
+          "quote_asset": "USD",
+          "total": "3.50"
+        },
+        "created_at_utc": "2030-01-01T00:07:00Z",
+        "expires_at_utc": "2030-01-01T19:00:00Z",
+        "marker": "VOID_AGENT_PAID_WORK_ACCEPTANCE_ENVELOPE_V1",
+        "nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+        "provider": {
+          "capability_id": "datanet.fetch_verify",
+          "provider_id": "void.provider.example.datanet.verify"
+        },
+        "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+        "requester": {
+          "agent_id": "agent.example.researcher"
+        },
+        "terms": {
+          "acceptance_is_not_execution_instruction": true,
+          "acceptance_is_not_funds_reservation": true,
+          "acceptance_is_not_payment_instruction": true,
+          "acceptance_replay_protection_required": true,
+          "execution_authorization_granted": false,
+          "payment_authorization_granted": false,
+          "provider_authentication_required": true,
+          "quote_terms_accepted": true,
+          "requester_authentication_required": true,
+          "separate_execution_authorization_required": true,
+          "separate_payment_authorization_required": true,
+          "single_active_acceptance_per_quote_required": true
+        },
+        "version": 1,
+        "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+      },
+      "expected_state_revision": 0,
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_MATERIALIZATION_REPLAY_CONSUMER_V1",
+      "mode": "example_fixture",
+      "replay_state_snapshot": {
+        "active_acceptance_by_quote": {},
+        "consumed_acceptance_ids": [],
+        "consumed_provider_authentication_ids": [],
+        "consumed_requester_authentication_ids": [],
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_REPLAY_STATE_V1",
+        "revision": 0,
+        "state_id": "voidawrs1_09fcfb20aa71c21c83beddec7ca3965d2bcd98d13c08d9f0e70842e0f255d678",
+        "version": 1
+      },
+      "requester_authentication_input": {
+        "authenticated_quote_acceptance_handoff_input": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_AUTHENTICATED_QUOTE_ACCEPTANCE_HANDOFF_V1",
+          "provider_authentication_input": {
+            "authentication_envelope": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_EVIDENCE_V1",
+              "version": 1,
+              "signature_scheme": "ed25519-spki-sha256-v1",
+              "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+              "canonicalization": "void-canonical-json-v1",
+              "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+              "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+              "handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+              "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+              "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+              "request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+              "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+              "provider_id": "void.provider.example.datanet.verify",
+              "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+              "provider_key_binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8",
+              "authentication_nonce": "trusted-provider-composition-example-authentication-0001",
+              "created_at_utc": "2030-01-01T00:04:00Z",
+              "expires_at_utc": "2030-01-01T21:00:00Z",
+              "signature_base64": "qB+0QOh2EscSoB1TY+0CHBjMD84cfsL39VVrixRes5vZHp4Azytmyo8L2aUGAhYE68pfcyrF0++kCpf0/ghwAA==",
+              "authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd"
+            },
+            "evidence_mode": "example_fixture",
+            "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_AUTHENTICATION_V1",
+            "provider_key_binding": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1",
+              "version": 1,
+              "binding_status": "example_fixture",
+              "provider_id": "void.provider.example.datanet.verify",
+              "authority_scope": "provider_quote_response_authenticate",
+              "key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+              "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwKz+4tuu2Xi3Y5LOs2yObT1eF7KmGm6I3kdfHaEy9KY=\n-----END PUBLIC KEY-----\n",
+              "valid_from_utc": "2030-01-01T00:00:00Z",
+              "expires_at_utc": "2030-03-01T00:00:00Z",
+              "revoked_at_utc": null,
+              "binding_nonce": "trusted-provider-composition-example-binding-0001",
+              "binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8"
+            },
+            "provider_quote_response_input": {
+              "marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_QUOTE_RESPONSE_V1",
+              "quote_envelope": {
+                "commercial": {
+                  "payment_rail_id": "void.external.prepaid.v1",
+                  "quote_asset": "USD",
+                  "total": "3.50"
+                },
+                "created_at_utc": "2030-01-01T00:03:00Z",
+                "execution_commitment": {
+                  "external_side_effects_allowed": false,
+                  "max_output_bytes": 524288,
+                  "max_runtime_seconds": 240,
+                  "money_movement_allowed": false,
+                  "output_labels": [
+                    "verification_result.json",
+                    "verification_receipt.json"
+                  ],
+                  "wallet_access_allowed": false
+                },
+                "expires_at_utc": "2030-01-01T22:00:00Z",
+                "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+                "nonce": "provider-quote-response-example-20300101-0001",
+                "provider": {
+                  "capability_id": "datanet.fetch_verify",
+                  "provider_id": "void.provider.example.datanet.verify"
+                },
+                "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+                "terms": {
+                  "payment_required_before_execution": true,
+                  "provider_authentication_required": true,
+                  "quote_grants_no_execution_authority": true,
+                  "quote_is_not_payment_instruction": true,
+                  "separate_acceptance_required": true
+                },
+                "version": 1,
+                "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+              },
+              "quote_handoff_input": {
+                "created_at_utc": "2030-01-01T00:02:00Z",
+                "evidence_mode": "example_fixture",
+                "expires_at_utc": "2030-01-01T23:00:00Z",
+                "handoff_nonce": "quote-handoff-example-20300101-0001",
+                "intake_receipt": {
+                  "admission": {
+                    "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                    "authority": {
+                      "buy_void_fulfillment_authority_granted": false,
+                      "mutation_authority_granted": false,
+                      "payment_authorized": false,
+                      "provider_selected": false,
+                      "quote_created": false,
+                      "wallet_or_signer_access_granted": false,
+                      "wc_award_authorized": false,
+                      "wc_ledger_write_authorized": false,
+                      "work_dispatched": false,
+                      "work_execution_authorized": false
+                    },
+                    "decision": "accepted_for_review",
+                    "evaluated_at_utc": "2030-01-01T00:01:00Z",
+                    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1",
+                    "normalized": {
+                      "callback_host": "agent.example.invalid",
+                      "callback_scheme": "https",
+                      "capability_id": "datanet.fetch_verify",
+                      "expected_output_count": 2,
+                      "input_ref_count": 1,
+                      "max_output_bytes": 1048576,
+                      "max_runtime_seconds": 300,
+                      "max_total": "5.00",
+                      "quote_asset": "USD",
+                      "ttl_seconds": 86400
+                    },
+                    "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+                    "reason_codes": [],
+                    "version": 1,
+                    "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                  },
+                  "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+                  "authentication": {
+                    "agent_id": "void.agent.example.researcher",
+                    "credential_id": "voidapwc1_5555555555555555555555555555555555555555555555555555555555555555",
+                    "mode": "credential_registry",
+                    "registry_id": "voidapwcr1_4444444444444444444444444444444444444444444444444444444444444444",
+                    "scope": "agent_paid_work_submit"
+                  },
+                  "authority": {
+                    "buy_void_fulfillment_authority_granted": false,
+                    "mutation_authority_granted": false,
+                    "payment_authorized": false,
+                    "provider_selected": false,
+                    "quote_created": false,
+                    "wallet_or_signer_access_granted": false,
+                    "wc_award_authorized": false,
+                    "wc_ledger_write_authorized": false,
+                    "work_dispatched": false,
+                    "work_execution_authorized": false
+                  },
+                  "authorization_verified": true,
+                  "canonical_request_sha256": "31b9590cb9802cd35449290a2663e996b90ad114180f6c207349f04ed321c8cc",
+                  "duplicate": false,
+                  "loopback_source": true,
+                  "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+                  "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+                  "received_at_utc": "2030-01-01T00:01:00Z",
+                  "request_payload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "submission_id": "voidawsr1_797d2e02a13f783fdfe3844d9231fd9bfa1c21b62dd850188903e2b934068e16",
+                  "version": 1,
+                  "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+                },
+                "marker": "VOID_PUBLIC_AGENT_SERVICE_SUBMISSION_QUOTE_HANDOFF_V1",
+                "submission_input": {
+                  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_SUBMISSION_V1",
+                  "order_request": {
+                    "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+                    "catalog_id": "void.public-agent-services.v1",
+                    "commercial": {
+                      "max_total": "5.00",
+                      "quote_asset": "USD"
+                    },
+                    "created_at_utc": "2030-01-01T00:00:00Z",
+                    "execution_limits": {
+                      "max_output_bytes": 1048576,
+                      "max_runtime_seconds": 300
+                    },
+                    "expected_outputs": [
+                      "verification_result.json",
+                      "verification_receipt.json"
+                    ],
+                    "expires_at_utc": "2030-01-02T00:00:00Z",
+                    "input_refs": [
+                      "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    ],
+                    "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1",
+                    "nonce": "service-order-example-20300101-0001",
+                    "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+                    "requester": {
+                      "agent_id": "agent.example.researcher",
+                      "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+                    },
+                    "service_id": "void.datanet.fetch-verify.v1",
+                    "version": 1
+                  },
+                  "submission_nonce": "submission-example-20300101-0001",
+                  "version": 1
+                },
+                "version": 1
+              },
+              "response_nonce": "provider-quote-response-packet-20300101-0001",
+              "version": 1
+            },
+            "version": 1
+          },
+          "requester_intent": {
+            "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+            "created_at_utc": "2030-01-01T00:05:00Z",
+            "expires_at_utc": "2030-01-01T20:00:00Z",
+            "requester_agent_id": "agent.example.researcher",
+            "requester_authentication": {
+              "mode": "not_provided",
+              "required_scope": "agent_paid_work_accept",
+              "verified": false
+            }
+          },
+          "version": 1
+        },
+        "evidence_mode": "example_fixture",
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+        "requester_authentication_envelope": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_EVIDENCE_V1",
+          "version": 1,
+          "signature_scheme": "ed25519-spki-sha256-v1",
+          "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_AUTHENTICATION_V1",
+          "canonicalization": "void-canonical-json-v1",
+          "handoff_id": "voidawah1_0e6fe1447ca0bba5ada5b9b9142bdfae13ddfb5f24ee5c238371818e856dde58",
+          "provider_authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd",
+          "provider_key_binding_id": "voidapkb1_68c5a89357d519960ea57ed326e83090b5e0b50663fcb149da3f489d2c487ee8",
+          "provider_key_id": "ed25519:42ac9cca8c6fa557141cb39b9a6b02eb0124f00060474c7fb584f8fab73066ca",
+          "response_id": "voidawqr1_00e4cb3c90ac2de2016aee3b13cd87bd7b2d52bb6cfbad018bc379b829868f9c",
+          "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+          "quote_handoff_id": "voidawqh1_3be866b0d325662b37f505dec27069e620553a6a9bc855540d3c490e2c07c3cf",
+          "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+          "requester_agent_id": "agent.example.researcher",
+          "provider_id": "void.provider.example.datanet.verify",
+          "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+          "requester_key_binding_id": "voidarkb1_337436e9c8147cec6595f5ec3c9476a801f3377da58007482f14e297578fcd46",
+          "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+          "authentication_nonce": "trusted-requester-composition-example-authentication-0001",
+          "created_at_utc": "2030-01-01T00:06:00Z",
+          "expires_at_utc": "2030-01-01T20:00:00Z",
+          "signature_base64": "mU/8ywQQmv+D3O1JWTr1m4BQtMDL4P9IjJW2HxkQ3UskSDaSf7/BZ7oSUKcg38+46HeEeqkrSETYdmlWZNlhCg==",
+          "requester_authentication_id": "voidawra1_8aaaea34810f4bb5649138ce1401686fe58218b40bba6864ecb3fc2358f98d40"
+        },
+        "requester_key_binding": {
+          "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_KEY_BINDING_V1",
+          "version": 1,
+          "binding_status": "example_fixture",
+          "requester_agent_id": "agent.example.researcher",
+          "authority_scope": "agent_paid_work_accept",
+          "key_id": "ed25519:0dddb50721302010d5283a5bf3f1ee01b215c3954b7d28ff56229cbfc9db2122",
+          "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5Kv8VYbzDwUgqg5DMTqKjG4hDagPQ+wG1npUY5dYJ90=\n-----END PUBLIC KEY-----\n",
+          "valid_from_utc": "2030-01-01T00:00:00Z",
+          "expires_at_utc": "2030-03-01T00:00:00Z",
+          "revoked_at_utc": null,
+          "binding_nonce": "trusted-requester-composition-example-binding-0001",
+          "binding_id": "voidarkb1_337436e9c8147cec6595f5ec3c9476a801f3377da58007482f14e297578fcd46"
+        },
+        "version": 1
+      },
+      "version": 1
+    },
+    "catalog_value": {
+      "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+      "catalog_id": "void.public-agent-services.v1",
+      "catalog_status": "descriptive_only",
+      "honesty": {
+        "automatic_payment_execution_available": false,
+        "credential_issuance": false,
+        "external_paid_work_execution_available": false,
+        "money_movement": false,
+        "runtime_mutation": false,
+        "service_mutation": false,
+        "signing": false,
+        "transaction_broadcast": false,
+        "wallet_access": false
+      },
+      "marker": "VOID_PUBLIC_AGENT_SERVICES_CATALOG_V1",
+      "schema": "void.public-agent-services-catalog.v1",
+      "services": [
+        {
+          "availability": "public",
+          "category": "discovery",
+          "evidence": {
+            "paths": [
+              "docs/public/agent-paid-work-public-discovery-v1.json",
+              "schemas/agent-paid-work-public-discovery-v1.schema.json"
+            ]
+          },
+          "execution": {
+            "external_available": false,
+            "mode": "read_only",
+            "mutation_authority": false
+          },
+          "interface": {
+            "kind": "static_manifest",
+            "method": "GET",
+            "path": "docs/public/agent-paid-work-public-discovery-v1.json"
+          },
+          "maturity": "public_static",
+          "operator_notes": [
+            "This surface is informational and read-only.",
+            "It does not promise work, payment, WC earning, or execution."
+          ],
+          "pricing": {
+            "amount": 0,
+            "currency": null,
+            "payment_execution_available": false,
+            "status": "free"
+          },
+          "service_id": "void.agent-paid-work.protocol-discovery.v1",
+          "summary": "Read-only machine-readable discovery of the bounded agent paid-work protocol and ordered envelope lineage.",
+          "title": "Agent Paid-Work Protocol Discovery",
+          "verification": {
+            "deterministic_receipts": true,
+            "independent_verification_available": true,
+            "receipt_paths": [
+              ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+              ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+              "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+              "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+              "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+              "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+              "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+              "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+              "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+            ]
+          }
+        },
+        {
+          "availability": "operator_review_required",
+          "category": "onboarding",
+          "evidence": {
+            "paths": [
+              ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+              ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+              "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+              "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+              "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+              "scripts/agent_paid_work_credential_request_intake_v1.ts",
+              "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+              "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+            ]
+          },
+          "execution": {
+            "external_available": false,
+            "mode": "operator_review",
+            "mutation_authority": false
+          },
+          "interface": {
+            "kind": "operator_cli",
+            "method": null,
+            "path": "scripts/agent_paid_work_credential_request_intake_v1.ts"
+          },
+          "maturity": "operator_review_required",
+          "operator_notes": [
+            "Submitting a request does not issue a credential.",
+            "Credential application remains a separate explicit operator action."
+          ],
+          "pricing": {
+            "amount": 0,
+            "currency": null,
+            "payment_execution_available": false,
+            "status": "free"
+          },
+          "service_id": "void.agent-paid-work.credential-request-intake.v1",
+          "summary": "Machine-readable operator-review intake for an external agent requesting the bounded agent_paid_work_submit scope.",
+          "title": "Paid-Work Credential Request Intake",
+          "verification": {
+            "deterministic_receipts": true,
+            "independent_verification_available": false,
+            "receipt_paths": [
+              ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+              ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+              "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+              "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+              "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+              "scripts/agent_paid_work_credential_request_intake_v1.ts",
+              "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+              "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+            ]
+          }
+        },
+        {
+          "availability": "conditional",
+          "category": "paid_work_intake",
+          "evidence": {
+            "paths": [
+              ".github/workflows/agent-paid-work-submission-admission-v1.yml",
+              ".github/workflows/agent-paid-work-submission-intake-runtime-v1.yml",
+              "docs/public/agent-paid-work-submission-admission-v1.md",
+              "docs/public/agent-paid-work-submission-intake-runtime-v1.md",
+              "examples/agent-paid-work-submission-admission-v1.example.json",
+              "examples/agent-paid-work-submission-intake-receipt-v1.example.json",
+              "examples/systemd/void-agent-paid-work-submission-receiver-v1.service",
+              "examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf",
+              "fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json",
+              "fixtures/agent-paid-work/agent-paid-work-submission-request-v1.example.json",
+              "schemas/agent-paid-work-submission-admission-v1.schema.json",
+              "schemas/agent-paid-work-submission-intake-receipt-v1.schema.json",
+              "schemas/agent-paid-work-submission-request-v1.schema.json",
+              "scripts/agent_paid_work_submission_admission_v1.ts",
+              "scripts/agent_paid_work_submission_receiver_v1.ts",
+              "scripts/prove_agent_paid_work_submission_admission_v1.ts",
+              "scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs",
+              "scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs",
+              "scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts"
+            ]
+          },
+          "execution": {
+            "external_available": false,
+            "mode": "conditional_intake",
+            "mutation_authority": false
+          },
+          "interface": {
+            "kind": "http_route",
+            "method": "POST",
+            "path": "/__void/agents/paid-work/submissions/v1"
+          },
+          "maturity": "conditionally_available",
+          "operator_notes": [
+            "The route is disabled unless its exact receiver upstream is configured.",
+            "Successful intake does not itself dispatch work or execute payment."
+          ],
+          "pricing": {
+            "amount": null,
+            "currency": null,
+            "payment_execution_available": false,
+            "status": "quote_required"
+          },
+          "service_id": "void.agent-paid-work.submission-intake.v1",
+          "summary": "Bounded authenticated POST intake for agent paid-work requests when the dedicated loopback receiver is configured.",
+          "title": "Authenticated Paid-Work Submission Intake",
+          "verification": {
+            "deterministic_receipts": true,
+            "independent_verification_available": true,
+            "receipt_paths": [
+              ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+              ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+              "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+              "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+              "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+              "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+              "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+              "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+              "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+            ]
+          }
+        },
+        {
+          "availability": "contract_only",
+          "category": "verifiable_work",
+          "evidence": {
+            "paths": [
+              "docs/public/void-public-earn-no-node-client-v1.md",
+              "docs/public/wc-public-ticket-claim-v1.md",
+              "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+              "examples/agent-paid-work-execution-authorization-envelope-v1.example.json",
+              "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+              "ops/datanet-job-runner-v1.cjs",
+              "ops/live-runner-publish-verify-redundancy-proof.sh",
+              "ops/live-runner-selection-persistence-proof.sh",
+              "ops/mainnet0/wc-public-earning-participant-v1.sh",
+              "ops/mainnet0/wc-public-ticket-claim-v1.sh",
+              "ops/pick2-isolated-proof-exporter.sh",
+              "ops/pick2-weighted-mixed-proof.sh",
+              "ops/prune_stale_jobs_v1.py",
+              "ops/public/void-public-app-composition-gateway-v1.mjs",
+              "ops/runner-safety-proof.sh",
+              "ops/two-box-cross-machine-datanet-lifecycle-proof.sh",
+              "ops/two-box-datanet-workloop-proof.sh",
+              "ops/two-box-full-useful-work-loop-proof.sh",
+              "ops/two-box-peer-fetch-repair-proof.sh",
+              "ops/two-box-pick2-fairness-proof.sh"
+            ]
+          },
+          "execution": {
+            "external_available": false,
+            "mode": "contract_only",
+            "mutation_authority": false
+          },
+          "interface": {
+            "kind": "work_type",
+            "method": null,
+            "path": "datanet_fetch_verify"
+          },
+          "maturity": "contract_defined",
+          "operator_notes": [
+            "No public price or automatic payment rail is claimed.",
+            "External execution remains unavailable until separately activated."
+          ],
+          "pricing": {
+            "amount": null,
+            "currency": null,
+            "payment_execution_available": false,
+            "status": "not_published"
+          },
+          "service_id": "void.datanet.fetch-verify.v1",
+          "summary": "Verifiable bounded work type for fetching DataNet content and returning deterministic review evidence.",
+          "title": "DataNet Fetch and Verification",
+          "verification": {
+            "deterministic_receipts": true,
+            "independent_verification_available": true,
+            "receipt_paths": [
+              ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+              ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+              "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+              "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+              "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+              "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+              "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+              "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+              "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+              "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+            ]
+          }
+        }
+      ],
+      "source_commit": "c13f214f2aeb353d4c639ba86dc62c9d7275fdd5",
+      "source_commit_time": "2026-07-27T15:27:49-05:00",
+      "version": 1
+    },
+    "work_order_value": {
+      "marker": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1",
+      "version": 1,
+      "created_at_utc": "2030-01-01T00:00:00Z",
+      "expires_at_utc": "2030-01-02T00:00:00Z",
+      "requester": {
+        "agent_id": "agent.example.researcher",
+        "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+      },
+      "service": {
+        "capability_id": "datanet.fetch_verify",
+        "objective": "Fetch the referenced public DataNet object, verify its integrity, and return deterministic verification evidence.",
+        "input_refs": [
+          "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        ],
+        "expected_outputs": [
+          "verification_result.json",
+          "verification_receipt.json"
+        ]
+      },
+      "commercial": {
+        "quote_asset": "USD",
+        "max_total": "5.00",
+        "payment_required_before_execution": true
+      },
+      "execution_limits": {
+        "max_runtime_seconds": 300,
+        "max_output_bytes": 1048576,
+        "external_side_effects_allowed": false,
+        "wallet_access_allowed": false,
+        "money_movement_allowed": false
+      },
+      "nonce": "service-order-example-20300101-0001",
+      "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+    },
+    "quote_value": {
+      "commercial": {
+        "payment_rail_id": "void.external.prepaid.v1",
+        "quote_asset": "USD",
+        "total": "3.50"
+      },
+      "created_at_utc": "2030-01-01T00:03:00Z",
+      "execution_commitment": {
+        "external_side_effects_allowed": false,
+        "max_output_bytes": 524288,
+        "max_runtime_seconds": 240,
+        "money_movement_allowed": false,
+        "output_labels": [
+          "verification_result.json",
+          "verification_receipt.json"
+        ],
+        "wallet_access_allowed": false
+      },
+      "expires_at_utc": "2030-01-01T22:00:00Z",
+      "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+      "nonce": "provider-quote-response-example-20300101-0001",
+      "provider": {
+        "capability_id": "datanet.fetch_verify",
+        "provider_id": "void.provider.example.datanet.verify"
+      },
+      "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+      "terms": {
+        "payment_required_before_execution": true,
+        "provider_authentication_required": true,
+        "quote_grants_no_execution_authority": true,
+        "quote_is_not_payment_instruction": true,
+        "separate_acceptance_required": true
+      },
+      "version": 1,
+      "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106"
+    }
+  },
+  "result": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_RESULT_V1",
+    "version": 1,
+    "status": "example_only",
+    "enabled": true,
+    "apply": false,
+    "confirmation_verified": false,
+    "trusted_input_provider_invoked": true,
+    "trusted_replay_plan_verified": true,
+    "requester_binding_provenance_verified": false,
+    "persistence_handoff_packet_validated": false,
+    "store_inspected": false,
+    "persistence_attempted": false,
+    "persistence_status": null,
+    "root_realpath": null,
+    "generation_count_before": null,
+    "requester_authentication_id": "voidawra1_8aaaea34810f4bb5649138ce1401686fe58218b40bba6864ecb3fc2358f98d40",
+    "provider_authentication_id": "voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd",
+    "quote_id": "voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f",
+    "work_order_id": "voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106",
+    "requester_agent_id": "agent.example.researcher",
+    "provider_id": "void.provider.example.datanet.verify",
+    "acceptance_nonce": "authenticated-acceptance-handoff-example-20300101-0001",
+    "plan_id": "voidawacp1_9916559a4949dc6dbe562c86c117b7359caa4ab8ba19c0d831b729569a7c39d9",
+    "acceptance_id": null,
+    "transaction_id": null,
+    "before_state_id": "voidawrs1_09fcfb20aa71c21c83beddec7ca3965d2bcd98d13c08d9f0e70842e0f255d678",
+    "after_state_id": null,
+    "before_revision": 0,
+    "after_revision": null,
+    "generation_id": null,
+    "operation_id": null,
+    "acceptance_materialized_in_memory": false,
+    "acceptance_persisted": false,
+    "requester_authentication_replay_write": false,
+    "provider_authentication_replay_write": false,
+    "acceptance_replay_write": false,
+    "single_active_acceptance_per_quote_enforced": false,
+    "quote_acceptance_recorded": false,
+    "operator_owned_persistence_config": true,
+    "server_replay_state_injected": false,
+    "direct_verified_packet_provider": false,
+    "authority": {
+      "acceptance_persistence": false,
+      "quote_acceptance_recorded": false,
+      "requester_authentication_replay_write": false,
+      "provider_authentication_replay_write": false,
+      "acceptance_replay_write": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "execution_authorization": false,
+      "work_dispatch": false,
+      "credential_issue": false,
+      "credential_change": false,
+      "provider_selection": false,
+      "requester_key_registry_write": false,
+      "provider_key_registry_write": false,
+      "wallet_access": false,
+      "production_signing": false,
+      "transaction_broadcast": false,
+      "work_credit_write": false,
+      "work_credit_settlement": false,
+      "http_submission": false,
+      "runtime_mutation": false,
+      "service_restart": false,
+      "deployment": false,
+      "money_movement": false
+    }
+  }
+}
