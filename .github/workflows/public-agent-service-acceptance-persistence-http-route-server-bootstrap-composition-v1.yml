@@ -1,0 +1,28 @@
+name: Public agent acceptance persistence HTTP route server bootstrap composition V1
+
+on:
+  pull_request:
+    paths:
+      - "schemas/public-agent-service-acceptance-persistence-http-route-server-bootstrap-composition-v1.schema.json"
+      - "examples/public-agent-service-acceptance-persistence-http-route-server-bootstrap-composition-v1.example.json"
+      - "docs/public-agent/public-agent-service-acceptance-persistence-http-route-server-bootstrap-composition-v1.md"
+      - "scripts/public_agent_service_acceptance_persistence_http_route_server_bootstrap_composition_v1.ts"
+      - "scripts/prove_public_agent_service_acceptance_persistence_http_route_server_bootstrap_composition_v1.ts"
+      - ".github/workflows/public-agent-service-acceptance-persistence-http-route-server-bootstrap-composition-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node_modules/.bin/tsx scripts/prove_public_agent_service_acceptance_persistence_http_route_server_bootstrap_composition_v1.ts
