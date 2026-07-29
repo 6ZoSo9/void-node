@@ -42,7 +42,8 @@ A successful submission means **accepted for review only**. It does not mean:
 - Node.js 22
 - the VOID repository root
 - root dependencies installed (`node_modules/.bin/tsx` must exist)
-- HTTPS VOID public-agent origin, or loopback HTTP for local testing
+- HTTPS isolated AI-agent public gateway origin, or that gateway's loopback
+  HTTP origin for local testing
 
 ## Install and verify
 
@@ -71,11 +72,16 @@ npm --prefix integrations/mcp run build
 ## Run read-only
 
 ```bash
-export VOID_MCP_REPO_ROOT="$HOME/dev/void-node-agent-mcp-bridge-v1"
-export VOID_MCP_BASE_URL="https://YOUR_VOID_PUBLIC_ORIGIN"
+export VOID_MCP_REPO_ROOT="$HOME/dev/void-node"
+export VOID_MCP_BASE_URL="https://YOUR_VOID_AGENT_GATEWAY_ORIGIN"
 
 node integrations/mcp/dist/src/stdio.js
 ```
+
+`VOID_MCP_BASE_URL` must identify the isolated AI-agent public gateway. It must
+serve `/.well-known/void-agent-discovery.json` and reserve
+`/__void/agents/paid-work/submissions/v1` for `POST`.
+Do not use the general VOID node HTTP origin.
 
 `stdout` is reserved for MCP protocol traffic. Diagnostics go to `stderr`.
 
@@ -89,11 +95,11 @@ Use absolute paths:
     "void-network": {
       "command": "node",
       "args": [
-        "/absolute/path/to/void-node-agent-mcp-bridge-v1/integrations/mcp/dist/src/stdio.js"
+        "/absolute/path/to/void-node/integrations/mcp/dist/src/stdio.js"
       ],
       "env": {
-        "VOID_MCP_REPO_ROOT": "/absolute/path/to/void-node-agent-mcp-bridge-v1",
-        "VOID_MCP_BASE_URL": "https://YOUR_VOID_PUBLIC_ORIGIN",
+        "VOID_MCP_REPO_ROOT": "/absolute/path/to/void-node",
+        "VOID_MCP_BASE_URL": "https://YOUR_VOID_AGENT_GATEWAY_ORIGIN",
         "VOID_MCP_ALLOW_SUBMIT": "0"
       }
     }
@@ -134,7 +140,7 @@ existing VOID intake semantics.
 
 | Variable | Required | Meaning |
 |---|---:|---|
-| `VOID_MCP_BASE_URL` | yes | Fixed HTTPS origin or loopback HTTP origin |
+| `VOID_MCP_BASE_URL` | yes | Fixed isolated AI-agent gateway HTTPS origin or loopback gateway origin |
 | `VOID_MCP_REPO_ROOT` | recommended | Exact VOID worktree root |
 | `VOID_MCP_ALLOW_SUBMIT` | no | Exact `1` registers the submit tool |
 | `VOID_MCP_TOKEN_FILE` | with submit | Owner-private paid-work token file |
@@ -148,11 +154,28 @@ Any value other than exact `1` keeps submission disabled.
 After building:
 
 ```bash
+# Replace 4112 with the verified loopback port of your isolated agent gateway.
 VOID_MCP_REPO_ROOT="$PWD" \
-VOID_MCP_BASE_URL="http://127.0.0.1:4100" \
+VOID_MCP_BASE_URL="http://127.0.0.1:4112" \
 npx @modelcontextprotocol/inspector \
   node integrations/mcp/dist/src/stdio.js
 ```
+
+Before starting Inspector, verify the selected origin:
+
+```bash
+GATEWAY="http://127.0.0.1:4112"
+
+curl -fsS \
+  "$GATEWAY/.well-known/void-agent-discovery.json"
+
+curl -sS -o /dev/null -D - \
+  "$GATEWAY/__void/agents/paid-work/submissions/v1"
+```
+
+The discovery request must return HTTP `200` with marker
+`VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1`. The submission-route `GET` must return
+HTTP `405` with `Allow: POST`. A `404` indicates the wrong origin.
 
 Inspector use does not enable submission unless the local operator separately
 sets both submission environment variables.
