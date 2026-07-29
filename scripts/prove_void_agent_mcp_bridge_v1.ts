@@ -355,6 +355,36 @@ assertCondition(
   !serverSource.includes("VOID_MCP_TOKEN_FILE"),
   "token file must not appear in MCP schemas",
 );
+const readmeSource = read("integrations/mcp/README.md");
+for (const required of [
+  'export VOID_MCP_REPO_ROOT="$HOME/dev/void-node"',
+  'export VOID_MCP_BASE_URL="https://YOUR_VOID_AGENT_GATEWAY_ORIGIN"',
+  "/absolute/path/to/void-node/integrations/mcp/dist/src/stdio.js",
+  '"VOID_MCP_REPO_ROOT": "/absolute/path/to/void-node"',
+  '"VOID_MCP_BASE_URL": "https://YOUR_VOID_AGENT_GATEWAY_ORIGIN"',
+  'VOID_MCP_BASE_URL="http://127.0.0.1:4112"',
+  "isolated AI-agent public gateway",
+  "/.well-known/void-agent-discovery.json",
+  "/__void/agents/paid-work/submissions/v1",
+  "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
+  "Allow: POST",
+  "Do not use the general VOID node HTTP origin.",
+]) {
+  assertCondition(
+    readmeSource.includes(required),
+    `MCP gateway-origin guidance missing: ${required}`,
+  );
+}
+for (const forbidden of [
+  "void-node-agent-mcp-bridge-v1",
+  "YOUR_VOID_PUBLIC_ORIGIN",
+  "http://127.0.0.1:4100",
+]) {
+  assertCondition(
+    !readmeSource.includes(forbidden),
+    `MCP gateway-origin guidance contains stale value: ${forbidden}`,
+  );
+}
 const processSource = read("integrations/mcp/src/process.ts");
 assertCondition(
   processSource.includes("shell: false"),
@@ -412,6 +442,9 @@ process.stdout.write(
     "wallet_or_signer_access=false",
     "transaction_broadcast=false",
     "buy_void_fulfillment=false",
+    "gateway_origin_guidance=true",
+    "main_node_origin_example=false",
+    "canonical_repo_paths=true",
     "",
   ].join("\n"),
 );
