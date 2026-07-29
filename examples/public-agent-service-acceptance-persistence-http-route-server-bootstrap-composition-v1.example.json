@@ -1,0 +1,81 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_EXAMPLE_V1",
+  "version": 1,
+  "source_base_commit": "0eeec78e8cff6e6de3725e3c3bd8c8d786583aab",
+  "sealed_registrar_integration_merge": "7d5abc9c47e87e1363cc8dc4e0b1cee98d6512d7",
+  "config": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_CONFIG_V1",
+    "version": 1,
+    "enabled": false
+  },
+  "command": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_COMMAND_V1",
+    "version": 1,
+    "apply": false,
+    "confirmation": "",
+    "integration_confirmation": "",
+    "mount_confirmation": ""
+  },
+  "source_topology": {
+    "expected_app_creation": "const app = express();",
+    "expected_app_export": "(globalThis as any).__void_http_app = app;",
+    "expected_listener_owner": "src/index.ts",
+    "modifies_index": false
+  },
+  "expected_result": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_RESULT_V1",
+    "version": 1,
+    "status": "disabled",
+    "enabled": false,
+    "apply": false,
+    "confirmation_verified": false,
+    "integration_confirmation_verified": false,
+    "mount_confirmation_verified": false,
+    "app_provider_invoked": false,
+    "registry_created": false,
+    "route_stack_snapshot_count": 0,
+    "compare_and_swap_attempt_count": 0,
+    "compare_and_swap_apply_count": 0,
+    "dispatcher_install_count": 0,
+    "exact_managed_route_count": 0,
+    "integration": null,
+    "authority": {
+      "express_app_provider_access": false,
+      "express_route_stack_snapshot_read": false,
+      "express_dispatcher_installation": false,
+      "server_route_registry_snapshot_read": false,
+      "server_route_registry_compare_and_swap": false,
+      "network_listener_creation": false,
+      "external_http_submission": false,
+      "production_acceptance_persistence": false,
+      "production_replay_write": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "execution_authorization": false,
+      "work_dispatch": false,
+      "production_signing": false,
+      "transaction_broadcast": false,
+      "work_credit_write": false,
+      "money_movement": false
+    }
+  },
+  "safety": {
+    "production_http_route_mounted": false,
+    "network_listener_created": false,
+    "external_http_submission": false,
+    "production_acceptance_persistence_performed": false,
+    "production_replay_write_performed": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "execution_authorization": false,
+    "work_dispatch": false,
+    "production_signing": false,
+    "transaction_broadcast": false,
+    "work_credit_write": false,
+    "runtime_mutation": false,
+    "service_change": false,
+    "service_restart": false,
+    "deployment_performed": false,
+    "money_movement": false
+  }
+}
