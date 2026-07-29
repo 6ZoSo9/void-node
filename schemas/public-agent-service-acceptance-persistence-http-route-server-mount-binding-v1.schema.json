@@ -1,0 +1,194 @@
+{
+  "$id": "https://void.network/schemas/public-agent-service-acceptance-persistence-http-route-server-mount-binding-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation"
+      ],
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "already_mounted_route_count": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "authority": {
+          "additionalProperties": false,
+          "properties": {
+            "execution_authorization": {
+              "const": false
+            },
+            "external_http_submission": {
+              "const": false
+            },
+            "money_movement": {
+              "const": false
+            },
+            "network_listener_creation": {
+              "const": false
+            },
+            "payment_authorization": {
+              "const": false
+            },
+            "payment_execution": {
+              "const": false
+            },
+            "production_acceptance_persistence": {
+              "const": false
+            },
+            "production_replay_write": {
+              "const": false
+            },
+            "production_signing": {
+              "const": false
+            },
+            "server_route_registration": {
+              "type": "boolean"
+            },
+            "transaction_broadcast": {
+              "const": false
+            },
+            "work_credit_write": {
+              "const": false
+            },
+            "work_dispatch": {
+              "const": false
+            }
+          },
+          "required": [
+            "server_route_registration",
+            "network_listener_creation",
+            "external_http_submission",
+            "production_acceptance_persistence",
+            "production_replay_write",
+            "payment_authorization",
+            "payment_execution",
+            "execution_authorization",
+            "work_dispatch",
+            "production_signing",
+            "transaction_broadcast",
+            "work_credit_write",
+            "money_movement"
+          ],
+          "type": "object"
+        },
+        "confirmation_verified": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "exact_route_set": {
+          "type": "boolean"
+        },
+        "handler_identity_exact": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_RESULT_V1"
+        },
+        "mounted_route_count": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "registrar_inspected": {
+          "type": "boolean"
+        },
+        "registration_attempted": {
+          "type": "boolean"
+        },
+        "route_config_loaded": {
+          "type": "boolean"
+        },
+        "route_enabled": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "route_disabled",
+            "planned",
+            "mounted",
+            "already_mounted"
+          ]
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "route_enabled",
+        "apply",
+        "confirmation_verified",
+        "route_config_loaded",
+        "registrar_inspected",
+        "registration_attempted",
+        "mounted_route_count",
+        "already_mounted_route_count",
+        "exact_route_set",
+        "handler_identity_exact",
+        "authority"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "config",
+    "command",
+    "result"
+  ],
+  "title": "VOID Public Agent Service Acceptance Persistence HTTP Route Server Mount Binding V1",
+  "type": "object"
+}

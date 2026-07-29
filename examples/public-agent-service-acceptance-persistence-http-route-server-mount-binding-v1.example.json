@@ -1,0 +1,44 @@
+{
+  "command": {
+    "apply": false,
+    "confirmation": "",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_COMMAND_V1",
+    "version": 1
+  },
+  "config": {
+    "enabled": true,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_CONFIG_V1",
+    "version": 1
+  },
+  "result": {
+    "already_mounted_route_count": 0,
+    "apply": false,
+    "authority": {
+      "execution_authorization": false,
+      "external_http_submission": false,
+      "money_movement": false,
+      "network_listener_creation": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "production_acceptance_persistence": false,
+      "production_replay_write": false,
+      "production_signing": false,
+      "server_route_registration": false,
+      "transaction_broadcast": false,
+      "work_credit_write": false,
+      "work_dispatch": false
+    },
+    "confirmation_verified": false,
+    "enabled": true,
+    "exact_route_set": true,
+    "handler_identity_exact": true,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_RESULT_V1",
+    "mounted_route_count": 0,
+    "registrar_inspected": false,
+    "registration_attempted": false,
+    "route_config_loaded": true,
+    "route_enabled": true,
+    "status": "planned",
+    "version": 1
+  }
+}
