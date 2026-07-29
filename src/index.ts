@@ -91,6 +91,7 @@ import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_G
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
 import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
+import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
 
 
 // __VOID_TS_DECLARES_V1__
@@ -4591,6 +4592,25 @@ app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, 
   }
 })();
 (globalThis as any).__void_http_app = app;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_BEGIN
+const __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1 =
+  await executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1(
+    process.env,
+    () => app,
+    () => {
+      const provider =
+        (globalThis as any).__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1;
+      if (typeof provider !== "function") {
+        throw new Error(
+          "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_V1 is unavailable",
+        );
+      }
+      return provider();
+    },
+  );
+(globalThis as any).__void_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1_result =
+  __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_END
 
 // ---- EARLY MINIMAL BOOT MODE (short-circuit before additive IIFE storm) ----
 const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
