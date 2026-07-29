@@ -1,0 +1,74 @@
+{
+  "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_CREATION_GATE_EXAMPLE_V1",
+  "version": 1,
+  "config": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_CREATION_GATE_CONFIG_V1",
+    "version": 1,
+    "enabled": true,
+    "max_datanet_object_bytes": 4096
+  },
+  "create_prerequisites_command": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_CREATION_GATE_COMMAND_V1",
+    "version": 1,
+    "operation": "create_prerequisites",
+    "apply": false,
+    "confirmation": "",
+    "operation_id": "external-agent-prerequisite-example-v1",
+    "datanet": {
+      "mode": "create",
+      "public_base_url": "https://agent.example.invalid",
+      "staging_root": "/home/operator/.local/state/void-agent-paid-work/prerequisites",
+      "receipt": null
+    },
+    "submission": null
+  },
+  "expected_dry_run_result": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_CREATION_GATE_RESULT_V1",
+    "version": 1,
+    "adapter_id": "void.external-agent-paid-work-submission-prerequisite-creation-gate.v1",
+    "status": "planned",
+    "enabled": true,
+    "apply": false,
+    "operation": "create_prerequisites",
+    "operation_id": "external-agent-prerequisite-example-v1",
+    "confirmation_verified": false,
+    "datanet": {
+      "mode": "create",
+      "creation_invoked": false,
+      "receipt_validated": false,
+      "receipt": null,
+      "reference": null,
+      "work_order_reference_bound": false
+    },
+    "callback": {
+      "invocation_attempted": false,
+      "status": "not_invoked",
+      "status_path": "/__void/operator/public-agent-service-trusted-requester-acceptance-persistence-runtime-v1/status",
+      "command_path": "/__void/operator/public-agent-service-trusted-requester-acceptance-persistence-runtime-v1/command",
+      "result_sha256": null
+    },
+    "admission": null,
+    "prepared_submission": null,
+    "authority": {
+      "local_datanet_staging_write": false,
+      "express_route_mount": false,
+      "network_listener_creation": false,
+      "token_or_credential_read": false,
+      "authorization_header_creation": false,
+      "authenticated_submission_post": false,
+      "external_http_submission": false,
+      "provider_selection": false,
+      "quote_creation": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "work_execution_authorization": false,
+      "work_dispatch": false,
+      "work_credit_write": false,
+      "wallet_or_signer_access": false,
+      "transaction_broadcast": false,
+      "service_restart": false,
+      "deployment": false,
+      "money_movement": false
+    }
+  }
+}
