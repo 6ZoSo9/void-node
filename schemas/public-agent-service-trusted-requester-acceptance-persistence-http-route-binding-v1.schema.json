@@ -1,0 +1,153 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-persistence-http-route-binding-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "example_only": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_EXAMPLE_V1"
+    },
+    "request": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_REQUEST_V1"
+        },
+        "method": {
+          "const": "POST"
+        },
+        "path": {
+          "const": "/__void/operator/public-agent-service-trusted-requester-acceptance-persistence-runtime-v1/command"
+        },
+        "remote_address": {
+          "const": "127.0.0.1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "method",
+        "path",
+        "remote_address",
+        "headers",
+        "body"
+      ],
+      "type": "object"
+    },
+    "response": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_RESPONSE_V1"
+        },
+        "route_enabled": {
+          "type": "boolean"
+        },
+        "runtime_config_loaded": {
+          "type": "boolean"
+        },
+        "runtime_invoked": {
+          "type": "boolean"
+        },
+        "runtime_status": {
+          "enum": [
+            null,
+            "disabled",
+            "example_only",
+            "planned",
+            "persisted",
+            "duplicate",
+            "recovered"
+          ]
+        },
+        "status_code": {
+          "maximum": 599,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status_code",
+        "headers",
+        "body",
+        "route_enabled",
+        "runtime_config_loaded",
+        "runtime_invoked",
+        "runtime_status"
+      ],
+      "type": "object"
+    },
+    "route_config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_CONFIG_V1"
+        },
+        "max_body_bytes": {
+          "maximum": 16777216,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "max_body_bytes"
+      ],
+      "type": "object"
+    },
+    "server_owned_trusted_input_present": {
+      "const": true
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "example_only",
+    "route_config",
+    "request",
+    "server_owned_trusted_input_present",
+    "response"
+  ],
+  "title": "Public Agent Service Trusted Requester Acceptance Persistence HTTP Route Binding V1 Example",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SCHEMA_V1"
+}

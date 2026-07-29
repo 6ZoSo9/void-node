@@ -1,0 +1,40 @@
+{
+  "example_only": true,
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_EXAMPLE_V1",
+  "request": {
+    "body": "{\"marker\":\"VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_RUNTIME_COMMAND_V1\",\"version\":1,\"apply\":false,\"confirmation\":\"\",\"recorded_at_utc\":\"2030-01-01T00:10:00Z\"}",
+    "headers": {
+      "content-length": "183",
+      "content-type": "application/json"
+    },
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_REQUEST_V1",
+    "method": "POST",
+    "path": "/__void/operator/public-agent-service-trusted-requester-acceptance-persistence-runtime-v1/command",
+    "remote_address": "127.0.0.1",
+    "version": 1
+  },
+  "response": {
+    "body": "{\"acceptance_id\":null,\"acceptance_materialized_in_memory\":false,\"acceptance_nonce\":\"authenticated-acceptance-handoff-example-20300101-0001\",\"acceptance_persisted\":false,\"acceptance_replay_write\":false,\"after_revision\":null,\"after_state_id\":null,\"apply\":false,\"authority\":{\"acceptance_persistence\":false,\"acceptance_replay_write\":false,\"credential_change\":false,\"credential_issue\":false,\"deployment\":false,\"execution_authorization\":false,\"http_submission\":false,\"money_movement\":false,\"payment_authorization\":false,\"payment_execution\":false,\"production_signing\":false,\"provider_authentication_replay_write\":false,\"provider_key_registry_write\":false,\"provider_selection\":false,\"quote_acceptance_recorded\":false,\"requester_authentication_replay_write\":false,\"requester_key_registry_write\":false,\"runtime_mutation\":false,\"service_restart\":false,\"transaction_broadcast\":false,\"wallet_access\":false,\"work_credit_settlement\":false,\"work_credit_write\":false,\"work_dispatch\":false},\"before_revision\":0,\"before_state_id\":\"voidawrs1_09fcfb20aa71c21c83beddec7ca3965d2bcd98d13c08d9f0e70842e0f255d678\",\"composition_confirmation_injected\":false,\"composition_invoked\":true,\"confirmation_verified\":false,\"direct_verified_packet_provider\":false,\"enabled\":true,\"generation_count_before\":null,\"generation_id\":null,\"marker\":\"VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_RESULT_V1\",\"operation_id\":null,\"operator_owned_persistence_config\":true,\"persistence_attempted\":false,\"persistence_handoff_packet_validated\":false,\"persistence_status\":null,\"plan_id\":\"voidawacp1_9916559a4949dc6dbe562c86c117b7359caa4ab8ba19c0d831b729569a7c39d9\",\"provider_authentication_id\":\"voidawqa1_ff8ced29aa72fd75c425d7d12a092c7372f9332122b63e81467aacb8d8ffc2cd\",\"provider_authentication_replay_write\":false,\"provider_id\":\"void.provider.example.datanet.verify\",\"quote_acceptance_recorded\":false,\"quote_id\":\"voidawq1_c3ccb95c186dbd39557a0356bd77cabf3949a6544e93653e738074e69d9b701f\",\"requester_agent_id\":\"agent.example.researcher\",\"requester_authentication_id\":\"voidawra1_8aaaea34810f4bb5649138ce1401686fe58218b40bba6864ecb3fc2358f98d40\",\"requester_authentication_replay_write\":false,\"requester_binding_provenance_verified\":false,\"root_fingerprint\":null,\"runtime_binding_enabled\":true,\"runtime_confirmation_verified\":false,\"server_replay_state_injected\":false,\"single_active_acceptance_per_quote_enforced\":false,\"status\":\"example_only\",\"store_inspected\":false,\"transaction_id\":null,\"trusted_input_provider_forwarded\":true,\"trusted_input_provider_invoked\":true,\"trusted_replay_plan_verified\":true,\"version\":1,\"work_order_id\":\"voidawo1_a328fbbee6ea0822c8fe5212e19cba23b889c489a39235a2529243d8f19fc106\"}",
+    "headers": {
+      "cache-control": "no-store",
+      "content-length": "2679",
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    },
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_RESPONSE_V1",
+    "route_enabled": true,
+    "runtime_config_loaded": true,
+    "runtime_invoked": true,
+    "runtime_status": "example_only",
+    "status_code": 200,
+    "version": 1
+  },
+  "route_config": {
+    "enabled": true,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_CONFIG_V1",
+    "max_body_bytes": 4194304,
+    "version": 1
+  },
+  "server_owned_trusted_input_present": true,
+  "version": 1
+}
