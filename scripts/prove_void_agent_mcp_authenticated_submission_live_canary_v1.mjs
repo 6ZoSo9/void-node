@@ -1,0 +1,455 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { pathToFileURL } from "node:url";
+import { execFileSync } from "node:child_process";
+
+import {
+  COMPLETION_RECEIPT_MARKER,
+  CONFIRMATION,
+  INPUT_MARKER,
+  MARKER,
+  PREPARED_RECEIPT_MARKER,
+  STATE_MARKER,
+  canonicalJson,
+  executeCanary,
+  normalizeGatewayBaseUrl,
+  prepareCanary,
+  sha256,
+  validateCanaryInput,
+} from "../tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs";
+
+const ROOT = process.cwd();
+const TOOL = "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs";
+const PROOF = "scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs";
+const DOC = "docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md";
+const EXAMPLE = "examples/void-agent-mcp-authenticated-submission-live-canary-v1.example.json";
+const SCHEMA = "schemas/void-agent-mcp-authenticated-submission-live-canary-v1.schema.json";
+const WORKFLOW = ".github/workflows/void-agent-mcp-authenticated-submission-live-canary-v1.yml";
+const EXPECTED_PATHS = [WORKFLOW, DOC, EXAMPLE, SCHEMA, TOOL, PROOF].sort();
+const TOKEN = "void-mcp-proof-token-never-print-7b835e4d";
+const FIXED_NOW = Date.parse("2026-07-29T12:15:00Z");
+
+function isRecord(value) {
+  return Boolean(value !== null && typeof value === "object" && !Array.isArray(value));
+}
+
+function writePrivateJson(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  fs.chmodSync(file, 0o600);
+}
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function walkFiles(directory) {
+  const output = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) output.push(...walkFiles(absolute));
+    else if (entry.isFile()) output.push(absolute);
+  }
+  return output;
+}
+
+function scanForSecret(directory, values) {
+  const files = walkFiles(directory);
+  for (const file of files) {
+    const text = fs.readFileSync(file, "utf8");
+    for (const value of values) {
+      assert.equal(text.includes(value), false, `secret disclosure in ${file}`);
+    }
+  }
+}
+
+function canaryInput(suffix) {
+  return {
+    marker: INPUT_MARKER,
+    version: 1,
+    canary_id: `void-mcp-auth-canary-${suffix}`,
+    service_id: "void.datanet.fetch-verify.v1",
+    created_at_utc: "2026-07-29T12:15:00Z",
+    expires_at_utc: "2026-07-29T12:45:00Z",
+    requester_agent_id: `void-mcp-requester-${suffix}`,
+    callback_uri: `https://callback.invalid/void-mcp/${suffix}`,
+    objective: "Fetch and independently verify one bounded DataNet object without payment, execution, or Work Credit authority.",
+    input_refs: [`void://datanet/proof/${suffix}`],
+    expected_outputs: ["verified_result"],
+    quote_asset: "WC",
+    max_total: "3",
+    max_runtime_seconds: 60,
+    max_output_bytes: 65536,
+    order_nonce: `order-${suffix}-0001`,
+    submission_nonce: `submission-${suffix}-0001`,
+    expect_new: true,
+  };
+}
+
+function authorityDenied() {
+  return {
+    provider_selected: false,
+    quote_created: false,
+    payment_authorized: false,
+    work_execution_authorized: false,
+    work_dispatched: false,
+    wc_award_authorized: false,
+    wc_ledger_write_authorized: false,
+    wallet_or_signer_access: false,
+    signing_authority: false,
+    transaction_broadcast_authority: false,
+    buy_void_fulfillment_authority: false,
+  };
+}
+
+async function startGateway() {
+  const metrics = {
+    discovery_gets: 0,
+    route_gets: 0,
+    submission_posts: 0,
+    authorization_exact: false,
+    payload_hash_exact: false,
+  };
+  const server = http.createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (request.method === "GET" && url.pathname === "/.well-known/void-agent-discovery.json") {
+      metrics.discovery_gets += 1;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1", version: 1 }));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/__void/agents/paid-work/submissions/v1") {
+      metrics.route_gets += 1;
+      response.writeHead(405, { allow: "POST", "content-length": "0" });
+      response.end();
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/__void/agents/paid-work/submissions/v1") {
+      metrics.submission_posts += 1;
+      const chunks = [];
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        const bytes = Buffer.concat(chunks);
+        const requestSha = crypto.createHash("sha256").update(bytes).digest("hex");
+        metrics.authorization_exact = request.headers.authorization === `Bearer ${TOKEN}`;
+        metrics.payload_hash_exact = request.headers["x-void-payload-sha256"] === requestSha;
+        if (!metrics.authorization_exact) {
+          response.writeHead(401, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        const body = JSON.parse(bytes.toString("utf8"));
+        const receipt = {
+          marker: "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+          version: 1,
+          receipt_id: `voidawsi1_${sha256(`receipt:${requestSha}`)}`,
+          submission_id: body.submission_id,
+          work_order_id: body.work_order.work_order_id,
+          request_sha256: requestSha,
+          received_at_utc: "2026-07-29T12:15:01Z",
+          authorization_verified: true,
+          loopback_source: true,
+          admission: { decision: "accepted_for_review" },
+          authority: authorityDenied(),
+        };
+        response.writeHead(202, {
+          "content-type": "application/json",
+          "x-void-agent-paid-work-submission-route": "v1",
+        });
+        response.end(JSON.stringify({ ok: true, duplicate: false, receipt }));
+      });
+      return;
+    }
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: "not_found" }));
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    metrics,
+    close: async () => await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+  };
+}
+
+function exactTools(allowSubmit) {
+  const names = [
+    "void_bootstrap_network",
+    "void_prepare_paid_work_submission",
+    "void_probe_paid_work",
+  ];
+  if (allowSubmit) names.push("void_submit_paid_work");
+  return { tools: names.map((name) => ({ name })) };
+}
+
+async function expectReject(callback, pattern) {
+  let rejected = false;
+  try {
+    await callback();
+  } catch (error) {
+    rejected = true;
+    assert.match(error instanceof Error ? error.message : String(error), pattern);
+  }
+  assert.equal(rejected, true, `expected rejection matching ${pattern}`);
+}
+
+function normalizedChangedPaths(baseRef) {
+  const committed = execFileSync(
+    "git",
+    ["diff", "--name-only", `${baseRef}...HEAD`],
+    { cwd: ROOT, encoding: "utf8" },
+  ).split(/\r?\n/).filter(Boolean);
+  const status = execFileSync(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    { cwd: ROOT, encoding: "utf8" },
+  ).split(/\r?\n/).filter(Boolean).map((line) => {
+    const raw = line.slice(3);
+    const arrow = raw.indexOf(" -> ");
+    return arrow >= 0 ? raw.slice(arrow + 4) : raw;
+  });
+  return [...new Set([...committed, ...status])].sort();
+}
+
+async function main() {
+  for (const relative of EXPECTED_PATHS) {
+    const metadata = fs.lstatSync(path.join(ROOT, relative));
+    assert.equal(metadata.isFile(), true, `${relative} must be a file`);
+    assert.equal(metadata.isSymbolicLink(), false, `${relative} must not be a symlink`);
+  }
+  const toolSource = fs.readFileSync(path.join(ROOT, TOOL), "utf8");
+  for (const required of [
+    CONFIRMATION,
+    "--allow-live-submit",
+    "port 4100 is the general VOID node origin",
+    "attempt_count: 1",
+    "automatic_retry: false",
+    "VOID_AGENT_MCP_PAID_WORK_PROBE_RESULT_V1",
+    "repository HEAD changed after preparation",
+    "source_contract_sha256",
+    "integrations/mcp/dist/src/stdio.js",
+    "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
+    "accepted_for_review: true",
+    "payment_executed: false",
+    "work_credit_ledger_written: false",
+    "void_settled: false",
+    "VOID_MCP_ALLOW_SUBMIT",
+    "VOID_MCP_TOKEN_FILE",
+    "2026-07-28",
+  ]) assert.equal(toolSource.includes(required), true, `tool contract missing: ${required}`);
+  for (const forbidden of [
+    "automatic_retry: true",
+    "payment_executed: true",
+    "work_credit_ledger_written: true",
+    "void_settled: true",
+    "execSync(",
+    "shell: true",
+  ]) assert.equal(toolSource.includes(forbidden), false, `forbidden tool contract: ${forbidden}`);
+
+  const schema = readJson(path.join(ROOT, SCHEMA));
+  assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+  assert.equal(schema.properties.marker.const, INPUT_MARKER);
+  assert.equal(schema.additionalProperties, false);
+  const example = readJson(path.join(ROOT, EXAMPLE));
+  validateCanaryInput(example);
+  assert.equal(example.expect_new, true);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-mcp-auth-canary-proof-"));
+  fs.chmodSync(root, 0o700);
+  const tokenPath = path.join(root, "submit.token");
+  fs.writeFileSync(tokenPath, `${TOKEN}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  fs.chmodSync(tokenPath, 0o600);
+  const insecureTokenPath = path.join(root, "insecure.token");
+  fs.writeFileSync(insecureTokenPath, `${TOKEN}\n`, { encoding: "utf8", flag: "wx", mode: 0o644 });
+  fs.chmodSync(insecureTokenPath, 0o644);
+  const gateway = await startGateway();
+  try {
+    const inputPath = path.join(root, "input.json");
+    writePrivateJson(inputPath, canaryInput("happy-v1"));
+    const stateDirectory = path.join(root, "state-happy");
+    const common = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath,
+      stateDirectory,
+      now: () => FIXED_NOW,
+    };
+    const prepared = await prepareCanary(common);
+    assert.equal(prepared.receipt.marker, PREPARED_RECEIPT_MARKER);
+    assert.equal(prepared.state.marker, STATE_MARKER);
+    assert.equal(prepared.state.status, "prepared");
+    assert.equal(prepared.state.attempt_count, 0);
+    assert.match(prepared.state.repo_head, /^[0-9a-f]{40}$/);
+    assert.match(prepared.state.source_contract_sha256, /^[0-9a-f]{64}$/);
+    assert.equal(prepared.receipt.repo_head, prepared.state.repo_head);
+    assert.equal(prepared.receipt.source_contract_sha256, prepared.state.source_contract_sha256);
+    assert.equal(gateway.metrics.submission_posts, 0);
+    assert.ok(gateway.metrics.discovery_gets >= 1);
+    assert.ok(gateway.metrics.route_gets >= 1);
+
+    const completed = await executeCanary({
+      ...common,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+    });
+    assert.equal(completed.receipt.marker, COMPLETION_RECEIPT_MARKER);
+    assert.equal(completed.state.status, "completed");
+    assert.equal(completed.state.attempt_count, 1);
+    assert.equal(completed.state.accepted_for_review, true);
+    assert.equal(completed.state.duplicate, false);
+    assert.equal(completed.state.conflicting_duplicate, false);
+    assert.equal(completed.receipt.repo_head, prepared.state.repo_head);
+    assert.equal(completed.receipt.source_contract_sha256, prepared.state.source_contract_sha256);
+    assert.equal(gateway.metrics.submission_posts, 1);
+    assert.equal(gateway.metrics.authorization_exact, true);
+    assert.equal(gateway.metrics.payload_hash_exact, true);
+    scanForSecret(stateDirectory, [TOKEN, tokenPath]);
+
+    await expectReject(
+      async () => await executeCanary({ ...common, tokenFile: tokenPath, allowLiveSubmit: true, confirmation: CONFIRMATION }),
+      /fresh prepared state/,
+    );
+    assert.equal(gateway.metrics.submission_posts, 1);
+    await expectReject(
+      async () => await executeCanary({ ...common, tokenFile: tokenPath, allowLiveSubmit: false, confirmation: CONFIRMATION }),
+      /allow-live-submit/,
+    );
+    await expectReject(
+      async () => await executeCanary({ ...common, tokenFile: tokenPath, allowLiveSubmit: true, confirmation: "wrong" }),
+      /confirmation must be exactly/,
+    );
+    await expectReject(
+      async () => await executeCanary({ ...common, tokenFile: insecureTokenPath, allowLiveSubmit: true, confirmation: CONFIRMATION }),
+      /must not grant group or other permissions/,
+    );
+    assert.throws(() => normalizeGatewayBaseUrl("http://127.0.0.1:4100"), /general VOID node origin/);
+
+    const ambiguousInputPath = path.join(root, "input-ambiguous.json");
+    writePrivateJson(ambiguousInputPath, canaryInput("ambiguous-v1"));
+    const ambiguousStateDirectory = path.join(root, "state-ambiguous");
+    const ambiguousCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: ambiguousInputPath,
+      stateDirectory: ambiguousStateDirectory,
+      now: () => FIXED_NOW,
+    };
+    await prepareCanary(ambiguousCommon);
+    let ambiguousCalls = 0;
+    const ambiguousSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        if (request.name === "void_submit_paid_work") {
+          ambiguousCalls += 1;
+          throw new Error("ambiguous transport result");
+        }
+        throw new Error(`unexpected fake MCP call: ${request.name}`);
+      },
+      close: async () => {},
+    });
+    await expectReject(
+      async () => await executeCanary({
+        ...ambiguousCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: ambiguousSessionFactory,
+      }),
+      /ambiguous transport result/,
+    );
+    assert.equal(ambiguousCalls, 1);
+    const held = readJson(path.join(ambiguousStateDirectory, "state-v1.json"));
+    assert.equal(held.status, "held");
+    assert.equal(held.attempt_count, 1);
+    await expectReject(
+      async () => await executeCanary({
+        ...ambiguousCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: ambiguousSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(ambiguousCalls, 1);
+    scanForSecret(ambiguousStateDirectory, [TOKEN, tokenPath]);
+
+    const allStateText = walkFiles(root)
+      .filter((file) => file.includes("state-"))
+      .map((file) => fs.readFileSync(file, "utf8"))
+      .join("\n");
+    assert.equal(allStateText.includes(TOKEN), false);
+    assert.equal(allStateText.includes(tokenPath), false);
+
+    if (process.env.VOID_MCP_AUTH_CANARY_BASE_REF) {
+      const paths = normalizedChangedPaths(process.env.VOID_MCP_AUTH_CANARY_BASE_REF);
+      assert.deepEqual(paths, EXPECTED_PATHS, `changed path mismatch: ${paths.join(",")}`);
+    }
+
+    const result = {
+      marker: "VOID_AGENT_MCP_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PROOF_V1",
+      version: 1,
+      exact_green: true,
+      actual_mcp_stdio_path_exercised: true,
+      protocol_version: "2026-07-28",
+      gateway_probe_get_only: true,
+      submit_tool_default_absent: true,
+      submit_tool_live_gate_required: true,
+      exact_confirmation_required: true,
+      deterministic_preparation: true,
+      exact_repo_head_bound: true,
+      package_locks_bound: true,
+      built_mcp_runtime_bound: true,
+      canary_runner_source_bound: true,
+      authenticated_submission_post_count: gateway.metrics.submission_posts,
+      authenticated_submission_post_exactly_once: gateway.metrics.submission_posts === 1,
+      authorization_header_verified_by_loopback_fixture: gateway.metrics.authorization_exact,
+      payload_sha256_header_verified: gateway.metrics.payload_hash_exact,
+      accepted_for_review: true,
+      duplicate: false,
+      conflicting_duplicate: false,
+      ambiguous_result_held: held.status === "held",
+      automatic_retry: false,
+      raw_token_printed: false,
+      raw_token_in_receipts: false,
+      token_file_path_in_receipts: false,
+      credential_issue_or_activation: false,
+      payment_execution: false,
+      paid_work_execution: false,
+      work_dispatch: false,
+      wc_award: false,
+      wc_ledger_write: false,
+      void_settlement: false,
+      wallet_or_signer_access: false,
+      transaction_broadcast: false,
+      runtime_mutation: false,
+      deployment: false,
+      build_and_ci_external_network_submission: false,
+      build_and_ci_loopback_fixture_only: true,
+    };
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write("VOID_AGENT_MCP_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PROOF=PASS\n");
+  } finally {
+    await gateway.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const invoked = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";
+if (invoked === import.meta.url) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}
