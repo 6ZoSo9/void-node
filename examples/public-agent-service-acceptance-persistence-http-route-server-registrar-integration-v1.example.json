@@ -1,0 +1,48 @@
+{
+  "command": {
+    "apply": false,
+    "confirmation": "",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_COMMAND_V1",
+    "mount_confirmation": "",
+    "version": 1
+  },
+  "config": {
+    "enabled": false,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_CONFIG_V1",
+    "version": 1
+  },
+  "result": {
+    "apply": false,
+    "authority": {
+      "execution_authorization": false,
+      "external_http_submission": false,
+      "money_movement": false,
+      "network_listener_creation": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "production_acceptance_persistence": false,
+      "production_replay_write": false,
+      "production_signing": false,
+      "server_route_registry_compare_and_swap": false,
+      "server_route_registry_snapshot_read": false,
+      "transaction_broadcast": false,
+      "work_credit_write": false,
+      "work_dispatch": false
+    },
+    "confirmation_verified": false,
+    "enabled": false,
+    "exact_route_count_after": null,
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_RESULT_V1",
+    "mount": null,
+    "mount_confirmation_verified": false,
+    "registry_compare_and_swap_applied": false,
+    "registry_compare_and_swap_attempted": false,
+    "registry_revision_after": null,
+    "registry_revision_before": null,
+    "registry_snapshot_read": false,
+    "status": "disabled",
+    "unrelated_route_count_after": null,
+    "unrelated_route_count_before": null,
+    "version": 1
+  }
+}
