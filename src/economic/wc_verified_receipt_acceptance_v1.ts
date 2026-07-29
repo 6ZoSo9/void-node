@@ -788,6 +788,15 @@ export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_MARKER =
   "VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_V1";
 export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK =
   "void-public-agent-integration-evidence-v1";
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_SECONDARY_TASK = "void-public-selector-independent-verification-v1";
+export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASKS = Object.freeze([
+  VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK,
+  VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_SECONDARY_TASK,
+] as const);
+export function isVoidWcPaidWorkEntitlementAcceptanceTask(taskRaw: unknown): boolean {
+  const task = String(taskRaw ?? "").trim();
+  return VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASKS.some((candidate) => candidate === task);
+}
 export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC = 3;
 export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION =
   "wcPaidWorkEntitlementAcceptance";
@@ -1018,7 +1027,7 @@ function normalizePaidWorkAuthority(
   );
 
   if (!submissionId) paidWorkFail("submission_id_required");
-  if (taskId !== VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK) {
+  if (!isVoidWcPaidWorkEntitlementAcceptanceTask(taskId)) {
     paidWorkFail("paid_work_task_mismatch");
   }
   if (!agentId) paidWorkFail("agent_id_required");
