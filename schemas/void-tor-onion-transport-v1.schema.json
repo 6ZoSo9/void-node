@@ -33,7 +33,7 @@
         "protocol": { "const": "tor-v3" },
         "uri": {
           "type": "string",
-          "pattern": "^http://[a-z2-7]{56}\\.onion$"
+          "pattern": "^http://[a-z2-7]{56}\\.onion(?::[1-9][0-9]{0,4})?$"
         },
         "onion_hostname": {
           "type": "string",

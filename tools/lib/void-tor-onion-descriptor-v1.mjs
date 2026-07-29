@@ -147,6 +147,10 @@ export function buildVoidTorDescriptorV1({
     throw new Error("status must be active, planned, or unavailable");
   }
 
+  const onionAuthority = normalizedVirtualPort === 80
+    ? hostname
+    : `${hostname}:${normalizedVirtualPort}`;
+
   return {
     marker: VOID_TOR_ONION_TRANSPORT_MARKER,
     version: 1,
@@ -154,7 +158,7 @@ export function buildVoidTorDescriptorV1({
     generated_at: normalizeTimestamp(generatedAt),
     transport: {
       protocol: "tor-v3",
-      uri: `http://${hostname}`,
+      uri: `http://${onionAuthority}`,
       onion_hostname: hostname,
       virtual_port: normalizedVirtualPort,
       address_role: "transport-endpoint",

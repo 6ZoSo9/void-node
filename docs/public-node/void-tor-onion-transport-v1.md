@@ -97,7 +97,8 @@ The installer then:
    hostname resolution.
 
 The final output includes the `http://<56-character-address>.onion` URI and the
-local descriptor path.
+local descriptor path. When an operator explicitly selects a non-default virtual
+port, the URI and end-to-end self-probe include that port.
 
 ## Operate
 
@@ -105,6 +106,11 @@ local descriptor path.
 bash ops/tor/void-tor-onion-transport-v1.sh status
 bash ops/tor/void-tor-onion-transport-v1.sh verify
 ```
+
+A standalone `verify` requires the sentinel-bound Tor data root created by
+installation. It also creates or reuses a sentinel-bound state root before
+writing the local descriptor, so a failed probe cannot leave an unowned cleanup
+root behind.
 
 User services normally depend on the user's systemd manager. Operators who need
 service continuity after logout must manage user lingering according to their
@@ -147,11 +153,17 @@ VOID_TOR_BIN
 VOID_TOR_ALLOW_DISTRO_PACKAGE
 ```
 
-All runtime roots are canonicalized with `realpath` and must physically resolve
-beneath the operator's home directory. Lexical `..` escapes and existing symlink
-escapes fail closed before rendering, installation, removal, or identity purge.
-The public server remains loopback-only even when environment variables are
-supplied.
+All runtime roots are canonicalized with `realpath`, must physically resolve
+beneath the operator's home directory, and must end in `/tor-onion-v1`. The
+configuration, data, and state roots must not overlap each other, the repository,
+or the user-systemd unit directory. Each managed root receives a path-bound,
+user-owned sentinel before use. `uninstall` and `purge-identity` refuse recursive
+deletion when that sentinel is absent or mismatched, so an override cannot turn a
+Tor cleanup into removal of an unrelated home subtree. Lexical `..` escapes and
+existing symlink escapes fail closed before rendering, installation, removal, or
+identity purge. `VOID_TOR_BIN`, when supplied, must be an absolute executable path
+and is honored by installation. The public server remains loopback-only even when
+environment variables are supplied.
 
 ## Follow-on lanes
 

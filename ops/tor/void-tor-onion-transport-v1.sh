@@ -6,6 +6,8 @@ MARKER="VOID_TOR_ONION_TRANSPORT_V1"
 BACKEND_UNIT="void-public-node-tor-backend-v1.service"
 TOR_UNIT="void-tor-onion-transport-v1.service"
 PURGE_CONFIRMATION="PURGE_VOID_TOR_ONION_IDENTITY_V1"
+ROOT_SENTINEL_NAME=".void-tor-onion-transport-v1-owned"
+ROOT_LEAF_NAME="tor-onion-v1"
 
 fail() {
   printf '%s\n' "VOID_TOR_ONION_TRANSPORT_V1_FAIL" >&2
@@ -77,6 +79,108 @@ assert_user_tree() {
   esac
 }
 
+assert_dedicated_root() {
+  local path="$1"
+  local label="$2"
+  assert_user_tree "$path"
+  [[ "${path##*/}" == "$ROOT_LEAF_NAME" ]] || \
+    fail "$label must end in /$ROOT_LEAF_NAME: $path"
+}
+
+paths_overlap() {
+  local left="$1"
+  local right="$2"
+  [[ "$left" == "$right" || "$left" == "$right"/* || "$right" == "$left"/* ]]
+}
+
+assert_no_path_overlap() {
+  local left="$1"
+  local left_label="$2"
+  local right="$3"
+  local right_label="$4"
+  if paths_overlap "$left" "$right"; then
+    fail "$left_label and $right_label must not overlap: $left <> $right"
+  fi
+  return 0
+}
+
+root_sentinel_path() {
+  printf '%s/%s\n' "$1" "$ROOT_SENTINEL_NAME"
+}
+
+root_sentinel_body() {
+  local kind="$1"
+  local root="$2"
+  printf 'marker=%s\nkind=%s\npath=%s\nowner_uid=%s\n' \
+    "$MARKER" "$kind" "$root" "$(id -u)"
+}
+
+verify_root_sentinel() {
+  local root="$1"
+  local kind="$2"
+  local sentinel expected actual
+  sentinel="$(root_sentinel_path "$root")"
+  [[ -f "$sentinel" && ! -L "$sentinel" ]] || \
+    fail "$kind root is not owned by $MARKER; sentinel missing: $sentinel"
+  [[ "$(stat -c '%u' -- "$sentinel")" == "$(id -u)" ]] || \
+    fail "$kind root sentinel is not owned by the current user: $sentinel"
+  expected="$(root_sentinel_body "$kind" "$root")"
+  actual="$(cat -- "$sentinel")"
+  [[ "$actual" == "$expected" ]] || \
+    fail "$kind root sentinel mismatch: $sentinel"
+}
+
+prepare_owned_root() {
+  local root="$1"
+  local kind="$2"
+  local sentinel
+  assert_dedicated_root "$root" "$kind root"
+  if [[ -e "$root" && ! -d "$root" ]]; then
+    fail "$kind root exists but is not a directory: $root"
+  fi
+  mkdir -p -- "$root"
+  sentinel="$(root_sentinel_path "$root")"
+  if [[ -e "$sentinel" || -L "$sentinel" ]]; then
+    verify_root_sentinel "$root" "$kind"
+  else
+    if [[ -n "$(find "$root" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+      fail "$kind root is non-empty but has no ownership sentinel: $root"
+    fi
+    root_sentinel_body "$kind" "$root" > "$sentinel"
+    chmod 600 -- "$sentinel"
+    verify_root_sentinel "$root" "$kind"
+  fi
+  chmod 700 -- "$root"
+}
+
+verify_owned_root_or_absent() {
+  local root="$1"
+  local kind="$2"
+  assert_dedicated_root "$root" "$kind root"
+  [[ -e "$root" ]] || return 0
+  [[ -d "$root" ]] || fail "$kind root exists but is not a directory: $root"
+  verify_root_sentinel "$root" "$kind"
+}
+
+remove_owned_root() {
+  local root="$1"
+  local kind="$2"
+  verify_owned_root_or_absent "$root" "$kind"
+  [[ -e "$root" ]] || return 0
+  rm -rf -- "$root"
+}
+
+canonical_executable() {
+  local raw="$1"
+  local label="$2"
+  local resolved
+  assert_single_line "$raw" "$label"
+  [[ "$raw" == /* ]] || fail "$label must be an absolute path: $raw"
+  resolved="$(realpath -e -- "$raw")" || fail "$label does not exist: $raw"
+  [[ -f "$resolved" && -x "$resolved" ]] || fail "$label is not an executable file: $resolved"
+  printf '%s\n' "$resolved"
+}
+
 systemd_quote() {
   local value="$1"
   assert_single_line "$value" "systemd value"
@@ -94,9 +198,13 @@ torrc_quote() {
   printf '"%s"' "$value"
 }
 
+require_command cat
+require_command find
 require_command git
+require_command id
 require_command node
 require_command realpath
+require_command stat
 
 HOME_REAL="$(realpath -e -- "$HOME")"
 assert_single_line "$HOME_REAL" "HOME"
@@ -132,7 +240,21 @@ HIDDEN_SERVICE_DIR="$DATA_ROOT/hidden-service"
 HOSTNAME_FILE="$HIDDEN_SERVICE_DIR/hostname"
 DESCRIPTOR_FILE="$STATE_ROOT/transport.json"
 TOR_BIN="${VOID_TOR_BIN:-$(command -v tor 2>/dev/null || printf '/usr/bin/tor')}"
-NODE_BIN="$(command -v node)"
+[[ "$TOR_BIN" == /* ]] || fail "VOID_TOR_BIN must be an absolute path: $TOR_BIN"
+TOR_BIN="$(realpath -m -- "$TOR_BIN")"
+NODE_BIN="$(canonical_executable "$(command -v node)" "node executable")"
+
+assert_dedicated_root "$CONFIG_ROOT" "VOID_TOR_CONFIG_ROOT"
+assert_dedicated_root "$DATA_ROOT" "VOID_TOR_DATA_ROOT"
+assert_dedicated_root "$STATE_ROOT" "VOID_TOR_STATE_ROOT"
+assert_no_path_overlap "$CONFIG_ROOT" "config root" "$DATA_ROOT" "data root"
+assert_no_path_overlap "$CONFIG_ROOT" "config root" "$STATE_ROOT" "state root"
+assert_no_path_overlap "$DATA_ROOT" "data root" "$STATE_ROOT" "state root"
+for guarded_root in "$CONFIG_ROOT" "$DATA_ROOT" "$STATE_ROOT"; do
+  assert_no_path_overlap "$guarded_root" "managed Tor root" "$UNIT_ROOT" "systemd user unit root"
+  assert_no_path_overlap "$guarded_root" "managed Tor root" "$REPO" "VOID repository"
+done
+unset guarded_root
 
 render_bundle() {
   local destination="$1"
@@ -256,8 +378,12 @@ MANIFEST
 }
 
 ensure_tor() {
+  if [[ -n "${VOID_TOR_BIN:-}" ]]; then
+    TOR_BIN="$(canonical_executable "$VOID_TOR_BIN" "VOID_TOR_BIN")"
+    return
+  fi
   if command -v tor >/dev/null 2>&1; then
-    TOR_BIN="$(command -v tor)"
+    TOR_BIN="$(canonical_executable "$(command -v tor)" "tor executable")"
     return
   fi
   [[ "${VOID_TOR_ALLOW_DISTRO_PACKAGE:-0}" == "1" ]] || \
@@ -268,7 +394,7 @@ ensure_tor() {
   sudo apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y tor
   command -v tor >/dev/null 2>&1 || fail "tor package installation completed but tor is unavailable"
-  TOR_BIN="$(command -v tor)"
+  TOR_BIN="$(canonical_executable "$(command -v tor)" "tor executable")"
 }
 
 wait_for_local_backend() {
@@ -301,7 +427,10 @@ parse_json_file() {
 
 verify_transport() {
   require_command curl
-  local local_index local_descriptor onion_index onion_descriptor onion
+  verify_owned_root_or_absent "$DATA_ROOT" "data"
+  [[ -d "$DATA_ROOT" ]] || fail "Tor data root is not installed: $DATA_ROOT"
+  prepare_owned_root "$STATE_ROOT" "state"
+  local local_index local_descriptor onion_index onion_descriptor onion onion_authority
   local_index="$(mktemp)"
   local_descriptor="$(mktemp)"
   onion_index="$(mktemp)"
@@ -310,6 +439,10 @@ verify_transport() {
 
   [[ -s "$HOSTNAME_FILE" ]] || fail "onion hostname is not ready: $HOSTNAME_FILE"
   onion="$(tr -d '[:space:]' < "$HOSTNAME_FILE")"
+  onion_authority="$onion"
+  if [[ "$VIRTUAL_PORT" != "80" ]]; then
+    onion_authority="$onion:$VIRTUAL_PORT"
+  fi
 
   node "$DESCRIPTOR_TOOL" \
     --hostname-file "$HOSTNAME_FILE" \
@@ -330,11 +463,11 @@ verify_transport() {
     if curl -q --fail --silent --show-error \
       --connect-timeout 15 --max-time 45 \
       --socks5-hostname "127.0.0.1:$SOCKS_PORT" \
-      "http://$onion/public-node/index.json" > "$onion_index" 2>/dev/null && \
+      "http://$onion_authority/public-node/index.json" > "$onion_index" 2>/dev/null && \
        curl -q --fail --silent --show-error \
       --connect-timeout 15 --max-time 45 \
       --socks5-hostname "127.0.0.1:$SOCKS_PORT" \
-      "http://$onion/.well-known/void-tor-onion-transport-v1.json" \
+      "http://$onion_authority/.well-known/void-tor-onion-transport-v1.json" \
       > "$onion_descriptor" 2>/dev/null; then
       success=1
       break
@@ -362,7 +495,7 @@ verify_transport() {
   rm -f "$local_index" "$local_descriptor" "$onion_index" "$onion_descriptor"
   trap - EXIT
   printf '%s\n' "VOID_TOR_ONION_TRANSPORT_V1_VERIFY_GREEN"
-  printf 'onion_uri=http://%s\n' "$onion"
+  printf 'onion_uri=http://%s\n' "$onion_authority"
   printf 'descriptor=%s\n' "$DESCRIPTOR_FILE"
   printf '%s\n' "read_only=true" "dangerous_paths_touched=false"
 }
@@ -374,13 +507,13 @@ install_transport() {
     fail "systemd user manager is unavailable for this login"
   ensure_tor
 
-  assert_user_tree "$CONFIG_ROOT"
-  assert_user_tree "$DATA_ROOT"
-  assert_user_tree "$STATE_ROOT"
   assert_user_tree "$UNIT_ROOT"
+  prepare_owned_root "$CONFIG_ROOT" "config"
+  prepare_owned_root "$DATA_ROOT" "data"
+  prepare_owned_root "$STATE_ROOT" "state"
 
-  mkdir -p "$CONFIG_ROOT" "$DATA_ROOT/data" "$HIDDEN_SERVICE_DIR" "$STATE_ROOT" "$UNIT_ROOT"
-  chmod 700 "$CONFIG_ROOT" "$DATA_ROOT" "$DATA_ROOT/data" "$HIDDEN_SERVICE_DIR" "$STATE_ROOT"
+  mkdir -p "$DATA_ROOT/data" "$HIDDEN_SERVICE_DIR" "$UNIT_ROOT"
+  chmod 700 "$DATA_ROOT/data" "$HIDDEN_SERVICE_DIR"
   rm -rf -- "$RENDER_ROOT"
   render_bundle "$RENDER_ROOT"
 
@@ -424,7 +557,13 @@ status_transport() {
     printf '%s\n' "tor_unit=inactive"
   fi
   if [[ -s "$HOSTNAME_FILE" ]]; then
-    printf 'onion_uri=http://%s\n' "$(tr -d '[:space:]' < "$HOSTNAME_FILE")"
+    local onion onion_authority
+    onion="$(tr -d '[:space:]' < "$HOSTNAME_FILE")"
+    onion_authority="$onion"
+    if [[ "$VIRTUAL_PORT" != "80" ]]; then
+      onion_authority="$onion:$VIRTUAL_PORT"
+    fi
+    printf 'onion_uri=http://%s\n' "$onion_authority"
   else
     printf '%s\n' "onion_uri=not-ready"
   fi
@@ -434,9 +573,9 @@ status_transport() {
 }
 
 uninstall_transport() {
-  assert_user_tree "$CONFIG_ROOT"
-  assert_user_tree "$STATE_ROOT"
   assert_user_tree "$UNIT_ROOT"
+  verify_owned_root_or_absent "$CONFIG_ROOT" "config"
+  verify_owned_root_or_absent "$STATE_ROOT" "state"
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user disable --now "$TOR_UNIT" "$BACKEND_UNIT" >/dev/null 2>&1 || true
   fi
@@ -445,7 +584,8 @@ uninstall_transport() {
     systemctl --user daemon-reload >/dev/null 2>&1 || true
     systemctl --user reset-failed "$TOR_UNIT" "$BACKEND_UNIT" >/dev/null 2>&1 || true
   fi
-  rm -rf -- "$CONFIG_ROOT" "$STATE_ROOT"
+  remove_owned_root "$CONFIG_ROOT" "config"
+  remove_owned_root "$STATE_ROOT" "state"
   printf '%s\n' "VOID_TOR_ONION_TRANSPORT_V1_UNINSTALL_GREEN"
   printf '%s\n' "identity_preserved=true"
   printf 'identity_dir=%s\n' "$HIDDEN_SERVICE_DIR"
@@ -455,9 +595,9 @@ purge_identity() {
   local confirmation="${1:-}"
   [[ "$confirmation" == "$PURGE_CONFIRMATION" ]] || \
     fail "identity purge requires exact confirmation: $PURGE_CONFIRMATION"
+  verify_owned_root_or_absent "$DATA_ROOT" "data"
   uninstall_transport
-  assert_user_tree "$DATA_ROOT"
-  rm -rf -- "$DATA_ROOT"
+  remove_owned_root "$DATA_ROOT" "data"
   printf '%s\n' "VOID_TOR_ONION_TRANSPORT_V1_IDENTITY_PURGED"
   printf '%s\n' "identity_preserved=false"
 }
@@ -474,6 +614,9 @@ config_root=$CONFIG_ROOT
 data_root=$DATA_ROOT
 state_root=$STATE_ROOT
 identity_dir=$HIDDEN_SERVICE_DIR
+root_leaf_guard=$ROOT_LEAF_NAME
+root_ownership_sentinel=$ROOT_SENTINEL_NAME
+managed_roots_non_overlapping=true
 canonical_void_node_identity=false
 signed_void_node_binding=false
 read_only=true

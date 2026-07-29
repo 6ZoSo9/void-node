@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -168,6 +169,18 @@ function mode(path) {
   return statSync(path).mode & 0o777;
 }
 
+function writeRootSentinel(root, kind) {
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const body = [
+    `marker=${VOID_TOR_ONION_TRANSPORT_MARKER}`,
+    `kind=${kind}`,
+    `path=${resolve(root)}`,
+    `owner_uid=${process.getuid()}`,
+    "",
+  ].join("\n");
+  writeFileSync(join(root, ".void-tor-onion-transport-v1-owned"), body, { mode: 0o600 });
+}
+
 async function main() {
   const requiredFiles = [LIFECYCLE, SERVER, DESCRIPTOR_CLI, SCHEMA, EXAMPLE, DOC, WORKFLOW];
   for (const path of requiredFiles) assert(statSync(path).isFile(), `required file missing: ${path}`);
@@ -201,6 +214,9 @@ async function main() {
     assert(JSON.stringify(homeBeforePlan) === JSON.stringify(homeAfterPlan), "plan mutated HOME");
     for (const expected of [
       "plan_mutation=false",
+      "root_leaf_guard=tor-onion-v1",
+      "root_ownership_sentinel=.void-tor-onion-transport-v1-owned",
+      "managed_roots_non_overlapping=true",
       "read_only=true",
       "transaction_submission=false",
       "p2p_listener=false",
@@ -237,6 +253,33 @@ async function main() {
     assert(
       `${symlinkEscape.stdout}${symlinkEscape.stderr}`.includes("must resolve beneath HOME"),
       "symlink user-tree escape did not fail with the path boundary",
+    );
+
+    const broadRoot = spawnSync("bash", [LIFECYCLE, "plan"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...env, VOID_TOR_CONFIG_ROOT: join(home, ".config") },
+    });
+    assert(broadRoot.status !== 0, "broad configuration root was accepted");
+    assert(
+      `${broadRoot.stdout}${broadRoot.stderr}`.includes("must end in /tor-onion-v1"),
+      "broad configuration root did not fail with the dedicated-root boundary",
+    );
+
+    const overlappingRoot = join(home, "overlapping-roots", "tor-onion-v1");
+    const overlap = spawnSync("bash", [LIFECYCLE, "plan"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...env,
+        VOID_TOR_CONFIG_ROOT: overlappingRoot,
+        VOID_TOR_DATA_ROOT: overlappingRoot,
+      },
+    });
+    assert(overlap.status !== 0, "overlapping managed roots were accepted");
+    assert(
+      `${overlap.stdout}${overlap.stderr}`.includes("must not overlap"),
+      "overlapping managed roots did not fail with the overlap boundary",
     );
 
     const renderResult = run("bash", [LIFECYCLE, "render", render], { env }).stdout;
@@ -309,6 +352,112 @@ async function main() {
     assert(lifecycle.includes("PURGE_VOID_TOR_ONION_IDENTITY_V1"), "identity purge confirmation missing");
     assert(lifecycle.includes("identity_preserved=true"), "default uninstall does not preserve identity");
     assert(lifecycle.includes("--socks5-hostname"), "remote DNS-safe SOCKS probe missing");
+    assert(lifecycle.includes(".void-tor-onion-transport-v1-owned"), "managed-root sentinel missing");
+    assert(lifecycle.includes("verify_owned_root_or_absent"), "destructive root verification missing");
+    assert(lifecycle.includes('prepare_owned_root "$STATE_ROOT" "state"'), "verify state ownership preparation missing");
+    assert(lifecycle.includes('canonical_executable "$VOID_TOR_BIN"'), "VOID_TOR_BIN validation missing");
+
+    const mockBin = join(temp, "mock-bin");
+    mkdirSync(mockBin, { recursive: true, mode: 0o700 });
+    const mockSystemctl = join(mockBin, "systemctl");
+    writeFileSync(mockSystemctl, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
+    chmodSync(mockSystemctl, 0o700);
+    const mockCurl = join(mockBin, "curl");
+    writeFileSync(mockCurl, "#!/usr/bin/env bash\nexit 1\n", { mode: 0o700 });
+    chmodSync(mockCurl, 0o700);
+    const cleanupEnv = { ...env, PATH: `${mockBin}:${env.PATH}` };
+
+    const unsafeConfigRoot = join(home, "unsafe-config", "tor-onion-v1");
+    const unsafeConfigVictim = join(unsafeConfigRoot, "must-survive.txt");
+    mkdirSync(unsafeConfigRoot, { recursive: true, mode: 0o700 });
+    writeFileSync(unsafeConfigVictim, "survive\n", { mode: 0o600 });
+    const unsafeUninstall = spawnSync("bash", [LIFECYCLE, "uninstall"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...cleanupEnv,
+        VOID_TOR_CONFIG_ROOT: unsafeConfigRoot,
+        VOID_TOR_DATA_ROOT: join(home, "unsafe-data", "tor-onion-v1"),
+        VOID_TOR_STATE_ROOT: join(home, "unsafe-state", "tor-onion-v1"),
+      },
+    });
+    assert(unsafeUninstall.status !== 0, "uninstall accepted an unowned configuration root");
+    assert(
+      `${unsafeUninstall.stdout}${unsafeUninstall.stderr}`.includes("sentinel missing"),
+      "unowned configuration root did not fail on the ownership sentinel",
+    );
+    assert(existsSync(unsafeConfigVictim), "uninstall deleted an unowned configuration root");
+
+    const safeConfigRoot = join(home, "safe-config", "tor-onion-v1");
+    const safeDataRoot = join(home, "safe-data", "tor-onion-v1");
+    const safeStateRoot = join(home, "safe-state", "tor-onion-v1");
+    writeRootSentinel(safeConfigRoot, "config");
+    writeRootSentinel(safeStateRoot, "state");
+    writeFileSync(join(safeConfigRoot, "owned.txt"), "owned\n", { mode: 0o600 });
+    writeFileSync(join(safeStateRoot, "owned.txt"), "owned\n", { mode: 0o600 });
+    const safeUninstall = run("bash", [LIFECYCLE, "uninstall"], {
+      env: {
+        ...cleanupEnv,
+        VOID_TOR_CONFIG_ROOT: safeConfigRoot,
+        VOID_TOR_DATA_ROOT: safeDataRoot,
+        VOID_TOR_STATE_ROOT: safeStateRoot,
+      },
+    });
+    assert(safeUninstall.stdout.includes("VOID_TOR_ONION_TRANSPORT_V1_UNINSTALL_GREEN"), "owned-root uninstall marker missing");
+    assert(!existsSync(safeConfigRoot), "owned configuration root survived uninstall");
+    assert(!existsSync(safeStateRoot), "owned state root survived uninstall");
+
+    const unsafePurgeConfigRoot = join(home, "unsafe-purge-config", "tor-onion-v1");
+    const unsafePurgeDataRoot = join(home, "unsafe-purge-data", "tor-onion-v1");
+    const unsafePurgeStateRoot = join(home, "unsafe-purge-state", "tor-onion-v1");
+    const unsafePurgeVictim = join(unsafePurgeDataRoot, "identity-must-survive.txt");
+    mkdirSync(unsafePurgeDataRoot, { recursive: true, mode: 0o700 });
+    writeFileSync(unsafePurgeVictim, "identity\n", { mode: 0o600 });
+    const unsafePurge = spawnSync(
+      "bash",
+      [LIFECYCLE, "purge-identity", "PURGE_VOID_TOR_ONION_IDENTITY_V1"],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        env: {
+          ...cleanupEnv,
+          VOID_TOR_CONFIG_ROOT: unsafePurgeConfigRoot,
+          VOID_TOR_DATA_ROOT: unsafePurgeDataRoot,
+          VOID_TOR_STATE_ROOT: unsafePurgeStateRoot,
+        },
+      },
+    );
+    assert(unsafePurge.status !== 0, "identity purge accepted an unowned data root");
+    assert(
+      `${unsafePurge.stdout}${unsafePurge.stderr}`.includes("sentinel missing"),
+      "unowned identity root did not fail on the ownership sentinel",
+    );
+    assert(existsSync(unsafePurgeVictim), "identity purge deleted an unowned data root");
+
+    const purgeConfigRoot = join(home, "purge-config", "tor-onion-v1");
+    const purgeDataRoot = join(home, "purge-data", "tor-onion-v1");
+    const purgeStateRoot = join(home, "purge-state", "tor-onion-v1");
+    writeRootSentinel(purgeConfigRoot, "config");
+    writeRootSentinel(purgeDataRoot, "data");
+    writeRootSentinel(purgeStateRoot, "state");
+    mkdirSync(join(purgeDataRoot, "hidden-service"), { recursive: true, mode: 0o700 });
+    writeFileSync(join(purgeDataRoot, "hidden-service", "identity-key"), "test-only\n", { mode: 0o600 });
+    const safePurge = run(
+      "bash",
+      [LIFECYCLE, "purge-identity", "PURGE_VOID_TOR_ONION_IDENTITY_V1"],
+      {
+        env: {
+          ...cleanupEnv,
+          VOID_TOR_CONFIG_ROOT: purgeConfigRoot,
+          VOID_TOR_DATA_ROOT: purgeDataRoot,
+          VOID_TOR_STATE_ROOT: purgeStateRoot,
+        },
+      },
+    );
+    assert(safePurge.stdout.includes("VOID_TOR_ONION_TRANSPORT_V1_IDENTITY_PURGED"), "owned identity purge marker missing");
+    assert(!existsSync(purgeConfigRoot), "owned configuration root survived identity purge");
+    assert(!existsSync(purgeStateRoot), "owned state root survived identity purge");
+    assert(!existsSync(purgeDataRoot), "owned data root survived identity purge");
 
     const publicKey = Buffer.from(Array.from({ length: 32 }, (_, index) => index));
     const onionHostname = encodeV3OnionHostname(publicKey);
@@ -320,6 +469,29 @@ async function main() {
     const badHostname = `${onionHostname[0] === "a" ? "b" : "a"}${onionHostname.slice(1)}`;
     assertThrows(() => validateV3OnionHostname(badHostname), "checksum-damaged onion was accepted");
 
+    const verifyConfigRoot = join(home, "verify-config", "tor-onion-v1");
+    const verifyDataRoot = join(home, "verify-data", "tor-onion-v1");
+    const verifyStateRoot = join(home, "verify-state", "tor-onion-v1");
+    writeRootSentinel(verifyDataRoot, "data");
+    const verifyHiddenService = join(verifyDataRoot, "hidden-service");
+    mkdirSync(verifyHiddenService, { recursive: true, mode: 0o700 });
+    writeFileSync(join(verifyHiddenService, "hostname"), `${onionHostname}\n`, { mode: 0o600 });
+    const failedStandaloneVerify = spawnSync("bash", [LIFECYCLE, "verify"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...cleanupEnv,
+        VOID_TOR_CONFIG_ROOT: verifyConfigRoot,
+        VOID_TOR_DATA_ROOT: verifyDataRoot,
+        VOID_TOR_STATE_ROOT: verifyStateRoot,
+      },
+    });
+    assert(failedStandaloneVerify.status !== 0, "mocked standalone verify unexpectedly succeeded");
+    const verifyStateSentinel = join(verifyStateRoot, ".void-tor-onion-transport-v1-owned");
+    assert(existsSync(verifyStateSentinel), "failed verify left the state root without an ownership sentinel");
+    assert(read(verifyStateSentinel).includes(`path=${resolve(verifyStateRoot)}`), "verify state sentinel path mismatch");
+    assert(existsSync(join(verifyStateRoot, "transport.json")), "standalone verify did not write its managed descriptor");
+
     const generatedAt = "2026-07-29T00:00:00.000Z";
     const descriptor = buildVoidTorDescriptorV1({
       onionHostname,
@@ -330,7 +502,21 @@ async function main() {
     });
     const example = JSON.parse(read(EXAMPLE));
     assert(JSON.stringify(descriptor) === JSON.stringify(example), "descriptor example drifted from implementation");
+    const nonDefaultDescriptor = buildVoidTorDescriptorV1({
+      onionHostname,
+      localPort: 18088,
+      virtualPort: 8080,
+      generatedAt,
+      status: "active",
+    });
+    assert(
+      nonDefaultDescriptor.transport.uri === `http://${onionHostname}:8080`,
+      "non-default virtual port is missing from the onion URI",
+    );
     const schema = JSON.parse(read(SCHEMA));
+    const uriPattern = new RegExp(schema.properties.transport.properties.uri.pattern);
+    assert(uriPattern.test(descriptor.transport.uri), "schema rejected the default onion URI");
+    assert(uriPattern.test(nonDefaultDescriptor.transport.uri), "schema rejected the non-default onion URI");
     assert(schema.properties.marker.const === VOID_TOR_ONION_TRANSPORT_MARKER, "schema marker mismatch");
     assert(schema.properties.version.const === 1, "schema version mismatch");
     assert(schema.properties.authority.properties.read_only.const === true, "schema read-only boundary missing");
@@ -371,6 +557,28 @@ async function main() {
     assert(cli.stdout.includes("VOID_TOR_ONION_DESCRIPTOR_V1_GREEN"), "descriptor CLI marker missing");
     assert(JSON.stringify(JSON.parse(read(cliDescriptor))) === JSON.stringify(example), "descriptor CLI output drifted");
     assert(mode(cliDescriptor) === 0o600, "descriptor output mode is not 0600");
+
+    const nonDefaultCliDescriptor = join(temp, "transport-8080.json");
+    run(
+      process.execPath,
+      [
+        DESCRIPTOR_CLI,
+        "--hostname-file",
+        hostnameFile,
+        "--output",
+        nonDefaultCliDescriptor,
+        "--local-port",
+        "18088",
+        "--virtual-port",
+        "8080",
+        "--generated-at",
+        generatedAt,
+      ],
+    );
+    assert(
+      JSON.parse(read(nonDefaultCliDescriptor)).transport.uri === `http://${onionHostname}:8080`,
+      "descriptor CLI omitted the non-default virtual port",
+    );
 
     const check = run(process.execPath, [SERVER, "--check", "--host", "127.0.0.1"], { cwd: ROOT });
     assert(check.stdout.includes("VOID_TOR_ONION_PUBLIC_NODE_V1_CHECK_GREEN"), "server check marker missing");
@@ -423,6 +631,9 @@ async function main() {
       "does not expose MCP",
       "not the canonical VOID node identity",
       "signed VOID-node binding is deliberately deferred",
+      "user-owned sentinel",
+      "sentinel-bound state root",
+      "end-to-end self-probe",
     ]) {
       assert(docs.includes(statement), `documentation missing boundary: ${statement}`);
     }
