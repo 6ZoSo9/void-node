@@ -1,0 +1,28 @@
+{
+  "name": "@void-network/agent-mcp-bridge-v1",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bounded MCP compatibility bridge for VOID public agent discovery and authenticated paid-work intake.",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test --test-reporter=spec dist/test/*.test.js",
+    "check": "npm run typecheck && npm test",
+    "start": "node dist/src/stdio.js",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/src/stdio.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "22.15.3",
+    "typescript": "5.9.3"
+  }
+}

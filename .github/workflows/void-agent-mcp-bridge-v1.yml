@@ -1,0 +1,98 @@
+name: VOID Agent MCP Bridge V1
+
+on:
+  pull_request:
+    paths:
+      - "integrations/mcp/**"
+      - "scripts/prove_void_agent_mcp_bridge_v1.ts"
+      - ".github/workflows/void-agent-mcp-bridge-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-agent-mcp-bridge-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove bounded MCP bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            integrations/mcp/package-lock.json
+
+      - name: Install root proof dependencies
+        run: >-
+          npm ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Install pinned MCP bridge dependencies
+        run: >-
+          npm --prefix integrations/mcp ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Typecheck, build, and test both protocol eras
+        run: npm --prefix integrations/mcp run check
+
+      - name: Prove repository and authority boundaries
+        env:
+          VOID_MCP_BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          npx --no-install tsx
+          scripts/prove_void_agent_mcp_bridge_v1.ts
+
+      - name: Prove exact changed-file lane
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git diff --check "$BASE_SHA...$HEAD_SHA"
+
+          mapfile -t changed < <(
+            git diff --name-only "$BASE_SHA...$HEAD_SHA"
+          )
+
+          test "${#changed[@]}" -gt 0
+
+          for file in "${changed[@]}"
+          do
+            case "$file" in
+              integrations/mcp/*)
+                ;;
+              scripts/prove_void_agent_mcp_bridge_v1.ts)
+                ;;
+              .github/workflows/void-agent-mcp-bridge-v1.yml)
+                ;;
+              *)
+                echo "HOLD: out-of-lane changed file: $file" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          printf 'changed_file=%s\n' "${changed[@]}"
