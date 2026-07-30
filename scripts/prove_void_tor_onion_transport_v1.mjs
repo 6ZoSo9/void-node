@@ -327,8 +327,23 @@ async function main() {
       assert(manifest.includes(expected), `render manifest missing ${expected}`);
     }
 
-    const backendUnit = read(join(render, "systemd/user/void-public-node-tor-backend-v1.service"));
-    const torUnit = read(join(render, "systemd/user/void-tor-onion-transport-v1.service"));
+    const backendUnitPath = join(render, "systemd/user/void-public-node-tor-backend-v1.service");
+    const torUnitPath = join(render, "systemd/user/void-tor-onion-transport-v1.service");
+    const backendUnit = read(backendUnitPath);
+    const torUnit = read(torUnitPath);
+    assert(!backendUnit.includes("WorkingDirectory="), "backend unit must rely on the runner-owned repository chdir");
+    const systemdAnalyzeVersion = spawnSync("systemd-analyze", ["--version"], { encoding: "utf8" });
+    if (systemdAnalyzeVersion.status === 0) {
+      const unitVerify = spawnSync(
+        "systemd-analyze",
+        ["--system", "--man=no", "--generators=no", "verify", backendUnitPath, torUnitPath],
+        { encoding: "utf8" },
+      );
+      assert(
+        unitVerify.status === 0,
+        `rendered systemd unit verification failed\nstdout:\n${unitVerify.stdout || ""}\nstderr:\n${unitVerify.stderr || ""}`,
+      );
+    }
     for (const unit of [backendUnit, torUnit]) {
       for (const hardening of [
         "NoNewPrivileges=true",

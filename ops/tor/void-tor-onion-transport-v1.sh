@@ -291,8 +291,7 @@ TORRC
     printf 'exec %q -f %q\n' "$TOR_BIN" "$destination/torrc"
   } > "$destination/run-tor.sh"
 
-  local quoted_repo quoted_backend quoted_tor quoted_data quoted_state
-  quoted_repo="$(systemd_quote "$REPO")"
+  local quoted_backend quoted_tor quoted_data quoted_state
   quoted_backend="$(systemd_quote "$destination/run-public-node.sh")"
   quoted_tor="$(systemd_quote "$destination/run-tor.sh")"
   quoted_data="$(systemd_quote "$DATA_ROOT")"
@@ -305,7 +304,6 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$quoted_repo
 ExecStart=$quoted_backend
 Restart=on-failure
 RestartSec=3
