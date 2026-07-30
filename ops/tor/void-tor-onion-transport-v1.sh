@@ -213,8 +213,10 @@ REPO="$(resolve_repo)" || fail "VOID repository not found; set VOID_REPO explici
 REPO="$(realpath -e "$REPO")"
 PUBLIC_SERVER="$REPO/tools/void-tor-onion-public-node-v1.mjs"
 DESCRIPTOR_TOOL="$REPO/tools/void-tor-onion-descriptor-v1.mjs"
+BINDING_TOOL="$REPO/tools/void-node-onion-binding-v1.mjs"
 [[ -f "$PUBLIC_SERVER" ]] || fail "Tor public-node server missing: $PUBLIC_SERVER"
 [[ -f "$DESCRIPTOR_TOOL" ]] || fail "Tor descriptor tool missing: $DESCRIPTOR_TOOL"
+[[ -f "$BINDING_TOOL" ]] || fail "node-to-onion binding tool missing: $BINDING_TOOL"
 [[ -f "$REPO/public/public-node/index.json" ]] || fail "public-node index missing from repository"
 
 NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
@@ -239,6 +241,7 @@ RENDER_ROOT="$CONFIG_ROOT/rendered"
 HIDDEN_SERVICE_DIR="$DATA_ROOT/hidden-service"
 HOSTNAME_FILE="$HIDDEN_SERVICE_DIR/hostname"
 DESCRIPTOR_FILE="$STATE_ROOT/transport.json"
+BINDING_FILE="$DATA_ROOT/node-onion-binding-v1.json"
 TOR_BIN="${VOID_TOR_BIN:-$(command -v tor 2>/dev/null || printf '/usr/bin/tor')}"
 [[ "$TOR_BIN" == /* ]] || fail "VOID_TOR_BIN must be an absolute path: $TOR_BIN"
 TOR_BIN="$(realpath -m -- "$TOR_BIN")"
@@ -281,9 +284,9 @@ TORRC
   {
     printf '%s\n' '#!/usr/bin/env bash' 'set -Eeuo pipefail' 'umask 077'
     printf 'cd -- %q\n' "$REPO"
-    printf 'exec env VOID_TOR_PUBLIC_NODE_BIND=127.0.0.1 VOID_TOR_PUBLIC_NODE_PORT=%q VOID_TOR_VIRTUAL_PORT=%q VOID_TOR_HOSTNAME_FILE=%q %q %q --host 127.0.0.1 --port %q --virtual-port %q --hostname-file %q\n' \
-      "$PUBLIC_PORT" "$VIRTUAL_PORT" "$HOSTNAME_FILE" \
-      "$NODE_BIN" "$PUBLIC_SERVER" "$PUBLIC_PORT" "$VIRTUAL_PORT" "$HOSTNAME_FILE"
+    printf 'exec env VOID_TOR_PUBLIC_NODE_BIND=127.0.0.1 VOID_TOR_PUBLIC_NODE_PORT=%q VOID_TOR_VIRTUAL_PORT=%q VOID_TOR_HOSTNAME_FILE=%q VOID_NODE_ONION_BINDING_FILE=%q %q %q --host 127.0.0.1 --port %q --virtual-port %q --hostname-file %q --binding-file %q\n' \
+      "$PUBLIC_PORT" "$VIRTUAL_PORT" "$HOSTNAME_FILE" "$BINDING_FILE" \
+      "$NODE_BIN" "$PUBLIC_SERVER" "$PUBLIC_PORT" "$VIRTUAL_PORT" "$HOSTNAME_FILE" "$BINDING_FILE"
   } > "$destination/run-public-node.sh"
 
   {
@@ -357,8 +360,9 @@ socks_port=$SOCKS_PORT
 virtual_port=$VIRTUAL_PORT
 hidden_service_dir=$HIDDEN_SERVICE_DIR
 descriptor_file=$DESCRIPTOR_FILE
-canonical_void_node_identity=false
-signed_void_node_binding=false
+binding_file=$BINDING_FILE
+canonical_void_node_identity=conditional-signed-binding-v1
+signed_void_node_binding=optional-fail-closed-v1
 transaction_submission=false
 p2p_listener=false
 mcp_listener=false
@@ -428,12 +432,14 @@ verify_transport() {
   verify_owned_root_or_absent "$DATA_ROOT" "data"
   [[ -d "$DATA_ROOT" ]] || fail "Tor data root is not installed: $DATA_ROOT"
   prepare_owned_root "$STATE_ROOT" "state"
-  local local_index local_descriptor onion_index onion_descriptor onion onion_authority
+  local local_index local_descriptor local_binding onion_index onion_descriptor onion_binding onion onion_authority
   local_index="$(mktemp)"
   local_descriptor="$(mktemp)"
+  local_binding="$(mktemp)"
   onion_index="$(mktemp)"
   onion_descriptor="$(mktemp)"
-  trap 'rm -f "$local_index" "$local_descriptor" "$onion_index" "$onion_descriptor"' EXIT
+  onion_binding="$(mktemp)"
+  trap 'rm -f "$local_index" "$local_descriptor" "$local_binding" "$onion_index" "$onion_descriptor" "$onion_binding"' EXIT
 
   [[ -s "$HOSTNAME_FILE" ]] || fail "onion hostname is not ready: $HOSTNAME_FILE"
   onion="$(tr -d '[:space:]' < "$HOSTNAME_FILE")"
@@ -442,11 +448,16 @@ verify_transport() {
     onion_authority="$onion:$VIRTUAL_PORT"
   fi
 
+  local descriptor_binding_args=()
+  if [[ -s "$BINDING_FILE" ]]; then
+    descriptor_binding_args=(--binding-file "$BINDING_FILE")
+  fi
   node "$DESCRIPTOR_TOOL" \
     --hostname-file "$HOSTNAME_FILE" \
     --output "$DESCRIPTOR_FILE" \
     --local-port "$PUBLIC_PORT" \
-    --virtual-port "$VIRTUAL_PORT" >/dev/null
+    --virtual-port "$VIRTUAL_PORT" \
+    "${descriptor_binding_args[@]}" >/dev/null
 
   curl -q --fail --silent --show-error --max-time 10 --noproxy '*' \
     "http://127.0.0.1:$PUBLIC_PORT/public-node/index.json" > "$local_index"
@@ -455,6 +466,14 @@ verify_transport() {
     > "$local_descriptor"
   parse_json_file "$local_index"
   parse_json_file "$local_descriptor"
+  local binding_expected=0
+  if [[ -s "$BINDING_FILE" ]]; then
+    binding_expected=1
+    curl -q --fail --silent --show-error --max-time 10 --noproxy '*' \
+      "http://127.0.0.1:$PUBLIC_PORT/.well-known/void-node-onion-binding-v1.json" \
+      > "$local_binding"
+    parse_json_file "$local_binding"
+  fi
 
   local success=0 attempt
   for attempt in $(seq 1 12); do
@@ -466,7 +485,12 @@ verify_transport() {
       --connect-timeout 15 --max-time 45 \
       --socks5-hostname "127.0.0.1:$SOCKS_PORT" \
       "http://$onion_authority/.well-known/void-tor-onion-transport-v1.json" \
-      > "$onion_descriptor" 2>/dev/null; then
+      > "$onion_descriptor" 2>/dev/null && \
+       { (( binding_expected == 0 )) || curl -q --fail --silent --show-error \
+      --connect-timeout 15 --max-time 45 \
+      --socks5-hostname "127.0.0.1:$SOCKS_PORT" \
+      "http://$onion_authority/.well-known/void-node-onion-binding-v1.json" \
+      > "$onion_binding" 2>/dev/null; }; then
       success=1
       break
     fi
@@ -488,13 +512,39 @@ verify_transport() {
       "node_runtime_mutation", "operator_control",
     ];
     if (forbidden.some((key) => value.authority?.[key] !== false)) process.exit(6);
-  ' "$onion_descriptor" "$onion"
+    const expectedBinding = process.argv[3] === "1";
+    if (value.identity?.signed_void_node_binding !== expectedBinding) process.exit(7);
+  ' "$onion_descriptor" "$onion" "$binding_expected"
+  if (( binding_expected == 1 )); then
+    node "$BINDING_TOOL" verify \
+      --input "$BINDING_FILE" \
+      --expected-onion-hostname "$onion" \
+      --virtual-port "$VIRTUAL_PORT" >/dev/null
+    cmp -s "$local_binding" "$onion_binding" || fail "local and onion binding documents differ"
+    node -e '
+      const fs = require("node:fs");
+      const descriptor = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const binding = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+      if (descriptor.identity?.signed_void_node_binding !== true) process.exit(2);
+      if (descriptor.identity?.canonical_void_node_identity !== true) process.exit(3);
+      if (descriptor.identity?.node_id !== binding.node?.node_id) process.exit(4);
+    ' "$onion_descriptor" "$onion_binding"
+  else
+    node -e '
+      const fs = require("node:fs");
+      const descriptor = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      if (descriptor.identity?.signed_void_node_binding !== false) process.exit(2);
+      if (descriptor.identity?.canonical_void_node_identity !== false) process.exit(3);
+    ' "$onion_descriptor"
+  fi
 
-  rm -f "$local_index" "$local_descriptor" "$onion_index" "$onion_descriptor"
+  rm -f "$local_index" "$local_descriptor" "$local_binding" "$onion_index" "$onion_descriptor" "$onion_binding"
   trap - EXIT
   printf '%s\n' "VOID_TOR_ONION_TRANSPORT_V1_VERIFY_GREEN"
   printf 'onion_uri=http://%s\n' "$onion_authority"
   printf 'descriptor=%s\n' "$DESCRIPTOR_FILE"
+  printf 'binding=%s\n' "$BINDING_FILE"
+  if (( binding_expected == 1 )); then printf '%s\n' "binding_status=signed"; else printf '%s\n' "binding_status=unbound"; fi
   printf '%s\n' "read_only=true" "dangerous_paths_touched=false"
 }
 
@@ -567,6 +617,8 @@ status_transport() {
   fi
   printf 'identity_dir=%s\n' "$HIDDEN_SERVICE_DIR"
   printf 'descriptor=%s\n' "$DESCRIPTOR_FILE"
+  printf 'binding=%s\n' "$BINDING_FILE"
+  if [[ -s "$BINDING_FILE" ]]; then printf '%s\n' "binding_status=signed"; else printf '%s\n' "binding_status=unbound"; fi
   printf '%s\n' "read_only=true"
 }
 
@@ -612,11 +664,12 @@ config_root=$CONFIG_ROOT
 data_root=$DATA_ROOT
 state_root=$STATE_ROOT
 identity_dir=$HIDDEN_SERVICE_DIR
+binding_file=$BINDING_FILE
 root_leaf_guard=$ROOT_LEAF_NAME
 root_ownership_sentinel=$ROOT_SENTINEL_NAME
 managed_roots_non_overlapping=true
-canonical_void_node_identity=false
-signed_void_node_binding=false
+canonical_void_node_identity=conditional-signed-binding-v1
+signed_void_node_binding=optional-fail-closed-v1
 read_only=true
 transaction_submission=false
 p2p_listener=false

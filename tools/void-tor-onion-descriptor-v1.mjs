@@ -2,6 +2,7 @@
 
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { readAndVerifyVoidNodeOnionBindingV1 } from "./lib/void-node-onion-binding-v1.mjs";
 import {
   VOID_TOR_ONION_TRANSPORT_MARKER,
   buildVoidTorDescriptorV1,
@@ -22,6 +23,7 @@ function parseArgs(argv) {
     virtualPort: 80,
     generatedAt: "",
     status: "active",
+    bindingFile: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -37,6 +39,7 @@ function parseArgs(argv) {
     else if (argument === "--virtual-port") options.virtualPort = Number(next());
     else if (argument === "--generated-at") options.generatedAt = next();
     else if (argument === "--status") options.status = next();
+    else if (argument === "--binding-file") options.bindingFile = next();
     else if (argument === "--help" || argument === "-h") options.help = true;
     else throw new Error(`unknown argument: ${argument}`);
   }
@@ -48,7 +51,7 @@ function usage() {
   node tools/void-tor-onion-descriptor-v1.mjs \\
     --hostname-file PATH [--output PATH] \\
     [--local-port 18088] [--virtual-port 80] \\
-    [--generated-at ISO8601] [--status active]
+    [--generated-at ISO8601] [--status active] [--binding-file PATH]
 
 The command reads only Tor's public hostname file. It never reads or emits an
 Onion Service private key.`);
@@ -65,12 +68,19 @@ try {
   const hostnamePath = resolve(options.hostnameFile);
   const hostname = readFileSync(hostnamePath, "utf8").trim();
   const generatedAt = options.generatedAt || statSync(hostnamePath).mtime.toISOString();
+  const nodeBinding = options.bindingFile
+    ? readAndVerifyVoidNodeOnionBindingV1(options.bindingFile, {
+        expectedOnionHostname: hostname,
+        expectedVirtualPort: options.virtualPort,
+      }).summary
+    : null;
   const descriptor = buildVoidTorDescriptorV1({
     onionHostname: hostname,
     localPort: options.localPort,
     virtualPort: options.virtualPort,
     generatedAt,
     status: options.status,
+    nodeBinding,
   });
 
   if (options.output) {

@@ -31,6 +31,53 @@ function normalizeTimestamp(value) {
   return date.toISOString();
 }
 
+function normalizeCanonicalVoidNodeIdSummaryV1(value) {
+  if (typeof value !== "string") throw new Error("node_binding node_id must be a string");
+  if (value.length < 1 || value.length > 512 || value.trim() !== value) {
+    throw new Error("node_binding node_id is invalid");
+  }
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    if (code < 0x21 || code > 0x7e) throw new Error("node_binding node_id is invalid");
+  }
+  return value;
+}
+
+function normalizeNodeBindingSummary(value) {
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("node_binding must be an object");
+  }
+  const expectedKeys = [
+    "binding_paths",
+    "expires_at",
+    "issued_at",
+    "key_type",
+    "node_id",
+    "public_key_fingerprint_sha256",
+  ];
+  const actualKeys = Object.keys(value).sort();
+  if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
+    throw new Error("node_binding keys are invalid");
+  }
+  const nodeId = normalizeCanonicalVoidNodeIdSummaryV1(value.node_id);
+  const fingerprint = String(value.public_key_fingerprint_sha256 || "").toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error("node_binding public-key fingerprint is invalid");
+  if (value.key_type !== "ed25519") throw new Error("node_binding key_type must be ed25519");
+  if (JSON.stringify(value.binding_paths) !== JSON.stringify([
+    "/.well-known/void-node-onion-binding-v1.json",
+    "/public-node/transports/tor-v1-binding.json",
+  ])) throw new Error("node_binding paths are invalid");
+  return {
+    node_id: nodeId,
+    key_type: "ed25519",
+    public_key_fingerprint_sha256: fingerprint,
+    issued_at: normalizeTimestamp(value.issued_at),
+    expires_at: normalizeTimestamp(value.expires_at),
+    binding_paths: [...value.binding_paths],
+  };
+}
+
 export function decodeBase32NoPadding(value) {
   const text = String(value || "").trim().toLowerCase();
   if (!text) throw new Error("base32 value is empty");
@@ -139,6 +186,7 @@ export function buildVoidTorDescriptorV1({
   virtualPort = 80,
   generatedAt = new Date(),
   status = "active",
+  nodeBinding = null,
 } = {}) {
   const hostname = validateV3OnionHostname(onionHostname);
   const normalizedLocalPort = assertPort(localPort, "local_port");
@@ -150,6 +198,7 @@ export function buildVoidTorDescriptorV1({
   const onionAuthority = normalizedVirtualPort === 80
     ? hostname
     : `${hostname}:${normalizedVirtualPort}`;
+  const binding = normalizeNodeBindingSummary(nodeBinding);
 
   return {
     marker: VOID_TOR_ONION_TRANSPORT_MARKER,
@@ -169,12 +218,25 @@ export function buildVoidTorDescriptorV1({
       descriptor_paths: [...VOID_TOR_DESCRIPTOR_PATHS],
       local_target: `http://127.0.0.1:${normalizedLocalPort}`,
     },
-    identity: {
-      canonical_void_node_identity: false,
-      signed_void_node_binding: false,
-      tor_self_authentication: true,
-      binding_status: "operator-local-unbound-v1",
-    },
+    identity: binding
+      ? {
+          canonical_void_node_identity: true,
+          signed_void_node_binding: true,
+          tor_self_authentication: true,
+          binding_status: "signed-node-to-onion-v1",
+          node_id: binding.node_id,
+          key_type: binding.key_type,
+          public_key_fingerprint_sha256: binding.public_key_fingerprint_sha256,
+          issued_at: binding.issued_at,
+          expires_at: binding.expires_at,
+          binding_paths: [...binding.binding_paths],
+        }
+      : {
+          canonical_void_node_identity: false,
+          signed_void_node_binding: false,
+          tor_self_authentication: true,
+          binding_status: "operator-local-unbound-v1",
+        },
     authority: {
       read_only: true,
       transaction_submission: false,
