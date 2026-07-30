@@ -54,6 +54,11 @@ assert.ok(!env.includes("VOID_MCP_ALLOW_SUBMIT"));
 assert.match(deployer, /deployVoidAgentMcpReadonlyHttpServiceV1/);
 assert.match(deployer, /direct-socket readiness/);
 assert.ok(deployer.includes(String.raw`match = re.fullmatch(r"socket:\[(\d+)\]", target)`));
+assert.ok(deployer.includes(String.raw`payload = "\n".join(lines).encode("utf-8")`));
+assert.ok(!deployer.includes(String.raw`payload = "\\n".join(lines).encode("utf-8")`));
+assert.match(deployer, /environment_actual_newline_serialization=PASS/);
+assert.match(deployer, /environment_literal_backslash_n_absent=true/);
+assert.match(deployer, /environment_trailing_newline=true/);
 assert.ok(deployer.includes("rollback_disable_before_unit_removal") === false);
 assert.ok(deployer.indexOf('["systemctl", "--user", "disable", SERVICE_NAME]') < deployer.indexOf("restore_file(UNIT_PATH"));
 
@@ -104,6 +109,9 @@ const result = {
   capability_compatible_hardening_preserved: true,
   loopback_only: true,
   direct_socket_readiness: true,
+  environment_actual_newline_serialization: true,
+  environment_literal_backslash_n_absent: true,
+  environment_trailing_newline: true,
   rollback_disable_before_unit_removal: true,
   submission_default_disabled: true,
   token_file_configuration_absent: true,
