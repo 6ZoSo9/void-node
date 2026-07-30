@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-agent-mcp-readonly-http-service-package-v1.schema.json",
+  "title": "VOID Agent MCP read-only HTTP service package V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "service_name",
+    "listener",
+    "gateway",
+    "mcp",
+    "systemd",
+    "deployment",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_MCP_READONLY_HTTP_SERVICE_PACKAGE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "service_name": {
+      "const": "void-agent-mcp-readonly-http-v1.service"
+    },
+    "listener": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port",
+        "path",
+        "loopback_only",
+        "external_network_listener"
+      ],
+      "properties": {
+        "host": {
+          "const": "127.0.0.1"
+        },
+        "port": {
+          "const": 4114
+        },
+        "path": {
+          "const": "/mcp"
+        },
+        "loopback_only": {
+          "const": true
+        },
+        "external_network_listener": {
+          "const": false
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "role"
+      ],
+      "properties": {
+        "origin": {
+          "const": "http://127.0.0.1:4112"
+        },
+        "role": {
+          "const": "isolated_ai_agent_public_gateway"
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocols",
+        "tools",
+        "resources",
+        "submit_tool_registered"
+      ],
+      "properties": {
+        "protocols": {
+          "const": [
+            "2025-11-25",
+            "2026-07-28"
+          ]
+        },
+        "tools": {
+          "const": [
+            "void_bootstrap_network",
+            "void_prepare_paid_work_submission",
+            "void_probe_paid_work"
+          ]
+        },
+        "resources": {
+          "const": [
+            "void://agent/capability-status",
+            "void://agent/service-catalog",
+            "void://mainnet0/discovery"
+          ]
+        },
+        "submit_tool_registered": {
+          "const": false
+        }
+      }
+    },
+    "systemd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "private_devices_omitted_for_user_manager_compatibility",
+        "hardening"
+      ],
+      "properties": {
+        "scope": {
+          "const": "user"
+        },
+        "private_devices_omitted_for_user_manager_compatibility": {
+          "const": true
+        },
+        "hardening": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmation",
+        "detached_release_worktree",
+        "atomic_current_symlink",
+        "rollback_disable_before_unit_removal",
+        "readiness_detection"
+      ],
+      "properties": {
+        "confirmation": {
+          "const": "deployVoidAgentMcpReadonlyHttpServiceV1"
+        },
+        "detached_release_worktree": {
+          "const": true
+        },
+        "atomic_current_symlink": {
+          "const": true
+        },
+        "rollback_disable_before_unit_removal": {
+          "const": true
+        },
+        "readiness_detection": {
+          "const": "direct_tcp_plus_proc_net_tcp"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deployment_requires_confirmation",
+        "submission_enabled",
+        "token_file_allowed",
+        "external_network_listener",
+        "reverse_proxy_configuration",
+        "payment_execution",
+        "paid_work_execution",
+        "wc_ledger_write",
+        "void_settlement",
+        "wallet_or_signer_access",
+        "transaction_broadcast"
+      ],
+      "properties": {
+        "deployment_requires_confirmation": {
+          "const": true
+        },
+        "submission_enabled": {
+          "const": false
+        },
+        "token_file_allowed": {
+          "const": false
+        },
+        "external_network_listener": {
+          "const": false
+        },
+        "reverse_proxy_configuration": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "paid_work_execution": {
+          "const": false
+        },
+        "wc_ledger_write": {
+          "const": false
+        },
+        "void_settlement": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        }
+      }
+    }
+  }
+}

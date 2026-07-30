@@ -1,0 +1,73 @@
+name: Prove VOID Agent MCP read-only HTTP service package V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-agent-mcp-readonly-http-service-package-v1.yml"
+      - "docs/public-agent/void-agent-mcp-readonly-http-service-package-v1.md"
+      - "examples/void-agent-mcp-readonly-http-service-package-v1.example.json"
+      - "schemas/void-agent-mcp-readonly-http-service-package-v1.schema.json"
+      - "ops/systemd/void-agent-mcp-readonly-http-v1.service.in"
+      - "ops/systemd/void-agent-mcp-readonly-http-v1.env.example"
+      - "ops/deploy_void_agent_mcp_readonly_http_service_v1.py"
+      - "scripts/prove_void_agent_mcp_readonly_http_service_package_v1.mjs"
+      - "integrations/mcp/**"
+      - "scripts/prove_void_agent_mcp_bridge_v1.ts"
+  push:
+    paths:
+      - ".github/workflows/void-agent-mcp-readonly-http-service-package-v1.yml"
+      - "docs/public-agent/void-agent-mcp-readonly-http-service-package-v1.md"
+      - "examples/void-agent-mcp-readonly-http-service-package-v1.example.json"
+      - "schemas/void-agent-mcp-readonly-http-service-package-v1.schema.json"
+      - "ops/systemd/void-agent-mcp-readonly-http-v1.service.in"
+      - "ops/systemd/void-agent-mcp-readonly-http-v1.env.example"
+      - "ops/deploy_void_agent_mcp_readonly_http_service_v1.py"
+      - "scripts/prove_void_agent_mcp_readonly_http_service_package_v1.mjs"
+      - "integrations/mcp/**"
+      - "scripts/prove_void_agent_mcp_bridge_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm --prefix integrations/mcp ci --ignore-scripts --no-audit --no-fund
+      - run: npm --prefix integrations/mcp run check
+      - run: python3 ops/deploy_void_agent_mcp_readonly_http_service_v1.py --self-test --repo-root "$GITHUB_WORKSPACE"
+      - run: node scripts/prove_void_agent_mcp_readonly_http_service_package_v1.mjs
+      - name: Prove unchanged MCP bridge from clean parent
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git diff --exit-code HEAD^1..HEAD -- \
+            .github/workflows/void-agent-mcp-bridge-v1.yml \
+            integrations/mcp \
+            scripts/prove_void_agent_mcp_bridge_v1.ts
+          ROOT="$(mktemp -d)"
+          CHECKOUT="$ROOT/repo"
+          cleanup() {
+            git worktree remove --force "$CHECKOUT" >/dev/null 2>&1 || true
+            rm -rf "$ROOT"
+          }
+          trap cleanup EXIT
+          git worktree add --detach "$CHECKOUT" HEAD^1
+          npm --prefix "$CHECKOUT" ci --ignore-scripts --no-audit --no-fund
+          (
+            cd "$CHECKOUT"
+            npx --no-install tsx scripts/prove_void_agent_mcp_bridge_v1.ts
+          )
+      - run: npx --no-install tsc -p tsconfig.build.json --pretty false
