@@ -1,0 +1,105 @@
+{
+  "github_repository": "6ZoSo9/void-node",
+  "marker": "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1",
+  "reserved_exact_branches": [
+    {
+      "branch": "feat/authenticated-paid-work-submission-operator-review-decision-v1",
+      "reason": "active operator-review decision recovery lane"
+    },
+    {
+      "branch": "feat/authenticated-paid-work-submission-review-queue-handoff-v1",
+      "reason": "review-queue handoff lane"
+    },
+    {
+      "branch": "feat/void-ai-agent-first-contact-kit-v1",
+      "reason": "reserved first-contact kit lane"
+    },
+    {
+      "branch": "feat/void-ai-agent-first-contact-runtime-v1",
+      "reason": "reserved first-contact runtime lane"
+    },
+    {
+      "branch": "feat/void-datanet-paid-read-quote-v1",
+      "reason": "reserved paid DataNet quote lane"
+    },
+    {
+      "branch": "feat/void-datanet-paid-read-quote-public-discovery-v1",
+      "reason": "reserved paid DataNet public-discovery lane"
+    },
+    {
+      "branch": "ops/tor-stage1-mcp-onion-live-deployment-v1",
+      "reason": "active Tor MCP onion deployment lane"
+    },
+    {
+      "branch": "parallel/external-agent-paid-work-authenticated-submission-execution-candidate-v1",
+      "reason": "authenticated-submission execution lane"
+    },
+    {
+      "branch": "parallel/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1",
+      "reason": "authenticated-submission live-canary prerequisite lane"
+    },
+    {
+      "branch": "parallel/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-v1",
+      "reason": "authenticated-submission live-canary lane"
+    }
+  ],
+  "reserved_families": [
+    {
+      "id": "mcp",
+      "label": "MCP family",
+      "pattern": "(^|[/._-])mcp([/._-]|$)"
+    },
+    {
+      "id": "tor",
+      "label": "Tor family",
+      "pattern": "(^|[/._-])tor([/._-]|$)"
+    },
+    {
+      "id": "onion",
+      "label": "onion family",
+      "pattern": "(^|[/._-])onion([/._-]|$)"
+    },
+    {
+      "id": "buy-void",
+      "label": "Buy VOID family",
+      "pattern": "buy-void"
+    },
+    {
+      "id": "authenticated-submission",
+      "label": "authenticated submission family",
+      "pattern": "authenticated-submission"
+    },
+    {
+      "id": "provider-quote",
+      "label": "provider quote family",
+      "pattern": "provider-quote"
+    },
+    {
+      "id": "paid-datanet-quote",
+      "label": "paid DataNet quote family",
+      "pattern": "(?:datanet-)?paid-read-quote"
+    },
+    {
+      "id": "external-opportunity",
+      "label": "external opportunity family",
+      "pattern": "external-opportunity"
+    },
+    {
+      "id": "first-contact",
+      "label": "first-contact family",
+      "pattern": "first-contact"
+    },
+    {
+      "id": "official-network",
+      "label": "official-network family",
+      "pattern": "official-network"
+    },
+    {
+      "id": "network-release",
+      "label": "network-release authority/finality family",
+      "pattern": "^void-network-release"
+    }
+  ],
+  "runtime_evidence_pattern": "(^|[/._-])(?:runtime|proof|canary|live|release|deployment|receipt|seal|checkpoint|smoke|forensic|evidence)([/._-]|$)",
+  "version": 1
+}
