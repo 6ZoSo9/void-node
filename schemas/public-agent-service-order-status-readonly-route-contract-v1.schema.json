@@ -1,0 +1,294 @@
+{
+  "$id": "https://void.invalid/schemas/public-agent-service-order-status-readonly-route-contract-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "found": {
+            "const": true
+          }
+        },
+        "required": [
+          "found"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "null"
+          },
+          "http": {
+            "properties": {
+              "status_code": {
+                "const": 200
+              }
+            }
+          },
+          "order_status": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "found": {
+            "const": false
+          }
+        },
+        "required": [
+          "found"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "object"
+          },
+          "http": {
+            "properties": {
+              "status_code": {
+                "const": 404
+              }
+            }
+          },
+          "order_status": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "authenticated_submission_post": {
+          "const": false
+        },
+        "http_route_registration": {
+          "const": false
+        },
+        "payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "persistence_read": {
+          "const": false
+        },
+        "persistence_write": {
+          "const": false
+        },
+        "provider_authentication": {
+          "const": false
+        },
+        "provider_selection": {
+          "const": false
+        },
+        "quote_acceptance": {
+          "const": false
+        },
+        "quote_publication": {
+          "const": false
+        },
+        "runtime_mutation": {
+          "const": false
+        },
+        "server_mount": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_execution_authorization": {
+          "const": false
+        }
+      },
+      "required": [
+        "http_route_registration",
+        "server_mount",
+        "persistence_read",
+        "persistence_write",
+        "authenticated_submission_post",
+        "provider_selection",
+        "provider_authentication",
+        "quote_publication",
+        "quote_acceptance",
+        "payment_authorization",
+        "payment_execution",
+        "work_execution_authorization",
+        "work_dispatch",
+        "work_credit_write",
+        "runtime_mutation"
+      ],
+      "type": "object"
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "const": "order_status_not_found"
+            },
+            "message": {
+              "const": "No order status is available for this submission."
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "found": {
+      "type": "boolean"
+    },
+    "http": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "const": "GET"
+        },
+        "cache_control": {
+          "const": "no-store"
+        },
+        "content_type": {
+          "const": "application/json; charset=utf-8"
+        },
+        "status_code": {
+          "enum": [
+            200,
+            404
+          ]
+        }
+      },
+      "required": [
+        "status_code",
+        "content_type",
+        "cache_control",
+        "allow"
+      ],
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ROUTE_RESPONSE_V1"
+    },
+    "observed_at_utc": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$",
+      "type": "string"
+    },
+    "order_status": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "properties": {
+            "authority": {
+              "type": "object"
+            },
+            "marker": {
+              "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_V1"
+            },
+            "next_action": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string"
+            },
+            "status_id": {
+              "pattern": "^voidaos1_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "submission_id": {
+              "type": "string"
+            },
+            "version": {
+              "const": 1
+            },
+            "work_order_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "status_id",
+            "submission_id",
+            "work_order_id",
+            "phase",
+            "next_action",
+            "authority"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "response_id": {
+      "pattern": "^voidaosr1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "route": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "GET"
+        },
+        "path": {
+          "pattern": "^/public-agent/services/v1/orders/[A-Za-z0-9._:-]{1,256}/status\\.json$",
+          "type": "string"
+        },
+        "submission_id": {
+          "pattern": "^[A-Za-z0-9._:-]{1,256}$",
+          "type": "string"
+        },
+        "template": {
+          "const": "/public-agent/services/v1/orders/:submission_id/status.json"
+        }
+      },
+      "required": [
+        "method",
+        "template",
+        "path",
+        "submission_id"
+      ],
+      "type": "object"
+    },
+    "route_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "response_id",
+    "observed_at_utc",
+    "route",
+    "http",
+    "found",
+    "order_status",
+    "error",
+    "route_source_sha256",
+    "authority"
+  ],
+  "title": "VOID Public Agent Service Order Status Readonly Route Response V1",
+  "type": "object"
+}
