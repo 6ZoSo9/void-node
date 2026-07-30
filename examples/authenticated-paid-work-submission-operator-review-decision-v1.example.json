@@ -1,0 +1,47 @@
+{
+  "authority": {
+    "buy_void_fulfillment_granted": false,
+    "payment_authorization_granted": false,
+    "payment_execution_granted": false,
+    "provider_selected": false,
+    "provider_selection_executed": false,
+    "quote_created": false,
+    "quote_creation_granted": false,
+    "requester_acceptance_granted": false,
+    "signing_granted": false,
+    "transaction_broadcast_granted": false,
+    "void_settlement_granted": false,
+    "wallet_or_signer_access_granted": false,
+    "wc_award_granted": false,
+    "wc_ledger_write_granted": false,
+    "work_dispatch_granted": false,
+    "work_execution_authorization_granted": false
+  },
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_OPERATOR_REVIEW_DECISION_V1",
+  "next_action": "provider_selection_may_be_attempted_but_not_performed",
+  "outcome": "approved_for_provider_selection",
+  "provider_selection_eligible": true,
+  "queue_item": {
+    "canonical_request_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "capability_id": "datanet.fetch_verify",
+    "max_total": "3",
+    "queue_item_id": "voidapwsrq1_0000000000000000000000000000000000000000000000000000000000000000",
+    "quote_asset": "USD",
+    "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+    "request_payload_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "submission_id": "agent-paid-work-submission-example-v1",
+    "work_order_id": "voidawo1_2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "reason_codes": [
+    "authenticated_intake_within_policy",
+    "bounded_provider_selection_only"
+  ],
+  "review_decision_id": "voidapwod1_5555555555555555555555555555555555555555555555555555555555555555",
+  "reviewed_at_utc": "2026-07-30T19:50:00Z",
+  "reviewer": {
+    "authority_source": "explicit_local_operator_confirmation",
+    "operator_id": "zoso.local.operator"
+  },
+  "status": "approved_pending_provider_selection",
+  "version": 1
+}
