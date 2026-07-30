@@ -1,0 +1,39 @@
+{
+  "marker": "VOID_TOR_ONION_TRANSPORT_V1",
+  "version": 1,
+  "status": "active",
+  "generated_at": "2026-07-29T00:00:00.000Z",
+  "transport": {
+    "protocol": "tor-v3",
+    "uri": "http://aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dyp3kead.onion",
+    "onion_hostname": "aaaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dyp3kead.onion",
+    "virtual_port": 80,
+    "address_role": "transport-endpoint"
+  },
+  "surface": {
+    "id": "void-public-node-static-read-only-v1",
+    "methods": ["GET", "HEAD"],
+    "descriptor_paths": [
+      "/.well-known/void-tor-onion-transport-v1.json",
+      "/public-node/transports/tor-v1.json"
+    ],
+    "local_target": "http://127.0.0.1:18088"
+  },
+  "identity": {
+    "canonical_void_node_identity": false,
+    "signed_void_node_binding": false,
+    "tor_self_authentication": true,
+    "binding_status": "operator-local-unbound-v1"
+  },
+  "authority": {
+    "read_only": true,
+    "transaction_submission": false,
+    "p2p_listener": false,
+    "mcp_listener": false,
+    "wallet_or_signer_access": false,
+    "work_credit_write": false,
+    "void_settlement": false,
+    "node_runtime_mutation": false,
+    "operator_control": false
+  }
+}
