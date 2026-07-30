@@ -1,0 +1,91 @@
+{
+  "$id": "https://voidchain.io/schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arbitrary_processes_remain_conflicts": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_CROSS_CHAT_LANE_AUDITOR_VERIFIED_DEPLOYED_RUNTIME_RECOGNITION_V1"
+    },
+    "recognized_profiles": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "children": {
+            "const": 0
+          },
+          "deployment_clean": {
+            "const": true
+          },
+          "executable": {
+            "const": "/usr/bin/node"
+          },
+          "git_metadata_fd_count": {
+            "const": 0
+          },
+          "head_in_origin_main": {
+            "const": true
+          },
+          "profile": {
+            "enum": [
+              "void_agent_mcp_readonly_http_service_v1",
+              "void_public_node_tor_backend_v1"
+            ]
+          },
+          "service_unit": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile",
+          "service_unit",
+          "executable",
+          "deployment_clean",
+          "head_in_origin_main",
+          "children",
+          "git_metadata_fd_count"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "service_or_process_mutation": {
+      "const": false
+    },
+    "tor_transport_daemon": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recognized_by_node_profile": {
+          "const": false
+        }
+      },
+      "required": [
+        "recognized_by_node_profile",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "recognized_profiles",
+    "tor_transport_daemon",
+    "arbitrary_processes_remain_conflicts",
+    "service_or_process_mutation"
+  ],
+  "title": "Cross-chat lane auditor verified deployed runtime recognition v1",
+  "type": "object"
+}

@@ -1,0 +1,38 @@
+name: Cross-chat lane auditor verified deployed runtime recognition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.yml"
+      - "docs/ops/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.md"
+      - "examples/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.example.json"
+      - "schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json"
+      - "scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs"
+      - "tools/void_cross_chat_lane_audit_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.yml"
+      - "docs/ops/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.md"
+      - "examples/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.example.json"
+      - "schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json"
+      - "scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs"
+      - "tools/void_cross_chat_lane_audit_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check auditor syntax
+        run: node --check tools/void_cross_chat_lane_audit_v1.mjs
+      - name: Prove verified deployed runtime recognition
+        run: node scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs

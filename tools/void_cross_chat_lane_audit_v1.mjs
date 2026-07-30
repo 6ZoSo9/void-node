@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const GREEN = "VOID_CROSS_CHAT_LANE_AUDIT_V1_EXACT_GREEN";
 const HOLD = "VOID_CROSS_CHAT_LANE_AUDIT_V1_HOLD";
@@ -21,6 +22,12 @@ const DEFAULT_SAFE_UNITS = [
   "void-follower-once.service",
 ];
 const MIN_RUNTIME_AGE_SECONDS = 120;
+const VERIFIED_DEPLOYED_RUNTIME_RECOGNITION_MARKER_V1 =
+  "VOID_CROSS_CHAT_LANE_AUDITOR_VERIFIED_DEPLOYED_RUNTIME_RECOGNITION_V1";
+const VERIFIED_MCP_SERVICE_UNIT_V1 =
+  "void-agent-mcp-readonly-http-v1.service";
+const VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1 =
+  "void-public-node-tor-backend-v1.service";
 
 function stop(message, details = {}) {
   const error = new Error(message);
@@ -182,16 +189,52 @@ function parseWorktrees(raw) {
   return result;
 }
 
-function dirtyPaths(repo) {
-  const raw = git(repo, ["status", "--porcelain=v1", "--untracked-files=all"]);
+export function parsePorcelainV1ZPathsV1(raw) {
+  const records = String(raw ?? "").split("\0");
   const paths = [];
-  for (const line of raw.split(/\r?\n/)) {
-    if (line.length < 4) continue;
-    let value = line.slice(3);
-    if (value.includes(" -> ")) value = value.split(" -> ", 2)[1];
-    paths.push(value);
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (!record) continue;
+    if (record.length < 4 || record[2] !== " ") {
+      stop("unexpected porcelain v1 -z record", { record });
+    }
+
+    const status = record.slice(0, 2);
+    const firstPath = record.slice(3);
+    if (!firstPath) {
+      stop("porcelain v1 -z record omitted a path", { record });
+    }
+    paths.push(firstPath);
+
+    if (status.includes("R") || status.includes("C")) {
+      index += 1;
+      const secondPath = records[index] ?? "";
+      if (!secondPath) {
+        stop("porcelain v1 -z rename/copy record omitted its second path", {
+          record,
+        });
+      }
+      paths.push(secondPath);
+    }
   }
+
   return [...new Set(paths)].sort();
+}
+
+function dirtyPaths(repo) {
+  const result = execute(
+    "git",
+    [
+      "-C",
+      repo,
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+    ],
+  );
+  return parsePorcelainV1ZPathsV1(result.stdout);
 }
 
 function repoSlug(repo) {
@@ -383,6 +426,259 @@ function gitFdCount(pid, gitDirs) {
   return count;
 }
 
+function serviceUnitFromCgroupV1(cgroup) {
+  for (const line of String(cgroup ?? "").split(/\r?\n/u)) {
+    const separator = line.indexOf("::");
+    if (separator < 0) continue;
+    const cgroupPath = line.slice(separator + 2).trim();
+    if (!cgroupPath) continue;
+    const unit = path.basename(cgroupPath);
+    if (unit.endsWith(".service")) return unit;
+  }
+  return "";
+}
+
+function realpathIfRegularFileV1(value) {
+  try {
+    const resolved = fs.realpathSync(path.resolve(value));
+    const status = fs.lstatSync(resolved);
+    return status.isFile() && !status.isSymbolicLink()
+      ? resolved
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function cleanDeploymentForCwdV1(options, sharedWorktrees, cwd) {
+  const deployment = sharedWorktrees.find((entry) => {
+    return path.resolve(entry.path) === path.resolve(cwd);
+  });
+  if (!deployment) {
+    return {
+      path: "",
+      head: "",
+      clean: false,
+      headInOriginMain: false,
+    };
+  }
+
+  const head = String(deployment.head ?? "");
+  const clean = (
+    (deployment.dirtyPaths ?? []).length === 0
+    && !deployment.changedPathInspectionError
+    && Boolean(head)
+  );
+  const ancestry = head
+    ? execute(
+      "git",
+      [
+        "-C",
+        options.sharedRepo,
+        "merge-base",
+        "--is-ancestor",
+        head,
+        "refs/remotes/origin/main",
+      ],
+      { allowFailure: true },
+    ).status === 0
+    : false;
+
+  return {
+    path: path.resolve(deployment.path),
+    head,
+    clean,
+    headInOriginMain: ancestry,
+  };
+}
+
+function profileFileSetOkV1(paths) {
+  return paths.every((candidate) => {
+    return Boolean(realpathIfRegularFileV1(candidate));
+  });
+}
+
+export function assessVerifiedDeployedRuntimeV1(input) {
+  const argv = Array.isArray(input.argv) ? input.argv : [];
+  const children = Array.isArray(input.children) ? input.children : [];
+  const deployment = input.deployment ?? {};
+  const cwd = path.resolve(String(input.cwd ?? ""));
+  const observedServiceUnit = String(input.observedServiceUnit ?? "");
+  const resolvedScript = String(input.resolvedScript ?? "");
+  const currentScriptRealpath = String(input.currentScriptRealpath ?? "");
+  const head = String(deployment.head ?? "");
+
+  const common = {
+    executableOk: (
+      argv.length >= 2
+      && path.resolve(argv[0] ?? "") === "/usr/bin/node"
+    ),
+    ageOk: (
+      Number.isFinite(input.ageSeconds)
+      && input.ageSeconds >= MIN_RUNTIME_AGE_SECONDS
+    ),
+    stateOk: (
+      Boolean(input.state)
+      && !String(input.state).startsWith("Z")
+      && !String(input.state).startsWith("X")
+    ),
+    childrenOk: children.length === 0,
+    gitFdOk: input.fdCount === 0,
+    deploymentOk: (
+      path.resolve(String(deployment.path ?? "")) === cwd
+      && deployment.clean === true
+      && deployment.headInOriginMain === true
+      && Boolean(head)
+    ),
+  };
+
+  let profile = "";
+  let profileChecks = {
+    unitOk: false,
+    argvOk: false,
+    cwdOk: false,
+    scriptOk: false,
+    profileFilesOk: input.profileFilesOk === true,
+  };
+
+  if (observedServiceUnit === VERIFIED_MCP_SERVICE_UNIT_V1) {
+    profile = "void_agent_mcp_readonly_http_service_v1";
+    const expectedScript = path.join(
+      cwd,
+      "integrations",
+      "mcp",
+      "dist",
+      "src",
+      "http.js",
+    );
+    const expectedName = head
+      ? new RegExp(`^${head.slice(0, 12)}-\\d{8}T\\d{6}Z$`, "u")
+      : null;
+    profileChecks = {
+      unitOk: true,
+      argvOk: (
+        argv.length === 2
+        && String(argv[1]).endsWith(
+          "/void-agent-mcp-readonly-http-v1/current/integrations/mcp/dist/src/http.js",
+        )
+      ),
+      cwdOk: (
+        cwd.includes(
+          "/.local/share/void-agent-mcp-readonly-http-v1/releases/",
+        )
+        && Boolean(expectedName?.test(path.basename(cwd)))
+      ),
+      scriptOk: (
+        resolvedScript === expectedScript
+        && currentScriptRealpath === expectedScript
+      ),
+      profileFilesOk: input.profileFilesOk === true,
+    };
+  } else if (
+    observedServiceUnit === VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1
+  ) {
+    profile = "void_public_node_tor_backend_v1";
+    const expectedScript = path.join(
+      cwd,
+      "tools",
+      "void-tor-onion-public-node-v1.mjs",
+    );
+    profileChecks = {
+      unitOk: true,
+      argvOk: (
+        argv.length === 12
+        && argv[1] === expectedScript
+        && argv[2] === "--host"
+        && argv[3] === "127.0.0.1"
+        && argv[4] === "--port"
+        && argv[5] === "18088"
+        && argv[6] === "--virtual-port"
+        && argv[7] === "80"
+        && argv[8] === "--hostname-file"
+        && String(argv[9]).endsWith(
+          "/.local/share/void/tor-onion-v1/hidden-service/hostname",
+        )
+        && argv[10] === "--binding-file"
+        && String(argv[11]).endsWith(
+          "/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
+        )
+      ),
+      cwdOk: (
+        path.basename(cwd)
+        === `void-onion-discovery-live-v1-${head.slice(0, 8)}`
+      ),
+      scriptOk: resolvedScript === expectedScript,
+      profileFilesOk: input.profileFilesOk === true,
+    };
+  }
+
+  const safe = (
+    Boolean(profile)
+    && Object.values(common).every(Boolean)
+    && Object.values(profileChecks).every(Boolean)
+  );
+
+  return {
+    recognitionMarker:
+      VERIFIED_DEPLOYED_RUNTIME_RECOGNITION_MARKER_V1,
+    profile,
+    observedServiceUnit,
+    safe,
+    ...common,
+    ...profileChecks,
+  };
+}
+
+function collectVerifiedDeployedRuntimeAssessmentV1({
+  options,
+  sharedWorktrees,
+  cwd,
+  argv,
+  cgroup,
+  fdCount,
+  ageSeconds,
+  children,
+  state,
+}) {
+  const observedServiceUnit = serviceUnitFromCgroupV1(cgroup);
+  const deployment = cleanDeploymentForCwdV1(
+    options,
+    sharedWorktrees,
+    cwd,
+  );
+  const scriptArgument = String(argv[1] ?? "");
+  const resolvedScript = realpathIfRegularFileV1(scriptArgument);
+  let currentScriptRealpath = "";
+  let profileFilesOk = false;
+
+  if (observedServiceUnit === VERIFIED_MCP_SERVICE_UNIT_V1) {
+    currentScriptRealpath = resolvedScript;
+    profileFilesOk = Boolean(resolvedScript);
+  } else if (
+    observedServiceUnit === VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1
+  ) {
+    profileFilesOk = profileFileSetOkV1([
+      String(argv[9] ?? ""),
+      String(argv[11] ?? ""),
+      scriptArgument,
+    ]);
+  }
+
+  return assessVerifiedDeployedRuntimeV1({
+    argv,
+    cwd,
+    observedServiceUnit,
+    fdCount,
+    ageSeconds,
+    children,
+    state,
+    resolvedScript,
+    currentScriptRealpath,
+    deployment,
+    profileFilesOk,
+  });
+}
+
 function collectProcessScans(options, sharedWorktrees) {
   let sharedGitDir = git(options.sharedRepo, ["rev-parse", "--git-common-dir"]);
   if (!path.isAbsolute(sharedGitDir)) sharedGitDir = path.resolve(options.sharedRepo, sharedGitDir);
@@ -413,19 +709,51 @@ function collectProcessScans(options, sharedWorktrees) {
       if (!COMMANDS.has(name) && !COMMANDS.has(comm)) continue;
 
       const cgroup = procText(pid, "cgroup");
-      const unit = options.safeUnits.find((candidate) => cgroup.includes(candidate)) ?? "";
+      const observedServiceUnit = serviceUnitFromCgroupV1(cgroup);
+      const unit = options.safeUnits.includes(observedServiceUnit)
+        ? observedServiceUnit
+        : "";
       const fdCount = gitFdCount(pid, gitDirs);
-      const base = { pid, comm, cwd, argv, serviceUnit: unit, gitMetadataFdCount: fdCount };
+      const base = {
+        pid,
+        comm,
+        cwd,
+        argv,
+        serviceUnit: unit,
+        observedServiceUnit,
+        gitMetadataFdCount: fdCount,
+      };
 
       if (unit && fdCount === 0) {
         safeServices.push(base);
         continue;
       }
 
-      const script = argv.length === 2 ? path.resolve(argv[1]) : "";
       const age = processAgeSeconds(pid);
       const children = childPids(pid);
       const state = procState(pid);
+      const verifiedRuntimeAssessment =
+        collectVerifiedDeployedRuntimeAssessmentV1({
+          options,
+          sharedWorktrees,
+          cwd,
+          argv,
+          cgroup,
+          fdCount,
+          ageSeconds: age,
+          children,
+          state,
+        });
+
+      if (verifiedRuntimeAssessment.safe) {
+        safeRuntimes.push({
+          ...base,
+          ...verifiedRuntimeAssessment,
+        });
+        continue;
+      }
+
+      const script = argv.length === 2 ? path.resolve(argv[1]) : "";
       const assessment = {
         ...base,
         ageSeconds: age,
@@ -439,6 +767,7 @@ function collectProcessScans(options, sharedWorktrees) {
         stateOk: Boolean(state) && !state.startsWith("Z") && !state.startsWith("X"),
         childrenOk: children.length === 0,
         gitFdOk: fdCount === 0,
+        verifiedRuntimeAssessment,
       };
       const safe = [
         assessment.executableOk,
@@ -514,7 +843,11 @@ function audit(options, evidence) {
     (item) => !options.reservedPaths.includes(item),
   );
 
-  const worktreeInspectionErrors = evidence.sharedWorktrees
+  const externalSharedWorktrees = evidence.sharedWorktrees.filter((entry) => {
+    return path.resolve(entry.path) !== options.laneRepo;
+  });
+
+  const worktreeInspectionErrors = externalSharedWorktrees
     .filter((entry) => entry.changedPathInspectionError)
     .map((entry) => ({
       path: entry.path,
@@ -523,7 +856,7 @@ function audit(options, evidence) {
     }));
 
   const worktreeOverlaps = [];
-  for (const entry of evidence.sharedWorktrees) {
+  for (const entry of externalSharedWorktrees) {
     const overlap = intersection(
       options.reservedPaths,
       [...(entry.changedPaths ?? []), ...(entry.dirtyPaths ?? [])],
@@ -592,22 +925,30 @@ function audit(options, evidence) {
   };
 }
 
-try {
-  const options = parseArgs(process.argv.slice(2));
-  const evidence = options.fixture ? collectFixture(options) : collectLive(options);
-  const report = audit(options, evidence);
-  console.log(JSON.stringify(report, null, 2));
-  console.log(report.collisionSafe ? GREEN : HOLD);
-  process.exit(report.collisionSafe ? 0 : 1);
-} catch (error) {
-  console.error(JSON.stringify({
-    version: 1,
-    collisionSafe: false,
-    fatal: {
-      message: error instanceof Error ? error.message : String(error),
-      details: error?.details ?? {},
-    },
-  }, null, 2));
-  console.error(HOLD);
-  process.exit(1);
+function runCliV1() {
+  try {
+    const options = parseArgs(process.argv.slice(2));
+    const evidence = options.fixture ? collectFixture(options) : collectLive(options);
+    const report = audit(options, evidence);
+    console.log(JSON.stringify(report, null, 2));
+    console.log(report.collisionSafe ? GREEN : HOLD);
+    process.exit(report.collisionSafe ? 0 : 1);
+  } catch (error) {
+    console.error(JSON.stringify({
+      version: 1,
+      collisionSafe: false,
+      fatal: {
+        message: error instanceof Error ? error.message : String(error),
+        details: error?.details ?? {},
+      },
+    }, null, 2));
+    console.error(HOLD);
+    process.exit(1);
+  }
 }
+
+const invokedModulePath = process.argv[1]
+  ? path.resolve(process.argv[1])
+  : "";
+const currentModulePath = fileURLToPath(import.meta.url);
+if (invokedModulePath === currentModulePath) runCliV1();
