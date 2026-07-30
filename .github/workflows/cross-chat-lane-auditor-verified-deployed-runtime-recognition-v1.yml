@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   prove:
@@ -29,10 +30,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare live audit checkout
+        env:
+          VOID_LANE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git switch -C "$VOID_LANE_BRANCH"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Check auditor syntax
         run: node --check tools/void_cross_chat_lane_audit_v1.mjs
       - name: Prove verified deployed runtime recognition
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VOID_LANE_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: node scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs

@@ -20,7 +20,18 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(scriptsDir, "..");
 const tool = path.join(repo, "tools", "void_cross_chat_lane_audit_v1.mjs");
 const laneBranch =
-  "fix/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1";
+  process.env.VOID_LANE_BRANCH
+  || "fix/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1";
+assert.notEqual(
+  laneBranch.trim(),
+  "",
+  "VOID_LANE_BRANCH must not be empty",
+);
+assert.equal(
+  /[\0\r\n]/u.test(laneBranch),
+  false,
+  "VOID_LANE_BRANCH must be a single Git branch name",
+);
 const reservedPaths = [
   ".github/workflows/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.yml",
   "docs/ops/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.md",

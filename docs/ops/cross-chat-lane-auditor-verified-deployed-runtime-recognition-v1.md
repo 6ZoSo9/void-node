@@ -59,3 +59,20 @@ The active lane is present in `git worktree list`, but its own changes are
 already governed by `laneDirtyReservedOnly`. The auditor therefore excludes
 `options.laneRepo` only from external worktree inspection-error and overlap
 checks. A different worktree touching a reserved path still forces HOLD.
+
+
+## GitHub Actions portability
+
+The live proof requires a named local branch, an explicit
+`refs/remotes/origin/main` tracking reference, and read-only access to list open
+pull requests. The workflow therefore:
+
+- checks out full history;
+- fetches `main` into `refs/remotes/origin/main`;
+- creates a local branch using `github.head_ref` or `github.ref_name`;
+- exposes `github.token` as `GH_TOKEN`;
+- grants only `contents: read` and `pull-requests: read`.
+
+The proof reads the expected lane branch from `VOID_LANE_BRANCH` in CI and
+retains the fixed development-lane branch as its local default. These changes
+do not weaken runtime recognition or permit a missing remote-main reference.
