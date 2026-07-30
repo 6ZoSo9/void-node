@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.invalid/schemas/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-v1.schema.json",
+  "title": "VOID operator-controlled authenticated-submission live canary V1 input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "command"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "command": {
+      "$ref": "#/$defs/command"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+    },
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "live_execution_enabled",
+        "allowed_base_origins",
+        "allowed_endpoint_paths",
+        "max_prerequisite_plan_bytes",
+        "max_operator_decision_bytes",
+        "max_request_bytes",
+        "max_execution_window_seconds",
+        "min_remaining_prerequisite_ttl_seconds",
+        "max_clock_skew_seconds",
+        "max_credential_file_bytes",
+        "max_http_timeout_ms",
+        "max_response_bytes"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "live_execution_enabled": {
+          "type": "boolean"
+        },
+        "allowed_base_origins": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "allowed_endpoint_paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "const": "/__void/agents/paid-work/submissions/v1"
+          }
+        },
+        "max_prerequisite_plan_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        },
+        "max_operator_decision_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 4194304
+        },
+        "max_request_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 1048576
+        },
+        "max_execution_window_seconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "min_remaining_prerequisite_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "max_clock_skew_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        },
+        "max_credential_file_bytes": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 65536
+        },
+        "max_http_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 120000
+        },
+        "max_response_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 4194304
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "execute",
+        "allow_live_submit",
+        "confirmation",
+        "operation_id",
+        "evaluated_at_utc",
+        "execution_expires_at_utc",
+        "prerequisite_plan_path",
+        "prerequisite_operator_decision_path",
+        "request_path",
+        "credential_source_path",
+        "output_directory",
+        "expected",
+        "operator_intent"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "execute": {
+          "type": "boolean"
+        },
+        "allow_live_submit": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "operation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "evaluated_at_utc": {
+          "$ref": "#/$defs/utc"
+        },
+        "execution_expires_at_utc": {
+          "$ref": "#/$defs/utc"
+        },
+        "prerequisite_plan_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "prerequisite_operator_decision_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "request_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "credential_source_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "output_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "operator_intent": {
+          "$ref": "#/$defs/operator_intent"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prerequisite_operation_id",
+        "prerequisite_id",
+        "execution_candidate_id",
+        "base_origin",
+        "endpoint_path",
+        "submission_id",
+        "work_order_id",
+        "payload_sha256",
+        "replay_key",
+        "lease_id",
+        "credential_reference_id"
+      ],
+      "properties": {
+        "prerequisite_operation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "prerequisite_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "execution_candidate_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "base_origin": {
+          "type": "string",
+          "format": "uri"
+        },
+        "endpoint_path": {
+          "const": "/__void/agents/paid-work/submissions/v1"
+        },
+        "submission_id": {
+          "$ref": "#/$defs/id"
+        },
+        "work_order_id": {
+          "type": "string",
+          "pattern": "^voidawo1_[0-9a-f]{64}$"
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "replay_key": {
+          "$ref": "#/$defs/sha256"
+        },
+        "lease_id": {
+          "$ref": "#/$defs/id"
+        },
+        "credential_reference_id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "operator_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expect_new",
+        "expected_live_canary_id",
+        "confirmation_expires_at_utc",
+        "maximum_attempt_count",
+        "automatic_retry",
+        "no_automatic_retry_after_ambiguous_outcome"
+      ],
+      "properties": {
+        "expect_new": {
+          "const": true
+        },
+        "expected_live_canary_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "confirmation_expires_at_utc": {
+          "$ref": "#/$defs/utc"
+        },
+        "maximum_attempt_count": {
+          "const": 1
+        },
+        "automatic_retry": {
+          "const": false
+        },
+        "no_automatic_retry_after_ambiguous_outcome": {
+          "const": true
+        }
+      }
+    }
+  }
+}
