@@ -1,0 +1,29 @@
+name: Void DataNet replica balance Nimo canary V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-datanet-replica-balance-nimo-canary-v1.yml"
+      - "docs/operations/void-datanet-replica-balance-nimo-canary-v1.md"
+      - "scripts/prove_void_datanet_replica_balance_nimo_canary_v1.mjs"
+      - "tools/void-datanet-replica-balance-nimo-canary-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax
+        run: |
+          node --check tools/void-datanet-replica-balance-nimo-canary-v1.mjs
+          node --check scripts/prove_void_datanet_replica_balance_nimo_canary_v1.mjs
+      - name: Prove bounded canary
+        run: node scripts/prove_void_datanet_replica_balance_nimo_canary_v1.mjs
