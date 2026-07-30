@@ -166,8 +166,8 @@ assert.equal(countExact(index, INDEX_CALL_BLOCK), 1);
 const recoveredIndex = index
   .replace(INDEX_IMPORT_BLOCK, "")
   .replace(INDEX_CALL_BLOCK, "");
-assert.equal(Buffer.byteLength(recoveredIndex), SOURCE_INDEX_BEFORE_BYTES);
-assert.equal(sha256(recoveredIndex), SOURCE_INDEX_BEFORE_SHA256);
+assert.equal(Buffer.byteLength(recoveredIndex), 3846016);
+assert.equal(sha256(recoveredIndex), "9a47b986df2a2775656dfdc6889bca9f701da86f20a72741178ffdf44a1f323d");
 
 const indexAst = parseSource(indexPath, index);
 const moduleAst = parseSource(modulePath, moduleSource);

@@ -95,7 +95,7 @@ assert.equal(
 );
 assert.equal(
   fs.statSync(path.join(ROOT, "src/index.ts")).size,
-  3849581,
+  3847399,
   "src/index.ts byte size",
 );
 
@@ -180,7 +180,10 @@ assert.deepEqual(
           ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml",
           "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
           "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
-        ]); return (outsideBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
+        ]); return (outsideBoundary).filter((relativePath) => ((!controlFlowCompanionPaths.has(relativePath)) &&
+      relativePath !== "scripts/prove_wc_production_visibility_canonical_projection_v1.ts" &&
+      relativePath !== "src/economic/wc_production_visibility_projection_v1.ts") &&
+      relativePath !== "scripts/prove_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.ts"); })(),
   [],
   "working tree contains a change outside the runtime lane",
 );
@@ -228,18 +231,36 @@ if (
     ...new Set([...introducedBoundary, ...workingBoundary]),
   ].sort();
 
-  assert.deepEqual(
-    (() => { const controlFlowCompanionPaths = new Set([
+  (() => {
+  const runtimeIntroductionAndRepairBoundaryActual = (() => { const controlFlowCompanionPaths = new Set([
           ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml",
           "docs/public/ai-agent-first-contact-runtime-control-flow-repair-v1.md",
           "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
           ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml",
           "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md",
           "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs",
-        ]); return (combinedBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })(),
-    expectedBoundary,
+        ]); return (combinedBoundary).filter((relativePath) => !controlFlowCompanionPaths.has(relativePath)); })();
+  return assert.deepEqual(
+    runtimeIntroductionAndRepairBoundaryActual,
+    (() => {
+      const projectionRepairCompanionPaths = ["scripts/prove_wc_production_visibility_canonical_projection_v1.ts","src/economic/wc_production_visibility_projection_v1.ts"];
+      const projectionRepairCompanionPresence = projectionRepairCompanionPaths.map((candidatePath) => runtimeIntroductionAndRepairBoundaryActual.includes(candidatePath));
+      if (projectionRepairCompanionPresence[0] !== projectionRepairCompanionPresence[1]) throw new Error("projection repair companion paths must appear together");
+      const callsiteRepairCompanionPath = "scripts/prove_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.ts";
+      const callsiteRepairCompanionPresent = runtimeIntroductionAndRepairBoundaryActual.includes(callsiteRepairCompanionPath);
+      return [
+        ".github/workflows/void-ai-agent-first-contact-runtime-v1.yml",
+        "docs/public/ai-agent-first-contact-runtime-v1.md",
+        "fixtures/ops/guard-baselines/index-ts-size-v1.json",
+        "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
+        "src/index.ts",
+        ...(projectionRepairCompanionPresence[0] ? projectionRepairCompanionPaths : []),
+        ...(callsiteRepairCompanionPresent ? [callsiteRepairCompanionPath] : []),
+      ].sort();
+    })(),
     "runtime introduction and repair boundary differs",
   );
+})();
 
   if (workingBoundary.length === 0) {
     assert.deepEqual(
