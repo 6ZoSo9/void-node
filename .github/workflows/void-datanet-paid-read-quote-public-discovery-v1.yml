@@ -1,0 +1,47 @@
+name: void-datanet-paid-read-quote-public-discovery-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-datanet-paid-read-quote-public-discovery-v1.yml"
+      - "docs/public-node/datanet/datanet-paid-read-quote-public-discovery-v1.md"
+      - "ops/mainnet0/void-datanet-paid-read-quote-public-discovery-v1-proof.sh"
+      - "public/public-node/datanet/index.json"
+      - "public/public-node/datanet/paid-read-quote-v1.json"
+      - "public/public-node/datanet/paid-read-quote-v1.schema.json"
+      - "scripts/prove_void_datanet_paid_read_quote_v1.mjs"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
+      - "tools/void-datanet-paid-read-quote-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-datanet-paid-read-quote-public-discovery-v1.yml"
+      - "docs/public-node/datanet/datanet-paid-read-quote-public-discovery-v1.md"
+      - "ops/mainnet0/void-datanet-paid-read-quote-public-discovery-v1-proof.sh"
+      - "public/public-node/datanet/index.json"
+      - "public/public-node/datanet/paid-read-quote-v1.json"
+      - "public/public-node/datanet/paid-read-quote-v1.schema.json"
+      - "scripts/prove_void_datanet_paid_read_quote_v1.mjs"
+      - "src/paid_services/datanet_service_catalog_v1.ts"
+      - "tools/void-datanet-paid-read-quote-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Prove static Paid DataNet read quote discovery
+        run: bash ops/mainnet0/void-datanet-paid-read-quote-public-discovery-v1-proof.sh
