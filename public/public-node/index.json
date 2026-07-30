@@ -527,7 +527,30 @@
     "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-final-seal-v1.html",
     "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-final-seal-v1.json",
     "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-closeout-rollup-v1.html",
-    "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-closeout-rollup-v1.json"
+    "/public-node/public-node-operator-trial-tester-launch-announcement-publish-ready-status-card-terminal-closeout-rollup-v1.json",
+    {
+      "kind": "void_signed_onion_external_verification",
+      "id": "void_signed_onion_external_verification_v1",
+      "label": "Independent signed onion verification",
+      "title": "VOID signed onion independent external verification v1",
+      "route": "/public-node/void-signed-onion-external-verification-v1.json",
+      "html_route": "/public-node/void-signed-onion-external-verification-v1.html",
+      "binding_evidence_route": "/public-node/evidence/void-node-onion-binding-v1-nimo-verified.json",
+      "descriptor_evidence_route": "/public-node/evidence/void-tor-onion-transport-v1-nimo-verified.json",
+      "method": "GET",
+      "marker": "VOID_SIGNED_ONION_EXTERNAL_VERIFICATION_V1",
+      "status": "independently_verified",
+      "public_safe": true,
+      "read_only": true,
+      "independent_external_tor_verification": true,
+      "transaction_submission_enabled": false,
+      "p2p_listener_enabled": false,
+      "mcp_listener_enabled": false,
+      "wallet_or_signer_required": false,
+      "work_credit_write_enabled": false,
+      "void_settlement_enabled": false,
+      "validator_mutation_enabled": false
+    }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
     "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HTML_RUNTIME_VISIBILITY_ROOT_LINK_HOLD_V1",
