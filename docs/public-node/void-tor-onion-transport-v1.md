@@ -32,7 +32,7 @@ The generated `.onion` address authenticates the Tor Onion Service. It is not th
 - `signed_void_node_binding: false`;
 - `binding_status: operator-local-unbound-v1`.
 
-A signed VOID-node binding is deliberately deferred until the transport has a
+A signed VOID-node binding is optional and fail-closed through `VOID_NODE_ONION_BINDING_V1` until the transport has a
 clean live canary and the canonical discovery-signature format is selected.
 Until then, do not claim that possession of the onion key proves possession of
 a VOID node key.
@@ -172,3 +172,8 @@ live canary proves address persistence, restore behavior, and clean failure
 modes. A separate review is required before mapping P2P or an authenticated MCP
 listener. Mutation routes must never be inherited merely because traffic
 arrives through Tor.
+
+
+## Signed node-to-onion binding
+
+When `node-onion-binding-v1.json` is present under the managed Tor data root, the public server verifies the Ed25519 signature, the exact canonical VOID node ID attested by that signature, onion hostname, validity interval, and read-only authority on every request. A valid document is published at both binding aliases and upgrades the transport descriptor to `signed-node-to-onion-v1`. An invalid, expired, mismatched, or tampered binding fails closed with HTTP 503. Removing the binding reverts the descriptor to the honest unbound state without restarting Tor or deleting the onion identity.

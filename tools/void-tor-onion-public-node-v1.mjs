@@ -13,6 +13,11 @@ import {
   VOID_TOR_ONION_TRANSPORT_MARKER,
   buildVoidTorDescriptorV1,
 } from "./lib/void-tor-onion-descriptor-v1.mjs";
+import {
+  VOID_NODE_ONION_BINDING_MARKER,
+  VOID_NODE_ONION_BINDING_PATHS,
+  readAndVerifyVoidNodeOnionBindingV1,
+} from "./lib/void-node-onion-binding-v1.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 const MAX_URL_LENGTH = 2048;
@@ -29,6 +34,7 @@ function parseArgs(argv) {
     port: Number(process.env.VOID_TOR_PUBLIC_NODE_PORT || "18088"),
     hostnameFile: process.env.VOID_TOR_HOSTNAME_FILE || "",
     virtualPort: Number(process.env.VOID_TOR_VIRTUAL_PORT || "80"),
+    bindingFile: process.env.VOID_NODE_ONION_BINDING_FILE || "",
     checkOnly: false,
   };
 
@@ -43,6 +49,7 @@ function parseArgs(argv) {
     else if (argument === "--port") options.port = Number(next());
     else if (argument === "--hostname-file") options.hostnameFile = next();
     else if (argument === "--virtual-port") options.virtualPort = Number(next());
+    else if (argument === "--binding-file") options.bindingFile = next();
     else if (argument === "--check") options.checkOnly = true;
     else if (argument === "--help" || argument === "-h") options.help = true;
     else throw new Error(`unknown argument: ${argument}`);
@@ -54,7 +61,8 @@ function usage() {
   console.log(`Usage:
   node tools/void-tor-onion-public-node-v1.mjs \\
     [--host 127.0.0.1] [--port 18088] \\
-    [--hostname-file PATH] [--virtual-port 80] [--check]
+    [--hostname-file PATH] [--virtual-port 80] \
+    [--binding-file PATH] [--check]
 
 This server is intentionally loopback-only and permanently GET/HEAD-only.`);
 }
@@ -132,6 +140,31 @@ function safeResolveStatic(root, realRoot, rawUrl) {
   return { file: realFile };
 }
 
+function bindingResponse(options, hostname) {
+  if (!options.bindingFile || !existsSync(options.bindingFile)) {
+    return { state: "absent", status: 404, value: null, summary: null };
+  }
+  try {
+    const verified = readAndVerifyVoidNodeOnionBindingV1(options.bindingFile, {
+      expectedOnionHostname: hostname,
+      expectedVirtualPort: options.virtualPort,
+    });
+    return { state: "valid", status: 200, value: verified.binding, summary: verified.summary };
+  } catch {
+    return {
+      state: "invalid",
+      status: 503,
+      summary: null,
+      value: {
+        marker: VOID_NODE_ONION_BINDING_MARKER,
+        version: 1,
+        status: "unavailable",
+        reason: "signed-node-binding-invalid",
+      },
+    };
+  }
+}
+
 function descriptorResponse(options, listeningPort) {
   if (!options.hostnameFile || !existsSync(options.hostnameFile)) {
     return {
@@ -148,6 +181,18 @@ function descriptorResponse(options, listeningPort) {
   try {
     const hostname = readFileSync(options.hostnameFile, "utf8").trim();
     const generatedAt = statSync(options.hostnameFile).mtime.toISOString();
+    const binding = bindingResponse(options, hostname);
+    if (binding.state === "invalid") {
+      return {
+        status: 503,
+        value: {
+          marker: VOID_TOR_ONION_TRANSPORT_MARKER,
+          version: 1,
+          status: "unavailable",
+          reason: "signed-node-binding-invalid",
+        },
+      };
+    }
     return {
       status: 200,
       value: buildVoidTorDescriptorV1({
@@ -156,6 +201,7 @@ function descriptorResponse(options, listeningPort) {
         virtualPort: options.virtualPort,
         generatedAt,
         status: "active",
+        nodeBinding: binding.summary,
       }),
     };
   } catch {
@@ -219,6 +265,24 @@ try {
         method,
         "application/json; charset=utf-8",
       );
+      return;
+    }
+
+    if (VOID_NODE_ONION_BINDING_PATHS.includes(rawPath)) {
+      let result;
+      try {
+        const hostname = options.hostnameFile && existsSync(options.hostnameFile)
+          ? readFileSync(options.hostnameFile, "utf8").trim()
+          : "";
+        result = bindingResponse(options, hostname);
+      } catch {
+        result = { state: "invalid", status: 503, value: { marker: VOID_NODE_ONION_BINDING_MARKER, version: 1, status: "unavailable", reason: "signed-node-binding-invalid" } };
+      }
+      if (result.state === "absent") {
+        send(res, 404, "not found\n", method);
+      } else {
+        send(res, result.status, `${JSON.stringify(result.value, null, 2)}\n`, method, "application/json; charset=utf-8");
+      }
       return;
     }
 

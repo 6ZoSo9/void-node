@@ -312,10 +312,11 @@ async function main() {
     const publicRunner = read(join(render, "run-public-node.sh"));
     assert(publicRunner.includes("--host 127.0.0.1"), "public-node runner is not loopback-bound");
     assert(publicRunner.includes("void-tor-onion-public-node-v1.mjs"), "wrong public-node server");
+    assert(publicRunner.includes("--binding-file"), "public-node runner does not pass the optional binding file");
     const manifest = read(join(render, "render-manifest.txt"));
     for (const expected of [
-      "canonical_void_node_identity=false",
-      "signed_void_node_binding=false",
+      "canonical_void_node_identity=conditional-signed-binding-v1",
+      "signed_void_node_binding=optional-fail-closed-v1",
       "transaction_submission=false",
       "p2p_listener=false",
       "mcp_listener=false",
@@ -645,7 +646,7 @@ async function main() {
       "does not expose the P2P listener on port 4700",
       "does not expose MCP",
       "not the canonical VOID node identity",
-      "signed VOID-node binding is deliberately deferred",
+      "signed VOID-node binding is optional and fail-closed",
       "user-owned sentinel",
       "sentinel-bound state root",
       "end-to-end self-probe",
