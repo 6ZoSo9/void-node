@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import http from "node:http";
 import { once } from "node:events";
 import path from "node:path";
@@ -16,6 +17,8 @@ const TOOL = path.resolve(
 );
 const DATASET_ID = "ds_replica_balance_fixture_v1";
 const CONFIRMATION = "import-one-datanet-replica-to-nimo";
+const WHO = "void-proof";
+const LIVE_MISSING_WHO_SHA256 = "be995ec323b5da4e3f982dfa0efa2fd649e16496fe10c61f21b1b4b92994dc91";
 
 function json(res, status, value) {
   const body = Buffer.from(JSON.stringify(value));
@@ -74,13 +77,20 @@ const state = {
   imported: false,
   importCount: 0,
   sourceBase: "",
+  sourceFetchWho: [],
+  targetFetchWho: [],
 };
 
 const source = http.createServer((req, res) => {
-  if (req.method === "GET" && req.url === "/datanet/v1/status") {
+  const url = new URL(req.url || "/", "http://127.0.0.1");
+  if (req.method === "GET" && url.pathname === "/datanet/v1/status") {
     return json(res, 200, { ok: true, role: "source" });
   }
-  if (req.method === "GET" && req.url === `/datanet/v1/fetch/${DATASET_ID}`) {
+  if (req.method === "GET" && url.pathname === `/datanet/v1/fetch/${DATASET_ID}`) {
+    const who = url.searchParams.get("who") || "";
+    if (!who) return json(res, 400, { ok: false, error: "missing_who" });
+    if (who !== WHO) return json(res, 400, { ok: false, error: "bad_who" });
+    state.sourceFetchWho.push(who);
     return json(res, 200, {
       ok: true,
       id: DATASET_ID,
@@ -91,15 +101,20 @@ const source = http.createServer((req, res) => {
 });
 
 const target = http.createServer(async (req, res) => {
-  if (req.method === "GET" && req.url === "/datanet/v1/status") {
+  const url = new URL(req.url || "/", "http://127.0.0.1");
+  if (req.method === "GET" && url.pathname === "/datanet/v1/status") {
     return json(res, 200, { ok: true, role: "target" });
   }
-  if (req.method === "GET" && req.url === `/datanet/v1/fetch/${DATASET_ID}`) {
+  if (req.method === "GET" && url.pathname === `/datanet/v1/fetch/${DATASET_ID}`) {
+    const who = url.searchParams.get("who") || "";
+    if (!who) return json(res, 400, { ok: false, error: "missing_who" });
+    if (who !== WHO) return json(res, 400, { ok: false, error: "bad_who" });
+    state.targetFetchWho.push(who);
     return state.imported
       ? json(res, 200, { ok: true, id: DATASET_ID })
       : json(res, 404, { ok: false, code: "not_found" });
   }
-  if (req.method === "POST" && req.url === "/datanet/v1/import-from-peer") {
+  if (req.method === "POST" && url.pathname === "/datanet/v1/import-from-peer") {
     const body = await readJson(req);
     assert.equal(body.dataset_id, DATASET_ID);
     assert.equal(body.datasetId, DATASET_ID);
@@ -108,8 +123,9 @@ const target = http.createServer(async (req, res) => {
     assert.equal(body.peerHttp, state.sourceBase);
     assert.equal(body.source_peer, "precision");
     assert.equal(body.sourcePeer, "precision");
-    assert.equal(body.source_who, body.who);
-    assert.equal(body.sourceWho, body.who);
+    assert.equal(body.who, WHO);
+    assert.equal(body.source_who, WHO);
+    assert.equal(body.sourceWho, WHO);
     state.importCount += 1;
     state.imported = true;
     return json(res, 201, { ok: true, imported: true, id: DATASET_ID });
@@ -137,14 +153,29 @@ try {
     `--source-base=${sourceBase}`,
     `--target-base=${targetBase}`,
     `--dataset-id=${DATASET_ID}`,
-    "--who=void-proof",
+    `--who=${WHO}`,
   ];
+
+  assert.equal(
+    createHash("sha256")
+      .update(JSON.stringify({ ok: false, error: "missing_who" }))
+      .digest("hex"),
+    LIVE_MISSING_WHO_SHA256,
+  );
 
   const plan = await runTool(["--mode=plan", ...common]);
   const planValue = JSON.parse(plan.stdout);
   assert.equal(planValue.status, "plan-green");
   assert.equal(planValue.import_required, true);
   assert.equal(planValue.mutation_attempted, false);
+  assert.equal(
+    new URL(planValue.before.source_fetch.url).searchParams.get("who"),
+    WHO,
+  );
+  assert.equal(
+    new URL(planValue.before.target_fetch.url).searchParams.get("who"),
+    WHO,
+  );
   assert.equal(state.importCount, 0);
 
   const denied = await runTool(["--mode=execute", ...common], 1);
@@ -171,6 +202,19 @@ try {
   assert.equal(duplicateValue.result, "already-present-noop");
   assert.equal(duplicateValue.import_attempted, false);
   assert.equal(state.importCount, 1);
+  assert(state.sourceFetchWho.length >= 4);
+  assert(state.targetFetchWho.length >= 5);
+  assert(state.sourceFetchWho.every((value) => value === WHO));
+  assert(state.targetFetchWho.every((value) => value === WHO));
+
+  const emptyWho = await runTool([
+    "--mode=plan",
+    `--source-base=${sourceBase}`,
+    `--target-base=${targetBase}`,
+    `--dataset-id=${DATASET_ID}`,
+    "--who=",
+  ], 1);
+  assert.match(emptyWho.stderr, /who must be non-empty/);
 
   const invalid = await runTool([
     "--mode=plan",
@@ -186,6 +230,9 @@ try {
   console.log("compatibility_payload_verified=true");
   console.log("single_dataset_bound=true");
   console.log("post_import_fetch_verified=true");
+  console.log("fetch_who_bound=true");
+  console.log("who_non_empty_required=true");
+  console.log("live_missing_who_contract_verified=true");
   console.log("duplicate_safe_noop=true");
   console.log("service_restart=false");
   console.log("wallet_or_signer_access=false");
