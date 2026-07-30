@@ -207,7 +207,117 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
   ensureDir(chunksDir);
   ensureDir(manifestsDir);
 
-  
+  // VOID_DATANET_PAID_READ_EXPLICIT_PUBLIC_ROUTES_V1_BEGIN
+  try {
+    const appAny: any = app as any;
+    if (!appAny.__void_datanet_paid_read_explicit_public_routes_v1) {
+      const publicDatanetRoot = path.resolve(
+        process.cwd(),
+        "public",
+        "public-node",
+        "datanet",
+      );
+      const publicRoutes = Object.freeze([
+        {
+          route: "/public-node/datanet/index.json",
+          file: "index.json",
+        },
+        {
+          route: "/public-node/datanet/paid-read-quote-v1.json",
+          file: "paid-read-quote-v1.json",
+        },
+        {
+          route: "/public-node/datanet/paid-read-quote-v1.schema.json",
+          file: "paid-read-quote-v1.schema.json",
+        },
+      ]);
+
+      const applyPublicHeaders = (
+        res: express.Response,
+        contentLength: number,
+      ): void => {
+        res.setHeader("Cache-Control", "public, max-age=60");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader("Content-Length", String(contentLength));
+        res.setHeader("X-Content-Type-Options", "nosniff");
+      };
+
+      for (const entry of publicRoutes) {
+        const filePath = path.resolve(publicDatanetRoot, entry.file);
+        const relative = path.relative(publicDatanetRoot, filePath);
+        if (
+          !relative
+          || relative.startsWith("..")
+          || path.isAbsolute(relative)
+        ) {
+          throw new Error("public_datanet_route_path_escape");
+        }
+
+        app.head(entry.route, (_req, res) => {
+          try {
+            const fileStat = fs.statSync(filePath);
+            if (!fileStat.isFile()) {
+              return res.status(404).json({
+                ok: false,
+                error: "public_datanet_file_not_found",
+              });
+            }
+            applyPublicHeaders(res, fileStat.size);
+            return res.status(200).end();
+          } catch (error: unknown) {
+            const code = (error as NodeJS.ErrnoException)?.code || "";
+            if (code === "ENOENT" || code === "ENOTDIR") {
+              return res.status(404).json({
+                ok: false,
+                error: "public_datanet_file_not_found",
+              });
+            }
+            recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(
+              "paid-read-explicit-public-route-head",
+              error,
+            );
+            return res.status(500).json({
+              ok: false,
+              error: "public_datanet_file_read_failed",
+            });
+          }
+        });
+
+        app.get(entry.route, (_req, res) => {
+          try {
+            const body = fs.readFileSync(filePath);
+            applyPublicHeaders(res, body.length);
+            return res.status(200).send(body);
+          } catch (error: unknown) {
+            const code = (error as NodeJS.ErrnoException)?.code || "";
+            if (code === "ENOENT" || code === "ENOTDIR") {
+              return res.status(404).json({
+                ok: false,
+                error: "public_datanet_file_not_found",
+              });
+            }
+            recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(
+              "paid-read-explicit-public-route-get",
+              error,
+            );
+            return res.status(500).json({
+              ok: false,
+              error: "public_datanet_file_read_failed",
+            });
+          }
+        });
+      }
+
+      appAny.__void_datanet_paid_read_explicit_public_routes_v1 = true;
+    }
+  } catch (error: unknown) {
+    recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(
+      "paid-read-explicit-public-route-registration",
+      error,
+    );
+  }
+  // VOID_DATANET_PAID_READ_EXPLICIT_PUBLIC_ROUTES_V1_END
+
   const receiptsDir = path.join(dnDir, "receipts");
   const receiptsFile = path.join(receiptsDir, "datanet.jsonl");
   ensureDir(receiptsDir);
