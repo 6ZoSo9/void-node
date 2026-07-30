@@ -154,7 +154,7 @@ def render_environment(current: Path, gateway: str, port: int) -> bytes:
     lines = [f"# {ENV_MARKER}"]
     lines.extend(f"{key}={systemd_quote(value)}" for key, value in values.items())
     lines.append("")
-    payload = "\\n".join(lines).encode("utf-8")
+    payload = "\n".join(lines).encode("utf-8")
     if b"VOID_MCP_TOKEN_FILE" in payload or b"VOID_MCP_ALLOW_SUBMIT" in payload:
         hold("rendered environment contains mutation configuration")
     return payload
@@ -437,6 +437,37 @@ def self_test(repo_root: Path) -> None:
         DEFAULT_GATEWAY,
         DEFAULT_PORT,
     ).decode("utf-8")
+    expected_environment_assignments = {
+        "VOID_MCP_REPO_ROOT",
+        "VOID_MCP_BASE_URL",
+        "VOID_MCP_HTTP_HOST",
+        "VOID_MCP_HTTP_PORT",
+        "VOID_MCP_HTTP_ALLOWED_HOSTS",
+        "VOID_MCP_HTTP_ALLOWED_ORIGINS",
+        "VOID_MCP_HTTP_MAX_REQUEST_BYTES",
+        "VOID_MCP_HTTP_MAX_CONCURRENT_REQUESTS",
+        "VOID_MCP_TIMEOUT_MS",
+        "VOID_MCP_MAX_RESPONSE_BYTES",
+    }
+    if environment.count("\n") != len(expected_environment_assignments) + 1:
+        hold("rendered environment line separator count mismatch")
+    if "\\n" in environment:
+        hold("rendered environment contains literal backslash-n separators")
+    if not environment.endswith("\n"):
+        hold("rendered environment lacks trailing newline")
+    environment_lines = environment.splitlines()
+    if not environment_lines or environment_lines[0] != f"# {ENV_MARKER}":
+        hold("rendered environment marker line mismatch")
+    observed_environment_assignments = {
+        line.split("=", 1)[0]
+        for line in environment_lines[1:]
+        if line and not line.startswith("#") and "=" in line
+    }
+    if observed_environment_assignments != expected_environment_assignments:
+        hold(
+            "rendered environment assignment set mismatch: "
+            f"{sorted(observed_environment_assignments)}"
+        )
     if SERVICE_MARKER not in unit or ENV_MARKER not in environment:
         hold("rendered package markers are missing")
     if re.fullmatch(r"socket:\[(\d+)\]", "socket:[18942849]") is None:
@@ -458,6 +489,13 @@ def self_test(repo_root: Path) -> None:
         if missing:
             hold(f"repository is missing merged MCP HTTP source: {missing}")
     print(f"{SELF_TEST_MARKER}=PASS", flush=True)
+    print("environment_actual_newline_serialization=PASS", flush=True)
+    print("environment_literal_backslash_n_absent=true", flush=True)
+    print(
+        f"environment_assignment_lines={len(expected_environment_assignments)}",
+        flush=True,
+    )
+    print("environment_trailing_newline=true", flush=True)
     print("private_devices_omitted=true", flush=True)
     print("socket_inode_regex_self_test=PASS", flush=True)
     print("submission_default_disabled=true", flush=True)
