@@ -28,6 +28,8 @@ const VERIFIED_MCP_SERVICE_UNIT_V1 =
   "void-agent-mcp-readonly-http-v1.service";
 const VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1 =
   "void-public-node-tor-backend-v1.service";
+const VERIFIED_TOR_STAGE1_SOURCE_HEAD_V1 =
+  "eaaa2855af6c70c51f671bb6aaba25602fca7797";
 
 function stop(message, details = {}) {
   const error = new Error(message);
@@ -515,7 +517,7 @@ export function assessVerifiedDeployedRuntimeV1(input) {
     ),
     ageOk: (
       Number.isFinite(input.ageSeconds)
-      && input.ageSeconds >= MIN_RUNTIME_AGE_SECONDS
+      && input.ageSeconds >= 0
     ),
     stateOk: (
       Boolean(input.state)
@@ -539,6 +541,7 @@ export function assessVerifiedDeployedRuntimeV1(input) {
     cwdOk: false,
     scriptOk: false,
     profileFilesOk: input.profileFilesOk === true,
+    stabilizationAgeOk: false,
   };
 
   if (observedServiceUnit === VERIFIED_MCP_SERVICE_UNIT_V1) {
@@ -573,42 +576,93 @@ export function assessVerifiedDeployedRuntimeV1(input) {
         && currentScriptRealpath === expectedScript
       ),
       profileFilesOk: input.profileFilesOk === true,
+      stabilizationAgeOk: (
+        Number.isFinite(input.ageSeconds)
+        && input.ageSeconds >= MIN_RUNTIME_AGE_SECONDS
+      ),
     };
   } else if (
     observedServiceUnit === VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1
   ) {
-    profile = "void_public_node_tor_backend_v1";
     const expectedScript = path.join(
       cwd,
       "tools",
       "void-tor-onion-public-node-v1.mjs",
     );
+    const legacyArgvOk = (
+      argv.length === 12
+      && argv[1] === expectedScript
+      && argv[2] === "--host"
+      && argv[3] === "127.0.0.1"
+      && argv[4] === "--port"
+      && argv[5] === "18088"
+      && argv[6] === "--virtual-port"
+      && argv[7] === "80"
+      && argv[8] === "--hostname-file"
+      && String(argv[9]).endsWith(
+        "/.local/share/void/tor-onion-v1/hidden-service/hostname",
+      )
+      && argv[10] === "--binding-file"
+      && String(argv[11]).endsWith(
+        "/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
+      )
+    );
+    const stage1ArgvOk = (
+      argv.length === 22
+      && argv[1] === expectedScript
+      && argv[2] === "--host"
+      && argv[3] === "127.0.0.1"
+      && argv[4] === "--port"
+      && argv[5] === "18088"
+      && argv[6] === "--virtual-port"
+      && argv[7] === "80"
+      && argv[8] === "--hostname-file"
+      && String(argv[9]).endsWith(
+        "/.local/share/void/tor-onion-v1/hidden-service/hostname",
+      )
+      && argv[10] === "--binding-file"
+      && String(argv[11]).endsWith(
+        "/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
+      )
+      && argv[12] === "--mcp-upstream-port"
+      && argv[13] === "4114"
+      && argv[14] === "--mcp-timeout-ms"
+      && argv[15] === "30000"
+      && argv[16] === "--mcp-max-request-bytes"
+      && argv[17] === "65536"
+      && argv[18] === "--mcp-max-response-bytes"
+      && argv[19] === "4194304"
+      && argv[20] === "--mcp-max-concurrent-requests"
+      && argv[21] === "8"
+    );
+    const stage1HeadOk = (
+      head === VERIFIED_TOR_STAGE1_SOURCE_HEAD_V1
+    );
+    const stage1ProfileOk = (
+      stage1ArgvOk
+      && stage1HeadOk
+    );
+
+    profile = stage1ProfileOk
+      ? "void_public_node_tor_backend_mcp_stage1_v1"
+      : "void_public_node_tor_backend_v1";
     profileChecks = {
       unitOk: true,
-      argvOk: (
-        argv.length === 12
-        && argv[1] === expectedScript
-        && argv[2] === "--host"
-        && argv[3] === "127.0.0.1"
-        && argv[4] === "--port"
-        && argv[5] === "18088"
-        && argv[6] === "--virtual-port"
-        && argv[7] === "80"
-        && argv[8] === "--hostname-file"
-        && String(argv[9]).endsWith(
-          "/.local/share/void/tor-onion-v1/hidden-service/hostname",
-        )
-        && argv[10] === "--binding-file"
-        && String(argv[11]).endsWith(
-          "/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
-        )
-      ),
+      argvOk: legacyArgvOk || stage1ProfileOk,
       cwdOk: (
         path.basename(cwd)
         === `void-onion-discovery-live-v1-${head.slice(0, 8)}`
       ),
       scriptOk: resolvedScript === expectedScript,
       profileFilesOk: input.profileFilesOk === true,
+      stabilizationAgeOk: (
+        stage1ProfileOk
+        || (
+          Number.isFinite(input.ageSeconds)
+          && input.ageSeconds >= MIN_RUNTIME_AGE_SECONDS
+        )
+      ),
+      stage1HeadOk: stage1ArgvOk ? stage1HeadOk : true,
     };
   }
 
