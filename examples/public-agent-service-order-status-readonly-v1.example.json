@@ -1,0 +1,47 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_V1",
+  "version": 1,
+  "status_id": "voidaos1_fb0a0f72c060c10b04d426e752bbaeb0361b2919098c4f90845d04b813b54749",
+  "observed_at_utc": "2030-01-01T00:00:04Z",
+  "submission_id": "voidawsr1_example_order_status_0001",
+  "work_order_id": "voidawo1_example_order_status_0001",
+  "phase": "provider_authentication_required",
+  "terminal": false,
+  "successful": false,
+  "next_action": "capture_real_provider_selection_and_authentication_prerequisite",
+  "lifecycle": {
+    "submission_status": "accepted_for_review",
+    "quote_status": "provider_authentication_required",
+    "acceptance_status": "none",
+    "payment_status": "none",
+    "execution_status": "none",
+    "completion_status": "none"
+  },
+  "evidence": {
+    "submission_receipt_id": "voidawsi1_example_order_status_0001",
+    "quote_handoff_id": "voidawqh1_example_order_status_0001",
+    "quote_id": "voidawq1_example_order_status_0001",
+    "provider_response_id": "voidawqr1_example_order_status_0001",
+    "acceptance_id": null,
+    "payment_authorization_id": null,
+    "payment_receipt_id": null,
+    "execution_authorization_id": null,
+    "dispatch_id": null,
+    "completion_receipt_id": null
+  },
+  "evidence_count": 4,
+  "source_sha256": "7aa8826bf2613446f68fdbcdefbc76bf637e09848fce093e0302fe0f4e477424",
+  "authority": {
+    "authenticated_submission_post": false,
+    "provider_selection": false,
+    "provider_authentication": false,
+    "quote_publication": false,
+    "quote_acceptance": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "work_execution_authorization": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "runtime_mutation": false
+  }
+}
