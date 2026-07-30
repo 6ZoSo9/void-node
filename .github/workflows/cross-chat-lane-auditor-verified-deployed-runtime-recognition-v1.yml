@@ -47,4 +47,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VOID_LANE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES: "0"
         run: node scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs

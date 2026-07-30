@@ -319,6 +319,39 @@ assert.equal(green.report.collisionSafe, true);
 assert.equal(green.report.checks.processBoundaryStable, true);
 assert.deepEqual(green.report.unstableScans, []);
 
+function requiresLiveVerifiedRuntimeProfiles(env = process.env) {
+  if (
+    env.VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES === "1"
+  ) {
+    return true;
+  }
+  if (
+    env.VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES === "0"
+  ) {
+    return false;
+  }
+  return env.GITHUB_ACTIONS !== "true";
+}
+
+assert.equal(
+  requiresLiveVerifiedRuntimeProfiles({}),
+  true,
+);
+assert.equal(
+  requiresLiveVerifiedRuntimeProfiles({
+    GITHUB_ACTIONS: "true",
+    VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES: "0",
+  }),
+  false,
+);
+assert.equal(
+  requiresLiveVerifiedRuntimeProfiles({
+    GITHUB_ACTIONS: "true",
+    VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES: "1",
+  }),
+  true,
+);
+
 const profiles = new Set(
   green.report.processScans.flatMap((scan) => {
     return (scan.safeRuntimes ?? [])
@@ -326,14 +359,16 @@ const profiles = new Set(
       .filter(Boolean);
   }),
 );
-assert.equal(
-  profiles.has("void_agent_mcp_readonly_http_service_v1"),
-  true,
-);
-assert.equal(
-  profiles.has("void_public_node_tor_backend_v1"),
-  true,
-);
+if (requiresLiveVerifiedRuntimeProfiles()) {
+  assert.equal(
+    profiles.has("void_agent_mcp_readonly_http_service_v1"),
+    true,
+  );
+  assert.equal(
+    profiles.has("void_public_node_tor_backend_v1"),
+    true,
+  );
+}
 
 const child = spawn(
   process.execPath,

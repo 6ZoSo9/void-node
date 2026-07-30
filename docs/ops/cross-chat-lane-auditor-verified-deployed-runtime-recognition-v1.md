@@ -76,3 +76,23 @@ pull requests. The workflow therefore:
 The proof reads the expected lane branch from `VOID_LANE_BRANCH` in CI and
 retains the fixed development-lane branch as its local default. These changes
 do not weaken runtime recognition or permit a missing remote-main reference.
+
+
+## CI fixture and live-runtime policy
+
+GitHub-hosted runners do not run the deployed VOID MCP read-only service or Tor
+onion backend. CI therefore proves both recognition contracts through the
+positive and adversarial pure fixtures while still requiring the complete live
+collision audit to return exact green for the runner's own process boundary.
+
+`VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES` controls only the final assertion
+that both deployed profiles are physically present in the live scan:
+
+- unset: required outside GitHub Actions;
+- `1`: explicitly required;
+- `0`: explicitly not required.
+
+The GitHub Actions workflow sets this variable to `0`. Local VOID-host proofs
+leave it unset and continue to require both live deployed profiles. This does
+not weaken profile predicates, fixture coverage, arbitrary-process rejection,
+worktree checks, PR checks, or the collision-safety result.
