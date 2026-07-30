@@ -1,0 +1,56 @@
+{
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_REVIEW_QUEUE_ITEM_V1",
+  "version": 1,
+  "queue_item_id": "voidapwsrq1_6666666666666666666666666666666666666666666666666666666666666666",
+  "status": "received_pending_operator_review",
+  "queued_at_utc": "2026-07-30T15:49:00Z",
+  "receipt": {
+    "receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+    "submission_id": "agent-paid-work-submission-example-v1",
+    "work_order_id": "voidawo1_0000000000000000000000000000000000000000000000000000000000000000",
+    "request_payload_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "canonical_request_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "admission_id": "voidawsa1_3333333333333333333333333333333333333333333333333333333333333333",
+    "received_at_utc": "2026-07-30T15:30:13Z"
+  },
+  "authentication": {
+    "mode": "credential_registry",
+    "registry_id": "voidapwcr1_4444444444444444444444444444444444444444444444444444444444444444",
+    "credential_id": "voidapwc1_5555555555555555555555555555555555555555555555555555555555555555",
+    "agent_id": "agent.example.researcher",
+    "scope": "agent_paid_work_submit",
+    "authorization_verified": true
+  },
+  "admission": {
+    "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+    "decision": "accepted_for_review",
+    "reason_codes": [],
+    "capability_id": "datanet.fetch_verify",
+    "quote_asset": "USD",
+    "max_total": "3",
+    "max_runtime_seconds": 60,
+    "max_output_bytes": 65536,
+    "input_ref_count": 1,
+    "expected_output_count": 1,
+    "callback_scheme": "https",
+    "callback_host": "voidchain.io",
+    "ttl_seconds": 3600
+  },
+  "review_boundary": {
+    "operator_review_required": true,
+    "provider_selection_granted": false,
+    "quote_creation_granted": false,
+    "payment_authorization_granted": false,
+    "payment_execution_granted": false,
+    "work_execution_authorization_granted": false,
+    "work_dispatch_granted": false,
+    "wc_award_granted": false,
+    "wc_ledger_write_granted": false,
+    "void_settlement_granted": false,
+    "wallet_or_signer_access_granted": false,
+    "signing_granted": false,
+    "transaction_broadcast_granted": false,
+    "buy_void_fulfillment_granted": false
+  },
+  "next_action": "operator_review_before_provider_selection_or_quote_creation"
+}
