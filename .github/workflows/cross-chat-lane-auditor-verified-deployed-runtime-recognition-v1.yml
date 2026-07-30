@@ -1,0 +1,51 @@
+name: Cross-chat lane auditor verified deployed runtime recognition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.yml"
+      - "docs/ops/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.md"
+      - "examples/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.example.json"
+      - "schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json"
+      - "scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs"
+      - "tools/void_cross_chat_lane_audit_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.yml"
+      - "docs/ops/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.md"
+      - "examples/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.example.json"
+      - "schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json"
+      - "scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs"
+      - "tools/void_cross_chat_lane_audit_v1.mjs"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare live audit checkout
+        env:
+          VOID_LANE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git switch -C "$VOID_LANE_BRANCH"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check auditor syntax
+        run: node --check tools/void_cross_chat_lane_audit_v1.mjs
+      - name: Prove verified deployed runtime recognition
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VOID_LANE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          VOID_REQUIRE_LIVE_VERIFIED_RUNTIME_PROFILES: "0"
+        run: node scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs

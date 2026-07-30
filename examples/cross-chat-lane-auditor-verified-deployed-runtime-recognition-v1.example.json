@@ -1,0 +1,30 @@
+{
+  "arbitrary_processes_remain_conflicts": true,
+  "marker": "VOID_CROSS_CHAT_LANE_AUDITOR_VERIFIED_DEPLOYED_RUNTIME_RECOGNITION_V1",
+  "recognized_profiles": [
+    {
+      "children": 0,
+      "deployment_clean": true,
+      "executable": "/usr/bin/node",
+      "git_metadata_fd_count": 0,
+      "head_in_origin_main": true,
+      "profile": "void_agent_mcp_readonly_http_service_v1",
+      "service_unit": "void-agent-mcp-readonly-http-v1.service"
+    },
+    {
+      "children": 0,
+      "deployment_clean": true,
+      "executable": "/usr/bin/node",
+      "git_metadata_fd_count": 0,
+      "head_in_origin_main": true,
+      "profile": "void_public_node_tor_backend_v1",
+      "service_unit": "void-public-node-tor-backend-v1.service"
+    }
+  ],
+  "service_or_process_mutation": false,
+  "tor_transport_daemon": {
+    "reason": "The transport daemon executes /usr/bin/tor, not Node.js.",
+    "recognized_by_node_profile": false
+  },
+  "version": 1
+}
