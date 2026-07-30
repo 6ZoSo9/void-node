@@ -468,6 +468,21 @@ def self_test(repo_root: Path) -> None:
             "rendered environment assignment set mismatch: "
             f"{sorted(observed_environment_assignments)}"
         )
+    receipt_value = {
+        "marker": "VOID_AGENT_MCP_READONLY_HTTP_SERVICE_PACKAGE_RECEIPT_SELF_TEST_V1",
+        "exact_green": True,
+    }
+    receipt_payload = serialize_receipt(receipt_value)
+    if not receipt_payload.endswith(b"\n"):
+        hold("serialized receipt lacks an actual trailing newline")
+    if receipt_payload.endswith(b"\\n"):
+        hold("serialized receipt ends with literal backslash-n text")
+    try:
+        parsed_receipt = json.loads(receipt_payload.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        hold(f"serialized receipt is not valid JSON: {error}")
+    if parsed_receipt != receipt_value:
+        hold("serialized receipt JSON round-trip mismatch")
     if SERVICE_MARKER not in unit or ENV_MARKER not in environment:
         hold("rendered package markers are missing")
     if re.fullmatch(r"socket:\[(\d+)\]", "socket:[18942849]") is None:
@@ -496,6 +511,9 @@ def self_test(repo_root: Path) -> None:
         flush=True,
     )
     print("environment_trailing_newline=true", flush=True)
+    print("receipt_json_serialization=PASS", flush=True)
+    print("receipt_actual_trailing_newline=true", flush=True)
+    print("receipt_literal_backslash_n_suffix_absent=true", flush=True)
     print("private_devices_omitted=true", flush=True)
     print("socket_inode_regex_self_test=PASS", flush=True)
     print("submission_default_disabled=true", flush=True)
@@ -551,12 +569,16 @@ def rollback(
         print(f"rollback=FAILED error={type(error).__name__}:{error}", file=sys.stderr, flush=True)
 
 
+def serialize_receipt(value: dict[str, Any]) -> bytes:
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
 def write_receipt(value: dict[str, Any]) -> Path:
     RECEIPTS_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(RECEIPTS_ROOT, 0o700)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     path = RECEIPTS_ROOT / f"void-agent-mcp-readonly-http-service-package-v1-deployment-{stamp}.json"
-    payload = (json.dumps(value, indent=2, sort_keys=True) + "\\n").encode("utf-8")
+    payload = serialize_receipt(value)
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         os.write(descriptor, payload)

@@ -59,6 +59,12 @@ assert.ok(!deployer.includes(String.raw`payload = "\\n".join(lines).encode("utf-
 assert.match(deployer, /environment_actual_newline_serialization=PASS/);
 assert.match(deployer, /environment_literal_backslash_n_absent=true/);
 assert.match(deployer, /environment_trailing_newline=true/);
+assert.ok(deployer.includes(String.raw`return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")`));
+assert.ok(deployer.includes("payload = serialize_receipt(value)"));
+assert.ok(!deployer.includes(String.raw`json.dumps(value, indent=2, sort_keys=True) + "\\n"`));
+assert.match(deployer, /receipt_json_serialization=PASS/);
+assert.match(deployer, /receipt_actual_trailing_newline=true/);
+assert.match(deployer, /receipt_literal_backslash_n_suffix_absent=true/);
 assert.ok(deployer.includes("rollback_disable_before_unit_removal") === false);
 assert.ok(deployer.indexOf('["systemctl", "--user", "disable", SERVICE_NAME]') < deployer.indexOf("restore_file(UNIT_PATH"));
 
@@ -112,6 +118,9 @@ const result = {
   environment_actual_newline_serialization: true,
   environment_literal_backslash_n_absent: true,
   environment_trailing_newline: true,
+  receipt_json_serialization: true,
+  receipt_actual_trailing_newline: true,
+  receipt_literal_backslash_n_suffix_absent: true,
   rollback_disable_before_unit_removal: true,
   submission_default_disabled: true,
   token_file_configuration_absent: true,
