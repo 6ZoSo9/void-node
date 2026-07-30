@@ -55,6 +55,12 @@ function normalizeDatasetId(value) {
   return value;
 }
 
+function datasetFetchUrl(base, datasetId, who) {
+  const url = new URL(`${base}/datanet/v1/fetch/${encodeURIComponent(datasetId)}`);
+  url.searchParams.set("who", who);
+  return url.toString();
+}
+
 function request(urlValue, { method = "GET", body, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const url = new URL(urlValue);
   const transport = url.protocol === "https:" ? https : http;
@@ -123,13 +129,14 @@ function compactResponse(value) {
   };
 }
 
-async function inspect({ sourceBase, targetBase, datasetId, timeoutMs }) {
-  const fetchPath = `/datanet/v1/fetch/${encodeURIComponent(datasetId)}`;
+async function inspect({ sourceBase, targetBase, datasetId, who, timeoutMs }) {
+  const sourceFetchUrl = datasetFetchUrl(sourceBase, datasetId, who);
+  const targetFetchUrl = datasetFetchUrl(targetBase, datasetId, who);
   const [sourceStatus, targetStatus, sourceFetch, targetFetch] = await Promise.all([
     request(`${sourceBase}/datanet/v1/status`, { timeoutMs }),
     request(`${targetBase}/datanet/v1/status`, { timeoutMs }),
-    request(`${sourceBase}${fetchPath}`, { timeoutMs }),
-    request(`${targetBase}${fetchPath}`, { timeoutMs }),
+    request(sourceFetchUrl, { timeoutMs }),
+    request(targetFetchUrl, { timeoutMs }),
   ]);
   return {
     sourceStatus,
@@ -156,14 +163,25 @@ async function main() {
   const sourceBase = normalizeBase(args["source-base"], "source-base");
   const targetBase = normalizeBase(args["target-base"], "target-base");
   const datasetId = normalizeDatasetId(args["dataset-id"]);
-  const who = args.who || "void-datanet-replica-balance-nimo-canary-v1";
+  const who = String(
+    args.who ?? "void-datanet-replica-balance-nimo-canary-v1",
+  ).trim();
+  if (!who) {
+    throw new Error("who must be non-empty");
+  }
   const timeoutMs = Number(args["timeout-ms"] || DEFAULT_TIMEOUT_MS);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
     throw new Error("timeout-ms must be an integer between 100 and 120000");
   }
 
   const payload = compatibilityPayload({ datasetId, sourceBase, who });
-  const before = await inspect({ sourceBase, targetBase, datasetId, timeoutMs });
+  const before = await inspect({
+    sourceBase,
+    targetBase,
+    datasetId,
+    who,
+    timeoutMs,
+  });
 
   if (!before.sourceAvailable) {
     throw new Error(`source dataset is not available: status=${before.sourceFetch.status}`);
@@ -231,7 +249,7 @@ async function main() {
   }
 
   const after = await request(
-    `${targetBase}/datanet/v1/fetch/${encodeURIComponent(datasetId)}`,
+    datasetFetchUrl(targetBase, datasetId, who),
     { timeoutMs },
   );
   if (after.status !== 200) {
