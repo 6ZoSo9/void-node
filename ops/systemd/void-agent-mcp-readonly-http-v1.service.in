@@ -1,0 +1,27 @@
+# VOID_AGENT_MCP_READONLY_HTTP_SYSTEMD_SERVICE_V1
+[Unit]
+Description=VOID Agent MCP read-only HTTP V1
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=@CURRENT_RELEASE@
+EnvironmentFile=@ENVIRONMENT_FILE@
+UnsetEnvironment=VOID_MCP_TOKEN_FILE
+Environment=VOID_MCP_ALLOW_SUBMIT=0
+ExecStart=@NODE_PATH@ @CURRENT_RELEASE@/integrations/mcp/dist/src/http.js
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
