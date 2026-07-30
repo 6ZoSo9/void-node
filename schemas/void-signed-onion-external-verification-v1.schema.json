@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-signed-onion-external-verification-v1.schema.json",
+  "title": "VOID signed onion external verification v1",
+  "type": "object",
+  "required": [
+    "marker",
+    "version",
+    "status",
+    "verified_at",
+    "verifier",
+    "endpoint",
+    "verification",
+    "evidence",
+    "tor",
+    "authority",
+    "privacy"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_SIGNED_ONION_EXTERNAL_VERIFICATION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "independently_verified"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verifier": {
+      "type": "object"
+    },
+    "endpoint": {
+      "type": "object"
+    },
+    "verification": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "tor": {
+      "type": "object"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "privacy": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
