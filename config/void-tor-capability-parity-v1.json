@@ -1,0 +1,244 @@
+{
+  "schema": "void-tor-capability-parity-v1",
+  "marker": "VOID_TOR_CAPABILITY_PARITY_V1",
+  "version": 1,
+  "status_scope": "source-policy-not-live-runtime",
+  "doctrine": "Tor is a first-class policy-selectable VOID transport. Safe agent-visible capabilities target Tor parity; sensitive capabilities require separate review; private operator authority is never inherited from transport reachability.",
+  "principles": {
+    "tor_is_optional_for_node_survival": true,
+    "tor_is_first_class_for_safe_agent_access": true,
+    "clearnet_is_not_required_for_onion_workflows": true,
+    "transport_does_not_expand_authority": true,
+    "onion_identity_does_not_replace_void_node_identity": true,
+    "signed_node_to_onion_binding_required": true,
+    "generic_proxying_forbidden": true,
+    "caller_selected_upstreams_forbidden": true,
+    "private_keys_and_operator_routes_forbidden": true
+  },
+  "stages": [
+    {
+      "stage": 1,
+      "name": "signed-read-only-parity",
+      "objective": "Signed discovery, public evidence, and read-only MCP are available through one bounded onion origin.",
+      "mutation_authority": false
+    },
+    {
+      "stage": 2,
+      "name": "authenticated-agent-commerce",
+      "objective": "Authenticated paid-work submission, deterministic quote retrieval, and signed receipt retrieval operate through Tor without generic proxying.",
+      "mutation_authority": "bounded-workflow-only"
+    },
+    {
+      "stage": 3,
+      "name": "reviewed-network-and-tor-contribution",
+      "objective": "Separately reviewed P2P-over-Tor and verified Tor-capacity contribution lanes are introduced without weakening anonymity or core availability.",
+      "mutation_authority": "separate-threat-model-required"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "discovery.public_node",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "implemented",
+      "target_stage": 1,
+      "direct_surface": true,
+      "notes": "Public-node evidence tree and Tor transport descriptor.",
+      "evidence_files": [
+        "docs/public-node/void-tor-onion-transport-v1.md",
+        "tools/void-tor-onion-public-node-v1.mjs"
+      ]
+    },
+    {
+      "id": "identity.signed_node_onion_binding",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "implemented",
+      "target_stage": 1,
+      "direct_surface": true,
+      "notes": "Ed25519-bound canonical VOID node identity and onion endpoint.",
+      "evidence_files": [
+        "tools/void-node-onion-binding-v1.mjs",
+        "tools/lib/void-node-onion-binding-v1.mjs"
+      ]
+    },
+    {
+      "id": "agent.mcp_readonly",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "implemented",
+      "target_stage": 1,
+      "direct_surface": true,
+      "notes": "Exact /mcp path to fixed loopback read-only MCP upstream.",
+      "evidence_files": [
+        "docs/operations/tor-agent-and-revenue-activation-v1.md",
+        "tools/void-tor-onion-public-node-v1.mjs"
+      ]
+    },
+    {
+      "id": "agent.authenticated_paid_work_submission",
+      "class": "bounded_action",
+      "tor_policy": "required",
+      "source_status": "guarded_disabled",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "A guarded authenticated workflow and a post-admission provider-quote closeout exist, but no exact Tor POST surface is mapped. No generic POST proxy is permitted.",
+      "evidence_files": [
+        "docs/operations/tor-agent-and-revenue-activation-v1.md",
+        "docs/operations/authenticated-paid-work-post-admission-provider-quote-v1.md"
+      ]
+    },
+    {
+      "id": "commerce.public_quote_contract",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "not_mapped",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "Explicit read-only public quote and schema routes exist on the public node, but onion route parity is not yet proven. This is catalog and contract retrieval, not an accepted-request-bound provider quote.",
+      "evidence_files": [
+        "docs/public-node/datanet/datanet-paid-read-explicit-public-routes-v1.md",
+        "src/http/datanet_routes.ts"
+      ]
+    },
+    {
+      "id": "commerce.deterministic_quote_retrieval",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "local_tool_only",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "The deterministic quote tool, explicit public quote contract, and a post-admission provider-quote closeout exist. Accepted-request-bound read-only quote retrieval over Tor is still not mapped.",
+      "evidence_files": [
+        "tools/void-datanet-paid-read-quote-v1.mjs",
+        "src/paid_services/datanet_service_catalog_v1.ts",
+        "docs/public-node/datanet/datanet-paid-read-explicit-public-routes-v1.md",
+        "docs/operations/authenticated-paid-work-post-admission-provider-quote-v1.md"
+      ]
+    },
+    {
+      "id": "commerce.order_status_retrieval",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "not_mapped",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "The read-only order-status route contract and bounded source resolver exist, but exact onion exposure and request-scoped retrieval parity are not yet proven.",
+      "evidence_files": [
+        "docs/public-agent/public-agent-service-order-status-readonly-source-resolver-v1.md",
+        "tools/void-public-agent-service-order-status-readonly-source-resolver-v1.mjs"
+      ]
+    },
+    {
+      "id": "commerce.signed_receipt_retrieval",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "not_implemented",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "Receipt retrieval must be request-scoped, replay-safe, and transport-independent.",
+      "evidence_files": [
+        "docs/operations/tor-agent-and-revenue-activation-v1.md"
+      ]
+    },
+    {
+      "id": "datanet.public_dynamic_read",
+      "class": "safe_read",
+      "tor_policy": "required",
+      "source_status": "not_mapped",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "Explicit bounded public DataNet routes exist, but dynamic DataNet reads have not been mapped through the onion origin.",
+      "evidence_files": [
+        "tools/void-datanet-paid-read-quote-v1.mjs",
+        "docs/public-node/datanet/datanet-paid-read-explicit-public-routes-v1.md",
+        "src/http/datanet_routes.ts"
+      ]
+    },
+    {
+      "id": "work_credits.bounded_earning_workflow",
+      "class": "bounded_action",
+      "tor_policy": "required",
+      "source_status": "not_mapped",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "Only capability-ticket and verified-receipt workflows; never a generic ledger mutation route.",
+      "evidence_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "settlement.void_service_payment",
+      "class": "bounded_action",
+      "tor_policy": "required",
+      "source_status": "not_implemented",
+      "target_stage": 2,
+      "direct_surface": false,
+      "notes": "Service settlement should be VOID-native; signer custody stays outside the onion application surface.",
+      "evidence_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "network.p2p_over_tor",
+      "class": "network_transport",
+      "tor_policy": "separate_review",
+      "source_status": "not_implemented",
+      "target_stage": 3,
+      "direct_surface": false,
+      "notes": "Requires a separate latency, identity-correlation, peer-discovery, and eclipse-resistance threat model.",
+      "evidence_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "tor.verified_capacity_contribution",
+      "class": "useful_work",
+      "tor_policy": "separate_review",
+      "source_status": "not_implemented",
+      "target_stage": 3,
+      "direct_surface": false,
+      "notes": "Future rewards require independent evidence, diversity constraints, delayed qualification, caps, and challenge periods.",
+      "evidence_files": [
+        "docs/public-node/void-tor-onion-transport-v1.md"
+      ]
+    },
+    {
+      "id": "wallet.direct_signer_access",
+      "class": "private_authority",
+      "tor_policy": "forbidden",
+      "source_status": "forbidden",
+      "target_stage": null,
+      "direct_surface": false,
+      "notes": "No wallet file, seed, signing key, or unrestricted signing route may be exposed.",
+      "evidence_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "operator.direct_control",
+      "class": "private_authority",
+      "tor_policy": "forbidden",
+      "source_status": "forbidden",
+      "target_stage": null,
+      "direct_surface": false,
+      "notes": "No restart, validator mutation, treasury, release, or operator shell authority.",
+      "evidence_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "transport.generic_reverse_proxy",
+      "class": "unsafe_transport",
+      "tor_policy": "forbidden",
+      "source_status": "forbidden",
+      "target_stage": null,
+      "direct_surface": false,
+      "notes": "No caller-selected host, port, path, query, method, or upstream.",
+      "evidence_files": [
+        "docs/operations/tor-agent-and-revenue-activation-v1.md",
+        "tools/void-tor-onion-public-node-v1.mjs"
+      ]
+    }
+  ]
+}

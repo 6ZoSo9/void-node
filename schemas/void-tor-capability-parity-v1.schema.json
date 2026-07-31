@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-tor-capability-parity-v1.schema.json",
+  "title": "VOID Tor Capability Parity V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "status_scope",
+    "doctrine",
+    "principles",
+    "stages",
+    "capabilities"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-tor-capability-parity-v1"
+    },
+    "marker": {
+      "const": "VOID_TOR_CAPABILITY_PARITY_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status_scope": {
+      "const": "source-policy-not-live-runtime"
+    },
+    "doctrine": {
+      "type": "string",
+      "minLength": 1
+    },
+    "principles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "minProperties": 1
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "name",
+          "objective",
+          "mutation_authority"
+        ],
+        "properties": {
+          "stage": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mutation_authority": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "class",
+          "tor_policy",
+          "source_status",
+          "target_stage",
+          "direct_surface",
+          "notes",
+          "evidence_files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+(?:\\.[a-z0-9_]+)+$"
+          },
+          "class": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tor_policy": {
+            "enum": [
+              "required",
+              "separate_review",
+              "forbidden"
+            ]
+          },
+          "source_status": {
+            "enum": [
+              "implemented",
+              "guarded_disabled",
+              "local_tool_only",
+              "not_mapped",
+              "not_implemented",
+              "forbidden"
+            ]
+          },
+          "target_stage": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direct_surface": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_files": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
