@@ -1,0 +1,29 @@
+name: CI Cost Boundary v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/check_void_ci_cost_boundary_v1.py'
+      - 'docs/operations/ci-cost-boundary-v1.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/check_void_ci_cost_boundary_v1.py'
+      - 'docs/operations/ci-cost-boundary-v1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cost-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check self-test fixtures
+        run: python3 scripts/check_void_ci_cost_boundary_v1.py --self-test
+      - name: Check repository runner assignments
+        run: python3 scripts/check_void_ci_cost_boundary_v1.py --repo-root .
