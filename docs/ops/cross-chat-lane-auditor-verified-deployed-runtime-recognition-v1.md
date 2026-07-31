@@ -41,7 +41,9 @@ Three Tor backend shapes remain narrowly recognized:
 
 1. the legacy five-pair transport profile;
 2. the exact MCP Stage 1 profile pinned to `eaaa2855af6c70c51f671bb6aaba25602fca7797`;
-3. the exact order-status profile pinned to `043c659eea56c8fb0fdd0ca8e619a7573145a307`.
+3. the exact order-status profile pinned to `bea0c562e658e40f8afbfbcc3d1ba048ad81720f`.
+
+The order-status pin now targets the exact PR #882 squash merge, which preserves the bounded asynchronous order-status handler through the reconciled static transport gate. The prior pre-reconciliation implementation head remains rejected.
 
 The order-status profile requires the MCP Stage 1 arguments plus the exact
 `--order-status-root`, `--order-status-max-bytes 1048576`, and
@@ -49,9 +51,12 @@ The order-status profile requires the MCP Stage 1 arguments plus the exact
 non-symlink directory ending in `/.local/share/void/tor-onion-v1/order-status-source-v1` and must
 contain the canonical `voidawsr1_45193d29a16138cc2e0ae271b302e0b559ef26d1e253df782d2ee6a46402af6c.json` regular file.
 
-The historical deployment `void-onion-discovery-live-v1-51185f80` is recognized only
-when its clean deployment head is exactly `3d725ef8b3c53f381b5988305a01a15fa1bfee92`. This is
-an explicit lineage exception, not a generic directory-name allowance.
+The historical deployment `void-onion-discovery-live-v1-51185f80` retains its exact
+legacy-head recognition at `3d725ef8b3c53f381b5988305a01a15fa1bfee92`.
+
+The same directory is also recognized at exact discovery overlay `daff6100ddfcad7e06046fd9379200be902754f2` only when the live collector independently proves all of the following: the merge base with `origin/main` is the exact legacy head, the complete divergent path set is exactly `public/.well-known/void-public-node.json` and `public/public-node/agent-paid-work-public-discovery-v1.json`, and both overlay blobs are byte-identical to `origin/main`. The overlay must remain clean and use the existing exact legacy argv profile. A caller-provided flag is insufficient even in the pure assessment function: the exact two-path list and positive byte-equality result are required together with the exact overlay head. Another head, another directory, extra or missing changed paths, or mismatched bytes remains a conflict.
+
+These are explicit lineage exceptions, not generic directory-name or non-ancestor allowances.
 
 ## Proof posture
 
