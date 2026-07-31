@@ -26,6 +26,7 @@ import {
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 const MAX_URL_LENGTH = 2048;
 const VOID_TOR_AGENT_MCP_READONLY_MARKER = "VOID_TOR_AGENT_MCP_READONLY_V1";
+const VOID_TOR_STATIC_TRANSPORT_COMPATIBILITY_MARKER = "VOID_TOR_STATIC_TRANSPORT_COMPATIBILITY_V1";
 const VOID_TOR_AGENT_MCP_DESCRIPTOR_PATHS = Object.freeze([
   "/.well-known/void-agent-mcp-onion-v1.json",
   "/public-node/agents/mcp-tor-v1.json",
@@ -939,6 +940,120 @@ function safeResolveStatic(root, realRoot, rawUrl) {
   return { file: realFile };
 }
 
+function handleSynchronousPublicRequest({
+  request,
+  response,
+  options,
+  listeningPort,
+  root,
+  realRoot,
+}) {
+  const method = String(request.method || "").toUpperCase();
+  const parsedPath = strictRequestPath(request.url || "/");
+  if (parsedPath.error) {
+    request.resume();
+    send(
+      response,
+      parsedPath.error,
+      parsedPath.error === 400 ? "bad request\n" : "not found\n",
+      method,
+    );
+    return true;
+  }
+  const rawPath = parsedPath.path;
+
+  if (
+    rawPath === MCP_PUBLIC_PATH
+    || VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS.includes(rawPath)
+    || ORDER_STATUS_ROUTE_PATTERN.test(rawPath)
+  ) {
+    return false;
+  }
+
+  if (!new Set(["GET", "HEAD"]).has(method)) {
+    request.resume();
+    send(response, 405, "method not allowed\n", method);
+    return true;
+  }
+
+  if (VOID_TOR_AGENT_MCP_DESCRIPTOR_PATHS.includes(rawPath)) {
+    const result = mcpDescriptorResponse(options, listeningPort);
+    send(
+      response,
+      result.status,
+      `${JSON.stringify(result.value, null, 2)}\n`,
+      method,
+      "application/json; charset=utf-8",
+    );
+    return true;
+  }
+
+  if (VOID_TOR_DESCRIPTOR_PATHS.includes(rawPath)) {
+    const result = attachAgentSurfacesToTorDescriptor(
+      descriptorResponse(options, listeningPort),
+      options,
+      listeningPort,
+    );
+    send(
+      response,
+      result.status,
+      `${JSON.stringify(result.value, null, 2)}\n`,
+      method,
+      "application/json; charset=utf-8",
+    );
+    return true;
+  }
+
+  if (VOID_NODE_ONION_BINDING_PATHS.includes(rawPath)) {
+    let result;
+    try {
+      const hostname = options.hostnameFile && existsSync(options.hostnameFile)
+        ? readFileSync(options.hostnameFile, "utf8").trim()
+        : "";
+      result = bindingResponse(options, hostname);
+    } catch {
+      result = {
+        state: "invalid",
+        status: 503,
+        value: {
+          marker: VOID_NODE_ONION_BINDING_MARKER,
+          version: 1,
+          status: "unavailable",
+          reason: "signed-node-binding-invalid",
+        },
+      };
+    }
+    if (result.state === "absent") {
+      send(response, 404, "not found\n", method);
+    } else {
+      send(
+        response,
+        result.status,
+        `${JSON.stringify(result.value, null, 2)}\n`,
+        method,
+        "application/json; charset=utf-8",
+      );
+    }
+    return true;
+  }
+
+  const resolved = safeResolveStatic(root, realRoot, request.url || "/");
+  if (resolved.error) {
+    const messages = {
+      400: "bad request\n",
+      403: "forbidden\n",
+      404: "not found\n",
+      414: "uri too long\n",
+    };
+    send(response, resolved.error, messages[resolved.error], method);
+    return true;
+  }
+
+  const body = readFileSync(resolved.file);
+  send(response, 200, body, method, contentType(resolved.file));
+  return true;
+}
+
 function bindingResponse(options, hostname) {
   if (!options.bindingFile || !existsSync(options.bindingFile)) {
     return { state: "absent", status: 404, value: null, summary: null };
@@ -1088,6 +1203,7 @@ try {
     console.log(`mcp_upstream=${MCP_UPSTREAM_HOST}:${options.mcpUpstreamPort}${MCP_UPSTREAM_PATH}`);
     console.log("mcp_application_authority=read_only");
     console.log("mcp_paid_work_submission=false");
+    console.log(`static_transport_compatibility=${VOID_TOR_STATIC_TRANSPORT_COMPATIBILITY_MARKER}`);
     console.log(`order_status_path_template=${ORDER_STATUS_PATH_TEMPLATE}`);
     console.log(
       `order_status_root_configured=${orderStatusRootState(options).state === "valid"}`,
@@ -1102,6 +1218,27 @@ try {
   let activeMcpRequests = 0;
   let activeOrderStatusRequests = 0;
   const server = http.createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => {
+    try {
+      const handled = handleSynchronousPublicRequest({
+        request: req,
+        response: res,
+        options,
+        listeningPort,
+        root,
+        realRoot,
+      });
+      if (handled) return;
+    } catch {
+      req.resume();
+      sendMcpFailure(
+        res,
+        500,
+        "Internal onion gateway error",
+        String(req.method || "GET").toUpperCase(),
+      );
+      return;
+    }
+
     void (async () => {
       const method = String(req.method || "").toUpperCase();
       const parsedPath = strictRequestPath(req.url || "/");
@@ -1322,6 +1459,7 @@ try {
     console.log(`mcp_upstream=${MCP_UPSTREAM_HOST}:${options.mcpUpstreamPort}${MCP_UPSTREAM_PATH}`);
     console.log("mcp_application_authority=read_only");
     console.log("mcp_paid_work_submission=false");
+    console.log(`static_transport_compatibility=${VOID_TOR_STATIC_TRANSPORT_COMPATIBILITY_MARKER}`);
     console.log(`order_status_path_template=${ORDER_STATUS_PATH_TEMPLATE}`);
     console.log(
       `order_status_root_configured=${orderStatusRootState(options).state === "valid"}`,
