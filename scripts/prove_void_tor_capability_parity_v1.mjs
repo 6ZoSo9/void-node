@@ -52,8 +52,8 @@ try {
   assert.equal(report.summary.policy_required_count, 11);
   assert.equal(report.summary.separate_review_count, 2);
   assert.equal(report.summary.forbidden_count, 3);
-  assert.equal(report.summary.implemented_count, 3);
-  assert.equal(report.summary.stage_2_gap_count, 8);
+  assert.equal(report.summary.implemented_count, 4);
+  assert.equal(report.summary.stage_2_gap_count, 7);
 
   const byId = new Map(report.contract.capabilities.map((entry) => [entry.id, entry]));
   assert.equal(byId.get("agent.mcp_readonly")?.source_status, "implemented");
@@ -71,7 +71,11 @@ try {
   );
   assert.equal(
     byId.get("commerce.order_status_retrieval")?.source_status,
-    "not_mapped",
+    "implemented",
+  );
+  assert.equal(
+    byId.get("commerce.order_status_retrieval")?.direct_surface,
+    true,
   );
   assert.equal(byId.get("network.p2p_over_tor")?.tor_policy, "separate_review");
 
