@@ -1,0 +1,54 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_EXAMPLE_V1",
+  "version": 1,
+  "source_base_commit": "9a9b9a47c4f07fdae4f2f2a765183d9f9a28d7d3",
+  "status": "source_only_disabled_by_default",
+  "environment": {
+    "enabled": "",
+    "apply": "",
+    "confirmation": "",
+    "bundle_path": ""
+  },
+  "bundle_contract": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1",
+    "version": 1,
+    "required_keys": [
+      "marker",
+      "version",
+      "catalog",
+      "work_order",
+      "quote"
+    ],
+    "maximum_bytes": 25165824,
+    "absolute_normalized_path_required": true,
+    "regular_file_required": true,
+    "symlink_components_forbidden": true,
+    "group_or_other_write_forbidden": true,
+    "owner_must_be_runtime_user_or_root": true
+  },
+  "runtime_binding": {
+    "provider_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1",
+    "result_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result",
+    "install_before_route_callsite": true,
+    "bundle_read_during_install": false,
+    "bundle_read_deferred_until_provider_invocation": true,
+    "provider_global_replace_allowed": false
+  },
+  "authority": {
+    "network_listener_creation": false,
+    "external_http_submission": false,
+    "production_acceptance_persistence": false,
+    "production_replay_write": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "execution_authorization": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_access": false,
+    "production_signing": false,
+    "transaction_broadcast": false,
+    "service_restart": false,
+    "deployment_performed": false,
+    "money_movement": false
+  }
+}
