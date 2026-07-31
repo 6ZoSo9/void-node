@@ -1,0 +1,40 @@
+name: authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.yml"
+      - "docs/operations/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.md"
+      - "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json"
+      - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.schema.json"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/public_agent_service_requester_acceptance_authentication_v1.ts"
+      - "scripts/public_agent_service_acceptance_materialization_replay_consumer_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.yml"
+      - "docs/operations/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.md"
+      - "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json"
+      - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.schema.json"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts

@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.invalid/schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.schema.json",
+  "title": "VOID authenticated paid-work quote acceptance/payment authority activation persistence V1",
+  "type": "object",
+  "additionalProperties": false,
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_SCHEMA_V1",
+  "required": [
+    "marker",
+    "version",
+    "mode",
+    "prepared_input",
+    "prepared_packet",
+    "requester_authentication_input",
+    "acceptance_replay_state_snapshot",
+    "payment_authority_replay_state_snapshot",
+    "expected_acceptance_revision",
+    "expected_payment_authority_revision",
+    "persistence_config",
+    "command"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "mode": {
+      "enum": [
+        "example_fixture",
+        "external_requester_evidence"
+      ]
+    },
+    "prepared_input": {
+      "type": "object"
+    },
+    "prepared_packet": {
+      "type": "object",
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "prepared_artifacts",
+        "packet_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_PACKET_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status": {
+          "const": "prepared_requires_authenticated_atomic_activation"
+        },
+        "packet_id": {
+          "pattern": "^voidawqapa1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "requester_authentication_input": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "acceptance_replay_state_snapshot": {
+      "$ref": "#/$defs/acceptanceState"
+    },
+    "payment_authority_replay_state_snapshot": {
+      "$ref": "#/$defs/paymentState"
+    },
+    "expected_acceptance_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expected_payment_authority_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "persistence_config": {
+      "$ref": "#/$defs/config"
+    },
+    "command": {
+      "$ref": "#/$defs/command"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "example_fixture"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "requester_authentication_input": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "external_requester_evidence"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "requester_authentication_input": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "acceptanceState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "revision",
+        "consumed_requester_authentication_ids",
+        "consumed_provider_authentication_ids",
+        "consumed_acceptance_ids",
+        "active_acceptance_by_quote",
+        "state_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_REPLAY_STATE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_requester_authentication_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "pattern": "^voidawra1_[0-9a-f]{64}$"
+          }
+        },
+        "consumed_provider_authentication_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "pattern": "^voidawqa1_[0-9a-f]{64}$"
+          }
+        },
+        "consumed_acceptance_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "pattern": "^voidawa1_[0-9a-f]{64}$"
+          }
+        },
+        "active_acceptance_by_quote": {
+          "type": "object",
+          "additionalProperties": {
+            "pattern": "^voidawa1_[0-9a-f]{64}$"
+          }
+        },
+        "state_id": {
+          "pattern": "^voidawrs1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "paymentState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "revision",
+        "consumed_prepared_packet_ids",
+        "consumed_payment_intent_ids",
+        "active_payment_intent_by_acceptance",
+        "state_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_PAYMENT_AUTHORITY_REPLAY_STATE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_prepared_packet_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "pattern": "^voidawqapa1_[0-9a-f]{64}$"
+          }
+        },
+        "consumed_payment_intent_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "pattern": "^voidawpi1_[0-9a-f]{64}$"
+          }
+        },
+        "active_payment_intent_by_acceptance": {
+          "type": "object",
+          "additionalProperties": {
+            "pattern": "^voidawpi1_[0-9a-f]{64}$"
+          }
+        },
+        "state_id": {
+          "pattern": "^voidawpars1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "allowed_root",
+        "max_pointer_bytes",
+        "max_generation_file_bytes",
+        "max_generation_count",
+        "recover_exact_orphaned_generation"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_pointer_bytes": {
+          "type": "integer",
+          "minimum": 512
+        },
+        "max_generation_file_bytes": {
+          "type": "integer",
+          "minimum": 1024
+        },
+        "max_generation_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recover_exact_orphaned_generation": {
+          "type": "boolean"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "recorded_at_utc"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "recorded_at_utc": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        }
+      }
+    }
+  }
+}
