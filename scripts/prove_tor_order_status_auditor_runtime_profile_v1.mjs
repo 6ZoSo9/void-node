@@ -13,7 +13,15 @@ const MARKER =
   "VOID_TOR_ORDER_STATUS_AUDITOR_RUNTIME_PROFILE_V1_EXACT_GREEN";
 
 const ORDER_STATUS_HEAD =
+  "bea0c562e658e40f8afbfbcc3d1ba048ad81720f";
+const PRE_RECONCILIATION_ORDER_STATUS_HEAD =
   "043c659eea56c8fb0fdd0ca8e619a7573145a307";
+const DISCOVERY_OVERLAY_HEAD =
+  "daff6100ddfcad7e06046fd9379200be902754f2";
+const DISCOVERY_OVERLAY_PATHS = Object.freeze([
+  "public/.well-known/void-public-node.json",
+  "public/public-node/agent-paid-work-public-discovery-v1.json",
+]);
 const LEGACY_RUNTIME_HEAD =
   "3d725ef8b3c53f381b5988305a01a15fa1bfee92";
 const LEGACY_RUNTIME_DIRECTORY =
@@ -38,6 +46,9 @@ function baseInput({
   argv,
   ageSeconds = 0,
   profileFilesOk = true,
+  recognizedDiscoveryOverlay = false,
+  discoveryOverlayChangedPaths = [],
+  discoveryOverlayBytesOk = false,
 }) {
   const script = `${cwd}/tools/void-tor-onion-public-node-v1.mjs`;
   return {
@@ -55,7 +66,10 @@ function baseInput({
       path: cwd,
       head,
       clean: true,
-      headInOriginMain: true,
+      headInOriginMain: !recognizedDiscoveryOverlay,
+      recognizedDiscoveryOverlay,
+      discoveryOverlayChangedPaths,
+      discoveryOverlayBytesOk,
     },
     profileFilesOk,
   };
@@ -126,6 +140,20 @@ assert.equal(canonical.profileFilesOk, true);
 assert.equal(canonical.orderStatusHeadOk, true);
 assert.equal(canonical.stabilizationAgeOk, true);
 
+const staleCwd =
+  `/home/test/dev/void-onion-discovery-live-v1-${PRE_RECONCILIATION_ORDER_STATUS_HEAD.slice(0, 8)}`;
+const staleScript =
+  `${staleCwd}/tools/void-tor-onion-public-node-v1.mjs`;
+const stalePreReconciliation = assessVerifiedDeployedRuntimeV1(
+  baseInput({
+    head: PRE_RECONCILIATION_ORDER_STATUS_HEAD,
+    cwd: staleCwd,
+    argv: orderStatusArgv(staleScript),
+  }),
+);
+assert.equal(stalePreReconciliation.safe, false);
+assert.equal(stalePreReconciliation.orderStatusHeadOk, false);
+
 const legacyCwd = `/home/test/dev/${LEGACY_RUNTIME_DIRECTORY}`;
 const legacyScript =
   `${legacyCwd}/tools/void-tor-onion-public-node-v1.mjs`;
@@ -143,6 +171,86 @@ assert.equal(
   "void_public_node_tor_backend_v1",
 );
 assert.equal(exactLegacy.legacyDeploymentLineageOk, true);
+
+const exactDiscoveryOverlay = assessVerifiedDeployedRuntimeV1(
+  baseInput({
+    head: DISCOVERY_OVERLAY_HEAD,
+    cwd: legacyCwd,
+    argv: commonArgv(legacyScript),
+    ageSeconds: 600,
+    recognizedDiscoveryOverlay: true,
+    discoveryOverlayChangedPaths: [
+      ...DISCOVERY_OVERLAY_PATHS,
+    ],
+    discoveryOverlayBytesOk: true,
+  }),
+);
+assert.equal(exactDiscoveryOverlay.safe, true);
+assert.equal(
+  exactDiscoveryOverlay.profile,
+  "void_public_node_tor_backend_v1",
+);
+assert.equal(
+  exactDiscoveryOverlay.recognizedDiscoveryOverlayOk,
+  true,
+);
+assert.equal(
+  exactDiscoveryOverlay.discoveryOverlayLineageOk,
+  true,
+);
+
+const unrecognizedDiscoveryOverlayInput = baseInput({
+  head: DISCOVERY_OVERLAY_HEAD,
+  cwd: legacyCwd,
+  argv: commonArgv(legacyScript),
+  ageSeconds: 600,
+  recognizedDiscoveryOverlay: true,
+  discoveryOverlayChangedPaths: [
+    ...DISCOVERY_OVERLAY_PATHS,
+  ],
+  discoveryOverlayBytesOk: true,
+});
+const unrecognizedDiscoveryOverlay =
+  assessVerifiedDeployedRuntimeV1({
+    ...unrecognizedDiscoveryOverlayInput,
+    deployment: {
+      ...unrecognizedDiscoveryOverlayInput.deployment,
+      recognizedDiscoveryOverlay: false,
+    },
+  });
+assert.equal(unrecognizedDiscoveryOverlay.safe, false);
+assert.equal(
+  unrecognizedDiscoveryOverlay.recognizedDiscoveryOverlayOk,
+  false,
+);
+
+const wrongDiscoveryOverlayPaths = assessVerifiedDeployedRuntimeV1({
+  ...unrecognizedDiscoveryOverlayInput,
+  deployment: {
+    ...unrecognizedDiscoveryOverlayInput.deployment,
+    discoveryOverlayChangedPaths: [
+      DISCOVERY_OVERLAY_PATHS[0],
+    ],
+  },
+});
+assert.equal(wrongDiscoveryOverlayPaths.safe, false);
+assert.equal(
+  wrongDiscoveryOverlayPaths.discoveryOverlayPathSetOk,
+  false,
+);
+
+const falseDiscoveryOverlayBytes = assessVerifiedDeployedRuntimeV1({
+  ...unrecognizedDiscoveryOverlayInput,
+  deployment: {
+    ...unrecognizedDiscoveryOverlayInput.deployment,
+    discoveryOverlayBytesOk: false,
+  },
+});
+assert.equal(falseDiscoveryOverlayBytes.safe, false);
+assert.equal(
+  falseDiscoveryOverlayBytes.discoveryOverlayBytesOk,
+  false,
+);
 
 const negativeCases = [
   ["wrong source root", {
@@ -207,6 +315,11 @@ for (const token of [
   "argv.length === 28",
   "orderStatusSourceRootOkV1",
   "legacyDeploymentLineageOk",
+  "VERIFIED_TOR_DISCOVERY_OVERLAY_HEAD_V1",
+  "recognizedDiscoveryOverlayOk",
+  "discoveryOverlayPathSetOk",
+  "discoveryOverlayBytesOk",
+  "discoveryOverlayLineageOk",
 ]) {
   assert.equal(source.includes(token), true, token);
 }
@@ -215,10 +328,18 @@ console.log(`order_status_source_head=${ORDER_STATUS_HEAD}`);
 console.log(`order_status_profile=${ORDER_STATUS_PROFILE}`);
 console.log("order_status_exact_argv_profile=true");
 console.log("order_status_exact_head_profile=true");
+console.log("order_status_previous_source_head_rejected=true");
+console.log("order_status_previous_source_head=043c659eea56c8fb0fdd0ca8e619a7573145a307");
 console.log("order_status_exact_source_root_suffix=true");
 console.log("order_status_source_file_required=true");
 console.log("legacy_profile_preserved=true");
 console.log("legacy_runtime_lineage_exception_exact=true");
+console.log("discovery_overlay_runtime_recognized_exact=true");
+console.log("discovery_overlay_head=daff6100ddfcad7e06046fd9379200be902754f2");
+console.log("discovery_overlay_base=3d725ef8b3c53f381b5988305a01a15fa1bfee92");
+console.log("discovery_overlay_generic_allowance=false");
+console.log("discovery_overlay_exact_path_set_required=true");
+console.log("discovery_overlay_bytes_ok_required=true");
 console.log("stage1_profile_preserved=true");
 console.log("generic_runtime_allowance_added=false");
 console.log("service_or_process_mutation=false");

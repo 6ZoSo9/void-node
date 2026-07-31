@@ -235,8 +235,103 @@ assert.equal(
 );
 assert.equal(deployedLegacyTor.legacyDeploymentLineageOk, true);
 
+const deployedDiscoveryOverlayHead =
+  "daff6100ddfcad7e06046fd9379200be902754f2";
+const deployedDiscoveryOverlayInput = {
+  ...torBase,
+  argv: [
+    ...torBase.argv.slice(0, 1),
+    deployedLegacyTorScript,
+    ...torBase.argv.slice(2),
+  ],
+  cwd: deployedLegacyTorCwd,
+  resolvedScript: deployedLegacyTorScript,
+  deployment: {
+    ...torBase.deployment,
+    path: deployedLegacyTorCwd,
+    head: deployedDiscoveryOverlayHead,
+    headInOriginMain: false,
+    recognizedDiscoveryOverlay: true,
+    discoveryOverlayChangedPaths: [
+      "public/.well-known/void-public-node.json",
+      "public/public-node/agent-paid-work-public-discovery-v1.json",
+    ],
+    discoveryOverlayBytesOk: true,
+  },
+};
+const deployedDiscoveryOverlay =
+  assessVerifiedDeployedRuntimeV1(
+    deployedDiscoveryOverlayInput,
+  );
+assert.equal(deployedDiscoveryOverlay.safe, true);
+assert.equal(
+  deployedDiscoveryOverlay.profile,
+  "void_public_node_tor_backend_v1",
+);
+assert.equal(
+  deployedDiscoveryOverlay.recognizedDiscoveryOverlayOk,
+  true,
+);
+assert.equal(
+  deployedDiscoveryOverlay.discoveryOverlayLineageOk,
+  true,
+);
+
+const unrecognizedDiscoveryOverlay =
+  assessVerifiedDeployedRuntimeV1({
+    ...deployedDiscoveryOverlayInput,
+    deployment: {
+      ...deployedDiscoveryOverlayInput.deployment,
+      recognizedDiscoveryOverlay: false,
+    },
+  });
+assert.equal(unrecognizedDiscoveryOverlay.safe, false);
+
+const forgedDiscoveryOverlay =
+  assessVerifiedDeployedRuntimeV1({
+    ...deployedDiscoveryOverlayInput,
+    deployment: {
+      ...deployedDiscoveryOverlayInput.deployment,
+      head: "f".repeat(40),
+      recognizedDiscoveryOverlay: true,
+    },
+  });
+assert.equal(forgedDiscoveryOverlay.safe, false);
+
+const wrongDiscoveryOverlayPaths =
+  assessVerifiedDeployedRuntimeV1({
+    ...deployedDiscoveryOverlayInput,
+    deployment: {
+      ...deployedDiscoveryOverlayInput.deployment,
+      discoveryOverlayChangedPaths: [
+        deployedDiscoveryOverlayInput
+          .deployment
+          .discoveryOverlayChangedPaths[0],
+      ],
+    },
+  });
+assert.equal(wrongDiscoveryOverlayPaths.safe, false);
+assert.equal(
+  wrongDiscoveryOverlayPaths.discoveryOverlayPathSetOk,
+  false,
+);
+
+const falseDiscoveryOverlayBytes =
+  assessVerifiedDeployedRuntimeV1({
+    ...deployedDiscoveryOverlayInput,
+    deployment: {
+      ...deployedDiscoveryOverlayInput.deployment,
+      discoveryOverlayBytesOk: false,
+    },
+  });
+assert.equal(falseDiscoveryOverlayBytes.safe, false);
+assert.equal(
+  falseDiscoveryOverlayBytes.discoveryOverlayBytesOk,
+  false,
+);
+
 const orderStatusHead =
-  "043c659eea56c8fb0fdd0ca8e619a7573145a307";
+  "bea0c562e658e40f8afbfbcc3d1ba048ad81720f";
 const orderStatusCwd =
   `/home/test/dev/void-onion-discovery-live-v1-${orderStatusHead.slice(0, 8)}`;
 const orderStatusScript =
@@ -536,4 +631,11 @@ assert.equal(
   true,
 );
 
+console.log("discovery_overlay_fixture_green=true");
+console.log("discovery_overlay_head=daff6100ddfcad7e06046fd9379200be902754f2");
+console.log("discovery_overlay_base=3d725ef8b3c53f381b5988305a01a15fa1bfee92");
+console.log("discovery_overlay_exact_path_count=2");
+console.log("discovery_overlay_generic_allowance=false");
+console.log("discovery_overlay_exact_path_set_required=true");
+console.log("discovery_overlay_bytes_ok_required=true");
 console.log(MARKER);

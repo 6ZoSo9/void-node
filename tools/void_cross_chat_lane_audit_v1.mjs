@@ -31,11 +31,19 @@ const VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1 =
 const VERIFIED_TOR_STAGE1_SOURCE_HEAD_V1 =
   "eaaa2855af6c70c51f671bb6aaba25602fca7797";
 const VERIFIED_TOR_ORDER_STATUS_SOURCE_HEAD_V1 =
-  "043c659eea56c8fb0fdd0ca8e619a7573145a307";
+  "bea0c562e658e40f8afbfbcc3d1ba048ad81720f";
 const VERIFIED_TOR_LEGACY_RUNTIME_HEAD_V1 =
   "3d725ef8b3c53f381b5988305a01a15fa1bfee92";
 const VERIFIED_TOR_LEGACY_RUNTIME_DIRECTORY_V1 =
   "void-onion-discovery-live-v1-51185f80";
+const VERIFIED_TOR_DISCOVERY_OVERLAY_HEAD_V1 =
+  "daff6100ddfcad7e06046fd9379200be902754f2";
+const VERIFIED_TOR_DISCOVERY_OVERLAY_BASE_V1 =
+  "3d725ef8b3c53f381b5988305a01a15fa1bfee92";
+const VERIFIED_TOR_DISCOVERY_OVERLAY_PATHS_V1 = Object.freeze([
+  "public/.well-known/void-public-node.json",
+  "public/public-node/agent-paid-work-public-discovery-v1.json",
+]);
 const VERIFIED_TOR_ORDER_STATUS_PROFILE_V1 =
   "void_public_node_tor_backend_order_status_v1";
 const VERIFIED_TOR_ORDER_STATUS_SOURCE_ROOT_SUFFIX_V1 =
@@ -474,6 +482,9 @@ function cleanDeploymentForCwdV1(options, sharedWorktrees, cwd) {
       head: "",
       clean: false,
       headInOriginMain: false,
+      recognizedDiscoveryOverlay: false,
+      discoveryOverlayChangedPaths: [],
+      discoveryOverlayBytesOk: false,
     };
   }
 
@@ -498,11 +509,100 @@ function cleanDeploymentForCwdV1(options, sharedWorktrees, cwd) {
     ).status === 0
     : false;
 
+  let recognizedDiscoveryOverlay = false;
+  let discoveryOverlayChangedPaths = [];
+  let discoveryOverlayBytesOk = false;
+  if (
+    clean
+    && head === VERIFIED_TOR_DISCOVERY_OVERLAY_HEAD_V1
+  ) {
+    const mergeBase = execute(
+      "git",
+      [
+        "-C",
+        options.sharedRepo,
+        "merge-base",
+        head,
+        "refs/remotes/origin/main",
+      ],
+      { allowFailure: true },
+    );
+    const changed = execute(
+      "git",
+      [
+        "-C",
+        options.sharedRepo,
+        "diff",
+        "--name-only",
+        "--no-renames",
+        VERIFIED_TOR_DISCOVERY_OVERLAY_BASE_V1,
+        head,
+      ],
+      { allowFailure: true },
+    );
+    if (mergeBase.status === 0 && changed.status === 0) {
+      discoveryOverlayChangedPaths = changed.stdout
+        .split(/\r?\n/u)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .sort();
+      const expectedPaths = [
+        ...VERIFIED_TOR_DISCOVERY_OVERLAY_PATHS_V1,
+      ].sort();
+      const changedPathsOk = (
+        discoveryOverlayChangedPaths.length === expectedPaths.length
+        && discoveryOverlayChangedPaths.every((value, index) => {
+          return value === expectedPaths[index];
+        })
+      );
+      discoveryOverlayBytesOk = (
+        changedPathsOk
+        && VERIFIED_TOR_DISCOVERY_OVERLAY_PATHS_V1.every(
+          (relative) => {
+            const overlayBlob = execute(
+              "git",
+              [
+                "-C",
+                options.sharedRepo,
+                "rev-parse",
+                `${head}:${relative}`,
+              ],
+              { allowFailure: true },
+            );
+            const mainBlob = execute(
+              "git",
+              [
+                "-C",
+                options.sharedRepo,
+                "rev-parse",
+                `refs/remotes/origin/main:${relative}`,
+              ],
+              { allowFailure: true },
+            );
+            return (
+              overlayBlob.status === 0
+              && mainBlob.status === 0
+              && overlayBlob.stdout.trim() === mainBlob.stdout.trim()
+            );
+          },
+        )
+      );
+      recognizedDiscoveryOverlay = (
+        mergeBase.stdout.trim()
+          === VERIFIED_TOR_DISCOVERY_OVERLAY_BASE_V1
+        && discoveryOverlayBytesOk
+      );
+    }
+  }
+
   return {
     path: path.resolve(deployment.path),
     head,
     clean,
     headInOriginMain: ancestry,
+    recognizedDiscoveryOverlay,
+    discoveryOverlayChangedPaths,
+    discoveryOverlayBytesOk,
   };
 }
 
@@ -556,6 +656,32 @@ export function assessVerifiedDeployedRuntimeV1(input) {
   const resolvedScript = String(input.resolvedScript ?? "");
   const currentScriptRealpath = String(input.currentScriptRealpath ?? "");
   const head = String(deployment.head ?? "");
+  const discoveryOverlayChangedPaths = Array.isArray(
+    deployment.discoveryOverlayChangedPaths,
+  )
+    ? deployment.discoveryOverlayChangedPaths
+      .map((value) => String(value))
+      .sort()
+    : [];
+  const expectedDiscoveryOverlayPaths = [
+    ...VERIFIED_TOR_DISCOVERY_OVERLAY_PATHS_V1,
+  ].sort();
+  const discoveryOverlayPathSetOk = (
+    discoveryOverlayChangedPaths.length
+      === expectedDiscoveryOverlayPaths.length
+    && discoveryOverlayChangedPaths.every((value, index) => {
+      return value === expectedDiscoveryOverlayPaths[index];
+    })
+  );
+  const discoveryOverlayBytesOk = (
+    deployment.discoveryOverlayBytesOk === true
+  );
+  const recognizedDiscoveryOverlayOk = (
+    head === VERIFIED_TOR_DISCOVERY_OVERLAY_HEAD_V1
+    && deployment.recognizedDiscoveryOverlay === true
+    && discoveryOverlayPathSetOk
+    && discoveryOverlayBytesOk
+  );
 
   const common = {
     executableOk: (
@@ -576,8 +702,11 @@ export function assessVerifiedDeployedRuntimeV1(input) {
     deploymentOk: (
       path.resolve(String(deployment.path ?? "")) === cwd
       && deployment.clean === true
-      && deployment.headInOriginMain === true
       && Boolean(head)
+      && (
+        deployment.headInOriginMain === true
+        || recognizedDiscoveryOverlayOk
+      )
     ),
   };
 
@@ -742,6 +871,12 @@ export function assessVerifiedDeployedRuntimeV1(input) {
       && path.basename(cwd)
         === VERIFIED_TOR_LEGACY_RUNTIME_DIRECTORY_V1
     );
+    const exactDiscoveryOverlayCwdOk = (
+      legacyArgvOk
+      && recognizedDiscoveryOverlayOk
+      && path.basename(cwd)
+        === VERIFIED_TOR_LEGACY_RUNTIME_DIRECTORY_V1
+    );
 
     profile = orderStatusProfileOk
       ? VERIFIED_TOR_ORDER_STATUS_PROFILE_V1
@@ -755,7 +890,11 @@ export function assessVerifiedDeployedRuntimeV1(input) {
         || stage1ProfileOk
         || orderStatusProfileOk
       ),
-      cwdOk: canonicalCwdOk || exactLegacyCwdOk,
+      cwdOk: (
+        canonicalCwdOk
+        || exactLegacyCwdOk
+        || exactDiscoveryOverlayCwdOk
+      ),
       scriptOk: resolvedScript === expectedScript,
       profileFilesOk: input.profileFilesOk === true,
       stabilizationAgeOk: (
@@ -772,7 +911,16 @@ export function assessVerifiedDeployedRuntimeV1(input) {
       ),
       legacyDeploymentLineageOk: (
         legacyArgvOk
-          ? canonicalCwdOk || exactLegacyCwdOk
+          ? (
+            canonicalCwdOk
+            || exactLegacyCwdOk
+            || exactDiscoveryOverlayCwdOk
+          )
+          : true
+      ),
+      discoveryOverlayLineageOk: (
+        head === VERIFIED_TOR_DISCOVERY_OVERLAY_HEAD_V1
+          ? exactDiscoveryOverlayCwdOk
           : true
       ),
     };
@@ -790,6 +938,9 @@ export function assessVerifiedDeployedRuntimeV1(input) {
     profile,
     observedServiceUnit,
     safe,
+    recognizedDiscoveryOverlayOk,
+    discoveryOverlayPathSetOk,
+    discoveryOverlayBytesOk,
     ...common,
     ...profileChecks,
   };
