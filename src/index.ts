@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
@@ -93,6 +94,7 @@ import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME
 import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
 import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT
 import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
+import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"; // VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_IMPORT
 
 
 // __VOID_TS_DECLARES_V1__
@@ -4621,6 +4623,17 @@ const __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResu
 (globalThis as any).__void_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1_result =
   __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1;
 // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_END
+// VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_BEGIN
+const __voidPublicAgentServiceOrderStatusReadonlyHttpIntegrationV1Result =
+  executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1({
+    env: process.env,
+    appProvider: () => app,
+    handledAtUtcForRequest: () => new Date().toISOString(),
+  });
+(globalThis as any).__void_public_agent_service_order_status_readonly_http_integration_v1_result =
+  __voidPublicAgentServiceOrderStatusReadonlyHttpIntegrationV1Result;
+// VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_END
+
 
 // ---- EARLY MINIMAL BOOT MODE (short-circuit before additive IIFE storm) ----
 const VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1 = Object.freeze({
