@@ -1,0 +1,33 @@
+name: VOID Active Lane Retirement V2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-active-lane-retirement-v2.yml"
+      - "docs/operations/void-active-lane-retirement-v2.md"
+      - "examples/void-active-lane-retirement-v2.example.json"
+      - "scripts/prove_void_active_lane_retirement_v2.mjs"
+      - "tools/void-active-lane-retirement-v2.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-active-lane-retirement-v2.yml"
+      - "docs/operations/void-active-lane-retirement-v2.md"
+      - "examples/void-active-lane-retirement-v2.example.json"
+      - "scripts/prove_void_active_lane_retirement_v2.mjs"
+      - "tools/void-active-lane-retirement-v2.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Prove guarded active-lane retirement V2
+        run: node scripts/prove_void_active_lane_retirement_v2.mjs
