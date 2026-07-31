@@ -1,0 +1,43 @@
+{
+  "authority": {
+    "authenticated_submission_post": false,
+    "deployment": false,
+    "http_route_registration": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "found": true,
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_SOURCE_RESOLVER_V1",
+  "reason": null,
+  "source": {
+    "accepted_for_review": true,
+    "completed": false,
+    "dispatched": false,
+    "execution_authorized": false,
+    "failed": false,
+    "operation_id": "voidmcpac1_569a21df18f7029e5143bd41076104e69984975230722da2b5ba7ae3fa4ea590",
+    "payment_authorized": false,
+    "payment_confirmed": false,
+    "provider_authenticated": false,
+    "provider_selected": false,
+    "quote_available": false,
+    "rejected": false,
+    "requester_accepted": false,
+    "submission_id": "void-order-status-source-resolver-example-v1",
+    "updated_at": "2026-07-30T23:50:00Z"
+  },
+  "source_filename": "void-order-status-source-resolver-example-v1.json",
+  "source_sha256": "c73bda108207a0e486ec654b16d471bed31f5de05f5e96d29639dc281b27da22",
+  "source_size_bytes": 541,
+  "submission_id": "void-order-status-source-resolver-example-v1",
+  "version": 1
+}
