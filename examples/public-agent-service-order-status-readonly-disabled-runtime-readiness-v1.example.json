@@ -1,0 +1,50 @@
+{
+  "activation_blockers": [
+    "post_deployment_disabled_runtime_proof_required",
+    "explicit_enable_configuration_not_authorized",
+    "absolute_source_root_not_configured"
+  ],
+  "authority": {
+    "activation": false,
+    "authenticated_submission_post": false,
+    "configuration_write": false,
+    "deployment_execution": false,
+    "live_http_route_registration": false,
+    "network_listener": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "receipt_read": true,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_data_read": false,
+    "source_data_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "evidence": {
+    "canonical_main_unchanged": true,
+    "enable_env_absent": true,
+    "health_200": true,
+    "integration_disabled": true,
+    "invocation_stable": true,
+    "max_bytes_absent": true,
+    "order_status_404": true,
+    "order_status_marker_absent": true,
+    "pid_stable": true,
+    "readiness_worktree_unchanged": true,
+    "ready_200": true,
+    "restart_count_stable": true,
+    "service_active_running": true,
+    "source_root_absent": true
+  },
+  "input_receipt_sha256": "970ea3f7bc312c926ba5b80fd076ab5fe209782970b68d4e942e46d6d412fc34",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_DISABLED_RUNTIME_READINESS_V1_DECISION",
+  "readiness_id": "voidaosrr1_f671aaad57602c75c71d48f31c45e274ad2a463d07b03f45b33d3acd35c994c7",
+  "ready_for_activation": false,
+  "ready_for_disabled_deployment": true,
+  "version": 1
+}
