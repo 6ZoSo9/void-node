@@ -37,6 +37,22 @@ The deployment must be beneath `~/.local/share/void-agent-mcp-readonly-http-v1/r
 
 The deployment directory must be `void-onion-discovery-live-v1-<head8>`. The service executes `tools/void-tor-onion-public-node-v1.mjs` with the exact host, port, virtual-port, hostname-file, and binding-file contract.
 
+Three Tor backend shapes remain narrowly recognized:
+
+1. the legacy five-pair transport profile;
+2. the exact MCP Stage 1 profile pinned to `eaaa2855af6c70c51f671bb6aaba25602fca7797`;
+3. the exact order-status profile pinned to `043c659eea56c8fb0fdd0ca8e619a7573145a307`.
+
+The order-status profile requires the MCP Stage 1 arguments plus the exact
+`--order-status-root`, `--order-status-max-bytes 1048576`, and
+`--order-status-max-concurrent-requests 8` contract. The root must be a real,
+non-symlink directory ending in `/.local/share/void/tor-onion-v1/order-status-source-v1` and must
+contain the canonical `voidawsr1_45193d29a16138cc2e0ae271b302e0b559ef26d1e253df782d2ee6a46402af6c.json` regular file.
+
+The historical deployment `void-onion-discovery-live-v1-51185f80` is recognized only
+when its clean deployment head is exactly `3d725ef8b3c53f381b5988305a01a15fa1bfee92`. This is
+an explicit lineage exception, not a generic directory-name allowance.
+
 ## Proof posture
 
 The proof covers both positive profiles, adversarial profile mutations, a live exact-green audit, an arbitrary synthetic Node conflict, and exact-green restoration after that process exits.

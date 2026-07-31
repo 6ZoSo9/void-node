@@ -39,6 +39,7 @@ const reservedPaths = [
   "schemas/cross-chat-lane-auditor-verified-deployed-runtime-recognition-v1.schema.json",
   "scripts/prove_cross_chat_lane_auditor_verified_deployed_runtime_recognition_v1.mjs",
   "tools/void_cross_chat_lane_audit_v1.mjs",
+  "scripts/prove_tor_order_status_auditor_runtime_profile_v1.mjs",
 ];
 const allowRuntimeScripts = [
   "ops/wc-relayer-v1.cjs",
@@ -206,6 +207,91 @@ assert.equal(
   "void_public_node_tor_backend_v1",
 );
 
+const deployedLegacyTorHead =
+  "3d725ef8b3c53f381b5988305a01a15fa1bfee92";
+const deployedLegacyTorCwd =
+  "/home/test/dev/void-onion-discovery-live-v1-51185f80";
+const deployedLegacyTorScript =
+  `${deployedLegacyTorCwd}/tools/void-tor-onion-public-node-v1.mjs`;
+const deployedLegacyTor = assessVerifiedDeployedRuntimeV1({
+  ...torBase,
+  argv: [
+    ...torBase.argv.slice(0, 1),
+    deployedLegacyTorScript,
+    ...torBase.argv.slice(2),
+  ],
+  cwd: deployedLegacyTorCwd,
+  resolvedScript: deployedLegacyTorScript,
+  deployment: {
+    ...torBase.deployment,
+    path: deployedLegacyTorCwd,
+    head: deployedLegacyTorHead,
+  },
+});
+assert.equal(deployedLegacyTor.safe, true);
+assert.equal(
+  deployedLegacyTor.profile,
+  "void_public_node_tor_backend_v1",
+);
+assert.equal(deployedLegacyTor.legacyDeploymentLineageOk, true);
+
+const orderStatusHead =
+  "043c659eea56c8fb0fdd0ca8e619a7573145a307";
+const orderStatusCwd =
+  `/home/test/dev/void-onion-discovery-live-v1-${orderStatusHead.slice(0, 8)}`;
+const orderStatusScript =
+  `${orderStatusCwd}/tools/void-tor-onion-public-node-v1.mjs`;
+const orderStatusRoot =
+  "/home/test/.local/share/void/tor-onion-v1/order-status-source-v1";
+const orderStatusBase = {
+  ...torBase,
+  argv: [
+    "/usr/bin/node",
+    orderStatusScript,
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18088",
+    "--virtual-port",
+    "80",
+    "--hostname-file",
+    "/home/test/.local/share/void/tor-onion-v1/hidden-service/hostname",
+    "--binding-file",
+    "/home/test/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
+    "--mcp-upstream-port",
+    "4114",
+    "--mcp-timeout-ms",
+    "30000",
+    "--mcp-max-request-bytes",
+    "65536",
+    "--mcp-max-response-bytes",
+    "4194304",
+    "--mcp-max-concurrent-requests",
+    "8",
+    "--order-status-root",
+    orderStatusRoot,
+    "--order-status-max-bytes",
+    "1048576",
+    "--order-status-max-concurrent-requests",
+    "8",
+  ],
+  cwd: orderStatusCwd,
+  resolvedScript: orderStatusScript,
+  deployment: {
+    ...torBase.deployment,
+    path: orderStatusCwd,
+    head: orderStatusHead,
+  },
+  profileFilesOk: true,
+};
+const orderStatus = assessVerifiedDeployedRuntimeV1(orderStatusBase);
+assert.equal(orderStatus.safe, true);
+assert.equal(
+  orderStatus.profile,
+  "void_public_node_tor_backend_order_status_v1",
+);
+assert.equal(orderStatus.orderStatusHeadOk, true);
+
 const negativeCases = [
   ["wrong unit", mcpBase, { observedServiceUnit: "untrusted.service" }],
   ["wrong script", mcpBase, { resolvedScript: `${mcpCwd}/wrong.js` }],
@@ -235,6 +321,30 @@ const negativeCases = [
     },
   }],
   ["missing Tor profile file", torBase, { profileFilesOk: false }],
+  ["wrong order-status root", orderStatusBase, {
+    argv: orderStatusBase.argv.map((value, index) => (
+      index === 23 ? "/tmp/untrusted-order-status-root" : value
+    )),
+  }],
+  ["wrong order-status max bytes", orderStatusBase, {
+    argv: orderStatusBase.argv.map((value, index) => (
+      index === 25 ? "1048575" : value
+    )),
+  }],
+  ["wrong order-status concurrency", orderStatusBase, {
+    argv: orderStatusBase.argv.map((value, index) => (
+      index === 27 ? "9" : value
+    )),
+  }],
+  ["wrong order-status source head", orderStatusBase, {
+    deployment: {
+      ...orderStatusBase.deployment,
+      head: "0".repeat(40),
+    },
+  }],
+  ["missing order-status profile file", orderStatusBase, {
+    profileFilesOk: false,
+  }],
 ];
 
 for (const [name, base, patch] of negativeCases) {
@@ -419,5 +529,11 @@ assert.equal(
 );
 assert.equal(example.arbitrary_processes_remain_conflicts, true);
 assert.equal(example.service_or_process_mutation, false);
+assert.equal(
+  example.recognized_profiles.some(
+    (entry) => entry.profile === "void_public_node_tor_backend_order_status_v1",
+  ),
+  true,
+);
 
 console.log(MARKER);
