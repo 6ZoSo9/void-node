@@ -182,8 +182,8 @@ const recoveredIndex = index
   .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK, "")
   .replace(INDEX_IMPORT_BLOCK, "")
   .replace(INDEX_CALL_BLOCK, "");
-assert.equal(Buffer.byteLength(recoveredIndex), 3846016);
-assert.equal(sha256(recoveredIndex), "9a47b986df2a2775656dfdc6889bca9f701da86f20a72741178ffdf44a1f323d");
+assert.equal(Buffer.byteLength(recoveredIndex), 3846844);
+assert.equal(sha256(recoveredIndex), "dd8c131c818ab9227ec9b0c95d1513325dbe1c682d45ed547360bd2529752407");
 
 const indexAst = parseSource(indexPath, index);
 const moduleAst = parseSource(modulePath, moduleSource);

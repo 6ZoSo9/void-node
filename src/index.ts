@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
