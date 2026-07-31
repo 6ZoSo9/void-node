@@ -15,6 +15,20 @@ const MARKER = "VOID_AI_AGENT_FIRST_CONTACT_RUNTIME_V1";
 const BEGIN = `// ${MARKER}_BEGIN`;
 const END = `// ${MARKER}_END`;
 
+const TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_IMPORT_BLOCK =
+  'import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT\n';
+
+const TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK = `// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_BEGIN
+const __voidAcceptancePersistenceTrustedContextProviderBindingResultV1 =
+  installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1(
+    process.env,
+    globalThis as any,
+  );
+(globalThis as any).__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result =
+  __voidAcceptancePersistenceTrustedContextProviderBindingResultV1;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_END
+`;
+
 const BOUNDARY = [
   ".github/workflows/void-ai-agent-first-contact-runtime-v1.yml",
   "docs/public/ai-agent-first-contact-runtime-v1.md",
@@ -93,13 +107,27 @@ assert.equal(
   3849581,
   "index-size fixture baseline_bytes",
 );
-assert.equal(
-  fs.statSync(path.join(ROOT, "src/index.ts")).size,
-  3847399,
-  "src/index.ts byte size",
-);
 
 const source = read("src/index.ts");
+assert.equal(
+  source.split(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_IMPORT_BLOCK).length - 1,
+  1,
+  "trusted-context provider binding import count",
+);
+assert.equal(
+  source.split(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK).length - 1,
+  1,
+  "trusted-context provider binding install count",
+);
+const historicalRuntimeSource = source
+  .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_IMPORT_BLOCK, "")
+  .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK, "");
+assert.equal(
+  Buffer.byteLength(historicalRuntimeSource),
+  3847399,
+  "historical src/index.ts byte size",
+);
+
 assert.equal(source.split(BEGIN).length - 1, 1, "runtime begin marker count");
 assert.equal(source.split(END).length - 1, 1, "runtime end marker count");
 

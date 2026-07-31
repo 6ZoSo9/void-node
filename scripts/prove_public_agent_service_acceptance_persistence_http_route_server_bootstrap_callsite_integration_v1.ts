@@ -54,6 +54,20 @@ const MOUNT_CONFIRMATION =
 const INDEX_IMPORT_BLOCK =
   'import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT\n';
 
+const TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_IMPORT_BLOCK =
+  'import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT\n';
+
+const TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK = `// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_BEGIN
+const __voidAcceptancePersistenceTrustedContextProviderBindingResultV1 =
+  installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1(
+    process.env,
+    globalThis as any,
+  );
+(globalThis as any).__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result =
+  __voidAcceptancePersistenceTrustedContextProviderBindingResultV1;
+// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_END
+`;
+
 const INDEX_CALL_BLOCK = `// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_BEGIN
 const __voidAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationResultV1 =
   await executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1(
@@ -164,6 +178,8 @@ assert.equal(sha256(indexJs), SOURCE_INDEX_JS_SHA256);
 assert.equal(countExact(index, INDEX_IMPORT_BLOCK), 1);
 assert.equal(countExact(index, INDEX_CALL_BLOCK), 1);
 const recoveredIndex = index
+  .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_IMPORT_BLOCK, "")
+  .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK, "")
   .replace(INDEX_IMPORT_BLOCK, "")
   .replace(INDEX_CALL_BLOCK, "");
 assert.equal(Buffer.byteLength(recoveredIndex), 3846016);
