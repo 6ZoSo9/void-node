@@ -40,6 +40,19 @@ function record(value, label) {
   return value;
 }
 
+function expressApp(value) {
+  const kind = typeof value;
+  if (
+    value === null
+    || (kind !== "object" && kind !== "function")
+    || Array.isArray(value)
+    || typeof value.get !== "function"
+  ) {
+    fail("invalid_express_app");
+  }
+  return value;
+}
+
 function exactKeys(value, expected, label) {
   const keys = Object.keys(value).sort();
   const wanted = [...expected].sort();
@@ -299,10 +312,7 @@ export function executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1(
 
   const sourceRoot = sourceRootValue(env[SOURCE_ROOT_ENV]);
   const maxBytes = maxBytesValue(env[MAX_BYTES_ENV]);
-  const app = record(value.appProvider(), "express app");
-  if (typeof app.get !== "function") {
-    fail("invalid_express_app");
-  }
+  const app = expressApp(value.appProvider());
   if (MOUNTED_APPS.has(app)) {
     fail("http_integration_already_mounted");
   }

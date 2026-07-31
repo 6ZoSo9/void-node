@@ -1,0 +1,27 @@
+name: public-agent-service-order-status-readonly-http-callable-express-app-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-agent-service-order-status-readonly-http-callable-express-app-v1.yml"
+      - "docs/public-agent/public-agent-service-order-status-readonly-http-callable-express-app-v1.md"
+      - "examples/public-agent-service-order-status-readonly-http-callable-express-app-v1.example.json"
+      - "schemas/public-agent-service-order-status-readonly-http-callable-express-app-v1.schema.json"
+      - "scripts/prove_public_agent_service_order_status_readonly-http-callable-express-app-v1.mjs"
+      - "tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_public_agent_service_order_status_readonly-http-callable-express-app-v1.mjs
