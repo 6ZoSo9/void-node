@@ -1,0 +1,80 @@
+name: VOID DataNet Paid Read Explicit Public Routes V1
+
+on:
+  pull_request:
+    paths:
+      - "src/http/datanet_routes.ts"
+      - "docs/public-node/datanet/datanet-paid-read-explicit-public-routes-v1.md"
+      - "ops/mainnet0/void-datanet-paid-read-explicit-public-routes-v1-proof.sh"
+      - ".github/workflows/void-datanet-paid-read-explicit-public-routes-v1.yml"
+      - "public/public-node/datanet/index.json"
+      - "public/public-node/datanet/paid-read-quote-v1.json"
+      - "public/public-node/datanet/paid-read-quote-v1.schema.json"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/http/datanet_routes.ts"
+      - "docs/public-node/datanet/datanet-paid-read-explicit-public-routes-v1.md"
+      - "ops/mainnet0/void-datanet-paid-read-explicit-public-routes-v1-proof.sh"
+      - ".github/workflows/void-datanet-paid-read-explicit-public-routes-v1.yml"
+      - "public/public-node/datanet/index.json"
+      - "public/public-node/datanet/paid-read-quote-v1.json"
+      - "public/public-node/datanet/paid-read-quote-v1.schema.json"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: VOID_DATANET_PAID_READ_EXPLICIT_PUBLIC_ROUTES_V1
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Select typecheck baseline
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -Eeuo pipefail
+
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          BASE_SHA=""
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BASE_SHA="${PR_BASE_SHA}"
+          elif [[ -n "${PUSH_BEFORE_SHA}" && "${PUSH_BEFORE_SHA}" != "${ZERO_SHA}" ]]; then
+            BASE_SHA="${PUSH_BEFORE_SHA}"
+          else
+            BASE_SHA="$(git rev-parse HEAD^)"
+          fi
+
+          git cat-file -e "${BASE_SHA}^{commit}"
+          printf 'VOID_TYPECHECK_BASE_SHA=%s
+' "${BASE_SHA}" >> "${GITHUB_ENV}"
+
+      - name: Prove explicit public routes
+        run: |
+          chmod +x ops/mainnet0/void-datanet-paid-read-explicit-public-routes-v1-proof.sh
+          bash ops/mainnet0/void-datanet-paid-read-explicit-public-routes-v1-proof.sh
