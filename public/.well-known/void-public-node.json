@@ -50,7 +50,7 @@
     "mcp_descriptor": "VOID_TOR_AGENT_MCP_READONLY_V1",
     "canonical_agent_discovery": "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1",
     "capability_negotiation": "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1",
-    "authentication_contract": "VOID_AI_AGENT_AUTHENTICATION_V1",
+    "authentication_contract": "VOID_AI_AGENT_AUTHENTICATION_CONTRACT_V1",
     "first_contact": "VOID_AI_AGENT_FIRST_CONTACT_V1",
     "paid_work_runtime": "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1",
     "paid_work_public_discovery_alias": "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1"

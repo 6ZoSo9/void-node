@@ -74,7 +74,7 @@
       "id": "authentication_contract",
       "path": "/public-node/agents/authentication-v1.json",
       "kind": "static",
-      "marker": "VOID_AI_AGENT_AUTHENTICATION_V1"
+      "marker": "VOID_AI_AGENT_AUTHENTICATION_CONTRACT_V1"
     },
     {
       "id": "first_contact",

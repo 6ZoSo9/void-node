@@ -13,6 +13,10 @@ The existing Tor backend already serves signed node-onion binding, official netw
 
 All added routes are `GET`/`HEAD` only. They grant no work submission, payment, Work Credit write, wallet, signer, validator, node administration, or operator authority. Unknown or missing capability remains `not_granted`.
 
+## Marker contract
+
+The parity profile and generated root publish the exact marker served by every marker-bearing route. The authentication contract uses `VOID_AI_AGENT_AUTHENTICATION_CONTRACT_V1`. The proof starts the real static Tor backend and rejects any route-marker drift.
+
 ## Determinism
 
 `tools/build_void_tor_agent_discovery_parity_v1.mjs --check` regenerates both documents in memory and requires byte equality. The paid-work alias is derived from `public/public-node/agents/paid-work-v1.json` and changes only its schema URL and self route.
