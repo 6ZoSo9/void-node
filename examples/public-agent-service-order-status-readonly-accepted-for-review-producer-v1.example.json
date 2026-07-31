@@ -1,0 +1,146 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ACCEPTED_FOR_REVIEW_PRODUCER_INPUT_V1",
+  "submission_receipt": {
+    "admission": {
+      "admission_id": "voidawsa1_78e79e16a6a6dcc2e33dc8da996cbae107c46016a67edfd24f34246e3f4b8aa1",
+      "authority": {
+        "buy_void_fulfillment_authority_granted": false,
+        "mutation_authority_granted": false,
+        "payment_authorized": false,
+        "provider_selected": false,
+        "quote_created": false,
+        "wallet_or_signer_access_granted": false,
+        "wc_award_authorized": false,
+        "wc_ledger_write_authorized": false,
+        "work_dispatched": false,
+        "work_execution_authorized": false
+      },
+      "decision": "accepted_for_review",
+      "evaluated_at_utc": "2026-07-25T23:00:00Z",
+      "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_V1",
+      "normalized": {
+        "callback_host": "agent.example.invalid",
+        "callback_scheme": "https",
+        "capability_id": "datanet.fetch_verify",
+        "expected_output_count": 2,
+        "input_ref_count": 1,
+        "max_output_bytes": 1048576,
+        "max_runtime_seconds": 300,
+        "max_total": "5.00",
+        "quote_asset": "USD",
+        "ttl_seconds": 86400
+      },
+      "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+      "reason_codes": [],
+      "version": 1,
+      "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c"
+    },
+    "admission_id": "voidawsa1_78e79e16a6a6dcc2e33dc8da996cbae107c46016a67edfd24f34246e3f4b8aa1",
+    "authentication": {
+      "agent_id": "void.agent.example.alpha",
+      "credential_id": "voidapwc1_dd6de29216de296806cfcec5cbd6540417bc3eea41f5f09ef32ee8f24f068e82",
+      "mode": "credential_registry",
+      "registry_id": "voidapwcr1_1060f4ffd521d3c90f83706545632a766fbd8893d89aa0ec92cc733db3ccb025",
+      "scope": "agent_paid_work_submit"
+    },
+    "authority": {
+      "buy_void_fulfillment_authority_granted": false,
+      "mutation_authority_granted": false,
+      "payment_authorized": false,
+      "provider_selected": false,
+      "quote_created": false,
+      "wallet_or_signer_access_granted": false,
+      "wc_award_authorized": false,
+      "wc_ledger_write_authorized": false,
+      "work_dispatched": false,
+      "work_execution_authorized": false
+    },
+    "authorization_verified": true,
+    "canonical_request_sha256": "f4accb051e7bfb51c80e9efe3c4913bee2f1eca0f3112bfd89a4e0cb3a6967c6",
+    "duplicate": false,
+    "loopback_source": true,
+    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_RECEIPT_V1",
+    "receipt_id": "voidawsi1_6af2150c2d43bb07e18a5e5979822ac99227b88a1550cba21eaaceb744c3a3e5",
+    "received_at_utc": "2026-07-25T23:00:00Z",
+    "request_payload_sha256": "a12bbd3d9195eb445ee8ae084f85238707aa131a1cd683d5f75bb4e7f21f022f",
+    "submission_id": "agent-submission-example-v1",
+    "version": 1,
+    "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c"
+  },
+  "submission_request": {
+    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_REQUEST_V1",
+    "submission_id": "agent-submission-example-v1",
+    "version": 1,
+    "work_order": {
+      "commercial": {
+        "max_total": "5.00",
+        "payment_required_before_execution": true,
+        "quote_asset": "USD"
+      },
+      "created_at_utc": "2026-07-25T22:30:00Z",
+      "execution_limits": {
+        "external_side_effects_allowed": false,
+        "max_output_bytes": 1048576,
+        "max_runtime_seconds": 300,
+        "money_movement_allowed": false,
+        "wallet_access_allowed": false
+      },
+      "expires_at_utc": "2026-07-26T22:30:00Z",
+      "marker": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1",
+      "nonce": "example-20260725-0001",
+      "requester": {
+        "agent_id": "agent.example.researcher",
+        "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+      },
+      "service": {
+        "capability_id": "datanet.fetch_verify",
+        "expected_outputs": [
+          "verification_result.json",
+          "verification_receipt.json"
+        ],
+        "input_refs": [
+          "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        ],
+        "objective": "Fetch the referenced public DataNet object, verify its integrity, and return a deterministic verification result receipt."
+      },
+      "version": 1,
+      "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c"
+    }
+  },
+  "version": 1,
+  "work_order": {
+    "commercial": {
+      "max_total": "5.00",
+      "payment_required_before_execution": true,
+      "quote_asset": "USD"
+    },
+    "created_at_utc": "2026-07-25T22:30:00Z",
+    "execution_limits": {
+      "external_side_effects_allowed": false,
+      "max_output_bytes": 1048576,
+      "max_runtime_seconds": 300,
+      "money_movement_allowed": false,
+      "wallet_access_allowed": false
+    },
+    "expires_at_utc": "2026-07-26T22:30:00Z",
+    "marker": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1",
+    "nonce": "example-20260725-0001",
+    "requester": {
+      "agent_id": "agent.example.researcher",
+      "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+    },
+    "service": {
+      "capability_id": "datanet.fetch_verify",
+      "expected_outputs": [
+        "verification_result.json",
+        "verification_receipt.json"
+      ],
+      "input_refs": [
+        "datanet:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      ],
+      "objective": "Fetch the referenced public DataNet object, verify its integrity, and return a deterministic verification result receipt."
+    },
+    "version": 1,
+    "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c"
+  }
+}
