@@ -1,0 +1,55 @@
+{
+  "authority": {
+    "activation": false,
+    "configuration_write": false,
+    "daemon_reload": false,
+    "deployment": false,
+    "live_http_route_registration": false,
+    "network_listener": false,
+    "runtime_mutation": false,
+    "service_restart": false,
+    "source_write": false
+  },
+  "decision": {
+    "integration_disabled": true,
+    "ready_for_activation": false,
+    "ready_to_open_pull_request": true,
+    "ready_to_retry_activation": false,
+    "startup_repair_source_ready": true
+  },
+  "diagnostic": {
+    "classification": "invalid_express_app_provider_result",
+    "journal_evidence_sufficient": true,
+    "static_callsite_classification": "app_provider_identifier_available_before_callsite"
+  },
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_CALLABLE_EXPRESS_APP_REPAIR_EXAMPLE_V1",
+  "repair": {
+    "accepted_runtime_types": [
+      "function",
+      "object"
+    ],
+    "arrays_rejected": true,
+    "general_record_validator_unchanged": true,
+    "null_rejected": true,
+    "required_property": "get:function",
+    "startup_callsite_unchanged": true,
+    "validator": "expressApp"
+  },
+  "root_cause": {
+    "express_application_runtime_type": "function",
+    "previous_rejection": "invalid_object: express app",
+    "previous_validator_allowed_types": [
+      "object"
+    ]
+  },
+  "verification": {
+    "actual_express_callable_app_accepted": true,
+    "callable_fake_app_found_status": 200,
+    "callable_fake_app_route_registered": true,
+    "disabled_app_provider_calls": 0,
+    "invalid_app_values_rejected": 7,
+    "object_fake_app_regression_green": true,
+    "source_bytes_unchanged": true
+  },
+  "version": 1
+}
