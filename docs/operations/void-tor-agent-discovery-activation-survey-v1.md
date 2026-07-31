@@ -6,7 +6,10 @@ deployment. It is intentionally separate from activation.
 The survey requires an exact, clean canonical repository head, an exact
 `origin/main`, ancestry from the merged discovery-parity commit, and green
 deterministic source proofs. It then inspects the systemd-owned Tor backend and
-its clean deployment worktree.
+its clean deployment worktree. The unit may start through the fixed rendered
+launcher; deployment identity is derived from the exact `/usr/bin/node`
+`MainPID`, canonical server-script path, and matching systemd cgroup rather
+than from wrapper-level `ExecStart` or `WorkingDirectory` metadata.
 
 Its result is either:
 
