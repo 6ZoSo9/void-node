@@ -10,7 +10,7 @@
     "virtual_port": 80
   },
   "source_bindings": {
-    "tools/void-tor-onion-public-node-v1.mjs": "2fed7bcfa969f3a4bcc789580037fc9cb5fa8c63892d99b1c586f897d4612f18",
+    "tools/void-tor-onion-public-node-v1.mjs": "8f835802b8ae615c200a7acac1a193842f1905df68ee17718c8e28e128d2f867",
     "public/public-node/agents/paid-work-v1.json": "6b1185118272aa8fb2a67d0b4fcecda0e1d6bd88364ede5372ce857069112175",
     "public/public-node/agents/paid-work-v1.schema.json": "e774452d777ea1f873eb56aa26f2d372bd0c6755b4cda144e25bb7faf520ad74",
     "public/public-node/agents/discovery-v1.json": "4611a9c0b3263224a0934f9dd4eb63ebcbc5ef3bfc960d3bb1d3fadcf5c360c7",
