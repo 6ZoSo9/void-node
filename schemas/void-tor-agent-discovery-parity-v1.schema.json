@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.local/schemas/void-tor-agent-discovery-parity-v1.schema.json",
+  "title": "VOID Tor Agent Discovery Parity Profile V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "marker",
+    "version",
+    "source_base_commit",
+    "transport",
+    "source_bindings",
+    "routes",
+    "client_parity",
+    "authority",
+    "safety"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_TOR_AGENT_DISCOVERY_PARITY_PROFILE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "source_base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "onion_hostname",
+        "base_url",
+        "virtual_port"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "tor-v3-onion-service"
+        },
+        "onion_hostname": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{56}\\.onion$"
+        },
+        "base_url": {
+          "type": "string",
+          "pattern": "^http://[a-z2-7]{56}\\.onion$"
+        },
+        "virtual_port": {
+          "const": 80
+        }
+      }
+    },
+    "source_bindings": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "routes": {
+      "type": "array",
+      "minItems": 14,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "kind",
+          "marker"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "kind": {
+            "enum": [
+              "static",
+              "dynamic"
+            ]
+          },
+          "marker": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "client_parity": {
+      "type": "object"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "safety": {
+      "type": "object"
+    }
+  }
+}

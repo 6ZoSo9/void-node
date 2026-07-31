@@ -16,6 +16,7 @@ const BINDING_DOMAIN = "VOID_NODE_ONION_BINDING_V1";
 const BINDING_MARKER = "VOID_NODE_ONION_BINDING_V1";
 const DESCRIPTOR_MARKER = "VOID_TOR_ONION_TRANSPORT_V1";
 const MCP_DESCRIPTOR_MARKER = "VOID_TOR_AGENT_MCP_READONLY_V1";
+const ORDER_STATUS_SURFACE_MARKER = "VOID_TOR_ORDER_STATUS_READONLY_V1";
 const BINDING_PATHS = Object.freeze([
   "/.well-known/void-node-onion-binding-v1.json",
   "/public-node/transports/tor-v1-binding.json",
@@ -28,6 +29,12 @@ const MCP_DESCRIPTOR_PATHS = Object.freeze([
   "/.well-known/void-agent-mcp-onion-v1.json",
   "/public-node/agents/mcp-tor-v1.json",
 ]);
+const ORDER_STATUS_DESCRIPTOR_PATHS = Object.freeze([
+  "/.well-known/void-order-status-onion-v1.json",
+  "/public-node/agents/order-status-tor-v1.json",
+]);
+const ORDER_STATUS_PATH_TEMPLATE =
+  "/public-agent/services/v1/orders/:submission_id/status.json";
 const AUTHORITY = Object.freeze({
   read_only: true,
   transaction_submission: false,
@@ -463,8 +470,45 @@ function validateGeneratedAt(value, profile, options, label) {
   return generated;
 }
 
+function validateLoopbackLocalTarget(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    fail(`${label} must be a non-empty URL`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail(`${label} must be a valid URL`);
+  }
+
+  if (
+    parsed.protocol !== "http:"
+    || parsed.hostname !== "127.0.0.1"
+    || parsed.username !== ""
+    || parsed.password !== ""
+    || parsed.pathname !== "/"
+    || parsed.search !== ""
+    || parsed.hash !== ""
+  ) {
+    fail(`${label} must be an anonymous 127.0.0.1 HTTP target`);
+  }
+
+  const port = parsed.port === "" ? 80 : Number(parsed.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    fail(`${label} port is invalid`);
+  }
+
+  return { host: parsed.hostname, port };
+}
+
 function verifyAgentSurfaces(agentSurfaces, profile) {
-  exactKeys(agentSurfaces, ["mcp_readonly_v1"], "descriptor.agent_surfaces");
+  allowedKeys(
+    agentSurfaces,
+    ["mcp_readonly_v1"],
+    ["order_status_readonly_v1"],
+    "descriptor.agent_surfaces",
+  );
   const mcp = agentSurfaces.mcp_readonly_v1;
   exactKeys(mcp, [
     "marker", "status", "uri", "descriptor_paths", "methods", "application_authority",
@@ -478,6 +522,30 @@ function verifyAgentSurfaces(agentSurfaces, profile) {
     || mcp.application_authority !== "read_only"
   ) {
     fail("descriptor MCP agent surface is invalid");
+  }
+
+  const orderStatus = agentSurfaces.order_status_readonly_v1;
+  if (orderStatus !== undefined) {
+    exactKeys(orderStatus, [
+      "marker", "status", "reason", "uri_template", "descriptor_paths", "methods",
+      "application_authority",
+    ], "descriptor.agent_surfaces.order_status_readonly_v1");
+    const validReason = orderStatus.status === "active"
+      ? orderStatus.reason === null
+      : typeof orderStatus.reason === "string" && orderStatus.reason.length > 0;
+    if (
+      orderStatus.marker !== ORDER_STATUS_SURFACE_MARKER
+      || !new Set(["active", "unavailable"]).has(orderStatus.status)
+      || !validReason
+      || orderStatus.uri_template
+        !== `http://${profile.transport.onion_hostname}${ORDER_STATUS_PATH_TEMPLATE}`
+      || JSON.stringify(orderStatus.descriptor_paths)
+        !== JSON.stringify(ORDER_STATUS_DESCRIPTOR_PATHS)
+      || JSON.stringify(orderStatus.methods) !== JSON.stringify(["GET"])
+      || orderStatus.application_authority !== "read_only"
+    ) {
+      fail("descriptor order-status agent surface is invalid");
+    }
   }
   return structuredClone(mcp);
 }
@@ -514,11 +582,14 @@ export function verifyDescriptor(descriptor, bindingSummary, profile, options = 
   exactKeys(descriptor.surface, [
     "id", "methods", "descriptor_paths", "local_target",
   ], "descriptor.surface");
+  const localTarget = validateLoopbackLocalTarget(
+    descriptor.surface.local_target,
+    "descriptor.surface.local_target",
+  );
   if (
     descriptor.surface.id !== "void-public-node-static-read-only-v1"
     || JSON.stringify(descriptor.surface.methods) !== JSON.stringify(["GET", "HEAD"])
     || JSON.stringify(descriptor.surface.descriptor_paths) !== JSON.stringify(DESCRIPTOR_PATHS)
-    || descriptor.surface.local_target !== "http://127.0.0.1:18088"
   ) {
     fail("descriptor surface profile is invalid");
   }
@@ -533,6 +604,7 @@ export function verifyDescriptor(descriptor, bindingSummary, profile, options = 
   return {
     generatedAt: descriptor.generated_at,
     semanticSha256: semanticDigest(descriptor, ["generated_at"]),
+    localTarget,
     mcpSurface,
   };
 }

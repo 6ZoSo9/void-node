@@ -1,0 +1,139 @@
+{
+  "$schema": "../schemas/void-tor-agent-discovery-parity-v1.schema.json",
+  "marker": "VOID_TOR_AGENT_DISCOVERY_PARITY_PROFILE_V1",
+  "version": 1,
+  "source_base_commit": "f67f5ad52243ed52a680c7d6394266da47ca7b52",
+  "transport": {
+    "protocol": "tor-v3-onion-service",
+    "onion_hostname": "r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "base_url": "http://r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "virtual_port": 80
+  },
+  "source_bindings": {
+    "tools/void-tor-onion-public-node-v1.mjs": "2fed7bcfa969f3a4bcc789580037fc9cb5fa8c63892d99b1c586f897d4612f18",
+    "public/public-node/agents/paid-work-v1.json": "6b1185118272aa8fb2a67d0b4fcecda0e1d6bd88364ede5372ce857069112175",
+    "public/public-node/agents/paid-work-v1.schema.json": "e774452d777ea1f873eb56aa26f2d372bd0c6755b4cda144e25bb7faf520ad74",
+    "public/public-node/agents/discovery-v1.json": "4611a9c0b3263224a0934f9dd4eb63ebcbc5ef3bfc960d3bb1d3fadcf5c360c7",
+    "public/public-node/agents/capabilities-v1.json": "9f20d5983f47bfb6a5a5f547b1040cf902dd38df635cf9cb7cebc7c2ed446206",
+    "public/public-node/agents/authentication-v1.json": "9f1b55a64898b8fc7ee8eeffa870813e1222fb5fd0c51ba4c6882f99e6104d4f",
+    "public/public-node/agents/first-contact-v1.json": "73b2936cdb03c2028746db27159cbaa6e556e264652d8442a91fafa988dab45f",
+    "public/.well-known/void-agent-discovery.json": "252676ed80c2450e1281d34750cf7858485a14e02deba90a7fa33f69f97f718f",
+    "public/.well-known/void-network-authenticity.json": "597c451a349728c4713e1ac2ce9ca5478a80378bfc12cf0ca1ce4138e82ea692",
+    "config/void-tor-agent-access-client-v1.json": "cf2d9d2bf2c11629f1129aaafa9706141cdc27d40c7bd5148a0a6d610b27f002"
+  },
+  "routes": [
+    {
+      "id": "public_node_root",
+      "path": "/.well-known/void-public-node.json",
+      "kind": "static",
+      "marker": "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"
+    },
+    {
+      "id": "agent_discovery_well_known",
+      "path": "/.well-known/void-agent-discovery.json",
+      "kind": "static",
+      "marker": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1"
+    },
+    {
+      "id": "network_authenticity",
+      "path": "/.well-known/void-network-authenticity.json",
+      "kind": "static",
+      "marker": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1"
+    },
+    {
+      "id": "tor_transport",
+      "path": "/.well-known/void-tor-onion-transport-v1.json",
+      "kind": "dynamic",
+      "marker": "VOID_TOR_ONION_TRANSPORT_V1"
+    },
+    {
+      "id": "signed_node_binding",
+      "path": "/.well-known/void-node-onion-binding-v1.json",
+      "kind": "dynamic",
+      "marker": "VOID_NODE_ONION_BINDING_V1"
+    },
+    {
+      "id": "mcp_descriptor",
+      "path": "/.well-known/void-agent-mcp-onion-v1.json",
+      "kind": "dynamic",
+      "marker": "VOID_TOR_AGENT_MCP_READONLY_V1"
+    },
+    {
+      "id": "canonical_agent_discovery",
+      "path": "/public-node/agents/discovery-v1.json",
+      "kind": "static",
+      "marker": "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1"
+    },
+    {
+      "id": "capability_negotiation",
+      "path": "/public-node/agents/capabilities-v1.json",
+      "kind": "static",
+      "marker": "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1"
+    },
+    {
+      "id": "authentication_contract",
+      "path": "/public-node/agents/authentication-v1.json",
+      "kind": "static",
+      "marker": "VOID_AI_AGENT_AUTHENTICATION_CONTRACT_V1"
+    },
+    {
+      "id": "first_contact",
+      "path": "/public-node/agents/first-contact-v1.json",
+      "kind": "static",
+      "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1"
+    },
+    {
+      "id": "paid_work_runtime",
+      "path": "/public-node/agents/paid-work-v1.json",
+      "kind": "static",
+      "marker": "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1"
+    },
+    {
+      "id": "paid_work_public_discovery_alias",
+      "path": "/public-node/agent-paid-work-public-discovery-v1.json",
+      "kind": "static",
+      "marker": "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1"
+    },
+    {
+      "id": "datanet_index",
+      "path": "/public-node/datanet/index.json",
+      "kind": "static",
+      "marker": null
+    },
+    {
+      "id": "paid_read_quote",
+      "path": "/public-node/datanet/paid-read-quote-v1.json",
+      "kind": "static",
+      "marker": null
+    }
+  ],
+  "client_parity": {
+    "profile_marker": "VOID_TOR_AGENT_ACCESS_CLIENT_PROFILE_V1",
+    "optional_probe_paths": [
+      "/.well-known/void-public-node.json",
+      "/.well-known/void-agent-discovery.json",
+      "/.well-known/void-network-authenticity.json",
+      "/public-node/agents/first-contact-v1.json",
+      "/public-node/agent-paid-work-public-discovery-v1.json"
+    ],
+    "expected_after_activation": "full"
+  },
+  "authority": {
+    "read_only": true,
+    "mutation_authority_granted": false,
+    "paid_work_submission": false,
+    "payment_execution": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "node_runtime_mutation": false,
+    "operator_control": false
+  },
+  "safety": {
+    "same_origin_only": true,
+    "follow_redirects": false,
+    "send_credentials": false,
+    "send_secrets": false,
+    "send_wallet_material": false,
+    "treat_unknown_as": "not_granted"
+  }
+}

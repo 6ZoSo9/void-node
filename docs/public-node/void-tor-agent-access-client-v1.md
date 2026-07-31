@@ -58,8 +58,10 @@ The client then verifies:
 7. The binding is active, unexpired, and grants read-only authority only.
 8. Both Tor transport descriptors are valid and semantically identical. Their dynamic `generated_at` values may differ.
 9. Descriptor `generated_at` is chronology metadata, not a session freshness token. Old descriptors remain valid while future-dated descriptors beyond the configured clock-skew bound are rejected. Live reachability is proven by the current SOCKS5h request and exact response checks.
-10. Required public DataNet contracts return their exact pinned bodies.
-11. Transient SOCKS or circuit failures are retried only within the profile's strict attempt and delay bounds.
+10. Descriptor `surface.local_target` is operator-local metadata. The client requires anonymous plain HTTP on `127.0.0.1`, but accepts any valid loopback port so isolated deployments and replacement backends do not need the canonical live port `18088`. Non-loopback, credentialed, path-bearing, query-bearing, and malformed targets are rejected.
+11. Known additive read-only agent surfaces are validated independently. The current client accepts the reviewed `order_status_readonly_v1` descriptor in addition to MCP while rejecting malformed or unknown surfaces.
+12. Required public DataNet contracts return their exact pinned bodies.
+13. Transient SOCKS or circuit failures are retried only within the profile's strict attempt and delay bounds.
 
 The onion address authenticates the Tor service. The signed binding connects that onion identity to the canonical VOID node identity. The fingerprint pin prevents a malicious service from substituting a new key and self-signing a replacement binding.
 
@@ -88,7 +90,7 @@ Missing optional routes do not become implied capabilities.
 
 V1 is a client and verifier. It does **not** add server routes and it does not claim full onion agent-discovery parity.
 
-It may report the read-only MCP descriptor as `advertised`; that means the descriptor verified. It does not mean an MCP session or tool call was executed. Read-only MCP execution is a separate proof lane.
+It may report the read-only MCP descriptor as `advertised`; that means the descriptor verified. It does not mean an MCP session or tool call was executed. Read-only MCP execution is a separate proof lane. The transport descriptor may also advertise the reviewed read-only order-status surface; that additive surface is validated but does not grant submission, payment, WC-write, or operator authority.
 
 V1 never:
 
@@ -114,4 +116,4 @@ Run:
 node scripts/prove_void_tor_agent_access_client_v1.mjs
 ```
 
-The proof creates an in-process HTTP fixture and SOCKS5 proxy. It demonstrates remote hostname resolution, signed-binding validation, durable descriptor chronology handling, future-clock-skew rejection, exact required-route hash enforcement, honest reporting of absent optional capabilities, and rejection of tampered identity or route data.
+The proof creates an in-process HTTP fixture and SOCKS5 proxy. It demonstrates remote hostname resolution, signed-binding validation, durable descriptor chronology handling, future-clock-skew rejection, acceptance of bounded ephemeral loopback backend ports, rejection of non-loopback or credentialed local targets, exact required-route hash enforcement, honest reporting of absent optional capabilities, and rejection of tampered identity or route data.

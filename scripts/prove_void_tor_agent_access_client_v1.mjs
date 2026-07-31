@@ -242,6 +242,88 @@ const durableDescriptorSummary = verifyDescriptor(
   { nowMs: DURABLE_NOW },
 );
 assert.equal(durableDescriptorSummary.generatedAt, durableDescriptor.generated_at);
+assert.deepEqual(durableDescriptorSummary.localTarget, { host: "127.0.0.1", port: 18088 });
+
+const ephemeralLoopbackDescriptor = structuredClone(durableDescriptor);
+ephemeralLoopbackDescriptor.surface.local_target = "http://127.0.0.1:39827";
+const ephemeralLoopbackSummary = verifyDescriptor(
+  ephemeralLoopbackDescriptor,
+  summary,
+  loaded.profile,
+  { nowMs: DURABLE_NOW },
+);
+assert.deepEqual(ephemeralLoopbackSummary.localTarget, { host: "127.0.0.1", port: 39827 });
+
+const nonLoopbackDescriptor = structuredClone(durableDescriptor);
+nonLoopbackDescriptor.surface.local_target = "http://192.0.2.10:18088";
+expectHold(
+  () => verifyDescriptor(
+    nonLoopbackDescriptor,
+    summary,
+    loaded.profile,
+    { nowMs: DURABLE_NOW },
+  ),
+  /anonymous 127\.0\.0\.1 HTTP target/,
+);
+
+const credentialedLoopbackDescriptor = structuredClone(durableDescriptor);
+credentialedLoopbackDescriptor.surface.local_target = "http://agent:secret@127.0.0.1:18088";
+expectHold(
+  () => verifyDescriptor(
+    credentialedLoopbackDescriptor,
+    summary,
+    loaded.profile,
+    { nowMs: DURABLE_NOW },
+  ),
+  /anonymous 127\.0\.0\.1 HTTP target/,
+);
+
+const additiveOrderStatusDescriptor = structuredClone(durableDescriptor);
+additiveOrderStatusDescriptor.agent_surfaces.order_status_readonly_v1 = {
+  marker: "VOID_TOR_ORDER_STATUS_READONLY_V1",
+  status: "active",
+  reason: null,
+  uri_template: `http://${ONION}/public-agent/services/v1/orders/:submission_id/status.json`,
+  descriptor_paths: [
+    "/.well-known/void-order-status-onion-v1.json",
+    "/public-node/agents/order-status-tor-v1.json",
+  ],
+  methods: ["GET"],
+  application_authority: "read_only",
+};
+const additiveSummary = verifyDescriptor(
+  additiveOrderStatusDescriptor,
+  summary,
+  loaded.profile,
+  { nowMs: DURABLE_NOW },
+);
+assert.equal(additiveSummary.mcpSurface.marker, "VOID_TOR_AGENT_MCP_READONLY_V1");
+
+const malformedOrderStatusDescriptor = structuredClone(additiveOrderStatusDescriptor);
+malformedOrderStatusDescriptor.agent_surfaces.order_status_readonly_v1.methods = ["POST"];
+expectHold(
+  () => verifyDescriptor(
+    malformedOrderStatusDescriptor,
+    summary,
+    loaded.profile,
+    { nowMs: DURABLE_NOW },
+  ),
+  /order-status agent surface/,
+);
+
+const unknownAgentSurfaceDescriptor = structuredClone(additiveOrderStatusDescriptor);
+unknownAgentSurfaceDescriptor.agent_surfaces.unreviewed_surface_v1 = {
+  marker: "UNREVIEWED",
+};
+expectHold(
+  () => verifyDescriptor(
+    unknownAgentSurfaceDescriptor,
+    summary,
+    loaded.profile,
+    { nowMs: DURABLE_NOW },
+  ),
+  /unreviewed_surface_v1 is not allowed/,
+);
 
 const futureDescriptor = structuredClone(durableDescriptor);
 futureDescriptor.generated_at = "2026-07-31T08:47:01.000Z";
@@ -345,9 +427,15 @@ console.log("bounded_transport_retry_verified=true");
 console.log("descriptor_dynamic_timestamp_tolerated=true");
 console.log("descriptor_durable_timestamp_policy_verified=true");
 console.log("descriptor_future_skew_rejected=true");
+console.log("descriptor_ephemeral_loopback_port_accepted=true");
+console.log("descriptor_non_loopback_local_target_rejected=true");
+console.log("descriptor_credentialed_local_target_rejected=true");
 console.log("required_route_hash_pins_enforced=true");
 console.log("optional_missing_capabilities_reported_honestly=true");
 console.log("mcp_descriptor_advertised_not_execution_claimed=true");
+console.log("additive_order_status_surface_accepted=true");
+console.log("malformed_order_status_surface_rejected=true");
+console.log("unknown_agent_surface_rejected=true");
 console.log("mutation=false");
 console.log("payment_execution=false");
 console.log("fund_movement=false");
