@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-runtime-binding-v1.schema.json",
+  "title": "Authenticated paid-work activation/persistence runtime binding v1 example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "command",
+    "trusted_context",
+    "expected_result"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_BINDING_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "$ref": "#/$defs/runtimeConfig"
+    },
+    "command": {
+      "$ref": "#/$defs/runtimeCommand"
+    },
+    "trusted_context": {
+      "$ref": "#/$defs/trustedContext"
+    },
+    "expected_result": {
+      "$ref": "#/$defs/expectedResult"
+    }
+  },
+  "$defs": {
+    "runtimeConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "marker",
+            "version",
+            "enabled",
+            "persistence_config"
+          ],
+          "properties": {
+            "marker": {
+              "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_CONFIG_V1"
+            },
+            "version": {
+              "const": 1
+            },
+            "enabled": {
+              "const": false
+            },
+            "persistence_config": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "marker",
+            "version",
+            "enabled",
+            "persistence_config"
+          ],
+          "properties": {
+            "marker": {
+              "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_CONFIG_V1"
+            },
+            "version": {
+              "const": 1
+            },
+            "enabled": {
+              "const": true
+            },
+            "persistence_config": {
+              "$ref": "#/$defs/persistenceConfig"
+            }
+          }
+        }
+      ]
+    },
+    "persistenceConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "allowed_root",
+        "max_pointer_bytes",
+        "max_generation_file_bytes",
+        "max_generation_count",
+        "recover_exact_orphaned_generation"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "const": true
+        },
+        "allowed_root": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^/"
+        },
+        "max_pointer_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 1048576
+        },
+        "max_generation_file_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 33554432
+        },
+        "max_generation_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "recover_exact_orphaned_generation": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runtimeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "recorded_at_utc",
+        "prepared_input",
+        "prepared_packet",
+        "requester_authentication_input"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "recorded_at_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        },
+        "prepared_input": {
+          "type": "object"
+        },
+        "prepared_packet": {
+          "type": "object"
+        },
+        "requester_authentication_input": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": false
+              }
+            },
+            "required": [
+              "apply"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": true
+              }
+            },
+            "required": [
+              "apply"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": "activateAndPersistAuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityRuntimeV1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "trustedContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalog",
+        "work_order",
+        "quote"
+      ],
+      "properties": {
+        "catalog": {
+          "type": "object"
+        },
+        "work_order": {
+          "type": "object"
+        },
+        "quote": {
+          "type": "object"
+        }
+      }
+    },
+    "expectedResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "trusted_context_provider_calls",
+        "store_inspected",
+        "persistence_attempted",
+        "effective_quote_acceptance",
+        "effective_payment_authorization",
+        "payment_execution",
+        "money_movement"
+      ],
+      "properties": {
+        "status": {
+          "const": "disabled"
+        },
+        "trusted_context_provider_calls": {
+          "const": 0
+        },
+        "store_inspected": {
+          "const": false
+        },
+        "persistence_attempted": {
+          "const": false
+        },
+        "effective_quote_acceptance": {
+          "const": false
+        },
+        "effective_payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  },
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_BINDING_SCHEMA_V1",
+  "x_void_authority": {
+    "runtime_disabled_by_default": true,
+    "trusted_context_provider_required_when_enabled": true,
+    "client_persistence_configuration_forbidden": true,
+    "client_replay_state_forbidden": true,
+    "client_expected_revision_forbidden": true,
+    "payment_execution": false,
+    "transaction_construction": false,
+    "transaction_broadcast": false,
+    "work_execution_authorization": false,
+    "work_dispatch": false,
+    "wallet_access": false,
+    "work_credit_write": false,
+    "void_settlement": false,
+    "money_movement": false
+  }
+}
