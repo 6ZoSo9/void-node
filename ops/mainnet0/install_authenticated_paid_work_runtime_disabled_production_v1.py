@@ -379,6 +379,25 @@ def seal_release(root: Path) -> None:
     os.chmod(root, 0o500)
 
 
+def move_sealed_release(staging: Path, release: Path) -> None:
+    require(
+        stat.S_IMODE(staging.stat().st_mode) == 0o500,
+        "staged release root is not sealed",
+    )
+    moved = False
+    os.chmod(staging, 0o700)
+    try:
+        # An unprivileged process needs owner-write permission on a directory
+        # whose parent changes during rename. Child entries stay sealed, and
+        # the root is resealed immediately at its final path.
+        os.replace(staging, release)
+        moved = True
+    finally:
+        root = release if moved else staging
+        if root.exists() and not root.is_symlink():
+            os.chmod(root, 0o500)
+
+
 def verify_release(release: Path) -> dict[str, Any]:
     release_snapshot(release)
     manifest_path = release / "INSTALLATION.json"
@@ -649,7 +668,7 @@ def apply_install(
             verify_release(release)
             disabled_smoke(release)
         else:
-            os.replace(staging, release)
+            move_sealed_release(staging, release)
             installation_performed = True
 
         current = install_root / "current"
