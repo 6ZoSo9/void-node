@@ -1,0 +1,64 @@
+name: authenticated-paid-work-post-admission-provider-quote-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/close_authenticated_paid_work_post_admission_provider_quote_v1.py"
+      - "scripts/prove_authenticated_paid_work_post_admission_provider_quote_v1.py"
+      - "docs/operations/authenticated-paid-work-post-admission-provider-quote-v1.md"
+      - ".github/workflows/authenticated-paid-work-post-admission-provider-quote-v1.yml"
+      - "scripts/authenticated_paid_work_submission_review_queue_handoff_v1.ts"
+      - "scripts/authenticated_paid_work_submission_operator_review_decision_v1.ts"
+      - "scripts/authenticated_paid_work_submission_provider_selection_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "tools/void-node-onion-binding-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/close_authenticated_paid_work_post_admission_provider_quote_v1.py"
+      - "scripts/prove_authenticated_paid_work_post_admission_provider_quote_v1.py"
+      - "docs/operations/authenticated-paid-work-post-admission-provider-quote-v1.md"
+      - ".github/workflows/authenticated-paid-work-post-admission-provider-quote-v1.yml"
+      - "scripts/authenticated_paid_work_submission_review_queue_handoff_v1.ts"
+      - "scripts/authenticated_paid_work_submission_operator_review_decision_v1.ts"
+      - "scripts/authenticated_paid_work_submission_provider_selection_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "tools/void-node-onion-binding-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-post-admission-provider-quote-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Compile Python in memory
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/close_authenticated_paid_work_post_admission_provider_quote_v1.py",
+              "scripts/prove_authenticated_paid_work_post_admission_provider_quote_v1.py",
+          ):
+              path = Path(relative)
+              compile(path.read_text(encoding="utf-8"), str(path), "exec")
+              print(f"compiled={relative}")
+          PY
+      - name: Run focused exact-green proof
+        run: |
+          python3 -B \
+            scripts/prove_authenticated_paid_work_post_admission_provider_quote_v1.py
