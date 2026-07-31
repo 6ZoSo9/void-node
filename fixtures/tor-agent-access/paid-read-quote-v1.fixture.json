@@ -1,0 +1,119 @@
+{
+  "boundary": [
+    "This is a static public discovery card and deterministic quote contract only.",
+    "It does not collect or confirm payment.",
+    "It does not admit, authorize, or execute work.",
+    "It does not perform a DataNet fetch or mutation.",
+    "It does not access a wallet, signer, Work Credit ledger, VOID settlement, treasury, or funds."
+  ],
+  "canonical_sample": {
+    "canonical_sample_sha256": "d0343ce33cccdfd9f6de239c47d617fe9716570e8d24bb6edae3ffab897f96cf",
+    "dataset_id": "ds_public_read_001",
+    "expires_at_ms": 1800000900000,
+    "fetch_url": "https://public-node.example/datanet/v1/fetch/ds_public_read_001?who=customer-read-001",
+    "object_count": 1,
+    "operator_cost_basis_cents": 0,
+    "quote_id": "60ac49dcefbf8f1ed7e4956f2ce83f6db09380e712ff41f7b3ad83d28e7c3615",
+    "quoted_total_cents": 453,
+    "read_quote_id": "58ab3b6103eb6e00392cbd6e540d22b07a705e7b2bdea18a233016f9c2b7fab5",
+    "request_id": "request-read-001",
+    "requested_at_ms": 1800000000000,
+    "requester_id": "customer-read-001",
+    "source_base": "https://public-node.example",
+    "total_bytes": 42,
+    "who": "customer-read-001"
+  },
+  "controls": {
+    "automatic_execution_enabled": false,
+    "customer_payment_required_before_work": true,
+    "datanet_fetch_performed": false,
+    "datanet_mutation_enabled": false,
+    "execution_authorized": false,
+    "fund_movement": false,
+    "operator_approval_required": true,
+    "payment_collection_enabled": false,
+    "payment_confirmation_performed": false,
+    "quote_only": true,
+    "transaction_submission": false,
+    "treasury_access_enabled": false,
+    "void_settlement": false,
+    "wallet_or_signer_access": false,
+    "work_credit_write": false
+  },
+  "id": "datanet-paid-read-quote-public-discovery-v1",
+  "index_path": "/public-node/datanet/index.json",
+  "marker": "VOID_DATANET_PAID_READ_QUOTE_PUBLIC_DISCOVERY_V1",
+  "public_safety": {
+    "contains_customer_payment_data": false,
+    "contains_live_customer_request": false,
+    "contains_private_operator_material": false,
+    "contains_secret_material": false,
+    "contains_wallet_material": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false
+  },
+  "publication": {
+    "discovery_only": true,
+    "mutation_handler_enabled": false,
+    "public_intake_enabled": false,
+    "public_safe": true,
+    "read_only": true,
+    "runtime_mutation_route_enabled": false,
+    "runtime_route_enabled": false,
+    "static_discovery_only": true,
+    "upload_enabled": false
+  },
+  "quote_contract": {
+    "caller_supplied_requested_at_ms_required": true,
+    "catalog_marker": "VOID_PAID_DATANET_SERVICE_CATALOG_V1",
+    "catalog_quote_schema": "void-paid-datanet-quote-v1",
+    "catalog_source_path": "src/paid_services/datanet_service_catalog_v1.ts",
+    "catalog_source_sha256": "452c777bd21f22cfb596276e1a75b923fc1cfb45371f2fbec6a5cde020eabdff",
+    "deterministic": true,
+    "proof_path": "scripts/prove_void_datanet_paid_read_quote_v1.mjs",
+    "public_source_required": true,
+    "read_quote_marker": "VOID_DATANET_PAID_READ_QUOTE_V1",
+    "read_quote_schema": "void-datanet-paid-read-quote-v1",
+    "tool_path": "tools/void-datanet-paid-read-quote-v1.mjs"
+  },
+  "references": {
+    "operator_document": "docs/operations/void-datanet-paid-read-quote-v1.md",
+    "public_discovery_document": "docs/public-node/datanet/datanet-paid-read-quote-public-discovery-v1.md",
+    "terminal_checkpoint_tag": "ckpt-void-datanet-paid-read-quote-v1-terminal-sample-and-lane-close-exact-green-20260730T184404Z"
+  },
+  "schema": "void.public_node.datanet.paid_read_quote_public_discovery.v1",
+  "schema_path": "/public-node/datanet/paid-read-quote-v1.schema.json",
+  "scope": "datanet_paid_read_quote_public_discovery",
+  "self_path": "/public-node/datanet/paid-read-quote-v1.json",
+  "service": {
+    "currency": "USD_CENTS",
+    "exclusions": [
+      "availability guarantees beyond the observed window",
+      "private-network access",
+      "credential handling",
+      "automatic settlement"
+    ],
+    "max_total_bytes": 134217728,
+    "object_count": 1,
+    "pricing": {
+      "base_cents": 400,
+      "minimum_operator_margin_bps": 3000,
+      "per_billable_mib_cents": 3,
+      "per_object_cents": 50
+    },
+    "public_name": "DataNet Public Retrieval Evidence",
+    "quote_valid_for_ms": 900000,
+    "required_evidence": [
+      "request-bound object identifiers",
+      "retrieval source identity",
+      "bounded retrieval result per object",
+      "content digest when retrieval succeeds",
+      "operator-signed completion receipt"
+    ],
+    "service_code": "datanet.public-retrieval-evidence.v1",
+    "target_completion_seconds": 1800
+  },
+  "status": "green",
+  "summary": "Static machine-readable discovery card for deterministic quotes for one bounded public DataNet read.",
+  "title": "Paid DataNet Read Quote V1"
+}

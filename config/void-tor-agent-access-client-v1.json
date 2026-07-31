@@ -1,0 +1,100 @@
+{
+  "$schema": "../schemas/void-tor-agent-access-client-v1.schema.json",
+  "marker": "VOID_TOR_AGENT_ACCESS_CLIENT_PROFILE_V1",
+  "version": 1,
+  "transport": {
+    "onion_hostname": "r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "virtual_port": 80,
+    "socks_proxy": {
+      "host": "127.0.0.1",
+      "port": 19050
+    }
+  },
+  "trust": {
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "public_key_fingerprint_sha256": "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+    "binding_sha256": "f625a192b3f97a29513603b2a433e4acc86f15fb81f9fa536cc44541e5873521",
+    "binding_expires_at": "2027-01-26T08:39:09.089Z"
+  },
+  "limits": {
+    "connect_timeout_ms": 5000,
+    "request_timeout_ms": 12000,
+    "max_response_bytes": 4194304,
+    "descriptor_max_age_ms": 600000,
+    "request_attempts": 3,
+    "retry_delay_ms": 750
+  },
+  "required_probes": [
+    {
+      "id": "datanet_index",
+      "path": "/public-node/datanet/index.json",
+      "expected_status": 200,
+      "expected_sha256": "350f12849f1ee24dc8efd5fa3722b13944f38a37a247f847d1f763a91c087e0e",
+      "json": true
+    },
+    {
+      "id": "paid_read_quote",
+      "path": "/public-node/datanet/paid-read-quote-v1.json",
+      "expected_status": 200,
+      "expected_sha256": "aa2903c87d9ed5b41b16702e8ada063b6160ebcfc0a0c253e4a9cc8504a1d9aa",
+      "json": true
+    },
+    {
+      "id": "paid_read_quote_schema",
+      "path": "/public-node/datanet/paid-read-quote-v1.schema.json",
+      "expected_status": 200,
+      "expected_sha256": "8e4d27a46168dd0c437f8708b6e904a556c73f5fa1032835a4b6cc4f1064aaf7",
+      "json": true
+    }
+  ],
+  "optional_probes": [
+    {
+      "id": "void_public_node",
+      "path": "/.well-known/void-public-node.json",
+      "accepted_statuses": [
+        200,
+        404
+      ],
+      "json": true
+    },
+    {
+      "id": "agent_discovery",
+      "path": "/.well-known/void-agent-discovery.json",
+      "accepted_statuses": [
+        200,
+        404
+      ],
+      "json": true,
+      "expected_marker": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1"
+    },
+    {
+      "id": "network_authenticity",
+      "path": "/.well-known/void-network-authenticity.json",
+      "accepted_statuses": [
+        200,
+        404
+      ],
+      "json": true,
+      "expected_marker": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1"
+    },
+    {
+      "id": "agent_first_contact",
+      "path": "/public-node/agents/first-contact-v1.json",
+      "accepted_statuses": [
+        200,
+        404
+      ],
+      "json": true,
+      "expected_marker": "VOID_AI_AGENT_FIRST_CONTACT_V1"
+    },
+    {
+      "id": "agent_paid_work_discovery",
+      "path": "/public-node/agent-paid-work-public-discovery-v1.json",
+      "accepted_statuses": [
+        200,
+        404
+      ],
+      "json": true
+    }
+  ]
+}
