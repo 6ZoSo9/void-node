@@ -1,0 +1,68 @@
+name: VOID Browser Agent Access Kit V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-browser-agent-access-kit-v1.yml"
+      - "docs/public-node/void-browser-agent-access-kit-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/**"
+      - "scripts/prove_void_browser_agent_access_kit_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-browser-agent-access-kit-v1.yml"
+      - "docs/public-node/void-browser-agent-access-kit-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/**"
+      - "scripts/prove_void_browser_agent_access_kit_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-browser-agent-access-kit-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source syntax and manifest
+        run: |
+          node --check integrations/browser/void-browser-agent-access-kit-v1/core.mjs
+          node --check integrations/browser/void-browser-agent-access-kit-v1/popup.mjs
+          node --check scripts/prove_void_browser_agent_access_kit_v1.mjs
+          python3 -m json.tool \
+            integrations/browser/void-browser-agent-access-kit-v1/manifest.json \
+            >/dev/null
+          python3 -m json.tool \
+            integrations/browser/void-browser-agent-access-kit-v1/trust-pins.json \
+            >/dev/null
+
+      - name: Prove browser trust and authority boundary
+        run: |
+          node scripts/prove_void_browser_agent_access_kit_v1.mjs \
+            | tee /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "VOID_BROWSER_AGENT_ACCESS_KIT_V1_PROOF_GREEN" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "signed_onion_binding_verified=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "canonical_void_identity_pinned=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "capability_intersection_fail_closed=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "mutation=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "payment_execution=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log

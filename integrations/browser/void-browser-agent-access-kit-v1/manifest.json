@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "VOID Browser Agent Access Kit",
+  "version": "1.0.0",
+  "description": "Verify a VOID node's signed read-only onion binding and public capability catalog.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Verify VOID"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "void-browser-agent-access-kit-v1@voidchain.io",
+      "strict_min_version": "128.0"
+    }
+  }
+}
