@@ -1,0 +1,79 @@
+# VOID free discovery mesh v1
+
+`VOID_FREE_DISCOVERY_MESH_V1` is a source-only, provider-neutral kit for making an already-public VOID node easier for ordinary search crawlers and AI agents to discover. It generates standards-based public files for a verified HTTPS clearnet origin. It does not deploy them, contact a provider, mutate an account, submit URLs, or enable billing.
+
+The first supported surfaces are:
+
+- Google Search Console through a sitemap and `Dataset` JSON-LD;
+- Microsoft Bing Webmaster Tools through the same sitemap and an offline IndexNow request;
+- Cloudflare through an optional later Crawler Hints dashboard opt-in, which uses IndexNow signals.
+
+Official references:
+
+- Google Dataset structured data: <https://developers.google.com/search/docs/appearance/structured-data/dataset>
+- Google crawl and indexing overview: <https://developers.google.com/search/docs/crawling-indexing>
+- Bing sitemaps: <https://www.bing.com/webmasters/help/Sitemaps-3b5cf6ed>
+- Bing IndexNow: <https://www.bing.com/indexnow>
+- IndexNow protocol: <https://www.indexnow.org/documentation>
+- Cloudflare Crawler Hints: <https://developers.cloudflare.com/cache/advanced-configuration/crawler-hints/>
+
+## Cost and authority boundary
+
+This lane is designed to remain at `$0`. It collects no payment method, activates no startup credit, performs no billed API call, and contains no automatic paid upgrade. Provider plans and terms can change. Stop if any step asks for a card, paid plan, trial that can roll into billing, metered feature, or overage permission.
+
+The generated discovery content is informational. It grants no wallet, signer, validator, operator, payment, Work Credit, node mutation, or deployment authority. `robots.txt` is crawler guidance, not access control; private or sensitive routes must still be protected by real authentication and network controls.
+
+## Build an offline pack
+
+Create the IndexNow key outside the repository. The protocol accepts 8–128 ASCII letters, numbers, or dashes. The key is publicly served after deployment, but keeping its source file outside Git prevents accidental coupling to source history.
+
+```bash
+umask 077
+KEY_FILE="$(mktemp)"
+openssl rand -hex 16 >"$KEY_FILE"
+
+node tools/void-free-discovery-mesh-v1.mjs build \
+  --origin "https://YOUR-VERIFIED-PUBLIC-HOST" \
+  --output "$HOME/void-free-discovery-pack-v1" \
+  --indexnow-key-file "$KEY_FILE" \
+  --lastmod "YYYY-MM-DD" \
+  --confirm "buildVoidFreeDiscoveryMeshV1"
+```
+
+The output path must be absent, its parent must already exist, and it must be outside the repository. The command performs no network calls.
+
+The pack contains:
+
+- `public/robots.txt` and `public/sitemap.xml`;
+- `public/discovery/index.html` with embedded Dataset JSON-LD;
+- a standalone Dataset JSON-LD document;
+- the root IndexNow key file;
+- an offline IndexNow POST body;
+- a fail-closed provider-registration checklist;
+- a SHA-256 build receipt.
+
+## Activation checkpoint
+
+Activation is intentionally separate from source construction.
+
+1. Review the generated pack and independently verify the current free-plan terms for every chosen provider.
+2. Deploy only the `public/` tree to the exact HTTPS origin named at build time.
+3. Verify every sitemap URL and the exact root key file over HTTPS.
+4. Add the property and sitemap manually in Google Search Console and Bing Webmaster Tools without attaching a payment method.
+5. Choose exactly one IndexNow notification owner to prevent duplicate or confusing submissions. Use the generated JSON only after deployment.
+6. If the zone is already on Cloudflare's Free plan, optionally enable Crawler Hints in the dashboard. Do not upgrade the plan for this lane.
+7. Record the provider settings and observed responses in an operator-controlled receipt before treating discovery as active.
+
+If a public HTTPS origin is not already available for `$0`, keep this lane source-only. Tor discovery remains separate and is not weakened or replaced by this kit.
+
+## Proof
+
+```bash
+node --check tools/void-free-discovery-mesh-v1.mjs
+node --check scripts/prove_void_free_discovery_mesh_v1.mjs
+node scripts/prove_void_free_discovery_mesh_v1.mjs
+python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
+python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
+```
+
+The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.

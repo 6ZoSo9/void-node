@@ -1,0 +1,455 @@
+#!/usr/bin/env node
+
+import crypto from "node:crypto";
+import fs from "node:fs";
+import net from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const MARKER = "VOID_FREE_DISCOVERY_MESH_V1";
+export const CONFIRMATION = "buildVoidFreeDiscoveryMeshV1";
+
+export const PUBLIC_PATHS = Object.freeze([
+  "/",
+  "/discovery/",
+  "/public-node",
+  "/.well-known/void-public-node.json",
+  "/.well-known/void-agent-discovery.json",
+]);
+
+export const CRAWLER_EXCLUSIONS = Object.freeze([
+  "/admin/",
+  "/internal/",
+  "/operator/",
+  "/private/",
+  "/debug/",
+  "/metrics",
+]);
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "..");
+const CONFIG_PATH = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
+
+export class Hold extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "Hold";
+  }
+}
+
+function fail(message) {
+  throw new Hold(message);
+}
+
+function prettyJson(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function sha256File(filename) {
+  return sha256(fs.readFileSync(filename));
+}
+
+function requireRegularFile(filename, label) {
+  let metadata;
+  try {
+    metadata = fs.lstatSync(filename);
+  } catch {
+    fail(`${label} is missing: ${filename}`);
+  }
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    fail(`${label} must be a regular non-symlink file: ${filename}`);
+  }
+  return filename;
+}
+
+function requireRealDirectory(directory, label) {
+  let metadata;
+  try {
+    metadata = fs.lstatSync(directory);
+  } catch {
+    fail(`${label} is missing: ${directory}`);
+  }
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    fail(`${label} must be a real directory: ${directory}`);
+  }
+  if (fs.realpathSync(directory) !== path.resolve(directory)) {
+    fail(`${label} does not resolve exactly: ${directory}`);
+  }
+  return directory;
+}
+
+function isInside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+export function validateOrigin(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value ?? ""));
+  } catch {
+    fail("origin must be an absolute HTTPS URL");
+  }
+  if (parsed.protocol !== "https:") fail("origin must use HTTPS");
+  if (parsed.username || parsed.password) fail("origin credentials are forbidden");
+  if (parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    fail("origin must not contain a path, query, or fragment");
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    !hostname
+    || hostname === "localhost"
+    || hostname.endsWith(".localhost")
+    || hostname.endsWith(".local")
+    || hostname.endsWith(".onion")
+    || net.isIP(hostname) !== 0
+  ) {
+    fail("origin must use a public clearnet hostname");
+  }
+  if (parsed.port && parsed.port !== "443") fail("origin may use only the default HTTPS port");
+  return parsed.origin;
+}
+
+export function validateLastmod(value) {
+  const text = String(value ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) fail("lastmod must use YYYY-MM-DD");
+  const parsed = new Date(`${text}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) {
+    fail("lastmod is not a real calendar date");
+  }
+  return text;
+}
+
+export function validateIndexNowKey(value) {
+  const raw = String(value ?? "");
+  const key = raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+  if (raw !== key && raw !== `${key}\n`) fail("IndexNow key file has excess lines");
+  if (!/^[A-Za-z0-9-]{8,128}$/.test(key)) {
+    fail("IndexNow key must be 8-128 letters, numbers, or dashes");
+  }
+  return key;
+}
+
+function xmlEscape(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+export function canonicalUrls(originValue) {
+  const origin = validateOrigin(originValue);
+  return PUBLIC_PATHS.map((relative) => new URL(relative, `${origin}/`).href);
+}
+
+export function renderRobots(originValue) {
+  const origin = validateOrigin(originValue);
+  return [
+    "# VOID_FREE_DISCOVERY_MESH_V1",
+    "# Crawling policy is not an authorization boundary.",
+    "User-agent: *",
+    "Allow: /",
+    ...CRAWLER_EXCLUSIONS.map((relative) => `Disallow: ${relative}`),
+    `Sitemap: ${origin}/sitemap.xml`,
+    "",
+  ].join("\n");
+}
+
+export function renderSitemap(originValue, lastmodValue) {
+  const origin = validateOrigin(originValue);
+  const lastmod = validateLastmod(lastmodValue);
+  const entries = canonicalUrls(origin).map((url) => (
+    `  <url>\n    <loc>${xmlEscape(url)}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`
+  ));
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...entries,
+    "</urlset>",
+    "",
+  ].join("\n");
+}
+
+export function datasetJsonLd(originValue) {
+  const origin = validateOrigin(originValue);
+  return {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: "VOID Mainnet-0 public discovery and DataNet evidence",
+    description: (
+      "Machine-readable, read-only discovery metadata and verifiable public "
+      + "evidence for VOID Mainnet-0, a decentralized data and useful-work network."
+    ),
+    url: `${origin}/discovery/`,
+    sameAs: `${origin}/public-node`,
+    creator: {
+      "@type": "Organization",
+      name: "VOID Network",
+      url: `${origin}/`,
+    },
+    isAccessibleForFree: true,
+    license: "https://github.com/6ZoSo9/void-node/blob/main/LICENSE",
+    keywords: [
+      "VOID Network",
+      "DataNet",
+      "AI agents",
+      "decentralized data",
+      "verifiable useful work",
+    ],
+    distribution: [
+      {
+        "@type": "DataDownload",
+        encodingFormat: "application/json",
+        contentUrl: `${origin}/.well-known/void-public-node.json`,
+      },
+      {
+        "@type": "DataDownload",
+        encodingFormat: "application/json",
+        contentUrl: `${origin}/.well-known/void-agent-discovery.json`,
+      },
+    ],
+  };
+}
+
+export function renderLanding(originValue) {
+  const origin = validateOrigin(originValue);
+  const structured = prettyJson(datasetJsonLd(origin)).trimEnd().replaceAll("</script", "<\\/script");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="index,follow">
+    <title>VOID Mainnet-0 public discovery</title>
+    <meta name="description" content="Read-only discovery metadata and DataNet evidence for VOID Mainnet-0.">
+    <link rel="canonical" href="${origin}/discovery/">
+    <script type="application/ld+json">
+${structured}
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>VOID Mainnet-0 public discovery</h1>
+      <p>Machine-readable, read-only discovery metadata and verifiable public DataNet evidence for people and AI agents.</p>
+      <ul>
+        <li><a href="${origin}/public-node">Public node</a></li>
+        <li><a href="${origin}/.well-known/void-public-node.json">Public-node discovery JSON</a></li>
+        <li><a href="${origin}/.well-known/void-agent-discovery.json">AI-agent discovery JSON</a></li>
+      </ul>
+      <p>This page grants no wallet, signer, payment, Work Credit, validator, operator, or mutation authority.</p>
+    </main>
+  </body>
+</html>
+`;
+}
+
+export function indexNowRequest(originValue, keyValue) {
+  const origin = validateOrigin(originValue);
+  const key = validateIndexNowKey(keyValue);
+  const parsed = new URL(origin);
+  const urlList = canonicalUrls(origin);
+  if (urlList.length > 10_000) fail("IndexNow request exceeds 10,000 URLs");
+  if (urlList.some((value) => new URL(value).host !== parsed.host)) {
+    fail("IndexNow URL crossed the verified host boundary");
+  }
+  return {
+    host: parsed.host,
+    key,
+    keyLocation: `${origin}/${key}.txt`,
+    urlList,
+  };
+}
+
+function readConfig() {
+  requireRegularFile(CONFIG_PATH, "free-discovery config");
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+  } catch (error) {
+    fail(`free-discovery config is invalid JSON: ${error.message}`);
+  }
+  if (
+    config?.marker !== MARKER
+    || config?.version !== 1
+    || config?.activation?.state !== "source_only_not_activated"
+    || config?.cost_boundary?.automatic_paid_upgrade !== false
+    || config?.authority?.network_calls !== false
+  ) {
+    fail("free-discovery config boundary mismatch");
+  }
+  if (JSON.stringify(config.public_paths) !== JSON.stringify(PUBLIC_PATHS)) {
+    fail("free-discovery config public-path boundary mismatch");
+  }
+  if (JSON.stringify(config.crawler_exclusions) !== JSON.stringify(CRAWLER_EXCLUSIONS)) {
+    fail("free-discovery config crawler exclusion mismatch");
+  }
+  return config;
+}
+
+function writeFile(filename, value) {
+  fs.writeFileSync(filename, value, { encoding: "utf8", mode: 0o600, flag: "wx" });
+}
+
+export function buildDiscoveryPack({ origin, output, indexNowKey, lastmod }) {
+  const normalizedOrigin = validateOrigin(origin);
+  const normalizedLastmod = validateLastmod(lastmod);
+  const normalizedKey = validateIndexNowKey(indexNowKey);
+  const config = readConfig();
+  const destination = path.resolve(String(output ?? ""));
+  if (!destination || destination === path.parse(destination).root) fail("output path is unsafe");
+  if (isInside(REPO_ROOT, destination)) {
+    fail("output must remain outside the repository so the IndexNow key is never committed");
+  }
+  const parent = path.dirname(destination);
+  requireRealDirectory(parent, "output parent");
+  if (fs.existsSync(destination)) fail(`output already exists: ${destination}`);
+
+  const temporary = path.join(parent, `.${path.basename(destination)}.${process.pid}.tmp`);
+  if (fs.existsSync(temporary)) fail(`temporary output already exists: ${temporary}`);
+  fs.mkdirSync(temporary, { mode: 0o700 });
+  try {
+    const publicRoot = path.join(temporary, "public");
+    const discoveryRoot = path.join(publicRoot, "discovery");
+    const operatorRoot = path.join(temporary, "operator");
+    fs.mkdirSync(publicRoot, { mode: 0o700 });
+    fs.mkdirSync(discoveryRoot, { mode: 0o700 });
+    fs.mkdirSync(operatorRoot, { mode: 0o700 });
+
+    const request = indexNowRequest(normalizedOrigin, normalizedKey);
+    const checklist = {
+      marker: "VOID_FREE_DISCOVERY_PROVIDER_REGISTRATION_CHECKLIST_V1",
+      state: "not_activated",
+      origin: normalizedOrigin,
+      steps: [
+        "deploy_public_directory_to_the_exact_verified_https_origin",
+        "verify_all_sitemap_urls_return_expected_public_content",
+        "verify_indexnow_key_location_returns_the_exact_key",
+        "register_site_and_sitemap_in_google_search_console",
+        "register_site_and_sitemap_in_bing_webmaster_tools",
+        "choose_exactly_one_indexnow_notification_owner",
+        "optionally_enable_cloudflare_crawler_hints_on_the_free_plan",
+      ],
+      forbidden: [
+        "payment_method_attachment",
+        "automatic_paid_upgrade",
+        "startup_credit_activation_with_overage_billing",
+        "submission_before_verified_deployment",
+      ],
+    };
+
+    const outputs = new Map([
+      ["public/robots.txt", renderRobots(normalizedOrigin)],
+      ["public/sitemap.xml", renderSitemap(normalizedOrigin, normalizedLastmod)],
+      ["public/discovery/index.html", renderLanding(normalizedOrigin)],
+      ["public/discovery/void-datanet-dataset-v1.jsonld", prettyJson(datasetJsonLd(normalizedOrigin))],
+      [`public/${normalizedKey}.txt`, `${normalizedKey}\n`],
+      ["operator/indexnow-request-v1.json", prettyJson(request)],
+      ["operator/provider-registration-checklist-v1.json", prettyJson(checklist)],
+    ]);
+
+    for (const [relative, value] of outputs) {
+      writeFile(path.join(temporary, relative), value);
+    }
+
+    const files = {};
+    for (const relative of [...outputs.keys()].sort()) {
+      files[relative] = sha256File(path.join(temporary, relative));
+    }
+    const receipt = {
+      marker: "VOID_FREE_DISCOVERY_MESH_BUILD_RECEIPT_V1",
+      version: 1,
+      origin: normalizedOrigin,
+      lastmod: normalizedLastmod,
+      indexnow_key_location: request.keyLocation,
+      canonical_urls: request.urlList,
+      files,
+      config_sha256: sha256File(CONFIG_PATH),
+      claims: {
+        source_only: true,
+        network_calls: false,
+        live_submission: false,
+        public_deployment: false,
+        provider_account_mutation: false,
+        payment_method_collection: false,
+        billing_api_access: false,
+        automatic_paid_upgrade: false,
+        external_paid_service_execution: false,
+        wallet_or_signer_access: false,
+        fund_movement: false,
+      },
+    };
+    writeFile(path.join(temporary, "build-receipt-v1.json"), prettyJson(receipt));
+    fs.renameSync(temporary, destination);
+    return Object.freeze({ destination, receipt });
+  } catch (error) {
+    fs.rmSync(temporary, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function parseArgs(argv) {
+  const values = { command: "", origin: "", output: "", indexNowKeyFile: "", lastmod: "", confirm: "" };
+  const args = [...argv];
+  values.command = args.shift() ?? "";
+  while (args.length) {
+    const name = args.shift();
+    const value = args.shift();
+    if (!value || !["--origin", "--output", "--indexnow-key-file", "--lastmod", "--confirm"].includes(name)) {
+      fail(`unknown or incomplete argument: ${name ?? ""}`);
+    }
+    const key = {
+      "--origin": "origin",
+      "--output": "output",
+      "--indexnow-key-file": "indexNowKeyFile",
+      "--lastmod": "lastmod",
+      "--confirm": "confirm",
+    }[name];
+    if (values[key]) fail(`duplicate argument: ${name}`);
+    values[key] = value;
+  }
+  return values;
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.command !== "build") fail("command must be build");
+  if (args.confirm !== CONFIRMATION) fail("confirmation phrase mismatch");
+  requireRegularFile(args.indexNowKeyFile, "IndexNow key file");
+  const key = validateIndexNowKey(fs.readFileSync(args.indexNowKeyFile, "utf8"));
+  console.log(`${MARKER}=START`);
+  console.log("operation=build_offline_provider_neutral_discovery_pack");
+  console.log("network_calls=false");
+  console.log("live_submission=false");
+  console.log("deployment=false");
+  console.log("provider_account_mutation=false");
+  console.log("payment_method_collection=false");
+  console.log("automatic_paid_upgrade=false");
+  console.log("wallet_or_signer_access=false");
+  console.log("fund_movement=false");
+  const result = buildDiscoveryPack({
+    origin: args.origin,
+    output: args.output,
+    indexNowKey: key,
+    lastmod: args.lastmod,
+  });
+  console.log(`origin=${result.receipt.origin}`);
+  console.log(`output=${result.destination}`);
+  console.log(`public_file_count=${Object.keys(result.receipt.files).length}`);
+  console.log(`${MARKER}_BUILD_COMPLETE=true`);
+}
+
+const invoked = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invoked === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`HOLD: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}

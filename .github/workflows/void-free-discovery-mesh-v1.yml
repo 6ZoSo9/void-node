@@ -1,0 +1,52 @@
+name: void-free-discovery-mesh-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-free-discovery-mesh-v1.yml"
+      - "config/void-free-discovery-mesh-v1.json"
+      - "docs/public-node/void-free-discovery-mesh-v1.md"
+      - "scripts/prove_void_free_discovery_mesh_v1.mjs"
+      - "tools/void-free-discovery-mesh-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-free-discovery-mesh-v1.yml"
+      - "config/void-free-discovery-mesh-v1.json"
+      - "docs/public-node/void-free-discovery-mesh-v1.md"
+      - "scripts/prove_void_free_discovery_mesh_v1.mjs"
+      - "tools/void-free-discovery-mesh-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-free-discovery-mesh-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax and configuration
+        run: |
+          node --check tools/void-free-discovery-mesh-v1.mjs
+          node --check scripts/prove_void_free_discovery_mesh_v1.mjs
+          python3 -m json.tool config/void-free-discovery-mesh-v1.json >/dev/null
+      - name: Prove source-only cost and authority boundaries
+        run: |
+          node scripts/prove_void_free_discovery_mesh_v1.mjs | tee /tmp/void-free-discovery-proof.log
+          grep -Fx 'VOID_FREE_DISCOVERY_MESH_V1_PROOF_GREEN' /tmp/void-free-discovery-proof.log
+          grep -Fx 'network_calls=false' /tmp/void-free-discovery-proof.log
+          grep -Fx 'payment_method_collection=false' /tmp/void-free-discovery-proof.log
+          grep -Fx 'automatic_paid_upgrade=false' /tmp/void-free-discovery-proof.log
+      - name: Enforce repository CI cost boundary
+        run: |
+          python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
+          python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
