@@ -1,0 +1,22 @@
+{
+  "enabled": false,
+  "expected": {
+    "execution_receipt_sha256": "297fbd91034587649478e6bc679b9729281edff5c8e23645acb46abaed5a848b",
+    "final_seal_receipt_sha256": "6f43401af8a751cdfb5bd941881c553ff27a2429c10c04922d6093e2453225b1",
+    "install_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-install-v1-exact-green-20260731T190348Z",
+    "install_checkpoint_target": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "install_mechanism_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-install-mechanism-v1-postmerge-exact-green-20260731T184300Z",
+    "install_mechanism_checkpoint_target": "3074bd4f253082841630312a8353946321b5a97e",
+    "installer_receipt_sha256": "f658e5db26a116c1c650e442dcf18cfba6671c28ebe38e0807caefa6e389d4b8",
+    "main_commit": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "packet_commit": "eaa41fdf76044c88eb9c078046bd370acb3ee457",
+    "packet_id": "voidapwrdp1_64841279f90db042c455ed8bdd3e865cb9a791b224bffc309acae11696bc9784",
+    "pr894_merge": "3074bd4f253082841630312a8353946321b5a97e",
+    "release_id": "paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d",
+    "runtime_source_commit": "3b298bc1e31365aec7a20d03c3f425e22fd2f949",
+    "runtime_source_sha256": "3248f5720121d699e5ea4fe34554f7c0ee75ae1f751a8ade7f0a93e3ce72f1b7"
+  },
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITES_CONFIG_V1",
+  "max_receipt_age_seconds": 31536000,
+  "version": 1
+}

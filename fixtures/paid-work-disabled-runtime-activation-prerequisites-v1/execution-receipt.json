@@ -1,0 +1,83 @@
+{
+  "evidence": {
+    "full_log": "/home/zoso/void-precision-smoke/logs/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z.log",
+    "installed_smoke_path": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/installed-disabled-smoke.json",
+    "installed_smoke_sha256": "1f012f080ce0dc2609280e3f77887d4d2089a3dc6511227df58cc70388f7cd22",
+    "installer_stdout_path": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/installer-stdout.json",
+    "installer_stdout_sha256": "a690541a8fe382af7cf93b733c45752a0cdd4e1f883ea45ee4c4038436827ddb",
+    "plan_path": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/install-plan.json",
+    "plan_sha256": "57fcb38ec6d6f5dd35b1275db09f9c279c3d6bb9ff1409bd77ce45ae87d33a20",
+    "systemd_after_path": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/user-systemd-tree-after.json",
+    "systemd_after_sha256": "60e5fbe09dea8996b93e8fd1c382135025a32494dffd8accff70192e2d99d74c",
+    "systemd_before_path": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/user-systemd-tree-before.json",
+    "systemd_before_sha256": "60e5fbe09dea8996b93e8fd1c382135025a32494dffd8accff70192e2d99d74c"
+  },
+  "generated_at_utc": "2026-07-31T18:56:12.846572Z",
+  "installation": {
+    "current_pointer": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/current",
+    "current_pointer_updated": true,
+    "current_target": "releases/paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d",
+    "disabled_install_performed": true,
+    "disabled_install_root_created": true,
+    "install_root": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1",
+    "installed_disabled_launcher_smoke": "exact_green",
+    "installer_receipt_path": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/receipts/20260731T185612Z-1845681-install-receipt.json",
+    "installer_receipt_sha256": "f658e5db26a116c1c650e442dcf18cfba6671c28ebe38e0807caefa6e389d4b8",
+    "ready_for_activation": false,
+    "release_directory": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/releases/paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d",
+    "release_id": "paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d"
+  },
+  "marker": "VOID_PAID_WORK_DISABLED_PRODUCTION_INSTALL_EXECUTION_V1",
+  "next": "review-and-seal-disabled-production-install-v1",
+  "plan": {
+    "authority_boundary": "exact",
+    "plan_id": "voidapwrip1_4cbdcd4a56fc47edd885fa9acd1030b39acf525e79117aac5777aae5e04e55b7",
+    "ready_for_activation": false,
+    "ready_for_disabled_install": true
+  },
+  "repository": {
+    "origin_main_at_execution": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "pr894_final_head": "e5e56018aa8e354c696ce19e9101b55a93a194ae",
+    "pr894_merge": "3074bd4f253082841630312a8353946321b5a97e",
+    "primary_head_unchanged": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "protected_path_drift": "none",
+    "protected_paths": [
+      ".github/workflows/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.yml",
+      "docs/operations/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.md",
+      "examples/authenticated-paid-work-runtime-disabled-production-install-plan-v1.example.json",
+      "ops/mainnet0/install_authenticated_paid_work_runtime_disabled_production_v1.py",
+      "schemas/authenticated-paid-work-runtime-disabled-production-install-plan-v1.schema.json",
+      "scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py"
+    ],
+    "slug": "6ZoSo9/void-node"
+  },
+  "runtime_boundary": {
+    "activation_performed": false,
+    "activation_persistence_root_created": false,
+    "configuration_enable_written": false,
+    "fund_movement": false,
+    "http_route_registered": false,
+    "live_process_identity_unchanged": true,
+    "live_service_state_unchanged": true,
+    "network_listener_created": false,
+    "payment_authority": false,
+    "payment_execution": false,
+    "quote_acceptance": false,
+    "service_restart": false,
+    "service_unit_created": false,
+    "transaction_broadcast": false,
+    "user_systemd_configuration_unchanged": true,
+    "void_settlement": false,
+    "wallet_access": false,
+    "work_credit_write": false
+  },
+  "sealed_inputs": {
+    "install_mechanism_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-install-mechanism-v1-postmerge-exact-green-20260731T184300Z",
+    "packet_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1-postmerge-exact-green-20260731T162300Z",
+    "packet_commit": "eaa41fdf76044c88eb9c078046bd370acb3ee457",
+    "packet_id": "voidapwrdp1_64841279f90db042c455ed8bdd3e865cb9a791b224bffc309acae11696bc9784",
+    "runtime_commit": "3b298bc1e31365aec7a20d03c3f425e22fd2f949"
+  },
+  "status": "exact_green",
+  "version": 1
+}
