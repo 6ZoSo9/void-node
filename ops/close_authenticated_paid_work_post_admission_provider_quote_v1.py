@@ -283,7 +283,7 @@ def private_directory(path: Path) -> Path:
     resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(resolved, 0o700)
     metadata = resolved.lstat()
-    if not metadata.is_dir() or resolved.is_symlink():
+    if not stat.S_ISDIR(metadata.st_mode) or resolved.is_symlink():
         hold(f"private path is not a non-symlink directory: {resolved}")
     if stat.S_IMODE(metadata.st_mode) & 0o077:
         hold(f"private path is not owner-private: {resolved}")
@@ -644,6 +644,15 @@ def assert_remaining(
 def parse_binding_fields(binding: dict[str, Any]) -> tuple[str, str, str, str]:
     node_id = binding.get("node_id", binding.get("nodeId"))
     node_id = require_text(node_id, "binding.node_id")
+    if (
+        len(node_id) > 512
+        or node_id.strip() != node_id
+        or any(
+            ord(character) < 0x21 or ord(character) > 0x7E
+            for character in node_id
+        )
+    ):
+        hold("binding node ID is not canonical printable ASCII")
     onion_uri = binding.get("onion_uri", binding.get("onionUri"))
     onion_uri = require_text(onion_uri, "binding.onion_uri")
     parsed = urllib.parse.urlparse(onion_uri)
@@ -651,6 +660,10 @@ def parse_binding_fields(binding: dict[str, Any]) -> tuple[str, str, str, str]:
         parsed.scheme != "http"
         or not parsed.hostname
         or not parsed.hostname.endswith(".onion")
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
     ):
         hold("binding onion URI is invalid")
     expires_at = binding.get("expires_at", binding.get("expiresAt"))
@@ -660,6 +673,51 @@ def parse_binding_fields(binding: dict[str, Any]) -> tuple[str, str, str, str]:
     ):
         hold("signed node binding is expired")
     return node_id, onion_uri, parsed.hostname, expires_at
+
+
+def parse_binding_verifier_output(stdout: str) -> tuple[str, str, str, str]:
+    values: dict[str, set[str]] = {
+        "node_id": set(),
+        "onion_uri": set(),
+        "expires_at": set(),
+    }
+    green_marker_count = 0
+    read_only_count = 0
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if line == "VOID_NODE_ONION_BINDING_V1_VERIFY_GREEN":
+            green_marker_count += 1
+            continue
+        if line == "read_only=true":
+            read_only_count += 1
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key in values and value:
+            values[key].add(value)
+    if green_marker_count != 1:
+        hold(
+            "signed-node-binding verifier green-marker count mismatch: "
+            f"{green_marker_count}"
+        )
+    if read_only_count != 1:
+        hold(
+            "signed-node-binding verifier read-only marker count mismatch: "
+            f"{read_only_count}"
+        )
+    resolved: dict[str, str] = {}
+    for key, candidates in values.items():
+        if len(candidates) != 1:
+            hold(
+                f"signed-node-binding verifier did not resolve one unique {key}: "
+                f"{sorted(candidates)}"
+            )
+        resolved[key] = next(iter(candidates))
+    node_id, onion_uri, onion_hostname, expires_at = parse_binding_fields(
+        resolved
+    )
+    return node_id, onion_uri, onion_hostname, expires_at
 
 
 def verify_health_node_id(health_url: str, expected_node_id: str) -> None:
@@ -711,14 +769,38 @@ def verify_signed_binding(
         pass
     else:
         hold("signed binding path must not be inside the credential root")
+    require_regular(resolved, "signed node binding")
 
-    binding = require_record(
-        read_json(resolved, "signed node binding"),
-        "signed node binding",
-    )
-    node_id, onion_uri, onion_hostname, expires_at = parse_binding_fields(binding)
     verifier = repo / "tools/void-node-onion-binding-v1.mjs"
-    result = run(
+    require_regular(verifier, "signed-node-binding verifier")
+    expected_verifier_sha = SOURCE_SHA256[
+        "tools/void-node-onion-binding-v1.mjs"
+    ]
+    observed_verifier_sha = sha256_file(verifier)
+    if observed_verifier_sha != expected_verifier_sha:
+        hold(
+            "signed-node-binding verifier SHA mismatch: "
+            f"observed={observed_verifier_sha} "
+            f"expected={expected_verifier_sha}"
+        )
+
+    discovery = run(
+        [
+            "node",
+            str(verifier),
+            "verify",
+            "--input",
+            str(resolved),
+            "--virtual-port",
+            "80",
+        ],
+        cwd=repo,
+    )
+    node_id, onion_uri, onion_hostname, expires_at = (
+        parse_binding_verifier_output(discovery.stdout)
+    )
+
+    expected = run(
         [
             "node",
             str(verifier),
@@ -734,9 +816,24 @@ def verify_signed_binding(
         ],
         cwd=repo,
     )
-    if "VOID_NODE_ONION_BINDING_V1_VERIFY_GREEN" not in result.stdout:
-        hold("signed-node-binding verifier omitted its green marker")
+    expected_summary = parse_binding_verifier_output(expected.stdout)
+    if expected_summary != (
+        node_id,
+        onion_uri,
+        onion_hostname,
+        expires_at,
+    ):
+        hold(
+            "expected-value signed-node-binding verification changed "
+            "the authenticated summary"
+        )
+
     verify_health_node_id(health_url, node_id)
+    print("signed_binding_schema=nested_envelope")
+    print("signed_binding_field_source=canonical_node_verifier")
+    print("signed_binding_discovery_verification=true")
+    print("signed_binding_expected_value_reverification=true")
+    print("signed_binding_loopback_health_match=true")
     return {
         "path": str(resolved),
         "sha256": sha256_file(resolved),
@@ -2281,6 +2378,8 @@ def fake_work_order(now: dt.datetime) -> dict[str, Any]:
 
 
 def run_self_test() -> None:
+    global STATE_ROOT
+
     now = dt.datetime(2026, 7, 30, 23, 0, tzinfo=dt.timezone.utc)
     work_order = fake_work_order(now)
     request = {
@@ -2418,6 +2517,39 @@ def run_self_test() -> None:
         "self-test provider authentication authority",
     )
 
+    verifier_sample = "\n".join(
+        [
+            "VOID_NODE_ONION_BINDING_V1_VERIFY_GREEN",
+            "marker=VOID_NODE_ONION_BINDING_V1",
+            "node_id=void-node-integration:alpha_01",
+            (
+                "onion_uri=http://"
+                "exampleexampleexampleexampleexampleexampleexampleexample.onion"
+            ),
+            "expires_at=2099-01-01T00:00:00Z",
+            "read_only=true",
+        ]
+    )
+    verifier_summary = parse_binding_verifier_output(verifier_sample)
+    if verifier_summary != (
+        "void-node-integration:alpha_01",
+        (
+            "http://"
+            "exampleexampleexampleexampleexampleexampleexampleexample.onion"
+        ),
+        "exampleexampleexampleexampleexampleexampleexampleexample.onion",
+        "2099-01-01T00:00:00Z",
+    ):
+        hold("self-test verifier-summary parser mismatch")
+    try:
+        parse_binding_verifier_output(
+            verifier_sample + "\nnode_id=void-node-integration:beta_02"
+        )
+    except Hold:
+        pass
+    else:
+        hold("self-test accepted conflicting verifier node IDs")
+
     selection = {
         "provider_selection_id": f"voidapwps1_{'4' * 64}",
         "selected_at_utc": "2026-07-30T23:00:02Z",
@@ -2483,6 +2615,18 @@ def run_self_test() -> None:
             pass
         else:
             hold("self-test accepted a private root outside ~/.local/state")
+
+        original_state_root = STATE_ROOT
+        try:
+            STATE_ROOT = root.resolve()
+            private_root = private_directory(root / "private-state")
+            if not private_root.is_dir() or private_root.is_symlink():
+                hold("self-test private directory type verification failed")
+            if stat.S_IMODE(private_root.stat().st_mode) != 0o700:
+                hold("self-test private directory mode verification failed")
+        finally:
+            STATE_ROOT = original_state_root
+
         path = root / "append-once.json"
         value = {"marker": "SELF_TEST", "value": 1}
         if write_or_verify_json(path, value, "self-test artifact"):
@@ -2533,6 +2677,10 @@ def run_self_test() -> None:
     print("fixed_usd_cent_quote=true")
     print("quote_side_effects_rejected=true")
     print("private_state_root_confinement=true")
+    print("private_directory_stat_mode_check=true")
+    print("canonical_nested_signed_binding_envelope=true")
+    print("canonical_verifier_output_parser=true")
+    print("canonical_verifier_expected_value_reverification=true")
     print("approval_reason_codes_exact=true")
     print("logical_provider_id_fixed=true")
     print("canonical_duplicate_response_revalidation=true")

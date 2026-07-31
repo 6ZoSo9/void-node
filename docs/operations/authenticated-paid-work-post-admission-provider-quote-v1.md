@@ -94,3 +94,24 @@ closeVoidAuthenticatedPaidWorkPostAdmissionProviderQuoteV1
 The `validate` mode checks repository provenance, receipt/request hashes,
 work-order freshness, signed binding, and loopback node identity without
 writing closeout state.
+
+## Canonical runtime compatibility
+
+The signed node binding is a canonical nested signed envelope. The closeout
+does not walk arbitrary JSON looking for identity fields. It invokes the pinned
+`void-node-onion-binding-v1.mjs` verifier without caller-supplied identity
+expectations, accepts exactly one authenticated `node_id`, `onion_uri`, and
+`expires_at` summary, validates their canonical forms, and invokes the verifier
+again with the discovered node ID and onion hostname as exact expectations.
+The verified node ID must also match the loopback `/health.nodeId`.
+
+Private state directories are confined below `~/.local/state`, forced to mode
+`0700`, and checked with `stat.S_ISDIR(metadata.st_mode)` on the `lstat`
+result. A Python `os.stat_result` is never treated as a `Path`.
+
+The closeout result and provider-quote response deliberately use distinct
+authority schemas. The closeout result uses
+`payment_authorization_granted` and
+`work_execution_authorization_granted`; the quote response uses
+`payment_authorized` and `work_execution_authorized`. Proofs pin both exact
+key sets and reject aliases crossing between them.
