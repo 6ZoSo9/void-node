@@ -30,6 +30,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Fetch and verify exact packet checkpoint tag
+        env:
+          VOID_PACKET_CHECKPOINT_TAG: "ckpt-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1-postmerge-exact-green-20260731T162300Z"
+          VOID_PACKET_COMMIT: "eaa41fdf76044c88eb9c078046bd370acb3ee457"
+        run: |
+          git fetch --force --no-tags origin \
+            "refs/tags/${VOID_PACKET_CHECKPOINT_TAG}:refs/tags/${VOID_PACKET_CHECKPOINT_TAG}"
+          test "$(git rev-list -n 1 "$VOID_PACKET_CHECKPOINT_TAG")" = \
+            "$VOID_PACKET_COMMIT"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

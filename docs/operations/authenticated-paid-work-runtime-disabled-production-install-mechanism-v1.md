@@ -51,3 +51,15 @@ root. It proves confirmation-before-write, deterministic planning, immutable
 release construction, exact permissions, disabled smoke behavior, idempotent
 reinstallation, packet-tamper refusal, and zero service/network/payment
 authority. It does not perform a production install.
+
+## CI checkpoint availability
+
+A clean GitHub Actions checkout must fetch the exact annotated packet
+checkpoint tag before running this proof:
+
+`ckpt-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1-postmerge-exact-green-20260731T162300Z`
+
+The workflow fetches only that exact tag ref and verifies that it resolves to
+the exact sealed packet commit `eaa41fdf76044c88eb9c078046bd370acb3ee457`. The installer retains its strict
+checkpoint-tag requirement; there is no broad tag fetch, missing-tag fallback,
+commit-only bypass, or weaker trust path.

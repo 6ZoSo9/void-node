@@ -19,6 +19,8 @@ DOCS = REPO / "docs/operations/authenticated-paid-work-runtime-disabled-producti
 WORKFLOW = REPO / ".github/workflows/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.yml"
 CONFIRMATION = "installAuthenticatedPaidWorkRuntimeDisabledProductionV1"
 EXPECTED_PACKET_ID = "voidapwrdp1_64841279f90db042c455ed8bdd3e865cb9a791b224bffc309acae11696bc9784"
+EXPECTED_PACKET_CHECKPOINT_TAG = "ckpt-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1-postmerge-exact-green-20260731T162300Z"
+EXPECTED_PACKET_COMMIT = "eaa41fdf76044c88eb9c078046bd370acb3ee457"
 EXPECTED_PLAN_MARKER = (
     "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_"
     "DISABLED_PRODUCTION_INSTALL_PLAN_V1"
@@ -242,7 +244,33 @@ for fragment in [
     require(fragment in docs, f"docs fragment missing: {fragment}")
 
 workflow = WORKFLOW.read_text(encoding="utf-8")
-require(f"python3 scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py" in workflow, "workflow proof command")
+require(
+    "python3 scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py"
+    in workflow,
+    "workflow proof command",
+)
+require(
+    f'VOID_PACKET_CHECKPOINT_TAG: "{EXPECTED_PACKET_CHECKPOINT_TAG}"'
+    in workflow,
+    "workflow exact checkpoint tag",
+)
+require(
+    f'VOID_PACKET_COMMIT: "{EXPECTED_PACKET_COMMIT}"'
+    in workflow,
+    "workflow exact packet commit",
+)
+require(
+    '"refs/tags/${VOID_PACKET_CHECKPOINT_TAG}:'
+    'refs/tags/${VOID_PACKET_CHECKPOINT_TAG}"'
+    in workflow,
+    "workflow exact tag refspec",
+)
+require(
+    'git rev-list -n 1 "$VOID_PACKET_CHECKPOINT_TAG"'
+    in workflow,
+    "workflow tag target verification",
+)
+print("workflow_exact_checkpoint_tag_fetch_boundary=true")
 print("source_docs_workflow_boundary_exact_green=true")
 
 print("production_install_performed=false")
