@@ -66,7 +66,6 @@ Stage 2 gaps are:
 - authenticated paid-work submission over Tor;
 - public quote-contract and schema retrieval over Tor;
 - accepted-request-bound deterministic quote retrieval;
-- read-only order-status retrieval over Tor;
 - signed receipt retrieval;
 - dynamic DataNet public reads;
 - bounded Work Credit earning through the existing ticket-and-receipt model;
@@ -141,3 +140,22 @@ or write Work Credits. The reviewed source also contains no explicit Tor or
 onion binding. Therefore `commerce.order_status_retrieval` remains
 `not_mapped`; PR #869 is additional source evidence, not transport-parity
 evidence.
+
+## First Stage 2 source implementation
+
+`commerce.order_status_retrieval` is now implemented in source through one
+exact GET-only onion path:
+
+```text
+/public-agent/services/v1/orders/:submission_id/status.json
+```
+
+The onion origin invokes the bounded local request handler directly. It does
+not forward a caller-selected method, host, port, path, query, or upstream. The
+surface requires a valid signed node-to-onion binding, refuses credential and
+browser-origin headers, and exposes no authenticated submission, payment,
+dispatch, Work Credit, wallet, runtime, or operator authority.
+
+This status describes source implementation. A separate install, service
+restart, onion-only canary, and post-deployment evidence seal are required
+before claiming live runtime parity.

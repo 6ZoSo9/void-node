@@ -3,6 +3,7 @@
 import http from "node:http";
 import {
   existsSync,
+  lstatSync,
   readFileSync,
   realpathSync,
   statSync,
@@ -18,6 +19,9 @@ import {
   VOID_NODE_ONION_BINDING_PATHS,
   readAndVerifyVoidNodeOnionBindingV1,
 } from "./lib/void-node-onion-binding-v1.mjs";
+import {
+  handleOrderStatusReadonlyRequest,
+} from "./void-public-agent-service-order-status-readonly-request-handler-v1.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 const MAX_URL_LENGTH = 2048;
@@ -49,6 +53,17 @@ const MCP_RESPONSE_HEADER_ALLOWLIST = Object.freeze([
   "mcp-session-id",
   "retry-after",
 ]);
+const VOID_TOR_ORDER_STATUS_READONLY_MARKER =
+  "VOID_TOR_ORDER_STATUS_READONLY_V1";
+const VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS = Object.freeze([
+  "/.well-known/void-order-status-onion-v1.json",
+  "/public-node/agents/order-status-tor-v1.json",
+]);
+const ORDER_STATUS_PATH_TEMPLATE =
+  "/public-agent/services/v1/orders/:submission_id/status.json";
+const ORDER_STATUS_ROUTE_PATTERN =
+  /^\/public-agent\/services\/v1\/orders\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\/status\.json$/;
+const ORDER_STATUS_ALLOWED_METHODS = new Set(["GET"]);
 
 function fail(message) {
   console.error("VOID_TOR_ONION_PUBLIC_NODE_V1_FAIL");
@@ -69,6 +84,13 @@ function parseArgs(argv) {
     mcpMaxResponseBytes: Number(process.env.VOID_TOR_MCP_MAX_RESPONSE_BYTES || "4194304"),
     mcpMaxConcurrentRequests: Number(
       process.env.VOID_TOR_MCP_MAX_CONCURRENT_REQUESTS || "8",
+    ),
+    orderStatusRoot: process.env.VOID_TOR_ORDER_STATUS_ROOT || "",
+    orderStatusMaxBytes: Number(
+      process.env.VOID_TOR_ORDER_STATUS_MAX_BYTES || "1048576",
+    ),
+    orderStatusMaxConcurrentRequests: Number(
+      process.env.VOID_TOR_ORDER_STATUS_MAX_CONCURRENT_REQUESTS || "8",
     ),
     checkOnly: false,
   };
@@ -92,6 +114,13 @@ function parseArgs(argv) {
     else if (argument === "--mcp-max-concurrent-requests") {
       options.mcpMaxConcurrentRequests = Number(next());
     }
+    else if (argument === "--order-status-root") options.orderStatusRoot = next();
+    else if (argument === "--order-status-max-bytes") {
+      options.orderStatusMaxBytes = Number(next());
+    }
+    else if (argument === "--order-status-max-concurrent-requests") {
+      options.orderStatusMaxConcurrentRequests = Number(next());
+    }
     else if (argument === "--check") options.checkOnly = true;
     else if (argument === "--help" || argument === "-h") options.help = true;
     else throw new Error(`unknown argument: ${argument}`);
@@ -108,7 +137,9 @@ function usage() {
     [--mcp-upstream-port 4114] [--mcp-timeout-ms 30000] \
     [--mcp-max-request-bytes 65536] \
     [--mcp-max-response-bytes 4194304] \
-    [--mcp-max-concurrent-requests 8] [--check]
+    [--mcp-max-concurrent-requests 8] \
+    [--order-status-root PATH] [--order-status-max-bytes 1048576] \
+    [--order-status-max-concurrent-requests 8] [--check]
 
 This server is loopback-only. Static and discovery surfaces remain GET/HEAD-only.
 The exact /mcp path may bridge GET/POST/DELETE to the fixed read-only MCP
@@ -215,7 +246,7 @@ function onionAuthority(hostname, virtualPort) {
   return virtualPort === 80 ? hostname : `${hostname}:${virtualPort}`;
 }
 
-function allowedMcpHost(request, options, hostname, listeningPort) {
+function allowedOnionHost(request, options, hostname, listeningPort) {
   const actual = String(singleHeader(request.headers.host) || "").trim().toLowerCase();
   const onion = onionAuthority(hostname, options.virtualPort).toLowerCase();
   const onionWithDefaultPort = options.virtualPort === 80
@@ -226,16 +257,16 @@ function allowedMcpHost(request, options, hostname, listeningPort) {
   return new Set([onion, onionWithDefaultPort, local, localhost]).has(actual);
 }
 
-function assertAnonymousMcpRequest(request) {
+function assertAnonymousOnionRequest(request) {
   for (const name of MCP_CREDENTIAL_HEADERS) {
     if (request.headers[name] !== undefined) {
-      throw Object.assign(new Error("Credential headers are forbidden on the read-only onion MCP surface"), {
+      throw Object.assign(new Error("Credential headers are forbidden on the read-only onion agent surface"), {
         status: 400,
       });
     }
   }
   if (request.headers.origin !== undefined) {
-    throw Object.assign(new Error("Origin-bearing browser requests are forbidden on the onion MCP surface"), {
+    throw Object.assign(new Error("Origin-bearing browser requests are forbidden on the onion agent surface"), {
       status: 403,
     });
   }
@@ -360,6 +391,29 @@ function mcpResponseHeaders(upstreamHeaders) {
   return headers;
 }
 
+function orderStatusRootState(options) {
+  if (!options.orderStatusRoot) {
+    return { state: "absent", root: "", reason: "order-status-root-not-configured" };
+  }
+  try {
+    const lexical = resolve(options.orderStatusRoot);
+    if (!existsSync(lexical)) {
+      return { state: "invalid", root: "", reason: "order-status-root-missing" };
+    }
+    const stat = lstatSync(lexical);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      return {
+        state: "invalid",
+        root: "",
+        reason: "order-status-root-must-be-real-directory",
+      };
+    }
+    return { state: "valid", root: realpathSync(lexical), reason: null };
+  } catch {
+    return { state: "invalid", root: "", reason: "order-status-root-invalid" };
+  }
+}
+
 function mcpDescriptorResponse(options, listeningPort) {
   const transport = descriptorResponse(options, listeningPort);
   if (transport.status !== 200) return transport;
@@ -433,7 +487,91 @@ function mcpDescriptorResponse(options, listeningPort) {
   };
 }
 
-function attachMcpSurfaceToTorDescriptor(result, options) {
+function orderStatusDescriptorResponse(options, listeningPort) {
+  const transport = descriptorResponse(options, listeningPort);
+  if (transport.status !== 200) return transport;
+  if (
+    transport.value.identity?.signed_void_node_binding !== true
+    || transport.value.identity?.canonical_void_node_identity !== true
+  ) {
+    return {
+      status: 503,
+      value: {
+        marker: VOID_TOR_ORDER_STATUS_READONLY_MARKER,
+        version: 1,
+        status: "unavailable",
+        reason: "signed-node-binding-required",
+      },
+    };
+  }
+  const rootState = orderStatusRootState(options);
+  if (rootState.state !== "valid") {
+    return {
+      status: 503,
+      value: {
+        marker: VOID_TOR_ORDER_STATUS_READONLY_MARKER,
+        version: 1,
+        status: "unavailable",
+        reason: rootState.reason,
+      },
+    };
+  }
+  const authority = onionAuthority(
+    transport.value.transport.onion_hostname,
+    options.virtualPort,
+  );
+  return {
+    status: 200,
+    value: {
+      marker: VOID_TOR_ORDER_STATUS_READONLY_MARKER,
+      version: 1,
+      status: "active",
+      generated_at: transport.value.generated_at,
+      transport: {
+        protocol: "void-order-status-readonly-over-tor-v3",
+        uri_template: `http://${authority}${ORDER_STATUS_PATH_TEMPLATE}`,
+        onion_hostname: transport.value.transport.onion_hostname,
+        virtual_port: options.virtualPort,
+        path_template: ORDER_STATUS_PATH_TEMPLATE,
+        descriptor_paths: [...VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS],
+      },
+      protocol: {
+        name: "void-public-agent-order-status-readonly-v1",
+        methods: [...ORDER_STATUS_ALLOWED_METHODS],
+        anonymous: true,
+      },
+      identity: structuredClone(transport.value.identity),
+      authority: {
+        read_only: true,
+        authenticated_submission_post: false,
+        payment_authorization: false,
+        payment_execution: false,
+        quote_acceptance: false,
+        work_dispatch: false,
+        work_credit_write: false,
+        wallet_or_signer_access: false,
+        node_runtime_mutation: false,
+        operator_control: false,
+      },
+      security: {
+        exact_path_template: true,
+        local_bounded_handler: true,
+        generic_proxy: false,
+        caller_selected_upstream: false,
+        credential_headers_accepted: false,
+        browser_origin_requests_accepted: false,
+        bounded_source_bytes: options.orderStatusMaxBytes,
+        maximum_concurrent_requests: options.orderStatusMaxConcurrentRequests,
+      },
+      discovery: {
+        tor_transport_descriptor_paths: [...VOID_TOR_DESCRIPTOR_PATHS],
+        signed_node_binding_paths: [...VOID_NODE_ONION_BINDING_PATHS],
+      },
+    },
+  };
+}
+
+function attachAgentSurfacesToTorDescriptor(result, options, listeningPort) {
   if (result.status !== 200) return result;
   const authority = onionAuthority(
     result.value.transport.onion_hostname,
@@ -454,9 +592,112 @@ function attachMcpSurfaceToTorDescriptor(result, options) {
           methods: [...MCP_ALLOWED_METHODS],
           application_authority: "read_only",
         },
+        order_status_readonly_v1: (() => {
+          const descriptor = orderStatusDescriptorResponse(options, listeningPort);
+          return {
+            marker: VOID_TOR_ORDER_STATUS_READONLY_MARKER,
+            status: descriptor.status === 200 ? "active" : "unavailable",
+            reason: descriptor.status === 200
+              ? null
+              : descriptor.value?.reason || "unavailable",
+            uri_template: `http://${authority}${ORDER_STATUS_PATH_TEMPLATE}`,
+            descriptor_paths: [...VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS],
+            methods: [...ORDER_STATUS_ALLOWED_METHODS],
+            application_authority: "read_only",
+          };
+        })(),
       },
     },
   };
+}
+
+function sendOrderStatusFailure(response, status, reason, method) {
+  send(
+    response,
+    status,
+    `${JSON.stringify({
+      marker: VOID_TOR_ORDER_STATUS_READONLY_MARKER,
+      version: 1,
+      status: "unavailable",
+      reason,
+    }, null, 2)}\n`,
+    method,
+    "application/json; charset=utf-8",
+  );
+}
+
+async function serveOrderStatusRequest(
+  request,
+  response,
+  options,
+  hostname,
+  listeningPort,
+  rawPath,
+) {
+  const method = String(request.method || "").toUpperCase();
+  if (!ORDER_STATUS_ALLOWED_METHODS.has(method)) {
+    request.resume();
+    sendOrderStatusFailure(response, 405, "method-not-allowed", method);
+    return;
+  }
+  if (!allowedOnionHost(request, options, hostname, listeningPort)) {
+    request.resume();
+    sendOrderStatusFailure(response, 403, "host-header-not-allowed", method);
+    return;
+  }
+  try {
+    assertAnonymousOnionRequest(request);
+    assertNoMcpBody(request);
+  } catch (error) {
+    sendOrderStatusFailure(
+      response,
+      Number(error?.status || 400),
+      "request-refused",
+      method,
+    );
+    return;
+  }
+  const binding = bindingResponse(options, hostname);
+  if (binding.state !== "valid") {
+    request.resume();
+    sendOrderStatusFailure(response, 503, "signed-node-binding-required", method);
+    return;
+  }
+  const rootState = orderStatusRootState(options);
+  if (rootState.state !== "valid") {
+    request.resume();
+    sendOrderStatusFailure(response, 503, rootState.reason, method);
+    return;
+  }
+  try {
+    const handled = await handleOrderStatusReadonlyRequest({
+      root: rootState.root,
+      method: "GET",
+      requestPath: rawPath,
+      handledAtUtc: new Date().toISOString(),
+      maxBytes: options.orderStatusMaxBytes,
+    });
+    const routeResponse = handled?.response;
+    const status = Number(routeResponse?.http?.status_code || 500);
+    if (
+      !Number.isInteger(status)
+      || status < 100
+      || status > 599
+      || !routeResponse
+      || typeof routeResponse !== "object"
+    ) {
+      throw new Error("order-status handler response is invalid");
+    }
+    send(
+      response,
+      status,
+      `${JSON.stringify(routeResponse, null, 2)}\n`,
+      method,
+      "application/json; charset=utf-8",
+    );
+  } catch {
+    sendOrderStatusFailure(response, 503, "order-status-handler-failed", method);
+  }
 }
 
 async function proxyMcpRequest(
@@ -478,14 +719,14 @@ async function proxyMcpRequest(
     );
     return;
   }
-  if (!allowedMcpHost(request, options, hostname, listeningPort)) {
+  if (!allowedOnionHost(request, options, hostname, listeningPort)) {
     request.resume();
     sendMcpFailure(response, 403, "Host header is not allowed", method);
     return;
   }
 
   try {
-    assertAnonymousMcpRequest(request);
+    assertAnonymousOnionRequest(request);
   } catch (error) {
     request.resume();
     sendMcpFailure(
@@ -806,6 +1047,25 @@ try {
     1,
     64,
   );
+  assertBoundedInteger(
+    options.orderStatusMaxBytes,
+    "order_status_max_bytes",
+    1,
+    1_048_576,
+  );
+  assertBoundedInteger(
+    options.orderStatusMaxConcurrentRequests,
+    "order_status_max_concurrent_requests",
+    1,
+    64,
+  );
+  const configuredOrderStatusRoot = orderStatusRootState(options);
+  if (configuredOrderStatusRoot.state === "invalid") {
+    throw new Error(configuredOrderStatusRoot.reason);
+  }
+  if (configuredOrderStatusRoot.state === "valid") {
+    options.orderStatusRoot = configuredOrderStatusRoot.root;
+  }
   if (options.port !== 0 && options.port === options.mcpUpstreamPort) {
     throw new Error("public port and MCP upstream port must differ");
   }
@@ -828,12 +1088,19 @@ try {
     console.log(`mcp_upstream=${MCP_UPSTREAM_HOST}:${options.mcpUpstreamPort}${MCP_UPSTREAM_PATH}`);
     console.log("mcp_application_authority=read_only");
     console.log("mcp_paid_work_submission=false");
+    console.log(`order_status_path_template=${ORDER_STATUS_PATH_TEMPLATE}`);
+    console.log(
+      `order_status_root_configured=${orderStatusRootState(options).state === "valid"}`,
+    );
+    console.log("order_status_application_authority=read_only");
+    console.log("order_status_authenticated_submission=false");
     console.log("dangerous_paths_touched=false");
     process.exit(0);
   }
 
   let listeningPort = options.port;
   let activeMcpRequests = 0;
+  let activeOrderStatusRequests = 0;
   const server = http.createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => {
     void (async () => {
       const method = String(req.method || "").toUpperCase();
@@ -844,7 +1111,22 @@ try {
         return;
       }
       const rawPath = parsedPath.path;
-
+      if (VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS.includes(rawPath)) {
+        if (!new Set(["GET", "HEAD"]).has(method)) {
+          req.resume();
+          send(res, 405, "method not allowed\n", method);
+          return;
+        }
+        const result = orderStatusDescriptorResponse(options, listeningPort);
+        send(
+          res,
+          result.status,
+          `${JSON.stringify(result.value, null, 2)}\n`,
+          method,
+          "application/json; charset=utf-8",
+        );
+        return;
+      }
       if (VOID_TOR_AGENT_MCP_DESCRIPTOR_PATHS.includes(rawPath)) {
         if (!new Set(["GET", "HEAD"]).has(method)) {
           req.resume();
@@ -908,6 +1190,45 @@ try {
         }
         return;
       }
+      if (ORDER_STATUS_ROUTE_PATTERN.test(rawPath)) {
+        if (activeOrderStatusRequests >= options.orderStatusMaxConcurrentRequests) {
+          req.resume();
+          sendOrderStatusFailure(
+            res,
+            503,
+            "order-status-concurrency-limit-reached",
+            method,
+          );
+          return;
+        }
+        let hostname = "";
+        try {
+          hostname = options.hostnameFile && existsSync(options.hostnameFile)
+            ? readFileSync(options.hostnameFile, "utf8").trim()
+            : "";
+        } catch {
+          hostname = "";
+        }
+        if (!hostname) {
+          req.resume();
+          sendOrderStatusFailure(res, 503, "onion-hostname-unavailable", method);
+          return;
+        }
+        activeOrderStatusRequests += 1;
+        try {
+          await serveOrderStatusRequest(
+            req,
+            res,
+            options,
+            hostname,
+            listeningPort,
+            rawPath,
+          );
+        } finally {
+          activeOrderStatusRequests -= 1;
+        }
+        return;
+      }
 
       if (!new Set(["GET", "HEAD"]).has(method)) {
         req.resume();
@@ -916,9 +1237,10 @@ try {
       }
 
       if (VOID_TOR_DESCRIPTOR_PATHS.includes(rawPath)) {
-        const result = attachMcpSurfaceToTorDescriptor(
+        const result = attachAgentSurfacesToTorDescriptor(
           descriptorResponse(options, listeningPort),
           options,
+          listeningPort,
         );
         send(
           res,
@@ -1000,6 +1322,12 @@ try {
     console.log(`mcp_upstream=${MCP_UPSTREAM_HOST}:${options.mcpUpstreamPort}${MCP_UPSTREAM_PATH}`);
     console.log("mcp_application_authority=read_only");
     console.log("mcp_paid_work_submission=false");
+    console.log(`order_status_path_template=${ORDER_STATUS_PATH_TEMPLATE}`);
+    console.log(
+      `order_status_root_configured=${orderStatusRootState(options).state === "valid"}`,
+    );
+    console.log("order_status_application_authority=read_only");
+    console.log("order_status_authenticated_submission=false");
     console.log("dangerous_paths_touched=false");
   });
 } catch (error) {

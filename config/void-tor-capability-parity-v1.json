@@ -120,16 +120,19 @@
       "id": "commerce.order_status_retrieval",
       "class": "safe_read",
       "tor_policy": "required",
-      "source_status": "not_mapped",
+      "source_status": "implemented",
       "target_stage": 2,
-      "direct_surface": false,
-      "notes": "The route contract, bounded source resolver, and pure read-only request handler exist, but the handler explicitly does not register or mount an HTTP route or create a network listener. Exact onion exposure and request-scoped retrieval parity are not yet proven.",
+      "direct_surface": true,
+      "notes": "The exact GET-only order-status path is mapped through the loopback-only onion origin to the bounded local request handler. It requires a valid signed node-to-onion binding, exposes no generic proxy, accepts no credentials, and grants no submission, payment, dispatch, Work Credit, wallet, runtime, or operator authority. This is source implementation; live deployment remains separately gated.",
       "evidence_files": [
         "docs/public-agent/public-agent-service-order-status-readonly-source-resolver-v1.md",
         "tools/void-public-agent-service-order-status-readonly-source-resolver-v1.mjs",
         "docs/public-agent/public-agent-service-order-status-readonly-request-handler-v1.md",
         "tools/void-public-agent-service-order-status-readonly-request-handler-v1.mjs",
-        "scripts/prove_public_agent_service_order_status_readonly_request_handler_v1.mjs"
+        "scripts/prove_public_agent_service_order_status_readonly_request_handler_v1.mjs",
+        "tools/void-tor-onion-public-node-v1.mjs",
+        "docs/public-node/void-tor-order-status-onion-readonly-v1.md",
+        "scripts/prove_void_tor_order_status_onion_readonly_v1.mjs"
       ]
     },
     {
