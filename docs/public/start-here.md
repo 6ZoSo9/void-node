@@ -74,6 +74,13 @@ The normal flow is:
 
 There is no unrestricted public WC credit endpoint.
 
+A full VOID node is not required for the supported one-shot participant path.
+The [Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md)
+creates a private local executor identity, verifies the explicitly trusted
+coordinator, performs one server-selected task, and requires exact `+3 WC`
+canonical accounting. Its `status` check must pass before `run`, and
+coordinator availability and caps still apply.
+
 ### Review operator evidence
 
 The one-command operator workflow creates a self-check, reviews it, builds an evidence pack, signs the exact pack, and verifies the attestation offline.
