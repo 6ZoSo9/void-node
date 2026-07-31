@@ -56,11 +56,7 @@ function sha256(value) {
 }
 
 function parseJsonBody(body) {
-  const text = body.toString("utf8");
-  const normalized = text.endsWith("\\n")
-    ? text.slice(0, -2)
-    : text.trim();
-  return JSON.parse(normalized);
+  return JSON.parse(body.toString("utf8").trim());
 }
 
 function listen(server, host = "127.0.0.1") {

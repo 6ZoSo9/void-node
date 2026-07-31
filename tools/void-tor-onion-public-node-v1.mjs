@@ -955,18 +955,24 @@ function handleSynchronousPublicRequest({
     send(
       response,
       parsedPath.error,
-      parsedPath.error === 400 ? "bad request\\n" : "not found\\n",
+      parsedPath.error === 400 ? "bad request\n" : "not found\n",
       method,
     );
     return true;
   }
   const rawPath = parsedPath.path;
 
-  if (rawPath === MCP_PUBLIC_PATH) return false;
+  if (
+    rawPath === MCP_PUBLIC_PATH
+    || VOID_TOR_ORDER_STATUS_DESCRIPTOR_PATHS.includes(rawPath)
+    || ORDER_STATUS_ROUTE_PATTERN.test(rawPath)
+  ) {
+    return false;
+  }
 
   if (!new Set(["GET", "HEAD"]).has(method)) {
     request.resume();
-    send(response, 405, "method not allowed\\n", method);
+    send(response, 405, "method not allowed\n", method);
     return true;
   }
 
@@ -975,7 +981,7 @@ function handleSynchronousPublicRequest({
     send(
       response,
       result.status,
-      `${JSON.stringify(result.value, null, 2)}\\n`,
+      `${JSON.stringify(result.value, null, 2)}\n`,
       method,
       "application/json; charset=utf-8",
     );
@@ -983,14 +989,15 @@ function handleSynchronousPublicRequest({
   }
 
   if (VOID_TOR_DESCRIPTOR_PATHS.includes(rawPath)) {
-    const result = attachMcpSurfaceToTorDescriptor(
+    const result = attachAgentSurfacesToTorDescriptor(
       descriptorResponse(options, listeningPort),
       options,
+      listeningPort,
     );
     send(
       response,
       result.status,
-      `${JSON.stringify(result.value, null, 2)}\\n`,
+      `${JSON.stringify(result.value, null, 2)}\n`,
       method,
       "application/json; charset=utf-8",
     );
@@ -1017,12 +1024,12 @@ function handleSynchronousPublicRequest({
       };
     }
     if (result.state === "absent") {
-      send(response, 404, "not found\\n", method);
+      send(response, 404, "not found\n", method);
     } else {
       send(
         response,
         result.status,
-        `${JSON.stringify(result.value, null, 2)}\\n`,
+        `${JSON.stringify(result.value, null, 2)}\n`,
         method,
         "application/json; charset=utf-8",
       );
@@ -1033,10 +1040,10 @@ function handleSynchronousPublicRequest({
   const resolved = safeResolveStatic(root, realRoot, request.url || "/");
   if (resolved.error) {
     const messages = {
-      400: "bad request\\n",
-      403: "forbidden\\n",
-      404: "not found\\n",
-      414: "uri too long\\n",
+      400: "bad request\n",
+      403: "forbidden\n",
+      404: "not found\n",
+      414: "uri too long\n",
     };
     send(response, resolved.error, messages[resolved.error], method);
     return true;

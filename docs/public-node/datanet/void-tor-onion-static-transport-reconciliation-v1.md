@@ -18,12 +18,14 @@ Current main is the source of truth.
 The reconciliation preserves its complete asynchronous request handler and MCP
 bridge. It adds a synchronous gate before the existing asynchronous wrapper.
 
-The synchronous gate handles static files, discovery, descriptors, signed
-binding reads, paid-read JSON, strict query rejection, HEAD behavior, and
-static-method denial.
+The synchronous gate handles static files, discovery, Tor and MCP descriptors,
+signed binding reads, paid-read JSON, strict query rejection, HEAD behavior,
+and static-method denial. Generated JSON and text responses use ordinary
+newline bytes rather than literal backslash-plus-`n` suffixes.
 
-Only the exact `/mcp` path returns `false` from the synchronous gate and enters
-the current-main asynchronous MCP bridge unchanged.
+The exact `/mcp` path, both order-status descriptor paths, and the dynamic
+order-status route return `false` from the synchronous gate and enter the
+current-main asynchronous handlers unchanged.
 
 ## Proof
 
