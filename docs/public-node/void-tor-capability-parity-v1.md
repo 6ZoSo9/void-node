@@ -128,3 +128,16 @@ allowlists; bounded body, response, timeout, and concurrency limits; credential
 secrecy; replay and duplicate protection; no caller-selected upstream; no
 wallet or signer exposure; and no automatic execution or settlement until each
 preceding proof is exact green.
+
+## Reconciliation through PR #869
+
+Main now includes the pure read-only order-status request handler introduced by
+PR #869. It composes strict GET/path validation, bounded source resolution,
+lifecycle materialization, and deterministic route-response materialization.
+
+The handler does not register or mount an HTTP route, create a listener, deploy,
+restart a service, submit authenticated work, authorize payment, dispatch work,
+or write Work Credits. The reviewed source also contains no explicit Tor or
+onion binding. Therefore `commerce.order_status_retrieval` remains
+`not_mapped`; PR #869 is additional source evidence, not transport-parity
+evidence.

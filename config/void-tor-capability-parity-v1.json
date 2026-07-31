@@ -123,10 +123,13 @@
       "source_status": "not_mapped",
       "target_stage": 2,
       "direct_surface": false,
-      "notes": "The read-only order-status route contract and bounded source resolver exist, but exact onion exposure and request-scoped retrieval parity are not yet proven.",
+      "notes": "The route contract, bounded source resolver, and pure read-only request handler exist, but the handler explicitly does not register or mount an HTTP route or create a network listener. Exact onion exposure and request-scoped retrieval parity are not yet proven.",
       "evidence_files": [
         "docs/public-agent/public-agent-service-order-status-readonly-source-resolver-v1.md",
-        "tools/void-public-agent-service-order-status-readonly-source-resolver-v1.mjs"
+        "tools/void-public-agent-service-order-status-readonly-source-resolver-v1.mjs",
+        "docs/public-agent/public-agent-service-order-status-readonly-request-handler-v1.md",
+        "tools/void-public-agent-service-order-status-readonly-request-handler-v1.mjs",
+        "scripts/prove_public_agent_service_order_status_readonly_request_handler_v1.mjs"
       ]
     },
     {
