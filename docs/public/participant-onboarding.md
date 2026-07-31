@@ -38,6 +38,23 @@ Work Credits account for useful, verifiable work.
 
 Current earning is a bounded remote-executor pilot.
 
+Participants who do not want to install or run a full VOID node can use the
+[VOID Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md).
+The client creates a private local Ed25519 executor identity and performs one
+server-selected `datanet_fetch_verify` ticket at a time. A successful verified
+run must prove an exact `+3 WC` change in the canonical redeemable balance.
+
+Before using the client, obtain all three values from the trusted coordinator:
+
+- your participant account ID;
+- the Public Earn HTTPS gateway origin;
+- the coordinator's exact 32-character lowercase hexadecimal node ID.
+
+Run the client's `status` command before `run`. Availability remains
+coordinator-gated. The client cannot select the task, dataset, input hash, or
+award, and it grants no wallet, settlement, Buy VOID, validator, or operator
+authority.
+
 The flow is:
 
 1. A coordinator issues a capability-bound ticket.

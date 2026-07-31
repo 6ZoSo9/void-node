@@ -48,7 +48,15 @@ Current policy and boundary:
 - Awards require verified receipts and are protected by caps and duplicate controls.
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 
-See [participant onboarding](participant-onboarding.md) and the [capability matrix](current-capability-matrix.md).
+Participant paths:
+
+- [Participant onboarding](participant-onboarding.md)
+- [Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md)
+- [Current capability matrix](current-capability-matrix.md)
+
+The no-node client supports one bounded, server-selected useful-work attempt at
+a time. It does not grant generic WC issuance, settlement, wallet, Buy VOID,
+validator, or operator authority.
 
 ## DataNet
 
