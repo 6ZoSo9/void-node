@@ -13,10 +13,18 @@ than from wrapper-level `ExecStart` or `WorkingDirectory` metadata.
 
 Its result is either:
 
-- `already_active` when the deployment head and every required byte match the
-  expected canonical head; or
+- `already_active_current_main` when the deployment head and every required
+  byte match the expected canonical head;
+- `already_active_on_recognized_overlay` for the exact pinned `daff6100...`
+  deployment overlay on `3d725ef8...`, only when its complete divergent path
+  set is the two discovery files and both remain byte-identical to canonical
+  main; or
 - `ready_for_guarded_activation` when the clean deployed head is an ancestor of
   expected main but has not yet advanced to the required bytes.
+
+The recognized overlay status means discovery parity is active; it does not
+claim that the entire current main source tree is deployed. No other divergent
+deployment commit is accepted.
 
 All ambiguous, dirty, divergent, stale, malformed, or internally inconsistent
 states fail closed with `HOLD`.

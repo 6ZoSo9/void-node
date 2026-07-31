@@ -22,9 +22,14 @@ from typing import Any
 MARKER = "VOID_TOR_AGENT_DISCOVERY_ACTIVATION_SURVEY_V1"
 REQUIRED_SOURCE_COMMIT = "1ea23f003c2bb5aead05854521d205194d0dfa3f"
 DEFAULT_UNIT = "void-public-node-tor-backend-v1.service"
-REQUIRED_PATHS = (
+RECOGNIZED_OVERLAY_HEAD = "daff6100ddfcad7e06046fd9379200be902754f2"
+RECOGNIZED_OVERLAY_BASE = "3d725ef8b3c53f381b5988305a01a15fa1bfee92"
+ACTIVATION_PATHS = (
     "public/.well-known/void-public-node.json",
     "public/public-node/agent-paid-work-public-discovery-v1.json",
+)
+REQUIRED_PATHS = (
+    *ACTIVATION_PATHS,
     "config/void-tor-agent-discovery-parity-v1.json",
     "tools/build_void_tor_agent_discovery_parity_v1.mjs",
     "scripts/prove_void_tor_agent_discovery_parity_v1.mjs",
@@ -229,9 +234,32 @@ def classify_deployment(canonical: Path, deployment: Path, expected_head: str) -
         stderr=subprocess.DEVNULL,
         check=False,
     )
-    if ancestry.returncode != 0:
+    is_ancestor = ancestry.returncode == 0
+    recognized_overlay = False
+    if not is_ancestor and deployed_head == RECOGNIZED_OVERLAY_HEAD:
+        merge_base = git(canonical, "merge-base", deployed_head, expected_head)
+        changed_paths = tuple(
+            sorted(
+                line
+                for line in git(
+                    deployment,
+                    "diff",
+                    "--name-only",
+                    "--no-renames",
+                    RECOGNIZED_OVERLAY_BASE,
+                    deployed_head,
+                ).splitlines()
+                if line
+            )
+        )
+        recognized_overlay = (
+            merge_base == RECOGNIZED_OVERLAY_BASE
+            and changed_paths == tuple(sorted(ACTIVATION_PATHS))
+        )
+    if not is_ancestor and not recognized_overlay:
         raise Hold(
-            "deployed Tor head is not an ancestor of expected main: "
+            "deployed Tor head is neither an ancestor nor the exact recognized "
+            "discovery overlay: "
             f"deployed={deployed_head} expected={expected_head}"
         )
 
@@ -253,13 +281,27 @@ def classify_deployment(canonical: Path, deployment: Path, expected_head: str) -
             "exact": exact,
         }
 
+    activation_exact = all(
+        comparisons[relative]["exact"]
+        for relative in ACTIVATION_PATHS
+    )
+    if recognized_overlay and not activation_exact:
+        raise Hold("recognized discovery overlay bytes differ from canonical main")
     if deployed_head == expected_head and not all_exact:
         raise Hold("deployment claims expected head but required source bytes differ")
-    status = "already_active" if deployed_head == expected_head and all_exact else "ready_for_guarded_activation"
+    if deployed_head == expected_head and all_exact:
+        status = "already_active_current_main"
+    elif recognized_overlay and activation_exact:
+        status = "already_active_on_recognized_overlay"
+    else:
+        status = "ready_for_guarded_activation"
     return {
         "status": status,
         "deployed_head": deployed_head,
         "expected_head": expected_head,
+        "current_main_deployed": deployed_head == expected_head and all_exact,
+        "recognized_discovery_overlay": recognized_overlay,
+        "activation_files_exact": activation_exact,
         "required_files_exact": all_exact,
         "files": comparisons,
     }
