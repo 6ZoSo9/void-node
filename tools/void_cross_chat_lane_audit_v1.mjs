@@ -30,6 +30,18 @@ const VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1 =
   "void-public-node-tor-backend-v1.service";
 const VERIFIED_TOR_STAGE1_SOURCE_HEAD_V1 =
   "eaaa2855af6c70c51f671bb6aaba25602fca7797";
+const VERIFIED_TOR_ORDER_STATUS_SOURCE_HEAD_V1 =
+  "043c659eea56c8fb0fdd0ca8e619a7573145a307";
+const VERIFIED_TOR_LEGACY_RUNTIME_HEAD_V1 =
+  "3d725ef8b3c53f381b5988305a01a15fa1bfee92";
+const VERIFIED_TOR_LEGACY_RUNTIME_DIRECTORY_V1 =
+  "void-onion-discovery-live-v1-51185f80";
+const VERIFIED_TOR_ORDER_STATUS_PROFILE_V1 =
+  "void_public_node_tor_backend_order_status_v1";
+const VERIFIED_TOR_ORDER_STATUS_SOURCE_ROOT_SUFFIX_V1 =
+  "/.local/share/void/tor-onion-v1/order-status-source-v1";
+const VERIFIED_TOR_ORDER_STATUS_SOURCE_FILENAME_V1 =
+  "voidawsr1_45193d29a16138cc2e0ae271b302e0b559ef26d1e253df782d2ee6a46402af6c.json";
 
 function stop(message, details = {}) {
   const error = new Error(message);
@@ -500,6 +512,41 @@ function profileFileSetOkV1(paths) {
   });
 }
 
+
+function orderStatusSourceRootOkV1(value) {
+  try {
+    const lexical = path.resolve(String(value ?? ""));
+    if (
+      !lexical.endsWith(
+        VERIFIED_TOR_ORDER_STATUS_SOURCE_ROOT_SUFFIX_V1,
+      )
+    ) {
+      return false;
+    }
+    const rootMetadata = fs.lstatSync(lexical);
+    if (
+      rootMetadata.isSymbolicLink()
+      || !rootMetadata.isDirectory()
+      || fs.realpathSync(lexical) !== lexical
+    ) {
+      return false;
+    }
+    const source = path.join(
+      lexical,
+      VERIFIED_TOR_ORDER_STATUS_SOURCE_FILENAME_V1,
+    );
+    const sourceMetadata = fs.lstatSync(source);
+    return (
+      !sourceMetadata.isSymbolicLink()
+      && sourceMetadata.isFile()
+      && sourceMetadata.nlink === 1
+      && fs.realpathSync(source) === source
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function assessVerifiedDeployedRuntimeV1(input) {
   const argv = Array.isArray(input.argv) ? input.argv : [];
   const children = Array.isArray(input.children) ? input.children : [];
@@ -635,34 +682,99 @@ export function assessVerifiedDeployedRuntimeV1(input) {
       && argv[20] === "--mcp-max-concurrent-requests"
       && argv[21] === "8"
     );
+    const orderStatusArgvOk = (
+      argv.length === 28
+      && argv[1] === expectedScript
+      && argv[2] === "--host"
+      && argv[3] === "127.0.0.1"
+      && argv[4] === "--port"
+      && argv[5] === "18088"
+      && argv[6] === "--virtual-port"
+      && argv[7] === "80"
+      && argv[8] === "--hostname-file"
+      && String(argv[9]).endsWith(
+        "/.local/share/void/tor-onion-v1/hidden-service/hostname",
+      )
+      && argv[10] === "--binding-file"
+      && String(argv[11]).endsWith(
+        "/.local/share/void/tor-onion-v1/node-onion-binding-v1.json",
+      )
+      && argv[12] === "--mcp-upstream-port"
+      && argv[13] === "4114"
+      && argv[14] === "--mcp-timeout-ms"
+      && argv[15] === "30000"
+      && argv[16] === "--mcp-max-request-bytes"
+      && argv[17] === "65536"
+      && argv[18] === "--mcp-max-response-bytes"
+      && argv[19] === "4194304"
+      && argv[20] === "--mcp-max-concurrent-requests"
+      && argv[21] === "8"
+      && argv[22] === "--order-status-root"
+      && String(argv[23]).endsWith(
+        VERIFIED_TOR_ORDER_STATUS_SOURCE_ROOT_SUFFIX_V1,
+      )
+      && argv[24] === "--order-status-max-bytes"
+      && argv[25] === "1048576"
+      && argv[26] === "--order-status-max-concurrent-requests"
+      && argv[27] === "8"
+    );
     const stage1HeadOk = (
       head === VERIFIED_TOR_STAGE1_SOURCE_HEAD_V1
+    );
+    const orderStatusHeadOk = (
+      head === VERIFIED_TOR_ORDER_STATUS_SOURCE_HEAD_V1
     );
     const stage1ProfileOk = (
       stage1ArgvOk
       && stage1HeadOk
     );
+    const orderStatusProfileOk = (
+      orderStatusArgvOk
+      && orderStatusHeadOk
+    );
+    const canonicalCwdOk = (
+      path.basename(cwd)
+      === `void-onion-discovery-live-v1-${head.slice(0, 8)}`
+    );
+    const exactLegacyCwdOk = (
+      legacyArgvOk
+      && head === VERIFIED_TOR_LEGACY_RUNTIME_HEAD_V1
+      && path.basename(cwd)
+        === VERIFIED_TOR_LEGACY_RUNTIME_DIRECTORY_V1
+    );
 
-    profile = stage1ProfileOk
-      ? "void_public_node_tor_backend_mcp_stage1_v1"
-      : "void_public_node_tor_backend_v1";
+    profile = orderStatusProfileOk
+      ? VERIFIED_TOR_ORDER_STATUS_PROFILE_V1
+      : stage1ProfileOk
+        ? "void_public_node_tor_backend_mcp_stage1_v1"
+        : "void_public_node_tor_backend_v1";
     profileChecks = {
       unitOk: true,
-      argvOk: legacyArgvOk || stage1ProfileOk,
-      cwdOk: (
-        path.basename(cwd)
-        === `void-onion-discovery-live-v1-${head.slice(0, 8)}`
+      argvOk: (
+        legacyArgvOk
+        || stage1ProfileOk
+        || orderStatusProfileOk
       ),
+      cwdOk: canonicalCwdOk || exactLegacyCwdOk,
       scriptOk: resolvedScript === expectedScript,
       profileFilesOk: input.profileFilesOk === true,
       stabilizationAgeOk: (
         stage1ProfileOk
+        || orderStatusProfileOk
         || (
           Number.isFinite(input.ageSeconds)
           && input.ageSeconds >= MIN_RUNTIME_AGE_SECONDS
         )
       ),
       stage1HeadOk: stage1ArgvOk ? stage1HeadOk : true,
+      orderStatusHeadOk: (
+        orderStatusArgvOk ? orderStatusHeadOk : true
+      ),
+      legacyDeploymentLineageOk: (
+        legacyArgvOk
+          ? canonicalCwdOk || exactLegacyCwdOk
+          : true
+      ),
     };
   }
 
@@ -711,11 +823,21 @@ function collectVerifiedDeployedRuntimeAssessmentV1({
   } else if (
     observedServiceUnit === VERIFIED_TOR_BACKEND_SERVICE_UNIT_V1
   ) {
-    profileFilesOk = profileFileSetOkV1([
+    const baseProfileFilesOk = profileFileSetOkV1([
       String(argv[9] ?? ""),
       String(argv[11] ?? ""),
       scriptArgument,
     ]);
+    const orderStatusRootConfigured = (
+      argv[22] === "--order-status-root"
+    );
+    profileFilesOk = (
+      baseProfileFilesOk
+      && (
+        !orderStatusRootConfigured
+        || orderStatusSourceRootOkV1(String(argv[23] ?? ""))
+      )
+    );
   }
 
   return assessVerifiedDeployedRuntimeV1({
