@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_BUILDER_EXAMPLE_V1",
+  "version": 1,
+  "source_base_commit": "b119357c60f15a4c0150d99c5081f1e84b1ee39e",
+  "status": "source_only_no_bundle_created",
+  "cli": {
+    "modes": [
+      "plan",
+      "build",
+      "verify"
+    ],
+    "build_confirmation": "buildAcceptancePersistenceTrustedContextBundleV1",
+    "output_flag": "--output",
+    "existing_output_policy": "refuse",
+    "path_reporting": "sha256_fingerprint_only"
+  },
+  "bundle_contract": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1",
+    "version": 1,
+    "exact_keys": [
+      "marker",
+      "version",
+      "catalog",
+      "work_order",
+      "quote"
+    ],
+    "maximum_bytes": 25165824,
+    "encoding": "recursively_key_sorted_pretty_json_with_final_newline",
+    "write_strategy": "same_directory_fsync_hard_link_no_overwrite",
+    "file_mode": "0600"
+  },
+  "validation": {
+    "catalog_fingerprint_recomputed": true,
+    "catalog_service_matches_work_order_capability": true,
+    "work_order_id_recomputed": true,
+    "quote_id_recomputed": true,
+    "quote_bound_to_work_order": true,
+    "quote_within_work_order_limits": true,
+    "trusted_input_paths_required": true,
+    "trusted_output_parent_required": true,
+    "provider_reader_revalidation": true
+  },
+  "authority": {
+    "bundle_created": false,
+    "runtime_activation": false,
+    "acceptance_persistence": false,
+    "replay_write": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "execution_authorization": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "service_restart": false,
+    "deployment": false,
+    "money_movement": false
+  }
+}
