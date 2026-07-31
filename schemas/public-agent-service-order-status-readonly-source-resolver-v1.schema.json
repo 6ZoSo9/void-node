@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-order-status-readonly-source-resolver-v1.schema.json",
+  "title": "VOID Public Agent Service Order Status Read-Only Source Resolver V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "found",
+    "submission_id",
+    "source_filename",
+    "source_sha256",
+    "source_size_bytes",
+    "source",
+    "reason",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_SOURCE_RESOLVER_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "found": {
+      "type": "boolean"
+    },
+    "submission_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "source_filename": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\\\.json$"
+    },
+    "source_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_size_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1048576
+    },
+    "source": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "order_status_source_not_found"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_write",
+        "http_route_registration",
+        "server_mount",
+        "authenticated_submission_post",
+        "token_byte_read",
+        "provider_selection",
+        "provider_authentication",
+        "quote_acceptance",
+        "payment_execution",
+        "work_dispatch",
+        "work_credit_write",
+        "runtime_mutation",
+        "service_restart",
+        "deployment"
+      ],
+      "properties": {
+        "source_write": {
+          "const": false
+        },
+        "http_route_registration": {
+          "const": false
+        },
+        "server_mount": {
+          "const": false
+        },
+        "authenticated_submission_post": {
+          "const": false
+        },
+        "token_byte_read": {
+          "const": false
+        },
+        "provider_selection": {
+          "const": false
+        },
+        "provider_authentication": {
+          "const": false
+        },
+        "quote_acceptance": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "runtime_mutation": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "found": {
+            "const": true
+          }
+        },
+        "required": [
+          "found"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source_size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1048576
+          },
+          "source": {
+            "type": "object"
+          },
+          "reason": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "source_sha256": {
+            "const": null
+          },
+          "source_size_bytes": {
+            "const": 0
+          },
+          "source": {
+            "const": null
+          },
+          "reason": {
+            "const": "order_status_source_not_found"
+          }
+        }
+      }
+    }
+  ]
+}
