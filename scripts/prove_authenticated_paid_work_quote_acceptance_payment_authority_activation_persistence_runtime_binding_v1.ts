@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -388,6 +389,66 @@ assertCondition(
   "disabled runtime granted authority",
 );
 
+const cliProofRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-paid-work-runtime-cli-no-read-proof-"),
+);
+const disabledCliConfigPath = path.join(
+  cliProofRoot,
+  "disabled-config.json",
+);
+const missingCommandPath = path.join(
+  cliProofRoot,
+  "missing-command.json",
+);
+const missingTrustedContextPath = path.join(
+  cliProofRoot,
+  "missing-trusted-context.json",
+);
+fs.writeFileSync(
+  disabledCliConfigPath,
+  `${JSON.stringify(example.config, null, 2)}\n`,
+  { mode: 0o600 },
+);
+const runtimeCliPath = path.resolve(
+  "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts",
+);
+const tsxCliPath = path.resolve("node_modules/.bin/tsx");
+const disabledCli = spawnSync(
+  tsxCliPath,
+  [
+    runtimeCliPath,
+    "execute",
+    disabledCliConfigPath,
+    missingCommandPath,
+    missingTrustedContextPath,
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...process.env },
+  },
+);
+assertCondition(
+  disabledCli.status === 0,
+  `disabled CLI failed: ${disabledCli.stderr}`,
+);
+const disabledCliResult = JSON.parse(disabledCli.stdout) as Record<
+  string,
+  unknown
+>;
+assertCondition(
+  disabledCliResult.status === "disabled"
+    && disabledCliResult.trusted_context_loaded === false
+    && disabledCliResult.store_inspected === false
+    && disabledCliResult.persistence_attempted === false,
+  "disabled CLI result boundary failed",
+);
+assertCondition(
+  !fs.existsSync(missingCommandPath)
+    && !fs.existsSync(missingTrustedContextPath),
+  "disabled CLI touched missing command or trusted-context paths",
+);
+
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-paid-work-runtime-binding-proof-"),
 );
@@ -468,6 +529,54 @@ expectReject(
 assertCondition(
   wrongConfirmationProviderCalls === 0,
   "wrong confirmation invoked trusted provider before rejection",
+);
+
+const enabledCliConfigPath = path.join(
+  cliProofRoot,
+  "enabled-config.json",
+);
+const wrongCliCommandPath = path.join(
+  cliProofRoot,
+  "wrong-confirmation-command.json",
+);
+const stillMissingTrustedContextPath = path.join(
+  cliProofRoot,
+  "still-missing-trusted-context.json",
+);
+fs.writeFileSync(
+  enabledCliConfigPath,
+  `${JSON.stringify(enabledConfig, null, 2)}\n`,
+  { mode: 0o600 },
+);
+fs.writeFileSync(
+  wrongCliCommandPath,
+  `${JSON.stringify(wrongConfirmation, null, 2)}\n`,
+  { mode: 0o600 },
+);
+const wrongConfirmationCli = spawnSync(
+  tsxCliPath,
+  [
+    runtimeCliPath,
+    "execute",
+    enabledCliConfigPath,
+    wrongCliCommandPath,
+    stillMissingTrustedContextPath,
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...process.env },
+  },
+);
+assertCondition(
+  wrongConfirmationCli.status !== 0
+    && wrongConfirmationCli.stderr.includes("confirmation must be"),
+  "CLI wrong confirmation did not fail before trusted-context file access",
+);
+assertCondition(
+  !fs.existsSync(stillMissingTrustedContextPath)
+    && !fs.existsSync(path.join(root, "current.json")),
+  "CLI wrong confirmation touched trusted context or persistence state",
 );
 
 const clientStorageInjection = clone(plannedCommand) as Record<string, unknown>;
@@ -671,6 +780,9 @@ console.log(`transaction_id=${committed.transaction_id}`);
 console.log(`generation_id=${committed.generation_id}`);
 console.log("disabled_by_default=true");
 console.log("disabled_provider_not_called=true");
+console.log("disabled_cli_command_file_not_read=true");
+console.log("disabled_cli_trusted_context_file_not_read=true");
+console.log("cli_confirmation_precedes_trusted_context_file_read=true");
 console.log("confirmation_precedes_provider_and_store_read=true");
 console.log("trusted_context_provider_called_once=true");
 console.log("trusted_work_order_bound=true");
@@ -701,6 +813,7 @@ console.log("money_movement=false");
 console.log("schema_docs_workflow_boundary_checks=true");
 console.log("network_and_subprocess_authority_absent=true");
 console.log("payment_execution_materialization_absent=true");
+fs.rmSync(cliProofRoot, { recursive: true, force: true });
 console.log(
   "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_BINDING_V1_EXACT_GREEN",
 );
