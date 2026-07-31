@@ -1,0 +1,47 @@
+name: void-tor-agent-discovery-parity-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-tor-agent-discovery-parity-v1.yml"
+      - "config/void-tor-agent-discovery-parity-v1.json"
+      - "docs/public-node/void-tor-agent-discovery-parity-v1.md"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
+      - "public/public-node/agent-paid-work-public-discovery-v1.json"
+      - "schemas/void-tor-agent-discovery-parity-v1.schema.json"
+      - "scripts/prove_void_tor_agent_discovery_parity_v1.mjs"
+      - "tools/build_void_tor_agent_discovery_parity_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-tor-agent-discovery-parity-v1.yml"
+      - "config/void-tor-agent-discovery-parity-v1.json"
+      - "docs/public-node/void-tor-agent-discovery-parity-v1.md"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
+      - "public/public-node/agent-paid-work-public-discovery-v1.json"
+      - "schemas/void-tor-agent-discovery-parity-v1.schema.json"
+      - "scripts/prove_void_tor_agent_discovery_parity_v1.mjs"
+      - "tools/build_void_tor_agent_discovery_parity_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-tor-agent-discovery-parity-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check tools/build_void_tor_agent_discovery_parity_v1.mjs
+      - run: node --check scripts/prove_void_tor_agent_discovery_parity_v1.mjs
+      - run: node tools/build_void_tor_agent_discovery_parity_v1.mjs --check
+      - run: node scripts/prove_void_tor_agent_discovery_parity_v1.mjs
