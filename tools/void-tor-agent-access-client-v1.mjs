@@ -470,6 +470,38 @@ function validateGeneratedAt(value, profile, options, label) {
   return generated;
 }
 
+function validateLoopbackLocalTarget(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    fail(`${label} must be a non-empty URL`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail(`${label} must be a valid URL`);
+  }
+
+  if (
+    parsed.protocol !== "http:"
+    || parsed.hostname !== "127.0.0.1"
+    || parsed.username !== ""
+    || parsed.password !== ""
+    || parsed.pathname !== "/"
+    || parsed.search !== ""
+    || parsed.hash !== ""
+  ) {
+    fail(`${label} must be an anonymous 127.0.0.1 HTTP target`);
+  }
+
+  const port = parsed.port === "" ? 80 : Number(parsed.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    fail(`${label} port is invalid`);
+  }
+
+  return { host: parsed.hostname, port };
+}
+
 function verifyAgentSurfaces(agentSurfaces, profile) {
   allowedKeys(
     agentSurfaces,
@@ -550,11 +582,14 @@ export function verifyDescriptor(descriptor, bindingSummary, profile, options = 
   exactKeys(descriptor.surface, [
     "id", "methods", "descriptor_paths", "local_target",
   ], "descriptor.surface");
+  const localTarget = validateLoopbackLocalTarget(
+    descriptor.surface.local_target,
+    "descriptor.surface.local_target",
+  );
   if (
     descriptor.surface.id !== "void-public-node-static-read-only-v1"
     || JSON.stringify(descriptor.surface.methods) !== JSON.stringify(["GET", "HEAD"])
     || JSON.stringify(descriptor.surface.descriptor_paths) !== JSON.stringify(DESCRIPTOR_PATHS)
-    || descriptor.surface.local_target !== "http://127.0.0.1:18088"
   ) {
     fail("descriptor surface profile is invalid");
   }
@@ -569,6 +604,7 @@ export function verifyDescriptor(descriptor, bindingSummary, profile, options = 
   return {
     generatedAt: descriptor.generated_at,
     semanticSha256: semanticDigest(descriptor, ["generated_at"]),
+    localTarget,
     mcpSurface,
   };
 }

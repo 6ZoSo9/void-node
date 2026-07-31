@@ -72,6 +72,12 @@ jobs:
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "descriptor_future_skew_rejected=true" \
             /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "descriptor_ephemeral_loopback_port_accepted=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "descriptor_non_loopback_local_target_rejected=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "descriptor_credentialed_local_target_rejected=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "required_route_hash_pins_enforced=true" \
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "additive_order_status_surface_accepted=true" \
