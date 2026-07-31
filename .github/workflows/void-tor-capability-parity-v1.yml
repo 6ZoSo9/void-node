@@ -1,0 +1,48 @@
+name: void-tor-capability-parity-v1
+
+on:
+  pull_request:
+    paths:
+      - "config/void-tor-capability-parity-v1.json"
+      - "docs/public-node/void-tor-capability-parity-v1.md"
+      - "schemas/void-tor-capability-parity-v1.schema.json"
+      - "scripts/validate_void_tor_capability_parity_v1.py"
+      - "scripts/prove_void_tor_capability_parity_v1.mjs"
+      - "tools/void-tor-capability-parity-v1.mjs"
+      - ".github/workflows/void-tor-capability-parity-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "config/void-tor-capability-parity-v1.json"
+      - "docs/public-node/void-tor-capability-parity-v1.md"
+      - "schemas/void-tor-capability-parity-v1.schema.json"
+      - "scripts/validate_void_tor_capability_parity_v1.py"
+      - "scripts/prove_void_tor_capability_parity_v1.mjs"
+      - "tools/void-tor-capability-parity-v1.mjs"
+      - ".github/workflows/void-tor-capability-parity-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate JSON artifacts
+        run: |
+          python3 -m json.tool config/void-tor-capability-parity-v1.json >/dev/null
+          python3 -m json.tool schemas/void-tor-capability-parity-v1.schema.json >/dev/null
+      - name: Validate parity contract against schema
+        run: python3 scripts/validate_void_tor_capability_parity_v1.py
+      - name: Check JavaScript syntax
+        run: |
+          node --check tools/void-tor-capability-parity-v1.mjs
+          node --check scripts/prove_void_tor_capability_parity_v1.mjs
+      - name: Prove Tor capability parity contract
+        run: node scripts/prove_void_tor_capability_parity_v1.mjs
