@@ -1,0 +1,52 @@
+name: authenticated-paid-work-quote-acceptance-payment-authority-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-quote-acceptance-payment-authority-v1.yml"
+      - "docs/operations/authenticated-paid-work-quote-acceptance-payment-authority-v1.md"
+      - "examples/authenticated-paid-work-quote-acceptance-payment-authority-v1.example.json"
+      - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-v1.schema.json"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/agent_paid_work_acceptance_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_intent_envelope_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/authenticated-paid-work-quote-acceptance-payment-authority-v1.yml"
+      - "docs/operations/authenticated-paid-work-quote-acceptance-payment-authority-v1.md"
+      - "examples/authenticated-paid-work-quote-acceptance-payment-authority-v1.example.json"
+      - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-v1.schema.json"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/agent_paid_work_acceptance_envelope_v1.ts"
+      - "scripts/agent_paid_work_payment_intent_envelope_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove canonical quote envelope
+        run: npx tsx scripts/prove_agent_paid_work_quote_envelope_v1.ts
+      - name: Prove canonical acceptance envelope
+        run: npx tsx scripts/prove_agent_paid_work_acceptance_envelope_v1.ts
+      - name: Prove canonical payment intent envelope
+        run: npx tsx scripts/prove_agent_paid_work_payment_intent_envelope_v1.ts
+      - name: Prove quote acceptance and bounded payment authority preparation
+        run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_v1.ts
