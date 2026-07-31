@@ -57,8 +57,9 @@ The client then verifies:
 6. The Ed25519 signature over `VOID_NODE_ONION_BINDING_V1\0<canonical-json>` is valid.
 7. The binding is active, unexpired, and grants read-only authority only.
 8. Both Tor transport descriptors are valid and semantically identical. Their dynamic `generated_at` values may differ.
-9. Required public DataNet contracts return their exact pinned bodies.
-10. Transient SOCKS or circuit failures are retried only within the profile's strict attempt and delay bounds.
+9. Descriptor `generated_at` is chronology metadata, not a session freshness token. Old descriptors remain valid while future-dated descriptors beyond the configured clock-skew bound are rejected. Live reachability is proven by the current SOCKS5h request and exact response checks.
+10. Required public DataNet contracts return their exact pinned bodies.
+11. Transient SOCKS or circuit failures are retried only within the profile's strict attempt and delay bounds.
 
 The onion address authenticates the Tor service. The signed binding connects that onion identity to the canonical VOID node identity. The fingerprint pin prevents a malicious service from substituting a new key and self-signing a replacement binding.
 
@@ -113,4 +114,4 @@ Run:
 node scripts/prove_void_tor_agent_access_client_v1.mjs
 ```
 
-The proof creates an in-process HTTP fixture and SOCKS5 proxy. It demonstrates remote hostname resolution, signed-binding validation, dynamic descriptor timestamp handling, exact required-route hash enforcement, honest reporting of absent optional capabilities, and rejection of tampered identity or route data.
+The proof creates an in-process HTTP fixture and SOCKS5 proxy. It demonstrates remote hostname resolution, signed-binding validation, durable descriptor chronology handling, future-clock-skew rejection, exact required-route hash enforcement, honest reporting of absent optional capabilities, and rejection of tampered identity or route data.

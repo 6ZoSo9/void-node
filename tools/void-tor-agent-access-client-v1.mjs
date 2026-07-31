@@ -276,13 +276,13 @@ export function validateProfile(profile) {
 
   exactKeys(
     profile.limits,
-    ["connect_timeout_ms", "request_timeout_ms", "max_response_bytes", "descriptor_max_age_ms", "request_attempts", "retry_delay_ms"],
+    ["connect_timeout_ms", "request_timeout_ms", "max_response_bytes", "descriptor_future_skew_ms", "request_attempts", "retry_delay_ms"],
     "profile.limits",
   );
   requireInteger(profile.limits.connect_timeout_ms, 100, 60_000, "profile.limits.connect_timeout_ms");
   requireInteger(profile.limits.request_timeout_ms, 100, 120_000, "profile.limits.request_timeout_ms");
   requireInteger(profile.limits.max_response_bytes, 1, 16_777_216, "profile.limits.max_response_bytes");
-  requireInteger(profile.limits.descriptor_max_age_ms, 1_000, 86_400_000, "profile.limits.descriptor_max_age_ms");
+  requireInteger(profile.limits.descriptor_future_skew_ms, 0, 600_000, "profile.limits.descriptor_future_skew_ms");
   requireInteger(profile.limits.request_attempts, 1, 5, "profile.limits.request_attempts");
   requireInteger(profile.limits.retry_delay_ms, 0, 5_000, "profile.limits.retry_delay_ms");
 
@@ -457,10 +457,10 @@ function verifyDescriptorIdentity(identity, bindingSummary) {
 function validateGeneratedAt(value, profile, options, label) {
   const generated = canonicalTimestamp(value, label);
   const nowMs = options.nowMs ?? Date.now();
-  if (generated.getTime() > nowMs + 120_000) fail(`${label} is unreasonably in the future`);
-  if (nowMs - generated.getTime() > profile.limits.descriptor_max_age_ms) {
-    fail(`${label} is too old`);
+  if (generated.getTime() > nowMs + profile.limits.descriptor_future_skew_ms) {
+    fail(`${label} is unreasonably in the future`);
   }
+  return generated;
 }
 
 function verifyAgentSurfaces(agentSurfaces, profile) {
@@ -1148,6 +1148,8 @@ export async function runClient(profileInput, options = {}) {
       binding_aliases_byte_identical: true,
       descriptor_aliases_semantically_identical: true,
       descriptor_semantic_sha256: descriptorValues[0].semanticSha256,
+      descriptor_generated_at: descriptorValues.map((value) => value.generatedAt),
+      descriptor_timestamp_policy: "chronology-only-not-session-freshness",
     },
     authority: bindingSummary.authority,
     capabilities: {

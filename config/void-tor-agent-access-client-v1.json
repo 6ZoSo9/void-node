@@ -20,7 +20,7 @@
     "connect_timeout_ms": 5000,
     "request_timeout_ms": 12000,
     "max_response_bytes": 4194304,
-    "descriptor_max_age_ms": 600000,
+    "descriptor_future_skew_ms": 120000,
     "request_attempts": 3,
     "retry_delay_ms": 750
   },

@@ -68,6 +68,10 @@ jobs:
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "signed_binding_verified=true" \
             /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "descriptor_durable_timestamp_policy_verified=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "descriptor_future_skew_rejected=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "required_route_hash_pins_enforced=true" \
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "mutation=false" \

@@ -99,7 +99,7 @@
         "connect_timeout_ms",
         "request_timeout_ms",
         "max_response_bytes",
-        "descriptor_max_age_ms",
+        "descriptor_future_skew_ms",
         "request_attempts",
         "retry_delay_ms"
       ],
@@ -119,10 +119,10 @@
           "minimum": 1,
           "maximum": 16777216
         },
-        "descriptor_max_age_ms": {
+        "descriptor_future_skew_ms": {
           "type": "integer",
-          "minimum": 1000,
-          "maximum": 86400000
+          "minimum": 0,
+          "maximum": 600000
         },
         "request_attempts": {
           "type": "integer",

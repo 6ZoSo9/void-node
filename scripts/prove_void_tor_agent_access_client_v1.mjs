@@ -14,9 +14,11 @@ import {
   validateOnionHostname,
   validateProfile,
   verifyBinding,
+  verifyDescriptor,
 } from "../tools/void-tor-agent-access-client-v1.mjs";
 
 const FIXED_NOW = Date.parse("2026-07-31T08:45:00.000Z");
+const DURABLE_NOW = Date.parse("2026-08-30T08:45:00.000Z");
 const ONION = "r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion";
 const ROOT = new URL("../", import.meta.url);
 
@@ -232,6 +234,22 @@ const summary = verifyBinding(binding, loaded.profile, { nowMs: FIXED_NOW });
 assert.equal(summary.nodeId, loaded.profile.trust.node_id);
 assert.equal(summary.onionHostname, ONION);
 
+const durableDescriptor = json("fixtures/tor-agent-access/void-tor-onion-transport-v1.fixture.json");
+const durableDescriptorSummary = verifyDescriptor(
+  durableDescriptor,
+  summary,
+  loaded.profile,
+  { nowMs: DURABLE_NOW },
+);
+assert.equal(durableDescriptorSummary.generatedAt, durableDescriptor.generated_at);
+
+const futureDescriptor = structuredClone(durableDescriptor);
+futureDescriptor.generated_at = "2026-07-31T08:47:01.000Z";
+expectHold(
+  () => verifyDescriptor(futureDescriptor, summary, loaded.profile, { nowMs: FIXED_NOW }),
+  /unreasonably in the future/,
+);
+
 const tampered = structuredClone(binding);
 tampered.signature.value = `${tampered.signature.value.slice(0, -2)}AA`;
 expectHold(() => verifyBinding(tampered, loaded.profile, { nowMs: FIXED_NOW }), /signature/);
@@ -254,7 +272,7 @@ try {
   profile.transport.socks_proxy.port = environment.socksPort;
   profile.limits.request_timeout_ms = 3000;
   const receipt = await runClient(profile, {
-    nowMs: FIXED_NOW,
+    nowMs: DURABLE_NOW,
     profileFileSha256: loaded.sha256,
   });
   assert.equal(receipt.marker, "VOID_TOR_AGENT_ACCESS_CLIENT_V1_RECEIPT");
@@ -265,6 +283,11 @@ try {
   assert.equal(receipt.identity.onion_v3_checksum_verified, true);
   assert.equal(receipt.identity.binding_aliases_byte_identical, true);
   assert.equal(receipt.identity.descriptor_aliases_semantically_identical, true);
+  assert.equal(receipt.identity.descriptor_timestamp_policy, "chronology-only-not-session-freshness");
+  assert.deepEqual(receipt.identity.descriptor_generated_at, [
+    "2026-07-31T08:42:15.000Z",
+    "2026-07-31T08:42:16.000Z",
+  ]);
   assert.equal(receipt.capabilities.required.length, 3);
   assert(receipt.capabilities.required.every((item) => item.status === "exact"));
   assert.equal(receipt.capabilities.optional.length, 5);
@@ -320,6 +343,8 @@ console.log("local_onion_dns_resolution=false");
 console.log("signed_binding_verified=true");
 console.log("bounded_transport_retry_verified=true");
 console.log("descriptor_dynamic_timestamp_tolerated=true");
+console.log("descriptor_durable_timestamp_policy_verified=true");
+console.log("descriptor_future_skew_rejected=true");
 console.log("required_route_hash_pins_enforced=true");
 console.log("optional_missing_capabilities_reported_honestly=true");
 console.log("mcp_descriptor_advertised_not_execution_claimed=true");
