@@ -1,0 +1,81 @@
+name: authenticated-paid-work-activation-persistence-runtime-binding-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-runtime-binding-v1.yml"
+      - "docs/operations/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-runtime-binding-v1.md"
+      - "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-runtime-binding-v1.example.json"
+      - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-runtime-binding-v1.schema.json"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/public_agent_service_requester_acceptance_authentication_v1.ts"
+      - "scripts/public_agent_service_acceptance_materialization_replay_consumer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Strict scoped TypeScript check
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ROOT="$PWD"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          mkdir -p "$TMP/declarations" "$TMP/shadow/scripts"
+          ./node_modules/.bin/tsc \
+            --declaration --emitDeclarationOnly --noCheck \
+            --target ES2022 --module NodeNext --moduleResolution NodeNext \
+            --lib ES2022 --esModuleInterop --allowSyntheticDefaultImports \
+            --skipLibCheck --types node \
+            --typeRoots "$ROOT/node_modules/@types" \
+            --rootDir "$ROOT" --outDir "$TMP/declarations" \
+            scripts/agent_paid_work_order_envelope_v1.ts \
+            scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts \
+            scripts/public_agent_service_requester_acceptance_authentication_v1.ts \
+            scripts/public_agent_service_acceptance_materialization_replay_consumer_v1.ts \
+            scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts
+          cp -a "$TMP/declarations/." "$TMP/shadow/"
+          cp package.json "$TMP/shadow/package.json"
+          cp scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts "$TMP/shadow/scripts/"
+          cp scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts "$TMP/shadow/scripts/"
+          (
+            cd "$TMP/shadow"
+            "$ROOT/node_modules/.bin/tsc" \
+              --noEmit --target ES2022 --module NodeNext \
+              --moduleResolution NodeNext --lib ES2022 \
+              --esModuleInterop --allowSyntheticDefaultImports \
+              --skipLibCheck --strict --types node \
+              --typeRoots "$ROOT/node_modules/@types" \
+              scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts \
+              scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts
+          )
+      - name: Prove prepared quote/payment authority
+        run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_v1.ts
+      - name: Prove requester authentication
+        run: npx tsx scripts/prove_public_agent_service_requester_acceptance_authentication_v1.ts
+      - name: Prove acceptance replay consumer
+        run: npx tsx scripts/prove_public_agent_service_acceptance_materialization_replay_consumer_v1.ts
+      - name: Prove atomic activation persistence
+        run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts
+      - name: Prove runtime binding
+        run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts
