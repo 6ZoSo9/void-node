@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,14 +35,25 @@ def require(condition: object, message: str) -> None:
 
 def run(command: list[str], *, env: dict[str, str] | None = None,
         check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    completed = subprocess.run(
         command,
         cwd=REPO,
         env=env,
-        check=check,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if check and completed.returncode != 0:
+        if completed.stdout:
+            print(completed.stdout, file=sys.stderr, end="")
+        if completed.stderr:
+            print(completed.stderr, file=sys.stderr, end="")
+        completed.check_returncode()
+    return completed
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def mode(path: Path) -> int:
@@ -121,6 +133,64 @@ with tempfile.TemporaryDirectory(
     require(not install_root.exists(), "wrong confirmation wrote install root")
     print("confirmation_precedes_install_write=true")
 
+    symlink_target = Path(temporary) / "symlink-target"
+    symlink_target.mkdir()
+    symlink_component = Path(temporary) / "symlink-component"
+    symlink_component.symlink_to(symlink_target, target_is_directory=True)
+    unsafe_root = symlink_component / "escaped-install-root"
+    unsafe = run(
+        [
+            sys.executable,
+            str(INSTALLER),
+            "apply",
+            "--repo-root",
+            str(REPO),
+            "--packet",
+            str(PACKET),
+            "--scope",
+            "test",
+            "--install-root",
+            str(unsafe_root),
+            "--confirmation",
+            CONFIRMATION,
+        ],
+        env=env,
+        check=False,
+    )
+    require(unsafe.returncode != 0, "symlinked install path accepted")
+    require("symlink component" in unsafe.stderr, "symlink rejection error")
+    require(not (symlink_target / "escaped-install-root").exists(), "symlink path wrote")
+    print("symlinked_install_path_refused_before_write=true")
+
+    nested_target = Path(temporary) / "nested-symlink-target"
+    nested_target.mkdir()
+    nested_root = Path(temporary) / "nested-install-root"
+    nested_root.mkdir()
+    (nested_root / "releases").symlink_to(nested_target, target_is_directory=True)
+    nested_unsafe = run(
+        [
+            sys.executable,
+            str(INSTALLER),
+            "apply",
+            "--repo-root",
+            str(REPO),
+            "--packet",
+            str(PACKET),
+            "--scope",
+            "test",
+            "--install-root",
+            str(nested_root),
+            "--confirmation",
+            CONFIRMATION,
+        ],
+        env=env,
+        check=False,
+    )
+    require(nested_unsafe.returncode != 0, "symlinked releases path accepted")
+    require("symlink component" in nested_unsafe.stderr, "nested symlink rejection error")
+    require(not any(nested_target.iterdir()), "symlinked releases path wrote")
+    print("symlinked_release_parent_refused_before_install_write=true")
+
     first = run(
         [
             sys.executable,
@@ -150,8 +220,11 @@ with tempfile.TemporaryDirectory(
     require(release.is_dir() and not release.is_symlink(), "release directory")
     require(current.is_symlink(), "current symlink")
     require(mode(install_root) == 0o700, "install root mode")
-    require(mode(release / "disabled-config.json") == 0o600, "config mode")
-    require(mode(release / "run-disabled.sh") == 0o700, "launcher mode")
+    require(mode(release) == 0o500, "release root mode")
+    require(mode(release / "disabled-config.json") == 0o400, "config mode")
+    require(mode(release / "run-disabled.sh") == 0o500, "launcher mode")
+    require(mode(release / "INSTALLATION.json") == 0o400, "manifest mode")
+    require(mode(release / "SHA256SUMS.txt") == 0o400, "checksums mode")
     require(not (release / "intentionally-absent-command.json").exists(), "command path")
     require(
         not (release / "intentionally-absent-trusted-context.json").exists(),
@@ -198,6 +271,50 @@ with tempfile.TemporaryDirectory(
     )
     print("idempotent_reinstall_exact_green=true")
 
+    config_path = release / "disabled-config.json"
+    os.chmod(config_path, 0o600)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(config_path, 0o400)
+
+    manifest_path = release / "INSTALLATION.json"
+    os.chmod(manifest_path, 0o600)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["disabled-config.json"] = sha256_file(config_path)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(manifest_path, 0o400)
+
+    self_reblessed = run(
+        [
+            sys.executable,
+            str(INSTALLER),
+            "apply",
+            "--repo-root",
+            str(REPO),
+            "--packet",
+            str(PACKET),
+            "--scope",
+            "test",
+            "--install-root",
+            str(install_root),
+            "--confirmation",
+            CONFIRMATION,
+        ],
+        env=env,
+        check=False,
+    )
+    require(self_reblessed.returncode != 0, "self-reblessed release tamper accepted")
+    require(
+        "existing release differs from the fresh sealed rebuild" in self_reblessed.stderr,
+        "self-reblessed release rejection error",
+    )
+    print("self_reblessed_existing_release_tamper_refused=true")
+
 tampered = Path(tempfile.mkdtemp(prefix="void-paid-work-packet-tamper-", dir="/tmp"))
 try:
     tampered_packet = tampered / "packet.json"
@@ -222,6 +339,9 @@ finally:
     shutil.rmtree(tampered, ignore_errors=True)
 
 source = INSTALLER.read_text(encoding="utf-8")
+require("/usr/bin/node" not in source, "installer hardcodes /usr/bin/node")
+require("command -v node" in source, "launcher does not resolve Node from PATH")
+require('test "$NODE_MAJOR" = "22"' in source, "launcher does not require Node.js 22")
 for prohibited in [
     "systemctl",
     "node:http",
@@ -240,6 +360,9 @@ for fragment in [
     "No service unit is created",
     "production persistence root",
     "exact apply confirmation",
+    "Node.js 22",
+    "fresh rebuild from the sealed source",
+    "symlinked production root",
 ]:
     require(fragment in docs, f"docs fragment missing: {fragment}")
 

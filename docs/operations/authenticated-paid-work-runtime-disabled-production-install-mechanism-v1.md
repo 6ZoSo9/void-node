@@ -30,6 +30,17 @@ Each release is immutable under `releases/`, and `current` is updated
 atomically. The release contains compiled JavaScript, a disabled configuration,
 a disabled-only launcher, checksums, and an installation manifest.
 
+The launcher resolves `node` from the operator environment instead of assuming
+that it is installed at `/usr/bin/node`, and it fails closed unless the selected
+runtime is Node.js 22. Release directories and the launcher are sealed read-only
+and executable (`0500`); all other release files are sealed read-only (`0400`).
+An existing release is accepted only when its complete file, digest, and mode
+snapshot exactly matches a fresh rebuild from the sealed source.
+
+Every existing component of the selected installation path is checked without
+following it. A symlinked production root or parent is rejected before any
+installation write.
+
 No service unit is created. No service is restarted. No HTTP route or network
 listener is registered. No enable configuration is written, and the production
 persistence root is not created.
@@ -49,8 +60,9 @@ Payment execution and work execution remain separate future authority gates.
 The focused proof performs apply operations only beneath a temporary `/tmp`
 root. It proves confirmation-before-write, deterministic planning, immutable
 release construction, exact permissions, disabled smoke behavior, idempotent
-reinstallation, packet-tamper refusal, and zero service/network/payment
-authority. It does not perform a production install.
+reinstallation, portable Node.js 22 resolution, symlink-path refusal,
+self-reblessed release-tamper refusal, packet-tamper refusal, and zero
+service/network/payment authority. It does not perform a production install.
 
 ## CI checkpoint availability
 

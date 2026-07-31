@@ -87,6 +87,21 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def lexical_absolute(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
+
+
+def require_no_symlink_components(path: Path) -> None:
+    require(path.is_absolute(), f"install path is not absolute: {path}")
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        require(
+            not current.is_symlink(),
+            f"install path contains a symlink component: {current}",
+        )
+
+
 def run(
     command: list[str],
     *,
@@ -286,22 +301,24 @@ def validate_repo(repo: Path, packet_path: Path) -> None:
 
 def resolve_install_root(scope: str, supplied: str | None) -> Path:
     if scope == "production":
+        canonical = lexical_absolute(DEFAULT_INSTALL_ROOT)
+        requested = canonical if supplied is None else lexical_absolute(Path(supplied))
         require(
-            supplied is None
-            or Path(supplied).expanduser().resolve()
-            == DEFAULT_INSTALL_ROOT.resolve(),
+            requested == canonical,
             "production install root must be the canonical default",
         )
-        return DEFAULT_INSTALL_ROOT.resolve()
+        require_no_symlink_components(canonical)
+        return canonical
 
     require(scope == "test", "invalid install scope")
     require(os.environ.get("VOID_TEST_ONLY") == "1", "test scope requires VOID_TEST_ONLY=1")
     require(supplied is not None, "test scope requires --install-root")
-    root = Path(supplied).expanduser().resolve()
+    root = lexical_absolute(Path(supplied))
     require(
         root == Path("/tmp") or Path("/tmp") in root.parents,
         "test install root must be under /tmp",
     )
+    require_no_symlink_components(root)
     return root
 
 
@@ -323,7 +340,47 @@ def file_manifest(root: Path) -> dict[str, str]:
     return result
 
 
+def release_snapshot(root: Path) -> dict[str, dict[str, Any]]:
+    require(root.is_dir() and not root.is_symlink(), f"release root is unsafe: {root}")
+    result: dict[str, dict[str, Any]] = {
+        ".": {
+            "kind": "directory",
+            "mode": stat.S_IMODE(root.stat().st_mode),
+        }
+    }
+    for path in sorted(root.rglob("*")):
+        relative = str(path.relative_to(root))
+        require(not path.is_symlink(), f"release contains a symlink: {relative}")
+        if path.is_dir():
+            result[relative] = {
+                "kind": "directory",
+                "mode": stat.S_IMODE(path.stat().st_mode),
+            }
+        else:
+            require(path.is_file(), f"release contains an unsupported entry: {relative}")
+            result[relative] = {
+                "kind": "file",
+                "mode": stat.S_IMODE(path.stat().st_mode),
+                "sha256": sha256_file(path),
+            }
+    return result
+
+
+def seal_release(root: Path) -> None:
+    require(root.is_dir() and not root.is_symlink(), "staged release root is unsafe")
+    for path in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+        relative = str(path.relative_to(root))
+        require(not path.is_symlink(), f"staged release contains a symlink: {relative}")
+        if path.is_file():
+            os.chmod(path, 0o500 if path.name == "run-disabled.sh" else 0o400)
+        else:
+            require(path.is_dir(), f"staged release contains an unsupported entry: {relative}")
+            os.chmod(path, 0o500)
+    os.chmod(root, 0o500)
+
+
 def verify_release(release: Path) -> dict[str, Any]:
+    release_snapshot(release)
     manifest_path = release / "INSTALLATION.json"
     require(manifest_path.is_file(), "installation manifest missing")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -466,7 +523,17 @@ umask 077
 HERE="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd -P)"
 test ! -e "$HERE/intentionally-absent-command.json"
 test ! -e "$HERE/intentionally-absent-trusted-context.json"
-exec /usr/bin/node \
+NODE="$(command -v node || true)"
+test -n "$NODE" && test -x "$NODE" || {{
+  printf 'HOLD: Node.js 22 executable is unavailable\n' >&2
+  exit 1
+}}
+NODE_MAJOR="$("$NODE" -p 'process.versions.node.split(".")[0]')"
+test "$NODE_MAJOR" = "22" || {{
+  printf 'HOLD: Node.js 22 is required; found major %s\n' "$NODE_MAJOR" >&2
+  exit 1
+}}
+exec "$NODE" \
   "$HERE/{RUNTIME_JS_RELATIVE}" \
   execute \
   "$HERE/disabled-config.json" \
@@ -538,6 +605,7 @@ exec /usr/bin/node \
         0o600,
     )
 
+    seal_release(staging)
     verify_release(staging)
     disabled_smoke(staging)
     return staging, temporary
@@ -556,15 +624,28 @@ def apply_install(
         install_root_created = not install_root.exists()
 
         install_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        require(
+            install_root.is_dir() and not install_root.is_symlink(),
+            "install root is unsafe",
+        )
         os.chmod(install_root, 0o700)
+        require_no_symlink_components(releases)
+        require_no_symlink_components(receipts)
         releases.mkdir(mode=0o700, exist_ok=True)
         receipts.mkdir(mode=0o700, exist_ok=True)
+        require(releases.is_dir() and not releases.is_symlink(), "releases path is unsafe")
+        require(receipts.is_dir() and not receipts.is_symlink(), "receipts path is unsafe")
         os.chmod(releases, 0o700)
         os.chmod(receipts, 0o700)
 
         installation_performed = False
-        if release.exists():
+        expected_snapshot = release_snapshot(staging)
+        if release.exists() or release.is_symlink():
             require(release.is_dir() and not release.is_symlink(), "release path is unsafe")
+            require(
+                release_snapshot(release) == expected_snapshot,
+                "existing release differs from the fresh sealed rebuild",
+            )
             verify_release(release)
             disabled_smoke(release)
         else:
