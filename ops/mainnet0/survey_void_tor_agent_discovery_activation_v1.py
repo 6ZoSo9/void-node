@@ -133,11 +133,44 @@ def parse_systemd_show(text: str) -> dict[str, str]:
         key, separator, value = line.partition("=")
         if separator and key:
             values[key] = value
-    required = ("ActiveState", "SubState", "WorkingDirectory", "ExecStart", "FragmentPath")
+    required = (
+        "ActiveState",
+        "SubState",
+        "WorkingDirectory",
+        "ExecStart",
+        "FragmentPath",
+        "MainPID",
+    )
     missing = [key for key in required if not values.get(key)]
     if missing:
         raise Hold(f"systemd metadata missing: {','.join(missing)}")
     return values
+
+
+def parse_backend_cmdline(value: bytes) -> tuple[str, str, Path]:
+    try:
+        argv = [
+            item.decode("utf-8", "strict")
+            for item in value.split(b"\0")
+            if item
+        ]
+    except UnicodeDecodeError as error:
+        raise Hold("Tor backend MainPID command line is not valid UTF-8") from error
+    if len(argv) < 2:
+        raise Hold("Tor backend MainPID command line is incomplete")
+    executable = Path(argv[0])
+    if not executable.is_absolute() or executable.resolve() != Path("/usr/bin/node").resolve():
+        raise Hold(f"Tor backend MainPID executable is not /usr/bin/node: {argv[0]}")
+    script = Path(argv[1])
+    if not script.is_absolute():
+        raise Hold("Tor backend MainPID server script is not absolute")
+    expected_suffix = Path("tools/void-tor-onion-public-node-v1.mjs")
+    if len(script.parts) < 3 or Path(*script.parts[-2:]) != expected_suffix:
+        raise Hold(f"Tor backend MainPID does not use the canonical server tool: {script}")
+    deployment = script.resolve().parent.parent
+    if deployment == Path("/") or deployment == Path.home().resolve():
+        raise Hold(f"Tor backend deployment root is too broad: {deployment}")
+    return str(executable), str(script), deployment
 
 
 def inspect_service(unit: str) -> dict[str, str]:
@@ -146,7 +179,7 @@ def inspect_service(unit: str) -> dict[str, str]:
             "systemctl", "--user", "show", unit,
             "--property=ActiveState", "--property=SubState",
             "--property=WorkingDirectory", "--property=ExecStart",
-            "--property=FragmentPath", "--no-pager",
+            "--property=FragmentPath", "--property=MainPID", "--no-pager",
         ],
         cwd=Path.cwd(),
         timeout=30,
@@ -157,8 +190,30 @@ def inspect_service(unit: str) -> dict[str, str]:
             f"Tor backend service is not active/running: "
             f"{values['ActiveState']}/{values['SubState']}"
         )
-    if "tools/void-tor-onion-public-node-v1.mjs" not in values["ExecStart"]:
-        raise Hold("Tor backend ExecStart does not use the canonical server tool")
+    try:
+        main_pid = int(values["MainPID"])
+    except ValueError as error:
+        raise Hold(f"Tor backend MainPID is invalid: {values['MainPID']}") from error
+    if main_pid <= 0:
+        raise Hold(f"Tor backend MainPID is not live: {main_pid}")
+    process_root = Path("/proc") / str(main_pid)
+    try:
+        cmdline = (process_root / "cmdline").read_bytes()
+        cgroup = (process_root / "cgroup").read_text(encoding="utf-8")
+        process_executable = (process_root / "exe").resolve(strict=True)
+    except OSError as error:
+        raise Hold(f"failed to inspect Tor backend MainPID {main_pid}: {error}") from error
+    executable, script, deployment = parse_backend_cmdline(cmdline)
+    if process_executable != Path(executable).resolve():
+        raise Hold(
+            "Tor backend MainPID executable link mismatch: "
+            f"cmdline={executable} proc={process_executable}"
+        )
+    if unit not in cgroup:
+        raise Hold(f"Tor backend MainPID is not owned by {unit}")
+    values["ProcessExecutable"] = str(process_executable)
+    values["ServerScript"] = script
+    values["DeploymentRoot"] = str(deployment)
     return values
 
 
@@ -214,9 +269,26 @@ def self_test() -> None:
     parsed = parse_systemd_show(
         "ActiveState=active\nSubState=running\nWorkingDirectory=/tmp/release\n"
         "ExecStart={ path=/usr/bin/node ; argv[]=/usr/bin/node tools/void-tor-onion-public-node-v1.mjs ; }\n"
-        "FragmentPath=/tmp/service\n"
+        "FragmentPath=/tmp/service\nMainPID=123\n"
     )
     assert parsed["WorkingDirectory"] == "/tmp/release"
+    executable, script, deployment = parse_backend_cmdline(
+        b"/usr/bin/node\0/tmp/release/tools/void-tor-onion-public-node-v1.mjs\0"
+        b"--host\0" b"127.0.0.1\0"
+    )
+    assert executable == "/usr/bin/node"
+    assert script.endswith("/tools/void-tor-onion-public-node-v1.mjs")
+    assert deployment == Path("/tmp/release")
+    for rejected in (
+        b"/usr/bin/python3\0/tmp/release/tools/void-tor-onion-public-node-v1.mjs\0",
+        b"/usr/bin/node\0/tmp/release/tools/other.mjs\0",
+    ):
+        try:
+            parse_backend_cmdline(rejected)
+        except Hold:
+            pass
+        else:
+            raise AssertionError("non-canonical Tor backend command line accepted")
     try:
         parse_systemd_show("ActiveState=active\n")
     except Hold:
@@ -274,12 +346,16 @@ def main() -> int:
         }
         if args.mode == "survey":
             service = inspect_service(args.service_unit)
-            deployment = Path(service["WorkingDirectory"])
+            deployment = Path(service["DeploymentRoot"])
             result["service"] = {
                 "unit": args.service_unit,
                 "active_state": service["ActiveState"],
                 "sub_state": service["SubState"],
-                "working_directory": str(deployment),
+                "main_pid": int(service["MainPID"]),
+                "process_executable": service["ProcessExecutable"],
+                "server_script": service["ServerScript"],
+                "deployment_directory": str(deployment),
+                "unit_working_directory": service["WorkingDirectory"],
                 "fragment_path": service["FragmentPath"],
             }
             result["deployment"] = classify_deployment(repo, deployment, head)
