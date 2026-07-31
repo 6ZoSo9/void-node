@@ -1639,12 +1639,26 @@ function main(): void {
   ) {
     usage();
   }
-  const trustedContext = readJsonFile(trustedContextPath);
-  const result = executeAuthenticatedPaidWorkActivationPersistenceRuntimeBindingV1(
-    readJsonFile(configPath),
-    readJsonFile(commandPath),
-    () => trustedContext,
-  );
+  const config = readJsonFile(configPath);
+  const validatedConfig =
+    validateAuthenticatedPaidWorkActivationPersistenceRuntimeConfigV1(
+      config,
+    );
+  const result = validatedConfig.enabled
+    ? executeAuthenticatedPaidWorkActivationPersistenceRuntimeBindingV1(
+        config,
+        readJsonFile(commandPath),
+        () => readJsonFile(trustedContextPath),
+      )
+    : executeAuthenticatedPaidWorkActivationPersistenceRuntimeBindingV1(
+        config,
+        null,
+        () => {
+          throw new Error(
+            "disabled runtime trusted context provider must not be called",
+          );
+        },
+      );
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 

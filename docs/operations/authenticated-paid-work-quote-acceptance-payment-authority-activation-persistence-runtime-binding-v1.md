@@ -72,7 +72,12 @@ Payment execution remains a separate future authority gate.
 The runtime is enabled only when
 `VOID_AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_RUNTIME_ENABLED=1`.
 When disabled, no root is required and the trusted provider and store are not
-accessed. When enabled, the absolute canonical private root is supplied through
+accessed. The CLI reads configuration first and returns the disabled result
+without opening the command or trusted-context file paths. When enabled, the
+CLI reads the command before constructing a lazy trusted-context provider, so
+an invalid confirmation is rejected before the trusted-context file is opened.
+
+When enabled, the absolute canonical private root is supplied through
 `VOID_AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_RUNTIME_ROOT`.
 
 Optional bounded settings control pointer bytes, generation-file bytes,
@@ -82,8 +87,11 @@ directories must be mode `0700`; pointer and generation files must be mode
 
 ## Proof boundary
 
-The focused proof uses temporary private directories only. It proves disabled
-no-read behavior, confirmation-before-read, trusted context binding, dry-run
+The focused proof uses temporary private directories only. It executes the
+real CLI with deliberately missing command and trusted-context paths to prove
+disabled no-read behavior. It also runs an enabled command with an invalid
+confirmation and a missing trusted-context path to prove confirmation-before-
+trusted-context-file access. It further proves trusted context binding, dry-run
 no-write behavior, server-side replay loading, first commit, deterministic
 duplicate reuse, stale conflicting transition rejection, and exact orphan
 recovery. No production activation or payment state is written by the proof or
