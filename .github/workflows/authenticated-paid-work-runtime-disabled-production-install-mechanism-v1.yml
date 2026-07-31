@@ -1,0 +1,41 @@
+name: authenticated-paid-work-runtime-disabled-production-install-mechanism-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-install-plan-v1.example.json"
+      - "ops/mainnet0/install_authenticated_paid_work_runtime_disabled_production_v1.py"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-install-plan-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-install-mechanism-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-install-plan-v1.example.json"
+      - "ops/mainnet0/install_authenticated_paid_work_runtime_disabled_production_v1.py"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-install-plan-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci --ignore-scripts
+      - run: python3 -m py_compile ops/mainnet0/install_authenticated_paid_work_runtime_disabled_production_v1.py scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py
+      - run: python3 scripts/prove_authenticated_paid_work_runtime_disabled_production_install_mechanism_v1.py
