@@ -74,6 +74,12 @@ jobs:
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "required_route_hash_pins_enforced=true" \
             /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "additive_order_status_surface_accepted=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "malformed_order_status_surface_rejected=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
+          grep -Fx "unknown_agent_surface_rejected=true" \
+            /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "mutation=false" \
             /tmp/void-tor-agent-access-client-v1-proof.log
           grep -Fx "payment_execution=false" \

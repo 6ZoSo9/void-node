@@ -16,6 +16,7 @@ const BINDING_DOMAIN = "VOID_NODE_ONION_BINDING_V1";
 const BINDING_MARKER = "VOID_NODE_ONION_BINDING_V1";
 const DESCRIPTOR_MARKER = "VOID_TOR_ONION_TRANSPORT_V1";
 const MCP_DESCRIPTOR_MARKER = "VOID_TOR_AGENT_MCP_READONLY_V1";
+const ORDER_STATUS_SURFACE_MARKER = "VOID_TOR_ORDER_STATUS_READONLY_V1";
 const BINDING_PATHS = Object.freeze([
   "/.well-known/void-node-onion-binding-v1.json",
   "/public-node/transports/tor-v1-binding.json",
@@ -28,6 +29,12 @@ const MCP_DESCRIPTOR_PATHS = Object.freeze([
   "/.well-known/void-agent-mcp-onion-v1.json",
   "/public-node/agents/mcp-tor-v1.json",
 ]);
+const ORDER_STATUS_DESCRIPTOR_PATHS = Object.freeze([
+  "/.well-known/void-order-status-onion-v1.json",
+  "/public-node/agents/order-status-tor-v1.json",
+]);
+const ORDER_STATUS_PATH_TEMPLATE =
+  "/public-agent/services/v1/orders/:submission_id/status.json";
 const AUTHORITY = Object.freeze({
   read_only: true,
   transaction_submission: false,
@@ -464,7 +471,12 @@ function validateGeneratedAt(value, profile, options, label) {
 }
 
 function verifyAgentSurfaces(agentSurfaces, profile) {
-  exactKeys(agentSurfaces, ["mcp_readonly_v1"], "descriptor.agent_surfaces");
+  allowedKeys(
+    agentSurfaces,
+    ["mcp_readonly_v1"],
+    ["order_status_readonly_v1"],
+    "descriptor.agent_surfaces",
+  );
   const mcp = agentSurfaces.mcp_readonly_v1;
   exactKeys(mcp, [
     "marker", "status", "uri", "descriptor_paths", "methods", "application_authority",
@@ -478,6 +490,30 @@ function verifyAgentSurfaces(agentSurfaces, profile) {
     || mcp.application_authority !== "read_only"
   ) {
     fail("descriptor MCP agent surface is invalid");
+  }
+
+  const orderStatus = agentSurfaces.order_status_readonly_v1;
+  if (orderStatus !== undefined) {
+    exactKeys(orderStatus, [
+      "marker", "status", "reason", "uri_template", "descriptor_paths", "methods",
+      "application_authority",
+    ], "descriptor.agent_surfaces.order_status_readonly_v1");
+    const validReason = orderStatus.status === "active"
+      ? orderStatus.reason === null
+      : typeof orderStatus.reason === "string" && orderStatus.reason.length > 0;
+    if (
+      orderStatus.marker !== ORDER_STATUS_SURFACE_MARKER
+      || !new Set(["active", "unavailable"]).has(orderStatus.status)
+      || !validReason
+      || orderStatus.uri_template
+        !== `http://${profile.transport.onion_hostname}${ORDER_STATUS_PATH_TEMPLATE}`
+      || JSON.stringify(orderStatus.descriptor_paths)
+        !== JSON.stringify(ORDER_STATUS_DESCRIPTOR_PATHS)
+      || JSON.stringify(orderStatus.methods) !== JSON.stringify(["GET"])
+      || orderStatus.application_authority !== "read_only"
+    ) {
+      fail("descriptor order-status agent surface is invalid");
+    }
   }
   return structuredClone(mcp);
 }
