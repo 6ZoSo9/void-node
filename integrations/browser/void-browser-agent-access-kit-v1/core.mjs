@@ -619,6 +619,7 @@ export function intersectReadOnlyCapabilities(catalog) {
 
   const granted = [];
   const not_granted = [];
+  const resources = [];
   const seen = new Set();
   for (const item of catalog.capabilities) {
     const id = typeof item?.id === "string" ? item.id : "invalid";
@@ -633,8 +634,10 @@ export function intersectReadOnlyCapabilities(catalog) {
       && item.access === "anonymous"
       && item.authority === "read_only"
       && methods.length > 0
+      && new Set(methods).size === methods.length
       && methods.every((method) => method === "GET" || method === "HEAD")
       && paths.length > 0
+      && new Set(paths).size === paths.length
     );
     if (!eligible) {
       not_granted.push({ id, reason: "not_explicitly_live_anonymous_read_only" });
@@ -647,8 +650,25 @@ export function intersectReadOnlyCapabilities(catalog) {
       continue;
     }
     granted.push(id);
+    if (methods.includes("GET")) {
+      for (const path of paths) {
+        resources.push(Object.freeze({
+          capability_id: id,
+          method: "GET",
+          path,
+        }));
+      }
+    }
   }
-  return Object.freeze({ granted, not_granted });
+  resources.sort((left, right) => (
+    left.capability_id.localeCompare(right.capability_id)
+    || left.path.localeCompare(right.path)
+  ));
+  return Object.freeze({
+    granted: Object.freeze(granted),
+    not_granted: Object.freeze(not_granted),
+    resources: Object.freeze(resources),
+  });
 }
 
 export async function fetchBoundedJsonDocument(url, options = {}) {

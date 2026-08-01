@@ -70,6 +70,14 @@ jobs:
             /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "capability_intersection_fail_closed=true" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "verified_read_console=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "verified_resources_only=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "read_method_get_only=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "arbitrary_resource_input=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "mutation=false" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "payment_execution=false" \

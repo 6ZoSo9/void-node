@@ -21,6 +21,12 @@ the capability intersection. It grants only entries that are explicitly
 enabled, live, anonymous, read-only, limited to `GET`/`HEAD`, and bound to
 canonical same-origin paths. Everything else fails closed as `not_granted`.
 
+The verified read console lists only canonical same-origin paths from
+capabilities that passed the complete live, anonymous, read-only intersection
+and explicitly grant `GET`. The user selects from that generated list; there is
+no arbitrary resource-path input. Reads reuse the bounded no-redirect,
+credentials-omitted fetcher and display the response digest and byte count.
+
 The browser no longer jumps directly to a hard-coded capability catalog. A
 wrong marker or protocol, cross-origin or protocol-relative path, unsafe HTTP
 method, mutation claim, inconsistent negotiation link, malformed contract, or

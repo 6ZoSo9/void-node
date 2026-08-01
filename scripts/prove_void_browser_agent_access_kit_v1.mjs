@@ -185,7 +185,7 @@ for (const relative of [
 
 const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.1.0");
+assert.equal(manifest.version, "1.2.0");
 assert.deepEqual(manifest.permissions, ["storage"]);
 assert.equal(manifest.background, undefined);
 assert.equal(manifest.content_scripts, undefined);
@@ -280,6 +280,11 @@ assert.equal(
   "/.well-known/void-agent-discovery.json",
 );
 assert.deepEqual(discovered.capabilities.granted, ["public_discovery"]);
+assert.deepEqual(discovered.capabilities.resources, [{
+  capability_id: "public_discovery",
+  method: "GET",
+  path: "/.well-known/void-agent-discovery.json",
+}]);
 
 const nowMs = Date.parse("2026-07-31T12:00:00.000Z");
 const binding = fixture(nowMs);
@@ -366,6 +371,21 @@ assert.deepEqual(intersection.not_granted, [{
   id: "wallet_treasury_or_ledger_mutation",
   reason: "not_explicitly_live_anonymous_read_only",
 }]);
+assert.deepEqual(intersection.resources, [{
+  capability_id: "public_discovery",
+  method: "GET",
+  path: "/.well-known/void-agent-discovery.json",
+}]);
+
+const duplicateResourceCatalog = catalog();
+duplicateResourceCatalog.capabilities[0].paths.push(
+  "/.well-known/void-agent-discovery.json",
+);
+const duplicateResourceIntersection = intersectReadOnlyCapabilities(
+  duplicateResourceCatalog,
+);
+assert.deepEqual(duplicateResourceIntersection.granted, []);
+assert.deepEqual(duplicateResourceIntersection.resources, []);
 
 const mutatingCatalog = catalog();
 mutatingCatalog.authority.payment_submission_active = true;
@@ -428,9 +448,13 @@ try {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
+const popupSource = fs.readFileSync(path.join(EXTENSION, "popup.mjs"), "utf8");
 const source = ["core.mjs", "popup.mjs"].map((name) => (
   fs.readFileSync(path.join(EXTENSION, name), "utf8")
 )).join("\n");
+assert.match(popupSource, /verifiedSession\.resources\[index\]/);
+assert.match(popupSource, /resource\.method !== "GET"/);
+assert.match(popupSource, /fetchBoundedJsonDocument/);
 for (const forbidden of [
   /\beval\s*\(/,
   /new\s+Function\s*\(/,
@@ -456,6 +480,10 @@ console.log("canonical_discovery_validated=true");
 console.log("same_origin_discovery_chain=true");
 console.log("unsafe_discovery_rejected=true");
 console.log("capability_intersection_fail_closed=true");
+console.log("verified_read_console=true");
+console.log("verified_resources_only=true");
+console.log("read_method_get_only=true");
+console.log("arbitrary_resource_input=false");
 console.log("redirects_rejected=true");
 console.log("response_size_bounded=true");
 console.log("mutation=false");
