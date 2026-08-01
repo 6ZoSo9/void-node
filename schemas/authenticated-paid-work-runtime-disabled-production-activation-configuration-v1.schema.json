@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-runtime-disabled-production-activation-configuration-v1.schema.json",
+  "title": "VOID authenticated paid-work disabled-runtime production activation configuration candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "marker",
+    "version",
+    "status",
+    "network",
+    "provenance",
+    "artifact_references",
+    "runtime",
+    "execution_boundary"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://void.network/schemas/authenticated-paid-work-runtime-disabled-production-activation-configuration-v1.schema.json"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_CONFIGURATION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "reviewed_candidate_activation_forbidden"
+    },
+    "network": {
+      "$ref": "#/$defs/network"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "artifact_references": {
+      "$ref": "#/$defs/artifactReferences"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "execution_boundary": {
+      "$ref": "#/$defs/executionBoundary"
+    }
+  },
+  "$defs": {
+    "oid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "schemaId": {
+      "type": "string",
+      "minLength": 24,
+      "maxLength": 512,
+      "pattern": "^https://void\\.network/schemas/[a-z0-9][a-z0-9-]*-v1\\.schema\\.json$"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "identity",
+        "chain_id"
+      ],
+      "properties": {
+        "name": {
+          "const": "VOID Mainnet-0"
+        },
+        "identity": {
+          "const": "mainnet0"
+        },
+        "chain_id": {
+          "const": 2050
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "prerequisite_gate_id",
+        "observed_main_commit",
+        "prerequisite_merge_commit",
+        "repair_merge_commit",
+        "readiness_decision_merge_commit",
+        "evidence_composition_sha256",
+        "readiness_decision_sha256"
+      ],
+      "properties": {
+        "repository": {
+          "const": "6ZoSo9/void-node"
+        },
+        "prerequisite_gate_id": {
+          "const": "void.authenticated-paid-work.disabled-runtime.activation-prerequisites.v1"
+        },
+        "observed_main_commit": {
+          "$ref": "#/$defs/oid"
+        },
+        "prerequisite_merge_commit": {
+          "const": "25db3a0b0ff802914ef40bacabcbbda3779866cd"
+        },
+        "repair_merge_commit": {
+          "const": "e46619b4eba306dd0727e93ef87f52b68f724852"
+        },
+        "readiness_decision_merge_commit": {
+          "const": "8ce112d6b0eb594bf0e0e1715e4217a7e1379753"
+        },
+        "evidence_composition_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "readiness_decision_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_type",
+        "reference_id",
+        "schema_id",
+        "sha256",
+        "media_type",
+        "contains_secret_material",
+        "separately_reviewed"
+      ],
+      "properties": {
+        "artifact_type": {
+          "type": "string"
+        },
+        "reference_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "schema_id": {
+          "$ref": "#/$defs/schemaId"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "const": "application/json"
+        },
+        "contains_secret_material": {
+          "const": false
+        },
+        "separately_reviewed": {
+          "const": true
+        }
+      }
+    },
+    "artifactReferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trusted_context",
+        "credential",
+        "bounded_replay_snapshot",
+        "service_unit_design",
+        "rollback_plan",
+        "activation_execution_confirmation",
+        "live_canary_scope"
+      ],
+      "properties": {
+        "trusted_context": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "trusted_context_reference_metadata"
+            }
+          }
+        },
+        "credential": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "credential_reference_metadata"
+            }
+          }
+        },
+        "bounded_replay_snapshot": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "bounded_replay_snapshot"
+            }
+          }
+        },
+        "service_unit_design": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "service_unit_design"
+            }
+          }
+        },
+        "rollback_plan": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "rollback_plan"
+            }
+          }
+        },
+        "activation_execution_confirmation": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "activation_execution_confirmation"
+            }
+          }
+        },
+        "live_canary_scope": {
+          "$ref": "#/$defs/artifactReference",
+          "properties": {
+            "artifact_type": {
+              "const": "live_canary_scope"
+            }
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "activation_authorized",
+        "desired_state",
+        "listener_created",
+        "service_installed",
+        "persistence_enabled",
+        "payment_execution_enabled",
+        "work_dispatch_enabled",
+        "work_credit_write_enabled",
+        "wallet_or_signer_access",
+        "fund_movement_enabled",
+        "separate_activation_execution_lane_required"
+      ],
+      "properties": {
+        "enabled": {
+          "const": false
+        },
+        "activation_authorized": {
+          "const": false
+        },
+        "desired_state": {
+          "const": "disabled_pending_explicit_activation_execution"
+        },
+        "listener_created": {
+          "const": false
+        },
+        "service_installed": {
+          "const": false
+        },
+        "persistence_enabled": {
+          "const": false
+        },
+        "payment_execution_enabled": {
+          "const": false
+        },
+        "work_dispatch_enabled": {
+          "const": false
+        },
+        "work_credit_write_enabled": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "fund_movement_enabled": {
+          "const": false
+        },
+        "separate_activation_execution_lane_required": {
+          "const": true
+        }
+      }
+    },
+    "executionBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "configuration_instance_created",
+        "activation_configuration_written",
+        "credential_or_token_read",
+        "deployment",
+        "service_restart",
+        "runtime_listener_created",
+        "payment_execution",
+        "work_dispatch",
+        "work_credit_write",
+        "wallet_or_signer_access",
+        "fund_movement",
+        "separate_activation_execution_lane_required"
+      ],
+      "properties": {
+        "read_only": {
+          "const": true
+        },
+        "configuration_instance_created": {
+          "const": false
+        },
+        "activation_configuration_written": {
+          "const": false
+        },
+        "credential_or_token_read": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "runtime_listener_created": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "fund_movement": {
+          "const": false
+        },
+        "separate_activation_execution_lane_required": {
+          "const": true
+        }
+      }
+    }
+  }
+}
