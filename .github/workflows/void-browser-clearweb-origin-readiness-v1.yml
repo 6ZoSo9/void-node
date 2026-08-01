@@ -1,0 +1,93 @@
+name: VOID Browser Clearweb Origin Readiness V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-browser-clearweb-origin-readiness-v1.yml"
+      - "docs/operations/void-browser-clearweb-origin-readiness-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs"
+      - "integrations/browser/void-browser-agent-access-kit-v1/core.mjs"
+      - "integrations/browser/void-browser-agent-access-kit-v1/manifest.json"
+      - "integrations/browser/void-browser-agent-access-kit-v1/trust-pins.json"
+      - "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/public-node/agents/discovery-v1.json"
+      - "public/public-node/agents/capabilities-v1.json"
+      - "schemas/void-browser-clearweb-origin-readiness-v1.schema.json"
+      - "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-browser-clearweb-origin-readiness-v1.yml"
+      - "docs/operations/void-browser-clearweb-origin-readiness-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs"
+      - "integrations/browser/void-browser-agent-access-kit-v1/core.mjs"
+      - "integrations/browser/void-browser-agent-access-kit-v1/manifest.json"
+      - "integrations/browser/void-browser-agent-access-kit-v1/trust-pins.json"
+      - "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/public-node/agents/discovery-v1.json"
+      - "public/public-node/agents/capabilities-v1.json"
+      - "schemas/void-browser-clearweb-origin-readiness-v1.schema.json"
+      - "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-browser-clearweb-origin-readiness-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source and schema
+        run: |
+          node --check ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs
+          node --check scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs
+          python3 -m json.tool \
+            schemas/void-browser-clearweb-origin-readiness-v1.schema.json \
+            >/dev/null
+
+      - name: Prove fail-closed readiness contract
+        run: |
+          node scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs \
+            | tee /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_READINESS_V1_PROOF_GREEN" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "precision_physical_host_required=true" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "ci_physical_presence_skipped=true" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "discovery_bytes_exact=true" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "browser_activation=false" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "private_key_access=false" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "deployment=false" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "payment_authority=false" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+
+      - name: Prove source without physical-host or network survey
+        run: |
+          EXPECTED_HEAD="$(git rev-parse HEAD)"
+          node ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs \
+            source \
+            --repo-root . \
+            --expected-head "$EXPECTED_HEAD" \
+            | tee /tmp/void-browser-clearweb-origin-readiness-source-v1.log
+          grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_READINESS_V1_SOURCE_PROOF=PASS" \
+            /tmp/void-browser-clearweb-origin-readiness-source-v1.log
