@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import * as http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -30,6 +31,7 @@ import {
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1,
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ROUTES_V1,
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
+  handleBuyVoidNativeExecutionRuntimeCommandV1,
   runBuyVoidNativeExecutionRuntimeCommandV1,
   type BuyVoidNativeExecutionRuntimePolicyV1,
 } from "../src/economic/buy_void_native_execution_runtime_v1.js";
@@ -402,6 +404,113 @@ try {
     ],
   );
 
+
+  const handlerRpcMethods: string[] = [];
+  const rpcServer = http.createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      try {
+        const call = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        const method = String(call?.method || "");
+        handlerRpcMethods.push(method);
+        const values: Record<string, string> = {
+          eth_chainId: "0x802",
+          eth_getTransactionCount: "0x9",
+          eth_gasPrice: "0x77359400",
+          eth_getBalance: "0x21e19e0c9bab2400000",
+        };
+        assert.ok(Object.prototype.hasOwnProperty.call(values, method));
+        response.statusCode = 200;
+        response.setHeader("Content-Type", "application/json");
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: call.id,
+          result: values[method],
+        }));
+      } catch (error) {
+        response.statusCode = 500;
+        response.end(JSON.stringify({
+          error: String((error as Error)?.message || error),
+        }));
+      }
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    rpcServer.once("error", reject);
+    rpcServer.listen(0, "127.0.0.1", () => {
+      rpcServer.off("error", reject);
+      resolve();
+    });
+  });
+  const rpcAddress = rpcServer.address();
+  assert.ok(rpcAddress && typeof rpcAddress !== "string");
+  if (!rpcAddress || typeof rpcAddress === "string") {
+    throw new Error("disabled handler proof RPC address unavailable");
+  }
+
+  const handlerEnvironment: Record<string, string> = {
+    VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED: "0",
+    VOID_BUY_VOID_RUNTIME_DIR: root,
+    VOID_BUY_VOID_INVENTORY_POOL_ID: poolId,
+    VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: walletAddress,
+    VOID_BUY_VOID_NATIVE_DELIVERY_MAX_AMOUNT_UNITS: "700",
+    VOID_BUY_VOID_NATIVE_EXECUTION_GAS_LIMIT: "21000",
+    VOID_BUY_VOID_NATIVE_DELIVERY_MAX_GAS_LIMIT: "21000",
+    VOID_BUY_VOID_NATIVE_DELIVERY_MAX_FEE_PER_GAS_WEI: "3000000000",
+    VOID_BUY_VOID_NATIVE_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI: "1000000000",
+    VOID_BUY_VOID_NATIVE_EXECUTION_FEE_MULTIPLIER_BPS: "12000",
+    VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL:
+      `http://127.0.0.1:${rpcAddress.port}/`,
+  };
+  const previousEnvironment = new Map(
+    Object.keys(handlerEnvironment).map((key) => [key, process.env[key]]),
+  );
+  for (const [key, value] of Object.entries(handlerEnvironment)) {
+    process.env[key] = value;
+  }
+
+  let handlerStatus = 0;
+  let handlerDecision: any = null;
+  const handlerResponse: any = {
+    status(value: number) {
+      handlerStatus = value;
+      return handlerResponse;
+    },
+    json(value: unknown) {
+      handlerDecision = value;
+      return handlerResponse;
+    },
+  };
+  try {
+    await handleBuyVoidNativeExecutionRuntimeCommandV1(
+      {
+        socket: { remoteAddress: "127.0.0.1" },
+        body: { attempt_id: reserved.attempt_id, apply: false },
+      },
+      handlerResponse,
+    );
+  } finally {
+    for (const [key, value] of previousEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await new Promise<void>((resolve) => rpcServer.close(() => resolve()));
+  }
+  assert.equal(handlerStatus, 200);
+  assert.equal(handlerDecision?.ok, true);
+  assert.equal(handlerDecision?.status, "dry_run");
+  assert.equal(handlerDecision?.worker?.status, "dry_run");
+  assert.equal(handlerDecision?.mutation_performed, false);
+  assert.equal(handlerDecision?.signing_performed, false);
+  assert.equal(handlerDecision?.transaction_broadcast_performed, false);
+  assert.deepEqual(handlerRpcMethods, [
+    "eth_chainId",
+    "eth_getTransactionCount",
+    "eth_gasPrice",
+    "eth_getBalance",
+  ]);
+
   let signerCalls = 0;
   let broadcasterCalls = 0;
   const appliedCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
@@ -477,6 +586,7 @@ console.log("server_journal_reconstruction=1");
 console.log("attempt_id_only_selector=1");
 console.log("disabled_apply_before_rpc=1");
 console.log("disabled_dry_run=1");
+console.log("disabled_runtime_handler_dry_run=1");
 console.log("wrong_confirmation_before_rpc=1");
 console.log("missing_dependencies_before_rpc=1");
 console.log("read_only_nonce_fee_planning=1");
