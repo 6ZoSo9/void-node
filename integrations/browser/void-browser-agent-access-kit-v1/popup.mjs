@@ -12,8 +12,14 @@ const api = globalThis.browser ?? globalThis.chrome;
 const form = document.querySelector("#verify-form");
 const endpointInput = document.querySelector("#endpoint");
 const button = document.querySelector("#verify-button");
+const readConsole = document.querySelector("#read-console");
+const readForm = document.querySelector("#read-form");
+const resourceSelect = document.querySelector("#resource");
+const readButton = document.querySelector("#read-button");
 const status = document.querySelector("#status");
 const result = document.querySelector("#result");
+
+let verifiedSession = null;
 
 async function storedEndpoint() {
   const value = await api.storage.local.get("void_endpoint_v1");
@@ -35,6 +41,31 @@ async function fetchBinding(origin) {
   throw lastError ?? new Error("signed onion binding unavailable");
 }
 
+function resetReadConsole() {
+  verifiedSession = null;
+  resourceSelect.replaceChildren();
+  readConsole.hidden = true;
+}
+
+function enableReadConsole(origin, resources) {
+  if (!Array.isArray(resources) || resources.length === 0) {
+    resetReadConsole();
+    return;
+  }
+  verifiedSession = Object.freeze({
+    origin,
+    resources: Object.freeze([...resources]),
+  });
+  resourceSelect.replaceChildren();
+  resources.forEach((resource, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${resource.capability_id} // ${resource.path}`;
+    resourceSelect.append(option);
+  });
+  readConsole.hidden = false;
+}
+
 function show(kind, message, value = null) {
   status.className = kind;
   status.textContent = message;
@@ -49,6 +80,7 @@ function show(kind, message, value = null) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  resetReadConsole();
   button.disabled = true;
   show("", "Requesting access to this origin…");
   try {
@@ -77,8 +109,9 @@ form.addEventListener("submit", async (event) => {
       timeoutMs: 8_000,
     });
     await api.storage.local.set({ void_endpoint_v1: origin });
+    enableReadConsole(origin, discovery.capabilities.resources);
 
-    show("ok", "VOID identity and discovery chain verified. Read-only capabilities accepted.", {
+    show("ok", "VOID identity verified. Read-only resources are available below.", {
       marker: "VOID_BROWSER_AGENT_ACCESS_KIT_V1_RESULT",
       verified: true,
       identity,
@@ -93,6 +126,46 @@ form.addEventListener("submit", async (event) => {
     show("hold", `HOLD: ${String(error?.message || error)}`);
   } finally {
     button.disabled = false;
+  }
+});
+
+readForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  readButton.disabled = true;
+  try {
+    if (!verifiedSession) throw new Error("verify a VOID origin first");
+    const index = Number(resourceSelect.value);
+    if (!Number.isSafeInteger(index)) throw new Error("invalid resource selection");
+    const resource = verifiedSession.resources[index];
+    if (!resource || resource.method !== "GET") {
+      throw new Error("resource is not granted for read-only GET");
+    }
+    show("", `Fetching verified resource ${resource.path}…`);
+    const document = await fetchBoundedJsonDocument(
+      `${verifiedSession.origin}${resource.path}`,
+      {
+        maximum: 1024 * 1024,
+        timeoutMs: 8_000,
+      },
+    );
+    show("ok", "Verified read-only resource fetched.", {
+      marker: "VOID_BROWSER_AGENT_VERIFIED_READ_V1",
+      origin: verifiedSession.origin,
+      capability_id: resource.capability_id,
+      method: resource.method,
+      path: resource.path,
+      response_sha256: document.sha256,
+      response_bytes: document.byte_length,
+      value: document.value,
+      credentials_sent: false,
+      redirects_followed: false,
+      mutation_authority: false,
+      payment_authority: false,
+    });
+  } catch (error) {
+    show("hold", `HOLD: ${String(error?.message || error)}`);
+  } finally {
+    readButton.disabled = false;
   }
 });
 

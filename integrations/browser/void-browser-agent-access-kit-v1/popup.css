@@ -19,14 +19,15 @@ main { padding: 20px; }
 h1 { margin: 2px 0 22px; font-size: 28px; letter-spacing: -1px; }
 .sigil { margin: 0; color: #49ff8a; font-size: 11px; letter-spacing: 1.5px; }
 label { display: block; margin-bottom: 7px; color: #a7cdb4; font-size: 12px; }
-input, button {
+input, select, button {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid #285738;
   border-radius: 3px;
   font: inherit;
 }
-input { padding: 10px; background: #0c1110; color: #e8fff0; }
+input, select { padding: 10px; background: #0c1110; color: #e8fff0; }
+select { margin-top: 1px; }
 button {
   margin-top: 10px;
   padding: 11px;
@@ -36,6 +37,11 @@ button {
 }
 button:hover { background: #18532f; }
 button:disabled { cursor: wait; opacity: 0.55; }
+#read-console {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #1d3526;
+}
 #status { min-height: 34px; margin: 18px 0 8px; color: #b9c8be; font-size: 12px; }
 #status.ok { color: #49ff8a; }
 #status.hold { color: #ff8d8d; }

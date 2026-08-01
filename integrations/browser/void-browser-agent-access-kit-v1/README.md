@@ -29,6 +29,12 @@ canonical document. Redirects, cross-origin or non-canonical paths, wrong VOID
 network identity, write methods, mutation claims, unsafe discovery defaults,
 and inconsistent capability links all fail closed.
 
+The verified read console lists only canonical same-origin paths from
+capabilities that passed the complete live, anonymous, read-only intersection
+and explicitly grant `GET`. The user selects from that generated list; there is
+no arbitrary resource-path input. Reads reuse the bounded no-redirect,
+credentials-omitted fetcher and display the response digest and byte count.
+
 ## Authority boundary
 
 No content scripts or background worker are installed. The kit sends only

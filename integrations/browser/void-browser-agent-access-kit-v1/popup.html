@@ -25,6 +25,13 @@
         >
         <button id="verify-button" type="submit">Verify read-only surface</button>
       </form>
+      <section id="read-console" hidden>
+        <form id="read-form">
+          <label for="resource">Verified read-only resource</label>
+          <select id="resource" name="resource"></select>
+          <button id="read-button" type="submit">Fetch selected JSON</button>
+        </form>
+      </section>
       <p id="status" role="status">No node verified.</p>
       <pre id="result" hidden></pre>
       <footer>No wallet, signing, payment, WC, validator, or operator authority.</footer>
