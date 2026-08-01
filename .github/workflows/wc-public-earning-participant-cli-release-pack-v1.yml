@@ -72,8 +72,11 @@ jobs:
           python3 scripts/build_wc_public_earning_participant_cli_release_pack_v1.py \
             --source-commit "${GITHUB_SHA}" \
             --output-dir out
-          sha256sum --check --strict \
-            out/WC_PUBLIC_EARNING_PARTICIPANT_CLI_RELEASE_PACK_V1_SHA256SUMS.txt
+          (
+            cd out
+            sha256sum --check --strict \
+              WC_PUBLIC_EARNING_PARTICIPANT_CLI_RELEASE_PACK_V1_SHA256SUMS.txt
+          )
 
       - name: Upload review artifact
         uses: actions/upload-artifact@v4
