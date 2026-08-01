@@ -23,6 +23,17 @@ The public route is:
 POST /__void/agents/paid-work/submissions/v1
 ```
 
+Every response produced by that exact route carries the version marker:
+
+```text
+X-VOID-Agent-Paid-Work-Submission-Route: v1
+```
+
+The marker is present on accepted, duplicate, rejected, authentication-error,
+and method-error responses. Health and unknown-path responses do not carry it.
+Authenticated clients validate this marker before interpreting the bounded JSON
+response contract.
+
 The route remains disabled by default. The gateway exposes it only when
 `VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM` is explicitly configured.
 The receiver itself refuses to start unless its local configuration has

@@ -763,6 +763,11 @@ async function main(): Promise<void> {
       return;
     }
 
+    response.setHeader(
+      "X-VOID-Agent-Paid-Work-Submission-Route",
+      "v1",
+    );
+
     if (method !== "POST") {
       emptyResponse(
         response,

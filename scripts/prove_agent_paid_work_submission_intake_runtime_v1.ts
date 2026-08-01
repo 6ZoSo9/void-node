@@ -24,6 +24,9 @@ const route =
   "/__void/agents/paid-work/submissions/v1";
 const healthRoute =
   "/__void/agent-paid-work-submission-receiver-v1/health";
+const routeHeaderName =
+  "x-void-agent-paid-work-submission-route";
+const routeHeaderValue = "v1";
 const token = "paid-work-submission-proof-token-0001";
 const bearer = `Bearer ${token}`;
 
@@ -94,6 +97,19 @@ function parseJson(
   return JSON.parse(
     response.body.toString("utf8"),
   ) as Record<string, unknown>;
+}
+
+function assertSubmissionRouteHeader(
+  response: {
+    headers: http.IncomingHttpHeaders;
+  },
+  label: string,
+): void {
+  assert.equal(
+    response.headers[routeHeaderName],
+    routeHeaderValue,
+    `${label} route-version header mismatch`,
+  );
 }
 
 function countJson(pathname: string): number {
@@ -347,6 +363,10 @@ try {
     requestPath: healthRoute,
   });
   assert.equal(health.status, 200);
+  assert.equal(
+    health.headers[routeHeaderName],
+    undefined,
+  );
   const healthJson = parseJson(health);
   assert.equal(healthJson.ready, true);
   assert.equal(
@@ -360,6 +380,7 @@ try {
     requestPath: route,
   });
   assert.equal(methodGuard.status, 405);
+  assertSubmissionRouteHeader(methodGuard, "methodGuard");
   assert.equal(
     methodGuard.headers.allow,
     "POST",
@@ -394,6 +415,7 @@ try {
     },
   });
   assert.equal(missingAuth.status, 401);
+  assertSubmissionRouteHeader(missingAuth, "missingAuth");
   assert.equal(
     countJson(
       path.join(stateDir, "receipts"),
@@ -417,6 +439,7 @@ try {
     },
   });
   assert.equal(wrongSha.status, 400);
+  assertSubmissionRouteHeader(wrongSha, "wrongSha");
 
   const accepted = await request({
     port,
@@ -434,6 +457,7 @@ try {
     },
   });
   assert.equal(accepted.status, 202);
+  assertSubmissionRouteHeader(accepted, "accepted");
   const acceptedJson =
     parseJson(accepted);
   assert.equal(acceptedJson.ok, true);
@@ -498,6 +522,7 @@ try {
     },
   });
   assert.equal(duplicate.status, 200);
+  assertSubmissionRouteHeader(duplicate, "duplicate");
   const duplicateJson =
     parseJson(duplicate);
   assert.equal(
@@ -541,6 +566,7 @@ try {
     },
   });
   assert.equal(conflict.status, 409);
+  assertSubmissionRouteHeader(conflict, "conflict");
 
   const rejectedRequest = {
     ...conflictingRequest,
@@ -566,6 +592,7 @@ try {
     },
   });
   assert.equal(rejected.status, 422);
+  assertSubmissionRouteHeader(rejected, "rejected");
   const rejectedJson =
     parseJson(rejected);
   assert.equal(rejectedJson.ok, false);
@@ -604,6 +631,7 @@ try {
     },
   });
   assert.equal(oversized.status, 413);
+  assertSubmissionRouteHeader(oversized, "oversized");
 
   assert.equal(
     countJson(
