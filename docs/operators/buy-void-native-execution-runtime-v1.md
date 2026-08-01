@@ -14,7 +14,8 @@ source connection explicit and testable:
 3. read the chain-2050 pending nonce, gas price, and fulfillment-wallet balance
    through a server-controlled loopback JSON-RPC URL;
 4. build a bounded type-2 native VOID transfer plan;
-5. dry-run without credentials, signing, journal mutation, or broadcast;
+5. dry-run while execution remains disabled, without credentials, signing,
+   journal mutation, or broadcast;
 6. on a later explicitly confirmed applied call, use only the already existing
    injected systemd-credential signer and loopback chain-2050 broadcaster;
 7. let the merged native execution worker apply the durable submission guard
@@ -80,8 +81,12 @@ VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED=1
 
 The example systemd drop-in leaves both values at `0`.
 
-When the runtime is disabled, the command route returns before journal reads,
-RPC calls, credential access, signing, or broadcast.
+When the runtime is disabled, an `apply=true` command returns before journal
+reads, RPC calls, credential access, signing, or broadcast. An `apply=false`
+dry-run remains available so an operator can verify one exact candidate's
+journal bindings, pending nonce, fee bounds, and fulfillment-wallet balance
+without first enabling money movement. The dry-run cannot receive dependencies,
+read the credential, sign, broadcast, mutate a journal, or move funds.
 
 For an applied command, the exact confirmation is checked before journal reads,
 RPC calls, or dependency use:
@@ -184,8 +189,8 @@ After this lane is merged:
 2. prove loopback status, route containment, and zero wallet/chain mutation;
 3. configure a dedicated balance-capped fulfillment wallet credential and
    bounded server policy;
-4. execute a separately reviewed dry-run against one synthetic reserved
-   request;
+4. execute a separately reviewed dry-run while execution remains disabled
+   against one synthetic reserved request;
 5. execute one separately confirmed live canary;
 6. add receipt confirmation, inventory decrement, and public request-state
    closeout before broad automatic customer fulfillment is enabled.

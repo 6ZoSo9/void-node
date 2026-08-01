@@ -47,6 +47,8 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ROUTES_V1 = {
 export const VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1 = {
   operator_loopback_only: true,
   disabled_by_default: true,
+  dry_run_allowed_while_disabled: true,
+  apply_allowed_while_disabled: false,
   one_request_per_command: true,
   server_controlled_root_dir: true,
   server_controlled_policy: true,
@@ -607,7 +609,16 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
     .trim()
     .toLowerCase();
 
-  if (!runtimePolicy || runtimePolicy.enabled !== true) {
+  if (!runtimePolicy) {
+    return held("runtime_policy", {
+      reason: "native_execution_runtime_disabled",
+      attempt_id: SHA256.test(attemptId) ? attemptId : null,
+    });
+  }
+  if (
+    runtimePolicy.enabled !== true &&
+    command?.apply === true
+  ) {
     return held("runtime_policy", {
       reason: "native_execution_runtime_disabled",
       attempt_id: SHA256.test(attemptId) ? attemptId : null,
@@ -793,7 +804,7 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
 ): Promise<unknown> {
   if (!loopbackOnly(req, res)) return null;
 
-  if (!enabled()) {
+  if (!enabled() && req?.body?.apply === true) {
     return res.status(503).json({
       marker: VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
       ok: false,

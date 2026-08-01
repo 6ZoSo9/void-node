@@ -133,6 +133,20 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .dry_run_allowed_while_disabled,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .apply_allowed_while_disabled,
+  false,
+);
+assert.match(
+  runtime,
+  /!enabled\(\) && req\?\.body\?\.apply === true/,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
     .exact_confirmation_required_before_apply_io,
   true,
 );
@@ -298,6 +312,7 @@ for (const required of [
 assert.match(workflow, /name: native-execution-runtime/);
 assert.match(docs, /Remaining work before a live customer path/);
 assert.match(docs, /disabled-by-default/);
+assert.match(docs, /dry-run while execution remains disabled/);
 assert.match(docs, /one separately confirmed live canary/);
 
 console.log(
@@ -309,6 +324,8 @@ console.log("proof_file_count=3");
 console.log("systemd_example_file_count=1");
 console.log("runtime_import_mounted=1");
 console.log("runtime_disabled_by_default=1");
+console.log("disabled_dry_run_allowed=1");
+console.log("disabled_apply_allowed=0");
 console.log("dependency_injector_disabled_by_default=1");
 console.log("loopback_operator_only=1");
 console.log("read_only_rpc_method_count=4");
