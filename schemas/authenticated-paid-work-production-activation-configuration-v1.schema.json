@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-production-activation-configuration-v1.schema.json",
+  "title": "VOID authenticated paid-work production activation configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "enabled",
+    "persistence_config"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_CONFIG_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "enabled": {
+      "const": true
+    },
+    "persistence_config": {
+      "$ref": "#/$defs/persistenceConfig"
+    }
+  },
+  "$defs": {
+    "persistenceConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "allowed_root",
+        "max_pointer_bytes",
+        "max_generation_file_bytes",
+        "max_generation_count",
+        "recover_exact_orphaned_generation"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "const": true
+        },
+        "allowed_root": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^/(?!.*(?:^|/)\\.\\.?(?:/|$))(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+$"
+        },
+        "max_pointer_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 1048576
+        },
+        "max_generation_file_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 33554432
+        },
+        "max_generation_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "recover_exact_orphaned_generation": {
+          "const": true
+        }
+      }
+    }
+  },
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CONFIGURATION_SCHEMA_V1",
+  "x_void_prerequisite_gate_id": "void.authenticated-paid-work.disabled-runtime.activation-prerequisites.v1",
+  "x_void_production_bindings": {
+    "release_id": "paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d",
+    "packet_id": "voidapwrdp1_64841279f90db042c455ed8bdd3e865cb9a791b224bffc309acae11696bc9784",
+    "packet_commit": "eaa41fdf76044c88eb9c078046bd370acb3ee457",
+    "runtime_source_commit": "3b298bc1e31365aec7a20d03c3f425e22fd2f949",
+    "runtime_source_sha256": "3248f5720121d699e5ea4fe34554f7c0ee75ae1f751a8ade7f0a93e3ce72f1b7",
+    "prerequisite_merge_commit": "25db3a0b0ff802914ef40bacabcbbda3779866cd",
+    "evidence_composition_merge_commit": "a7fa57062f96995f222550ab6838b8bbea2e274f",
+    "readiness_decision_merge_commit": "8ce112d6b0eb594bf0e0e1715e4217a7e1379753"
+  },
+  "x_void_readiness_effect": {
+    "satisfies": "activation_configuration_schema",
+    "remaining_requirements": [
+      "activation_configuration_instance",
+      "trusted_context_reference_metadata",
+      "credential_reference_metadata",
+      "bounded_replay_snapshot",
+      "service_unit_design",
+      "rollback_plan",
+      "activation_execution_confirmation",
+      "live_canary_scope"
+    ]
+  },
+  "x_void_authority": {
+    "schema_only": true,
+    "activation_authorized": false,
+    "configuration_instance_created": false,
+    "configuration_written": false,
+    "secret_material_permitted": false,
+    "trusted_context_reference_created": false,
+    "credential_reference_created": false,
+    "deployment": false,
+    "service_unit_created": false,
+    "service_restart": false,
+    "runtime_listener_created": false,
+    "runtime_mounted": false,
+    "quote_acceptance": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "transaction_construction": false,
+    "transaction_broadcast": false,
+    "work_execution_authorization": false,
+    "work_dispatch": false,
+    "live_ticket_issuance": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "signing": false,
+    "void_settlement": false,
+    "fund_movement": false,
+    "separate_activation_execution_lane_required": true
+  }
+}
