@@ -250,6 +250,22 @@ const advertisedRoutePairs = [
     "public/.well-known/void-agent-discovery.schema.json",
   ],
   [
+    "/public-node/agents/capabilities-v1.json",
+    "public/public-node/agents/capabilities-v1.json",
+  ],
+  [
+    "/public-node/agents/capabilities-v1.schema.json",
+    "public/public-node/agents/capabilities-v1.schema.json",
+  ],
+  [
+    "/.well-known/void-agent-capabilities.json",
+    "public/.well-known/void-agent-capabilities.json",
+  ],
+  [
+    "/.well-known/void-agent-capabilities.schema.json",
+    "public/.well-known/void-agent-capabilities.schema.json",
+  ],
+  [
     "/.well-known/void-network-authenticity.json",
     "public/.well-known/void-network-authenticity.json",
   ],
@@ -260,8 +276,8 @@ const advertisedRoutePairs = [
 ] as const;
 
 assertCondition(
-  voidAiAgentDiscoveryRuntimeRoutesV1.length === 8,
-  "AI-agent discovery runtime route table must contain eight routes",
+  voidAiAgentDiscoveryRuntimeRoutesV1.length === 12,
+  "AI-agent discovery runtime route table must contain twelve routes",
 );
 
 for (const [route, relativePath] of advertisedRoutePairs) {
