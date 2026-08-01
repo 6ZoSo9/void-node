@@ -1,0 +1,97 @@
+name: VOID Sovereign Name Signing Request V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-sovereign-name-signing-request-v1.yml"
+      - "docs/public-node/void-sovereign-name-signing-request-v1.md"
+      - "schemas/void-sovereign-name-signing-request-v1.schema.json"
+      - "scripts/prove_void_sovereign_name_signing_request_v1.mjs"
+      - "tools/void-sovereign-name-signing-request-v1.mjs"
+      - "tools/lib/void-sovereign-name-layer-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-sovereign-name-signing-request-v1.yml"
+      - "docs/public-node/void-sovereign-name-signing-request-v1.md"
+      - "schemas/void-sovereign-name-signing-request-v1.schema.json"
+      - "scripts/prove_void_sovereign_name_signing_request_v1.mjs"
+      - "tools/void-sovereign-name-signing-request-v1.mjs"
+      - "tools/lib/void-sovereign-name-layer-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-sovereign-name-signing-request-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source and schema
+        run: |
+          node --check tools/void-sovereign-name-signing-request-v1.mjs
+          node --check scripts/prove_void_sovereign_name_signing_request_v1.mjs
+          python3 -m json.tool \
+            schemas/void-sovereign-name-signing-request-v1.schema.json \
+            >/dev/null
+
+      - name: Prove unsigned signing-request contract
+        run: |
+          node scripts/prove_void_sovereign_name_signing_request_v1.mjs \
+            | tee /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "VOID_SOVEREIGN_NAME_SIGNING_REQUEST_V1_PROOF_GREEN" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "canonical_name=void://zoso/precision" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "subject_identity=voidid:ed25519:2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "namespace_authority_key_id=ed25519:00e7609bf643b41c7cae625c3ae51f5d55c06ec1adba35e8eb80300c64e77a7c" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "transport_count=2" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "deterministic_output=true" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "tampered_payload_rejected=true" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "tampered_transport_rejected=true" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "authority_escalation_rejected=true" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "completed_signature_verifies=true" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "private_key_access=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "signature_created_for_live_record=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "live_name_record_created=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "publication=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "deployment=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "runtime_mutation=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "payment_authority=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-sovereign-name-signing-request-v1.log
+
+      - name: Repository guards
+        run: |
+          npm ci
+          npm run typecheck -- --pretty false
+          npm run build
+          bash tools/check_index_size.sh
