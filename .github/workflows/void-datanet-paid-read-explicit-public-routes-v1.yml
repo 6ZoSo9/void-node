@@ -71,8 +71,7 @@ jobs:
           fi
 
           git cat-file -e "${BASE_SHA}^{commit}"
-          printf 'VOID_TYPECHECK_BASE_SHA=%s
-' "${BASE_SHA}" >> "${GITHUB_ENV}"
+          printf 'VOID_TYPECHECK_BASE_SHA=%s\n' "${BASE_SHA}" >> "${GITHUB_ENV}"
 
       - name: Prove explicit public routes
         run: |
