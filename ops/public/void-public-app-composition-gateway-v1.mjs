@@ -7,7 +7,9 @@
 // Account-scoped Wallet/Earn adapters and arbitrary mutations remain private.
 
 import crypto from "node:crypto";
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
@@ -173,6 +175,139 @@ const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
   "/.well-known/void-public-node.json",
   "/.well-known/void-public-node.schema.json",
 ]);
+const PUBLIC_DISCOVERY_PACK_MARKER = "VOID_PUBLIC_DISCOVERY_PACK_V1";
+const PUBLIC_DISCOVERY_ROOT = String(
+  process.env.VOID_PUBLIC_DISCOVERY_ROOT || "",
+).trim();
+const PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME = String(
+  process.env.VOID_PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME || "",
+).trim();
+const PUBLIC_DISCOVERY_MAX_FILE_BYTES = Number(
+  process.env.VOID_PUBLIC_DISCOVERY_MAX_FILE_BYTES
+    || String(1024 * 1024),
+);
+if (
+  !Number.isSafeInteger(PUBLIC_DISCOVERY_MAX_FILE_BYTES)
+  || PUBLIC_DISCOVERY_MAX_FILE_BYTES < 1024
+  || PUBLIC_DISCOVERY_MAX_FILE_BYTES > 16 * 1024 * 1024
+) {
+  throw new Error("invalid public discovery maximum file size");
+}
+
+function loadPublicDiscoveryPack() {
+  if (!PUBLIC_DISCOVERY_ROOT && !PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME) {
+    return Object.freeze({
+      configured: false,
+      root: null,
+      indexnowKeyName: null,
+      entries: new Map(),
+      fileCount: 0,
+    });
+  }
+
+  if (!PUBLIC_DISCOVERY_ROOT || !PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME) {
+    throw new Error(
+      "public discovery root and IndexNow key name must be configured together",
+    );
+  }
+  if (!path.isAbsolute(PUBLIC_DISCOVERY_ROOT)) {
+    throw new Error("public discovery root must be absolute");
+  }
+  if (!/^[A-Fa-f0-9]{32}\.txt$/.test(PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME)) {
+    throw new Error("invalid public discovery IndexNow key filename");
+  }
+
+  const root = fs.realpathSync(PUBLIC_DISCOVERY_ROOT);
+  const rootStat = fs.statSync(root);
+  if (!rootStat.isDirectory()) {
+    throw new Error("public discovery root is not a directory");
+  }
+  const rootPrefix = root.endsWith(path.sep) ? root : root + path.sep;
+  const indexnowKey = PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME.slice(0, -4);
+  const specs = [
+    {
+      route: `/${PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME}`,
+      relative: PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME,
+      contentType: "text/plain; charset=utf-8",
+      expectedText: indexnowKey,
+    },
+    {
+      route: "/discovery/",
+      relative: "discovery/index.html",
+      contentType: "text/html; charset=utf-8",
+    },
+    {
+      route: "/discovery/void-datanet-dataset-v1.jsonld",
+      relative: "discovery/void-datanet-dataset-v1.jsonld",
+      contentType: "application/ld+json; charset=utf-8",
+    },
+    {
+      route: "/robots.txt",
+      relative: "robots.txt",
+      contentType: "text/plain; charset=utf-8",
+    },
+    {
+      route: "/sitemap.xml",
+      relative: "sitemap.xml",
+      contentType: "application/xml; charset=utf-8",
+    },
+  ];
+  const entries = new Map();
+
+  for (const spec of specs) {
+    const candidate = path.join(root, spec.relative);
+    const candidateStat = fs.lstatSync(candidate);
+    if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {
+      throw new Error(`public discovery artifact is not a direct regular file: ${spec.relative}`);
+    }
+    const real = fs.realpathSync(candidate);
+    if (!real.startsWith(rootPrefix)) {
+      throw new Error(`public discovery artifact escaped its root: ${spec.relative}`);
+    }
+    const body = fs.readFileSync(real);
+    if (body.length < 1 || body.length > PUBLIC_DISCOVERY_MAX_FILE_BYTES) {
+      throw new Error(`public discovery artifact size refused: ${spec.relative}`);
+    }
+    if (
+      spec.expectedText
+      && body.toString("utf8").trim() !== spec.expectedText
+    ) {
+      throw new Error("public discovery IndexNow key body does not match its filename");
+    }
+    const sha256 = crypto.createHash("sha256").update(body).digest("hex");
+    const headers = {
+      "cache-control": "public, max-age=300",
+      "content-type": spec.contentType,
+      etag: `"${sha256}"`,
+      "x-content-type-options": "nosniff",
+      "x-void-marker": PUBLIC_DISCOVERY_PACK_MARKER,
+      "x-void-public-discovery-pack": "v1",
+    };
+    if (spec.route === "/discovery/") {
+      headers["content-security-policy"] =
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+        + "img-src 'self' data:; script-src 'self'; connect-src 'self'; "
+        + "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; "
+        + "form-action 'none'";
+    }
+    entries.set(spec.route, Object.freeze({
+      ...spec,
+      body,
+      sha256,
+      headers: Object.freeze(headers),
+    }));
+  }
+
+  return Object.freeze({
+    configured: true,
+    root,
+    indexnowKeyName: PUBLIC_DISCOVERY_INDEXNOW_KEY_NAME,
+    entries,
+    fileCount: entries.size,
+  });
+}
+
+const PUBLIC_DISCOVERY_PACK = loadPublicDiscoveryPack();
 const EXPECTED_PEERS = Math.max(0, Number(process.env.VOID_PUBLIC_EXPECTED_PEERS || "2"));
 const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed";
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
@@ -1463,6 +1598,53 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
+    if (
+      PUBLIC_DISCOVERY_PACK.configured
+      && pathname === "/discovery"
+    ) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "public_discovery_query_not_allowed" },
+          method,
+        );
+      }
+      return send(
+        res,
+        308,
+        {
+          "cache-control": "public, max-age=300",
+          location: "/discovery/",
+          "x-content-type-options": "nosniff",
+          "x-void-marker": PUBLIC_DISCOVERY_PACK_MARKER,
+          "x-void-public-discovery-pack": "v1",
+        },
+        "",
+        method,
+      );
+    }
+
+    const publicDiscoveryEntry =
+      PUBLIC_DISCOVERY_PACK.entries.get(pathname);
+    if (publicDiscoveryEntry) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "public_discovery_query_not_allowed" },
+          method,
+        );
+      }
+      return send(
+        res,
+        200,
+        publicDiscoveryEntry.headers,
+        publicDiscoveryEntry.body,
+        method,
+      );
+    }
+
     if (pathname === "/participant" || pathname === "/participant/") {
       if (url.search) {
         return sendJson(
@@ -1554,6 +1736,14 @@ const server = http.createServer(async (req, res) => {
             OPERATOR_WEBHOOK_RECEIVER_PATH,
           app_public: true,
           participant_handoff_public: true,
+          public_discovery_pack_configured:
+            PUBLIC_DISCOVERY_PACK.configured,
+          public_discovery_pack_marker:
+            PUBLIC_DISCOVERY_PACK_MARKER,
+          public_discovery_pack_file_count:
+            PUBLIC_DISCOVERY_PACK.fileCount,
+          public_discovery_pack_routes:
+            Array.from(PUBLIC_DISCOVERY_PACK.entries.keys()),
           account_views_public: false,
           mutation: false,
           generic_mutation: false,
@@ -1705,6 +1895,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(
     `${MARKER} host=${HOST} port=${PORT} ` +
-      `public_upstream=${PUBLIC_UPSTREAM} node_upstream=${NODE_UPSTREAM}`
+      `public_upstream=${PUBLIC_UPSTREAM} node_upstream=${NODE_UPSTREAM} `
+      + `public_discovery_pack=${PUBLIC_DISCOVERY_PACK.configured}`
   );
 });
