@@ -383,7 +383,9 @@ function policyState(): PolicyStateV1 {
 
   const rootDir = buyVoidNativeExecutionRuntimeRootDirV1();
   const workerPolicy: BuyVoidNativeExecutionWorkerPolicyV1 = {
-    enabled: enabled(),
+    // Top-level runtime enablement rejects apply=true while disabled. Keep
+    // the worker available for the documented apply=false dry-run path.
+    enabled: true,
     asset_mode: "native_void",
     chain_id: "2050",
     pool_id: values.pool_id,
