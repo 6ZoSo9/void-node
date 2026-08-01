@@ -183,6 +183,66 @@ export function familyMatches(name, compiledPolicy) {
     .map((family) => ({ id: family.id, label: family.label }));
 }
 
+export function normalizeClaimPath(value) {
+  if (typeof value !== "string") fail("claimed path must be a string");
+  let normalized = value.trim();
+  while (normalized.startsWith("./")) normalized = normalized.slice(2);
+  if (
+    !normalized
+    || normalized === "."
+    || normalized.startsWith("/")
+    || normalized.includes("\\")
+    || normalized.includes("\0")
+  ) {
+    fail(`invalid repository-relative claimed path: ${JSON.stringify(value)}`);
+  }
+  const directoryClaim = normalized.endsWith("/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.some((part) => part === "." || part === "..")) {
+    fail(`invalid repository-relative claimed path: ${JSON.stringify(value)}`);
+  }
+  normalized = parts.join("/");
+  if (directoryClaim) normalized += "/";
+  return normalized;
+}
+
+export function parseCandidatePathClaims(raw) {
+  if (typeof raw !== "string") fail("candidate path claim bytes must be text");
+  const paths = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line) => normalizeClaimPath(line));
+  const unique = [...new Set(paths)].sort();
+  if (unique.length === 0) fail("candidate path claim file is empty");
+  return unique;
+}
+
+function claimsOverlap(left, right) {
+  if (left === right) return true;
+  if (left.endsWith("/") && right.startsWith(left)) return true;
+  if (right.endsWith("/") && left.startsWith(right)) return true;
+  return false;
+}
+
+export function findPathCollisions(candidatePaths, activePathClaims) {
+  const collisions = [];
+  for (const candidatePath of candidatePaths) {
+    for (const claim of activePathClaims) {
+      if (!claimsOverlap(candidatePath, claim.path)) continue;
+      collisions.push({
+        candidate_path: candidatePath,
+        active_path: claim.path,
+        source: claim.source,
+        branch: claim.branch ?? "",
+        worktree_path: claim.worktree_path ?? "",
+        pr_number: claim.pr_number ?? null,
+      });
+    }
+  }
+  return collisions.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
+}
+
 export function assessCandidate({
   branch,
   worktreePath,
@@ -193,6 +253,9 @@ export function assessCandidate({
   openPrBranches = new Map(),
   compiledPolicy,
   pathExists = false,
+  candidatePaths = [],
+  activePathClaims = [],
+  pathMetadataComplete = true,
 }) {
   if (typeof branch !== "string" || !branch) fail("candidate branch missing");
   if (typeof worktreePath !== "string" || !worktreePath) {
@@ -215,11 +278,20 @@ export function assessCandidate({
   for (const family of familyMatches(branch, compiledPolicy)) {
     reasons.push(`reserved_family:${family.id}`);
   }
+  const pathCollisions = findPathCollisions(candidatePaths, activePathClaims);
+  if (pathCollisions.length > 0) reasons.push("planned_path_overlap");
+  if (candidatePaths.length > 0 && !pathMetadataComplete) {
+    reasons.push("planned_path_metadata_incomplete");
+  }
   return {
     branch,
     worktree_path: worktreePath,
     collision_free: reasons.length === 0,
     reasons: [...new Set(reasons)].sort(),
+    planned_paths: [...candidatePaths].sort(),
+    path_overlap_checked: candidatePaths.length > 0,
+    path_metadata_complete: candidatePaths.length === 0 || pathMetadataComplete,
+    path_collisions: pathCollisions,
   };
 }
 
@@ -291,16 +363,120 @@ function git(repoRoot, args, options = {}) {
   return run("git", ["-C", repoRoot, ...args], options);
 }
 
+function parseNullPaths(raw) {
+  return raw
+    .split("\0")
+    .filter(Boolean)
+    .map((item) => normalizeClaimPath(item));
+}
+
+export function collectChangedPaths(worktreePath) {
+  const commands = [
+    ["diff", "--name-only", "--no-renames", "-z"],
+    ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+    ["ls-files", "--others", "--exclude-standard", "-z"],
+  ];
+  const paths = [];
+  for (const args of commands) {
+    const result = git(worktreePath, args, { check: false });
+    if (result.status !== 0) {
+      return { complete: false, paths: [] };
+    }
+    paths.push(...parseNullPaths(result.stdout));
+  }
+  const cherry = git(worktreePath, ["cherry", "origin/main", "HEAD"], {
+    check: false,
+  });
+  if (cherry.status !== 0) return { complete: false, paths: [] };
+  for (const line of cherry.stdout.split("\n").filter(Boolean)) {
+    const match = /^([+-]) ([0-9a-f]{40})$/.exec(line);
+    if (!match) return { complete: false, paths: [] };
+    if (match[1] === "-") continue;
+    const commitPaths = git(
+      worktreePath,
+      [
+        "diff-tree", "--root", "--no-commit-id", "--name-only",
+        "-r", "--no-renames", "-z", match[2],
+      ],
+      { check: false },
+    );
+    if (commitPaths.status !== 0) return { complete: false, paths: [] };
+    paths.push(...parseNullPaths(commitPaths.stdout));
+  }
+  return { complete: true, paths: [...new Set(paths)].sort() };
+}
+
+function collectOpenPrPathClaims(openPrs, repository, requireGithub) {
+  const claims = [];
+  let complete = true;
+  for (const pr of openPrs) {
+    const result = run(
+      "gh",
+      [
+        "pr", "view", String(pr.number),
+        "--repo", repository,
+        "--json", "changedFiles,files",
+      ],
+      { check: false },
+    );
+    if (result.status !== 0) {
+      if (requireGithub) {
+        fail(
+          `GitHub PR #${pr.number} changed-path metadata unavailable: `
+          + (result.stderr || result.stdout).trim(),
+        );
+      }
+      complete = false;
+      continue;
+    }
+    let metadata;
+    try {
+      metadata = JSON.parse(result.stdout);
+    } catch (error) {
+      fail(`malformed GitHub PR #${pr.number} changed-path response: ${error.message}`);
+    }
+    if (!Array.isArray(metadata.files) || !Number.isInteger(metadata.changedFiles)) {
+      fail(`malformed GitHub PR #${pr.number} changed-path metadata`);
+    }
+    if (metadata.files.length !== metadata.changedFiles) {
+      fail(
+        `GitHub PR #${pr.number} changed-path metadata truncated `
+        + `(${metadata.files.length}/${metadata.changedFiles})`,
+      );
+    }
+    for (const file of metadata.files) {
+      claims.push({
+        path: normalizeClaimPath(file.path),
+        source: "open_pr",
+        branch: pr.headRefName ?? "",
+        worktree_path: "",
+        pr_number: pr.number,
+      });
+    }
+  }
+  return { claims, complete };
+}
+
 function captureRepository({
   repoRoot,
   policyPath,
   candidateBranch,
   candidateWorktree,
+  candidatePathsFile,
   requireGithub,
 }) {
   const resolvedRepo = resolve(repoRoot);
   const resolvedPolicy = resolve(policyPath);
+  if (candidatePathsFile && (!candidateBranch || !candidateWorktree)) {
+    fail("candidate paths require candidate branch and worktree");
+  }
   const { raw: policy, compiled, sha256: policySha256 } = readPolicy(resolvedPolicy);
+  const resolvedCandidatePathsFile = candidatePathsFile
+    ? resolve(candidatePathsFile)
+    : null;
+  const candidatePaths = resolvedCandidatePathsFile
+    ? parseCandidatePathClaims(readFileSync(resolvedCandidatePathsFile, "utf8"))
+    : [];
 
   const head = git(resolvedRepo, ["rev-parse", "HEAD"]).stdout.trim();
   const originMain = git(resolvedRepo, ["rev-parse", "origin/main"]).stdout.trim();
@@ -359,8 +535,13 @@ function captureRepository({
       .filter((item) => typeof item.headRefName === "string")
       .map((item) => [item.headRefName, item]),
   );
+  const openPrPathResult = githubAvailable
+    ? collectOpenPrPathClaims(openPrs, policy.github_repository, requireGithub)
+    : { claims: [], complete: false };
 
   const classifications = [];
+  const activePathClaims = [...openPrPathResult.claims];
+  let worktreePathMetadataComplete = true;
   for (const item of worktrees) {
     const branch = item.branch ?? "";
     const path = item.path;
@@ -370,6 +551,17 @@ function captureRepository({
       { check: false },
     );
     const dirty = status.status !== 0 || status.stdout.length > 0;
+    const changedPathResult = collectChangedPaths(path);
+    if (!changedPathResult.complete) worktreePathMetadataComplete = false;
+    for (const changedPath of changedPathResult.paths) {
+      activePathClaims.push({
+        path: changedPath,
+        source: "worktree",
+        branch,
+        worktree_path: path,
+        pr_number: null,
+      });
+    }
     const processReferences = processReferencesForPath(path);
     const identity = `${branch} ${path}`;
     const families = familyMatches(identity, compiled);
@@ -412,6 +604,8 @@ function captureRepository({
       head: item.head ?? "",
       detached: Boolean(item.detached),
       dirty_or_unreadable: dirty,
+      changed_paths_complete: changedPathResult.complete,
+      changed_paths: changedPathResult.paths,
       process_references: processReferences,
       reasons: [...new Set(reasons)].sort(),
     });
@@ -434,6 +628,8 @@ function captureRepository({
         ?? "",
       detached: false,
       dirty_or_unreadable: false,
+      changed_paths_complete: true,
+      changed_paths: [],
       process_references: [],
       reasons: [
         `exact:${item.reason}`,
@@ -459,6 +655,10 @@ function captureRepository({
       openPrBranches,
       compiledPolicy: compiled,
       pathExists: existsSync(resolve(candidateWorktree)),
+      candidatePaths,
+      activePathClaims,
+      pathMetadataComplete:
+        worktreePathMetadataComplete && openPrPathResult.complete,
     });
   }
 
@@ -498,6 +698,8 @@ function captureRepository({
       origin_branches: Object.keys(originBranches).length,
       open_prs: openPrs.length,
       github_metadata_available: githubAvailable,
+      changed_path_metadata_complete:
+        worktreePathMetadataComplete && openPrPathResult.complete,
     },
     policy: {
       path: resolvedPolicy,
@@ -508,6 +710,7 @@ function captureRepository({
     classification_counts: counts,
     active_lanes: classifications,
     open_pull_requests: openPrs,
+    active_path_claims: activePathClaims,
     candidate,
   });
 }
@@ -529,6 +732,7 @@ function usage() {
     "    --policy ops/coordination/active-lane-reservations-v1.json \\",
     "    --candidate-branch feat/example-v1 \\",
     "    --candidate-worktree \"$HOME/dev/void-node-example-v1\" \\",
+    "    --candidate-paths-file /tmp/void-example-planned-paths.txt \\",
     "    --output /tmp/void-lane-check.json \\",
     "    --require-github",
   ].join("\n"));
@@ -554,6 +758,7 @@ async function main() {
     policyPath,
     candidateBranch: args.candidate_branch,
     candidateWorktree: args.candidate_worktree,
+    candidatePathsFile: args.candidate_paths_file,
     requireGithub: Boolean(args.require_github),
   });
   if (args.command === "check" && !registry.candidate) {
@@ -570,6 +775,11 @@ async function main() {
     console.log(`candidate_branch=${registry.candidate.branch}`);
     console.log(`candidate_worktree=${registry.candidate.worktree_path}`);
     console.log(`candidate_collision_free=${registry.candidate.collision_free}`);
+    console.log(`candidate_planned_paths=${registry.candidate.planned_paths.length}`);
+    console.log(`candidate_path_collisions=${registry.candidate.path_collisions.length}`);
+    console.log(
+      `candidate_path_metadata_complete=${registry.candidate.path_metadata_complete}`,
+    );
     if (registry.candidate.reasons.length > 0) {
       console.log(`candidate_reasons=${registry.candidate.reasons.join(",")}`);
     }

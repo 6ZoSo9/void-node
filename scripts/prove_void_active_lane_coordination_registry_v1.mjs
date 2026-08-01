@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,8 +9,12 @@ import {
   REGISTRY_MARKER,
   assessCandidate,
   canonicalJson,
+  collectChangedPaths,
   compilePolicy,
   familyMatches,
+  findPathCollisions,
+  normalizeClaimPath,
+  parseCandidatePathClaims,
   parseWorktreePorcelain,
   sha256Bytes,
   validatePolicy,
@@ -61,6 +66,21 @@ assert.deepEqual(
   ["mcp"],
 );
 
+assert.equal(normalizeClaimPath("./src/http/routes.ts"), "src/http/routes.ts");
+assert.equal(normalizeClaimPath("docs/operations/"), "docs/operations/");
+assert.throws(() => normalizeClaimPath("../secrets"), /invalid repository-relative/);
+assert.throws(() => normalizeClaimPath("/etc/passwd"), /invalid repository-relative/);
+assert.deepEqual(
+  parseCandidatePathClaims([
+    "# planned scope",
+    "tools/new-guard.mjs",
+    "docs/operations/",
+    "tools/new-guard.mjs",
+    "",
+  ].join("\n")),
+  ["docs/operations/", "tools/new-guard.mjs"],
+);
+
 const worktrees = parseWorktreePorcelain(
   [
     "worktree /repo",
@@ -95,6 +115,61 @@ const safeCandidate = assessCandidate({
 });
 assert.equal(safeCandidate.collision_free, true);
 assert.deepEqual(safeCandidate.reasons, []);
+assert.deepEqual(safeCandidate.planned_paths, []);
+assert.deepEqual(safeCandidate.path_collisions, []);
+
+const activePathClaims = [
+  {
+    path: "tools/void-active-lane-registry-v1.mjs",
+    source: "worktree",
+    branch: "fix/existing-v1",
+    worktree_path: "/repo-existing",
+    pr_number: null,
+  },
+  {
+    path: "docs/operations/existing.md",
+    source: "open_pr",
+    branch: "docs/existing-v1",
+    worktree_path: "",
+    pr_number: 998,
+  },
+];
+assert.equal(
+  findPathCollisions(["src/http/new-route.ts"], activePathClaims).length,
+  0,
+);
+assert.equal(
+  findPathCollisions(["docs/operations/"], activePathClaims).length,
+  1,
+);
+
+const pathCollision = assessCandidate({
+  branch: "fix/path-overlap-v1",
+  worktreePath: "/repo-path-overlap",
+  compiledPolicy: compiled,
+  candidatePaths: [
+    "docs/operations/",
+    "tools/void-active-lane-registry-v1.mjs",
+  ],
+  activePathClaims,
+});
+assert.equal(pathCollision.collision_free, false);
+assert.ok(pathCollision.reasons.includes("planned_path_overlap"));
+assert.equal(pathCollision.path_collisions.length, 2);
+assert.equal(pathCollision.path_metadata_complete, true);
+
+const incompletePathMetadata = assessCandidate({
+  branch: "fix/incomplete-path-metadata-v1",
+  worktreePath: "/repo-incomplete-path-metadata",
+  compiledPolicy: compiled,
+  candidatePaths: ["src/http/new-route.ts"],
+  activePathClaims: [],
+  pathMetadataComplete: false,
+});
+assert.equal(incompletePathMetadata.collision_free, false);
+assert.ok(
+  incompletePathMetadata.reasons.includes("planned_path_metadata_incomplete"),
+);
 
 const collisions = assessCandidate({
   branch: "feat/reserved-v1",
@@ -135,9 +210,37 @@ try {
   rmSync(temp, { recursive: true, force: true });
 }
 
+const repositoryTemp = mkdtempSync(join(tmpdir(), "void-active-lane-repository-proof-"));
+try {
+  execFileSync("git", ["init", "--quiet", repositoryTemp]);
+  execFileSync("git", ["-C", repositoryTemp, "config", "user.name", "VOID Proof"]);
+  execFileSync("git", ["-C", repositoryTemp, "config", "user.email", "void-proof@example.invalid"]);
+  writeFileSync(join(repositoryTemp, "tracked.txt"), "base\n");
+  execFileSync("git", ["-C", repositoryTemp, "add", "tracked.txt"]);
+  execFileSync("git", ["-C", repositoryTemp, "commit", "--quiet", "-m", "base"]);
+  execFileSync("git", [
+    "-C", repositoryTemp, "update-ref", "refs/remotes/origin/main", "HEAD",
+  ]);
+  writeFileSync(join(repositoryTemp, "committed.txt"), "committed\n");
+  execFileSync("git", ["-C", repositoryTemp, "add", "committed.txt"]);
+  execFileSync("git", ["-C", repositoryTemp, "commit", "--quiet", "-m", "lane"]);
+  writeFileSync(join(repositoryTemp, "tracked.txt"), "changed\n");
+  writeFileSync(join(repositoryTemp, "staged.txt"), "staged\n");
+  writeFileSync(join(repositoryTemp, "untracked.txt"), "untracked\n");
+  execFileSync("git", ["-C", repositoryTemp, "add", "staged.txt"]);
+  assert.deepEqual(collectChangedPaths(repositoryTemp), {
+    complete: true,
+    paths: ["committed.txt", "staged.txt", "tracked.txt", "untracked.txt"],
+  });
+} finally {
+  rmSync(repositoryTemp, { recursive: true, force: true });
+}
+
 assert.equal(REGISTRY_MARKER, "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1");
 console.log("token_aware_tor_regression_green=true");
 console.log("candidate_collision_guard_green=true");
+console.log("planned_path_overlap_guard_green=true");
+console.log("changed_path_enumeration_green=true");
 console.log("worktree_porcelain_parser_green=true");
 console.log("canonical_output_green=true");
 console.log("VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1_PROOF_GREEN=true");
