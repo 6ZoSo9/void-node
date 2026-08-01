@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-browser-clearweb-origin-binding-v1.schema.json",
+  "title": "VOID Browser Clearweb Origin Binding V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "marker",
+    "version",
+    "status",
+    "issued_at",
+    "expires_at",
+    "network",
+    "origin",
+    "node",
+    "onion_identity",
+    "surface",
+    "authority",
+    "signature"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://voidchain.io/schemas/void-browser-clearweb-origin-binding-v1.schema.json"
+    },
+    "marker": {
+      "const": "VOID_BROWSER_CLEARWEB_ORIGIN_BINDING_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "active"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "chain_id",
+        "identity"
+      ],
+      "properties": {
+        "name": {
+          "const": "VOID Mainnet-0"
+        },
+        "chain_id": {
+          "const": 2050
+        },
+        "identity": {
+          "const": "mainnet0"
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "scheme",
+        "host",
+        "port"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^https://[a-z0-9.-]+$"
+        },
+        "scheme": {
+          "const": "https"
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+        },
+        "port": {
+          "const": 443
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "key_type",
+        "public_key_pem",
+        "public_key_fingerprint_sha256"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "key_type": {
+          "const": "ed25519"
+        },
+        "public_key_pem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "public_key_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "onion_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "onion_hostname",
+        "binding_sha256",
+        "binding_expires_at"
+      ],
+      "properties": {
+        "onion_hostname": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{56}\\.onion$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binding_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_path",
+        "well_known_discovery_path",
+        "canonical_discovery_path",
+        "capability_negotiation_path",
+        "methods",
+        "same_origin_only"
+      ],
+      "properties": {
+        "binding_path": {
+          "const": "/.well-known/void-browser-clearweb-origin-binding-v1.json"
+        },
+        "well_known_discovery_path": {
+          "const": "/.well-known/void-agent-discovery.json"
+        },
+        "canonical_discovery_path": {
+          "const": "/public-node/agents/discovery-v1.json"
+        },
+        "capability_negotiation_path": {
+          "const": "/public-node/agents/capabilities-v1.json"
+        },
+        "methods": {
+          "const": [
+            "GET",
+            "HEAD"
+          ]
+        },
+        "same_origin_only": {
+          "const": true
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "transaction_submission",
+        "payment_authority",
+        "wallet_or_signer_access",
+        "work_credit_write",
+        "void_settlement",
+        "node_runtime_mutation",
+        "operator_control"
+      ],
+      "properties": {
+        "read_only": {
+          "const": true
+        },
+        "transaction_submission": {
+          "const": false
+        },
+        "payment_authority": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "void_settlement": {
+          "const": false
+        },
+        "node_runtime_mutation": {
+          "const": false
+        },
+        "operator_control": {
+          "const": false
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain",
+        "algorithm",
+        "encoding",
+        "canonicalization",
+        "key_id",
+        "value"
+      ],
+      "properties": {
+        "domain": {
+          "const": "VOID_BROWSER_CLEARWEB_ORIGIN_BINDING_V1"
+        },
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "encoding": {
+          "const": "base64"
+        },
+        "canonicalization": {
+          "const": "void-canonical-json-v1"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
