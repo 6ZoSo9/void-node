@@ -58,6 +58,16 @@ jobs:
             /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "canonical_void_identity_pinned=true" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "clearweb_binding_replay_rejected=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "well_known_discovery_validated=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "canonical_discovery_validated=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "same_origin_discovery_chain=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "unsafe_discovery_rejected=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "capability_intersection_fail_closed=true" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "mutation=false" \

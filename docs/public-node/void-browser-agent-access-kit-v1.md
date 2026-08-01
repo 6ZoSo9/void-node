@@ -4,23 +4,37 @@ Marker: `VOID_BROWSER_AGENT_ACCESS_KIT_V1`
 
 This source-and-CI-only lane establishes the first browser-native VOID access
 surface. It is a Manifest V3 WebExtension with no content scripts and no
-background service. A user supplies a VOID origin and explicitly grants that
-origin before any request occurs.
+background service. A user supplies a VOID `.onion` origin and explicitly
+grants that origin before any request occurs.
 
 The kit verifies the existing `VOID_NODE_ONION_BINDING_V1` Ed25519 signature,
 node public-key fingerprint, signed onion hostname, validity interval, and
 read-only authority declaration. Verification is anchored to the canonical
 node ID, Ed25519 fingerprint, onion hostname, exact binding digest, and expiry
 from the reviewed Tor agent-access profile; self-signed counterfeit endpoints
-therefore fail closed. It then fetches the same-origin public
-capability catalog and grants only entries that are explicitly enabled, live,
-anonymous, read-only, limited to `GET`/`HEAD`, and bound to canonical
-same-origin paths. Everything else fails closed as `not_granted`.
+therefore fail closed. It then validates the complete published discovery
+chain: the well-known entrypoint, its canonical same-origin discovery target,
+and that target's advertised capability-negotiation path. Only after all three
+contracts agree on VOID Mainnet-0, chain ID `2050`, GET/HEAD-only discovery,
+same-origin routing, and an explicit no-mutation boundary does the kit compute
+the capability intersection. It grants only entries that are explicitly
+enabled, live, anonymous, read-only, limited to `GET`/`HEAD`, and bound to
+canonical same-origin paths. Everything else fails closed as `not_granted`.
+
+The browser no longer jumps directly to a hard-coded capability catalog. A
+wrong marker or protocol, cross-origin or protocol-relative path, unsafe HTTP
+method, mutation claim, inconsistent negotiation link, malformed contract, or
+redirect stops verification before any capability is accepted.
 
 Direct `.onion` access depends on the browser already having Tor transport.
 This lane does not install, configure, or bypass a proxy. A later local-guardian
 lane may provide browser-native messaging without placing sovereign keys in the
 extension.
+
+The current signature authenticates only the canonical onion hostname. The kit
+does not misrepresent a replayed binding on an arbitrary HTTPS host as origin
+authentication: non-onion origins fail closed. Clearweb support requires a
+separate signed clearweb-origin binding and reviewed trust pins.
 
 ## Explicitly absent
 
