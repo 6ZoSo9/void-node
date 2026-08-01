@@ -18,7 +18,7 @@
           "type": "string"
         },
         "install_checkpoint_tag": {
-          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$",
           "type": "string"
         },
         "install_checkpoint_target": {
@@ -26,7 +26,7 @@
           "type": "string"
         },
         "install_mechanism_checkpoint_tag": {
-          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$",
           "type": "string"
         },
         "install_mechanism_checkpoint_target": {
@@ -46,7 +46,7 @@
           "type": "string"
         },
         "packet_id": {
-          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$",
           "type": "string"
         },
         "pr894_merge": {
@@ -54,7 +54,7 @@
           "type": "string"
         },
         "release_id": {
-          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$",
           "type": "string"
         },
         "runtime_source_commit": {

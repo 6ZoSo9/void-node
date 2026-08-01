@@ -7,6 +7,8 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readlinkSync,
+  readdirSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -37,6 +39,8 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$/u;
 const ISO_UTC_SECONDS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 const PLAN_SUFFIX = "disabled-runtime-activation-prerequisites-plan-v1.json";
 const DECISION_SUFFIX = "disabled-runtime-activation-prerequisites-decision-v1.json";
+export const AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITES_MAX_RECEIPT_AGE_SECONDS =
+  315_360_000 as const;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -75,7 +79,7 @@ export interface AuthenticatedPaidWorkDisabledRuntimeActivationPrerequisitesComm
   execution_receipt_path: string;
   final_seal_receipt_path: string;
   output_directory: string;
-  observed: {
+  caller_asserted: {
     main_commit: string;
     install_checkpoint_tag: string;
     install_checkpoint_target: string;
@@ -138,9 +142,9 @@ export interface AuthenticatedPaidWorkDisabledRuntimeActivationPrerequisitesPlan
     final_seal_receipt_sha256: string;
   };
   gates: {
-    main_commit_exact: true;
-    install_checkpoint_exact: true;
-    install_mechanism_checkpoint_exact: true;
+    caller_asserted_main_commit_matches_configured_expected: true;
+    caller_asserted_install_checkpoint_matches_configured_expected: true;
+    caller_asserted_install_mechanism_checkpoint_matches_configured_expected: true;
     install_root_owner_private: true;
     current_pointer_exact: true;
     release_tree_exact: true;
@@ -160,6 +164,10 @@ export interface AuthenticatedPaidWorkDisabledRuntimeActivationPrerequisitesPlan
     work_credit_write_not_authorized: true;
     wallet_access_not_authorized: true;
     fund_movement_not_authorized: true;
+  };
+  observation_provenance: {
+    source: "caller_assertions";
+    independently_observed: false;
   };
   required_future_artifacts: {
     activation_configuration_schema: true;
@@ -262,8 +270,16 @@ function bool(value: unknown, label: string): boolean {
   return value;
 }
 
-function integer(value: unknown, label: string, minimum = 0): number {
-  requireCondition(Number.isSafeInteger(value) && (value as number) >= minimum, `${label} must be an integer >= ${minimum}`);
+function integer(
+  value: unknown,
+  label: string,
+  minimum = 0,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
+  requireCondition(
+    Number.isSafeInteger(value) && (value as number) >= minimum && (value as number) <= maximum,
+    `${label} must be an integer between ${minimum} and ${maximum}`,
+  );
   return value as number;
 }
 
@@ -317,13 +333,30 @@ function digestFile(pathname: string): string {
 function readJson(pathname: string, label: string): JsonRecord {
   const stat = lstatSync(pathname);
   requireCondition(stat.isFile() && !stat.isSymbolicLink(), `${label} must be a regular file`);
+  requireCurrentUserOwned(stat, label);
   return record(JSON.parse(readFileSync(pathname, "utf8")) as unknown, label);
+}
+
+function requireCurrentUserOwned(
+  stat: NonNullable<ReturnType<typeof lstatSync>>,
+  label: string,
+): void {
+  if (typeof process.geteuid !== "function") return;
+  requireCondition(stat.uid === process.geteuid(), `${label} must be owned by the executing user`);
+}
+
+function requireOwnedRegularFile(pathname: string, expectedMode: number, label: string): void {
+  const stat = lstatSync(pathname);
+  requireCondition(stat.isFile() && !stat.isSymbolicLink(), `${label} must be a regular file`);
+  requireCurrentUserOwned(stat, label);
+  requireCondition((stat.mode & 0o777) === expectedMode, `${label} mode mismatch`);
 }
 
 function ownerPrivateDirectory(pathname: string, label: string): string {
   const real = realpathSync(pathname);
   const stat = lstatSync(real);
   requireCondition(stat.isDirectory() && !stat.isSymbolicLink(), `${label} must be a directory`);
+  requireCurrentUserOwned(stat, label);
   requireCondition((stat.mode & 0o077) === 0, `${label} must be owner-private`);
   return real;
 }
@@ -337,7 +370,94 @@ function contained(root: string, ...parts: string[]): string {
 function requireMode(pathname: string, expected: number, label: string): void {
   const stat = lstatSync(pathname);
   requireCondition(!stat.isSymbolicLink(), `${label} must not be symlinked`);
+  requireCurrentUserOwned(stat, label);
   requireCondition((stat.mode & 0o777) === expected, `${label} mode mismatch`);
+}
+
+function isEqualToOrContainedBy(root: string, candidate: string): boolean {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function resolveNewDirectoryTarget(pathname: string, label: string): string {
+  const basename = path.basename(pathname);
+  requireCondition(basename.length > 0, `${label} must name a new directory`);
+  const parent = realpathSync(path.dirname(pathname));
+  const parentStat = lstatSync(parent);
+  requireCondition(parentStat.isDirectory() && !parentStat.isSymbolicLink(), `${label} parent must be a directory`);
+  requireCurrentUserOwned(parentStat, `${label} parent`);
+  return path.join(parent, basename);
+}
+
+interface ReleaseTreeV1 {
+  files: string[];
+  directories: string[];
+}
+
+function enumerateReleaseTree(root: string): ReleaseTreeV1 {
+  const tree: ReleaseTreeV1 = { files: [], directories: [] };
+  const visit = (directory: string, relativeDirectory: string): void => {
+    const entries = readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    for (const entry of entries) {
+      const relative = relativeDirectory
+        ? path.posix.join(relativeDirectory, entry.name)
+        : entry.name;
+      const target = contained(root, ...relative.split("/"));
+      const stat = lstatSync(target);
+      requireCurrentUserOwned(stat, `release tree entry ${relative}`);
+      requireCondition(!stat.isSymbolicLink(), `release tree entry must not be symlinked: ${relative}`);
+      if (stat.isDirectory()) {
+        requireCondition((stat.mode & 0o777) === 0o500, `release directory mode mismatch: ${relative}`);
+        tree.directories.push(relative);
+        visit(target, relative);
+      } else if (stat.isFile()) {
+        const expectedMode = relative === "run-disabled.sh" ? 0o500 : 0o400;
+        requireCondition((stat.mode & 0o777) === expectedMode, `release file mode mismatch: ${relative}`);
+        tree.files.push(relative);
+      } else {
+        fail(`release tree entry must be a regular file or directory: ${relative}`);
+      }
+    }
+  };
+  visit(root, "");
+  return tree;
+}
+
+function parseChecksumManifest(value: string): Map<string, string> {
+  const trimmed = value.trim();
+  requireCondition(trimmed.length > 0, "release checksum manifest must not be empty");
+  const entries = new Map<string, string>();
+  for (const line of trimmed.split("\n")) {
+    const match = /^([0-9a-f]{64})  ([^\r\n]+)$/u.exec(line);
+    requireCondition(match !== null, "release checksum entry invalid");
+    const expectedDigest = match[1]!;
+    const relative = match[2]!;
+    requireCondition(
+      relative !== "." &&
+        !path.posix.isAbsolute(relative) &&
+        !relative.includes("\\") &&
+        path.posix.normalize(relative) === relative &&
+        !relative.startsWith("../"),
+      `release checksum path invalid: ${relative}`,
+    );
+    requireCondition(relative !== "SHA256SUMS.txt", "release checksum manifest must not self-reference");
+    requireCondition(!entries.has(relative), `duplicate release checksum path: ${relative}`);
+    entries.set(relative, expectedDigest);
+  }
+  return entries;
+}
+
+function impliedDirectories(files: readonly string[]): string[] {
+  const directories = new Set<string>();
+  for (const file of files) {
+    let current = path.posix.dirname(file);
+    while (current !== ".") {
+      directories.add(current);
+      current = path.posix.dirname(current);
+    }
+  }
+  return [...directories].sort();
 }
 
 function writePrivate(pathname: string, value: unknown): void {
@@ -419,7 +539,12 @@ export function validateAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisi
       execution_receipt_sha256: sha(expected.execution_receipt_sha256, "config.expected.execution_receipt_sha256"),
       final_seal_receipt_sha256: sha(expected.final_seal_receipt_sha256, "config.expected.final_seal_receipt_sha256"),
     },
-    max_receipt_age_seconds: integer(root.max_receipt_age_seconds, "config.max_receipt_age_seconds", 1),
+    max_receipt_age_seconds: integer(
+      root.max_receipt_age_seconds,
+      "config.max_receipt_age_seconds",
+      1,
+      AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITES_MAX_RECEIPT_AGE_SECONDS,
+    ),
   };
   return parsed;
 }
@@ -431,15 +556,15 @@ export function validateAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisi
   exactKeys(root, [
     "marker", "version", "apply", "confirmation", "operation_id", "evaluated_at_utc",
     "install_root", "installer_receipt_path", "execution_receipt_path", "final_seal_receipt_path",
-    "output_directory", "observed",
+    "output_directory", "caller_asserted",
   ], "command");
   requireCondition(root.marker === AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITES_COMMAND_MARKER, "command marker mismatch");
   requireCondition(root.version === 1, "command version mismatch");
-  const observed = record(root.observed, "command.observed");
-  exactKeys(observed, [
+  const callerAsserted = record(root.caller_asserted, "command.caller_asserted");
+  exactKeys(callerAsserted, [
     "main_commit", "install_checkpoint_tag", "install_checkpoint_target",
     "install_mechanism_checkpoint_tag", "install_mechanism_checkpoint_target",
-  ], "command.observed");
+  ], "command.caller_asserted");
   return {
     marker: AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITES_COMMAND_MARKER,
     version: 1,
@@ -452,12 +577,12 @@ export function validateAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisi
     execution_receipt_path: path.resolve(string(root.execution_receipt_path, "command.execution_receipt_path")),
     final_seal_receipt_path: path.resolve(string(root.final_seal_receipt_path, "command.final_seal_receipt_path")),
     output_directory: path.resolve(string(root.output_directory, "command.output_directory")),
-    observed: {
-      main_commit: gitObjectId(observed.main_commit, "command.observed.main_commit"),
-      install_checkpoint_tag: id(observed.install_checkpoint_tag, "command.observed.install_checkpoint_tag"),
-      install_checkpoint_target: gitObjectId(observed.install_checkpoint_target, "command.observed.install_checkpoint_target"),
-      install_mechanism_checkpoint_tag: id(observed.install_mechanism_checkpoint_tag, "command.observed.install_mechanism_checkpoint_tag"),
-      install_mechanism_checkpoint_target: gitObjectId(observed.install_mechanism_checkpoint_target, "command.observed.install_mechanism_checkpoint_target"),
+    caller_asserted: {
+      main_commit: gitObjectId(callerAsserted.main_commit, "command.caller_asserted.main_commit"),
+      install_checkpoint_tag: id(callerAsserted.install_checkpoint_tag, "command.caller_asserted.install_checkpoint_tag"),
+      install_checkpoint_target: gitObjectId(callerAsserted.install_checkpoint_target, "command.caller_asserted.install_checkpoint_target"),
+      install_mechanism_checkpoint_tag: id(callerAsserted.install_mechanism_checkpoint_tag, "command.caller_asserted.install_mechanism_checkpoint_tag"),
+      install_mechanism_checkpoint_target: gitObjectId(callerAsserted.install_mechanism_checkpoint_target, "command.caller_asserted.install_mechanism_checkpoint_target"),
     },
   };
 }
@@ -504,14 +629,24 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
     );
   }
 
+  const output = command.apply
+    ? resolveNewDirectoryTarget(command.output_directory, "output directory")
+    : null;
+
   const expected = config.expected;
-  requireCondition(command.observed.main_commit === expected.main_commit, "main commit mismatch");
-  requireCondition(command.observed.install_checkpoint_tag === expected.install_checkpoint_tag, "install checkpoint tag mismatch");
-  requireCondition(command.observed.install_checkpoint_target === expected.install_checkpoint_target, "install checkpoint target mismatch");
-  requireCondition(command.observed.install_mechanism_checkpoint_tag === expected.install_mechanism_checkpoint_tag, "install mechanism checkpoint tag mismatch");
-  requireCondition(command.observed.install_mechanism_checkpoint_target === expected.install_mechanism_checkpoint_target, "install mechanism checkpoint target mismatch");
+  requireCondition(command.caller_asserted.main_commit === expected.main_commit, "caller-asserted main commit mismatch");
+  requireCondition(command.caller_asserted.install_checkpoint_tag === expected.install_checkpoint_tag, "caller-asserted install checkpoint tag mismatch");
+  requireCondition(command.caller_asserted.install_checkpoint_target === expected.install_checkpoint_target, "caller-asserted install checkpoint target mismatch");
+  requireCondition(command.caller_asserted.install_mechanism_checkpoint_tag === expected.install_mechanism_checkpoint_tag, "caller-asserted install mechanism checkpoint tag mismatch");
+  requireCondition(command.caller_asserted.install_mechanism_checkpoint_target === expected.install_mechanism_checkpoint_target, "caller-asserted install mechanism checkpoint target mismatch");
 
   const installRoot = ownerPrivateDirectory(command.install_root, "install root");
+  if (output !== null) {
+    requireCondition(
+      !isEqualToOrContainedBy(installRoot, output),
+      "output directory must be outside the validated install root",
+    );
+  }
   requireCondition(!existsSync(contained(installRoot, "activation")), "activation persistence root already exists");
   requireCondition(!existsSync(contained(installRoot, "enabled-config.json")), "enabled configuration already exists");
   requireCondition(!existsSync(contained(installRoot, "service-unit.json")), "service unit design already materialized");
@@ -519,10 +654,13 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
   const currentPath = contained(installRoot, "current");
   const currentStat = lstatSync(currentPath);
   requireCondition(currentStat.isSymbolicLink(), "current pointer must be a symlink");
+  requireCurrentUserOwned(currentStat, "current pointer");
   const expectedTarget = `releases/${expected.release_id}`;
+  requireCondition(readlinkSync(currentPath) === expectedTarget, "current pointer link text mismatch");
   const resolvedRelease = realpathSync(currentPath);
   const release = contained(installRoot, "releases", expected.release_id);
   requireCondition(resolvedRelease === release, "current pointer target mismatch");
+  requireMode(contained(installRoot, "releases"), 0o700, "releases directory");
   requireMode(release, 0o500, "release directory");
 
   const manifestPath = contained(release, "INSTALLATION.json");
@@ -545,15 +683,26 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
   requireCondition(disabledConfig.enabled === false, "installed configuration is enabled");
   requireCondition(disabledConfig.persistence_config === null, "installed persistence configuration exists");
 
-  const sums = readFileSync(sumsPath, "utf8").trim().split("\n");
-  for (const line of sums) {
-    const [expectedDigest, relative] = line.split("  ");
-    requireCondition(SHA256.test(expectedDigest ?? ""), "release checksum entry invalid");
-    requireCondition(typeof relative === "string" && relative.length > 0, "release checksum path invalid");
-    const target = contained(release, relative);
+  const checksumEntries = parseChecksumManifest(readFileSync(sumsPath, "utf8"));
+  const releaseTree = enumerateReleaseTree(release);
+  const expectedFiles = [...checksumEntries.keys()].sort();
+  const actualFiles = releaseTree.files.filter((relative) => relative !== "SHA256SUMS.txt").sort();
+  requireCondition(
+    JSON.stringify(actualFiles) === JSON.stringify(expectedFiles),
+    "release tree file set mismatch",
+  );
+  requireCondition(
+    JSON.stringify(releaseTree.directories.sort()) === JSON.stringify(impliedDirectories(expectedFiles)),
+    "release tree directory set mismatch",
+  );
+  for (const [relative, expectedDigest] of checksumEntries) {
+    const target = contained(release, ...relative.split("/"));
     requireCondition(digestFile(target) === expectedDigest, `release checksum mismatch: ${relative}`);
   }
 
+  requireOwnedRegularFile(command.installer_receipt_path, 0o600, "installer receipt");
+  requireOwnedRegularFile(command.execution_receipt_path, 0o600, "execution receipt");
+  requireOwnedRegularFile(command.final_seal_receipt_path, 0o600, "final seal receipt");
   requireCondition(digestFile(command.installer_receipt_path) === expected.installer_receipt_sha256, "installer receipt SHA mismatch");
   requireCondition(digestFile(command.execution_receipt_path) === expected.execution_receipt_sha256, "execution receipt SHA mismatch");
   requireCondition(digestFile(command.final_seal_receipt_path) === expected.final_seal_receipt_sha256, "final seal receipt SHA mismatch");
@@ -600,9 +749,9 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
       final_seal_receipt_sha256: expected.final_seal_receipt_sha256,
     },
     gates: {
-      main_commit_exact: true,
-      install_checkpoint_exact: true,
-      install_mechanism_checkpoint_exact: true,
+      caller_asserted_main_commit_matches_configured_expected: true,
+      caller_asserted_install_checkpoint_matches_configured_expected: true,
+      caller_asserted_install_mechanism_checkpoint_matches_configured_expected: true,
       install_root_owner_private: true,
       current_pointer_exact: true,
       release_tree_exact: true,
@@ -622,6 +771,10 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
       work_credit_write_not_authorized: true,
       wallet_access_not_authorized: true,
       fund_movement_not_authorized: true,
+    },
+    observation_provenance: {
+      source: "caller_assertions",
+      independently_observed: false,
     },
     required_future_artifacts: {
       activation_configuration_schema: true,
@@ -678,7 +831,7 @@ export function executeAuthenticatedPaidWorkDisabledRuntimeActivationPrerequisit
     };
   }
 
-  const output = path.resolve(command.output_directory);
+  requireCondition(output !== null, "output directory resolution missing");
   requireCondition(!existsSync(output), "output directory already exists");
   mkdirSync(output, { mode: 0o700, recursive: false });
   chmodSync(output, 0o700);
