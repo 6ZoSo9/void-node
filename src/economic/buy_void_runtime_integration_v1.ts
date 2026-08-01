@@ -1,6 +1,7 @@
 import path from "node:path";
 import express from "express";
 import "./buy_void_native_delivery_runtime_integration_v1.js";
+import "./buy_void_native_delivery_receipt_runtime_v1.js";
 import "./buy_void_native_execution_runtime_v1.js";
 import "./buy_void_confirmed_closeout_runtime_v1.js";
 import {
