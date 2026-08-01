@@ -41,6 +41,26 @@ const expectedRoutes = [
     marker: null,
   },
   {
+    route: "/public-node/agents/capabilities-v1.json",
+    relativePath: "public/public-node/agents/capabilities-v1.json",
+    marker: "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1",
+  },
+  {
+    route: "/public-node/agents/capabilities-v1.schema.json",
+    relativePath: "public/public-node/agents/capabilities-v1.schema.json",
+    marker: null,
+  },
+  {
+    route: "/.well-known/void-agent-capabilities.json",
+    relativePath: "public/.well-known/void-agent-capabilities.json",
+    marker: "VOID_AI_AGENT_CAPABILITY_WELL_KNOWN_V1",
+  },
+  {
+    route: "/.well-known/void-agent-capabilities.schema.json",
+    relativePath: "public/.well-known/void-agent-capabilities.schema.json",
+    marker: null,
+  },
+  {
     route: "/public-node/agents/paid-work-v1.json",
     relativePath: "public/public-node/agents/paid-work-v1.json",
     marker: "VOID_AGENT_PAID_WORK_RUNTIME_DISCOVERY_V1",
@@ -68,8 +88,8 @@ assert.equal(
 );
 assert.equal(
   voidAiAgentDiscoveryRuntimeRoutesV1.length,
-  8,
-  "exactly eight runtime routes",
+  12,
+  "exactly twelve runtime routes",
 );
 assert.deepEqual(
   voidAiAgentDiscoveryRuntimeRoutesV1,
@@ -78,14 +98,14 @@ assert.deepEqual(
 );
 assert.equal(
   new Set(voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.route)).size,
-  8,
+  12,
   "no duplicate runtime routes",
 );
 assert.equal(
   new Set(
     voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.relativePath),
   ).size,
-  8,
+  12,
   "no duplicate runtime relative paths",
 );
 
@@ -172,6 +192,39 @@ for (const forbidden of [
     `runtime module forbids ${forbidden}`,
   );
 }
+
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/public-node/agents/capabilities-v1.json"',
+  ),
+  1,
+  "capability negotiation route appears exactly once",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/public-node/agents/capabilities-v1.schema.json"',
+  ),
+  1,
+  "capability negotiation schema route appears exactly once",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/.well-known/void-agent-capabilities.json"',
+  ),
+  1,
+  "well-known capability route appears exactly once",
+);
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/.well-known/void-agent-capabilities.schema.json"',
+  ),
+  1,
+  "well-known capability schema route appears exactly once",
+);
 
 assert.equal(
   count(
@@ -533,7 +586,7 @@ await withTemporaryCwd(
   },
 );
 
-console.log("runtime_route_count=8");
+console.log(`runtime_route_count=${voidAiAgentDiscoveryRuntimeRoutesV1.length}`);
 console.log("runtime_route_duplicates=0");
 console.log("runtime_relative_path_duplicates=0");
 console.log("canonical_discovery_get=200");
@@ -544,6 +597,14 @@ console.log("well_known_pointer_get=200");
 console.log("well_known_pointer_head=200");
 console.log("well_known_schema_get=200");
 console.log("well_known_schema_head=200");
+console.log("capability_negotiation_get=200");
+console.log("capability_negotiation_head=200");
+console.log("capability_negotiation_schema_get=200");
+console.log("capability_negotiation_schema_head=200");
+console.log("well_known_capability_get=200");
+console.log("well_known_capability_head=200");
+console.log("well_known_capability_schema_get=200");
+console.log("well_known_capability_schema_head=200");
 console.log("paid_work_discovery_get=200");
 console.log("paid_work_discovery_head=200");
 console.log("paid_work_schema_get=200");

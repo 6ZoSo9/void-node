@@ -26,6 +26,22 @@ export const voidAiAgentDiscoveryRuntimeRoutesV1 = [
     relativePath: "public/.well-known/void-agent-discovery.schema.json",
   },
   {
+    route: "/public-node/agents/capabilities-v1.json",
+    relativePath: "public/public-node/agents/capabilities-v1.json",
+  },
+  {
+    route: "/public-node/agents/capabilities-v1.schema.json",
+    relativePath: "public/public-node/agents/capabilities-v1.schema.json",
+  },
+  {
+    route: "/.well-known/void-agent-capabilities.json",
+    relativePath: "public/.well-known/void-agent-capabilities.json",
+  },
+  {
+    route: "/.well-known/void-agent-capabilities.schema.json",
+    relativePath: "public/.well-known/void-agent-capabilities.schema.json",
+  },
+  {
     route: "/public-node/agents/paid-work-v1.json",
     relativePath: "public/public-node/agents/paid-work-v1.json",
   },
