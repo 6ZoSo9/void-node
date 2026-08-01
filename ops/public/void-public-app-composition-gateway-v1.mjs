@@ -170,6 +170,8 @@ const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
   "/.well-known/void-agent-discovery.schema.json",
   "/.well-known/void-network-authenticity.json",
   "/.well-known/void-network-authenticity.schema.json",
+  "/.well-known/void-public-node.json",
+  "/.well-known/void-public-node.schema.json",
 ]);
 const EXPECTED_PEERS = Math.max(0, Number(process.env.VOID_PUBLIC_EXPECTED_PEERS || "2"));
 const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed";
