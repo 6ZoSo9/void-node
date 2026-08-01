@@ -1,0 +1,91 @@
+name: WC Public Earning Participant CLI Release Pack V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/wc-public-earning-participant-cli-release-pack-v1.yml"
+      - "docs/public/wc-public-earning-participant-cli-release-pack-v1.md"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/build_wc_public_earning_participant_cli_release_pack_v1.py"
+      - "scripts/prove_wc_public_earning_participant_cli_release_pack_v1.py"
+      - "LICENSE"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/wc-public-earning-participant-cli-release-pack-v1.yml"
+      - "docs/public/wc-public-earning-participant-cli-release-pack-v1.md"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "scripts/build_wc_public_earning_participant_cli_release_pack_v1.py"
+      - "scripts/prove_wc_public_earning_participant_cli_release_pack_v1.py"
+      - "LICENSE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wc-public-earning-participant-cli-release-pack-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-release-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Validate source syntax
+        run: |
+          bash -n ops/mainnet0/wc-public-earning-participant-v1.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              "scripts/build_wc_public_earning_participant_cli_release_pack_v1.py",
+              "scripts/prove_wc_public_earning_participant_cli_release_pack_v1.py",
+          ):
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec")
+          PY
+
+      - name: Prove deterministic and truthful packaging
+        run: |
+          python3 scripts/prove_wc_public_earning_participant_cli_release_pack_v1.py \
+            | tee /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "WC_PUBLIC_EARNING_PARTICIPANT_CLI_RELEASE_PACK_V1_PROOF_GREEN" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "archive_byte_reproducible=true" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "participant_cli_source_exact=true" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "local_executor_requirement_disclosed=true" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "symlink_source_rejected=true" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "wc_ledger_write=false" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+          grep -Fx "fund_movement=false" \
+            /tmp/wc-public-earning-participant-cli-release-pack-v1-proof.log
+
+      - name: Build unsigned review artifact
+        run: |
+          python3 scripts/build_wc_public_earning_participant_cli_release_pack_v1.py \
+            --source-commit "${GITHUB_SHA}" \
+            --output-dir out
+          (
+            cd out
+            sha256sum --check --strict \
+              WC_PUBLIC_EARNING_PARTICIPANT_CLI_RELEASE_PACK_V1_SHA256SUMS.txt
+          )
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wc-public-earning-participant-cli-v1-${{ github.sha }}
+          path: |
+            out/void-wc-public-earning-participant-cli-v1.zip
+            out/void-wc-public-earning-participant-cli-v1.release.json
+            out/WC_PUBLIC_EARNING_PARTICIPANT_CLI_RELEASE_PACK_V1_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
