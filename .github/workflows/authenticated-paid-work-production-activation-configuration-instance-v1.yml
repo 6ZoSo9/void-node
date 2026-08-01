@@ -1,0 +1,54 @@
+name: Authenticated Paid Work Production Activation Configuration Instance v1
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-configuration-instance-v1.yml
+      - config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json
+      - docs/operations/authenticated-paid-work-production-activation-configuration-instance-v1.md
+      - schemas/authenticated-paid-work-production-activation-configuration-v1.schema.json
+      - scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts
+      - scripts/prove_authenticated_paid_work_production_activation_configuration_instance_v1.mjs
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-configuration-instance-v1.yml
+      - config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json
+      - docs/operations/authenticated-paid-work-production-activation-configuration-instance-v1.md
+      - schemas/authenticated-paid-work-production-activation-configuration-v1.schema.json
+      - scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts
+      - scripts/prove_authenticated_paid_work_production_activation_configuration_instance_v1.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-production-activation-configuration-instance-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: Prove source configuration instance and non-activation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Parse source configuration instance
+        run: node -e 'JSON.parse(require("node:fs").readFileSync("config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json", "utf8"))'
+
+      - name: Prove merged configuration schema
+        run: node scripts/prove_authenticated_paid_work_production_activation_configuration_schema_v1.mjs
+
+      - name: Prove exact source instance and non-activation
+        run: node scripts/prove_authenticated_paid_work_production_activation_configuration_instance_v1.mjs
