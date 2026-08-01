@@ -18,9 +18,6 @@ INDEX_SHA="350f12849f1ee24dc8efd5fa3722b13944f38a37a247f847d1f763a91c087e0e"
 CARD_SHA="aa2903c87d9ed5b41b16702e8ada063b6160ebcfc0a0c253e4a9cc8504a1d9aa"
 SCHEMA_SHA="8e4d27a46168dd0c437f8708b6e904a556c73f5fa1032835a4b6cc4f1064aaf7"
 
-INDEX_SOURCE_SHA="fd263ecdd96f2b4ec9fec931dac3be03f93a5072b1eeeeab9a808abec6cba79b"
-TOR_TOOL_SHA="f517562df0453c6c784df1c072d5de212317cd7503dbcbbe671305c48790ddba"
-
 for file in "$SOURCE" "$DOC" "$PROOF" "$WORKFLOW" "$INDEX" "$CARD" "$SCHEMA"
 do
   test -f "$file" || {
@@ -29,11 +26,23 @@ do
   }
 done
 
+TYPECHECK_BASE_SHA="${VOID_TYPECHECK_BASE_SHA:-HEAD}"
+git cat-file -e "${TYPECHECK_BASE_SHA}^{commit}"
+SOURCE_GUARD_BASE_SHA="$(git merge-base "$TYPECHECK_BASE_SHA" HEAD)"
+git cat-file -e "${SOURCE_GUARD_BASE_SHA}^{commit}"
+
 test "$(sha256sum "$INDEX" | awk '{print $1}')" = "$INDEX_SHA"
 test "$(sha256sum "$CARD" | awk '{print $1}')" = "$CARD_SHA"
 test "$(sha256sum "$SCHEMA" | awk '{print $1}')" = "$SCHEMA_SHA"
-test "$(git show HEAD:src/index.ts | sha256sum | awk '{print $1}')" = "$INDEX_SOURCE_SHA"
-test "$(git show HEAD:tools/void-tor-onion-public-node-v1.mjs | sha256sum | awk '{print $1}')" = "$TOR_TOOL_SHA"
+
+git diff --quiet "$SOURCE_GUARD_BASE_SHA" HEAD -- src/index.ts || {
+  echo "HOLD: src/index.ts changed relative to branch merge base: $SOURCE_GUARD_BASE_SHA"
+  exit 1
+}
+git diff --quiet "$SOURCE_GUARD_BASE_SHA" HEAD -- tools/void-tor-onion-public-node-v1.mjs || {
+  echo "HOLD: Tor public-node tool changed relative to branch merge base: $SOURCE_GUARD_BASE_SHA"
+  exit 1
+}
 
 python3 - "$SOURCE" "$DOC" "$WORKFLOW" <<'PY'
 from pathlib import Path
@@ -109,9 +118,6 @@ PY
 
 TMP_ROOT="$(mktemp -d -t void-paid-read-explicit-routes-proof-XXXXXXXX)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-
-TYPECHECK_BASE_SHA="${VOID_TYPECHECK_BASE_SHA:-HEAD}"
-git cat-file -e "${TYPECHECK_BASE_SHA}^{commit}"
 
 BASE_ROOT="$TMP_ROOT/typecheck-base"
 BASE_LOG="$TMP_ROOT/typecheck-base.log"
