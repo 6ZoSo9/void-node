@@ -53,6 +53,7 @@ Participant paths:
 - [Participant onboarding](participant-onboarding.md)
 - [Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md)
 - [Local-executor participant CLI release pack](wc-public-earning-participant-cli-release-pack-v1.md)
+- [Read-only participant preflight](wc-participant-cli-preflight-v1.md)
 - [Current capability matrix](current-capability-matrix.md)
 
 The no-node client supports one bounded, server-selected useful-work attempt at
