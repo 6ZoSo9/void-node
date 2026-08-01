@@ -90,6 +90,7 @@ try {
 
   let stdout = "";
   let stderr = "";
+  let lastStartupError = "";
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
   const base = `http://127.0.0.1:${compositionPort}`;
@@ -101,10 +102,17 @@ try {
         started = true;
         break;
       }
-    } catch {}
+    } catch (error) {
+      lastStartupError = String(error?.message || error);
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  assert.equal(started, true, `gateway failed to start\nstdout=${stdout}\nstderr=${stderr}`);
+  assert.equal(
+    started,
+    true,
+    `gateway failed to start\nlast_startup_error=${lastStartupError}\n`
+      + `stdout=${stdout}\nstderr=${stderr}`,
+  );
 
   {
     const response = await fetch(`${base}/__void/public-app/status.json`);
