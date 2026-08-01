@@ -1,0 +1,64 @@
+name: Buy VOID native delivery receipt reconciler v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_receipt_reconciler_v1.ts"
+      - "docs/operators/buy-void-native-delivery-receipt-reconciler-v1.md"
+      - ".github/workflows/buy-void-native-delivery-receipt-reconciler-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-delivery-receipt-reconciler:
+    name: native-delivery-receipt-reconciler
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Focused TypeScript validation
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_native_delivery_receipt_reconciler_v1.ts
+
+      - name: Native delivery receipt reconciliation proof
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_receipt_reconciler_v1.ts
+
+      - name: Revenue regressions
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_fulfillment_confirmation_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_execution_attempt_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_broadcast_outcome_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_pipeline_coordinator_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_confirmed_state_journal_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_confirmed_closeout_v1.ts
+
+      - run: python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
+
+      - run: python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
+
+      - run: bash tools/check_index_size.sh
+
+      - run: npm run build
