@@ -1,0 +1,208 @@
+{
+  "$schema": "https://void.network/schemas/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.schema.json",
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_PRODUCTION_ROLLBACK_PLAN_V1",
+  "version": 1,
+  "status": "reviewed_source_plan_execution_forbidden",
+  "network": {
+    "name": "VOID Mainnet-0",
+    "identity": "mainnet0",
+    "chain_id": 2050
+  },
+  "provenance": {
+    "repository": "6ZoSo9/void-node",
+    "prerequisite_gate_id": "void.authenticated-paid-work.disabled-runtime.activation-prerequisites.v1",
+    "worktree_scan_main_commit": "db8a725a16afbc86ab1ea46bbf037ac81895cb57",
+    "prerequisite_merge_commit": "25db3a0b0ff802914ef40bacabcbbda3779866cd",
+    "repair_merge_commit": "e46619b4eba306dd0727e93ef87f52b68f724852",
+    "readiness_decision_merge_commit": "8ce112d6b0eb594bf0e0e1715e4217a7e1379753",
+    "activation_configuration_schema_merge_commit": "1dba84f085b12cd711496cab6bf5fcb740a9c40a"
+  },
+  "plan_scope": {
+    "artifact_type": "rollback_plan",
+    "reference_id": "void-authenticated-paid-work-disabled-runtime-production-rollback-plan-v1",
+    "schema_id": "https://void.network/schemas/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.schema.json",
+    "media_type": "application/json",
+    "contains_secret_material": false,
+    "separately_reviewed": true,
+    "publication_effect": "source_only_no_runtime_mutation",
+    "closes_blocker": "rollback_plan",
+    "readiness_decision_after_publication": "HOLD",
+    "remaining_blocker_count": 7,
+    "required_before_execution": [
+      "activation_configuration_instance",
+      "trusted_context_reference_metadata",
+      "credential_reference_metadata",
+      "bounded_replay_snapshot",
+      "service_unit_design",
+      "activation_execution_confirmation",
+      "live_canary_scope"
+    ]
+  },
+  "trigger_conditions": [
+    {
+      "id": "activation_preflight_divergence",
+      "observation": "A reviewed activation input, digest, network binding, or approval is absent or mismatched.",
+      "required_response": "Abort the activation attempt and retain the disabled runtime state."
+    },
+    {
+      "id": "authentication_boundary_failure",
+      "observation": "A canary observes unauthorized acceptance, authenticated rejection beyond its approved threshold, or identity-binding drift.",
+      "required_response": "Deny new paid-work ingress and enter the operator-confirmed rollback sequence."
+    },
+    {
+      "id": "listener_or_service_health_failure",
+      "observation": "The reviewed listener, service state, persistence state, or health evidence differs from the approved canary scope.",
+      "required_response": "Deny new paid-work ingress and enter the operator-confirmed rollback sequence."
+    },
+    {
+      "id": "economic_safety_failure",
+      "observation": "Work dispatch, payment execution, Work Credit accounting, signer access, or fund-movement evidence violates an approved invariant.",
+      "required_response": "Deny new work and economic writes, preserve evidence, and enter the operator-confirmed rollback sequence."
+    },
+    {
+      "id": "operator_emergency_stop",
+      "observation": "An explicitly authorized operator requests emergency containment.",
+      "required_response": "Enter the operator-confirmed rollback sequence without automatic reactivation."
+    }
+  ],
+  "rollback_sequence": [
+    {
+      "order": 1,
+      "id": "confirm_execution_authority_and_bind_inputs",
+      "objective": "Bind the approved configuration instance, service design, canary scope, credential-reference lifecycle, rollback receipt destination, and explicit operator authority.",
+      "success_evidence": "All referenced artifact identifiers and digests match their separately reviewed values.",
+      "on_failure": "Stop; retain or restore the disabled state and escalate for review."
+    },
+    {
+      "order": 2,
+      "id": "deny_new_paid_work_ingress",
+      "objective": "Fail closed for new authenticated paid-work admission before changing service state.",
+      "success_evidence": "The approved ingress control reports that new paid-work admission is denied.",
+      "on_failure": "Stop; isolate the approved ingress boundary and escalate for review."
+    },
+    {
+      "order": 3,
+      "id": "restore_disabled_activation_intent",
+      "objective": "Apply the separately approved configuration mechanism so enabled and activation-authorized state are both false.",
+      "success_evidence": "The bound configuration evidence reports enabled=false and activation_authorized=false.",
+      "on_failure": "Stop; keep ingress denied, prevent restart, and escalate for review."
+    },
+    {
+      "order": 4,
+      "id": "stop_and_disable_reviewed_runtime_unit",
+      "objective": "Use the separately reviewed service-unit design to stop the paid-work runtime and prevent automatic restart.",
+      "success_evidence": "The reviewed service-state evidence reports inactive and automatic restart disabled.",
+      "on_failure": "Stop; keep ingress denied, preserve diagnostics, and escalate for review."
+    },
+    {
+      "order": 5,
+      "id": "detach_credential_reference_without_secret_read",
+      "objective": "Use the separately reviewed credential lifecycle to detach runtime access by reference without printing, copying, or reading secret material.",
+      "success_evidence": "The credential-reference lifecycle reports detached or inaccessible to the stopped runtime without exposing a secret.",
+      "on_failure": "Stop; keep runtime and ingress disabled and escalate to the credential authority."
+    },
+    {
+      "order": 6,
+      "id": "quarantine_inflight_economic_state",
+      "objective": "Preserve identifiers and evidence for incomplete work or payment state while prohibiting automated settlement, credit write, signer use, or fund movement.",
+      "success_evidence": "Every in-flight identifier is accounted for as absent, finalized before the trigger, or quarantined for manual reconciliation.",
+      "on_failure": "Stop; preserve evidence, prohibit economic writes and fund movement, and escalate for reconciliation."
+    },
+    {
+      "order": 7,
+      "id": "verify_disabled_runtime_boundary",
+      "objective": "Verify no paid-work listener, runtime process, automatic restart, credential availability, work dispatch, payment execution, Work Credit write, signer access, or fund movement remains enabled.",
+      "success_evidence": "All exact disabled-state success criteria are observed from the separately approved verification mechanisms.",
+      "on_failure": "Keep containment in place and escalate; do not claim rollback completion."
+    },
+    {
+      "order": 8,
+      "id": "emit_non_secret_rollback_receipt",
+      "objective": "Record the trigger, reviewed input digests, step outcomes, final disabled-state observations, and operator confirmation without secret material.",
+      "success_evidence": "A closed, non-secret JSON receipt is durably recorded at the separately approved destination.",
+      "on_failure": "Keep containment in place and escalate; do not reactivate."
+    },
+    {
+      "order": 9,
+      "id": "require_fresh_readiness_and_activation_review",
+      "objective": "Return the lane to HOLD until a fresh readiness evaluation and separate activation-execution approval are reviewed.",
+      "success_evidence": "No automatic restart or reactivation is authorized and the current activation decision is HOLD.",
+      "on_failure": "Keep containment in place and escalate; automatic reactivation remains forbidden."
+    }
+  ],
+  "success_criteria": [
+    "new_paid_work_ingress_denied",
+    "runtime_enabled_false",
+    "activation_authorized_false",
+    "runtime_service_inactive",
+    "automatic_restart_disabled",
+    "runtime_listener_absent",
+    "credential_reference_inaccessible_to_runtime_without_secret_exposure",
+    "work_dispatch_disabled",
+    "payment_execution_disabled",
+    "work_credit_write_disabled",
+    "wallet_or_signer_access_disabled",
+    "fund_movement_disabled",
+    "inflight_economic_state_accounted_for_or_quarantined",
+    "non_secret_rollback_receipt_recorded",
+    "readiness_decision_hold"
+  ],
+  "fail_closed_conditions": [
+    {
+      "id": "missing_execution_authority",
+      "response": "Do not execute; retain the disabled state and escalate."
+    },
+    {
+      "id": "missing_or_mismatched_reviewed_artifact",
+      "response": "Do not execute the affected step; retain containment and escalate."
+    },
+    {
+      "id": "uncertain_inflight_economic_state",
+      "response": "Prohibit automated settlement, credit write, signer use, and fund movement; quarantine evidence for manual reconciliation."
+    },
+    {
+      "id": "incomplete_disabled_state_evidence",
+      "response": "Do not claim completion or reactivate; retain containment and escalate."
+    },
+    {
+      "id": "receipt_write_failure",
+      "response": "Do not reactivate; preserve local evidence and escalate."
+    }
+  ],
+  "receipt_contract": {
+    "media_type": "application/json",
+    "closed_shape_required": true,
+    "contains_secret_material": false,
+    "required_fields": [
+      "marker",
+      "version",
+      "trigger_id",
+      "started_at_utc",
+      "completed_at_utc",
+      "operator_confirmation_reference",
+      "reviewed_artifact_digests",
+      "step_outcomes",
+      "final_disabled_state",
+      "inflight_economic_state_disposition",
+      "decision"
+    ],
+    "decision": "HOLD"
+  },
+  "execution_boundary": {
+    "read_only_source_artifact": true,
+    "execution_authorized_by_this_artifact": false,
+    "automatic_rollback_authorized": false,
+    "automatic_reactivation_authorized": false,
+    "activation_configuration_written": false,
+    "credential_or_token_read": false,
+    "deployment": false,
+    "service_created_or_restarted": false,
+    "runtime_listener_created": false,
+    "payment_execution": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "fund_movement": false,
+    "separate_operator_confirmed_execution_lane_required": true
+  }
+}
