@@ -14,6 +14,8 @@ const routes = [
   ["/.well-known/void-agent-discovery.schema.json", "public/.well-known/void-agent-discovery.schema.json", null],
   ["/.well-known/void-network-authenticity.json", "public/.well-known/void-network-authenticity.json", "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1"],
   ["/.well-known/void-network-authenticity.schema.json", "public/.well-known/void-network-authenticity.schema.json", null],
+  ["/.well-known/void-public-node.json", "public/.well-known/void-public-node.json", "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"],
+  ["/.well-known/void-public-node.schema.json", "public/.well-known/void-public-node.schema.json", null],
 ];
 const routeBytes = new Map(routes.map(([route, file]) => [route, fs.readFileSync(path.join(repo, file))]));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -166,7 +168,7 @@ try {
   assert.equal((source.match(/const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set\(/g) || []).length, 1);
   assert.equal((source.match(/if \(PUBLIC_NODE_WELL_KNOWN_PATHS\.has\(pathname\)\)/g) || []).length, 1);
 
-  console.log("route_allowlist_count=4");
+  console.log("route_allowlist_count=6");
   console.log("node_upstream_only=true");
   console.log("public_upstream_well_known_requests=0");
   console.log("get_head_only=true");
