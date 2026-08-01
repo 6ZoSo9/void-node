@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.schema.json",
+  "title": "VOID authenticated paid-work production activation trusted-context reference metadata v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "marker",
+    "version",
+    "status",
+    "reference_id",
+    "trusted_context_reference",
+    "provider_binding_contract",
+    "readiness_effect",
+    "authority"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://void.network/schemas/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.schema.json"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_TRUSTED_CONTEXT_REFERENCE_METADATA_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "source_reference_only_activation_forbidden"
+    },
+    "reference_id": {
+      "const": "void-authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1"
+    },
+    "trusted_context_reference": {
+      "const": {
+        "reference_kind": "sha256_bound_operator_owned_absolute_path",
+        "bundle_contract_marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1",
+        "bundle_contract_version": 1,
+        "bundle_sha256": "6bf506fa7637fca967a21dd70ba8be7e940194397fc6bf51077309bd7f755a96",
+        "bundle_path_fingerprint_sha256": "606f2f3aaec35e0534d12ff5a28ee94301b8c24f370e949ec26e75e91963456a",
+        "bundle_path_environment_variable": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH",
+        "bundle_path_disclosed_in_source": false,
+        "bundle_contents_embedded_in_source": false,
+        "bundle_read_required_for_source_proof": false,
+        "maximum_bundle_bytes": 25165824
+      }
+    },
+    "provider_binding_contract": {
+      "const": {
+        "implementation_path": "src/http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts",
+        "schema_path": "schemas/public-agent-service-acceptance-persistence-trusted-context-provider-binding-v1.schema.json",
+        "provider_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1",
+        "result_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result",
+        "absolute_normalized_path_required": true,
+        "regular_file_required": true,
+        "symlink_components_forbidden": true,
+        "group_or_other_write_forbidden": true,
+        "owner_must_be_runtime_user_or_root": true,
+        "bundle_read_during_install": false,
+        "bundle_read_deferred_until_provider_invocation": true,
+        "provider_global_replace_allowed": false
+      }
+    },
+    "readiness_effect": {
+      "const": {
+        "satisfies": "trusted_context_reference_metadata",
+        "known_satisfied_requirements": [
+          "activation_configuration_schema",
+          "activation_configuration_instance",
+          "rollback_plan",
+          "trusted_context_reference_metadata"
+        ],
+        "remaining_requirements_after_known_satisfied": [
+          "credential_reference_metadata",
+          "bounded_replay_snapshot",
+          "service_unit_design",
+          "activation_execution_confirmation",
+          "live_canary_scope"
+        ],
+        "decision_after_publication": "HOLD",
+        "activation_authorized": false,
+        "separate_activation_execution_lane_required": true
+      }
+    },
+    "authority": {
+      "const": {
+        "source_reference_metadata_created": true,
+        "trusted_context_bundle_read": false,
+        "trusted_context_bundle_copied": false,
+        "credential_or_token_read": false,
+        "authorization_header_materialized": false,
+        "installed_configuration_written": false,
+        "activation_authorized": false,
+        "deployment": false,
+        "service_restart": false,
+        "runtime_listener_created": false,
+        "payment_authorization": false,
+        "payment_execution": false,
+        "work_execution_authorization": false,
+        "work_dispatch": false,
+        "work_credit_write": false,
+        "wallet_or_signer_access": false,
+        "transaction_construction": false,
+        "transaction_broadcast": false,
+        "signing": false,
+        "void_settlement": false,
+        "fund_movement": false
+      }
+    }
+  },
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_TRUSTED_CONTEXT_REFERENCE_METADATA_SCHEMA_V1",
+  "x_void_prerequisite_gate_id": "void.authenticated-paid-work.disabled-runtime.activation-prerequisites.v1",
+  "x_void_required_merged_sources": {
+    "activation_readiness_decision_merge_commit": "8ce112d6b0eb594bf0e0e1715e4217a7e1379753",
+    "activation_configuration_schema_merge_commit": "6f896438f5ee1900f560e5744c43fb3bdabe2c4c",
+    "activation_configuration_instance_merge_commit": "27dc14a7e59967744ef5c65e6b28e84b265b1565",
+    "rollback_plan_merge_commit": "cb57842cbb53fcad7ed6861d829058635af9308c"
+  },
+  "x_void_readiness_effect": {
+    "satisfies": "trusted_context_reference_metadata",
+    "decision_after_publication": "HOLD",
+    "remaining_requirements_after_known_satisfied": [
+      "credential_reference_metadata",
+      "bounded_replay_snapshot",
+      "service_unit_design",
+      "activation_execution_confirmation",
+      "live_canary_scope"
+    ]
+  },
+  "x_void_authority": {
+    "source_reference_metadata_created": true,
+    "private_bundle_path_disclosed": false,
+    "trusted_context_bundle_read": false,
+    "trusted_context_bundle_copied": false,
+    "credential_or_token_read": false,
+    "authorization_header_materialized": false,
+    "activation_authorized": false,
+    "installed_configuration_written": false,
+    "deployment": false,
+    "service_restart": false,
+    "runtime_listener_created": false,
+    "payment_execution": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "transaction_broadcast": false,
+    "signing": false,
+    "void_settlement": false,
+    "fund_movement": false,
+    "separate_activation_execution_lane_required": true
+  }
+}

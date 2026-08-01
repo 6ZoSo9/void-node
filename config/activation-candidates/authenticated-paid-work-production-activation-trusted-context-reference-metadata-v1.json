@@ -1,0 +1,75 @@
+{
+  "$schema": "https://void.network/schemas/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.schema.json",
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_TRUSTED_CONTEXT_REFERENCE_METADATA_V1",
+  "version": 1,
+  "status": "source_reference_only_activation_forbidden",
+  "reference_id": "void-authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1",
+  "trusted_context_reference": {
+    "reference_kind": "sha256_bound_operator_owned_absolute_path",
+    "bundle_contract_marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1",
+    "bundle_contract_version": 1,
+    "bundle_sha256": "6bf506fa7637fca967a21dd70ba8be7e940194397fc6bf51077309bd7f755a96",
+    "bundle_path_fingerprint_sha256": "606f2f3aaec35e0534d12ff5a28ee94301b8c24f370e949ec26e75e91963456a",
+    "bundle_path_environment_variable": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH",
+    "bundle_path_disclosed_in_source": false,
+    "bundle_contents_embedded_in_source": false,
+    "bundle_read_required_for_source_proof": false,
+    "maximum_bundle_bytes": 25165824
+  },
+  "provider_binding_contract": {
+    "implementation_path": "src/http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts",
+    "schema_path": "schemas/public-agent-service-acceptance-persistence-trusted-context-provider-binding-v1.schema.json",
+    "provider_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1",
+    "result_global": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result",
+    "absolute_normalized_path_required": true,
+    "regular_file_required": true,
+    "symlink_components_forbidden": true,
+    "group_or_other_write_forbidden": true,
+    "owner_must_be_runtime_user_or_root": true,
+    "bundle_read_during_install": false,
+    "bundle_read_deferred_until_provider_invocation": true,
+    "provider_global_replace_allowed": false
+  },
+  "readiness_effect": {
+    "satisfies": "trusted_context_reference_metadata",
+    "known_satisfied_requirements": [
+      "activation_configuration_schema",
+      "activation_configuration_instance",
+      "rollback_plan",
+      "trusted_context_reference_metadata"
+    ],
+    "remaining_requirements_after_known_satisfied": [
+      "credential_reference_metadata",
+      "bounded_replay_snapshot",
+      "service_unit_design",
+      "activation_execution_confirmation",
+      "live_canary_scope"
+    ],
+    "decision_after_publication": "HOLD",
+    "activation_authorized": false,
+    "separate_activation_execution_lane_required": true
+  },
+  "authority": {
+    "source_reference_metadata_created": true,
+    "trusted_context_bundle_read": false,
+    "trusted_context_bundle_copied": false,
+    "credential_or_token_read": false,
+    "authorization_header_materialized": false,
+    "installed_configuration_written": false,
+    "activation_authorized": false,
+    "deployment": false,
+    "service_restart": false,
+    "runtime_listener_created": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "work_execution_authorization": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_broadcast": false,
+    "signing": false,
+    "void_settlement": false,
+    "fund_movement": false
+  }
+}
