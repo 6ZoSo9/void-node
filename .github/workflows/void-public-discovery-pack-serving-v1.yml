@@ -1,0 +1,52 @@
+name: void-public-discovery-pack-serving-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-discovery-pack-serving-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax
+        run: |
+          node --check ops/public/void-public-app-composition-gateway-v1.mjs
+          node --check scripts/prove_void_public_discovery_pack_serving_v1.mjs
+      - name: Prove exact static discovery serving
+        run: |
+          node scripts/prove_void_public_discovery_pack_serving_v1.mjs | tee /tmp/void-public-discovery-pack-serving-v1.log
+          grep -Fx 'VOID_PUBLIC_DISCOVERY_PACK_SERVING_V1_PROOF_GREEN' /tmp/void-public-discovery-pack-serving-v1.log
+          grep -Fx 'indexnow_key_outside_repository=true' /tmp/void-public-discovery-pack-serving-v1.log
+          grep -Fx 'exact_route_allowlist=true' /tmp/void-public-discovery-pack-serving-v1.log
+          grep -Fx 'incomplete_pack_fails_startup=true' /tmp/void-public-discovery-pack-serving-v1.log
+      - name: Re-prove composition safety boundaries
+        run: |
+          node scripts/prove_public_app_composition_gateway_v1.mjs
+          node scripts/prove_official_network_authenticity_composition_gateway_v1.mjs
+      - name: Enforce repository CI cost boundary
+        run: |
+          python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
+          python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
+      - run: git diff --check
