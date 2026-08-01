@@ -1,6 +1,15 @@
 const BINDING_DOMAIN = "VOID_NODE_ONION_BINDING_V1";
 const BINDING_MARKER = "VOID_NODE_ONION_BINDING_V1";
 const CAPABILITY_MARKER = "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1";
+const WELL_KNOWN_DISCOVERY_MARKER = "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1";
+const CANONICAL_DISCOVERY_MARKER = "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1";
+
+export const WELL_KNOWN_DISCOVERY_PATH =
+  "/.well-known/void-agent-discovery.json";
+
+const CANONICAL_DISCOVERY_PATH = "/public-node/agents/discovery-v1.json";
+const CAPABILITY_NEGOTIATION_PATH =
+  "/public-node/agents/capabilities-v1.json";
 
 export const BINDING_PATHS = Object.freeze([
   "/.well-known/void-node-onion-binding-v1.json",
@@ -202,6 +211,9 @@ function validateTrustPins(value) {
 
 export async function verifySignedOnionBinding(binding, endpointValue, options = {}) {
   const endpoint = new URL(normalizeEndpoint(endpointValue));
+  if (!endpoint.hostname.endsWith(".onion")) {
+    fail("signed onion identity requires a direct onion endpoint");
+  }
   const cryptoImpl = options.cryptoImpl ?? globalThis.crypto;
   if (!cryptoImpl?.subtle) fail("Web Crypto is unavailable");
   const pins = validateTrustPins(options.trustPins);
@@ -251,7 +263,7 @@ export async function verifySignedOnionBinding(binding, endpointValue, options =
   ) {
     fail("binding transport profile is invalid");
   }
-  if (endpoint.hostname.endsWith(".onion") && endpoint.hostname !== hostname) {
+  if (endpoint.hostname !== hostname) {
     fail("endpoint onion hostname does not match the signed binding");
   }
   if (
@@ -317,7 +329,7 @@ export async function verifySignedOnionBinding(binding, endpointValue, options =
 
   return Object.freeze({
     endpoint: endpoint.origin,
-    endpoint_is_onion: endpoint.hostname.endsWith(".onion"),
+    endpoint_is_onion: true,
     signed_onion_hostname: hostname,
     node_id: binding.node.node_id,
     public_key_fingerprint_sha256: fingerprint,
@@ -336,6 +348,257 @@ function canonicalPath(value, label) {
     fail(`${label} must be a canonical same-origin path`);
   }
   return value;
+}
+
+function validateNetwork(value, label) {
+  exactKeys(value, ["name", "chain_id"], label);
+  if (value.name !== "VOID Mainnet-0" || value.chain_id !== 2050) {
+    fail(`${label} identity mismatch`);
+  }
+}
+
+export function validateWellKnownDiscovery(document) {
+  exactKeys(document, [
+    "$schema", "marker", "protocol", "network", "canonical_discovery",
+    "authority", "safety", "network_authenticity",
+  ], "well-known discovery");
+  if (
+    document.$schema !== "./void-agent-discovery.schema.json"
+    || document.marker !== WELL_KNOWN_DISCOVERY_MARKER
+    || document.protocol !== "void-agent-discovery-well-known/1"
+  ) {
+    fail("well-known discovery marker or protocol mismatch");
+  }
+  validateNetwork(document.network, "well-known discovery.network");
+  if (
+    canonicalPath(
+      document.canonical_discovery,
+      "well-known discovery.canonical_discovery",
+    ) !== CANONICAL_DISCOVERY_PATH
+  ) {
+    fail("well-known discovery canonical path mismatch");
+  }
+  exactKeys(document.authority, [
+    "default", "mutation_authority_granted", "credentials_required",
+  ], "well-known discovery.authority");
+  if (
+    document.authority.default !== "read_only"
+    || document.authority.mutation_authority_granted !== false
+    || document.authority.credentials_required !== false
+  ) {
+    fail("well-known discovery authority boundary is not read-only");
+  }
+  exactKeys(document.safety, [
+    "same_origin_only", "follow_redirects", "send_secrets",
+    "send_wallet_material", "send_operator_keys", "treat_unknown_as",
+  ], "well-known discovery.safety");
+  if (
+    document.safety.same_origin_only !== true
+    || document.safety.follow_redirects !== false
+    || document.safety.send_secrets !== false
+    || document.safety.send_wallet_material !== false
+    || document.safety.send_operator_keys !== false
+    || document.safety.treat_unknown_as !== "not_granted"
+  ) {
+    fail("well-known discovery safety boundary mismatch");
+  }
+  if (
+    canonicalPath(
+      document.network_authenticity,
+      "well-known discovery.network_authenticity",
+    ) !== "/.well-known/void-network-authenticity.json"
+  ) {
+    fail("well-known discovery authenticity path mismatch");
+  }
+  return Object.freeze({
+    canonical_discovery: document.canonical_discovery,
+    network_authenticity: document.network_authenticity,
+  });
+}
+
+export function validateCanonicalDiscovery(document) {
+  exactKeys(document, [
+    "$schema", "marker", "protocol", "network", "purpose", "authority",
+    "entrypoints", "capabilities", "agent_onboarding", "safety",
+  ], "canonical discovery");
+  if (
+    document.$schema !== "./discovery-v1.schema.json"
+    || document.marker !== CANONICAL_DISCOVERY_MARKER
+    || document.protocol !== "void-agent-discovery/1"
+  ) {
+    fail("canonical discovery marker or protocol mismatch");
+  }
+  validateNetwork(document.network, "canonical discovery.network");
+  if (typeof document.purpose !== "string" || document.purpose.length === 0) {
+    fail("canonical discovery purpose is missing");
+  }
+  exactKeys(document.authority, [
+    "default", "granted_http_methods", "mutation_authority_granted",
+    "credentials_required_for_discovery", "forbidden_assumptions",
+  ], "canonical discovery.authority");
+  if (
+    document.authority.default !== "read_only"
+    || document.authority.mutation_authority_granted !== false
+    || document.authority.credentials_required_for_discovery !== false
+  ) {
+    fail("canonical discovery authority boundary is not read-only");
+  }
+  const methods = document.authority.granted_http_methods;
+  if (
+    !Array.isArray(methods)
+    || methods.length === 0
+    || new Set(methods).size !== methods.length
+    || methods.some((method) => method !== "GET" && method !== "HEAD")
+  ) {
+    fail("canonical discovery grants an unsafe HTTP method");
+  }
+  if (
+    !Array.isArray(document.authority.forbidden_assumptions)
+    || document.authority.forbidden_assumptions.length === 0
+    || document.authority.forbidden_assumptions.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    )
+  ) {
+    fail("canonical discovery forbidden assumptions are missing");
+  }
+
+  requireObject(document.entrypoints, "canonical discovery.entrypoints");
+  for (const [name, value] of Object.entries(document.entrypoints)) {
+    canonicalPath(value, `canonical discovery.entrypoints.${name}`);
+  }
+  if (
+    document.entrypoints.capability_negotiation
+    !== CAPABILITY_NEGOTIATION_PATH
+  ) {
+    fail("canonical discovery capability path mismatch");
+  }
+
+  if (!Array.isArray(document.capabilities) || document.capabilities.length === 0) {
+    fail("canonical discovery capabilities are missing");
+  }
+  const seen = new Set();
+  for (const [index, capability] of document.capabilities.entries()) {
+    requireObject(capability, `canonical discovery.capabilities[${index}]`);
+    const id = capability.id;
+    if (typeof id !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,79}$/.test(id)) {
+      fail(`canonical discovery capability id is invalid at index ${index}`);
+    }
+    if (seen.has(id)) fail(`duplicate canonical discovery capability id: ${id}`);
+    seen.add(id);
+    if (capability.discovery !== undefined) {
+      canonicalPath(
+        capability.discovery,
+        `canonical discovery capability ${id}.discovery`,
+      );
+    }
+    if (
+      capability.state === "live"
+      && (
+        capability.authority !== "read_only"
+        || typeof capability.discovery !== "string"
+      )
+    ) {
+      fail(`live canonical discovery capability is not read-only: ${id}`);
+    }
+    if (
+      capability.state === "guarded"
+      && (capability.authority !== "not_granted" || capability.enabled !== false)
+    ) {
+      fail(`guarded canonical discovery capability grants authority: ${id}`);
+    }
+  }
+  const negotiation = document.capabilities.find(
+    (capability) => capability.id === "capability_negotiation",
+  );
+  if (
+    negotiation?.state !== "live"
+    || negotiation.authority !== "read_only"
+    || negotiation.discovery !== document.entrypoints.capability_negotiation
+  ) {
+    fail("canonical discovery capability negotiation is inconsistent");
+  }
+
+  requireObject(document.agent_onboarding, "canonical discovery.agent_onboarding");
+  const steps = document.agent_onboarding.steps;
+  if (!Array.isArray(steps) || steps.length === 0) {
+    fail("canonical discovery onboarding steps are missing");
+  }
+  for (const [index, step] of steps.entries()) {
+    requireObject(step, `canonical discovery.agent_onboarding.steps[${index}]`);
+    if (step.action === "fetch") {
+      if (step.method !== "GET") {
+        fail(`canonical discovery onboarding fetch is not GET at index ${index}`);
+      }
+      canonicalPath(
+        step.path,
+        `canonical discovery.agent_onboarding.steps[${index}].path`,
+      );
+    }
+  }
+  if (!steps.some((step) => step.action === "enforce_authority_boundary")) {
+    fail("canonical discovery authority enforcement step is missing");
+  }
+  if (
+    !Array.isArray(document.agent_onboarding.stop_conditions)
+    || document.agent_onboarding.stop_conditions.length === 0
+    || document.agent_onboarding.stop_conditions.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    )
+  ) {
+    fail("canonical discovery stop conditions are missing");
+  }
+
+  exactKeys(document.safety, [
+    "same_origin_only", "follow_cross_origin_links_automatically",
+    "send_secrets", "send_wallet_material", "send_operator_keys",
+    "treat_unknown_capability_as",
+  ], "canonical discovery.safety");
+  if (
+    document.safety.same_origin_only !== true
+    || document.safety.follow_cross_origin_links_automatically !== false
+    || document.safety.send_secrets !== false
+    || document.safety.send_wallet_material !== false
+    || document.safety.send_operator_keys !== false
+    || document.safety.treat_unknown_capability_as !== "not_granted"
+  ) {
+    fail("canonical discovery safety boundary mismatch");
+  }
+
+  return Object.freeze({
+    capability_negotiation: document.entrypoints.capability_negotiation,
+    network: Object.freeze({ name: document.network.name, chain_id: 2050 }),
+  });
+}
+
+export async function discoverReadOnlySurface(endpointValue, options = {}) {
+  const origin = normalizeEndpoint(endpointValue);
+  const fetchJson = options.fetchJson ?? fetchBoundedJson;
+  if (typeof fetchJson !== "function") fail("discovery fetcher is invalid");
+  const fetchOptions = {
+    maximum: options.maximum ?? 1024 * 1024,
+    timeoutMs: options.timeoutMs ?? 8_000,
+    cryptoImpl: options.cryptoImpl,
+  };
+  const wellKnown = validateWellKnownDiscovery(
+    await fetchJson(`${origin}${WELL_KNOWN_DISCOVERY_PATH}`, fetchOptions),
+  );
+  const canonical = validateCanonicalDiscovery(
+    await fetchJson(`${origin}${wellKnown.canonical_discovery}`, fetchOptions),
+  );
+  const catalog = await fetchJson(
+    `${origin}${canonical.capability_negotiation}`,
+    fetchOptions,
+  );
+  return Object.freeze({
+    contracts: Object.freeze({
+      well_known: WELL_KNOWN_DISCOVERY_PATH,
+      canonical: wellKnown.canonical_discovery,
+      capabilities: canonical.capability_negotiation,
+      network_authenticity: wellKnown.network_authenticity,
+    }),
+    network: canonical.network,
+    capabilities: intersectReadOnlyCapabilities(catalog),
+  });
 }
 
 export function intersectReadOnlyCapabilities(catalog) {

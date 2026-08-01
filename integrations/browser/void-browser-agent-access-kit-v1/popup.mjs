@@ -1,8 +1,8 @@
 import {
   BINDING_PATHS,
+  discoverReadOnlySurface,
   fetchBoundedJson,
   fetchBoundedJsonDocument,
-  intersectReadOnlyCapabilities,
   normalizeEndpoint,
   permissionOrigin,
   verifySignedOnionBinding,
@@ -71,19 +71,20 @@ form.addEventListener("submit", async (event) => {
       observedBindingSha256: binding.sha256,
     });
 
-    show("", "Intersecting public read-only capabilities…");
-    const catalog = await fetchBoundedJson(
-      `${origin}/public-node/agents/capabilities-v1.json`,
-      { maximum: 1024 * 1024, timeoutMs: 8_000 },
-    );
-    const capabilities = intersectReadOnlyCapabilities(catalog);
+    show("", "Validating VOID's same-origin discovery chain…");
+    const discovery = await discoverReadOnlySurface(origin, {
+      maximum: 1024 * 1024,
+      timeoutMs: 8_000,
+    });
     await api.storage.local.set({ void_endpoint_v1: origin });
 
-    show("ok", "VOID signed identity verified. Read-only capabilities accepted.", {
+    show("ok", "VOID identity and discovery chain verified. Read-only capabilities accepted.", {
       marker: "VOID_BROWSER_AGENT_ACCESS_KIT_V1_RESULT",
       verified: true,
       identity,
-      capabilities,
+      discovery: discovery.contracts,
+      network: discovery.network,
+      capabilities: discovery.capabilities,
       mutation_authority: false,
       payment_authority: false,
       wallet_or_signer_access: false,

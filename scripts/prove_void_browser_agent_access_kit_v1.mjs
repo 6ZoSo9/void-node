@@ -15,10 +15,13 @@ import path from "node:path";
 import {
   bindingSigningBytes,
   canonicalJson,
+  discoverReadOnlySurface,
   fetchBoundedJson,
   intersectReadOnlyCapabilities,
   normalizeEndpoint,
   permissionOrigin,
+  validateCanonicalDiscovery,
+  validateWellKnownDiscovery,
   verifySignedOnionBinding,
 } from "../integrations/browser/void-browser-agent-access-kit-v1/core.mjs";
 
@@ -26,6 +29,14 @@ const ROOT = process.cwd();
 const EXTENSION = path.join(
   ROOT,
   "integrations/browser/void-browser-agent-access-kit-v1",
+);
+const WELL_KNOWN_DISCOVERY = path.join(
+  ROOT,
+  "public/.well-known/void-agent-discovery.json",
+);
+const CANONICAL_DISCOVERY = path.join(
+  ROOT,
+  "public/public-node/agents/discovery-v1.json",
 );
 
 function base32(bytes) {
@@ -174,16 +185,101 @@ for (const relative of [
 
 const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
+assert.equal(manifest.version, "1.1.0");
 assert.deepEqual(manifest.permissions, ["storage"]);
 assert.equal(manifest.background, undefined);
 assert.equal(manifest.content_scripts, undefined);
-assert.deepEqual(manifest.optional_host_permissions, ["http://*/*", "https://*/*"]);
+assert.deepEqual(manifest.optional_host_permissions, ["http://*.onion/*"]);
 
 assert.equal(normalizeEndpoint("https://node.example/"), "https://node.example");
 assert.equal(permissionOrigin("https://node.example/"), "https://node.example/*");
 assert.throws(() => normalizeEndpoint("https://user:pass@node.example/"), /credentials/);
 assert.throws(() => normalizeEndpoint("https://node.example/path"), /path/);
 assert.throws(() => normalizeEndpoint("file:///tmp/void"), /protocol/);
+
+const wellKnownDiscovery = JSON.parse(
+  fs.readFileSync(WELL_KNOWN_DISCOVERY, "utf8"),
+);
+const canonicalDiscovery = JSON.parse(
+  fs.readFileSync(CANONICAL_DISCOVERY, "utf8"),
+);
+assert.equal(
+  validateWellKnownDiscovery(wellKnownDiscovery).canonical_discovery,
+  "/public-node/agents/discovery-v1.json",
+);
+assert.equal(
+  validateCanonicalDiscovery(canonicalDiscovery).capability_negotiation,
+  "/public-node/agents/capabilities-v1.json",
+);
+
+const wrongWellKnownMarker = structuredClone(wellKnownDiscovery);
+wrongWellKnownMarker.marker = "VOID_COUNTERFEIT_DISCOVERY";
+assert.throws(
+  () => validateWellKnownDiscovery(wrongWellKnownMarker),
+  /marker or protocol/,
+);
+
+const crossOriginPointer = structuredClone(wellKnownDiscovery);
+crossOriginPointer.canonical_discovery = "//counterfeit.example/discovery.json";
+assert.throws(
+  () => validateWellKnownDiscovery(crossOriginPointer),
+  /canonical same-origin path/,
+);
+
+const mutatingPointer = structuredClone(wellKnownDiscovery);
+mutatingPointer.authority.mutation_authority_granted = true;
+assert.throws(
+  () => validateWellKnownDiscovery(mutatingPointer),
+  /authority boundary/,
+);
+
+const unsafeDiscovery = structuredClone(canonicalDiscovery);
+unsafeDiscovery.authority.granted_http_methods.push("POST");
+assert.throws(
+  () => validateCanonicalDiscovery(unsafeDiscovery),
+  /unsafe HTTP method/,
+);
+
+const inconsistentDiscovery = structuredClone(canonicalDiscovery);
+const advertisedNegotiation = inconsistentDiscovery.capabilities.find(
+  (item) => item.id === "capability_negotiation",
+);
+advertisedNegotiation.discovery = "/public-node/agents/counterfeit.json";
+assert.throws(
+  () => validateCanonicalDiscovery(inconsistentDiscovery),
+  /capability negotiation is inconsistent/,
+);
+
+const elevatedDiscovery = structuredClone(canonicalDiscovery);
+const guardedMutation = elevatedDiscovery.capabilities.find(
+  (item) => item.id === "wallet_treasury_or_ledger_mutation",
+);
+guardedMutation.enabled = true;
+assert.throws(
+  () => validateCanonicalDiscovery(elevatedDiscovery),
+  /guarded canonical discovery capability grants authority/,
+);
+
+const requestedUrls = [];
+const discoveryDocuments = new Map([
+  ["https://void.example/.well-known/void-agent-discovery.json", wellKnownDiscovery],
+  ["https://void.example/public-node/agents/discovery-v1.json", canonicalDiscovery],
+  ["https://void.example/public-node/agents/capabilities-v1.json", catalog()],
+]);
+const discovered = await discoverReadOnlySurface("https://void.example", {
+  fetchJson: async (url) => {
+    requestedUrls.push(url);
+    if (!discoveryDocuments.has(url)) throw new Error(`unexpected URL: ${url}`);
+    return discoveryDocuments.get(url);
+  },
+});
+assert.deepEqual(requestedUrls, [...discoveryDocuments.keys()]);
+assert.equal(discovered.network.chain_id, 2050);
+assert.equal(
+  discovered.contracts.well_known,
+  "/.well-known/void-agent-discovery.json",
+);
+assert.deepEqual(discovered.capabilities.granted, ["public_discovery"]);
 
 const nowMs = Date.parse("2026-07-31T12:00:00.000Z");
 const binding = fixture(nowMs);
@@ -218,6 +314,16 @@ assert.equal(verified.endpoint_is_onion, true);
 assert.equal(verified.signed_onion_hostname, binding.transport.onion_hostname);
 assert.equal(verified.authority.read_only, true);
 assert.equal(verified.authority.operator_control, false);
+
+await rejects(
+  () => verifySignedOnionBinding(binding, "https://counterfeit.example", {
+    cryptoImpl: webcrypto,
+    nowMs,
+    trustPins,
+    observedBindingSha256: bindingSha256,
+  }),
+  /direct onion endpoint/,
+);
 
 const tampered = structuredClone(binding);
 tampered.transport.uri = "http://tampered.invalid";
@@ -344,6 +450,11 @@ console.log("origin_permission_user_gesture=true");
 console.log("signed_onion_binding_verified=true");
 console.log("canonical_void_identity_pinned=true");
 console.log("ed25519_webcrypto_verified=true");
+console.log("clearweb_binding_replay_rejected=true");
+console.log("well_known_discovery_validated=true");
+console.log("canonical_discovery_validated=true");
+console.log("same_origin_discovery_chain=true");
+console.log("unsafe_discovery_rejected=true");
 console.log("capability_intersection_fail_closed=true");
 console.log("redirects_rejected=true");
 console.log("response_size_bounded=true");
