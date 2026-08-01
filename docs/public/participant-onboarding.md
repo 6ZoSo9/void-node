@@ -44,6 +44,13 @@ The client creates a private local Ed25519 executor identity and performs one
 server-selected `datanet_fetch_verify` ticket at a time. A successful verified
 run must prove an exact `+3 WC` change in the canonical redeemable balance.
 
+Participants who already operate a compatible local VOID executor can use the
+[deterministic local-executor participant CLI release pack](wc-public-earning-participant-cli-release-pack-v1.md).
+The pack preserves the exact repository CLI and license bytes with a source
+manifest and strict checksums. It does not install or enable an executor, issue
+a ticket, select work, accept a receipt, write WC, settle WC to VOID, access a
+wallet or signer, deploy a service, or move funds.
+
 Before using the client, obtain all three values from the trusted coordinator:
 
 - your participant account ID;

@@ -1,0 +1,48 @@
+name: WC Participant CLI Discovery v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/wc-participant-cli-discovery-v1.yml"
+      - "docs/public/README.md"
+      - "docs/public/participant-onboarding.md"
+      - "docs/public/wc-public-earning-participant-cli-release-pack-v1.md"
+      - "scripts/prove_wc_participant_cli_discovery_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/wc-participant-cli-discovery-v1.yml"
+      - "docs/public/README.md"
+      - "docs/public/participant-onboarding.md"
+      - "docs/public/wc-public-earning-participant-cli-release-pack-v1.md"
+      - "scripts/prove_wc_participant_cli_discovery_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wc-participant-cli-discovery-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove truthful participant CLI discovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate proof syntax
+        run: node --check scripts/prove_wc_participant_cli_discovery_v1.mjs
+
+      - name: Prove truthful participant CLI discovery
+        run: node scripts/prove_wc_participant_cli_discovery_v1.mjs
