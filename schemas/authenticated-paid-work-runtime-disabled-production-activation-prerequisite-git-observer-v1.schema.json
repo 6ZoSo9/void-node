@@ -1,0 +1,50 @@
+{
+  "$id": "https://void.invalid/schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expected": {
+      "additionalProperties": false,
+      "properties": {
+        "install_checkpoint_tag": { "$ref": "#/$defs/tag" },
+        "install_checkpoint_target": { "$ref": "#/$defs/oid" },
+        "install_mechanism_checkpoint_tag": { "$ref": "#/$defs/tag" },
+        "install_mechanism_checkpoint_target": { "$ref": "#/$defs/oid" },
+        "packet_commit": { "$ref": "#/$defs/oid" },
+        "pr894_merge_commit": { "$ref": "#/$defs/oid" },
+        "prerequisite_main_commit": { "$ref": "#/$defs/oid" },
+        "prerequisite_merge_commit": { "$ref": "#/$defs/oid" },
+        "repair_checkpoint_tag": { "$ref": "#/$defs/tag" },
+        "repair_checkpoint_target": { "$ref": "#/$defs/oid" },
+        "repair_merge_commit": { "$ref": "#/$defs/oid" },
+        "runtime_source_commit": { "$ref": "#/$defs/oid" }
+      },
+      "required": [
+        "install_checkpoint_tag",
+        "install_checkpoint_target",
+        "install_mechanism_checkpoint_tag",
+        "install_mechanism_checkpoint_target",
+        "packet_commit",
+        "pr894_merge_commit",
+        "prerequisite_main_commit",
+        "prerequisite_merge_commit",
+        "repair_checkpoint_tag",
+        "repair_checkpoint_target",
+        "repair_merge_commit",
+        "runtime_source_commit"
+      ],
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITE_GIT_OBSERVER_CONFIG_V1"
+    },
+    "version": { "const": 1 }
+  },
+  "required": ["expected", "marker", "version"],
+  "title": "Authenticated paid-work disabled production activation prerequisite Git observer v1",
+  "type": "object",
+  "$defs": {
+    "oid": { "pattern": "^[0-9a-f]{40}$", "type": "string" },
+    "tag": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,179}$", "type": "string" }
+  }
+}

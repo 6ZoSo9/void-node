@@ -1,0 +1,59 @@
+name: authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_git_observer_v1.mjs"
+      - "tools/void-authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_git_observer_v1.mjs"
+      - "tools/void-authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Prepare independently fetched origin main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch --force --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main
+      - name: Prove observer contract
+        run: node scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_git_observer_v1.mjs
+      - name: Observe sealed production lineage
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          receipt="$RUNNER_TEMP/void-activation-prerequisite-git-observer-v1.json"
+          node tools/void-authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.mjs \
+            --config examples/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-git-observer-v1.example.json \
+            --repository-root . > "$receipt"
+          node -e '
+            const fs = require("node:fs");
+            const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (receipt.marker !== "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITE_GIT_OBSERVER_RESULT_V1") process.exit(1);
+            if (receipt.observation_provenance.independently_observed !== true) process.exit(1);
+            if (receipt.execution_boundary.separate_activation_execution_lane_required !== true) process.exit(1);
+          ' "$receipt"
+          echo "independently_observed=true"
+          echo "activation_forbidden_separate_execution_lane_required=true"
