@@ -260,6 +260,16 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .dry_run_allowed_while_disabled,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .apply_allowed_while_disabled,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
     .exact_confirmation_required_before_apply_io,
   true,
 );
@@ -280,8 +290,9 @@ const root = fs.mkdtempSync(
 try {
   const reserved = createReserved(root, 1);
 
-  const disabledCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
-  const disabled =
+  const disabledApplyCalls:
+    BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+  const disabledApply =
     await runBuyVoidNativeExecutionRuntimeCommandV1({
       runtime_policy: {
         ...runtimePolicy(root),
@@ -289,16 +300,22 @@ try {
       },
       command: {
         attempt_id: reserved.attempt_id,
+        apply: true,
+        confirmation:
+          VOID_BUY_VOID_NATIVE_EXECUTION_CONFIRMATION_V1,
+        submission_idempotency_key: hash("8"),
       },
-      planner_transport: plannerTransport(disabledCalls),
+      planner_transport: plannerTransport(disabledApplyCalls),
     });
-  assert.equal(disabled.ok, false);
-  if (!("reason" in disabled)) throw new Error("expected disabled hold");
+  assert.equal(disabledApply.ok, false);
+  if (!("reason" in disabledApply)) {
+    throw new Error("expected disabled apply hold");
+  }
   assert.equal(
-    disabled.reason,
+    disabledApply.reason,
     "native_execution_runtime_disabled",
   );
-  assert.equal(disabledCalls.length, 0);
+  assert.equal(disabledApplyCalls.length, 0);
 
   const wrongCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
   const wrongConfirmation =
@@ -351,7 +368,10 @@ try {
   const dryCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
   const dry =
     await runBuyVoidNativeExecutionRuntimeCommandV1({
-      runtime_policy: runtimePolicy(root),
+      runtime_policy: {
+        ...runtimePolicy(root),
+        enabled: false,
+      },
       command: {
         attempt_id: reserved.attempt_id,
         apply: false,
@@ -455,6 +475,8 @@ console.log(
 );
 console.log("server_journal_reconstruction=1");
 console.log("attempt_id_only_selector=1");
+console.log("disabled_apply_before_rpc=1");
+console.log("disabled_dry_run=1");
 console.log("wrong_confirmation_before_rpc=1");
 console.log("missing_dependencies_before_rpc=1");
 console.log("read_only_nonce_fee_planning=1");
