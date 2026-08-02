@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.schema.json",
+  "title": "VOID authenticated paid-work production activation bounded replay snapshot v1",
+  "description": "Exact const schema for the reviewed fresh-store zero-state replay snapshot.",
+  "const": {
+    "$schema": "https://void.network/schemas/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.schema.json",
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_BOUNDED_REPLAY_SNAPSHOT_V1",
+    "version": 1,
+    "status": "reviewed_fresh_store_zero_state_snapshot_materialization_forbidden",
+    "network": {
+      "name": "VOID Mainnet-0",
+      "identity": "mainnet0",
+      "chain_id": 2050
+    },
+    "provenance": {
+      "repository": "6ZoSo9/void-node",
+      "source_base_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+      "dependencies": {
+        "runtime_binding": {
+          "path": "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.ts",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "0591291f99bb72e55be7a023d182e506bfc1fcd9",
+          "sha256": "3248f5720121d699e5ea4fe34554f7c0ee75ae1f751a8ade7f0a93e3ce72f1b7"
+        },
+        "persistence_engine": {
+          "path": "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "4b961cdb61cc9e7f9b50c4af28af805d4619e366",
+          "sha256": "2250c1da64686f6495d4416c20fdef33762139975d09562225d948553a0cc450"
+        },
+        "acceptance_replay_consumer": {
+          "path": "scripts/public_agent_service_acceptance_materialization_replay_consumer_v1.ts",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "66b810610404eccb1fa2162797704c8ea5f77a9c",
+          "sha256": "b6241ece951f7e6d20ed3f60a3751252b771a6407adae0c15c6375a200b58631"
+        },
+        "canonical_json": {
+          "path": "scripts/agent_paid_work_order_envelope_v1.ts",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "8ee1825cc15b3f36e85df81830bc8b2f39d076b3",
+          "sha256": "c803796b968678c9b8b0a35291dede8f96647922b494cf123c3660715f7e3575"
+        },
+        "example_fixture": {
+          "path": "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "bfe577d3fc8c444c6bb59db8fdbb843ad967b9ca",
+          "sha256": "3265aef51ef9d6c115231419548c37a6ae9f544bbe7cfec035e03891145e02bb"
+        },
+        "activation_configuration": {
+          "path": "config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "ea2e9241b1ba07af3bcd376134b8dfd3e273aeb8",
+          "sha256": "abe7974246d47a4802a936e78f952d6db76d98cccfccc1ce7130309c56b3ee8f"
+        },
+        "service_unit_design": {
+          "path": "ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "b36503e09c11d53014bbc94f94a8969f62860c40",
+          "sha256": "f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07"
+        },
+        "rollback_plan": {
+          "path": "ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "6796362f06f15dbef945c7fef00bb8d21c6f58bf",
+          "sha256": "31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c"
+        },
+        "credential_reference_metadata": {
+          "path": "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json",
+          "source_commit": "58dd94a3f2718334d509422400c286ce1a0b6793",
+          "git_blob_sha1": "c8de0871418c2d88b74f5fb576525374d14f95b8",
+          "sha256": "eac53cc5a7fd9cbb48271a86c475866cf720f6600f3c9342f2f142ee95d5d89c"
+        }
+      }
+    },
+    "snapshot_scope": {
+      "artifact_type": "bounded_replay_snapshot",
+      "reference_id": "void-authenticated-paid-work-production-activation-bounded-replay-snapshot-v1",
+      "schema_id": "https://void.network/schemas/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.schema.json",
+      "media_type": "application/json",
+      "contains_secret_material": false,
+      "production_state_observed": false,
+      "production_state_read": false,
+      "publication_effect": "source_only_no_replay_state_materialized",
+      "closes_blocker": "bounded_replay_snapshot",
+      "readiness_decision_after_publication": "HOLD",
+      "remaining_blocker_count": 2,
+      "remaining_blockers": [
+        "activation_execution_confirmation",
+        "live_canary_scope"
+      ]
+    },
+    "store_precondition": {
+      "allowed_root": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/activation",
+      "reviewed_baseline": "activation_persistence_absent",
+      "source_lane_observed_filesystem": false,
+      "activation_execution_must_reobserve_immediately_before_materialization": true,
+      "pre_materialization": {
+        "allowed_root_must_be_absent": true,
+        "existing_root_requires_separate_reconciliation": true
+      },
+      "permitted_future_preparation": {
+        "create_allowed_root_only": true,
+        "owner": "zoso",
+        "mode": "0700",
+        "canonical_realpath_required": true,
+        "entries_after_creation": []
+      },
+      "runtime_entry": {
+        "allowed_root_present": true,
+        "owner": "zoso",
+        "mode": "0700",
+        "canonical_realpath_required": true,
+        "current_pointer_present": false,
+        "generation_count": 0,
+        "staging_entry_count": 0,
+        "lock_present": false,
+        "entries_exact": []
+      },
+      "forbidden_preexisting_entries": [
+        "current.json",
+        "generations",
+        ".staging",
+        "paid-work-activation-persistence-v1.lock",
+        ".current.*.tmp",
+        "any_other_entry"
+      ],
+      "fail_closed_if": [
+        "allowed_root_exists_before_the_confirmed_materialization_operation",
+        "allowed_root_is_symlinked_or_not_canonical",
+        "allowed_root_owner_or_mode_differs",
+        "current_pointer_exists",
+        "generation_count_is_nonzero",
+        "staging_is_nonempty",
+        "lock_or_temporary_pointer_exists",
+        "unknown_entry_exists"
+      ]
+    },
+    "replay_snapshot": {
+      "acceptance_replay_state_snapshot": {
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_REPLAY_STATE_V1",
+        "version": 1,
+        "revision": 0,
+        "consumed_requester_authentication_ids": [],
+        "consumed_provider_authentication_ids": [],
+        "consumed_acceptance_ids": [],
+        "active_acceptance_by_quote": {},
+        "state_id": "voidawrs1_09fcfb20aa71c21c83beddec7ca3965d2bcd98d13c08d9f0e70842e0f255d678"
+      },
+      "payment_authority_replay_state_snapshot": {
+        "marker": "VOID_AUTHENTICATED_PAID_WORK_PAYMENT_AUTHORITY_REPLAY_STATE_V1",
+        "version": 1,
+        "revision": 0,
+        "consumed_prepared_packet_ids": [],
+        "consumed_payment_intent_ids": [],
+        "active_payment_intent_by_acceptance": {},
+        "state_id": "voidawpars1_097a5fbf4f39114585363c8152bd2d4666a914cc54358b7008de73ba97037837"
+      },
+      "expected_acceptance_revision": 0,
+      "expected_payment_authority_revision": 0,
+      "snapshot_kind": "fresh_store_zero_state",
+      "canonicalization": {
+        "object_key_order": "recursive_lexicographic",
+        "array_order": "preserved",
+        "serialization": "JSON.stringify_without_whitespace",
+        "text_encoding": "utf-8",
+        "digest": "sha256_lowercase_hex",
+        "acceptance_state_id_prefix": "voidawrs1_",
+        "payment_state_id_prefix": "voidawpars1_"
+      },
+      "serialization_bounds": {
+        "actual_canonical_bytes": 775,
+        "maximum_canonical_bytes": 2048
+      }
+    },
+    "cardinality_bounds": {
+      "acceptance_revision": 0,
+      "payment_authority_revision": 0,
+      "consumed_requester_authentication_id_count": 0,
+      "consumed_provider_authentication_id_count": 0,
+      "consumed_acceptance_id_count": 0,
+      "active_acceptance_by_quote_count": 0,
+      "consumed_prepared_packet_id_count": 0,
+      "consumed_payment_intent_id_count": 0,
+      "active_payment_intent_by_acceptance_count": 0,
+      "first_commit_atomic_consumption_count": 5,
+      "first_commit_acceptance_revision_after": 1,
+      "first_commit_payment_revision_after": 1,
+      "max_pointer_bytes": 65536,
+      "max_generation_file_bytes": 4194304,
+      "max_generation_count": 10000,
+      "recover_exact_orphaned_generation": true
+    },
+    "runtime_binding_contract": {
+      "inspection_function": "inspectAuthenticatedPaidWorkActivationPersistenceStoreV1",
+      "empty_acceptance_function": "emptyAcceptanceStateV1",
+      "empty_payment_function": "emptyPaymentStateV1",
+      "runtime_command_supplies_replay_snapshot": false,
+      "runtime_inspection_injects_replay_snapshot": true,
+      "selected_acceptance_field": "acceptance_replay_state_snapshot",
+      "selected_payment_field": "payment_authority_replay_state_snapshot",
+      "expected_acceptance_revision_field": "expected_acceptance_revision",
+      "expected_payment_revision_field": "expected_payment_authority_revision",
+      "first_commit_requires_zero_revisions": true,
+      "first_commit_requires_empty_replay_state": true,
+      "compare_and_swap_required_after_first_commit": true,
+      "stale_snapshot_rejected": true,
+      "replayed_identifier_rejected": true,
+      "single_active_acceptance_per_quote_enforced": true,
+      "single_active_payment_intent_per_acceptance_enforced": true,
+      "exact_duplicate_uses_parent_before_state": true,
+      "fresh_snapshot_orphan_recovery_allowed": false,
+      "separate_activation_execution_confirmation_required": true
+    },
+    "freshness_and_consumption": {
+      "valid_only_for_initial_empty_store": true,
+      "valid_only_for_one_first_transition": true,
+      "invalid_after_current_pointer_publication": true,
+      "invalid_after_any_generation_publication": true,
+      "invalid_if_acceptance_revision_nonzero": true,
+      "invalid_if_payment_revision_nonzero": true,
+      "invalid_if_any_consumed_identifier_present": true,
+      "invalid_if_any_active_mapping_present": true,
+      "invalid_if_state_id_does_not_match_canonical_payload": true,
+      "must_be_rederived_from_store_for_duplicate_or_later_transition": true,
+      "automatic_reset_to_zero_forbidden": true,
+      "rollback_must_not_reuse_zero_snapshot_after_committed_generation": true
+    },
+    "authority": {
+      "production_state_read": false,
+      "replay_snapshot_materialization": false,
+      "persistence_root_create": false,
+      "current_pointer_write": false,
+      "generation_write": false,
+      "replay_state_write": false,
+      "quote_acceptance": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "transaction_construction": false,
+      "transaction_broadcast": false,
+      "work_execution_authorization": false,
+      "work_dispatch": false,
+      "live_ticket_issuance": false,
+      "work_credit_write": false,
+      "wallet_or_signer_access": false,
+      "signing": false,
+      "void_settlement": false,
+      "service_unit_create_or_install": false,
+      "service_enable_or_restart": false,
+      "runtime_listener_create": false,
+      "deployment": false,
+      "activation": false,
+      "credential_or_token_read": false,
+      "fund_movement": false
+    }
+  },
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_BOUNDED_REPLAY_SNAPSHOT_SCHEMA_V1",
+  "x_void_schema_strategy": "exact_const_artifact",
+  "x_void_readiness_effect": {
+    "satisfies": "bounded_replay_snapshot",
+    "remaining_requirements": [
+      "credential_reference_metadata",
+      "activation_execution_confirmation",
+      "live_canary_scope"
+    ],
+    "decision": "HOLD"
+  },
+  "x_void_authority": {
+    "source_only": true,
+    "production_state_read": false,
+    "snapshot_materialized": false,
+    "activation_authorized": false,
+    "payment_execution": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "fund_movement": false
+  }
+}
