@@ -1125,45 +1125,99 @@ def main() -> int:
         if missing:
             raise Hold(f"required source roots missing: {missing}")
 
-        meta = staging / "meta"
-        meta.mkdir(parents=True, exist_ok=True)
-        manifest = build_manifest(staging, source_summary)
-        release_id = manifest["release_id"]
-        manifest_path = meta / "manifest-v1.json"
-        manifest_path.write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        manifest_path.chmod(0o444)
-        manifest_sha = sha256_file(manifest_path)
-        (meta / "manifest-v1.json.sha256").write_text(
-            f"{manifest_sha}  manifest-v1.json\n",
-            encoding="utf-8",
-        )
-        (meta / "manifest-v1.json.sha256").chmod(0o444)
-        status = {
-            "schema": "void-read-replica-status-v1",
-            "release_id": release_id,
-            "generated_at": manifest["generated_at"],
-            "content_root_sha256": manifest["content_root_sha256"],
-            "file_count": manifest["file_count"],
-            "total_bytes": manifest["total_bytes"],
-            "publisher_hostname": manifest["publisher_hostname"],
-            "read_only_replica": True,
-        }
-        (meta / "status-v1.json").write_text(
-            json.dumps(status, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        (meta / "status-v1.json").chmod(0o444)
+        candidate_manifest = build_manifest(staging, source_summary)
+        candidate_release_id = candidate_manifest["release_id"]
+        candidate_content_root = candidate_manifest[
+            "content_root_sha256"
+        ]
 
-        final = RELEASES / release_id
-        if final.exists():
-            remove_read_only_tree(staging, allow_hidden=True)
+        current_target = None
+        current_manifest = None
+        if CURRENT.exists() or CURRENT.is_symlink():
+            current_target = current_release_target(
+                RELEASES,
+                CURRENT,
+            )
+            current_manifest = verify_release(current_target)
+
+        reused_current_release = (
+            current_target is not None
+            and current_manifest is not None
+            and current_manifest.get("content_root_sha256")
+            == candidate_content_root
+        )
+
+        if reused_current_release:
+            remove_read_only_tree(
+                staging,
+                allow_hidden=True,
+            )
+            final = current_target
+            manifest = current_manifest
+            release_id = str(manifest["release_id"])
+            manifest_path = final / "meta/manifest-v1.json"
+            manifest_sha = sha256_file(manifest_path)
+            verified = manifest
         else:
-            os.replace(staging, final)
-        verified = verify_release(final)
-        atomic_symlink(f"releases/{release_id}", CURRENT)
+            meta = staging / "meta"
+            meta.mkdir(parents=True, exist_ok=True)
+            manifest = candidate_manifest
+            release_id = manifest["release_id"]
+            manifest_path = meta / "manifest-v1.json"
+            manifest_path.write_text(
+                json.dumps(
+                    manifest,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            manifest_path.chmod(0o444)
+            manifest_sha = sha256_file(manifest_path)
+            (meta / "manifest-v1.json.sha256").write_text(
+                f"{manifest_sha}  manifest-v1.json\n",
+                encoding="utf-8",
+            )
+            (meta / "manifest-v1.json.sha256").chmod(0o444)
+            status = {
+                "schema": "void-read-replica-status-v1",
+                "release_id": release_id,
+                "generated_at": manifest["generated_at"],
+                "content_root_sha256": (
+                    manifest["content_root_sha256"]
+                ),
+                "file_count": manifest["file_count"],
+                "total_bytes": manifest["total_bytes"],
+                "publisher_hostname": (
+                    manifest["publisher_hostname"]
+                ),
+                "read_only_replica": True,
+            }
+            (meta / "status-v1.json").write_text(
+                json.dumps(
+                    status,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (meta / "status-v1.json").chmod(0o444)
+
+            final = RELEASES / release_id
+            if final.exists():
+                remove_read_only_tree(
+                    staging,
+                    allow_hidden=True,
+                )
+            else:
+                os.replace(staging, final)
+            verified = verify_release(final)
+            atomic_symlink(
+                f"releases/{release_id}",
+                CURRENT,
+            )
 
         pushed = None
         if args.push_to:
@@ -1173,8 +1227,11 @@ def main() -> int:
         print(json.dumps({
             "ok": True,
             "release_id": release_id,
+            "candidate_release_id": candidate_release_id,
             "release_path": str(final),
             "manifest_sha256": manifest_sha,
+            "content_changed": not reused_current_release,
+            "reused_current_release": reused_current_release,
             "content_root_sha256": verified["content_root_sha256"],
             "file_count": verified["file_count"],
             "total_bytes": verified["total_bytes"],
