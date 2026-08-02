@@ -61,6 +61,7 @@ var autoMs: any;
 import { registerDevRoutes } from "./http/dev_routes.js";              // ok if present; safely wrapped
 import { globalEnqueueTx } from "./node_core.js";
 import express from "express";
+import { registerSteamReadonlyBridgeBootstrapV3 } from "./http/steam_readonly_bridge_bootstrap_v3.js"; // VOID_STEAM_READONLY_BRIDGE_BOOTSTRAP_V3_IMPORT
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
@@ -1300,6 +1301,14 @@ function storageRepairGateMatchesPath(req:any): boolean {
   const pth = String(req?.path || req?.url || "/").split("?")[0] || "/";
   return STORAGE_DERIVED_PREFIXES.some((prefix) => pth === prefix || pth.startsWith(prefix));
 }
+
+// VOID_STEAM_READONLY_BRIDGE_BOOTSTRAP_V3_CALLSITE
+const VOID_STEAM_READONLY_BRIDGE_BOOTSTRAP_V3_REGISTRATION =
+  registerSteamReadonlyBridgeBootstrapV3(app, {
+    env: process.env,
+    json_body_parser: express.json({ limit: "16kb", strict: true }),
+  });
+void VOID_STEAM_READONLY_BRIDGE_BOOTSTRAP_V3_REGISTRATION;
 
 app.get("/__void/diag/storage-repair-readiness-v1.json", (req:any, res:any) => {
   const out = (globalThis as any).__void_storage_repair_readiness_v1?.() || {
