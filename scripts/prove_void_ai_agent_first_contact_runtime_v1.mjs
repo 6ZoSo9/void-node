@@ -124,7 +124,7 @@ const historicalRuntimeSource = source
   .replace(TRUSTED_CONTEXT_PROVIDER_BINDING_INDEX_INSTALL_BLOCK, "");
 assert.equal(
   Buffer.byteLength(historicalRuntimeSource),
-  3848227,
+  3848698,
   "historical src/index.ts byte size",
 );
 
