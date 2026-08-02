@@ -1,0 +1,126 @@
+name: VOID Browser Agent Access Kit Release Pack V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-browser-agent-access-kit-release-pack-v1.yml"
+      - "docs/public-node/void-browser-agent-access-kit-release-pack-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/**"
+      - "scripts/build_void_browser_agent_access_kit_release_pack_v1.py"
+      - "scripts/prove_void_browser_agent_access_kit_release_pack_v1.py"
+      - "LICENSE"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-browser-agent-access-kit-release-pack-v1.yml"
+      - "docs/public-node/void-browser-agent-access-kit-release-pack-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/**"
+      - "scripts/build_void_browser_agent_access_kit_release_pack_v1.py"
+      - "scripts/prove_void_browser_agent_access_kit_release_pack_v1.py"
+      - "LICENSE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-browser-agent-access-kit-release-pack-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-release-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source syntax
+        run: |
+          node --check integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs
+          node --check integrations/browser/void-browser-agent-access-kit-v1/core.mjs
+          node --check integrations/browser/void-browser-agent-access-kit-v1/popup.mjs
+          python3 -m json.tool \
+            integrations/browser/void-browser-agent-access-kit-v1/manifest.json \
+            >/dev/null
+          python3 -m json.tool \
+            integrations/browser/void-browser-agent-access-kit-v1/trust-pins.json \
+            >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              "scripts/build_void_browser_agent_access_kit_release_pack_v1.py",
+              "scripts/prove_void_browser_agent_access_kit_release_pack_v1.py",
+          ):
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec")
+          PY
+
+      - name: Prove deterministic and bounded packaging
+        run: |
+          python3 scripts/prove_void_browser_agent_access_kit_release_pack_v1.py \
+            | tee /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "VOID_BROWSER_AGENT_ACCESS_KIT_RELEASE_PACK_V1_PROOF_GREEN" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "archive_byte_reproducible=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "extension_source_exact=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "onion_permission_only=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "verified_read_console_included=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "clearweb_origin_binding_source_included=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "trust_pins_included=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "altered_trust_pins_rejected=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "popup_authority_counts_enforced=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "broad_host_permission_rejected=true" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "payment_execution=false" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-browser-agent-access-kit-release-pack-v1-proof.log
+
+      - name: Regress browser access kit
+        run: |
+          node scripts/prove_void_browser_agent_access_kit_v1.mjs \
+            | tee /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "VOID_BROWSER_AGENT_ACCESS_KIT_V1_PROOF_GREEN" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "verified_read_console=true" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "mutation=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-browser-agent-access-kit-v1-proof.log
+
+      - name: Build unsigned review artifact
+        run: |
+          python3 scripts/build_void_browser_agent_access_kit_release_pack_v1.py \
+            --source-commit "${GITHUB_SHA}" \
+            --output-dir out
+          (
+            cd out
+            sha256sum --check --strict \
+              VOID_BROWSER_AGENT_ACCESS_KIT_RELEASE_PACK_V1_SHA256SUMS.txt
+          )
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-browser-agent-access-kit-v1-${{ github.sha }}
+          path: |
+            out/void-browser-agent-access-kit-v1.zip
+            out/void-browser-agent-access-kit-v1.release.json
+            out/VOID_BROWSER_AGENT_ACCESS_KIT_RELEASE_PACK_V1_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
