@@ -1,0 +1,59 @@
+name: Authenticated Paid Work Production Activation Trusted Context Reference Metadata v1
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.yml
+      - config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json
+      - docs/operations/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.md
+      - schemas/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.schema.json
+      - scripts/prove_authenticated_paid_work_production_activation_trusted_context_reference_metadata_v1.mjs
+      - src/http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts
+      - schemas/public-agent-service-acceptance-persistence-trusted-context-provider-binding-v1.schema.json
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.yml
+      - config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json
+      - docs/operations/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.md
+      - schemas/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.schema.json
+      - scripts/prove_authenticated_paid_work_production_activation_trusted_context_reference_metadata_v1.mjs
+      - src/http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts
+      - schemas/public-agent-service-acceptance-persistence-trusted-context-provider-binding-v1.schema.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: Prove exact non-secret trusted-context reference and non-activation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Parse exact source reference metadata
+        run: node -e 'JSON.parse(require("node:fs").readFileSync("config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json", "utf8"))'
+
+      - name: Prove merged configuration and rollback prerequisites
+        run: |
+          node scripts/prove_authenticated_paid_work_production_activation_configuration_schema_v1.mjs
+          node scripts/prove_authenticated_paid_work_production_activation_configuration_instance_v1.mjs
+          node scripts/prove_authenticated_paid_work_runtime_disabled_production_rollback_plan_v1.mjs
+
+      - name: Prove exact trusted-context reference and non-activation
+        run: node scripts/prove_authenticated_paid_work_production_activation_trusted_context_reference_metadata_v1.mjs
