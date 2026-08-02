@@ -1,0 +1,55 @@
+name: Authenticated paid-work direct quote activation authentication v1
+
+on:
+  pull_request:
+    paths:
+      - scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts
+      - scripts/prove_authenticated_paid_work_direct_quote_activation_authentication_v1.ts
+      - schemas/authenticated-paid-work-direct-quote-activation-authentication-v1.schema.json
+      - examples/authenticated-paid-work-direct-quote-activation-authentication-v1.example.json
+      - docs/operations/authenticated-paid-work-direct-quote-activation-authentication-v1.md
+      - .github/workflows/authenticated-paid-work-direct-quote-activation-authentication-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-direct-quote-activation-authentication-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Parse closed schema and example
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync("schemas/authenticated-paid-work-direct-quote-activation-authentication-v1.schema.json", "utf8"))'
+          node -e 'JSON.parse(require("node:fs").readFileSync("examples/authenticated-paid-work-direct-quote-activation-authentication-v1.example.json", "utf8"))'
+      - name: Typecheck direct authentication scope
+        run: >-
+          ./node_modules/.bin/tsc
+          --noEmit
+          --target ES2022
+          --lib ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --strict
+          --esModuleInterop
+          --skipLibCheck
+          --types node
+          scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts
+          scripts/prove_authenticated_paid_work_direct_quote_activation_authentication_v1.ts
+      - name: Prove direct authentication contract
+        run: >-
+          ./node_modules/.bin/tsx
+          scripts/prove_authenticated_paid_work_direct_quote_activation_authentication_v1.ts
