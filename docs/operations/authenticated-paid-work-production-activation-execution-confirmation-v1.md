@@ -4,7 +4,7 @@ This lane defines the reviewed **source-only confirmation protocol** required be
 
 Artifact: `ops/mainnet0/authenticated-paid-work-production-activation-execution-confirmation-v1.json`
 
-Artifact SHA-256: `b5bb1a44e8e707f48df34d786b36bd93f149ff4adf88b15132f1dc2873cc73d7`
+Artifact SHA-256: `e2f6cecc52047931ce78445ef00c8eeba990a7f552a9b20efc93d6638f5809f6`
 
 ## Readiness effect
 
@@ -77,6 +77,14 @@ Once the first mutation occurs, any drift, partial materialization, service-star
 
 This publication creates source text only. It does not materialize an execution plan, issue or verify a live confirmation, write a lease, modify configuration, create the persistence root, write reference files or a service unit, reload systemd, start a service, read a trusted-context bundle, read credentials or tokens, deploy, activate, execute payment, dispatch work, write Work Credits, access a wallet or signer, sign, settle, broadcast a transaction, or move funds.
 
-## Current-main binding
+## Reviewed source provenance and dynamic execution-main binding
 
-This source contract is recomposed on current `main` `97dd668fdbe8e3329cc5a083df010a1ffd6050c8`. Each of the six reviewed dependencies is bound to that source commit while retaining its exact Git blob SHA-1 and SHA-256 digest.
+This repaired source contract is reviewed from source commit `03dd7f1966cc659b37cba7725ce284700030eed3`. Each of
+the six dependencies retains its exact Git blob SHA-1 and SHA-256 digest.
+
+The source artifact does **not** pin the future execution `main` commit. The
+future execution plan must capture `origin/main` after all read-only preflight
+gates, include that Git object ID in the canonical plan digest and operator
+confirmation, revalidate it after confirmation, and revalidate it immediately
+before the first mutation. Any change invalidates the confirmation and aborts
+before mutation.

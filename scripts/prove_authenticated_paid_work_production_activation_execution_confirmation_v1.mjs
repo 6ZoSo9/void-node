@@ -8,9 +8,9 @@ const ARTIFACT_PATH = "ops/mainnet0/authenticated-paid-work-production-activatio
 const SCHEMA_PATH = "schemas/authenticated-paid-work-production-activation-execution-confirmation-v1.schema.json";
 const DOCS_PATH = "docs/operations/authenticated-paid-work-production-activation-execution-confirmation-v1.md";
 const WORKFLOW_PATH = ".github/workflows/authenticated-paid-work-production-activation-execution-confirmation-v1.yml";
-const EXPECTED_ARTIFACT_SHA = "b5bb1a44e8e707f48df34d786b36bd93f149ff4adf88b15132f1dc2873cc73d7";
-const EXPECTED_BASE = "97dd668fdbe8e3329cc5a083df010a1ffd6050c8";
-const DEPENDENCIES = {"activation_configuration":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"ea2e9241b1ba07af3bcd376134b8dfd3e273aeb8","sha256":"abe7974246d47a4802a936e78f952d6db76d98cccfccc1ce7130309c56b3ee8f"},"trusted_context_reference_metadata":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"489b34c2e684945c7b1a5287e0c1ed29f466bb82","sha256":"49a84ccd443eab216f38bc926838272fb82999c0530bd76cb3cb259deac5259a"},"credential_reference_metadata":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"c8de0871418c2d88b74f5fb576525374d14f95b8","sha256":"eac53cc5a7fd9cbb48271a86c475866cf720f6600f3c9342f2f142ee95d5d89c"},"service_unit_design":{"path":"ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"b36503e09c11d53014bbc94f94a8969f62860c40","sha256":"f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07"},"rollback_plan":{"path":"ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"6796362f06f15dbef945c7fef00bb8d21c6f58bf","sha256":"31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c"},"bounded_replay_snapshot":{"path":"ops/mainnet0/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.json","source_commit":"97dd668fdbe8e3329cc5a083df010a1ffd6050c8","git_blob_sha1":"5a6e1e5c7c9ff75b7d266ce25634dd46d311ad46","sha256":"4bd9c20409b961297554a5d830c4a6c3b7c9b24b000766c58c5bd30fb1959f33"}};
+const EXPECTED_ARTIFACT_SHA = "e2f6cecc52047931ce78445ef00c8eeba990a7f552a9b20efc93d6638f5809f6";
+const EXPECTED_BASE = "03dd7f1966cc659b37cba7725ce284700030eed3";
+const DEPENDENCIES = {"activation_configuration":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"ea2e9241b1ba07af3bcd376134b8dfd3e273aeb8","sha256":"abe7974246d47a4802a936e78f952d6db76d98cccfccc1ce7130309c56b3ee8f"},"trusted_context_reference_metadata":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"489b34c2e684945c7b1a5287e0c1ed29f466bb82","sha256":"49a84ccd443eab216f38bc926838272fb82999c0530bd76cb3cb259deac5259a"},"credential_reference_metadata":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"c8de0871418c2d88b74f5fb576525374d14f95b8","sha256":"eac53cc5a7fd9cbb48271a86c475866cf720f6600f3c9342f2f142ee95d5d89c"},"service_unit_design":{"path":"ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"b36503e09c11d53014bbc94f94a8969f62860c40","sha256":"f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07"},"rollback_plan":{"path":"ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"6796362f06f15dbef945c7fef00bb8d21c6f58bf","sha256":"31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c"},"bounded_replay_snapshot":{"path":"ops/mainnet0/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.json","source_commit":"03dd7f1966cc659b37cba7725ce284700030eed3","git_blob_sha1":"5a6e1e5c7c9ff75b7d266ce25634dd46d311ad46","sha256":"4bd9c20409b961297554a5d830c4a6c3b7c9b24b000766c58c5bd30fb1959f33"}};
 
 function fail(message) {
   throw new Error(`${MARKER}: ${message}`);
@@ -80,7 +80,7 @@ assert(
 assert(artifact.version === 1, "artifact version mismatch");
 assert(
   artifact.status ===
-    "reviewed_source_confirmation_contract_execution_forbidden",
+    "reviewed_source_confirmation_contract_dynamic_execution_main_binding_execution_forbidden",
   "artifact status mismatch",
 );
 assert(
@@ -201,7 +201,45 @@ assert(plan.must_exist_before_confirmation === true, "plan gate missing");
 assert(plan.contains_secret_material === false, "plan secret boundary widened");
 assert(plan.target.hostname === "zoso-Precision-Tower-7810", "host mismatch");
 assert(plan.target.runtime_user === "zoso", "runtime user mismatch");
-assert(plan.target.expected_main_commit === EXPECTED_BASE, "plan base mismatch");
+assert(
+  plan.target.expected_main_commit_binding ===
+    "capture_origin_main_at_execution_plan_generation",
+  "dynamic main capture binding mismatch",
+);
+assert(
+  plan.target.static_expected_main_commit_forbidden === true,
+  "static future-main pin remains allowed",
+);
+assert(
+  plan.target.captured_main_must_equal_origin_main_at_confirmation === true,
+  "confirmation-time main revalidation missing",
+);
+assert(
+  plan.target.captured_main_must_equal_origin_main_before_first_mutation === true,
+  "pre-mutation main revalidation missing",
+);
+assert(
+  plan.target.captured_main_must_be_ancestor_of_execution_source === true,
+  "execution-source ancestry gate missing",
+);
+assert(
+  plan.future_main_binding.captured_by_source_contract === false,
+  "source contract captured future main",
+);
+assert(
+  plan.future_main_binding.captured_by_execution_plan === true,
+  "execution plan does not capture future main",
+);
+for (const key of [
+  "must_bind_confirmation",
+  "must_be_revalidated_after_confirmation",
+  "must_be_revalidated_before_first_mutation",
+  "invalidate_confirmation_on_change",
+  "abort_before_mutation_on_change",
+]) {
+  assert(plan.future_main_binding[key] === true,
+    `future main-binding guard missing: ${key}`);
+}
 assert(plan.target.node_major === 22, "Node major mismatch");
 assert(
   plan.target.service_manager_scope === "systemd_user",
@@ -285,6 +323,7 @@ for (const token of [
   "`live_canary_scope`",
   "does **not** issue or verify a live confirmation",
   "maximum 600 seconds",
+  "does **not** pin the future execution `main` commit",
 ]) {
   assert(docs.includes(token), `documentation token missing: ${token}`);
 }
@@ -301,6 +340,8 @@ console.log(`artifact_sha256=${EXPECTED_ARTIFACT_SHA}`);
 console.log(`source_base_commit=${EXPECTED_BASE}`);
 console.log(`dependency_count=${Object.keys(DEPENDENCIES).length}`);
 console.log("confirmation_contract_defined=true");
+console.log("future_execution_main_binding=dynamic_plan_capture");
+console.log("static_future_main_pin=false");
 console.log("live_confirmation_issued=false");
 console.log("live_confirmation_verified=false");
 console.log("maximum_confirmation_ttl_seconds=600");

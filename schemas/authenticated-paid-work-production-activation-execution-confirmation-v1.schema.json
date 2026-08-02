@@ -9,7 +9,7 @@
     "$schema": "https://void.network/schemas/authenticated-paid-work-production-activation-execution-confirmation-v1.schema.json",
     "marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_CONFIRMATION_V1",
     "version": 1,
-    "status": "reviewed_source_confirmation_contract_execution_forbidden",
+    "status": "reviewed_source_confirmation_contract_dynamic_execution_main_binding_execution_forbidden",
     "network": {
       "name": "VOID Mainnet-0",
       "identity": "mainnet0",
@@ -17,41 +17,41 @@
     },
     "provenance": {
       "repository": "6ZoSo9/void-node",
-      "source_base_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+      "source_base_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
       "dependencies": {
         "activation_configuration": {
           "path": "config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "ea2e9241b1ba07af3bcd376134b8dfd3e273aeb8",
           "sha256": "abe7974246d47a4802a936e78f952d6db76d98cccfccc1ce7130309c56b3ee8f"
         },
         "trusted_context_reference_metadata": {
           "path": "config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "489b34c2e684945c7b1a5287e0c1ed29f466bb82",
           "sha256": "49a84ccd443eab216f38bc926838272fb82999c0530bd76cb3cb259deac5259a"
         },
         "credential_reference_metadata": {
           "path": "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "c8de0871418c2d88b74f5fb576525374d14f95b8",
           "sha256": "eac53cc5a7fd9cbb48271a86c475866cf720f6600f3c9342f2f142ee95d5d89c"
         },
         "service_unit_design": {
           "path": "ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "b36503e09c11d53014bbc94f94a8969f62860c40",
           "sha256": "f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07"
         },
         "rollback_plan": {
           "path": "ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "6796362f06f15dbef945c7fef00bb8d21c6f58bf",
           "sha256": "31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c"
         },
         "bounded_replay_snapshot": {
           "path": "ops/mainnet0/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.json",
-          "source_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+          "source_commit": "03dd7f1966cc659b37cba7725ce284700030eed3",
           "git_blob_sha1": "5a6e1e5c7c9ff75b7d266ce25634dd46d311ad46",
           "sha256": "4bd9c20409b961297554a5d830c4a6c3b7c9b24b000766c58c5bd30fb1959f33"
         }
@@ -133,9 +133,13 @@
         "hostname": "zoso-Precision-Tower-7810",
         "runtime_user": "zoso",
         "repository": "6ZoSo9/void-node",
-        "expected_main_commit": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
         "node_major": 22,
-        "service_manager_scope": "systemd_user"
+        "service_manager_scope": "systemd_user",
+        "expected_main_commit_binding": "capture_origin_main_at_execution_plan_generation",
+        "static_expected_main_commit_forbidden": true,
+        "captured_main_must_equal_origin_main_at_confirmation": true,
+        "captured_main_must_equal_origin_main_before_first_mutation": true,
+        "captured_main_must_be_ancestor_of_execution_source": true
       },
       "future_mutation_allowlist": [
         "atomic_compare_and_replace_exact_disabled_configuration_with_reviewed_enabled_configuration",
@@ -163,6 +167,17 @@
         "transaction_broadcast_authorized_by_confirmation": false,
         "void_settlement_authorized_by_confirmation": false,
         "fund_movement_authorized_by_confirmation": false
+      },
+      "future_main_binding": {
+        "captured_by_source_contract": false,
+        "captured_by_execution_plan": true,
+        "capture_point": "after_all_read_only_preflight_before_plan_digest",
+        "git_object_id_format": "lowercase_40_character",
+        "must_bind_confirmation": true,
+        "must_be_revalidated_after_confirmation": true,
+        "must_be_revalidated_before_first_mutation": true,
+        "invalidate_confirmation_on_change": true,
+        "abort_before_mutation_on_change": true
       }
     },
     "pre_confirmation_gates": {
