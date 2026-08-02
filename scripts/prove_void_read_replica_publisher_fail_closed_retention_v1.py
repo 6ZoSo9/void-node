@@ -259,6 +259,83 @@ def test_main_push_precedes_nonfatal_retention(module, candidate: Path) -> None:
             need(value["retention_degraded"] is True, "degradation was not surfaced")
 
 
+def test_unchanged_content_reuses_current(module, candidate: Path) -> None:
+    with isolated_roots(module) as (_state, releases, _current):
+        with tempfile.TemporaryDirectory(
+            prefix="void-no-change-source-proof-"
+        ) as source_raw:
+            source = Path(source_raw)
+            (source / "fixture.json").write_text(
+                '{"fixture":true}\n',
+                encoding="utf-8",
+            )
+            original_specs = module.SOURCE_SPECS
+            original_stamp = module.stamp
+            original_iso_now = module.iso_now
+            original_argv = sys.argv
+            stamps = iter([
+                "20260101T000000Z",
+                "20260101T000001Z",
+                "20260101T000500Z",
+                "20260101T000501Z",
+            ])
+            module.SOURCE_SPECS = [
+                (destination, source, "tree")
+                for destination in REQUIRED_DESTINATIONS
+            ]
+            module.stamp = lambda: next(stamps)
+            module.iso_now = lambda: "2026-01-01T00:00:00Z"
+            sys.argv = [str(candidate)]
+            values = []
+            try:
+                for _index in range(2):
+                    stdout = io.StringIO()
+                    with contextlib.redirect_stdout(stdout):
+                        returncode = module.main()
+                    need(returncode == 0, "publisher main failed")
+                    values.append(json.loads(stdout.getvalue()))
+            finally:
+                module.SOURCE_SPECS = original_specs
+                module.stamp = original_stamp
+                module.iso_now = original_iso_now
+                sys.argv = original_argv
+
+            first, second = values
+            need(
+                first["content_changed"] is True,
+                "first publication was not content-changing",
+            )
+            need(
+                first["reused_current_release"] is False,
+                "first publication incorrectly reused current",
+            )
+            need(
+                second["content_changed"] is False,
+                "unchanged publication was not classified as no-change",
+            )
+            need(
+                second["reused_current_release"] is True,
+                "unchanged publication did not reuse current",
+            )
+            need(
+                second["release_id"] == first["release_id"],
+                "unchanged publication minted a new release ID",
+            )
+            need(
+                second["candidate_release_id"] != first["release_id"],
+                "fixture did not exercise timestamped candidate churn",
+            )
+            release_directories = [
+                item
+                for item in releases.iterdir()
+                if item.is_dir() and not item.name.startswith(".")
+            ]
+            need(
+                len(release_directories) == 1,
+                "unchanged publication created another release directory",
+            )
+
+
 def test_static_authority(candidate: Path) -> None:
     tree = ast.parse(candidate.read_text(encoding="utf-8"), filename=str(candidate))
     rmtree_calls = []
@@ -306,6 +383,13 @@ def main() -> int:
         ("owner_device_boundary", lambda: test_owner_device_and_boundary_guards(module)),
         ("failure_bounding", lambda: test_invalid_current_and_remove_failure_are_bounded(module)),
         ("publisher_lock", lambda: test_publisher_lock_is_exclusive(module)),
+        (
+            "unchanged_content_reuse",
+            lambda: test_unchanged_content_reuses_current(
+                module,
+                candidate,
+            ),
+        ),
         ("publication_order", lambda: test_main_push_precedes_nonfatal_retention(module, candidate)),
         ("static_authority", lambda: test_static_authority(candidate)),
     ]

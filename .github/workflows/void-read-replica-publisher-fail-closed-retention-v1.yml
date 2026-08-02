@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - "ops/mainnet0/publish_void_read_replica_snapshot_v1.py"
+      - "ops/mainnet0/pull_void_read_replica_from_precision_v1.py"
+      - "ops/mainnet0/classify_void_read_replica_content_convergence_v1.py"
       - "scripts/prove_void_read_replica_publisher_fail_closed_retention_v1.py"
+      - "scripts/prove_void_read_replica_content_convergence_v1.py"
+      - "docs/operations/void-read-replica-content-convergence-v1.md"
       - "docs/operations/void-read-replica-publisher-fail-closed-retention-v1.md"
       - ".github/workflows/void-read-replica-publisher-fail-closed-retention-v1.yml"
   push:
@@ -12,7 +16,11 @@ on:
       - main
     paths:
       - "ops/mainnet0/publish_void_read_replica_snapshot_v1.py"
+      - "ops/mainnet0/pull_void_read_replica_from_precision_v1.py"
+      - "ops/mainnet0/classify_void_read_replica_content_convergence_v1.py"
       - "scripts/prove_void_read_replica_publisher_fail_closed_retention_v1.py"
+      - "scripts/prove_void_read_replica_content_convergence_v1.py"
+      - "docs/operations/void-read-replica-content-convergence-v1.md"
       - "docs/operations/void-read-replica-publisher-fail-closed-retention-v1.md"
       - ".github/workflows/void-read-replica-publisher-fail-closed-retention-v1.yml"
 
@@ -29,7 +37,10 @@ jobs:
         run: |
           python3 -m py_compile \
             ops/mainnet0/publish_void_read_replica_snapshot_v1.py \
-            scripts/prove_void_read_replica_publisher_fail_closed_retention_v1.py
+            ops/mainnet0/pull_void_read_replica_from_precision_v1.py \
+            ops/mainnet0/classify_void_read_replica_content_convergence_v1.py \
+            scripts/prove_void_read_replica_publisher_fail_closed_retention_v1.py \
+            scripts/prove_void_read_replica_content_convergence_v1.py
       - name: Prove fail-closed retention
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -37,3 +48,12 @@ jobs:
           python3 \
             scripts/prove_void_read_replica_publisher_fail_closed_retention_v1.py \
             --candidate ops/mainnet0/publish_void_read_replica_snapshot_v1.py
+      - name: Prove content-root convergence semantics
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 \
+            scripts/prove_void_read_replica_content_convergence_v1.py \
+            --publisher ops/mainnet0/publish_void_read_replica_snapshot_v1.py \
+            --pull ops/mainnet0/pull_void_read_replica_from_precision_v1.py \
+            --classifier ops/mainnet0/classify_void_read_replica_content_convergence_v1.py
