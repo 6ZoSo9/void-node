@@ -8,7 +8,9 @@ on:
       - "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json"
       - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.schema.json"
       - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
       - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/prove_authenticated_paid_work_direct_quote_activation_persistence_integration_v1.ts"
       - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
       - "scripts/public_agent_service_requester_acceptance_authentication_v1.ts"
       - "scripts/public_agent_service_acceptance_materialization_replay_consumer_v1.ts"
@@ -20,7 +22,9 @@ on:
       - "examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json"
       - "schemas/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.schema.json"
       - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
       - "scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts"
+      - "scripts/prove_authenticated_paid_work_direct_quote_activation_persistence_integration_v1.ts"
 
 permissions:
   contents: read
@@ -38,3 +42,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsx scripts/prove_authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_v1.ts
+      - run: npx tsx scripts/prove_authenticated_paid_work_direct_quote_activation_authentication_v1.ts
+      - run: npx tsx scripts/prove_authenticated_paid_work_direct_quote_activation_persistence_integration_v1.ts
