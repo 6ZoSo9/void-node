@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-opportunity-across-swap-api-token-valuation-ingestion-v1.schema.json",
+  "title": "VOID Across Swap API Token Valuation Ingestion V1 Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["api_key", "integrator_id", "selector"],
+  "properties": {
+    "api_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^\\S+$"
+    },
+    "integrator_id": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{4}$"
+    },
+    "selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chain_id", "address", "amount"],
+      "properties": {
+        "chain_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 128
+        }
+      }
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 30000
+    }
+  }
+}
