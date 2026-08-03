@@ -2,10 +2,8 @@ import { createHash } from "node:crypto";
 
 export const VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_OBSERVER_V1 =
   "VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_OBSERVER_V1" as const;
-
 export const VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_INPUT_SCHEMA_V1 =
   "void-self-capital-round-trip-paper-input-v1" as const;
-
 export const VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_RECEIPT_SCHEMA_V1 =
   "void-self-capital-round-trip-paper-receipt-v1" as const;
 
@@ -97,6 +95,7 @@ export type SelfCapitalRoundTripPaperReceiptV1 = Readonly<{
   starting_value_usd: string;
   expected_ending_value_usd: string;
   minimum_ending_value_usd: string;
+  ending_values_amount_derived: true;
   expected_gross_pnl_usd: string;
   minimum_gross_pnl_usd: string;
   paper_costs: Readonly<{
@@ -144,11 +143,7 @@ function record(value: unknown, label: string): RecordValue {
   return value as RecordValue;
 }
 
-function exactKeys(
-  value: RecordValue,
-  expected: readonly string[],
-  label: string,
-): void {
+function exactKeys(value: RecordValue, expected: readonly string[], label: string): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
   if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
@@ -156,11 +151,7 @@ function exactKeys(
   }
 }
 
-function boundedString(
-  value: unknown,
-  label: string,
-  maximumLength = 512,
-): string {
+function boundedString(value: unknown, label: string, maximumLength = 512): string {
   if (
     typeof value !== "string" ||
     value.length < 1 ||
@@ -224,19 +215,24 @@ function formatUsdMicros(value: bigint): string {
 }
 
 function ceilDiv(numerator: bigint, denominator: bigint): bigint {
-  if (numerator < 0n || denominator <= 0n) {
-    hold("ceilDiv received invalid values");
-  }
+  if (numerator < 0n || denominator <= 0n) hold("ceilDiv received invalid values");
   return (numerator + denominator - 1n) / denominator;
 }
 
 function floorSignedDiv(numerator: bigint, denominator: bigint): bigint {
-  if (denominator <= 0n) {
-    hold("floorSignedDiv received an invalid denominator");
+  if (denominator <= 0n) hold("floorSignedDiv received an invalid denominator");
+  return numerator >= 0n ? numerator / denominator : -ceilDiv(-numerator, denominator);
+}
+
+function deriveSameAssetValueUsdMicros(
+  startingValueUsdMicros: bigint,
+  startingAmount: bigint,
+  endingAmount: bigint,
+): bigint {
+  if (startingValueUsdMicros < 0n || startingAmount <= 0n || endingAmount < 0n) {
+    hold("amount-derived ending valuation received invalid values");
   }
-  return numerator >= 0n
-    ? numerator / denominator
-    : -ceilDiv(-numerator, denominator);
+  return (startingValueUsdMicros * endingAmount) / startingAmount;
 }
 
 function tokenAddress(value: unknown, label: string): string {
@@ -331,7 +327,6 @@ function parseQuoteLeg(value: unknown, label: string): RoundTripQuoteLegV1 {
   if (expectedOutputValue < minimumOutputValue) {
     hold(`${label}.expected_output_value_usd is below minimum_output_value_usd`);
   }
-
   if (source.quoted_output_includes_provider_fees !== true) {
     hold(`${label} must include provider fees in quoted output`);
   }
@@ -423,7 +418,6 @@ export function parseSelfCapitalRoundTripPaperInputV1(
     ],
     "self-capital round-trip paper input",
   );
-
   if (source.schema !== VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_INPUT_SCHEMA_V1) {
     hold("self-capital round-trip paper input schema differs");
   }
@@ -465,6 +459,34 @@ export function parseSelfCapitalRoundTripPaperInputV1(
     hold("forward and return quote IDs must differ");
   }
 
+  const startingAmountBaseUnits = BigInt(startingAmount);
+  const derivedExpectedEndingValue = deriveSameAssetValueUsdMicros(
+    startingValue,
+    startingAmountBaseUnits,
+    BigInt(returnQuote.expected_output_amount),
+  );
+  const derivedMinimumEndingValue = deriveSameAssetValueUsdMicros(
+    startingValue,
+    startingAmountBaseUnits,
+    BigInt(returnQuote.minimum_output_amount),
+  );
+  if (
+    parseUsdMicros(
+      returnQuote.expected_output_value_usd,
+      "return_quote.expected_output_value_usd",
+    ) !== derivedExpectedEndingValue
+  ) {
+    hold("return_quote.expected_output_value_usd must equal amount-derived ending value");
+  }
+  if (
+    parseUsdMicros(
+      returnQuote.minimum_output_value_usd,
+      "return_quote.minimum_output_value_usd",
+    ) !== derivedMinimumEndingValue
+  ) {
+    hold("return_quote.minimum_output_value_usd must equal amount-derived ending value");
+  }
+
   const costSource = record(source.cost_policy, "cost_policy");
   exactKeys(
     costSource,
@@ -479,7 +501,6 @@ export function parseSelfCapitalRoundTripPaperInputV1(
     ],
     "cost_policy",
   );
-
   const capitalAtRisk = parseUsdMicros(
     costSource.capital_at_risk_usd,
     "cost_policy.capital_at_risk_usd",
@@ -533,7 +554,11 @@ export function parseSelfCapitalRoundTripPaperInputV1(
     starting_amount: startingAmount,
     starting_value_usd: formatUsdMicros(startingValue),
     forward_quote: forwardQuote,
-    return_quote: returnQuote,
+    return_quote: Object.freeze({
+      ...returnQuote,
+      expected_output_value_usd: formatUsdMicros(derivedExpectedEndingValue),
+      minimum_output_value_usd: formatUsdMicros(derivedMinimumEndingValue),
+    }),
     cost_policy: Object.freeze({
       capital_at_risk_usd: formatUsdMicros(capitalAtRisk),
       capital_lock_seconds: capitalLockSeconds,
@@ -565,13 +590,16 @@ export function observeSelfCapitalRoundTripPaperV1(
 ): SelfCapitalRoundTripPaperReceiptV1 {
   const input = parseSelfCapitalRoundTripPaperInputV1(value);
   const startingValue = parseUsdMicros(input.starting_value_usd, "starting_value_usd");
-  const expectedEndingValue = parseUsdMicros(
-    input.return_quote.expected_output_value_usd,
-    "return_quote.expected_output_value_usd",
+  const startingAmount = BigInt(input.starting_amount);
+  const expectedEndingValue = deriveSameAssetValueUsdMicros(
+    startingValue,
+    startingAmount,
+    BigInt(input.return_quote.expected_output_amount),
   );
-  const minimumEndingValue = parseUsdMicros(
-    input.return_quote.minimum_output_value_usd,
-    "return_quote.minimum_output_value_usd",
+  const minimumEndingValue = deriveSameAssetValueUsdMicros(
+    startingValue,
+    startingAmount,
+    BigInt(input.return_quote.minimum_output_amount),
   );
   const forwardGas = parseUsdMicros(input.forward_quote.gas_usd, "forward_quote.gas_usd");
   const returnGas = parseUsdMicros(input.return_quote.gas_usd, "return_quote.gas_usd");
@@ -599,12 +627,7 @@ export function observeSelfCapitalRoundTripPaperV1(
     BPS_DENOMINATOR,
   );
   const totalExternalCost =
-    forwardGas +
-    returnGas +
-    capitalLockCost +
-    riskReserve +
-    failureReserve +
-    safetyBuffer;
+    forwardGas + returnGas + capitalLockCost + riskReserve + failureReserve + safetyBuffer;
 
   const expectedGrossPnl = expectedEndingValue - startingValue;
   const minimumGrossPnl = minimumEndingValue - startingValue;
@@ -613,14 +636,12 @@ export function observeSelfCapitalRoundTripPaperV1(
 
   const quoteSkewSeconds = Math.ceil(
     Math.abs(
-      Date.parse(input.forward_quote.observed_at) -
-        Date.parse(input.return_quote.observed_at),
+      Date.parse(input.forward_quote.observed_at) - Date.parse(input.return_quote.observed_at),
     ) / 1_000,
   );
   const quotesExpired =
     Date.parse(input.evaluated_at) >= input.forward_quote.quote_expiry_timestamp * 1_000 ||
     Date.parse(input.evaluated_at) >= input.return_quote.quote_expiry_timestamp * 1_000;
-
   const status: SelfCapitalRoundTripPaperStatusV1 = quotesExpired
     ? "expired"
     : minimumNetPnl > 0n
@@ -629,13 +650,14 @@ export function observeSelfCapitalRoundTripPaperV1(
         ? "paper_marginal"
         : "paper_negative";
 
-  const expectedNetBps = capitalAtRisk > 0n
-    ? floorSignedDiv(expectedNetPnl * BPS_DENOMINATOR, capitalAtRisk)
-    : 0n;
-  const minimumNetBps = capitalAtRisk > 0n
-    ? floorSignedDiv(minimumNetPnl * BPS_DENOMINATOR, capitalAtRisk)
-    : 0n;
-
+  const expectedNetBps = floorSignedDiv(
+    expectedNetPnl * BPS_DENOMINATOR,
+    capitalAtRisk,
+  );
+  const minimumNetBps = floorSignedDiv(
+    minimumNetPnl * BPS_DENOMINATOR,
+    capitalAtRisk,
+  );
   const sourceInputSha = hashSelfCapitalRoundTripDocumentV1(input);
   if (!SHA256_HEX_PATTERN.test(sourceInputSha)) hold("source input SHA-256 differs");
 
@@ -659,8 +681,9 @@ export function observeSelfCapitalRoundTripPaperV1(
     expected_ending_amount: input.return_quote.expected_output_amount,
     minimum_ending_amount: input.return_quote.minimum_output_amount,
     starting_value_usd: input.starting_value_usd,
-    expected_ending_value_usd: input.return_quote.expected_output_value_usd,
-    minimum_ending_value_usd: input.return_quote.minimum_output_value_usd,
+    expected_ending_value_usd: formatUsdMicros(expectedEndingValue),
+    minimum_ending_value_usd: formatUsdMicros(minimumEndingValue),
+    ending_values_amount_derived: true as const,
     expected_gross_pnl_usd: formatUsdMicros(expectedGrossPnl),
     minimum_gross_pnl_usd: formatUsdMicros(minimumGrossPnl),
     paper_costs: Object.freeze({
