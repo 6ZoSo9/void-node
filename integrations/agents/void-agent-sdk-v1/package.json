@@ -1,0 +1,32 @@
+{
+  "name": "@void-network/agent-sdk",
+  "version": "0.1.0",
+  "description": "Zero-dependency, read-only discovery and capability negotiation SDK for VOID agents.",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "bin": {
+    "void-agent": "./cli.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "cli.mjs",
+    "README.md",
+    "LICENSE",
+    "integrity.json"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": [
+    "void-network",
+    "ai-agent",
+    "capability-negotiation",
+    "discovery",
+    "sdk"
+  ]
+}
