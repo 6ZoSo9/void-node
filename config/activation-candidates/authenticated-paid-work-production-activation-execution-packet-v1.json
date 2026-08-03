@@ -2,7 +2,7 @@
   "marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1",
   "version": 1,
   "status": "source_ready_execution_not_authorized",
-  "reviewed_source_main": "32cd4883b95354ab979d12640ffd2e2ac1279e57",
+  "reviewed_source_main": "c9a6478a08fcbdcbeb1d6f8c2fa0b41c8eee0444",
   "target": {
     "host": "zoso-Precision-Tower-7810",
     "runtime_user": "zoso",
@@ -14,7 +14,7 @@
     "trusted_context_reference_metadata": "ac074d53ab937d302c69b6bff54f02d064e37d57",
     "rollback_plan": "cb57842cbb53fcad7ed6861d829058635af9308c",
     "service_unit_design": "09ddef7d672b57484bbf853d500fd47d9537c5fb",
-    "credential_reference_metadata": "1c0d4d842210158aeac466deb8e0918aa7443997",
+    "credential_reference_metadata": "9a8cfcbab14d5439e853d19575009ed3245e8b66",
     "bounded_replay_snapshot": "54795a9e35a19067559d0cb315b0ea2669c59088",
     "execution_confirmation": "b32a13792bb4d94fb0da52c175930e9ccf03d631",
     "live_canary_scope": "92daf8ec4668c78768f97876a039f8301909573e",
@@ -22,6 +22,16 @@
     "direct_activation_persistence": "2bf85f63e7f49a87e3e4e5f8450076b05078369f",
     "fresh_direct_quote_authentication_preparation": "a371372213782e8b55d678d28dc5291559ad02ee",
     "fresh_direct_quote_signing_handoff": "32cd4883b95354ab979d12640ffd2e2ac1279e57"
+  },
+  "credential_runtime_truth": {
+    "credential_reference_id": "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1",
+    "target_registry_id": "voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5",
+    "receiver_classification": "RECEIVER_ACTIVE_STALE_REGISTRY",
+    "receiver_loaded_target_registry": false,
+    "receiver_restart_required": true,
+    "receiver_configuration_revalidation_required": true,
+    "live_authentication_observed": false,
+    "current_runtime_freshness_proven_by_source": false
   },
   "ordered_execution_gates": [
     "capture_current_origin_main",
