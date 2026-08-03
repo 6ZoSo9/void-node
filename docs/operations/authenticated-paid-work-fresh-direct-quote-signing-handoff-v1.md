@@ -1,150 +1,156 @@
 # Authenticated paid-work fresh direct quote signing handoff v1
 
-Marker: `VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_QUOTE_SIGNING_HANDOFF_V1`
-
 ## Purpose
 
-This contract closes the source gap between a fresh prepared paid-work quote and
-the direct provider/requester authentication packet accepted by the atomic
-activation-persistence adapter.
+This lane adds a hardened operator CLI around the canonical preparation
+implementation in
+`scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts`.
 
-The existing direct authenticator verifies complete signatures, but operators
-previously had to reconstruct the exact provider and requester signing bodies by
-hand. That is error-prone and especially dangerous because the requester must
-bind the verified provider authentication ID.
+The canonical implementation materializes a fresh work order and quote, prepares
+provider and requester signing requests, verifies externally produced Ed25519
+signatures, and creates a direct-authentication preparation packet. This wrapper
+does not duplicate that security-sensitive core.
 
-This helper produces the signing bytes deterministically without reading or
-receiving a private key.
+The wrapper exists to provide a practical file handoff for an operator or an
+outside signer while preserving the source contract's authority boundaries.
 
-## Three-stage flow
+## Commands
 
-### 1. Provider handoff
+### Prepare the provider request
 
-`prepare` validates and materializes the canonical quote-acceptance and payment-
-authority packet from `prepared_input`. It verifies the provider and requester
-public-key binding drafts and emits:
+```bash
+npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+  prepare \
+  preparation-input.json \
+  provider-request.json
+```
 
-- the complete provider authentication body;
-- canonical provider signing bytes as base64;
-- the SHA-256 of those exact bytes;
-- the computed provider and requester binding IDs;
-- a content-addressed provider handoff ID.
+The output contains the canonical provider signing bytes and SHA-256 digest. It
+does not contain or request a private key.
 
-The requester signing body does not exist yet. Provider-first sequencing is a
-contract requirement, not an operator convention.
+### Verify the provider signature and prepare the requester request
 
-### 2. Requester handoff
+```bash
+npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+  advance \
+  preparation-input.json \
+  provider-request.json \
+  provider-signature.json \
+  requester-request.json
+```
 
-The provider signs the exported bytes outside this helper. `advance` accepts
-only a structured Ed25519 signature record bound to the expected role, key ID,
-and signing-bytes digest. It verifies the signature with the approved provider
-public key, derives the provider authentication ID, and only then emits the
-requester signing body.
-
-The requester body binds the verified provider authentication ID and the exact
-prepared acceptance nonce.
-
-### 3. Final authentication handoff
-
-The requester signs its exported bytes outside this helper. `finalize` verifies
-the requester signature, constructs the canonical direct-authentication input,
-and invokes the existing reviewed direct authenticator.
-
-Successful finalization produces:
-
-- status `direct_quote_authenticated_for_atomic_persistence`;
-- the complete direct authentication input;
-- a verified direct authentication packet eligible for the existing
-  `direct_authentication_packet` persistence mode;
-- content-addressed provider, requester, and final handoff IDs.
-
-Finalization does not persist acceptance or payment authority. Fresh replay
-snapshots, the persistence configuration, and a fresh operation-bound
-confirmation remain required by the existing atomic persistence adapter.
-
-## Input contract
-
-The top-level input contains:
-
-- `prepared_input`: the canonical input accepted by
-  `authenticated_paid_work_quote_acceptance_payment_authority_v1.ts`;
-- an operator-approved provider public-key binding draft;
-- an operator-approved requester public-key binding draft;
-- bounded provider and requester authentication plans;
-- all required fail-closed controls set to `true`.
-
-Authentication windows must stay within both key-binding windows and the
-prepared acceptance/payment-intent expiry. Requester authentication must begin
-no earlier than provider authentication and cannot outlive it.
-
-## External signature record
-
-Both signer roles return the same closed record shape:
+The provider signature file must contain exactly:
 
 ```json
 {
   "marker": "VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_QUOTE_EXTERNAL_SIGNATURE_V1",
   "version": 1,
   "signer_role": "provider",
-  "key_id": "ed25519:<64 lowercase hex>",
-  "signing_bytes_sha256": "<64 lowercase hex>",
-  "signature_base64": "<canonical 64-byte Ed25519 signature>"
+  "key_id": "ed25519:<64 lowercase hexadecimal characters>",
+  "signing_bytes_sha256": "<64 lowercase hexadecimal characters>",
+  "signature_base64": "<canonical 64-byte Ed25519 signature in base64>"
 }
 ```
 
-For the requester record, `signer_role` is `requester`.
+The wrapper binds the role, key ID, signing digest, and canonical signature
+encoding before passing the submission to the canonical verifier.
 
-A signature is rejected if its role, key ID, signing-bytes digest, encoding, or
-cryptographic verification differs from the handoff.
-
-## CLI
+### Verify the requester signature and finalize preparation
 
 ```bash
 npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
-  prepare input.json provider-handoff.json
-
-npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
-  advance input.json provider-handoff.json provider-signature.json \
-  requester-handoff.json
-
-npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
-  finalize input.json provider-handoff.json provider-signature.json \
-  requester-handoff.json requester-signature.json final-handoff.json
-
-npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
-  verify-final input.json provider-handoff.json provider-signature.json \
-  requester-handoff.json requester-signature.json final-handoff.json
+  finalize \
+  preparation-input.json \
+  provider-request.json \
+  provider-signature.json \
+  requester-request.json \
+  requester-signature.json \
+  final-preparation.json
 ```
 
-All output files are create-only with mode `0600`. Existing output paths,
-symlink inputs, oversized JSON, non-canonical signatures, stale handoffs, and
-secret-bearing inputs fail closed.
+The requester signature file uses the same closed shape with
+`"signer_role": "requester"` and the requester key ID and signing digest.
 
-## Secret boundary
+### Verify an existing final packet
 
-This helper accepts public keys and external signatures only. It rejects private
-key PEM material and explicit private-key, mnemonic, seed-phrase, password,
-token, and authorization-header fields.
+```bash
+npx tsx scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+  verify-final \
+  preparation-input.json \
+  provider-request.json \
+  provider-signature.json \
+  requester-request.json \
+  requester-signature.json \
+  final-preparation.json
+```
 
-Private keys remain in their separately controlled signing environment. The
-helper never creates, reads, prints, copies, writes, or rotates one.
+Every stage recomputes and verifies the canonical upstream packet. A stale,
+tampered, wrong-role, wrong-key, wrong-digest, malformed, or noncanonical input
+fails closed.
 
-## Authority boundary
+## File safety
 
-This source lane and its helper do not:
+All JSON inputs are opened once with `O_NOFOLLOW`, validated through the opened
+file descriptor with `fstat`, and read through that same descriptor with a
+32 MiB hard limit. This avoids checking one filesystem object and then reopening
+a different object by pathname.
 
-- create a live quote or submit paid work over HTTP;
-- persist effective quote acceptance or payment authority;
-- consume production replay IDs;
-- authorize or execute payment;
-- resolve a payment destination;
-- construct, sign, or broadcast a transaction;
-- authorize or dispatch work;
-- write Work Credits or settle WC to VOID;
-- access a wallet, signer, credential, or private key;
-- restart a service, deploy code, or mutate runtime state;
-- move funds.
+Directories, symlinks, oversized files, malformed JSON, and files that grow
+past the bound while being read are rejected.
 
-The next gate is the already reviewed atomic persistence adapter in
-`direct_authentication_packet` mode, with separately reviewed runtime evidence
-and fresh ZoSo confirmation.
+All outputs are create-only and use mode `0600`. Existing output paths are not
+overwritten. The caller remains responsible for choosing an owner-private,
+non-shared output directory.
+
+## Signing boundary
+
+The CLI never:
+
+- accepts a private key field;
+- reads a signer, wallet, seed phrase, or credential store;
+- generates a production key;
+- performs provider or requester signing;
+- submits signing material over HTTP;
+- sends files to an external service.
+
+The provider and requester sign only the exact base64-decoded bytes exposed by
+the canonical request packets. The returned signature files are public evidence,
+not secret keys.
+
+## Activation boundary
+
+A successful final packet is eligible only for later review under the existing
+`direct_authentication_packet` persistence mode. It does not perform quote
+acceptance or payment-authority persistence.
+
+The next gate remains separate atomic persistence with current replay snapshots,
+current-main verification, reviewed runtime evidence, and ZoSo's fresh
+operation-bound confirmation.
+
+Payment execution, payment-destination resolution, transaction construction,
+transaction broadcast, work authorization, work dispatch, Work Credit writes,
+wallet access, deployment, service restart, and money movement remain separate
+and false.
+
+## Verification
+
+The focused workflow runs:
+
+```bash
+npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext \
+  --strict --skipLibCheck \
+  scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts \
+  scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+  scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+  scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts
+
+npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts
+npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts
+```
+
+Expected markers:
+
+```text
+VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_QUOTE_SIGNING_HANDOFF_V1_PROOF_GREEN=true
+VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_QUOTE_FILE_IO_HARDENING_V1_PROOF_GREEN=true
+```
