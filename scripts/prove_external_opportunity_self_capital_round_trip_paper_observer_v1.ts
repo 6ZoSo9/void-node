@@ -16,7 +16,6 @@ const fixturePath = new URL(
   "../fixtures/external-opportunity/self-capital-round-trip-paper-observer-v1.example.json",
   import.meta.url,
 );
-
 const schemaPath = new URL(
   "../schemas/external-opportunity-self-capital-round-trip-paper-observer-v1.schema.json",
   import.meta.url,
@@ -56,12 +55,16 @@ assert.equal(
   "0.000000",
 );
 assert.match(documentation, /App fees must be exactly zero/);
+assert.match(documentation, /amount-derived ending USD valuation/);
 assert.match(documentation, /fund movement/);
-assert.match(workflow, /node --import tsx scripts\/prove_external_opportunity_self_capital_round_trip_paper_observer_v1\.ts/);
+assert.match(
+  workflow,
+  /node --import tsx scripts\/prove_external_opportunity_self_capital_round_trip_paper_observer_v1\.ts/,
+);
 assert.match(workflow, /npm run build/);
+
 const parsed = parseSelfCapitalRoundTripPaperInputV1(fixture);
 const receipt = observeSelfCapitalRoundTripPaperV1(fixture);
-
 assert.equal(receipt.schema, VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_RECEIPT_SCHEMA_V1);
 assert.equal(receipt.marker, VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_OBSERVER_V1);
 assert.equal(receipt.phase, "paper_only");
@@ -72,6 +75,7 @@ assert.equal(receipt.quotes_expired, false);
 assert.equal(receipt.starting_value_usd, "100.000000");
 assert.equal(receipt.expected_ending_value_usd, "100.400000");
 assert.equal(receipt.minimum_ending_value_usd, "100.200000");
+assert.equal(receipt.ending_values_amount_derived, true);
 assert.equal(receipt.expected_gross_pnl_usd, "0.400000");
 assert.equal(receipt.minimum_gross_pnl_usd, "0.200000");
 assert.deepEqual(receipt.paper_costs, {
@@ -116,7 +120,8 @@ assert.equal(
 assert.deepEqual(receipt, observeSelfCapitalRoundTripPaperV1(clone(fixture)));
 
 const marginal = clone(fixture);
-((marginal.return_quote as JsonObject).minimum_output_value_usd) = "100.100000";
+(marginal.return_quote as JsonObject).minimum_output_amount = "100100000";
+(marginal.return_quote as JsonObject).minimum_output_value_usd = "100.100000";
 const marginalReceipt = observeSelfCapitalRoundTripPaperV1(marginal);
 assert.equal(marginalReceipt.status, "paper_marginal");
 assert.equal(marginalReceipt.expected_net_pnl_usd, "0.259086");
@@ -125,14 +130,27 @@ assert.equal(marginalReceipt.expected_net_pnl_bps_of_capital, "25");
 assert.equal(marginalReceipt.minimum_net_pnl_bps_of_capital, "-5");
 
 const negative = clone(fixture);
-((negative.return_quote as JsonObject).expected_output_value_usd) = "100.100000";
-((negative.return_quote as JsonObject).minimum_output_value_usd) = "100.000000";
+(negative.return_quote as JsonObject).expected_output_amount = "100100000";
+(negative.return_quote as JsonObject).minimum_output_amount = "100000000";
+(negative.return_quote as JsonObject).expected_output_value_usd = "100.100000";
+(negative.return_quote as JsonObject).minimum_output_value_usd = "100.000000";
 const negativeReceipt = observeSelfCapitalRoundTripPaperV1(negative);
 assert.equal(negativeReceipt.status, "paper_negative");
 assert.equal(negativeReceipt.expected_net_pnl_usd, "-0.040914");
 assert.equal(negativeReceipt.minimum_net_pnl_usd, "-0.140914");
 assert.equal(negativeReceipt.expected_net_pnl_bps_of_capital, "-5");
 assert.equal(negativeReceipt.minimum_net_pnl_bps_of_capital, "-15");
+
+const inflatedExpectedValue = clone(fixture);
+(inflatedExpectedValue.return_quote as JsonObject).expected_output_amount = "99900000";
+(inflatedExpectedValue.return_quote as JsonObject).minimum_output_amount = "99800000";
+(inflatedExpectedValue.return_quote as JsonObject).expected_output_value_usd = "101.000000";
+(inflatedExpectedValue.return_quote as JsonObject).minimum_output_value_usd = "100.500000";
+expectHold(inflatedExpectedValue, /expected_output_value_usd must equal amount-derived ending value/);
+
+const understatedMinimumValue = clone(fixture);
+(understatedMinimumValue.return_quote as JsonObject).minimum_output_value_usd = "100.199999";
+expectHold(understatedMinimumValue, /minimum_output_value_usd must equal amount-derived ending value/);
 
 const expired = clone(fixture);
 (expired.forward_quote as JsonObject).quote_expiry_timestamp = 1_700_000_000;
@@ -199,6 +217,8 @@ expectHold(unknownQuoteKey, /forward_quote keys differ/);
 
 console.log("positive_expected_net_pnl_usd=0.259086");
 console.log("positive_minimum_net_pnl_usd=0.059086");
+console.log("ending_values_amount_derived=true");
+console.log("inconsistent_ending_values_rejected=true");
 console.log("internal_app_fee_counted_as_profit=false");
 console.log("round_trip_inventory_neutral=true");
 console.log("wallet_or_key_access_performed=false");
