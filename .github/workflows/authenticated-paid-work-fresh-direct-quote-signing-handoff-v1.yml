@@ -12,6 +12,7 @@ on:
       - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_shared_v1.ts"
       - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_stages_v1.ts"
       - "scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts"
+      - "scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts"
       - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
       - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
       - "examples/authenticated-paid-work-quote-acceptance-payment-authority-v1.example.json"
@@ -51,7 +52,11 @@ jobs:
             scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_validation_v1.ts \
             scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_shared_v1.ts \
             scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_stages_v1.ts \
-            scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts
+            scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+            scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts
       - name: Prove fresh direct quote signing handoff
         run: |
           npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts
+      - name: Prove descriptor-pinned JSON input reads
+        run: |
+          npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts
