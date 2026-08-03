@@ -13,6 +13,10 @@ import {
   materializePublicAgentServiceRequesterAcceptanceAuthenticationV1,
 } from "./public_agent_service_requester_acceptance_authentication_v1.js";
 import {
+  materializeAuthenticatedPaidWorkDirectQuoteActivationAuthenticationV1,
+  type AuthenticatedPaidWorkDirectQuoteActivationAuthenticationPacketV1,
+} from "./authenticated_paid_work_direct_quote_activation_authentication_v1.js";
+import {
   acceptanceReplayStateIdV1,
   planPublicAgentServiceAcceptanceMaterializationReplayConsumerV1,
   type AcceptanceReplayStateV1,
@@ -62,8 +66,8 @@ const COMMIT_FILENAME = "commit.json";
 
 const ID = {
   packet: /^voidawqapa1_[0-9a-f]{64}$/,
-  requester: /^voidawra1_[0-9a-f]{64}$/,
-  provider: /^voidawqa1_[0-9a-f]{64}$/,
+  requester: /^(?:voidawra1_|voidadra1_)[0-9a-f]{64}$/,
+  provider: /^(?:voidawqa1_|voidadpa1_)[0-9a-f]{64}$/,
   acceptance: /^voidawa1_[0-9a-f]{64}$/,
   paymentIntent: /^voidawpi1_[0-9a-f]{64}$/,
   quote: /^voidawq1_[0-9a-f]{64}$/,
@@ -108,7 +112,7 @@ export interface ActivationPersistenceCommandV1 {
 export interface AuthenticatedPaidWorkActivationPersistenceInputV1 {
   marker: typeof AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_MARKER;
   version: 1;
-  mode: "example_fixture" | "external_requester_evidence";
+  mode: "example_fixture" | "external_requester_evidence" | "direct_authentication_packet";
   prepared_input: unknown;
   prepared_packet: unknown;
   requester_authentication_input: unknown | null;
@@ -123,6 +127,7 @@ export interface AuthenticatedPaidWorkActivationPersistenceInputV1 {
 export interface ActivationDependenciesV1 {
   verifyPrepared: (input: unknown, packet: unknown) => AuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityPacketV1;
   authenticateRequester: (input: unknown, catalog: unknown) => unknown;
+  authenticateDirect?: (input: unknown) => AuthenticatedPaidWorkDirectQuoteActivationAuthenticationPacketV1;
   planAcceptance: (input: unknown, catalog: unknown, workOrder: unknown, quote: unknown) => PublicAgentServiceAcceptanceMaterializationReplayConsumerPacketV1;
 }
 
@@ -253,7 +258,7 @@ export interface ActivationPersistenceResultV1 {
   marker: typeof AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_RESULT_MARKER;
   version: 1;
   status: "disabled" | "example_only" | "planned" | "committed" | "duplicate" | "recovered";
-  mode: "example_fixture" | "external_requester_evidence";
+  mode: "example_fixture" | "external_requester_evidence" | "direct_authentication_packet";
   enabled: boolean;
   apply: boolean;
   confirmation_verified: boolean;
@@ -340,7 +345,37 @@ function validatePaymentState(value: unknown): PaymentAuthorityReplayStateV1 {
 }
 function validateConfig(value: unknown): ActivationPersistenceConfigV1 { const r=requireRecord(value,"persistence_config"); exactKeys(r,"persistence_config",["marker","version","enabled","allowed_root","max_pointer_bytes","max_generation_file_bytes","max_generation_count","recover_exact_orphaned_generation"]); assertCondition(r.marker===AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_CONFIG_MARKER,"config marker mismatch"); assertCondition(r.version===1,"config version mismatch"); const allowed=reqString(r.allowed_root,"allowed_root"); assertCondition(path.isAbsolute(allowed),"allowed_root must be absolute"); return {marker:AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_CONFIG_MARKER,version:1,enabled:reqBool(r.enabled,"enabled"),allowed_root:path.resolve(allowed),max_pointer_bytes:reqInt(r.max_pointer_bytes,"max_pointer_bytes",512),max_generation_file_bytes:reqInt(r.max_generation_file_bytes,"max_generation_file_bytes",1024),max_generation_count:reqInt(r.max_generation_count,"max_generation_count",1),recover_exact_orphaned_generation:reqBool(r.recover_exact_orphaned_generation,"recover_exact_orphaned_generation")}; }
 function validateCommand(value: unknown): ActivationPersistenceCommandV1 { const r=requireRecord(value,"command"); exactKeys(r,"command",["marker","version","apply","confirmation","recorded_at_utc"]); assertCondition(r.marker===AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_COMMAND_MARKER,"command marker mismatch"); assertCondition(r.version===1,"command version mismatch"); return {marker:AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_COMMAND_MARKER,version:1,apply:reqBool(r.apply,"apply"),confirmation:typeof r.confirmation==="string"?r.confirmation:"",recorded_at_utc:reqUtc(r.recorded_at_utc,"recorded_at_utc")}; }
-function validateInput(value: unknown): AuthenticatedPaidWorkActivationPersistenceInputV1 { const r=requireRecord(value,"input"); exactKeys(r,"input",["marker","version","mode","prepared_input","prepared_packet","requester_authentication_input","acceptance_replay_state_snapshot","payment_authority_replay_state_snapshot","expected_acceptance_revision","expected_payment_authority_revision","persistence_config","command"]); assertCondition(r.marker===AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_MARKER,"input marker mismatch"); assertCondition(r.version===1,"input version mismatch"); assertCondition(r.mode==="example_fixture"||r.mode==="external_requester_evidence","mode mismatch"); if(r.mode==="example_fixture") assertCondition(r.requester_authentication_input===null,"fixture requester input must be null"); else assertCondition(isRecord(r.requester_authentication_input),"external requester input required"); return {marker:AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_MARKER,version:1,mode:r.mode,prepared_input:r.prepared_input,prepared_packet:r.prepared_packet,requester_authentication_input:r.requester_authentication_input,acceptance_replay_state_snapshot:r.acceptance_replay_state_snapshot,payment_authority_replay_state_snapshot:r.payment_authority_replay_state_snapshot,expected_acceptance_revision:reqInt(r.expected_acceptance_revision,"expected_acceptance_revision"),expected_payment_authority_revision:reqInt(r.expected_payment_authority_revision,"expected_payment_authority_revision"),persistence_config:validateConfig(r.persistence_config),command:validateCommand(r.command)}; }
+function validateInput(value: unknown): AuthenticatedPaidWorkActivationPersistenceInputV1 {
+  const r=requireRecord(value,"input");
+  exactKeys(r,"input",["marker","version","mode","prepared_input","prepared_packet","requester_authentication_input","acceptance_replay_state_snapshot","payment_authority_replay_state_snapshot","expected_acceptance_revision","expected_payment_authority_revision","persistence_config","command"]);
+  assertCondition(r.marker===AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_MARKER,"input marker mismatch");
+  assertCondition(r.version===1,"input version mismatch");
+  assertCondition(
+    r.mode==="example_fixture"||
+    r.mode==="external_requester_evidence"||
+    r.mode==="direct_authentication_packet",
+    "mode mismatch",
+  );
+  if(r.mode==="example_fixture") {
+    assertCondition(r.requester_authentication_input===null,"fixture requester input must be null");
+  } else {
+    assertCondition(isRecord(r.requester_authentication_input),"authentication input required");
+  }
+  return {
+    marker:AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_MARKER,
+    version:1,
+    mode:r.mode,
+    prepared_input:r.prepared_input,
+    prepared_packet:r.prepared_packet,
+    requester_authentication_input:r.requester_authentication_input,
+    acceptance_replay_state_snapshot:r.acceptance_replay_state_snapshot,
+    payment_authority_replay_state_snapshot:r.payment_authority_replay_state_snapshot,
+    expected_acceptance_revision:reqInt(r.expected_acceptance_revision,"expected_acceptance_revision"),
+    expected_payment_authority_revision:reqInt(r.expected_payment_authority_revision,"expected_payment_authority_revision"),
+    persistence_config:validateConfig(r.persistence_config),
+    command:validateCommand(r.command),
+  };
+}
 
 function acceptanceDraftFromPrepared(packet: AuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityPacketV1): RecordValue { const a=clone(packet.prepared_artifacts.acceptance_envelope) as unknown as RecordValue; delete a.acceptance_id; return a; }
 function verifyPreparedBoundaries(packet: AuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityPacketV1): void { assertCondition(packet.status==="prepared_requires_authenticated_atomic_activation","prepared status mismatch"); assertCondition(Object.values(packet.authority).every(v=>v===false),"prepared packet grants authority"); assertCondition(packet.acceptance_gate.effective_quote_acceptance===false,"prepared packet already accepted"); assertCondition(packet.payment_authority_gate.effective_payment_authorization===false,"prepared packet already authorized"); assertCondition(packet.payment_authority_gate.payment_execution_authorized===false,"prepared packet already authorizes payment execution"); }
@@ -356,23 +391,310 @@ function acceptanceBindings(packet: AuthenticatedPaidWorkQuoteAcceptancePaymentA
   assertCondition(plan.marker==="VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_MATERIALIZATION_REPLAY_CONSUMER_PACKET_V1","acceptance plan marker mismatch"); assertCondition(plan.status==="acceptance_materialization_planned","acceptance plan not live-planned"); assertCondition(plan.acceptance.acceptance_id===packet.prepared_artifacts.acceptance_envelope.acceptance_id,"acceptance ID differs from prepared packet"); assertCondition(plan.acceptance.acceptance_envelope!==null,"acceptance envelope missing"); compareCanonical(plan.acceptance.acceptance_envelope,packet.prepared_artifacts.acceptance_envelope,"acceptance envelope"); assertCondition(plan.replay.next_state!==null&&plan.replay.transaction!==null,"acceptance replay transition missing"); compareCanonical(plan.replay.before_state,before,"acceptance before state"); assertCondition(plan.replay.transaction.atomic_consumption_count===3,"acceptance atomic consumption changed"); return {acceptance:plan.acceptance.acceptance_envelope as unknown as RecordValue,after:plan.replay.next_state,requesterId:plan.source.requester_authentication_id,providerId:plan.source.provider_authentication_id};
 }
 
+
+function directAuthenticationBindings(
+  packet: AuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityPacketV1,
+  directInputValue: unknown,
+  command: ActivationPersistenceCommandV1,
+  deps: ActivationDependenciesV1,
+): {packet:RecordValue;requesterId:string;providerId:string} {
+  assertCondition(
+    deps.authenticateDirect!==undefined,
+    "direct authentication dependency unavailable",
+  );
+  const directInput=requireRecord(directInputValue,"direct authentication input");
+  compareCanonical(
+    directInput.prepared_packet,
+    packet,
+    "direct embedded prepared packet",
+  );
+  const direct=deps.authenticateDirect(directInputValue);
+  assertCondition(
+    direct.marker===
+      "VOID_AUTHENTICATED_PAID_WORK_DIRECT_QUOTE_ACTIVATION_AUTHENTICATION_PACKET_V1",
+    "direct authentication packet marker mismatch",
+  );
+  assertCondition(
+    direct.status==="direct_lineage_authenticated_for_atomic_activation",
+    "direct authentication packet is not live-authenticated",
+  );
+  assertCondition(
+    direct.activation_gate.eligible_for_atomic_activation_persistence===true,
+    "direct authentication packet is not eligible for persistence",
+  );
+  assertCondition(
+    direct.activation_gate.public_service_submission_id_required===false&&
+    direct.activation_gate.public_service_submission_id_synthesized===false,
+    "direct authentication packet substituted public-service lineage",
+  );
+  assertCondition(
+    Object.values(direct.authority).every((value)=>value===false),
+    "direct authentication packet grants authority before persistence",
+  );
+  const checks:[unknown,unknown,string][]=[
+    [direct.source.prepared_packet_id,packet.packet_id,"prepared_packet_id"],
+    [direct.source.prepared_packet_fingerprint_sha256,sha(canonicalJson(packet)),"prepared_packet_fingerprint_sha256"],
+    [direct.source.quote_id,packet.source.quote_id,"quote_id"],
+    [direct.source.work_order_id,packet.source.work_order_id,"work_order_id"],
+    [direct.source.acceptance_id,packet.prepared_artifacts.acceptance_envelope.acceptance_id,"acceptance_id"],
+    [direct.source.payment_intent_id,packet.prepared_artifacts.payment_intent_envelope.payment_intent_id,"payment_intent_id"],
+    [direct.source.requester_agent_id,packet.source.requester_agent_id,"requester_agent_id"],
+    [direct.source.provider_id,packet.source.provider_id,"provider_id"],
+  ];
+  for(const [actual,expected,label] of checks) {
+    assertCondition(actual===expected,`direct authentication ${label} mismatch`);
+  }
+  assertCondition(
+    direct.provider_authentication.scope===
+      "authenticated_paid_work_direct_quote_activate"&&
+    direct.provider_authentication.signature_verified===true&&
+    direct.provider_authentication.direct_lineage_verified===true,
+    "direct provider authentication verification mismatch",
+  );
+  assertCondition(
+    direct.requester_authentication.scope==="agent_paid_work_accept"&&
+    direct.requester_authentication.signature_verified===true&&
+    direct.requester_authentication.direct_lineage_verified===true&&
+    direct.requester_authentication.provider_authentication_id_bound===true,
+    "direct requester authentication verification mismatch",
+  );
+  const requesterId=reqString(
+    direct.requester_authentication.authentication_id,
+    "direct requester authentication_id",
+    ID.requester,
+  );
+  const providerId=reqString(
+    direct.provider_authentication.authentication_id,
+    "direct provider authentication_id",
+    ID.provider,
+  );
+
+  const recordedAt=Date.parse(command.recorded_at_utc);
+  const providerBinding=requireRecord(
+    directInput.provider_key_binding,
+    "direct provider key binding",
+  );
+  const requesterBinding=requireRecord(
+    directInput.requester_key_binding,
+    "direct requester key binding",
+  );
+  const providerEnvelope=requireRecord(
+    directInput.provider_authentication_envelope,
+    "direct provider authentication envelope",
+  );
+  const requesterEnvelope=requireRecord(
+    directInput.requester_authentication_envelope,
+    "direct requester authentication envelope",
+  );
+  for(const [label,envelope] of [
+    ["provider",providerEnvelope],
+    ["requester",requesterEnvelope],
+  ] as const) {
+    const createdAt=Date.parse(reqUtc(envelope.created_at_utc,`${label} authentication created_at_utc`));
+    const expiresAt=Date.parse(reqUtc(envelope.expires_at_utc,`${label} authentication expires_at_utc`));
+    assertCondition(recordedAt>=createdAt,`${label} authentication is not yet active`);
+    assertCondition(recordedAt<expiresAt,`${label} authentication expired before activation`);
+  }
+  for(const [label,binding] of [
+    ["provider",providerBinding],
+    ["requester",requesterBinding],
+  ] as const) {
+    if(binding.revoked_at_utc!==null) {
+      const revokedAt=Date.parse(reqUtc(binding.revoked_at_utc,`${label} binding revoked_at_utc`));
+      assertCondition(recordedAt<revokedAt,`${label} binding revoked before activation`);
+    }
+  }
+  return {
+    packet:direct as unknown as RecordValue,
+    requesterId,
+    providerId,
+  };
+}
+
+function directAcceptanceBindings(
+  packet: AuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityPacketV1,
+  requesterId: string,
+  providerId: string,
+  before: AcceptanceReplayStateV1,
+): {acceptance:RecordValue;after:AcceptanceReplayStateV1} {
+  const acceptance=packet.prepared_artifacts.acceptance_envelope as unknown as RecordValue;
+  const acceptanceId=reqString(acceptance.acceptance_id,"acceptance_id",ID.acceptance);
+  const quoteId=reqString(acceptance.quote_id,"quote_id",ID.quote);
+  assertCondition(
+    before.active_acceptance_by_quote[quoteId]===undefined,
+    "quote already has active acceptance",
+  );
+  const draft={
+    marker:"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_REPLAY_STATE_V1" as const,
+    version:1 as const,
+    revision:before.revision+1,
+    consumed_requester_authentication_ids:
+      appendUnique(before.consumed_requester_authentication_ids,requesterId),
+    consumed_provider_authentication_ids:
+      appendUnique(before.consumed_provider_authentication_ids,providerId),
+    consumed_acceptance_ids:
+      appendUnique(before.consumed_acceptance_ids,acceptanceId),
+    active_acceptance_by_quote:{
+      ...before.active_acceptance_by_quote,
+      [quoteId]:acceptanceId,
+    },
+  };
+  const after:AcceptanceReplayStateV1={
+    ...draft,
+    state_id:acceptanceReplayStateIdV1(draft),
+  };
+  return {acceptance,after};
+}
+
 function transactionId(value: Omit<ActivationTransactionV1,"transaction_id">): string { return `${TRANSACTION_PREFIX}${sha(canonicalJson(value))}`; }
 function buildPlan(input:AuthenticatedPaidWorkActivationPersistenceInputV1,catalog:unknown,deps:ActivationDependenciesV1):PlanV1 {
-  const prepared=deps.verifyPrepared(input.prepared_input,input.prepared_packet); verifyPreparedBoundaries(prepared);
-  const beforeAcceptance=validateAcceptanceState(input.acceptance_replay_state_snapshot); const beforePayment=validatePaymentState(input.payment_authority_replay_state_snapshot);
-  assertCondition(beforeAcceptance.revision===input.expected_acceptance_revision,"expected acceptance revision mismatch"); assertCondition(beforePayment.revision===input.expected_payment_authority_revision,"expected payment revision mismatch");
-  const acceptance=prepared.prepared_artifacts.acceptance_envelope as unknown as RecordValue; const paymentIntent=prepared.prepared_artifacts.payment_intent_envelope as unknown as RecordValue;
-  if(input.mode==="example_fixture") return {prepared,requesterPacket:null,acceptancePacket:null,acceptance,paymentIntent,beforeAcceptance,afterAcceptance:null,beforePayment,afterPayment:null,transaction:null};
-  const requester=requireRecord(deps.authenticateRequester(input.requester_authentication_input,catalog),"requester authentication packet"); const auth=requesterBindings(prepared,requester);
-  const replayInput={marker:"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_MATERIALIZATION_REPLAY_CONSUMER_V1",version:1,mode:"external_requester_evidence",requester_authentication_input:input.requester_authentication_input,acceptance_draft:acceptanceDraftFromPrepared(prepared),replay_state_snapshot:beforeAcceptance,expected_state_revision:beforeAcceptance.revision};
-  const acceptancePacket=deps.planAcceptance(replayInput,catalog,(input.prepared_input as RecordValue).work_order,(input.prepared_input as RecordValue).quote); const bound=acceptanceBindings(prepared,acceptancePacket,beforeAcceptance); assertCondition(auth.requesterId===bound.requesterId&&auth.providerId===bound.providerId,"authentication and replay plan identities differ");
-  const acceptanceId=reqString(acceptance.acceptance_id,"acceptance_id",ID.acceptance); const paymentIntentId=reqString(paymentIntent.payment_intent_id,"payment_intent_id",ID.paymentIntent); const packetId=reqString(prepared.packet_id,"packet_id",ID.packet);
-  assertCondition(beforePayment.active_payment_intent_by_acceptance[acceptanceId]===undefined,"acceptance already has active payment intent");
-  const paymentDraft:PaymentAuthorityReplayStateDraftV1={marker:AUTHENTICATED_PAID_WORK_PAYMENT_AUTHORITY_REPLAY_STATE_MARKER,version:1,revision:beforePayment.revision+1,consumed_prepared_packet_ids:appendUnique(beforePayment.consumed_prepared_packet_ids,packetId),consumed_payment_intent_ids:appendUnique(beforePayment.consumed_payment_intent_ids,paymentIntentId),active_payment_intent_by_acceptance:{...beforePayment.active_payment_intent_by_acceptance,[acceptanceId]:paymentIntentId}};
-  const afterPayment:PaymentAuthorityReplayStateV1={...paymentDraft,state_id:paymentAuthorityReplayStateIdV1(paymentDraft)};
-  const txNoId:Omit<ActivationTransactionV1,"transaction_id">={marker:AUTHENTICATED_PAID_WORK_ACTIVATION_TRANSACTION_MARKER,version:1,prepared_packet_id:packetId,requester_authentication_id:auth.requesterId,provider_authentication_id:auth.providerId,acceptance_id:acceptanceId,payment_intent_id:paymentIntentId,quote_id:reqString(prepared.source.quote_id,"quote_id",ID.quote),work_order_id:reqString(prepared.source.work_order_id,"work_order_id",ID.workOrder),before_acceptance_state_id:beforeAcceptance.state_id,after_acceptance_state_id:bound.after.state_id,before_payment_state_id:beforePayment.state_id,after_payment_state_id:afterPayment.state_id,before_acceptance_revision:beforeAcceptance.revision,after_acceptance_revision:bound.after.revision,before_payment_revision:beforePayment.revision,after_payment_revision:afterPayment.revision,atomic_consumption_count:5,requester_authentication_consumed:true,provider_authentication_consumed:true,acceptance_id_consumed:true,prepared_packet_id_consumed:true,payment_intent_id_consumed:true,single_active_acceptance_per_quote_enforced:true,single_active_payment_intent_per_acceptance_enforced:true};
-  const transaction:ActivationTransactionV1={...txNoId,transaction_id:transactionId(txNoId)};
-  return {prepared,requesterPacket:requester,acceptancePacket,acceptance:bound.acceptance,paymentIntent,beforeAcceptance,afterAcceptance:bound.after,beforePayment,afterPayment,transaction};
+  const prepared=deps.verifyPrepared(input.prepared_input,input.prepared_packet);
+  verifyPreparedBoundaries(prepared);
+  const beforeAcceptance=validateAcceptanceState(input.acceptance_replay_state_snapshot);
+  const beforePayment=validatePaymentState(input.payment_authority_replay_state_snapshot);
+  assertCondition(beforeAcceptance.revision===input.expected_acceptance_revision,"expected acceptance revision mismatch");
+  assertCondition(beforePayment.revision===input.expected_payment_authority_revision,"expected payment revision mismatch");
+  const acceptance=prepared.prepared_artifacts.acceptance_envelope as unknown as RecordValue;
+  const paymentIntent=prepared.prepared_artifacts.payment_intent_envelope as unknown as RecordValue;
+  if(input.mode==="example_fixture") {
+    return {
+      prepared,
+      requesterPacket:null,
+      acceptancePacket:null,
+      acceptance,
+      paymentIntent,
+      beforeAcceptance,
+      afterAcceptance:null,
+      beforePayment,
+      afterPayment:null,
+      transaction:null,
+    };
+  }
+
+  let requesterPacket:RecordValue;
+  let acceptancePacket:PublicAgentServiceAcceptanceMaterializationReplayConsumerPacketV1|null;
+  let afterAcceptance:AcceptanceReplayStateV1;
+  let requesterId:string;
+  let providerId:string;
+
+  if(input.mode==="direct_authentication_packet") {
+    const direct=directAuthenticationBindings(
+      prepared,
+      input.requester_authentication_input,
+      input.command,
+      deps,
+    );
+    const bound=directAcceptanceBindings(
+      prepared,
+      direct.requesterId,
+      direct.providerId,
+      beforeAcceptance,
+    );
+    requesterPacket=direct.packet;
+    acceptancePacket=null;
+    afterAcceptance=bound.after;
+    requesterId=direct.requesterId;
+    providerId=direct.providerId;
+  } else {
+    const requester=requireRecord(
+      deps.authenticateRequester(input.requester_authentication_input,catalog),
+      "requester authentication packet",
+    );
+    const auth=requesterBindings(prepared,requester);
+    const replayInput={
+      marker:"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_MATERIALIZATION_REPLAY_CONSUMER_V1",
+      version:1,
+      mode:"external_requester_evidence",
+      requester_authentication_input:input.requester_authentication_input,
+      acceptance_draft:acceptanceDraftFromPrepared(prepared),
+      replay_state_snapshot:beforeAcceptance,
+      expected_state_revision:beforeAcceptance.revision,
+    };
+    const planned=deps.planAcceptance(
+      replayInput,
+      catalog,
+      (input.prepared_input as RecordValue).work_order,
+      (input.prepared_input as RecordValue).quote,
+    );
+    const bound=acceptanceBindings(prepared,planned,beforeAcceptance);
+    assertCondition(
+      auth.requesterId===bound.requesterId&&auth.providerId===bound.providerId,
+      "authentication and replay plan identities differ",
+    );
+    requesterPacket=requester;
+    acceptancePacket=planned;
+    afterAcceptance=bound.after;
+    requesterId=auth.requesterId;
+    providerId=auth.providerId;
+  }
+
+  const acceptanceId=reqString(acceptance.acceptance_id,"acceptance_id",ID.acceptance);
+  const paymentIntentId=reqString(paymentIntent.payment_intent_id,"payment_intent_id",ID.paymentIntent);
+  const packetId=reqString(prepared.packet_id,"packet_id",ID.packet);
+  assertCondition(
+    beforePayment.active_payment_intent_by_acceptance[acceptanceId]===undefined,
+    "acceptance already has active payment intent",
+  );
+  const paymentDraft:PaymentAuthorityReplayStateDraftV1={
+    marker:AUTHENTICATED_PAID_WORK_PAYMENT_AUTHORITY_REPLAY_STATE_MARKER,
+    version:1,
+    revision:beforePayment.revision+1,
+    consumed_prepared_packet_ids:
+      appendUnique(beforePayment.consumed_prepared_packet_ids,packetId),
+    consumed_payment_intent_ids:
+      appendUnique(beforePayment.consumed_payment_intent_ids,paymentIntentId),
+    active_payment_intent_by_acceptance:{
+      ...beforePayment.active_payment_intent_by_acceptance,
+      [acceptanceId]:paymentIntentId,
+    },
+  };
+  const afterPayment:PaymentAuthorityReplayStateV1={
+    ...paymentDraft,
+    state_id:paymentAuthorityReplayStateIdV1(paymentDraft),
+  };
+  const txNoId:Omit<ActivationTransactionV1,"transaction_id">={
+    marker:AUTHENTICATED_PAID_WORK_ACTIVATION_TRANSACTION_MARKER,
+    version:1,
+    prepared_packet_id:packetId,
+    requester_authentication_id:requesterId,
+    provider_authentication_id:providerId,
+    acceptance_id:acceptanceId,
+    payment_intent_id:paymentIntentId,
+    quote_id:reqString(prepared.source.quote_id,"quote_id",ID.quote),
+    work_order_id:reqString(prepared.source.work_order_id,"work_order_id",ID.workOrder),
+    before_acceptance_state_id:beforeAcceptance.state_id,
+    after_acceptance_state_id:afterAcceptance.state_id,
+    before_payment_state_id:beforePayment.state_id,
+    after_payment_state_id:afterPayment.state_id,
+    before_acceptance_revision:beforeAcceptance.revision,
+    after_acceptance_revision:afterAcceptance.revision,
+    before_payment_revision:beforePayment.revision,
+    after_payment_revision:afterPayment.revision,
+    atomic_consumption_count:5,
+    requester_authentication_consumed:true,
+    provider_authentication_consumed:true,
+    acceptance_id_consumed:true,
+    prepared_packet_id_consumed:true,
+    payment_intent_id_consumed:true,
+    single_active_acceptance_per_quote_enforced:true,
+    single_active_payment_intent_per_acceptance_enforced:true,
+  };
+  const transaction:ActivationTransactionV1={
+    ...txNoId,
+    transaction_id:transactionId(txNoId),
+  };
+  return {
+    prepared,
+    requesterPacket,
+    acceptancePacket,
+    acceptance,
+    paymentIntent,
+    beforeAcceptance,
+    afterAcceptance,
+    beforePayment,
+    afterPayment,
+    transaction,
+  };
 }
 
 function ensureDir(p:string, mode=0o700):void { if(!fs.existsSync(p)) fs.mkdirSync(p,{mode,recursive:false}); const s=fs.lstatSync(p); assertCondition(s.isDirectory()&&!s.isSymbolicLink(),`directory required: ${p}`); assertCondition((s.mode&0o777)===mode,`directory mode mismatch: ${p}`); }
@@ -404,8 +726,18 @@ function persist(config:ActivationPersistenceConfigV1,command:ActivationPersiste
   } finally { if(!released&&fs.existsSync(lockPath)) unlock(root,lockPath); }
 }
 
-export const AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_DEFAULT_DEPENDENCIES_V1:ActivationDependenciesV1={verifyPrepared:verifyAuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityV1,authenticateRequester:materializePublicAgentServiceRequesterAcceptanceAuthenticationV1,planAcceptance:planPublicAgentServiceAcceptanceMaterializationReplayConsumerV1};
-export function activationPersistenceDefaultDependencyIdentityV1(){return {prepared_verifier:"verifyAuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityV1",requester_authenticator:"materializePublicAgentServiceRequesterAcceptanceAuthenticationV1",acceptance_replay_planner:"planPublicAgentServiceAcceptanceMaterializationReplayConsumerV1"} as const;}
+export const AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_DEFAULT_DEPENDENCIES_V1:ActivationDependenciesV1={
+  verifyPrepared:verifyAuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityV1,
+  authenticateRequester:materializePublicAgentServiceRequesterAcceptanceAuthenticationV1,
+  authenticateDirect:materializeAuthenticatedPaidWorkDirectQuoteActivationAuthenticationV1,
+  planAcceptance:planPublicAgentServiceAcceptanceMaterializationReplayConsumerV1,
+};
+export function activationPersistenceDefaultDependencyIdentityV1(){return {
+  prepared_verifier:"verifyAuthenticatedPaidWorkQuoteAcceptancePaymentAuthorityV1",
+  requester_authenticator:"materializePublicAgentServiceRequesterAcceptanceAuthenticationV1",
+  direct_authenticator:"materializeAuthenticatedPaidWorkDirectQuoteActivationAuthenticationV1",
+  acceptance_replay_planner:"planPublicAgentServiceAcceptanceMaterializationReplayConsumerV1",
+} as const;}
 
 export function executeAuthenticatedPaidWorkActivationPersistenceV1(inputValue:unknown,catalogValue:unknown,deps:ActivationDependenciesV1=AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_DEFAULT_DEPENDENCIES_V1):ActivationPersistenceResultV1 { const input=validateInput(inputValue); const plan=buildPlan(input,catalogValue,deps); const base={marker:AUTHENTICATED_PAID_WORK_ACTIVATION_PERSISTENCE_RESULT_MARKER,version:1 as const,mode:input.mode,enabled:input.persistence_config.enabled,apply:input.command.apply,prepared_packet_verified:true as const,packet_id:plan.prepared.packet_id,acceptance_id:reqString(plan.acceptance.acceptance_id,"acceptance_id",ID.acceptance),payment_intent_id:reqString(plan.paymentIntent.payment_intent_id,"payment_intent_id",ID.paymentIntent),before_acceptance_state_id:plan.beforeAcceptance.state_id,before_payment_state_id:plan.beforePayment.state_id};
   if(input.mode==="example_fixture") return {...base,status:"example_only",confirmation_verified:false,requester_authentication_verified:false,provider_authentication_verified:false,acceptance_transition_planned:false,payment_authority_transition_planned:false,persistence_attempted:false,persistence_receipt:null,requester_authentication_id:null,provider_authentication_id:null,transaction_id:null,after_acceptance_state_id:null,after_payment_state_id:null,authority:noAuthority()};
