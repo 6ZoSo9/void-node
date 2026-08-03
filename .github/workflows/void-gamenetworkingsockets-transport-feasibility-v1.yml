@@ -1,0 +1,44 @@
+name: VOID GameNetworkingSockets transport feasibility v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-gamenetworkingsockets-transport-feasibility-v1.yml"
+      - "docs/architecture/void-gamenetworkingsockets-transport-feasibility-v1.md"
+      - "examples/void-gamenetworkingsockets-transport-feasibility-v1.example.json"
+      - "schemas/void-gamenetworkingsockets-transport-feasibility-v1.schema.json"
+      - "scripts/void_gamenetworkingsockets_transport_feasibility_v1.mjs"
+      - "scripts/prove_void_gamenetworkingsockets_transport_feasibility_v1.mjs"
+      - "ops/mainnet0/probe_void_gamenetworkingsockets_host_readiness_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-gamenetworkingsockets-transport-feasibility-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Parse JSON artifacts
+        run: |
+          python3 -m json.tool schemas/void-gamenetworkingsockets-transport-feasibility-v1.schema.json >/dev/null
+          python3 -m json.tool examples/void-gamenetworkingsockets-transport-feasibility-v1.example.json >/dev/null
+      - name: Compile host readiness probe
+        run: |
+          python3 -m py_compile ops/mainnet0/probe_void_gamenetworkingsockets_host_readiness_v1.py
+      - name: Prove feasibility contract
+        run: |
+          node scripts/prove_void_gamenetworkingsockets_transport_feasibility_v1.mjs
