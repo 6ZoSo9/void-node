@@ -1,0 +1,134 @@
+{
+  "$schema": "https://void.network/schemas/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.schema.json",
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_QUOTE_AUTHENTICATION_PREPARATION_V1",
+  "version": 1,
+  "evidence_mode": "example_fixture",
+  "preparation_recorded_at_utc": "2035-01-01T00:20:00Z",
+  "work_order_draft": {
+    "marker": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1",
+    "version": 1,
+    "created_at_utc": "2035-01-01T00:00:00Z",
+    "expires_at_utc": "2035-01-02T00:00:00Z",
+    "requester": {
+      "agent_id": "agent.example.fresh-direct.requester",
+      "callback_uri": "https://agent.example.invalid/void/fresh-direct/receipt"
+    },
+    "service": {
+      "capability_id": "datanet.fetch_verify",
+      "objective": "Fetch one public DataNet object, verify its integrity, and return bounded deterministic result and receipt files.",
+      "input_refs": [
+        "datanet:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expected_outputs": [
+        "verification_result.json",
+        "verification_receipt.json"
+      ]
+    },
+    "commercial": {
+      "quote_asset": "USD",
+      "max_total": "0.01",
+      "payment_required_before_execution": true
+    },
+    "execution_limits": {
+      "max_runtime_seconds": 180,
+      "max_output_bytes": 262144,
+      "external_side_effects_allowed": false,
+      "wallet_access_allowed": false,
+      "money_movement_allowed": false
+    },
+    "nonce": "fresh-direct-work-order-example-20350101-0001"
+  },
+  "quote_plan": {
+    "marker": "VOID_AGENT_PAID_WORK_QUOTE_ENVELOPE_V1",
+    "version": 1,
+    "created_at_utc": "2035-01-01T00:05:00Z",
+    "expires_at_utc": "2035-01-01T18:00:00Z",
+    "provider": {
+      "provider_id": "void.provider.datanet.verify.example",
+      "capability_id": "datanet.fetch_verify"
+    },
+    "commercial": {
+      "quote_asset": "USD",
+      "total": "0.01",
+      "payment_rail_id": "void.external.prepaid.v1"
+    },
+    "execution_commitment": {
+      "max_runtime_seconds": 120,
+      "max_output_bytes": 131072,
+      "output_labels": [
+        "verification_result.json",
+        "verification_receipt.json"
+      ],
+      "external_side_effects_allowed": false,
+      "wallet_access_allowed": false,
+      "money_movement_allowed": false
+    },
+    "terms": {
+      "separate_acceptance_required": true,
+      "payment_required_before_execution": true,
+      "quote_grants_no_execution_authority": true,
+      "provider_authentication_required": true,
+      "quote_is_not_payment_instruction": true
+    },
+    "nonce": "fresh-direct-quote-example-20350101-0001"
+  },
+  "acceptance_plan": {
+    "created_at_utc": "2035-01-01T00:10:00Z",
+    "expires_at_utc": "2035-01-01T17:00:00Z",
+    "nonce": "fresh-direct-acceptance-example-20350101-0001"
+  },
+  "payment_authority_plan": {
+    "created_at_utc": "2035-01-01T00:15:00Z",
+    "expires_at_utc": "2035-01-01T16:00:00Z",
+    "max_fee_total": "0",
+    "nonce": "fresh-direct-payment-intent-example-20350101-0001"
+  },
+  "provider_key_binding_plan": {
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc=\n-----END PUBLIC KEY-----\n",
+    "valid_from_utc": "2034-12-31T00:00:00Z",
+    "expires_at_utc": "2035-02-01T00:00:00Z",
+    "revoked_at_utc": null,
+    "binding_nonce": "fresh-provider-binding-example-20350101-0001"
+  },
+  "requester_key_binding_plan": {
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAoJql9HpnWYAv+VX43C0qFKXJnSO+l/hkEn/5ODRVpPA=\n-----END PUBLIC KEY-----\n",
+    "valid_from_utc": "2034-12-31T00:00:00Z",
+    "expires_at_utc": "2035-02-01T00:00:00Z",
+    "revoked_at_utc": null,
+    "binding_nonce": "fresh-requester-binding-example-20350101-0001"
+  },
+  "provider_authentication_plan": {
+    "created_at_utc": "2035-01-01T00:16:00Z",
+    "expires_at_utc": "2035-01-01T12:00:00Z",
+    "authentication_nonce": "fresh-provider-auth-example-20350101-0001"
+  },
+  "requester_authentication_plan": {
+    "created_at_utc": "2035-01-01T00:17:00Z",
+    "expires_at_utc": "2035-01-01T11:00:00Z",
+    "authentication_nonce": "fresh-requester-auth-example-20350101-0001"
+  },
+  "lineage_guard": {
+    "retired_quote_ids": [
+      "voidawq1_c262368c3c51819ff7b8b831d9ec0cfddbf4ccadfba9cdaffbcd16cf361ce86a"
+    ],
+    "forbidden_identifiers": [
+      "dafd847bee1e771d868b1ed96a75392749e4107e4303ab7ff32e746a3b6b8fd4",
+      "void-first-live-paid-work-canonical-pair-v1-20260802T143340Z-fcd0636bb98f-submission"
+    ],
+    "require_new_quote": true,
+    "forbid_public_service_submission_id_synthesis": true,
+    "forbid_protected_lineage_reuse": true
+  },
+  "controls": {
+    "prepare_only": true,
+    "public_keys_only": true,
+    "private_key_input_forbidden": true,
+    "external_provider_signature_required": true,
+    "external_requester_signature_required": true,
+    "atomic_persistence_not_requested": true,
+    "activation_not_requested": true,
+    "payment_execution_not_requested": true,
+    "work_dispatch_not_requested": true
+  },
+  "packet_nonce": "fresh-direct-preparation-example-20350101-0001"
+}

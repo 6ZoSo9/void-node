@@ -1,0 +1,47 @@
+name: authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.yml"
+      - "docs/operations/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.md"
+      - "examples/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.example.json"
+      - "schemas/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.schema.json"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts"
+      - "scripts/prove_authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Parse closed JSON artifacts
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' \
+            examples/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.example.json
+          node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' \
+            schemas/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.schema.json
+
+      - name: Run adversarial preparation proof
+        run: |
+          npx tsx \
+            scripts/prove_authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts
