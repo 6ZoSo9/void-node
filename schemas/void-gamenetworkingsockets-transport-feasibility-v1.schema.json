@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-gamenetworkingsockets-transport-feasibility-v1.schema.json",
+  "title": "VOID GameNetworkingSockets Transport Feasibility V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "upstream",
+    "current_void_transport",
+    "proposed_phase",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_GAMENETWORKINGSOCKETS_TRANSPORT_FEASIBILITY_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "candidate_tag",
+        "license",
+        "steam_client_required",
+        "steamworks_partner_required",
+        "steam_datagram_relay_required",
+        "steam_authentication_required",
+        "native_ice_status",
+        "turn_relay_assumed",
+        "custom_signaling_required_for_unknown_ip_p2p"
+      ],
+      "properties": {
+        "repository": {
+          "const": "ValveSoftware/GameNetworkingSockets"
+        },
+        "candidate_tag": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "license": {
+          "const": "BSD-3-Clause"
+        },
+        "steam_client_required": {
+          "const": false
+        },
+        "steamworks_partner_required": {
+          "const": false
+        },
+        "steam_datagram_relay_required": {
+          "const": false
+        },
+        "steam_authentication_required": {
+          "const": false
+        },
+        "native_ice_status": {
+          "enum": [
+            "beta",
+            "not_evaluated"
+          ]
+        },
+        "turn_relay_assumed": {
+          "const": false
+        },
+        "custom_signaling_required_for_unknown_ip_p2p": {
+          "const": true
+        }
+      }
+    },
+    "current_void_transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_path",
+        "implementation",
+        "frame_prefix_bytes",
+        "max_message_bytes",
+        "message_types",
+        "signed_pub_messages_required",
+        "authenticated_edge_walls_preserved",
+        "signed_trust_policy_preserved",
+        "activation_lease_preserved"
+      ],
+      "properties": {
+        "source_path": {
+          "const": "src/node_core.ts"
+        },
+        "implementation": {
+          "const": "node_net_tcp"
+        },
+        "frame_prefix_bytes": {
+          "const": 4
+        },
+        "max_message_bytes": {
+          "const": 65536
+        },
+        "message_types": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "HELLO" },
+            { "const": "PEERS" },
+            { "const": "PUB" },
+            { "const": "SUB" }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "signed_pub_messages_required": {
+          "const": true
+        },
+        "authenticated_edge_walls_preserved": {
+          "const": true
+        },
+        "signed_trust_policy_preserved": {
+          "const": true
+        },
+        "activation_lease_preserved": {
+          "const": true
+        }
+      }
+    },
+    "proposed_phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "default_enabled",
+        "replace_current_transport",
+        "consensus_dependency",
+        "node_identity_dependency",
+        "existing_message_signatures_required",
+        "existing_wire_messages_preserved",
+        "steam_service_dependency",
+        "automatic_package_install",
+        "automatic_source_download",
+        "production_activation_requested",
+        "benchmark_profiles"
+      ],
+      "properties": {
+        "mode": {
+          "const": "optional_loopback_sidecar_benchmark"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "replace_current_transport": {
+          "const": false
+        },
+        "consensus_dependency": {
+          "const": false
+        },
+        "node_identity_dependency": {
+          "const": false
+        },
+        "existing_message_signatures_required": {
+          "const": true
+        },
+        "existing_wire_messages_preserved": {
+          "const": true
+        },
+        "steam_service_dependency": {
+          "const": false
+        },
+        "automatic_package_install": {
+          "const": false
+        },
+        "automatic_source_download": {
+          "const": false
+        },
+        "production_activation_requested": {
+          "const": false
+        },
+        "benchmark_profiles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "minItems": 4,
+          "maxItems": 8,
+          "uniqueItems": true
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consensus_change",
+        "node_identity_change",
+        "trust_policy_change",
+        "key_or_credential_access",
+        "steam_api_key_access",
+        "steam_operator_token_access",
+        "network_listener_start",
+        "external_connection",
+        "package_install",
+        "source_download",
+        "service_restart",
+        "deployment",
+        "wallet_or_signer_access",
+        "work_credit_write",
+        "payment_execution",
+        "money_movement"
+      ],
+      "properties": {
+        "consensus_change": { "const": false },
+        "node_identity_change": { "const": false },
+        "trust_policy_change": { "const": false },
+        "key_or_credential_access": { "const": false },
+        "steam_api_key_access": { "const": false },
+        "steam_operator_token_access": { "const": false },
+        "network_listener_start": { "const": false },
+        "external_connection": { "const": false },
+        "package_install": { "const": false },
+        "source_download": { "const": false },
+        "service_restart": { "const": false },
+        "deployment": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "work_credit_write": { "const": false },
+        "payment_execution": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  }
+}
