@@ -259,7 +259,10 @@ expectReject("requester signed by provider key", () =>
 );
 
 const tamperedFinal = clone(finalPacket);
-tamperedFinal.packet_id = `${tamperedFinal.packet_id.slice(0, -1)}0`;
+const originalLastCharacter = tamperedFinal.packet_id.at(-1);
+tamperedFinal.packet_id = `${tamperedFinal.packet_id.slice(0, -1)}${
+  originalLastCharacter === "0" ? "1" : "0"
+}`;
 expectReject("tampered final packet", () =>
   verifyAuthenticatedPaidWorkFreshDirectQuoteSigningHandoffFinalV1(
     input,
