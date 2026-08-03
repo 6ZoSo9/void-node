@@ -1,0 +1,57 @@
+name: Authenticated paid-work fresh direct quote signing handoff v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-fresh-direct-quote-signing-handoff-v1.yml"
+      - "docs/operations/authenticated-paid-work-fresh-direct-quote-signing-handoff-v1.md"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts"
+      - "scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts"
+      - "scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts"
+      - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
+      - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "examples/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.example.json"
+      - "schemas/authenticated-paid-work-fresh-direct-quote-authentication-preparation-v1.schema.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-fresh-direct-quote-signing-handoff-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Focused TypeScript check
+        run: |
+          npx tsc --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --strict \
+            --skipLibCheck \
+            scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+            scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+            scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts
+      - name: Prove canonical fresh direct quote CLI wrapper
+        run: |
+          npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts
+      - name: Prove descriptor-pinned JSON input reads
+        run: |
+          npx tsx scripts/prove_authenticated_paid_work_fresh_direct_quote_file_io_hardening_v1.ts

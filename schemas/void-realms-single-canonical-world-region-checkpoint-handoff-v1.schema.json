@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-realms-single-canonical-world-region-checkpoint-handoff-v1.schema.json",
+  "title": "VOID Realms Single Canonical World Region Checkpoint and Handoff V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "world_name",
+    "single_world_identity",
+    "space_id",
+    "genesis_seed_sha256",
+    "chunk_size_nodes",
+    "region_size_chunks",
+    "minimum_y",
+    "maximum_y",
+    "checkpoint_interval_ticks",
+    "handoff_ttl_seconds",
+    "player_nodes_may_serve_public_objects",
+    "player_nodes_have_gameplay_authority",
+    "region_servers_replaceable",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_REALMS_SINGLE_CANONICAL_WORLD_FOUNDATION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "world_name": {
+      "const": "VOID Realms"
+    },
+    "single_world_identity": {
+      "const": true
+    },
+    "space_id": {
+      "const": "surface"
+    },
+    "genesis_seed_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "chunk_size_nodes": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 64
+    },
+    "region_size_chunks": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 256
+    },
+    "minimum_y": {
+      "type": "integer",
+      "minimum": -4096,
+      "maximum": 0
+    },
+    "maximum_y": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "checkpoint_interval_ticks": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 72000
+    },
+    "handoff_ttl_seconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 120
+    },
+    "player_nodes_may_serve_public_objects": {
+      "const": true
+    },
+    "player_nodes_have_gameplay_authority": {
+      "const": false
+    },
+    "region_servers_replaceable": {
+      "const": true
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "world_creation",
+        "region_assignment",
+        "checkpoint_signing",
+        "handoff_acceptance",
+        "gameplay_state_commit",
+        "network_listener_start",
+        "external_connection",
+        "server_start",
+        "deployment",
+        "work_credit_write",
+        "wallet_or_signer_access",
+        "payment_execution",
+        "money_movement"
+      ],
+      "properties": {
+        "world_creation": { "const": false },
+        "region_assignment": { "const": false },
+        "checkpoint_signing": { "const": false },
+        "handoff_acceptance": { "const": false },
+        "gameplay_state_commit": { "const": false },
+        "network_listener_start": { "const": false },
+        "external_connection": { "const": false },
+        "server_start": { "const": false },
+        "deployment": { "const": false },
+        "work_credit_write": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "payment_execution": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  }
+}
