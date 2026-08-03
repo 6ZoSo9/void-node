@@ -1,0 +1,79 @@
+{
+  "schema": "void-self-capital-round-trip-paper-input-v1",
+  "strategy_id": "arbitrum-base-usdc-inventory-neutral-round-trip-v1",
+  "observed_at": "2026-08-03T18:30:03.000Z",
+  "evaluated_at": "2026-08-03T18:30:04.000Z",
+  "starting_asset": {
+    "chain_id": 42161,
+    "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    "symbol": "USDC",
+    "decimals": 6
+  },
+  "starting_amount": "100000000",
+  "starting_value_usd": "100.000000",
+  "forward_quote": {
+    "provider": "paper-provider-a",
+    "quote_id": "forward-quote-v1",
+    "observed_at": "2026-08-03T18:30:00.000Z",
+    "quote_expiry_timestamp": 1893456000,
+    "input_asset": {
+      "chain_id": 42161,
+      "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      "symbol": "USDC",
+      "decimals": 6
+    },
+    "output_asset": {
+      "chain_id": 8453,
+      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "symbol": "USDC",
+      "decimals": 6
+    },
+    "input_amount": "100000000",
+    "expected_output_amount": "100500000",
+    "minimum_output_amount": "100500000",
+    "expected_output_value_usd": "100.500000",
+    "minimum_output_value_usd": "100.500000",
+    "expected_fill_time_seconds": 1,
+    "quoted_output_includes_provider_fees": true,
+    "quoted_output_includes_price_impact": true,
+    "app_fee_usd": "0.000000",
+    "gas_usd": "0.010000"
+  },
+  "return_quote": {
+    "provider": "paper-provider-b",
+    "quote_id": "return-quote-v1",
+    "observed_at": "2026-08-03T18:30:03.000Z",
+    "quote_expiry_timestamp": 1893456000,
+    "input_asset": {
+      "chain_id": 8453,
+      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "symbol": "USDC",
+      "decimals": 6
+    },
+    "output_asset": {
+      "chain_id": 42161,
+      "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      "symbol": "USDC",
+      "decimals": 6
+    },
+    "input_amount": "100500000",
+    "expected_output_amount": "100400000",
+    "minimum_output_amount": "100200000",
+    "expected_output_value_usd": "100.400000",
+    "minimum_output_value_usd": "100.200000",
+    "expected_fill_time_seconds": 1,
+    "quoted_output_includes_provider_fees": true,
+    "quoted_output_includes_price_impact": true,
+    "app_fee_usd": "0.000000",
+    "gas_usd": "0.010000"
+  },
+  "cost_policy": {
+    "capital_at_risk_usd": "100.000000",
+    "capital_lock_seconds": 3600,
+    "annual_capital_cost_bps": 800,
+    "risk_reserve_bps": 5,
+    "failure_reserve_usd": "0.020000",
+    "safety_buffer_usd": "0.050000",
+    "maximum_quote_skew_seconds": 5
+  }
+}
