@@ -23,6 +23,7 @@ assert(stat.size >= 4_000, "AGENTS.md is unexpectedly small");
 assert(stat.size <= 20_000, "AGENTS.md is unexpectedly large");
 
 const source = fs.readFileSync(agreementPath, "utf8");
+const normalized = source.replace(/\s+/g, " ").trim();
 assert(source.startsWith("# VOID repository working agreement for AI agents\n"), "title mismatch");
 assert(source.endsWith("\n"), "AGENTS.md must end with a newline");
 assert(!source.includes("\r"), "AGENTS.md must use LF line endings");
@@ -69,7 +70,8 @@ const requiredSnippets = [
 ];
 
 for (const snippet of requiredSnippets) {
-  assert(source.includes(snippet), `required contract missing: ${snippet}`);
+  const normalizedSnippet = snippet.replace(/\s+/g, " ").trim();
+  assert(normalized.includes(normalizedSnippet), `required contract missing: ${snippet}`);
 }
 
 const explicitDeniedAuthorities = [
@@ -81,7 +83,7 @@ const explicitDeniedAuthorities = [
   "bypass a fresh operation-bound confirmation",
 ];
 for (const boundary of explicitDeniedAuthorities) {
-  assert(source.includes(boundary), `authority boundary missing: ${boundary}`);
+  assert(normalized.includes(boundary), `authority boundary missing: ${boundary}`);
 }
 
 const forbiddenClaims = [
@@ -93,7 +95,7 @@ const forbiddenClaims = [
   /runtime is live when merged/i,
 ];
 for (const pattern of forbiddenClaims) {
-  assert(!pattern.test(source), `forbidden claim matched: ${pattern}`);
+  assert(!pattern.test(normalized), `forbidden claim matched: ${pattern}`);
 }
 
 const lines = source.split("\n");
