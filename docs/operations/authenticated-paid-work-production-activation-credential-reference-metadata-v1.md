@@ -1,136 +1,67 @@
 # Authenticated paid-work production activation credential reference metadata v1
 
-This lane defines and semantically proves the non-secret
-`credential_reference_metadata` required by the authenticated paid-work
-production activation-readiness HOLD decision.
+This record explicitly replaces the expired credential reference with the
+separately issued fresh credential while preserving the fail-closed runtime
+boundary.
 
-It creates one source-controlled reference record. It does not read the
-operator-owned credential registry or bearer credential, disclose either
-private path, embed a raw credential or token digest, invoke a credential
-provider, or materialize an Authorization header.
+## Fresh credential reference
 
-## Canonical source record
-
-The source record is:
-
-`config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json`
-
-It uses the existing `credential_registry` reference contract from:
-
-`scripts/external_agent_paid_work_authenticated_submission_activation_prerequisite_v1.ts`
-
-The bound credential reference contains only opaque identity and fingerprint
-metadata:
-
-- registry ID: `voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415`;
-- reviewed registry snapshot SHA-256: `e2d6a292ef506f9fd4616b36feb9767929a184f6e35e18e3ff1378ec5983d852`;
-- registry credential count: `6`;
-- credential ID and reference ID: `voidapwc1_4930d236de11a88f7d856c6b6396bc5139095ef9eaa5aabdc6490a041903a426`;
-- agent ID: `void-external-agent-e2e-fulfillment-canary-agent-v1`;
-- expected scope: `agent_paid_work_submit`;
+- credential/reference ID: `voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1`
+- agent ID: `void-external-agent-e2e-fulfillment-canary-agent-v1`
+- scope: `agent_paid_work_submit`
+- registry ID: `voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5`
+- registry SHA-256: `5eda9121fbf72bac5d28289b41314f30a6164b50f636aed0f1198bde7d769cb9`
+- registry credential count: `8`
 - normalized private token-path fingerprint SHA-256:
-  `b5a7679f1189583f4cccc01ac58c5ca1de8334b86870639df2faf58626306f16`;
-- observed not-before time: `2026-08-01T17:11:15Z`;
-- observed expiration time: `2026-08-02T17:11:15Z`.
+  `7e350b1c58a25d41317953fce4958eb07ca33810b6546e2021cebd110400d454`
+- not before: `2026-08-03T15:02:30Z`
+- expires: `2026-08-05T00:00:00Z`
+- validity duration: `118650` seconds
+- sanitized credential response: `voidapwcires1_e5324ce89c4d7a20322c7804eec86706d24458c4981d8465a56132db1c62cdf0`
 
-The normalized private token path and registry path are intentionally absent
-from Git. The raw bearer credential and its digest are also absent.
+No raw token, token digest, private path, Authorization header, or private key
+is embedded in source.
 
-## Reconciled service-unit design
+## Active Work Credit binding
 
-Current `main` also contains the separately reviewed source-only service-unit
-design:
+- binding ID: `voidapwcb1_77b02c3c54223062915d1d6b4d9ee0464c575899c164c52502391fff492abf56`
+- binding registry ID: `voidapwcbr1_f27a463089e3d00154963b699e39085e9ea08ce321f257270f4e5aa5be0925c2`
+- binding registry SHA-256: `e620f323b8b00fe0bdd5dcbdbed945c4166bf0cf904ed07af1f5ac6be1fccbaa`
+- destination WC account: `void-external-agent-e2e-fulfillment-canary-v1`
+- review decision ID: `voidapwcird1_11a2eea2b2831d3c72aa37f1a72a4799a7b02a7d8056b7a24d08eca8b08f688a`
+- issuance preparation ID: `voidapwcip1_9b02794b68fbc4a25b816fa95cab022bdc5c35039109b0095d99553832cd28e6`
+- valid from: `2026-08-03T15:02:30.000Z`
+- valid until: `2026-08-05T00:00:00.000Z`
 
-- artifact: `ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json`;
-- artifact SHA-256: `f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07`;
-- marker: `VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1`;
-- proof: `scripts/prove_authenticated_paid_work_production_activation_service_unit_design_v1.mjs`.
+The binding is active and unique for both the credential and destination. It
+does not authorize payment, WC ledger mutation, settlement, wallet access, or
+fund movement.
 
-That artifact closes `service_unit_design` while materializing no unit, installing
-no unit, reloading no systemd manager, and starting no service. This
-credential-reference lane therefore reconciles both parallel source blockers
-without broadening either lane's authority.
+## Receiver honesty boundary
 
+The active receiver is classified as `RECEIVER_ACTIVE_STALE_REGISTRY`. It has
+not loaded the reviewed target registry. The source metadata therefore records:
 
-## Observed evidence
+- receiver loaded target registry: `false`
+- receiver restart required: `true`
+- receiver configuration revalidation required: `true`
+- live authentication observed: `false`
+- live HTTP status: `null`
 
-The source record binds the operator-owned credential lifecycle receipt by
-SHA-256:
+Receiver reconfiguration or restart remains a separate operator-confirmed
+operation. This source patch performs neither.
 
-`5cdcff499a6dbbbe3ac3f897d1625812177f42f341d5d56fa4d186f93d151e11`
+## Rotation and readiness
 
-It also records that the receiver loaded registry `voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415` with six
-credentials and that the bound credential successfully authenticated one
-HTTP `202` paid-work intake:
+The prior record referenced expired credential `voidapwc1_4930d236de11a88f7d856c6b6396bc5139095ef9eaa5aabdc6490a041903a426` and
+obsolete registry `voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415` with SHA-256
+`e2d6a292ef506f9fd4616b36feb9767929a184f6e35e18e3ff1378ec5983d852`. That lineage remains in Git history.
 
-- receipt ID: `voidawsi1_e5b27649672c70d3463fc371768b1d37e7a6ea578a7ddade123f5cb55febf7bd`;
-- work-order ID: `voidawo1_46c6e6510b7d11e698fdc8bca56cc3cf9c33844588a2ea73c58de55216ec2fe0`;
-- canonical request SHA-256: `06fe4e782076679fe5b05821bc5f0fdae46be7ea2c2d731321967c636f8e3432`.
+This record satisfies only `credential_reference_metadata`. Readiness remains
+**HOLD**. Bounded replay snapshot, activation-execution confirmation, live-canary
+scope, execution-packet refresh, and a separate receiver decision still remain.
 
-These values are provenance metadata, not execution authority. That observed
-intake did not itself prove or authorize payment execution, work dispatch,
-Work Credit mutation, wallet or signer access, settlement, or fund movement.
-
-## Validity and rotation boundary
-
-The observed credential window is exactly 24 hours and ends at
-`2026-08-02T17:11:15Z`. Publication does not extend that lifetime and the repository proof
-does not compare the current clock with the window.
-
-A separately confirmed activation-execution lane must privately revalidate all
-of the following immediately before any credential use:
-
-1. the normalized private source path hashes to the reviewed source-locator
-   fingerprint;
-2. the private registry bytes hash to the reviewed registry snapshot;
-3. the registry ID, credential ID, and agent ID are exact;
-4. the credential has scope `agent_paid_work_submit`;
-5. the current time is within the credential validity window;
-6. the credential is not revoked or superseded;
-7. the receiver has loaded the exact reviewed registry state.
-
-An expired, revoked, missing, rotated, or drifted reference fails closed.
-Replacement requires separately reviewed source metadata; this record cannot
-silently follow a new credential.
-
-## Existing registry contract
-
-The metadata binds these merged source contracts:
-
-- `scripts/agent_paid_work_credential_registry_v1.ts`;
-- `schemas/agent-paid-work-credential-registry-v1.schema.json`;
-- `scripts/agent_paid_work_submission_receiver_v1.ts`;
-- `scripts/external_agent_paid_work_authenticated_submission_activation_prerequisite_v1.ts`;
-- `schemas/external-agent-paid-work-authenticated-submission-activation-prerequisite-v1.schema.json`.
-
-The registry contract stores SHA-256 credential digests rather than raw bearer
-credentials. Registry authentication uses
-`VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE`; the legacy
-`VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE` remains a compatibility fallback.
-When the registry is configured, registry authentication takes precedence.
-
-## Readiness effect
-
-This record closes only `credential_reference_metadata`.
-
-Six source requirements are then known satisfied:
-
-1. activation configuration schema;
-2. activation configuration instance;
-3. rollback plan;
-4. trusted-context reference metadata;
-5. service unit design;
-6. credential reference metadata.
-
-Three requirements remain:
-
-1. bounded replay snapshot;
-2. activation-execution confirmation;
-3. live-canary scope.
-
-Readiness remains **HOLD**. Publication does not authorize activation.
-
-## Proof
+## Proof and authority
 
 Run:
 
@@ -139,22 +70,6 @@ node --check scripts/prove_authenticated_paid_work_production_activation_credent
 node scripts/prove_authenticated_paid_work_production_activation_credential_reference_metadata_v1.mjs
 ```
 
-The proof validates the closed schema and exact metadata digest, binds the
-merged credential-reference, credential-registry, and service-unit-design
-contracts, rejects private
-path and credential leakage, verifies the observed identity and validity
-metadata, and proves the complete non-activation authority boundary.
-
-The proof reads only tracked repository files. It does not open the private
-registry or credential and does not prove current runtime freshness.
-
-## Authority boundary
-
-This lane does not read a registry, credential, or token; invoke a credential
-provider; materialize an Authorization header; write installed configuration;
-deploy; install or restart a service; create a listener; mount a runtime; accept
-a quote; authorize or execute payment; construct or broadcast a transaction;
-dispatch work; issue a live ticket; write Work Credits; access a wallet or
-signer; sign; settle VOID; or move funds.
-
-A separate operator-confirmed activation-execution lane remains required.
+The proof validates the exact closed schema, fresh credential and binding,
+stale receiver observation, absence of private material, and complete
+no-activation authority boundary.

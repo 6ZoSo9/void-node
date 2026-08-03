@@ -31,16 +31,32 @@ const SERVICE_UNIT_ARTIFACT_RELATIVE_PATH =
 const SERVICE_UNIT_PROOF_RELATIVE_PATH =
   "scripts/prove_authenticated_paid_work_production_activation_service_unit_design_v1.mjs";
 
-const EXPECTED_METADATA_SHA256 = "eac53cc5a7fd9cbb48271a86c475866cf720f6600f3c9342f2f142ee95d5d89c";
-const EXPECTED_REGISTRY_ID = "voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415";
-const EXPECTED_REGISTRY_SHA256 = "e2d6a292ef506f9fd4616b36feb9767929a184f6e35e18e3ff1378ec5983d852";
-const EXPECTED_CREDENTIAL_ID = "voidapwc1_4930d236de11a88f7d856c6b6396bc5139095ef9eaa5aabdc6490a041903a426";
+const EXPECTED_METADATA_SHA256 = "e95e37e34705ae722c979014f567355742ec684917f39ad2543bb6852ae8d742";
+const EXPECTED_REGISTRY_ID = "voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5";
+const EXPECTED_REGISTRY_SHA256 = "5eda9121fbf72bac5d28289b41314f30a6164b50f636aed0f1198bde7d769cb9";
+const EXPECTED_CREDENTIAL_COUNT = 8;
+const EXPECTED_CREDENTIAL_ID = "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1";
 const EXPECTED_AGENT_ID = "void-external-agent-e2e-fulfillment-canary-agent-v1";
-const EXPECTED_SOURCE_LOCATOR_SHA256 = "b5a7679f1189583f4cccc01ac58c5ca1de8334b86870639df2faf58626306f16";
-const EXPECTED_LIFECYCLE_RECEIPT_SHA256 = "5cdcff499a6dbbbe3ac3f897d1625812177f42f341d5d56fa4d186f93d151e11";
+const EXPECTED_SOURCE_LOCATOR_SHA256 = "7e350b1c58a25d41317953fce4958eb07ca33810b6546e2021cebd110400d454";
 const EXPECTED_SCOPE = "agent_paid_work_submit";
-const EXPECTED_NOT_BEFORE_UTC = "2026-08-01T17:11:15Z";
-const EXPECTED_EXPIRES_AT_UTC = "2026-08-02T17:11:15Z";
+const EXPECTED_NOT_BEFORE_UTC = "2026-08-03T15:02:30Z";
+const EXPECTED_EXPIRES_AT_UTC = "2026-08-05T00:00:00Z";
+const EXPECTED_VALIDITY_SECONDS = 118650;
+const EXPECTED_RECONCILIATION_PLAN_ID = "voidapwcrm1_8b520ee91ea465994e8663a5f3c679ff7afaf6920e4cee9eb998bc8173a03413";
+const EXPECTED_RECONCILIATION_PLAN_SHA256 = "66332ff53263714020f9a3b81bb0b78e4227c235377c35f19f323a8765095ad3";
+const EXPECTED_RESPONSE_ID = "voidapwcires1_e5324ce89c4d7a20322c7804eec86706d24458c4981d8465a56132db1c62cdf0";
+const EXPECTED_RESPONSE_SHA256 = "2556b832542d9320508e0b17727a1518633a854d06204da1338ac624880b62e0";
+const EXPECTED_BINDING_ID = "voidapwcb1_77b02c3c54223062915d1d6b4d9ee0464c575899c164c52502391fff492abf56";
+const EXPECTED_BINDING_REGISTRY_ID = "voidapwcbr1_f27a463089e3d00154963b699e39085e9ea08ce321f257270f4e5aa5be0925c2";
+const EXPECTED_BINDING_REGISTRY_SHA256 = "e620f323b8b00fe0bdd5dcbdbed945c4166bf0cf904ed07af1f5ac6be1fccbaa";
+const EXPECTED_BINDING_DESTINATION = "void-external-agent-e2e-fulfillment-canary-v1";
+const EXPECTED_BINDING_REVIEW_DECISION_ID = "voidapwcird1_11a2eea2b2831d3c72aa37f1a72a4799a7b02a7d8056b7a24d08eca8b08f688a";
+const EXPECTED_BINDING_ISSUANCE_PREPARATION_ID = "voidapwcip1_9b02794b68fbc4a25b816fa95cab022bdc5c35039109b0095d99553832cd28e6";
+const EXPECTED_BINDING_VALID_FROM = "2026-08-03T15:02:30.000Z";
+const EXPECTED_BINDING_VALID_UNTIL = "2026-08-05T00:00:00.000Z";
+const EXPECTED_RECEIVER_CLASSIFICATION = "RECEIVER_ACTIVE_STALE_REGISTRY";
+const EXPECTED_RECEIVER_LOADED_REGISTRY_ID = "voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415";
+const EXPECTED_RECEIVER_LOADED_CREDENTIAL_COUNT = 6;
 const EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256 = "f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07";
 const EXPECTED_SERVICE_UNIT_MARKER = "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1";
 
@@ -146,15 +162,16 @@ assert.equal(reference.agent_id, EXPECTED_AGENT_ID);
 assert.equal(reference.not_before_utc, EXPECTED_NOT_BEFORE_UTC);
 assert.equal(reference.expires_at_utc, EXPECTED_EXPIRES_AT_UTC);
 assert.equal(
-  Date.parse(reference.expires_at_utc) - Date.parse(reference.not_before_utc),
-  24 * 60 * 60 * 1000,
+  (Date.parse(reference.expires_at_utc)
+    - Date.parse(reference.not_before_utc)) / 1000,
+  EXPECTED_VALIDITY_SECONDS,
 );
 
 const snapshot = metadata.registry_snapshot;
 assert.equal(snapshot.registry_contract_marker, "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1");
 assert.equal(snapshot.registry_contract_version, 1);
 assert.equal(snapshot.registry_sha256, EXPECTED_REGISTRY_SHA256);
-assert.equal(snapshot.credential_count, 6);
+assert.equal(snapshot.credential_count, EXPECTED_CREDENTIAL_COUNT);
 assert.equal(snapshot.registry_environment_variable, "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE");
 assert.equal(snapshot.fallback_environment_variable, "VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE");
 assert.equal(snapshot.raw_token_embedded_in_source, false);
@@ -163,13 +180,30 @@ assert.equal(snapshot.private_registry_path_disclosed_in_source, false);
 assert.equal(snapshot.private_token_path_disclosed_in_source, false);
 
 const evidence = metadata.evidence_binding;
-assert.equal(evidence.credential_lifecycle_receipt_sha256, EXPECTED_LIFECYCLE_RECEIPT_SHA256);
+assert.equal(evidence.metadata_reconciliation_plan_id, EXPECTED_RECONCILIATION_PLAN_ID);
+assert.equal(evidence.metadata_reconciliation_plan_sha256, EXPECTED_RECONCILIATION_PLAN_SHA256);
+assert.equal(evidence.credential_response_id, EXPECTED_RESPONSE_ID);
+assert.equal(evidence.credential_response_sha256, EXPECTED_RESPONSE_SHA256);
+assert.equal(evidence.binding_id, EXPECTED_BINDING_ID);
+assert.equal(evidence.binding_registry_id, EXPECTED_BINDING_REGISTRY_ID);
+assert.equal(evidence.binding_registry_sha256, EXPECTED_BINDING_REGISTRY_SHA256);
+assert.equal(evidence.binding_destination_wc_account, EXPECTED_BINDING_DESTINATION);
+assert.equal(evidence.binding_review_decision_id, EXPECTED_BINDING_REVIEW_DECISION_ID);
+assert.equal(evidence.binding_issuance_preparation_id, EXPECTED_BINDING_ISSUANCE_PREPARATION_ID);
+assert.equal(evidence.binding_valid_from, EXPECTED_BINDING_VALID_FROM);
+assert.equal(evidence.binding_valid_until, EXPECTED_BINDING_VALID_UNTIL);
+assert.equal(evidence.binding_active, true);
+assert.equal(evidence.binding_unique_for_credential, true);
+assert.equal(evidence.binding_unique_for_destination, true);
 assert.equal(evidence.source_locator_is_normalized_private_token_path_sha256, true);
-assert.equal(evidence.receiver_loaded_registry_id, EXPECTED_REGISTRY_ID);
-assert.equal(evidence.receiver_loaded_credential_count, 6);
-assert.equal(evidence.receiver_loaded_target_registry, true);
-assert.equal(evidence.live_authentication_observed, true);
-assert.equal(evidence.live_http_status, 202);
+assert.equal(evidence.receiver_classification, EXPECTED_RECEIVER_CLASSIFICATION);
+assert.equal(evidence.receiver_loaded_registry_id, EXPECTED_RECEIVER_LOADED_REGISTRY_ID);
+assert.equal(evidence.receiver_loaded_credential_count, EXPECTED_RECEIVER_LOADED_CREDENTIAL_COUNT);
+assert.equal(evidence.receiver_loaded_target_registry, false);
+assert.equal(evidence.receiver_restart_required, true);
+assert.equal(evidence.receiver_configuration_revalidation_required, true);
+assert.equal(evidence.live_authentication_observed, false);
+assert.equal(evidence.live_http_status, null);
 for (const key of [
   "payment_execution_observed",
   "work_dispatch_observed",
@@ -177,7 +211,7 @@ for (const key of [
   "wallet_or_signer_access_observed",
   "fund_movement_observed",
 ]) {
-  assert.equal(evidence[key], false, `evidence authority must remain false: ${key}`);
+  assert.equal(evidence[key], false, `evidence authority false: ${key}`);
 }
 
 for (const [key, value] of Object.entries(metadata.revalidation)) {
@@ -288,7 +322,7 @@ console.log(`metadata_path=${METADATA_RELATIVE_PATH}`);
 console.log(`metadata_sha256=${EXPECTED_METADATA_SHA256}`);
 console.log(`registry_id=${EXPECTED_REGISTRY_ID}`);
 console.log(`registry_snapshot_sha256=${EXPECTED_REGISTRY_SHA256}`);
-console.log("registry_credential_count=6");
+console.log(`registry_credential_count=${EXPECTED_CREDENTIAL_COUNT}`);
 console.log(`credential_reference_id=${EXPECTED_CREDENTIAL_ID}`);
 console.log(`credential_id=${EXPECTED_CREDENTIAL_ID}`);
 console.log(`agent_id=${EXPECTED_AGENT_ID}`);
@@ -296,36 +330,24 @@ console.log(`expected_scope=${EXPECTED_SCOPE}`);
 console.log(`source_locator_sha256=${EXPECTED_SOURCE_LOCATOR_SHA256}`);
 console.log(`observed_not_before_utc=${EXPECTED_NOT_BEFORE_UTC}`);
 console.log(`observed_expires_at_utc=${EXPECTED_EXPIRES_AT_UTC}`);
-console.log("observed_validity_window_seconds=86400");
+console.log(`observed_validity_window_seconds=${EXPECTED_VALIDITY_SECONDS}`);
+console.log(`metadata_reconciliation_plan_id=${EXPECTED_RECONCILIATION_PLAN_ID}`);
+console.log(`credential_response_id=${EXPECTED_RESPONSE_ID}`);
+console.log(`binding_id=${EXPECTED_BINDING_ID}`);
+console.log(`binding_review_decision_id=${EXPECTED_BINDING_REVIEW_DECISION_ID}`);
+console.log(`binding_issuance_preparation_id=${EXPECTED_BINDING_ISSUANCE_PREPARATION_ID}`);
+console.log(`binding_registry_id=${EXPECTED_BINDING_REGISTRY_ID}`);
+console.log(`binding_registry_sha256=${EXPECTED_BINDING_REGISTRY_SHA256}`);
+console.log(`receiver_classification=${EXPECTED_RECEIVER_CLASSIFICATION}`);
+console.log("receiver_loaded_target_registry=false");
+console.log("receiver_restart_required=true");
+console.log("live_authentication_observed=false");
 console.log("schema_validation_exact=true");
 console.log("activation_credential_reference_contract_exact=true");
 console.log("credential_registry_contract_exact=true");
 console.log("service_unit_design_contract_exact=true");
-console.log(`service_unit_design_artifact_sha256=${EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256}`);
-console.log("service_unit_design_source_created=true");
-console.log("service_unit_design_materialized=false");
-console.log("parallel_service_unit_design_reconciled=true");
-console.log("private_registry_path_disclosed=false");
-console.log("private_token_path_disclosed=false");
-console.log("raw_token_embedded=false");
-console.log("token_digest_embedded=false");
-console.log("private_registry_read=false");
+console.log("source_metadata_reconciled_to_fresh_credential=true");
+console.log("current_runtime_freshness_proven_by_source=false");
 console.log("credential_or_token_read=false");
-console.log("credential_provider_invoked=false");
-console.log("authorization_header_materialized=false");
-console.log("source_reference_metadata_created=true");
-console.log("current_runtime_freshness_proven=false");
-console.log("expired_or_rotated_reference_fails_closed=true");
-console.log("replacement_requires_separate_reviewed_metadata=true");
+console.log("receiver_restart=false");
 console.log("activation_authorized=false");
-console.log("installed_configuration_written=false");
-console.log("deployment=false");
-console.log("service_restart=false");
-console.log("runtime_listener_created=false");
-console.log("payment_execution=false");
-console.log("work_dispatch=false");
-console.log("work_credit_write=false");
-console.log("wallet_or_signer_access=false");
-console.log("fund_movement=false");
-console.log(`remaining_activation_requirements=${REMAINING_REQUIREMENTS.length}`);
-console.log("separate_activation_execution_lane_required=true");
