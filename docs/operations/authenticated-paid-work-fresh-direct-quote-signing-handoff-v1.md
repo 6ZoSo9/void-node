@@ -1,5 +1,7 @@
 # Authenticated paid-work fresh direct quote signing handoff v1
 
+This operator-facing wrapper delegates quote and authentication materialization to the canonical preparation implementation in `scripts/authenticated_paid_work_fresh_direct_quote_authentication_preparation_v1.ts`; it does not duplicate that core.
+
 ## Purpose
 
 This lane adds a hardened operator CLI around the canonical preparation
