@@ -1,0 +1,32 @@
+{
+  "marker": "VOID_REALMS_SINGLE_CANONICAL_WORLD_FOUNDATION_V1",
+  "version": 1,
+  "world_name": "VOID Realms",
+  "single_world_identity": true,
+  "space_id": "surface",
+  "genesis_seed_sha256": "1d31c0e9c15b00debe74f7e4125413aa51d2bfd6229bf3a3e75781b6609ca3c4",
+  "chunk_size_nodes": 16,
+  "region_size_chunks": 64,
+  "minimum_y": -64,
+  "maximum_y": 1023,
+  "checkpoint_interval_ticks": 1200,
+  "handoff_ttl_seconds": 30,
+  "player_nodes_may_serve_public_objects": true,
+  "player_nodes_have_gameplay_authority": false,
+  "region_servers_replaceable": true,
+  "authority": {
+    "world_creation": false,
+    "region_assignment": false,
+    "checkpoint_signing": false,
+    "handoff_acceptance": false,
+    "gameplay_state_commit": false,
+    "network_listener_start": false,
+    "external_connection": false,
+    "server_start": false,
+    "deployment": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "payment_execution": false,
+    "money_movement": false
+  }
+}
