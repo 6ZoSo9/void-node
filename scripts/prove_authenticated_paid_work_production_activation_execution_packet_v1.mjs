@@ -10,10 +10,25 @@ const packetPath = path.join(
   repo,
   "config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json",
 );
+const credentialMetadataPath = path.join(
+  repo,
+  "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json",
+);
 const packet = JSON.parse(fs.readFileSync(packetPath, "utf8"));
+const credentialMetadata = JSON.parse(
+  fs.readFileSync(credentialMetadataPath, "utf8"),
+);
 
 const EXPECTED_REVIEWED_MAIN =
-  "32cd4883b95354ab979d12640ffd2e2ac1279e57";
+  "c9a6478a08fcbdcbeb1d6f8c2fa0b41c8eee0444";
+const EXPECTED_FRESH_CREDENTIAL_METADATA_COMMIT =
+  "9a8cfcbab14d5439e853d19575009ed3245e8b66";
+const EXPECTED_FRESH_CREDENTIAL_ID =
+  "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1";
+const EXPECTED_TARGET_REGISTRY_ID =
+  "voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5";
+const EXPECTED_RECEIVER_CLASSIFICATION =
+  "RECEIVER_ACTIVE_STALE_REGISTRY";
 
 const EXPECTED_SOURCE_COMMITS = Object.freeze({
   activation_configuration_instance:
@@ -25,7 +40,7 @@ const EXPECTED_SOURCE_COMMITS = Object.freeze({
   service_unit_design:
     "09ddef7d672b57484bbf853d500fd47d9537c5fb",
   credential_reference_metadata:
-    "1c0d4d842210158aeac466deb8e0918aa7443997",
+    EXPECTED_FRESH_CREDENTIAL_METADATA_COMMIT,
   bounded_replay_snapshot:
     "54795a9e35a19067559d0cb315b0ea2669c59088",
   execution_confirmation:
@@ -44,6 +59,8 @@ const EXPECTED_SOURCE_COMMITS = Object.freeze({
 
 const FORBIDDEN_UNRELATED_COMMIT =
   "44d9a95e335e9ebabd65e60f7e388385e0d14abe";
+const FORBIDDEN_STALE_CREDENTIAL_METADATA_COMMIT =
+  "1c0d4d842210158aeac466deb8e0918aa7443997";
 
 function check(value, message) {
   if (!value) throw new Error(message);
@@ -116,6 +133,75 @@ check(
 check(
   !commits.includes(FORBIDDEN_UNRELATED_COMMIT),
   "unrelated WC preflight commit is bound as an activation source",
+);
+check(
+  !commits.includes(FORBIDDEN_STALE_CREDENTIAL_METADATA_COMMIT),
+  "stale credential metadata commit remains bound",
+);
+
+check(
+  credentialMetadata.marker ===
+    "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CREDENTIAL_REFERENCE_METADATA_V1",
+  "credential metadata marker mismatch",
+);
+check(credentialMetadata.version === 1, "credential metadata version mismatch");
+check(
+  credentialMetadata.status ===
+    "source_reference_only_credential_read_forbidden",
+  "credential metadata status mismatch",
+);
+check(
+  credentialMetadata.credential_reference.reference_id ===
+    EXPECTED_FRESH_CREDENTIAL_ID,
+  "fresh credential reference mismatch",
+);
+check(
+  credentialMetadata.credential_reference.credential_id ===
+    EXPECTED_FRESH_CREDENTIAL_ID,
+  "fresh credential identity mismatch",
+);
+check(
+  credentialMetadata.credential_reference.registry_id ===
+    EXPECTED_TARGET_REGISTRY_ID,
+  "target registry mismatch",
+);
+
+const evidence = credentialMetadata.evidence_binding;
+const revalidation = credentialMetadata.revalidation;
+const runtimeTruth = packet.credential_runtime_truth;
+
+assert.deepEqual(
+  runtimeTruth,
+  {
+    credential_reference_id:
+      credentialMetadata.credential_reference.reference_id,
+    target_registry_id:
+      credentialMetadata.credential_reference.registry_id,
+    receiver_classification: evidence.receiver_classification,
+    receiver_loaded_target_registry:
+      evidence.receiver_loaded_target_registry,
+    receiver_restart_required: evidence.receiver_restart_required,
+    receiver_configuration_revalidation_required:
+      evidence.receiver_configuration_revalidation_required,
+    live_authentication_observed: evidence.live_authentication_observed,
+    current_runtime_freshness_proven_by_source:
+      revalidation.current_runtime_freshness_proven_by_source,
+  },
+  "packet runtime truth must exactly mirror credential metadata",
+);
+assert.deepEqual(
+  runtimeTruth,
+  {
+    credential_reference_id: EXPECTED_FRESH_CREDENTIAL_ID,
+    target_registry_id: EXPECTED_TARGET_REGISTRY_ID,
+    receiver_classification: EXPECTED_RECEIVER_CLASSIFICATION,
+    receiver_loaded_target_registry: false,
+    receiver_restart_required: true,
+    receiver_configuration_revalidation_required: true,
+    live_authentication_observed: false,
+    current_runtime_freshness_proven_by_source: false,
+  },
+  "credential runtime truth must remain fail-closed",
 );
 
 const gates = packet.ordered_execution_gates;
@@ -191,6 +277,8 @@ check(
 for (const requiredFailure of [
   "origin_main_changes_after_plan_digest",
   "source_artifact_mismatch",
+  "runtime_preimage_drift",
+  "non_fresh_or_revoked_credential",
   "trusted_context_reference_mismatch",
   "provider_or_requester_signature_binding_mismatch",
   "fresh_direct_authentication_packet_mismatch",
@@ -235,10 +323,26 @@ check(
 console.log("packet_status=source_ready_execution_not_authorized");
 console.log(`reviewed_source_main=${packet.reviewed_source_main}`);
 console.log(`required_source_commits=${commits.length}`);
+console.log(
+  `credential_reference_metadata_commit=${required.credential_reference_metadata}`,
+);
+console.log(
+  `credential_reference_id=${runtimeTruth.credential_reference_id}`,
+);
+console.log(
+  `receiver_classification=${runtimeTruth.receiver_classification}`,
+);
 console.log("source_binding_semantic_map_exact=true");
 console.log("activation_configuration_source_bound=true");
 console.log("trusted_context_source_bound=true");
+console.log("fresh_credential_metadata_source_bound=true");
+console.log("stale_credential_metadata_source_absent=true");
 console.log("unrelated_wc_preflight_source_absent=true");
+console.log("receiver_loaded_target_registry=false");
+console.log("receiver_restart_required=true");
+console.log("receiver_configuration_revalidation_required=true");
+console.log("live_authentication_observed=false");
+console.log("current_runtime_freshness_proven_by_source=false");
 console.log(`ordered_execution_gates=${gates.length}`);
 console.log("fresh_direct_signing_gates=4");
 console.log(`fail_closed_conditions=${failures.length}`);
@@ -247,6 +351,8 @@ console.log("fresh_quote_required=true");
 console.log("provider_signature_verified=false");
 console.log("requester_signature_verified=false");
 console.log("fresh_zoso_confirmation_required=true");
+console.log("service_restart_authorized=false");
+console.log("activation_authorized=false");
 console.log(
   "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1_PROOF_GREEN=true",
 );
