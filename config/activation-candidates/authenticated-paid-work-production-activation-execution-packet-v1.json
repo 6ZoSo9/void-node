@@ -1,0 +1,83 @@
+{
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1",
+  "version": 1,
+  "status": "source_ready_execution_not_authorized",
+  "reviewed_source_main": "32cd4883b95354ab979d12640ffd2e2ac1279e57",
+  "target": {
+    "host": "zoso-Precision-Tower-7810",
+    "runtime_user": "zoso",
+    "manager_scope": "systemd_user",
+    "start_mode": "manual_oneshot"
+  },
+  "required_source_commits": {
+    "activation_configuration_instance": "44d9a95e335e9ebabd65e60f7e388385e0d14abe",
+    "rollback_plan": "cb57842cbb53fcad7ed6861d829058635af9308c",
+    "service_unit_design": "09ddef7d672b57484bbf853d500fd47d9537c5fb",
+    "credential_reference_metadata": "1c0d4d842210158aeac466deb8e0918aa7443997",
+    "bounded_replay_snapshot": "54795a9e35a19067559d0cb315b0ea2669c59088",
+    "execution_confirmation": "b32a13792bb4d94fb0da52c175930e9ccf03d631",
+    "live_canary_scope": "92daf8ec4668c78768f97876a039f8301909573e",
+    "direct_authentication": "97dd668fdbe8e3329cc5a083df010a1ffd6050c8",
+    "direct_activation_persistence": "2bf85f63e7f49a87e3e4e5f8450076b05078369f",
+    "fresh_direct_quote_authentication_preparation": "a371372213782e8b55d678d28dc5291559ad02ee",
+    "fresh_direct_quote_signing_handoff": "32cd4883b95354ab979d12640ffd2e2ac1279e57"
+  },
+  "ordered_execution_gates": [
+    "capture_current_origin_main",
+    "verify_required_source_artifacts",
+    "verify_disabled_runtime_preimage",
+    "verify_fresh_persistence_state",
+    "privately_verify_trusted_context_reference",
+    "privately_verify_fresh_credential_reference",
+    "materialize_fresh_direct_provider_signing_request",
+    "verify_provider_signature_and_materialize_requester_signing_request",
+    "verify_requester_signature_and_finalize_direct_authentication_preparation",
+    "independently_verify_final_direct_authentication_packet",
+    "materialize_non_secret_execution_plan",
+    "compute_canonical_execution_plan_sha256",
+    "obtain_fresh_operation_bound_confirmation_from_zoso",
+    "revalidate_origin_main_and_all_prestates",
+    "perform_reviewed_one_shot_activation",
+    "execute_exactly_one_fresh_paid_work_canary",
+    "capture_sanitized_post_execution_evidence",
+    "make_separate_post_execution_readiness_decision"
+  ],
+  "mandatory_runtime_inputs": {
+    "fresh_origin_main": null,
+    "trusted_context_reference_verified": false,
+    "credential_reference_verified_and_fresh": false,
+    "provider_signature_verified": false,
+    "requester_signature_verified": false,
+    "fresh_direct_authentication_packet_sha256": null,
+    "execution_plan_sha256": null,
+    "fresh_zoso_confirmation": null,
+    "fresh_quote_required": true
+  },
+  "fail_closed_conditions": [
+    "origin_main_changes_after_plan_digest",
+    "source_artifact_mismatch",
+    "runtime_preimage_drift",
+    "non_fresh_or_revoked_credential",
+    "trusted_context_reference_mismatch",
+    "non_empty_or_unexpected_replay_state",
+    "provider_or_requester_signature_binding_mismatch",
+    "fresh_direct_authentication_packet_mismatch",
+    "confirmation_missing_expired_or_mismatched",
+    "quote_expired_or_previously_consumed",
+    "any_unreviewed_mutation_required"
+  ],
+  "authority": {
+    "execution_authorized": false,
+    "deployment_authorized": false,
+    "service_start_authorized": false,
+    "credential_access_authorized": false,
+    "quote_acceptance_authorized": false,
+    "payment_authority_granted": false,
+    "payment_execution_authorized": false,
+    "work_dispatch_authorized": false,
+    "work_credit_write_authorized": false,
+    "wallet_or_signer_access_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "fund_movement_authorized": false
+  }
+}
