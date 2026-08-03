@@ -10,7 +10,8 @@
     "start_mode": "manual_oneshot"
   },
   "required_source_commits": {
-    "activation_configuration_instance": "44d9a95e335e9ebabd65e60f7e388385e0d14abe",
+    "activation_configuration_instance": "27dc14a7e59967744ef5c65e6b28e84b265b1565",
+    "trusted_context_reference_metadata": "ac074d53ab937d302c69b6bff54f02d064e37d57",
     "rollback_plan": "cb57842cbb53fcad7ed6861d829058635af9308c",
     "service_unit_design": "09ddef7d672b57484bbf853d500fd47d9537c5fb",
     "credential_reference_metadata": "1c0d4d842210158aeac466deb8e0918aa7443997",

@@ -23,6 +23,33 @@ This source binding documents reviewed prerequisites. A future execution run
 must still capture and revalidate the then-current `origin/main`; this packet
 does not pre-authorize a future commit.
 
+## Exact source-binding correction
+
+A read-only post-merge audit found two source-binding defects in the first
+execution-packet publication:
+
+- `activation_configuration_instance` incorrectly referenced
+  `44d9a95e335e9ebabd65e60f7e388385e0d14abe`, an unrelated read-only WC
+  participant preflight commit;
+- `trusted_context_reference_metadata` was required by the execution gates but
+  omitted from `required_source_commits`.
+
+This correction binds the activation configuration instance to its actual
+reviewed commit:
+
+`27dc14a7e59967744ef5c65e6b28e84b265b1565`
+
+It also binds the reviewed trusted-context reference metadata:
+
+`ac074d53ab937d302c69b6bff54f02d064e37d57`
+
+The packet now contains twelve exact semantic source bindings. The proof locks
+the complete key-to-commit map rather than checking only the count and the two
+newest signing commits.
+
+This correction is source-only. Execution remains
+`SOURCE_READY_EXECUTION_NOT_AUTHORIZED`.
+
 ## Current decision
 
 `SOURCE_READY_EXECUTION_NOT_AUTHORIZED`
