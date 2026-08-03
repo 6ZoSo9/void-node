@@ -6,6 +6,11 @@ on:
       - ".github/workflows/authenticated-paid-work-fresh-direct-quote-signing-handoff-v1.yml"
       - "docs/operations/authenticated-paid-work-fresh-direct-quote-signing-handoff-v1.md"
       - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_types_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_base_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_validation_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_shared_v1.ts"
+      - "scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_stages_v1.ts"
       - "scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts"
       - "scripts/authenticated_paid_work_quote_acceptance_payment_authority_v1.ts"
       - "scripts/authenticated_paid_work_direct_quote_activation_authentication_v1.ts"
@@ -41,6 +46,11 @@ jobs:
             --strict \
             --skipLibCheck \
             scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_types_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_base_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_validation_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_shared_v1.ts \
+            scripts/authenticated_paid_work_fresh_direct_quote_signing_handoff_stages_v1.ts \
             scripts/prove_authenticated_paid_work_fresh_direct_quote_signing_handoff_v1.ts
       - name: Prove fresh direct quote signing handoff
         run: |
