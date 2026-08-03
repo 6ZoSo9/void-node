@@ -1,0 +1,113 @@
+{
+  "marker": "VOID_LUANTI_USEFUL_WORK_GAME_FOUNDATION_V1",
+  "version": 1,
+  "working_title": "VOID Realms",
+  "upstream": {
+    "engine": {
+      "project": "luanti-org/luanti",
+      "candidate_version": "5.16.1",
+      "license": "LGPL-2.1-or-later",
+      "vendored": false,
+      "download_authorized": false
+    },
+    "reference_game": {
+      "project": "mineclonia/mineclonia",
+      "candidate_version": "0.122.2",
+      "code_license": "GPL-3.0-or-later",
+      "media_license": "CC-BY-SA-4.0",
+      "role": "compatibility_and_development_reference",
+      "forked": false,
+      "vendored": false,
+      "download_authorized": false,
+      "minecraft_assets_allowed": false
+    }
+  },
+  "architecture": {
+    "game_plane": "luanti_server_mod",
+    "worker_plane": "separate_void_worker_companion",
+    "server_mod_runs_on_player_device": false,
+    "server_mod_can_start_worker": false,
+    "companion_installation_required": true,
+    "companion_separate_consent_required": true,
+    "game_account_is_wallet": false,
+    "game_mod_has_reward_authority": false,
+    "game_mod_has_work_credit_write_authority": false,
+    "direct_void_rewards": false,
+    "reward_unit": "WC",
+    "reward_requires_verified_receipt": true,
+    "game_receives_sanitized_read_only_status": true,
+    "gamenetworkingsockets_role": "optional_future_companion_transport"
+  },
+  "consent_and_resources": {
+    "default_opt_in": false,
+    "hidden_compute_allowed": false,
+    "background_autostart_allowed": false,
+    "one_action_pause_required": true,
+    "visible_status_required": true,
+    "separate_game_and_companion_consent": true,
+    "default_cpu_percent_cap": 10,
+    "default_bandwidth_kib_per_second_cap": 128,
+    "default_ac_power_only": true,
+    "thermal_guard_required": true,
+    "pause_while_game_is_resource_constrained": true
+  },
+  "initial_capabilities": [
+    "datanet_fetch_verify",
+    "public_object_mirror_verify",
+    "public_block_header_range_verify",
+    "public_content_duplicate_check"
+  ],
+  "forbidden_capabilities": [
+    "consensus_vote",
+    "validator_key_use",
+    "wallet_key_use",
+    "transaction_signing",
+    "payment_execution",
+    "private_data_processing",
+    "arbitrary_code_execution"
+  ],
+  "identity_and_rewards": {
+    "game_identity_bound_by_separate_challenge": true,
+    "raw_worker_credential_exposed_to_game": false,
+    "raw_worker_credential_exposed_to_mod": false,
+    "wallet_or_signer_exposed": false,
+    "coordinator_issues_bounded_ticket": true,
+    "duplicate_protection_required": true,
+    "per_account_caps_required": true,
+    "work_credit_awarded_by_existing_verified_adapter": true,
+    "gameplay_progress_requires_compute": false,
+    "pay_to_win_allowed": false
+  },
+  "foundation_mod": {
+    "technical_name": "void_work",
+    "license": "GPL-3.0-or-later",
+    "network_access": false,
+    "filesystem_access": false,
+    "external_program_execution": false,
+    "records_in_game_intent_only": true,
+    "starts_no_work": true,
+    "awards_no_work_credit": true,
+    "commands": [
+      "voidwork",
+      "voidwork_consent"
+    ]
+  },
+  "authority": {
+    "upstream_download": false,
+    "upstream_fork": false,
+    "package_install": false,
+    "server_start": false,
+    "network_listener_start": false,
+    "external_connection": false,
+    "worker_start": false,
+    "work_ticket_issue": false,
+    "work_execution": false,
+    "work_credit_write": false,
+    "void_settlement": false,
+    "wallet_or_signer_access": false,
+    "payment_execution": false,
+    "service_restart": false,
+    "deployment": false,
+    "money_movement": false
+  }
+}

@@ -1,0 +1,47 @@
+name: VOID Luanti useful-work game foundation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-luanti-useful-work-game-foundation-v1.yml"
+      - "docs/architecture/void-luanti-useful-work-game-foundation-v1.md"
+      - "examples/void-luanti-useful-work-game-foundation-v1.example.json"
+      - "schemas/void-luanti-useful-work-game-foundation-v1.schema.json"
+      - "scripts/void_luanti_useful_work_game_foundation_v1.mjs"
+      - "scripts/prove_void_luanti_useful_work_game_foundation_v1.mjs"
+      - "ops/mainnet0/probe_void_luanti_useful_work_game_host_readiness_v1.py"
+      - "integrations/luanti/void_work/mod.conf"
+      - "integrations/luanti/void_work/init.lua"
+      - "integrations/luanti/void_work/README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-luanti-useful-work-game-foundation-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Parse JSON artifacts
+        run: |
+          python3 -m json.tool schemas/void-luanti-useful-work-game-foundation-v1.schema.json >/dev/null
+          python3 -m json.tool examples/void-luanti-useful-work-game-foundation-v1.example.json >/dev/null
+      - name: Compile host readiness probe
+        run: |
+          python3 -m py_compile ops/mainnet0/probe_void_luanti_useful_work_game_host_readiness_v1.py
+      - name: Prove Luanti foundation
+        run: |
+          node scripts/prove_void_luanti_useful_work_game_foundation_v1.mjs

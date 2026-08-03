@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-luanti-useful-work-game-foundation-v1.schema.json",
+  "title": "VOID Luanti Useful Work Game Foundation V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "working_title",
+    "upstream",
+    "architecture",
+    "consent_and_resources",
+    "initial_capabilities",
+    "forbidden_capabilities",
+    "identity_and_rewards",
+    "foundation_mod",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_LUANTI_USEFUL_WORK_GAME_FOUNDATION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "working_title": {
+      "const": "VOID Realms"
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "reference_game"],
+      "properties": {
+        "engine": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "project",
+            "candidate_version",
+            "license",
+            "vendored",
+            "download_authorized"
+          ],
+          "properties": {
+            "project": { "const": "luanti-org/luanti" },
+            "candidate_version": { "const": "5.16.1" },
+            "license": { "const": "LGPL-2.1-or-later" },
+            "vendored": { "const": false },
+            "download_authorized": { "const": false }
+          }
+        },
+        "reference_game": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "project",
+            "candidate_version",
+            "code_license",
+            "media_license",
+            "role",
+            "forked",
+            "vendored",
+            "download_authorized",
+            "minecraft_assets_allowed"
+          ],
+          "properties": {
+            "project": { "const": "mineclonia/mineclonia" },
+            "candidate_version": { "const": "0.122.2" },
+            "code_license": { "const": "GPL-3.0-or-later" },
+            "media_license": { "const": "CC-BY-SA-4.0" },
+            "role": {
+              "const": "compatibility_and_development_reference"
+            },
+            "forked": { "const": false },
+            "vendored": { "const": false },
+            "download_authorized": { "const": false },
+            "minecraft_assets_allowed": { "const": false }
+          }
+        }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "game_plane",
+        "worker_plane",
+        "server_mod_runs_on_player_device",
+        "server_mod_can_start_worker",
+        "companion_installation_required",
+        "companion_separate_consent_required",
+        "game_account_is_wallet",
+        "game_mod_has_reward_authority",
+        "game_mod_has_work_credit_write_authority",
+        "direct_void_rewards",
+        "reward_unit",
+        "reward_requires_verified_receipt",
+        "game_receives_sanitized_read_only_status",
+        "gamenetworkingsockets_role"
+      ],
+      "properties": {
+        "game_plane": { "const": "luanti_server_mod" },
+        "worker_plane": { "const": "separate_void_worker_companion" },
+        "server_mod_runs_on_player_device": { "const": false },
+        "server_mod_can_start_worker": { "const": false },
+        "companion_installation_required": { "const": true },
+        "companion_separate_consent_required": { "const": true },
+        "game_account_is_wallet": { "const": false },
+        "game_mod_has_reward_authority": { "const": false },
+        "game_mod_has_work_credit_write_authority": { "const": false },
+        "direct_void_rewards": { "const": false },
+        "reward_unit": { "const": "WC" },
+        "reward_requires_verified_receipt": { "const": true },
+        "game_receives_sanitized_read_only_status": { "const": true },
+        "gamenetworkingsockets_role": {
+          "const": "optional_future_companion_transport"
+        }
+      }
+    },
+    "consent_and_resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_opt_in",
+        "hidden_compute_allowed",
+        "background_autostart_allowed",
+        "one_action_pause_required",
+        "visible_status_required",
+        "separate_game_and_companion_consent",
+        "default_cpu_percent_cap",
+        "default_bandwidth_kib_per_second_cap",
+        "default_ac_power_only",
+        "thermal_guard_required",
+        "pause_while_game_is_resource_constrained"
+      ],
+      "properties": {
+        "default_opt_in": { "const": false },
+        "hidden_compute_allowed": { "const": false },
+        "background_autostart_allowed": { "const": false },
+        "one_action_pause_required": { "const": true },
+        "visible_status_required": { "const": true },
+        "separate_game_and_companion_consent": { "const": true },
+        "default_cpu_percent_cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "default_bandwidth_kib_per_second_cap": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 1024
+        },
+        "default_ac_power_only": { "const": true },
+        "thermal_guard_required": { "const": true },
+        "pause_while_game_is_resource_constrained": { "const": true }
+      }
+    },
+    "initial_capabilities": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "datanet_fetch_verify" },
+        { "const": "public_object_mirror_verify" },
+        { "const": "public_block_header_range_verify" },
+        { "const": "public_content_duplicate_check" }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "forbidden_capabilities": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "consensus_vote" },
+        { "const": "validator_key_use" },
+        { "const": "wallet_key_use" },
+        { "const": "transaction_signing" },
+        { "const": "payment_execution" },
+        { "const": "private_data_processing" },
+        { "const": "arbitrary_code_execution" }
+      ],
+      "items": false,
+      "minItems": 7,
+      "maxItems": 7
+    },
+    "identity_and_rewards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "game_identity_bound_by_separate_challenge",
+        "raw_worker_credential_exposed_to_game",
+        "raw_worker_credential_exposed_to_mod",
+        "wallet_or_signer_exposed",
+        "coordinator_issues_bounded_ticket",
+        "duplicate_protection_required",
+        "per_account_caps_required",
+        "work_credit_awarded_by_existing_verified_adapter",
+        "gameplay_progress_requires_compute",
+        "pay_to_win_allowed"
+      ],
+      "properties": {
+        "game_identity_bound_by_separate_challenge": { "const": true },
+        "raw_worker_credential_exposed_to_game": { "const": false },
+        "raw_worker_credential_exposed_to_mod": { "const": false },
+        "wallet_or_signer_exposed": { "const": false },
+        "coordinator_issues_bounded_ticket": { "const": true },
+        "duplicate_protection_required": { "const": true },
+        "per_account_caps_required": { "const": true },
+        "work_credit_awarded_by_existing_verified_adapter": {
+          "const": true
+        },
+        "gameplay_progress_requires_compute": { "const": false },
+        "pay_to_win_allowed": { "const": false }
+      }
+    },
+    "foundation_mod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "technical_name",
+        "license",
+        "network_access",
+        "filesystem_access",
+        "external_program_execution",
+        "records_in_game_intent_only",
+        "starts_no_work",
+        "awards_no_work_credit",
+        "commands"
+      ],
+      "properties": {
+        "technical_name": { "const": "void_work" },
+        "license": { "const": "GPL-3.0-or-later" },
+        "network_access": { "const": false },
+        "filesystem_access": { "const": false },
+        "external_program_execution": { "const": false },
+        "records_in_game_intent_only": { "const": true },
+        "starts_no_work": { "const": true },
+        "awards_no_work_credit": { "const": true },
+        "commands": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "voidwork" },
+            { "const": "voidwork_consent" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream_download",
+        "upstream_fork",
+        "package_install",
+        "server_start",
+        "network_listener_start",
+        "external_connection",
+        "worker_start",
+        "work_ticket_issue",
+        "work_execution",
+        "work_credit_write",
+        "void_settlement",
+        "wallet_or_signer_access",
+        "payment_execution",
+        "service_restart",
+        "deployment",
+        "money_movement"
+      ],
+      "properties": {
+        "upstream_download": { "const": false },
+        "upstream_fork": { "const": false },
+        "package_install": { "const": false },
+        "server_start": { "const": false },
+        "network_listener_start": { "const": false },
+        "external_connection": { "const": false },
+        "worker_start": { "const": false },
+        "work_ticket_issue": { "const": false },
+        "work_execution": { "const": false },
+        "work_credit_write": { "const": false },
+        "void_settlement": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "payment_execution": { "const": false },
+        "service_restart": { "const": false },
+        "deployment": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  }
+}
