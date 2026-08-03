@@ -1,0 +1,41 @@
+{
+  "marker": "VOID_AGENT_SDK_RELEASE_MANIFEST_V1",
+  "version": 1,
+  "package": "@void-network/agent-sdk",
+  "package_version": "0.1.0",
+  "reviewed_source_main": "a371372213782e8b55d678d28dc5291559ad02ee",
+  "files": {
+    "LICENSE": {
+      "bytes": 2912,
+      "sha256": "0d777083a94876e2c28e81b4b66cf99e9bc93887726d53e45ee71725fdc8ffe0"
+    },
+    "README.md": {
+      "bytes": 2246,
+      "sha256": "0f2c921174ff40b1c5f755c849903287b54d8abdb6ff31481a5b2cbda6896793"
+    },
+    "cli.mjs": {
+      "bytes": 3391,
+      "sha256": "246a49d0aac444743efedd3165a015059dd8a2c4b327b1fa95f1a590f53d085b"
+    },
+    "index.mjs": {
+      "bytes": 13969,
+      "sha256": "637e258468aac88a48122010fb77ad0c1420112c9b9e6ad6a834e9fe19b74888"
+    },
+    "package.json": {
+      "bytes": 624,
+      "sha256": "a47dbf6d331f862a95a024fb59cb7d3a3498ea7c25add00a6743a58b44329c78"
+    }
+  },
+  "authority": {
+    "credentials_access": false,
+    "authentication": false,
+    "mutation": false,
+    "request_submission": false,
+    "payment_execution": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "money_movement": false
+  }
+}
