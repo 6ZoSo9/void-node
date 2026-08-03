@@ -103,7 +103,7 @@ async function readBoundedText(response, label, maxBytes) {
       chunks.push(chunk);
     }
   } finally {
-    try { reader.releaseLock(); } catch {}
+    reader.releaseLock();
   }
   return Buffer.concat(chunks, total).toString("utf8");
 }
