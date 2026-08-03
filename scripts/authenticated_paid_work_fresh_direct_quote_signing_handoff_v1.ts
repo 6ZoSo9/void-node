@@ -19,22 +19,71 @@ import {
 export * from "./authenticated_paid_work_fresh_direct_quote_signing_handoff_types_v1.js";
 export * from "./authenticated_paid_work_fresh_direct_quote_signing_handoff_stages_v1.js";
 
-function readJson(file: string): unknown {
+export function readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(
+  file: string,
+): unknown {
   const resolved = path.resolve(file);
-  const metadata = fs.lstatSync(resolved);
+  const noFollow = fs.constants.O_NOFOLLOW;
   freshDirectQuoteAssertV1(
-    !metadata.isSymbolicLink(),
-    "symlink input forbidden",
+    Number.isInteger(noFollow) && noFollow !== 0,
+    "O_NOFOLLOW is unavailable on this platform",
   );
-  freshDirectQuoteAssertV1(
-    metadata.isFile(),
-    "regular file input required",
-  );
-  freshDirectQuoteAssertV1(
-    metadata.size <= FRESH_DIRECT_QUOTE_MAX_JSON_BYTES,
-    "JSON input too large",
-  );
-  return JSON.parse(fs.readFileSync(resolved, "utf8")) as unknown;
+
+  let descriptor: number;
+  try {
+    descriptor = fs.openSync(
+      resolved,
+      fs.constants.O_RDONLY | noFollow,
+    );
+  } catch (error: unknown) {
+    const code =
+      error instanceof Error && "code" in error
+        ? String((error as NodeJS.ErrnoException).code ?? "")
+        : "";
+    if (code === "ELOOP") {
+      return freshDirectQuoteFailV1("symlink input forbidden");
+    }
+    throw error;
+  }
+
+  try {
+    const metadata = fs.fstatSync(descriptor);
+    freshDirectQuoteAssertV1(
+      metadata.isFile(),
+      "regular file input required",
+    );
+    freshDirectQuoteAssertV1(
+      metadata.size <= FRESH_DIRECT_QUOTE_MAX_JSON_BYTES,
+      "JSON input too large",
+    );
+
+    const chunks: Buffer[] = [];
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let totalBytes = 0;
+    for (;;) {
+      const remaining = FRESH_DIRECT_QUOTE_MAX_JSON_BYTES - totalBytes;
+      const bytesRead = fs.readSync(
+        descriptor,
+        buffer,
+        0,
+        Math.min(buffer.length, remaining + 1),
+        null,
+      );
+      if (bytesRead === 0) break;
+      totalBytes += bytesRead;
+      freshDirectQuoteAssertV1(
+        totalBytes <= FRESH_DIRECT_QUOTE_MAX_JSON_BYTES,
+        "JSON input too large",
+      );
+      chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
+    }
+
+    return JSON.parse(
+      Buffer.concat(chunks, totalBytes).toString("utf8"),
+    ) as unknown;
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -66,7 +115,7 @@ function main(): void {
     );
     const packet =
       prepareAuthenticatedPaidWorkFreshDirectQuoteSigningHandoffV1(
-        readJson(args[0]!),
+        readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[0]!),
       );
     writeJson(args[1]!, packet);
     console.log(`marker=${packet.marker}`);
@@ -89,9 +138,9 @@ function main(): void {
     );
     const packet =
       advanceAuthenticatedPaidWorkFreshDirectQuoteSigningHandoffV1(
-        readJson(args[0]!),
-        readJson(args[1]!),
-        readJson(args[2]!),
+        readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[0]!),
+        readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[1]!),
+        readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[2]!),
       );
     writeJson(args[3]!, packet);
     console.log(`marker=${packet.marker}`);
@@ -111,11 +160,15 @@ function main(): void {
       args.length === 6,
       `${mode} requires six paths`,
     );
-    const input = readJson(args[0]!);
-    const providerHandoff = readJson(args[1]!);
-    const providerSignature = readJson(args[2]!);
-    const requesterHandoff = readJson(args[3]!);
-    const requesterSignature = readJson(args[4]!);
+    const input = readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[0]!);
+    const providerHandoff =
+      readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[1]!);
+    const providerSignature =
+      readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[2]!);
+    const requesterHandoff =
+      readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[3]!);
+    const requesterSignature =
+      readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[4]!);
     if (mode === "finalize") {
       const packet =
         finalizeAuthenticatedPaidWorkFreshDirectQuoteSigningHandoffV1(
@@ -148,7 +201,7 @@ function main(): void {
         providerSignature,
         requesterHandoff,
         requesterSignature,
-        readJson(args[5]!),
+        readAuthenticatedPaidWorkFreshDirectQuoteJsonV1(args[5]!),
       );
     console.log(`marker=${result.marker}`);
     console.log(`handoff_id=${result.handoff_id}`);
