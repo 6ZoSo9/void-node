@@ -15,11 +15,24 @@ quote input must equal the forward quote's guaranteed output. The forward
 expected and minimum output amounts must be identical so the modeled return leg
 does not depend on unguaranteed intermediate inventory.
 
+Because the round trip restores the exact starting asset, ending USD values are
+not independent caller assertions. The observer derives expected and minimum
+ending USD values from:
+
+```text
+starting USD value × ending base-unit amount ÷ starting base-unit amount
+```
+
+The derivation uses integer arithmetic and rounds down to the nearest USD
+micro-unit. Supplied return-quote USD values must exactly equal the derived
+values or the observer fails closed. This prevents inconsistent amount/value
+pairs from manufacturing paper profit.
+
 The paper calculation is:
 
 ```text
-expected gross P&L = expected ending base value - starting base value
-minimum gross P&L  = minimum ending base value - starting base value
+expected gross P&L = derived expected ending base value - starting base value
+minimum gross P&L  = derived minimum ending base value - starting base value
 
 external costs =
   forward gas
@@ -47,20 +60,26 @@ recipient is an internal transfer and may not be presented as trading profit.
 
 This is a pure deterministic observer. It does not retrieve quotes. It accepts a
 sanitized two-quote observation supplied by a later adapter. That adapter must
-derive USD valuations from authenticated provider responses rather than accept
-caller-invented values. The example fixture uses synthetic economics only and is
-not evidence of a real opportunity.
+derive the starting USD valuation and quote fields from authenticated provider
+responses rather than accept caller-invented values. The observer itself now
+binds return-leg USD values to return-leg token amounts and the starting
+valuation. The example fixture uses synthetic economics only and is not evidence
+of a real opportunity.
 
 V1 intentionally requires:
 
 - the same base asset and chain at start and finish;
 - exact intermediate inventory coverage;
+- amount-derived ending USD valuation with conservative floor rounding;
+- exact equality between supplied and derived ending USD values;
 - distinct forward and return quote IDs;
 - bounded quote-time skew, rounded up to the next whole second;
 - capital-lock coverage for both expected fills;
 - capital at risk equal to starting portfolio value;
 - zero app fee on both legs;
 - explicit provider-fee and price-impact inclusion.
+
+Each receipt records `ending_values_amount_derived: true`.
 
 ## Authority boundary
 
@@ -102,6 +121,7 @@ npm run build
 
 The proof covers deterministic positive economics, marginal and negative
 classification, conservative signed-basis-point rounding, expiry, exact app-fee
-exclusion, route symmetry, inventory coverage, whole- and fractional-second
+exclusion, route symmetry, inventory coverage, amount-derived ending valuation,
+inflated and understated ending-value rejection, whole- and fractional-second
 quote skew, capital policy, fee/price-impact declarations, unknown-key rejection,
 execution-shaped-field rejection, and all false authority flags.
