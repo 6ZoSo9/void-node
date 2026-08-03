@@ -29,7 +29,8 @@
     "mode": {
       "enum": [
         "example_fixture",
-        "external_requester_evidence"
+        "external_requester_evidence",
+        "direct_authentication_packet"
       ]
     },
     "prepared_input": {
@@ -118,6 +119,22 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "direct_authentication_packet"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "requester_authentication_input": {
+            "type": "object"
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -149,14 +166,14 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "pattern": "^voidawra1_[0-9a-f]{64}$"
+            "pattern": "^(?:voidawra1_|voidadra1_)[0-9a-f]{64}$"
           }
         },
         "consumed_provider_authentication_ids": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "pattern": "^voidawqa1_[0-9a-f]{64}$"
+            "pattern": "^(?:voidawqa1_|voidadpa1_)[0-9a-f]{64}$"
           }
         },
         "consumed_acceptance_ids": {

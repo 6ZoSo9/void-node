@@ -1,0 +1,49 @@
+name: VOID Realms tri-scale building v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-realms-triscale-building-v1.yml"
+      - "docs/architecture/void-realms-triscale-building-v1.md"
+      - "examples/void-realms-triscale-building-v1.example.json"
+      - "schemas/void-realms-triscale-building-v1.schema.json"
+      - "src/game/void_realms_triscale_building_v1.ts"
+      - "scripts/prove_void_realms_triscale_building_v1.ts"
+      - "ops/mainnet0/probe_void_realms_triscale_building_host_readiness_v1.py"
+      - "integrations/luanti/void_realms_triscale_build/mod.conf"
+      - "integrations/luanti/void_realms_triscale_build/init.lua"
+      - "integrations/luanti/void_realms_triscale_build/README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-realms-triscale-building-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Parse JSON artifacts
+        run: |
+          python3 -m json.tool schemas/void-realms-triscale-building-v1.schema.json >/dev/null
+          python3 -m json.tool examples/void-realms-triscale-building-v1.example.json >/dev/null
+      - name: Compile read-only host probe
+        run: |
+          python3 -m py_compile ops/mainnet0/probe_void_realms_triscale_building_host_readiness_v1.py
+      - name: Typecheck source
+        run: npm run typecheck
+      - name: Prove tri-scale building contract
+        run: |
+          npx tsx scripts/prove_void_realms_triscale_building_v1.ts

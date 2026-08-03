@@ -40,3 +40,32 @@ The caller creates the allowed root in advance as a canonical non-symlink direct
 - example: `examples/authenticated-paid-work-quote-acceptance-payment-authority-activation-persistence-v1.example.json`
 
 The checked-in example is deliberately prepare-only and cannot activate authority. The proof constructs isolated external-mode dependency evidence and a private temporary store; it never touches production state.
+
+## Direct authentication packet mode
+
+`direct_authentication_packet` consumes the source-only direct authentication
+packet produced by
+`authenticated_paid_work_direct_quote_activation_authentication_v1.ts`.
+
+This mode never creates or substitutes a `voidawsr1_...` public-service
+submission ID. It verifies the exact prepared-packet SHA-256 binding, requires
+the direct packet to remain authority-free before persistence, checks the
+provider and requester authentication windows and key-binding revocation state
+at the activation command timestamp, and consumes these namespaces atomically:
+
+- direct requester authentication: `voidadra1_...`;
+- direct provider authentication: `voidadpa1_...`;
+- acceptance: `voidawa1_...`;
+- prepared packet: `voidawqapa1_...`;
+- payment intent: `voidawpi1_...`.
+
+The existing `external_requester_evidence` public-service mode remains
+supported. Both modes use the same five-identity atomic transaction, replay
+state, immutable generation, compare-and-swap revisions, and exact
+confirmation. Direct mode does not broaden payment execution, work dispatch,
+wallet, signing, Work Credit, deployment, or money-movement authority.
+
+The direct integration proof uses ephemeral in-memory Ed25519 keys and private
+temporary directories only. It does not authenticate or activate the expired
+first-live quote. A fresh quote and separately approved production evidence are
+still required for any future live activation.
