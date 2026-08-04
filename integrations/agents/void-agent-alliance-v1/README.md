@@ -33,9 +33,13 @@ and subject to explicit exit, suspension, quarantine, and dispute procedures.
 - `verifyAllianceMembershipTransitionTemporalGuardV1(...)` is the
   registry-facing guard for ordinary member lifecycle changes. It rejects
   candidate self-promotion and enforces temporal and expiry ordering.
-- `verifyAllianceSovereignAdmissionV1(...)` verifies candidate admission only
-  when the exact active manifest is member-signed and a separate authorization
-  is signed by the caller-supplied expected ZoSo Sovereign public key.
+- `verifyAllianceSovereignAdmissionV1(...)` verifies the lower-level
+  member-plus-Sovereign identity and lifecycle admission contract. It does not,
+  by itself, prove which constitutional charter the registry expected.
+- `verifyAllianceSovereignAdmissionWithCharterV1(...)` is the registry-facing
+  candidate-admission wrapper. It requires the complete two-signature admission
+  plus a companion Sovereign-signed binding to the caller-supplied expected
+  constitutional charter ID and SHA-256 digest.
 
 No key material is stored by this package. It performs no network request,
 credential access, wallet access, payment, Work Credit write, deployment,
