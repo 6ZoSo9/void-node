@@ -1,0 +1,52 @@
+name: PR 969 retry-safe reclaim runner
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    paths:
+      - .github/workflows/pr969-retry-safe-reclaim-runner.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'fix/buy-void-native-execution-attempt-idempotency-v1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/buy-void-native-execution-attempt-idempotency-v1
+          fetch-depth: 0
+
+      - name: Execute reviewed apply payload
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          payload = Path(
+              ".github/workflows/pr969-retry-safe-reclaim-apply.yml"
+          ).read_text(encoding="utf-8")
+          marker = "        run: |\n"
+          if payload.count(marker) != 1:
+              raise SystemExit("apply_payload_run_block_mismatch")
+          script = payload.split(marker, 1)[1]
+          lines = script.splitlines()
+          if any(line and not line.startswith("          ") for line in lines):
+              raise SystemExit("apply_payload_indentation_mismatch")
+          script = "\n".join(
+              line[10:] if line else ""
+              for line in lines
+          ) + "\n"
+          script = script.replace(
+              "rm -f .github/workflows/pr969-retry-safe-reclaim-apply.yml",
+              "rm -f .github/workflows/pr969-retry-safe-reclaim-apply.yml .github/workflows/pr969-retry-safe-reclaim-runner.yml",
+              1,
+          )
+          Path("/tmp/pr969-apply.sh").write_text(script, encoding="utf-8")
+          PY
+          bash /tmp/pr969-apply.sh
