@@ -21,8 +21,9 @@ const credentialMetadata = JSON.parse(
 );
 
 const EXPECTED_REVIEWED_MAIN =
+  "621c8d6d59af774b1bcd617505fe75f6bc172c68";
+const EXPECTED_CREDENTIAL_METADATA_COMMIT =
   "cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa";
-const EXPECTED_CREDENTIAL_METADATA_COMMIT = EXPECTED_REVIEWED_MAIN;
 const EXPECTED_CREDENTIAL_ID =
   "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1";
 const EXPECTED_TARGET_REGISTRY_ID =
@@ -111,6 +112,10 @@ for (const [name, expectedCommit] of Object.entries(
     `${name} source binding mismatch`,
   );
 }
+check(
+  packet.reviewed_source_main !== required.credential_reference_metadata,
+  "reviewed current-main baseline collapsed into semantic metadata binding",
+);
 
 const commits = Object.values(required);
 check(commits.length === 12, "required source commit count mismatch");
@@ -155,11 +160,26 @@ const revalidation = credentialMetadata.revalidation;
 const readiness = credentialMetadata.readiness_effect;
 const metadataAuthority = credentialMetadata.authority;
 
-check(reference.reference_id === EXPECTED_CREDENTIAL_ID, "credential reference mismatch");
-check(reference.credential_id === EXPECTED_CREDENTIAL_ID, "credential identity mismatch");
-check(reference.registry_id === EXPECTED_TARGET_REGISTRY_ID, "target registry mismatch");
-check(snapshot.registry_sha256 === EXPECTED_TARGET_REGISTRY_SHA256, "registry digest mismatch");
-check(snapshot.credential_count === EXPECTED_TARGET_CREDENTIAL_COUNT, "registry count mismatch");
+check(
+  reference.reference_id === EXPECTED_CREDENTIAL_ID,
+  "credential reference mismatch",
+);
+check(
+  reference.credential_id === EXPECTED_CREDENTIAL_ID,
+  "credential identity mismatch",
+);
+check(
+  reference.registry_id === EXPECTED_TARGET_REGISTRY_ID,
+  "target registry mismatch",
+);
+check(
+  snapshot.registry_sha256 === EXPECTED_TARGET_REGISTRY_SHA256,
+  "registry digest mismatch",
+);
+check(
+  snapshot.credential_count === EXPECTED_TARGET_CREDENTIAL_COUNT,
+  "registry count mismatch",
+);
 
 check(
   evidence.receiver_classification === EXPECTED_RECEIVER_CLASSIFICATION,
@@ -173,28 +193,70 @@ check(
   evidence.receiver_loaded_credential_count === EXPECTED_TARGET_CREDENTIAL_COUNT,
   "loaded credential count mismatch",
 );
-check(evidence.receiver_loaded_target_registry === true, "target registry not loaded");
-check(evidence.receiver_restart_required === false, "obsolete restart requirement remains");
+check(
+  evidence.receiver_loaded_target_registry === true,
+  "target registry not loaded",
+);
+check(
+  evidence.receiver_restart_required === false,
+  "obsolete restart requirement remains",
+);
 check(
   evidence.receiver_configuration_revalidation_required === true,
   "configuration revalidation must remain required",
 );
-check(evidence.receiver_health_observed === true, "receiver health not observed");
-check(evidence.receiver_health_http_status === 200, "receiver health status mismatch");
-check(evidence.live_authentication_observed === false, "live authentication overclaimed");
-check(evidence.payment_execution_observed === false, "payment execution overclaimed");
-check(evidence.work_dispatch_observed === false, "work dispatch overclaimed");
-check(evidence.work_credit_write_observed === false, "Work Credit write overclaimed");
-check(evidence.wallet_or_signer_access_observed === false, "wallet/signer access overclaimed");
-check(evidence.fund_movement_observed === false, "fund movement overclaimed");
+check(
+  evidence.receiver_health_observed === true,
+  "receiver health not observed",
+);
+check(
+  evidence.receiver_health_http_status === 200,
+  "receiver health status mismatch",
+);
+check(
+  evidence.live_authentication_observed === false,
+  "live authentication overclaimed",
+);
+check(
+  evidence.payment_execution_observed === false,
+  "payment execution overclaimed",
+);
+check(
+  evidence.work_dispatch_observed === false,
+  "work dispatch overclaimed",
+);
+check(
+  evidence.work_credit_write_observed === false,
+  "Work Credit write overclaimed",
+);
+check(
+  evidence.wallet_or_signer_access_observed === false,
+  "wallet/signer access overclaimed",
+);
+check(
+  evidence.fund_movement_observed === false,
+  "fund movement overclaimed",
+);
 check(
   revalidation.current_runtime_freshness_proven_by_source === false,
   "source overclaims current runtime freshness",
 );
-check(readiness.decision_after_publication === "HOLD", "readiness must remain HOLD");
-check(readiness.activation_authorized === false, "readiness grants activation");
-check(metadataAuthority.activation_authorized === false, "metadata grants activation");
-check(metadataAuthority.service_restart === false, "metadata grants service restart");
+check(
+  readiness.decision_after_publication === "HOLD",
+  "readiness must remain HOLD",
+);
+check(
+  readiness.activation_authorized === false,
+  "readiness grants activation",
+);
+check(
+  metadataAuthority.activation_authorized === false,
+  "metadata grants activation",
+);
+check(
+  metadataAuthority.service_restart === false,
+  "metadata grants service restart",
+);
 
 const runtimeTruth = packet.credential_runtime_truth;
 assert.deepEqual(
@@ -229,7 +291,10 @@ assert.deepEqual(
 );
 
 const gates = packet.ordered_execution_gates;
-check(Array.isArray(gates) && gates.length === 18, "ordered gate count mismatch");
+check(
+  Array.isArray(gates) && gates.length === 18,
+  "ordered gate count mismatch",
+);
 check(gates[0] === "capture_current_origin_main", "first gate mismatch");
 check(
   gates[4] === "privately_verify_trusted_context_reference",
@@ -311,7 +376,10 @@ check(
   "authority must be an object",
 );
 const authorityValues = Object.values(authority);
-check(authorityValues.length === 12, "authority boundary count mismatch");
+check(
+  authorityValues.length === 12,
+  "authority boundary count mismatch",
+);
 check(
   authorityValues.every((value) => value === false),
   "source packet grants authority",
@@ -335,6 +403,7 @@ console.log(`required_source_commits=${commits.length}`);
 console.log(
   `credential_reference_metadata_commit=${required.credential_reference_metadata}`,
 );
+console.log("reviewed_main_and_semantic_prerequisite_distinct=true");
 console.log(`credential_reference_id=${runtimeTruth.credential_reference_id}`);
 console.log(`target_registry_id=${runtimeTruth.target_registry_id}`);
 console.log(`target_registry_sha256=${snapshot.registry_sha256}`);
