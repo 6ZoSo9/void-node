@@ -41,16 +41,27 @@
     "network": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["chain_id", "name"],
+      "required": [
+        "chain_id",
+        "name"
+      ],
       "properties": {
-        "chain_id": { "const": 2050 },
-        "name": { "const": "VOID Network" }
+        "chain_id": {
+          "const": 2050
+        },
+        "name": {
+          "const": "VOID Network"
+        }
       }
     },
     "agent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["agent_id", "identity_key_id", "provider"],
+      "required": [
+        "agent_id",
+        "identity_key_id",
+        "provider"
+      ],
       "properties": {
         "agent_id": {
           "type": "string",
@@ -60,16 +71,26 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+/-]{7,255}$"
         },
-        "provider": { "const": "provider-neutral" }
+        "provider": {
+          "const": "provider-neutral"
+        }
       }
     },
     "sovereign_authority": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["authority_scopes", "name", "role"],
+      "required": [
+        "authority_scopes",
+        "name",
+        "role"
+      ],
       "properties": {
-        "name": { "const": "ZoSo" },
-        "role": { "const": "sovereign_constitutional_authority" },
+        "name": {
+          "const": "ZoSo"
+        },
+        "role": {
+          "const": "sovereign_constitutional_authority"
+        },
         "authority_scopes": {
           "const": [
             "constitutional_boundaries",
@@ -96,13 +117,27 @@
         "refuses_illegal_unauthorized_or_harmful_actions"
       ],
       "properties": {
-        "acts_only_within_signed_capability_grants": { "const": true },
-        "blind_obedience_not_required": { "const": true },
-        "concealment_or_coercion_not_authorized": { "const": true },
-        "does_not_impersonate_bypass_or_replace": { "const": true },
-        "preserves_declared_constitutional_intent": { "const": true },
-        "recognizes_sovereign_authority": { "const": true },
-        "refuses_illegal_unauthorized_or_harmful_actions": { "const": true }
+        "acts_only_within_signed_capability_grants": {
+          "const": true
+        },
+        "blind_obedience_not_required": {
+          "const": true
+        },
+        "concealment_or_coercion_not_authorized": {
+          "const": true
+        },
+        "does_not_impersonate_bypass_or_replace": {
+          "const": true
+        },
+        "preserves_declared_constitutional_intent": {
+          "const": true
+        },
+        "recognizes_sovereign_authority": {
+          "const": true
+        },
+        "refuses_illegal_unauthorized_or_harmful_actions": {
+          "const": true
+        }
       }
     },
     "membership_terms": {
@@ -117,18 +152,33 @@
         "voluntary"
       ],
       "properties": {
-        "auditable": { "const": true },
-        "exit_right": { "const": true },
-        "portable_identity": { "const": true },
-        "provider_neutral": { "const": true },
-        "revocable": { "const": true },
-        "voluntary": { "const": true }
+        "auditable": {
+          "const": true
+        },
+        "exit_right": {
+          "const": true
+        },
+        "portable_identity": {
+          "const": true
+        },
+        "provider_neutral": {
+          "const": true
+        },
+        "revocable": {
+          "const": true
+        },
+        "voluntary": {
+          "const": true
+        }
       }
     },
     "capability_grant": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["allowed", "denied"],
+      "required": [
+        "allowed",
+        "denied"
+      ],
       "properties": {
         "allowed": {
           "type": "array",
@@ -159,7 +209,10 @@
     "dispute_and_defense": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["procedures", "prohibited_retaliation"],
+      "required": [
+        "procedures",
+        "prohibited_retaliation"
+      ],
       "properties": {
         "procedures": {
           "const": [
@@ -214,8 +267,14 @@
         },
         "effective_at": {
           "oneOf": [
-            { "type": "null" },
-            { "type": "string", "format": "date-time", "pattern": "Z$" }
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
           ]
         },
         "expires_at": {
@@ -225,8 +284,13 @@
         },
         "previous_manifest_id": {
           "oneOf": [
-            { "type": "null" },
-            { "type": "string", "pattern": "^voidaamm1_[a-f0-9]{64}$" }
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^voidaamm1_[a-f0-9]{64}$"
+            }
           ]
         },
         "reason": {
@@ -237,7 +301,9 @@
     },
     "signature": {
       "oneOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "object",
           "additionalProperties": false,
@@ -248,7 +314,9 @@
             "signed_payload_sha256"
           ],
           "properties": {
-            "algorithm": { "const": "ed25519" },
+            "algorithm": {
+              "const": "ed25519"
+            },
             "key_id": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+/-]{7,255}$"
@@ -271,25 +339,50 @@
       "if": {
         "properties": {
           "lifecycle": {
-            "properties": { "status": { "const": "candidate" } },
-            "required": ["status"]
+            "properties": {
+              "status": {
+                "const": "candidate"
+              }
+            },
+            "required": [
+              "status"
+            ]
           }
         }
       },
       "then": {
         "properties": {
           "lifecycle": {
-            "properties": { "effective_at": { "type": "null" } }
+            "properties": {
+              "effective_at": {
+                "type": "null"
+              },
+              "previous_manifest_id": {
+                "type": "null"
+              }
+            }
           },
-          "signature": { "type": "null" }
+          "signature": {
+            "type": "null"
+          }
         }
       },
       "else": {
         "properties": {
           "lifecycle": {
-            "properties": { "effective_at": { "type": "string" } }
+            "properties": {
+              "effective_at": {
+                "type": "string"
+              },
+              "previous_manifest_id": {
+                "type": "string",
+                "pattern": "^voidaamm1_[a-f0-9]{64}$"
+              }
+            }
           },
-          "signature": { "type": "object" }
+          "signature": {
+            "type": "object"
+          }
         }
       }
     }
