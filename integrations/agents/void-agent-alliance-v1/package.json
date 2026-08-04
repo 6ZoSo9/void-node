@@ -9,7 +9,8 @@
   },
   "exports": {
     ".": "./index.mjs",
-    "./lifecycle-temporal-guard-v1": "./lifecycle-temporal-guard-v1.mjs"
+    "./lifecycle-temporal-guard-v1": "./lifecycle-temporal-guard-v1.mjs",
+    "./sovereign-admission-guard-v1": "./sovereign-admission-guard-v1.mjs"
   },
   "license": "SEE LICENSE IN ../../../LICENSE"
 }
