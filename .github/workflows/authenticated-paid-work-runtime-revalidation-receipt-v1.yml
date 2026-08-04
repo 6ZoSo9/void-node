@@ -4,11 +4,18 @@ on:
   pull_request:
     paths:
       - ".github/workflows/authenticated-paid-work-runtime-revalidation-receipt-v1.yml"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json"
       - "docs/operations/authenticated-paid-work-runtime-revalidation-receipt-v1.md"
+      - "docs/operations/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.md"
       - "fixtures/agents/authenticated-paid-work-runtime-revalidation-receipt-v1.example.json"
+      - "fixtures/agents/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.example.json"
       - "integrations/agents/authenticated-paid-work-runtime-revalidation-v1/**"
       - "schemas/authenticated-paid-work-runtime-revalidation-receipt-v1.schema.json"
+      - "schemas/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.schema.json"
       - "scripts/prove_authenticated_paid_work_runtime_revalidation_receipt_v1.mjs"
+      - "scripts/prove_authenticated_paid_work_runtime_revalidation_trusted_context_binding_v1.mjs"
   workflow_dispatch:
 
 permissions:
@@ -32,12 +39,21 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check integrations/agents/authenticated-paid-work-runtime-revalidation-v1/index.mjs
+          node --check integrations/agents/authenticated-paid-work-runtime-revalidation-v1/trusted-context-binding-guard-v1.mjs
           node --check scripts/prove_authenticated_paid_work_runtime_revalidation_receipt_v1.mjs
+          node --check scripts/prove_authenticated_paid_work_runtime_revalidation_trusted_context_binding_v1.mjs
       - name: Parse closed JSON artifacts
         run: |
           node -e 'const fs=require("node:fs"); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file,"utf8"));' \
+            config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json \
+            config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json \
+            config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json \
             integrations/agents/authenticated-paid-work-runtime-revalidation-v1/package.json \
             fixtures/agents/authenticated-paid-work-runtime-revalidation-receipt-v1.example.json \
-            schemas/authenticated-paid-work-runtime-revalidation-receipt-v1.schema.json
+            fixtures/agents/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.example.json \
+            schemas/authenticated-paid-work-runtime-revalidation-receipt-v1.schema.json \
+            schemas/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.schema.json
       - name: Prove sanitized runtime revalidation receipt
         run: node scripts/prove_authenticated_paid_work_runtime_revalidation_receipt_v1.mjs
+      - name: Prove exact trusted-context receipt binding
+        run: node scripts/prove_authenticated_paid_work_runtime_revalidation_trusted_context_binding_v1.mjs
