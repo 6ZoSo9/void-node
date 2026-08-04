@@ -8,18 +8,31 @@ This packet converts the reviewed authenticated paid-work source-readiness chain
 into one canonical, non-secret handoff for a later operator execution lane. It
 fixes ordering and evidence requirements without authorizing activation.
 
-The packet is reconciled through exact canonical `main`:
+The packet records the reviewed repository baseline through exact canonical
+`main`:
+
+`621c8d6d59af774b1bcd617505fe75f6bc172c68`
+
+That commit is the squash merge of PR #963. It is later than the paid-work
+metadata merge and adds a disjoint, default-off Buy VOID non-money runtime apply
+lane. Recording it as `reviewed_source_main` means the packet identifies the
+actual reviewed main tree rather than silently stopping at an earlier semantic
+prerequisite.
+
+The paid-work credential metadata remains separately bound to the PR #961 merge
+commit:
 
 `cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa`
 
-That commit is the squash merge of PR #961. It records sanitized evidence that
-the receiver loaded the verified nine-record credential registry while
-preserving `HOLD`, no live authentication, and no current-runtime-freshness
-claim.
+PR #961 records sanitized evidence that the receiver loaded the verified
+nine-record credential registry while preserving `HOLD`, no live
+authentication, and no current-runtime-freshness claim.
 
 The packet's twelve `required_source_commits` remain semantic prerequisite
 bindings. Unrelated commits present in the same main tree do not become
-activation prerequisites merely because they share the reviewed baseline.
+activation prerequisites merely because they share the reviewed baseline. The
+proof requires `reviewed_source_main` to remain distinct from the semantic
+credential-metadata binding so these two meanings cannot collapse again.
 
 A future execution run must capture and revalidate its then-current
 `origin/main`. This source packet does not pre-authorize a future commit or
@@ -75,8 +88,9 @@ The packet continues to bind:
 It continues to reject the unrelated WC participant-preflight commit
 `44d9a95e335e9ebabd65e60f7e388385e0d14abe`.
 
-The proof locks the complete twelve-entry semantic key-to-commit map and requires
-the packet's runtime truth to exactly mirror the merged credential metadata.
+The proof locks the complete twelve-entry semantic key-to-commit map, separately
+locks the reviewed current-main baseline, and requires the packet's runtime
+truth to exactly mirror the merged credential metadata.
 
 ## Current decision
 
@@ -145,7 +159,7 @@ separate decision and cannot be inferred from a successful source merge.
 ## Files
 
 - packet: `config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json`
-- proof: `scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs`
+- proof: `scripts/prove_authenticated_paid_work_production_activation-execution-packet-v1.mjs`
 - workflow: `.github/workflows/authenticated-paid-work-production-activation-execution-packet-v1.yml`
 - document: `docs/operations/authenticated-paid-work-production-activation-execution-packet-v1.md`
 
@@ -162,8 +176,9 @@ node \
   scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs
 ```
 
-Expected marker:
+Expected markers:
 
 ```text
+reviewed_main_and_semantic_prerequisite_distinct=true
 VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1_PROOF_GREEN=true
 ```
