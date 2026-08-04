@@ -1,0 +1,52 @@
+name: VOID Realms tri-scale state transition integrity guard v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-realms-triscale-state-transition-integrity-guard-v1.yml"
+      - "docs/architecture/void-realms-triscale-state-transition-integrity-guard-v1.md"
+      - "src/game/void_realms_triscale_state_transition_integrity_guard_v1.ts"
+      - "scripts/prove_void_realms_triscale_state_transition_integrity_guard_v1.ts"
+      - "src/game/void_realms_triscale_building_v1.ts"
+      - "src/game/void_realms_triscale_atomic_subdivide_merge_v1.ts"
+      - "src/game/void_realms_single_canonical_world_region_checkpoint_handoff_v1.ts"
+      - "src/util/cid.ts"
+      - "examples/void-realms-single-canonical-world-region-checkpoint-handoff-v1.example.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-realms-triscale-state-transition-integrity-guard-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Typecheck source
+        run: npm run typecheck
+      - name: Focused TypeScript validation
+        run: |
+          npx tsc --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --strict \
+            --esModuleInterop \
+            --skipLibCheck \
+            --types node \
+            src/game/void_realms_triscale_state_transition_integrity_guard_v1.ts \
+            scripts/prove_void_realms_triscale_state_transition_integrity_guard_v1.ts
+      - name: Prove tri-scale state-transition integrity guard
+        run: npx tsx scripts/prove_void_realms_triscale_state_transition_integrity_guard_v1.ts
