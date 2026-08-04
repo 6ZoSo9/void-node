@@ -11,13 +11,18 @@ fixes ordering and evidence requirements without authorizing activation.
 The packet records the reviewed repository baseline through exact canonical
 `main`:
 
-`621c8d6d59af774b1bcd617505fe75f6bc172c68`
+`71767df629c1f0034c38ea441c6e2cefc7794820`
 
-That commit is the squash merge of PR #963. It is later than the paid-work
-metadata merge and adds a disjoint, default-off Buy VOID non-money runtime apply
-lane. Recording it as `reviewed_source_main` means the packet identifies the
-actual reviewed main tree rather than silently stopping at an earlier semantic
-prerequisite.
+That commit is the squash merge of PR #960. It is later than the paid-work
+metadata merge and includes two disjoint source-only lanes merged afterward:
+PR #963's default-off Buy VOID non-money runtime apply bridge and PR #960's
+paper-only dual-source market-quote reducer and adapter. Neither commit becomes
+a paid-work semantic prerequisite merely because it is present in the reviewed
+main tree.
+
+Recording the latest reviewed main as `reviewed_source_main` means the packet
+identifies the actual canonical source baseline rather than silently stopping
+at an earlier semantic prerequisite or an earlier unrelated merge.
 
 The paid-work credential metadata remains separately bound to the PR #961 merge
 commit:
@@ -159,7 +164,7 @@ separate decision and cannot be inferred from a successful source merge.
 ## Files
 
 - packet: `config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json`
-- proof: `scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs`
+- proof: `scripts/prove_authenticated_paid_work_production_activation-execution-packet-v1.mjs`
 - workflow: `.github/workflows/authenticated-paid-work-production-activation-execution-packet-v1.yml`
 - document: `docs/operations/authenticated-paid-work-production-activation-execution-packet-v1.md`
 
