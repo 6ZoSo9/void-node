@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-runtime-revalidation-receipt-v1.schema.json",
+  "title": "Authenticated paid-work runtime revalidation receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "credential",
+    "decision",
+    "marker",
+    "observation",
+    "protocol",
+    "receipt_id",
+    "receiver",
+    "replay",
+    "runtime_inputs",
+    "safety",
+    "source",
+    "target"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_RECEIPT_V1"
+    },
+    "protocol": {
+      "const": "void-authenticated-paid-work-runtime-revalidation/1"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^voidapwrr1_[a-f0-9]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credential_metadata_commit",
+        "execution_packet_marker",
+        "execution_packet_merge_commit",
+        "execution_packet_status",
+        "reviewed_source_main"
+      ],
+      "properties": {
+        "reviewed_source_main": {
+          "const": "a6a8757b11828a30899b54eed6c261462681c916"
+        },
+        "execution_packet_marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1"
+        },
+        "execution_packet_status": {
+          "const": "source_ready_execution_not_authorized"
+        },
+        "execution_packet_merge_commit": {
+          "const": "a6a8757b11828a30899b54eed6c261462681c916"
+        },
+        "credential_metadata_commit": {
+          "const": "cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "listener_host",
+        "listener_port",
+        "manager_scope",
+        "service"
+      ],
+      "properties": {
+        "host": {
+          "const": "zoso-Precision-Tower-7810"
+        },
+        "manager_scope": {
+          "const": "systemd_user"
+        },
+        "service": {
+          "const": "void-agent-paid-work-submission-receiver-v1.service"
+        },
+        "listener_host": {
+          "enum": [
+            "127.0.0.1",
+            "::1"
+          ]
+        },
+        "listener_port": {
+          "const": 4187
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captured_at_utc",
+        "clock_synchronized",
+        "evaluated_at_utc",
+        "max_age_seconds",
+        "relative_age_seconds"
+      ],
+      "properties": {
+        "captured_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "evaluated_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "max_age_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "relative_age_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900
+        },
+        "clock_synchronized": {
+          "const": true
+        }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuration_revalidation_completed",
+        "health_http_status",
+        "listener_loopback_only",
+        "loaded_credential_count",
+        "loaded_registry_id",
+        "loaded_registry_sha256",
+        "main_pid",
+        "restart_required",
+        "secret_values_disclosed",
+        "service_active",
+        "target_registry_loaded"
+      ],
+      "properties": {
+        "service_active": {
+          "const": true
+        },
+        "main_pid": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "health_http_status": {
+          "const": 200
+        },
+        "listener_loopback_only": {
+          "const": true
+        },
+        "loaded_registry_id": {
+          "const": "voidapwcr1_ce24175f3144131773f730d4989113b949998d79c48c3ddbd9752390122aac4f"
+        },
+        "loaded_registry_sha256": {
+          "const": "92e3149e560f7fa159d8fb5c59cd680cb6547a8a8f8010036bc02c4aa8d6e00e"
+        },
+        "loaded_credential_count": {
+          "const": 9
+        },
+        "target_registry_loaded": {
+          "const": true
+        },
+        "restart_required": {
+          "const": false
+        },
+        "configuration_revalidation_completed": {
+          "const": true
+        },
+        "secret_values_disclosed": {
+          "const": false
+        }
+      }
+    },
+    "credential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "expires_at_utc",
+        "identity_verified",
+        "not_before_utc",
+        "raw_token_read",
+        "revocation_checked",
+        "revoked",
+        "scope",
+        "scope_verified",
+        "secret_material_disclosed",
+        "selected_credential_id",
+        "validity_window_contains_observation"
+      ],
+      "properties": {
+        "selected_credential_id": {
+          "const": "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1"
+        },
+        "agent_id": {
+          "const": "void-external-agent-e2e-fulfillment-canary-agent-v1"
+        },
+        "scope": {
+          "const": "agent_paid_work_submit"
+        },
+        "not_before_utc": {
+          "const": "2026-08-03T15:02:30.000Z"
+        },
+        "expires_at_utc": {
+          "const": "2026-08-05T00:00:00.000Z"
+        },
+        "identity_verified": {
+          "const": true
+        },
+        "scope_verified": {
+          "const": true
+        },
+        "validity_window_contains_observation": {
+          "const": true
+        },
+        "revocation_checked": {
+          "const": true
+        },
+        "revoked": {
+          "const": false
+        },
+        "raw_token_read": {
+          "const": false
+        },
+        "secret_material_disclosed": {
+          "const": false
+        }
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replay_state_acceptable",
+        "replay_state_checked",
+        "selected_credential_previously_consumed",
+        "unexpected_mutation_observed"
+      ],
+      "properties": {
+        "replay_state_checked": {
+          "const": true
+        },
+        "unexpected_mutation_observed": {
+          "const": false
+        },
+        "selected_credential_previously_consumed": {
+          "const": false
+        },
+        "replay_state_acceptable": {
+          "const": true
+        }
+      }
+    },
+    "runtime_inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credential_reference_verified_and_fresh",
+        "execution_plan_sha256",
+        "fresh_direct_authentication_packet_sha256",
+        "fresh_origin_main",
+        "fresh_quote_required",
+        "fresh_zoso_confirmation",
+        "provider_signature_verified",
+        "requester_signature_verified",
+        "trusted_context_reference_verified"
+      ],
+      "properties": {
+        "fresh_origin_main": {
+          "const": "a6a8757b11828a30899b54eed6c261462681c916"
+        },
+        "trusted_context_reference_verified": {
+          "const": true
+        },
+        "credential_reference_verified_and_fresh": {
+          "const": true
+        },
+        "provider_signature_verified": {
+          "const": false
+        },
+        "requester_signature_verified": {
+          "const": false
+        },
+        "fresh_direct_authentication_packet_sha256": {
+          "type": "null"
+        },
+        "execution_plan_sha256": {
+          "type": "null"
+        },
+        "fresh_zoso_confirmation": {
+          "type": "null"
+        },
+        "fresh_quote_required": {
+          "const": true
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fund_movement_performed",
+        "live_authentication_performed",
+        "payment_execution_performed",
+        "service_mutation_performed",
+        "transaction_broadcast_performed",
+        "wallet_or_signer_access_performed",
+        "work_credit_write_performed",
+        "work_dispatch_performed"
+      ],
+      "properties": {
+        "fund_movement_performed": {
+          "const": false
+        },
+        "live_authentication_performed": {
+          "const": false
+        },
+        "payment_execution_performed": {
+          "const": false
+        },
+        "service_mutation_performed": {
+          "const": false
+        },
+        "transaction_broadcast_performed": {
+          "const": false
+        },
+        "wallet_or_signer_access_performed": {
+          "const": false
+        },
+        "work_credit_write_performed": {
+          "const": false
+        },
+        "work_dispatch_performed": {
+          "const": false
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_authorized",
+        "execution_plan_digest_required",
+        "fresh_quote_required",
+        "fresh_signatures_required",
+        "fresh_zoso_confirmation_required",
+        "runtime_revalidation_satisfied",
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "HOLD_PENDING_SIGNATURES_QUOTE_PLAN_AND_CONFIRMATION"
+        },
+        "runtime_revalidation_satisfied": {
+          "const": true
+        },
+        "fresh_signatures_required": {
+          "const": true
+        },
+        "fresh_quote_required": {
+          "const": true
+        },
+        "execution_plan_digest_required": {
+          "const": true
+        },
+        "fresh_zoso_confirmation_required": {
+          "const": true
+        },
+        "execution_authorized": {
+          "const": false
+        }
+      }
+    }
+  }
+}
