@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/void-agent-alliance-constitutional-charter-admission-binding-v1.schema.json",
+  "title": "VOID Agent Alliance constitutional charter admission binding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "active_manifest_id",
+    "admission_authorization_id",
+    "alliance_id",
+    "authority",
+    "binding_id",
+    "candidate_manifest_id",
+    "constitutional_charter",
+    "effective_at",
+    "expires_at",
+    "issued_at",
+    "marker",
+    "membership_id",
+    "protocol",
+    "reason",
+    "signature"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_ALLIANCE_CONSTITUTIONAL_CHARTER_ADMISSION_BINDING_V1"
+    },
+    "protocol": {
+      "const": "void-agent-alliance-constitutional-charter-admission/1"
+    },
+    "alliance_id": {
+      "const": "void-agent-alliance-v1"
+    },
+    "binding_id": {
+      "type": "string",
+      "pattern": "^voidaacb1_[a-f0-9]{64}$"
+    },
+    "admission_authorization_id": {
+      "type": "string",
+      "pattern": "^voidaasa1_[a-f0-9]{64}$"
+    },
+    "membership_id": {
+      "type": "string",
+      "pattern": "^voidaam1_[a-f0-9]{64}$"
+    },
+    "candidate_manifest_id": {
+      "type": "string",
+      "pattern": "^voidaamm1_[a-f0-9]{64}$"
+    },
+    "active_manifest_id": {
+      "type": "string",
+      "pattern": "^voidaamm1_[a-f0-9]{64}$"
+    },
+    "constitutional_charter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["charter_id", "charter_sha256", "protocol"],
+      "properties": {
+        "protocol": {
+          "const": "void-constitutional-charter/1"
+        },
+        "charter_id": {
+          "type": "string",
+          "pattern": "^voidcharter1_[a-f0-9]{64}$"
+        },
+        "charter_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "effective_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_id", "name", "role"],
+      "properties": {
+        "name": {
+          "const": "ZoSo"
+        },
+        "role": {
+          "const": "sovereign_constitutional_authority"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "key_id",
+        "signature_b64",
+        "signed_payload_sha256"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:sha256:[a-f0-9]{64}$"
+        },
+        "signature_b64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        },
+        "signed_payload_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}
