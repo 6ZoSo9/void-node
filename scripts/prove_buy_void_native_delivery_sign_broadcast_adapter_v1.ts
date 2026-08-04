@@ -92,7 +92,7 @@ function attemptWithHash(
     postbroadcast_failure: null,
     confirmation: null,
     status: "prepared",
-  } as BuyVoidExecutionAttemptStateV1;
+  } as unknown as BuyVoidExecutionAttemptStateV1;
 }
 
 const provisional = await runBuyVoidNativeDeliverySignBroadcastV1({
