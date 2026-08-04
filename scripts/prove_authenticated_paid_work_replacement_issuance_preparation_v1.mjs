@@ -8,6 +8,9 @@ import {
   FALSE_AUTHORITY,
   ORDERED_GATES,
 } from "../integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/index.mjs";
+import {
+  computeAuthenticatedPaidWorkRuntimeRevalidationTrustedContextBindingIdV1,
+} from "../integrations/agents/authenticated-paid-work-runtime-revalidation-v1/trusted-context-binding-guard-v1.mjs";
 
 const readJson = (pathname) => JSON.parse(fs.readFileSync(pathname, "utf8"));
 const clone = (value) => structuredClone(value);
@@ -68,6 +71,10 @@ assert.deepEqual(fixture.authority, { ...FALSE_AUTHORITY });
 
 const wrongTrustedContextLink = clone(trustedContextBinding);
 wrongTrustedContextLink.receipt_id = `voidapwrr1_${"f".repeat(64)}`;
+wrongTrustedContextLink.binding_id =
+  computeAuthenticatedPaidWorkRuntimeRevalidationTrustedContextBindingIdV1(
+    wrongTrustedContextLink,
+  );
 expectReject(
   "wrong_trusted_context_link",
   () => buildAuthenticatedPaidWorkReplacementIssuancePreparationV1({
