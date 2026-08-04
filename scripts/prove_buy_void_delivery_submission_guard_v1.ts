@@ -94,6 +94,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .monotonic_write_timestamp,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
     .automatic_stale_lock_removal,
   false,
 );
@@ -221,6 +226,98 @@ assert.equal(
   entries[2].previous_entry_hash_sha256,
   entries[1].entry_hash_sha256,
 );
+
+const equalTimestampRoot = tempRoot(
+  "delivery-submission-equal-write-timestamp-v1",
+);
+const equalTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+  equalTimestampRoot,
+  () => 1_701_800_000_000,
+);
+assert.deepEqual(
+  await equalTimestampGuard.claim_submission_once(binding),
+  { claimed: true },
+);
+assert.deepEqual(
+  await equalTimestampGuard.release_submission_claim(
+    binding,
+    "broadcast_definitively_not_submitted",
+  ),
+  { released: true },
+);
+assert.deepEqual(
+  readBuyVoidDeliverySubmissionGuardJournalV1(equalTimestampRoot)
+    .map((entry) => entry.recorded_at_ms),
+  [1_701_800_000_000, 1_701_800_000_000],
+);
+
+const regressingTimestampRoot = tempRoot(
+  "delivery-submission-regressing-write-timestamp-v1",
+);
+const regressingTimestampValues = [
+  1_701_800_000_001,
+  1_701_800_000_000,
+];
+const regressingTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+  regressingTimestampRoot,
+  () => {
+    const selected = regressingTimestampValues.shift();
+    if (selected === undefined) {
+      throw new Error("proof_clock_exhausted");
+    }
+    return selected;
+  },
+);
+assert.deepEqual(
+  await regressingTimestampGuard.claim_submission_once(binding),
+  { claimed: true },
+);
+const regressingTimestampPaths =
+  buyVoidDeliverySubmissionGuardPathsV1(regressingTimestampRoot);
+const journalBeforeRegressingWrite = fs.readFileSync(
+  regressingTimestampPaths.journal_file,
+  "utf8",
+);
+await assert.rejects(
+  regressingTimestampGuard.release_submission_claim(
+    binding,
+    "broadcast_definitively_not_submitted",
+  ),
+  /submission_guard_write_timestamp_regression/,
+);
+assert.equal(
+  fs.readFileSync(regressingTimestampPaths.journal_file, "utf8"),
+  journalBeforeRegressingWrite,
+);
+assert.deepEqual(
+  readBuyVoidDeliverySubmissionGuardJournalV1(regressingTimestampRoot)
+    .map((entry) => entry.event),
+  ["claim"],
+);
+assert.equal(fs.existsSync(regressingTimestampPaths.lock_file), false);
+
+for (const [label, invalidTimestamp] of [
+  ["negative", -1],
+  ["fractional", 1.5],
+  ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+  ["nan", Number.NaN],
+] as const) {
+  const invalidTimestampRoot = tempRoot(
+    `delivery-submission-invalid-write-timestamp-${label}-v1`,
+  );
+  const invalidTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+    invalidTimestampRoot,
+    () => invalidTimestamp,
+  );
+  await assert.rejects(
+    invalidTimestampGuard.claim_submission_once(binding),
+    /submission_guard_write_timestamp_invalid/,
+  );
+  const invalidTimestampPaths =
+    buyVoidDeliverySubmissionGuardPathsV1(invalidTimestampRoot);
+  assert.equal(fs.existsSync(invalidTimestampPaths.journal_file), false);
+  assert.equal(fs.existsSync(invalidTimestampPaths.lock_file), false);
+}
 
 const otherAdapterRoot = tempRoot("delivery-submission-other-adapter-v1");
 const otherAdapterGuard =
@@ -416,6 +513,7 @@ console.log("idempotency_key_binding_immutable=true");
 console.log("alternate_idempotency_key_replay_rejected=true");
 console.log("journal_replay_lifecycle_verified=true");
 console.log("closed_journal_contract_verified=true");
+console.log("write_timestamp_prevalidated=true");
 console.log("binding_conflicts_rejected=true");
 console.log(
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1_GREEN",
