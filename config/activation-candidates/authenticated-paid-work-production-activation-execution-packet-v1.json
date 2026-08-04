@@ -23,6 +23,13 @@
     "fresh_direct_quote_authentication_preparation": "a371372213782e8b55d678d28dc5291559ad02ee",
     "fresh_direct_quote_signing_handoff": "32cd4883b95354ab979d12640ffd2e2ac1279e57"
   },
+  "source_commit_graph_policy": {
+    "shallow_history_forbidden": true,
+    "reviewed_source_main_must_exist": true,
+    "reviewed_source_main_must_be_ancestor_of_checkout": true,
+    "required_source_commits_must_exist": true,
+    "required_source_commits_must_be_ancestors_of_reviewed_source_main": true
+  },
   "credential_runtime_truth": {
     "credential_reference_id": "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1",
     "target_registry_id": "voidapwcr1_ce24175f3144131773f730d4989113b949998d79c48c3ddbd9752390122aac4f",
