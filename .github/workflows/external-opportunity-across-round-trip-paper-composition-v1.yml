@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/external_opportunity/across_round_trip_paper_composition_v1.ts"
+      - "src/external_opportunity/across_round_trip_paper_position_value_guard_v1.ts"
       - "scripts/prove_external_opportunity_across_round_trip_paper_composition_v1.ts"
       - "fixtures/external-opportunity/across-round-trip-paper-composition-v1.example.json"
       - "schemas/external-opportunity-across-round-trip-paper-composition-v1.schema.json"
