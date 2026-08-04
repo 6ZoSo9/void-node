@@ -2,80 +2,92 @@
 
 ## Purpose
 
-This lane creates the authenticated, read-only valuation boundary required by
-the self-capital round-trip paper observer. It retrieves Across-supported token
-metadata from `GET /api/swap/tokens`, selects exactly one token by chain ID and
-address, and binds an exact token amount to a conservatively rounded USD value.
+This lane supplies an authenticated starting-asset USD valuation for the
+self-capital round-trip paper observer. It converts one bounded Across token
+catalog response into a sanitized, deterministic valuation record.
 
-The lane does not compose a round trip and does not authorize trading. A later
-adapter may combine two independently ingested quote legs with one valuation
-receipt from this lane.
+## Provider boundary
 
-## Request boundary
-
-The default transport permits only:
-
-- HTTPS;
-- host `app.across.to`;
-- path `/api/swap/tokens`;
-- method `GET`;
-- explicit `chainId` and `integratorId` query parameters;
-- bearer authentication supplied ephemerally;
-- JSON responses no larger than 1 MiB;
-- timeouts from 1 to 30 seconds;
-- no redirects.
-
-The transport is injected for tests. The deterministic proof uses a synthetic
-API key and mock response and performs no live API request.
-
-## Token selection
-
-Every returned token is sanitized to:
-
-- chain ID;
-- lowercase EVM address;
-- symbol;
-- decimals;
-- canonical non-negative `priceUsd` decimal.
-
-The requested chain ID and address must match exactly one token. Missing and
-duplicate matches fail closed. Unknown token-response keys fail closed so
-execution-shaped or transaction-shaped fields cannot silently enter the
-valuation record.
-
-## Conservative valuation
-
-The selected token price is floored to USD micro-units. The exact amount value
-is derived with arbitrary-precision integer arithmetic:
+The implementation permits one read-only request shape:
 
 ```text
-position value micros = floor(
-  price numerator × amount base units × 1,000,000
-  / (10^priceFractionDigits × 10^tokenDecimals)
+GET https://app.across.to/api/swap/tokens?chainId=<canonical-positive-integer>
+Authorization: Bearer <API key>
+```
+
+The query boundary is exact. `chainId` must appear once and must be the only
+query parameter. Duplicate `chainId` values, extra parameters, fragments,
+redirects, alternate hosts, alternate paths, alternate methods, and malformed
+chain identifiers fail closed. `/swap/tokens` does not use an `integratorId`
+parameter in this contract.
+
+The transport also enforces:
+
+- HTTPS and exact host `app.across.to`;
+- exact path `/api/swap/tokens`;
+- `GET` only;
+- a timeout from 1,000 through 30,000 milliseconds;
+- a one-megabyte response limit;
+- JSON content type;
+- HTTP status 200;
+- no redirect following.
+
+## Selection and valuation
+
+The response must be a non-empty token array. Every entry is parsed into a
+bounded token record. The selector matches by exact chain ID and normalized EVM
+address. A missing token or more than one matching token fails closed.
+
+`priceUsd` is accepted only as a canonical non-negative decimal with at most 36
+fractional digits. The selected base-unit amount must be a canonical positive
+integer. Token decimals are taken from the selected provider record.
+
+The valuation is computed with integer arithmetic:
+
+```text
+price USD micros = floor(priceUsd × 1,000,000)
+
+position USD micros = floor(
+  exact price numerator × base-unit amount × 1,000,000
+  ÷ 10^(price fraction digits + token decimals)
 )
 ```
 
-The result binds:
+No floating-point arithmetic is used. Both results conservatively round down to
+six USD decimal places.
 
-- exact chain ID and token address;
-- exact token base-unit amount;
-- authenticated token decimals;
+## Evidence record
+
+The returned record binds:
+
+- provider and exact endpoint;
 - observation and evaluation times;
-- conservatively floored price and position value;
-- a SHA-256 digest of the sanitized token record;
-- a SHA-256 digest of the complete valuation core.
+- selector chain, address, and amount;
+- selected token chain, address, symbol, and decimals;
+- floored price and position value;
+- source price precision;
+- a SHA-256 digest of the sanitized token, including its exact source price;
+- a SHA-256 digest of the resulting valuation core.
 
-No floating-point arithmetic is used.
+The result retains no API key, raw response, token name, logo URL, wallet data,
+or transaction payload.
 
-## Retention and authority boundary
+## Verification boundary
 
-The result retains no API key, authorization header, raw response body, token
-logo URL, transaction payload, calldata, wallet data, or signer data.
+The deterministic proof uses an injected mock transport and a synthetic API-key
+string. It performs no live API request and accesses no real credential. The
+proof verifies the exact `chainId`-only URL, bearer header construction,
+conservative arithmetic, deterministic digests, missing and duplicate token
+rejection, malformed-price rejection, unknown-field rejection, HTTP and content
+boundaries, and query-pollution rejection.
 
-This source performs no wallet or key access, balance query, approval,
-transaction construction, signing, submission, swap, bridge execution, custody,
-deployment, service restart, Work Credit write, Buy VOID mutation, or fund
-movement. All execution and fund-movement authority flags are fixed false.
+## Authority boundary
+
+This lane provides read-only valuation evidence only. It performs no wallet or
+key access, balance query, approval, transaction construction, signing,
+submission, bridge or swap execution, custody, deployment, service restart,
+Work Credit write, Buy VOID mutation, or fund movement. It grants no live
+execution authority.
 
 ## Files
 
@@ -92,9 +104,3 @@ movement. All execution and fund-movement authority flags are fixed false.
 node --import tsx scripts/prove_external_opportunity_across_swap_api_token_valuation_ingestion_v1.ts
 npm run build
 ```
-
-The proof covers exact request construction, deterministic token selection,
-price and amount valuation, full-precision integer flooring, deterministic
-hashing, synthetic credential non-retention, missing and duplicate matches,
-malformed prices, zero amounts, unexpected input and response fields, non-JSON
-responses, non-200 responses, and all false execution-authority flags.
