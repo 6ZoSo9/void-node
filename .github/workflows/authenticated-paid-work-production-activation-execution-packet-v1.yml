@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/authenticated-paid-work-production-activation-execution-packet-v1.yml"
       - "config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json"
       - "docs/operations/authenticated-paid-work-production-activation-execution-packet-v1.md"
       - "scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs"
   workflow_dispatch:
@@ -27,8 +28,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Parse packet
-        run: python3 -m json.tool config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json >/dev/null
+      - name: Parse source contracts
+        run: |
+          python3 -m json.tool config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json >/dev/null
+          python3 -m json.tool config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json >/dev/null
       - name: Check proof syntax
         run: node --check scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs
       - name: Prove execution packet
