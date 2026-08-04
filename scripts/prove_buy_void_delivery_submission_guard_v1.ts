@@ -29,6 +29,44 @@ const binding: BuyVoidDeliverySubmissionBindingV1 = {
   transaction_plan_fingerprint_sha256: "4".repeat(64),
 };
 
+function appendHashedEntry(
+  root: string,
+  body: Record<string, unknown>,
+): void {
+  const complete = {
+    ...body,
+    entry_hash_sha256: sha256(JSON.stringify(body)),
+  };
+  fs.appendFileSync(
+    buyVoidDeliverySubmissionGuardPathsV1(root).journal_file,
+    `${JSON.stringify(complete)}\n`,
+    "utf8",
+  );
+}
+
+async function seedClaim(
+  label: string,
+  selectedBinding: BuyVoidDeliverySubmissionBindingV1 = binding,
+): Promise<{
+  root: string;
+  first: ReturnType<
+    typeof readBuyVoidDeliverySubmissionGuardJournalV1
+  >[number];
+}> {
+  const root = tempRoot(label);
+  const guard = createBuyVoidDeliverySubmissionGuardV1(
+    root,
+    () => 1_701_700_000_000,
+  );
+  assert.deepEqual(
+    await guard.claim_submission_once(selectedBinding),
+    { claimed: true },
+  );
+  const [first] =
+    readBuyVoidDeliverySubmissionGuardJournalV1(root);
+  return { root, first };
+}
+
 assert.equal(
   VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
     .attempt_binding_immutable,
@@ -36,7 +74,22 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .idempotency_key_binding_immutable,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
     .alternate_idempotency_key_replay_forbidden,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .replay_lifecycle_verified,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .closed_journal_contract,
   true,
 );
 assert.equal(
@@ -207,25 +260,16 @@ assert.equal(
 );
 fs.unlinkSync(paths.lock_file);
 
-const forgedRoot = tempRoot("delivery-submission-forged-v1");
-const forgedGuard = createBuyVoidDeliverySubmissionGuardV1(
-  forgedRoot,
-  () => 1_701_700_000_000,
+const forgedAttempt = await seedClaim(
+  "delivery-submission-forged-attempt-v1",
 );
-assert.deepEqual(
-  await forgedGuard.claim_submission_once(binding),
-  { claimed: true },
-);
-const forgedPaths =
-  buyVoidDeliverySubmissionGuardPathsV1(forgedRoot);
-const [first] =
-  readBuyVoidDeliverySubmissionGuardJournalV1(forgedRoot);
-const forgedWithoutHash = {
+appendHashedEntry(forgedAttempt.root, {
   schema: "void_buy_void_delivery_submission_guard_claim_v1",
   marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
   sequence: 2,
   recorded_at_ms: 1_701_700_000_001,
-  previous_entry_hash_sha256: first.entry_hash_sha256,
+  previous_entry_hash_sha256:
+    forgedAttempt.first.entry_hash_sha256,
   event: "claim",
   adapter_marker: binding.marker,
   submission_idempotency_key: "d".repeat(64),
@@ -233,19 +277,128 @@ const forgedWithoutHash = {
   expected_transaction_hash: binding.expected_transaction_hash,
   transaction_plan_fingerprint_sha256:
     binding.transaction_plan_fingerprint_sha256,
-};
-const forged = {
-  ...forgedWithoutHash,
-  entry_hash_sha256: sha256(JSON.stringify(forgedWithoutHash)),
-};
-fs.appendFileSync(
-  forgedPaths.journal_file,
-  `${JSON.stringify(forged)}\n`,
-  "utf8",
-);
+});
 assert.throws(
-  () => readBuyVoidDeliverySubmissionGuardJournalV1(forgedRoot),
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedAttempt.root,
+    ),
   /submission_guard_attempt_binding_mismatch/,
+);
+
+const forgedKeyReuse = await seedClaim(
+  "delivery-submission-forged-key-reuse-v1",
+);
+appendHashedEntry(forgedKeyReuse.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedKeyReuse.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: "e".repeat(64),
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedKeyReuse.root,
+    ),
+  /submission_guard_idempotency_binding_mismatch/,
+);
+
+const forgedDuplicateClaim = await seedClaim(
+  "delivery-submission-forged-duplicate-claim-v1",
+);
+appendHashedEntry(forgedDuplicateClaim.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedDuplicateClaim.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: binding.attempt_id,
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedDuplicateClaim.root,
+    ),
+  /submission_guard_duplicate_claim/,
+);
+
+const forgedReleaseFirstRoot = tempRoot(
+  "delivery-submission-forged-release-first-v1",
+);
+const forgedReleaseFirstPaths =
+  buyVoidDeliverySubmissionGuardPathsV1(
+    forgedReleaseFirstRoot,
+  );
+fs.mkdirSync(forgedReleaseFirstPaths.state_dir, {
+  recursive: true,
+  mode: 0o700,
+});
+appendHashedEntry(forgedReleaseFirstRoot, {
+  schema: "void_buy_void_delivery_submission_guard_release_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 1,
+  recorded_at_ms: 1_701_700_000_000,
+  previous_entry_hash_sha256: "0".repeat(64),
+  event: "release",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: binding.attempt_id,
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+  release_reason: "broadcast_definitively_not_submitted",
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedReleaseFirstRoot,
+    ),
+  /submission_guard_release_without_claim/,
+);
+
+const forgedUnknownKey = await seedClaim(
+  "delivery-submission-forged-unknown-key-v1",
+);
+appendHashedEntry(forgedUnknownKey.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedUnknownKey.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key: "f".repeat(64),
+  attempt_id: "a".repeat(64),
+  expected_transaction_hash: `0x${"b".repeat(64)}`,
+  transaction_plan_fingerprint_sha256: "c".repeat(64),
+  unexpected_authority: true,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedUnknownKey.root,
+    ),
+  /submission_guard_journal_keys_mismatch/,
 );
 
 const journalText = fs.readFileSync(paths.journal_file, "utf8");
@@ -259,7 +412,10 @@ for (const forbidden of [
 }
 
 console.log("attempt_binding_immutable=true");
+console.log("idempotency_key_binding_immutable=true");
 console.log("alternate_idempotency_key_replay_rejected=true");
+console.log("journal_replay_lifecycle_verified=true");
+console.log("closed_journal_contract_verified=true");
 console.log("binding_conflicts_rejected=true");
 console.log(
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1_GREEN",
