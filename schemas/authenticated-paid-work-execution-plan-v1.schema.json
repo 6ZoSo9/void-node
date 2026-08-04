@@ -1,0 +1,348 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-execution-plan-v1.schema.json",
+  "title": "VOID authenticated paid-work execution plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "marker",
+    "protocol",
+    "version",
+    "status",
+    "operation_id",
+    "generated_at_utc",
+    "expires_at_utc",
+    "target",
+    "runtime_evidence",
+    "direct_authentication",
+    "reviewed_artifact_bindings",
+    "private_reference_fingerprints",
+    "preflight",
+    "live_canary_scope_binding",
+    "ordered_mutations",
+    "rollback_binding",
+    "confirmation",
+    "decision",
+    "authority",
+    "execution_plan_sha256",
+    "plan_id"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://void.network/schemas/authenticated-paid-work-execution-plan-v1.schema.json"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PLAN_V1"
+    },
+    "protocol": {
+      "const": "void-authenticated-paid-work-production-activation-execution-plan/1"
+    },
+    "version": { "const": 1 },
+    "status": { "const": "HOLD_PENDING_FRESH_ZOSO_CONFIRMATION" },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^void-apw-activation-[a-z0-9][a-z0-9-]{7,95}$"
+    },
+    "generated_at_utc": { "$ref": "#/$defs/utc" },
+    "expires_at_utc": { "$ref": "#/$defs/utc" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostname",
+        "runtime_user",
+        "repository",
+        "node_major",
+        "service_manager_scope",
+        "expected_main_commit"
+      ],
+      "properties": {
+        "hostname": { "const": "zoso-Precision-Tower-7810" },
+        "runtime_user": { "const": "zoso" },
+        "repository": { "const": "6ZoSo9/void-node" },
+        "node_major": { "const": 22 },
+        "service_manager_scope": { "const": "systemd_user" },
+        "expected_main_commit": { "$ref": "#/$defs/commit" }
+      }
+    },
+    "runtime_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "trusted_context_binding_id",
+        "evaluated_at_utc",
+        "credential_id",
+        "credential_expires_at_utc",
+        "credential_registry_id",
+        "credential_registry_sha256",
+        "runtime_revalidation_satisfied",
+        "trusted_context_verified",
+        "replay_state_acceptable"
+      ],
+      "properties": {
+        "receipt_id": { "type": "string", "pattern": "^voidapwrr1_[0-9a-f]{64}$" },
+        "trusted_context_binding_id": { "type": "string", "pattern": "^voidapwrtcb1_[0-9a-f]{64}$" },
+        "evaluated_at_utc": { "$ref": "#/$defs/utc" },
+        "credential_id": { "type": "string", "pattern": "^voidapwc1_[0-9a-f]{64}$" },
+        "credential_expires_at_utc": { "$ref": "#/$defs/utc" },
+        "credential_registry_id": { "type": "string", "pattern": "^voidapwcr1_[0-9a-f]{64}$" },
+        "credential_registry_sha256": { "$ref": "#/$defs/sha256" },
+        "runtime_revalidation_satisfied": { "const": true },
+        "trusted_context_verified": { "const": true },
+        "replay_state_acceptable": { "const": true }
+      }
+    },
+    "direct_authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "verified_at_utc",
+        "verification_contract",
+        "packet_id",
+        "packet_sha256",
+        "work_order_id",
+        "quote_id",
+        "quote_expires_at_utc",
+        "provider_signature_verified",
+        "requester_signature_verified",
+        "direct_authentication_packet_verified",
+        "eligible_for_atomic_activation_persistence",
+        "atomic_persistence_performed",
+        "packet_bytes_disclosed",
+        "signature_bytes_disclosed",
+        "authority",
+        "verification_id"
+      ],
+      "properties": {
+        "marker": { "const": "VOID_AUTHENTICATED_PAID_WORK_FRESH_DIRECT_AUTHENTICATION_VERIFICATION_V1" },
+        "version": { "const": 1 },
+        "status": { "const": "fresh_direct_authentication_verified_no_persistence" },
+        "verified_at_utc": { "$ref": "#/$defs/utc" },
+        "verification_contract": { "const": "verifyAuthenticatedPaidWorkFreshDirectAuthenticationPreparationV1" },
+        "packet_id": { "type": "string", "pattern": "^voidafdqa1_[0-9a-f]{64}$" },
+        "packet_sha256": { "$ref": "#/$defs/sha256" },
+        "work_order_id": { "type": "string", "pattern": "^void[a-z0-9]+1_[0-9a-f]{64}$" },
+        "quote_id": { "type": "string", "pattern": "^voidawq1_[0-9a-f]{64}$" },
+        "quote_expires_at_utc": { "$ref": "#/$defs/utc" },
+        "provider_signature_verified": { "const": true },
+        "requester_signature_verified": { "const": true },
+        "direct_authentication_packet_verified": { "const": true },
+        "eligible_for_atomic_activation_persistence": { "const": true },
+        "atomic_persistence_performed": { "const": false },
+        "packet_bytes_disclosed": { "const": false },
+        "signature_bytes_disclosed": { "const": false },
+        "authority": { "$ref": "#/$defs/authority" },
+        "verification_id": { "type": "string", "pattern": "^voidapwdav1_[0-9a-f]{64}$" }
+      }
+    },
+    "reviewed_artifact_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activation_configuration_sha256",
+        "bounded_replay_snapshot_sha256",
+        "credential_metadata_commit",
+        "credential_reference_metadata_sha256",
+        "credential_rotation_merge_commit",
+        "execution_confirmation_sha256",
+        "execution_packet_merge_commit",
+        "live_canary_scope_sha256",
+        "rollback_plan_sha256",
+        "runtime_revalidation_merge_commit",
+        "service_unit_design_sha256",
+        "trusted_context_reference_metadata_sha256"
+      ],
+      "properties": {
+        "activation_configuration_sha256": { "$ref": "#/$defs/sha256" },
+        "bounded_replay_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+        "credential_metadata_commit": { "$ref": "#/$defs/commit" },
+        "credential_reference_metadata_sha256": { "$ref": "#/$defs/sha256" },
+        "credential_rotation_merge_commit": { "$ref": "#/$defs/commit" },
+        "execution_confirmation_sha256": { "$ref": "#/$defs/sha256" },
+        "execution_packet_merge_commit": { "$ref": "#/$defs/commit" },
+        "live_canary_scope_sha256": { "$ref": "#/$defs/sha256" },
+        "rollback_plan_sha256": { "$ref": "#/$defs/sha256" },
+        "runtime_revalidation_merge_commit": { "$ref": "#/$defs/commit" },
+        "service_unit_design_sha256": { "$ref": "#/$defs/sha256" },
+        "trusted_context_reference_metadata_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "private_reference_fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trusted_context_bundle_sha256",
+        "trusted_context_bundle_path_fingerprint_sha256",
+        "credential_reference_id",
+        "credential_registry_id"
+      ],
+      "properties": {
+        "trusted_context_bundle_sha256": { "$ref": "#/$defs/sha256" },
+        "trusted_context_bundle_path_fingerprint_sha256": { "$ref": "#/$defs/sha256" },
+        "credential_reference_id": { "type": "string", "pattern": "^voidapwc1_[0-9a-f]{64}$" },
+        "credential_registry_id": { "type": "string", "pattern": "^voidapwcr1_[0-9a-f]{64}$" }
+      }
+    },
+    "preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_reviewed_source_artifact_digests_match",
+        "bounded_replay_snapshot_exact_and_fresh_store_only",
+        "credential_reference_privately_revalidated_without_output",
+        "disabled_configuration_preimage_exact",
+        "disabled_runtime_installation_exact",
+        "execution_lease_absent",
+        "no_inflight_paid_work_or_economic_state",
+        "rollback_receipt_destination_owner_private_and_non_symlink",
+        "runtime_listener_absent",
+        "runtime_revalidation_receipt_verified",
+        "service_inactive_before_start",
+        "target_worktree_clean_and_exact",
+        "trusted_context_binding_verified",
+        "trusted_context_reference_privately_revalidated_without_output"
+      ],
+      "properties": {
+        "all_reviewed_source_artifact_digests_match": { "const": true },
+        "bounded_replay_snapshot_exact_and_fresh_store_only": { "const": true },
+        "credential_reference_privately_revalidated_without_output": { "const": true },
+        "disabled_configuration_preimage_exact": { "const": true },
+        "disabled_runtime_installation_exact": { "const": true },
+        "execution_lease_absent": { "const": true },
+        "no_inflight_paid_work_or_economic_state": { "const": true },
+        "rollback_receipt_destination_owner_private_and_non_symlink": { "const": true },
+        "runtime_listener_absent": { "const": true },
+        "runtime_revalidation_receipt_verified": { "const": true },
+        "service_inactive_before_start": { "const": true },
+        "target_worktree_clean_and_exact": { "const": true },
+        "trusted_context_binding_verified": { "const": true },
+        "trusted_context_reference_privately_revalidated_without_output": { "const": true }
+      }
+    },
+    "live_canary_scope_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference_id", "sha256", "maximum_service_starts", "maximum_canary_runs", "automatic_retry"],
+      "properties": {
+        "reference_id": { "const": "voidapwlcs1_d7de055750dc99faedf51d2a62c94e2dad055be5c2660d439c14ec5527dc03bb" },
+        "sha256": { "const": "4d2a253d43334b5b0c2053007e0135a9467a1f58c0841d79778caf58ffc68f8e" },
+        "maximum_service_starts": { "const": 1 },
+        "maximum_canary_runs": { "const": 1 },
+        "automatic_retry": { "const": false }
+      }
+    },
+    "ordered_mutations": {
+      "const": [
+        "atomic_compare_and_replace_exact_disabled_configuration_with_reviewed_enabled_configuration",
+        "create_exact_empty_owner_private_activation_root",
+        "atomic_write_owner_private_reference_environment_file",
+        "atomic_write_reviewed_static_user_service_unit",
+        "systemd_user_daemon_reload",
+        "single_explicit_service_start",
+        "write_owner_private_non_secret_execution_receipt"
+      ]
+    },
+    "rollback_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_path", "plan_sha256", "receipt_destination_fingerprint_sha256", "automatic_retry", "automatic_reactivation"],
+      "properties": {
+        "plan_path": { "const": "ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json" },
+        "plan_sha256": { "const": "31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c" },
+        "receipt_destination_fingerprint_sha256": { "$ref": "#/$defs/sha256" },
+        "automatic_retry": { "const": false },
+        "automatic_reactivation": { "const": false }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "operator_authority", "template", "maximum_ttl_seconds", "maximum_attempt_count", "supplied"],
+      "properties": {
+        "required": { "const": true },
+        "operator_authority": { "const": "zoso_sovereign_operator" },
+        "template": { "const": "confirm-void-authenticated-paid-work-production-activation-v1:<operation_id>:<execution_plan_sha256>" },
+        "maximum_ttl_seconds": { "const": 600 },
+        "maximum_attempt_count": { "const": 1 },
+        "supplied": { "type": "null" }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "runtime_revalidation_satisfied",
+        "trusted_context_verified",
+        "fresh_quote_verified",
+        "provider_signature_verified",
+        "requester_signature_verified",
+        "execution_plan_digest_satisfied",
+        "fresh_zoso_confirmation_required",
+        "execution_authorized"
+      ],
+      "properties": {
+        "status": { "const": "HOLD_PENDING_FRESH_ZOSO_CONFIRMATION" },
+        "runtime_revalidation_satisfied": { "const": true },
+        "trusted_context_verified": { "const": true },
+        "fresh_quote_verified": { "const": true },
+        "provider_signature_verified": { "const": true },
+        "requester_signature_verified": { "const": true },
+        "execution_plan_digest_satisfied": { "const": true },
+        "fresh_zoso_confirmation_required": { "const": true },
+        "execution_authorized": { "const": false }
+      }
+    },
+    "authority": { "$ref": "#/$defs/authority" },
+    "execution_plan_sha256": { "$ref": "#/$defs/sha256" },
+    "plan_id": { "type": "string", "pattern": "^voidapwep1_[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activation",
+        "credential_access",
+        "deployment",
+        "fund_movement",
+        "live_authentication",
+        "payment_authorization",
+        "payment_execution",
+        "service_restart",
+        "service_start",
+        "signing",
+        "transaction_broadcast",
+        "transaction_construction",
+        "wallet_or_signer_access",
+        "work_credit_write",
+        "work_dispatch"
+      ],
+      "properties": {
+        "activation": { "const": false },
+        "credential_access": { "const": false },
+        "deployment": { "const": false },
+        "fund_movement": { "const": false },
+        "live_authentication": { "const": false },
+        "payment_authorization": { "const": false },
+        "payment_execution": { "const": false },
+        "service_restart": { "const": false },
+        "service_start": { "const": false },
+        "signing": { "const": false },
+        "transaction_broadcast": { "const": false },
+        "transaction_construction": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "work_credit_write": { "const": false },
+        "work_dispatch": { "const": false }
+      }
+    }
+  }
+}
