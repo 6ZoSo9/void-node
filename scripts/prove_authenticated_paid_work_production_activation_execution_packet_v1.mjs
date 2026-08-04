@@ -14,21 +14,24 @@ const credentialMetadataPath = path.join(
   repo,
   "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json",
 );
+
 const packet = JSON.parse(fs.readFileSync(packetPath, "utf8"));
 const credentialMetadata = JSON.parse(
   fs.readFileSync(credentialMetadataPath, "utf8"),
 );
 
 const EXPECTED_REVIEWED_MAIN =
-  "c9a6478a08fcbdcbeb1d6f8c2fa0b41c8eee0444";
-const EXPECTED_FRESH_CREDENTIAL_METADATA_COMMIT =
-  "9a8cfcbab14d5439e853d19575009ed3245e8b66";
-const EXPECTED_FRESH_CREDENTIAL_ID =
+  "cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa";
+const EXPECTED_CREDENTIAL_METADATA_COMMIT = EXPECTED_REVIEWED_MAIN;
+const EXPECTED_CREDENTIAL_ID =
   "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1";
 const EXPECTED_TARGET_REGISTRY_ID =
-  "voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5";
+  "voidapwcr1_ce24175f3144131773f730d4989113b949998d79c48c3ddbd9752390122aac4f";
+const EXPECTED_TARGET_REGISTRY_SHA256 =
+  "92e3149e560f7fa159d8fb5c59cd680cb6547a8a8f8010036bc02c4aa8d6e00e";
+const EXPECTED_TARGET_CREDENTIAL_COUNT = 9;
 const EXPECTED_RECEIVER_CLASSIFICATION =
-  "RECEIVER_ACTIVE_STALE_REGISTRY";
+  "RECEIVER_ACTIVE_TARGET_REGISTRY";
 
 const EXPECTED_SOURCE_COMMITS = Object.freeze({
   activation_configuration_instance:
@@ -39,8 +42,7 @@ const EXPECTED_SOURCE_COMMITS = Object.freeze({
     "cb57842cbb53fcad7ed6861d829058635af9308c",
   service_unit_design:
     "09ddef7d672b57484bbf853d500fd47d9537c5fb",
-  credential_reference_metadata:
-    EXPECTED_FRESH_CREDENTIAL_METADATA_COMMIT,
+  credential_reference_metadata: EXPECTED_CREDENTIAL_METADATA_COMMIT,
   bounded_replay_snapshot:
     "54795a9e35a19067559d0cb315b0ea2669c59088",
   execution_confirmation:
@@ -59,8 +61,10 @@ const EXPECTED_SOURCE_COMMITS = Object.freeze({
 
 const FORBIDDEN_UNRELATED_COMMIT =
   "44d9a95e335e9ebabd65e60f7e388385e0d14abe";
-const FORBIDDEN_STALE_CREDENTIAL_METADATA_COMMIT =
+const FORBIDDEN_EXPIRED_CREDENTIAL_METADATA_COMMIT =
   "1c0d4d842210158aeac466deb8e0918aa7443997";
+const FORBIDDEN_PRE_RESTART_CREDENTIAL_METADATA_COMMIT =
+  "9a8cfcbab14d5439e853d19575009ed3245e8b66";
 
 function check(value, message) {
   if (!value) throw new Error(message);
@@ -80,19 +84,12 @@ check(
   packet.reviewed_source_main === EXPECTED_REVIEWED_MAIN,
   "reviewed source main mismatch",
 );
-check(
-  packet.target.host === "zoso-Precision-Tower-7810",
-  "target host mismatch",
-);
-check(packet.target.runtime_user === "zoso", "runtime user mismatch");
-check(
-  packet.target.manager_scope === "systemd_user",
-  "manager scope mismatch",
-);
-check(
-  packet.target.start_mode === "manual_oneshot",
-  "start mode mismatch",
-);
+assert.deepEqual(packet.target, {
+  host: "zoso-Precision-Tower-7810",
+  runtime_user: "zoso",
+  manager_scope: "systemd_user",
+  start_mode: "manual_oneshot",
+});
 
 const required = packet.required_source_commits;
 check(
@@ -101,13 +98,11 @@ check(
     !Array.isArray(required),
   "required source commits must be an object",
 );
-
 assert.deepEqual(
   Object.keys(required).sort(),
   Object.keys(EXPECTED_SOURCE_COMMITS).sort(),
   "required source commit keys mismatch",
 );
-
 for (const [name, expectedCommit] of Object.entries(
   EXPECTED_SOURCE_COMMITS,
 )) {
@@ -130,14 +125,16 @@ check(
   new Set(commits).size === commits.length,
   "unexpected source commit collapse",
 );
-check(
-  !commits.includes(FORBIDDEN_UNRELATED_COMMIT),
-  "unrelated WC preflight commit is bound as an activation source",
-);
-check(
-  !commits.includes(FORBIDDEN_STALE_CREDENTIAL_METADATA_COMMIT),
-  "stale credential metadata commit remains bound",
-);
+for (const forbidden of [
+  FORBIDDEN_UNRELATED_COMMIT,
+  FORBIDDEN_EXPIRED_CREDENTIAL_METADATA_COMMIT,
+  FORBIDDEN_PRE_RESTART_CREDENTIAL_METADATA_COMMIT,
+]) {
+  check(
+    !commits.includes(forbidden),
+    `forbidden source commit remains bound: ${forbidden}`,
+  );
+}
 
 check(
   credentialMetadata.marker ===
@@ -150,36 +147,63 @@ check(
     "source_reference_only_credential_read_forbidden",
   "credential metadata status mismatch",
 );
-check(
-  credentialMetadata.credential_reference.reference_id ===
-    EXPECTED_FRESH_CREDENTIAL_ID,
-  "fresh credential reference mismatch",
-);
-check(
-  credentialMetadata.credential_reference.credential_id ===
-    EXPECTED_FRESH_CREDENTIAL_ID,
-  "fresh credential identity mismatch",
-);
-check(
-  credentialMetadata.credential_reference.registry_id ===
-    EXPECTED_TARGET_REGISTRY_ID,
-  "target registry mismatch",
-);
 
+const reference = credentialMetadata.credential_reference;
+const snapshot = credentialMetadata.registry_snapshot;
 const evidence = credentialMetadata.evidence_binding;
 const revalidation = credentialMetadata.revalidation;
-const runtimeTruth = packet.credential_runtime_truth;
+const readiness = credentialMetadata.readiness_effect;
+const metadataAuthority = credentialMetadata.authority;
 
+check(reference.reference_id === EXPECTED_CREDENTIAL_ID, "credential reference mismatch");
+check(reference.credential_id === EXPECTED_CREDENTIAL_ID, "credential identity mismatch");
+check(reference.registry_id === EXPECTED_TARGET_REGISTRY_ID, "target registry mismatch");
+check(snapshot.registry_sha256 === EXPECTED_TARGET_REGISTRY_SHA256, "registry digest mismatch");
+check(snapshot.credential_count === EXPECTED_TARGET_CREDENTIAL_COUNT, "registry count mismatch");
+
+check(
+  evidence.receiver_classification === EXPECTED_RECEIVER_CLASSIFICATION,
+  "receiver classification mismatch",
+);
+check(
+  evidence.receiver_loaded_registry_id === EXPECTED_TARGET_REGISTRY_ID,
+  "loaded registry ID mismatch",
+);
+check(
+  evidence.receiver_loaded_credential_count === EXPECTED_TARGET_CREDENTIAL_COUNT,
+  "loaded credential count mismatch",
+);
+check(evidence.receiver_loaded_target_registry === true, "target registry not loaded");
+check(evidence.receiver_restart_required === false, "obsolete restart requirement remains");
+check(
+  evidence.receiver_configuration_revalidation_required === true,
+  "configuration revalidation must remain required",
+);
+check(evidence.receiver_health_observed === true, "receiver health not observed");
+check(evidence.receiver_health_http_status === 200, "receiver health status mismatch");
+check(evidence.live_authentication_observed === false, "live authentication overclaimed");
+check(evidence.payment_execution_observed === false, "payment execution overclaimed");
+check(evidence.work_dispatch_observed === false, "work dispatch overclaimed");
+check(evidence.work_credit_write_observed === false, "Work Credit write overclaimed");
+check(evidence.wallet_or_signer_access_observed === false, "wallet/signer access overclaimed");
+check(evidence.fund_movement_observed === false, "fund movement overclaimed");
+check(
+  revalidation.current_runtime_freshness_proven_by_source === false,
+  "source overclaims current runtime freshness",
+);
+check(readiness.decision_after_publication === "HOLD", "readiness must remain HOLD");
+check(readiness.activation_authorized === false, "readiness grants activation");
+check(metadataAuthority.activation_authorized === false, "metadata grants activation");
+check(metadataAuthority.service_restart === false, "metadata grants service restart");
+
+const runtimeTruth = packet.credential_runtime_truth;
 assert.deepEqual(
   runtimeTruth,
   {
-    credential_reference_id:
-      credentialMetadata.credential_reference.reference_id,
-    target_registry_id:
-      credentialMetadata.credential_reference.registry_id,
+    credential_reference_id: reference.reference_id,
+    target_registry_id: reference.registry_id,
     receiver_classification: evidence.receiver_classification,
-    receiver_loaded_target_registry:
-      evidence.receiver_loaded_target_registry,
+    receiver_loaded_target_registry: evidence.receiver_loaded_target_registry,
     receiver_restart_required: evidence.receiver_restart_required,
     receiver_configuration_revalidation_required:
       evidence.receiver_configuration_revalidation_required,
@@ -192,34 +216,28 @@ assert.deepEqual(
 assert.deepEqual(
   runtimeTruth,
   {
-    credential_reference_id: EXPECTED_FRESH_CREDENTIAL_ID,
+    credential_reference_id: EXPECTED_CREDENTIAL_ID,
     target_registry_id: EXPECTED_TARGET_REGISTRY_ID,
     receiver_classification: EXPECTED_RECEIVER_CLASSIFICATION,
-    receiver_loaded_target_registry: false,
-    receiver_restart_required: true,
+    receiver_loaded_target_registry: true,
+    receiver_restart_required: false,
     receiver_configuration_revalidation_required: true,
     live_authentication_observed: false,
     current_runtime_freshness_proven_by_source: false,
   },
-  "credential runtime truth must remain fail-closed",
+  "credential runtime truth mismatch",
 );
 
 const gates = packet.ordered_execution_gates;
-check(
-  Array.isArray(gates) && gates.length === 18,
-  "ordered gate count mismatch",
-);
-check(
-  gates[0] === "capture_current_origin_main",
-  "first gate mismatch",
-);
+check(Array.isArray(gates) && gates.length === 18, "ordered gate count mismatch");
+check(gates[0] === "capture_current_origin_main", "first gate mismatch");
 check(
   gates[4] === "privately_verify_trusted_context_reference",
-  "trusted-context verification gate mismatch",
+  "trusted-context gate mismatch",
 );
 check(
   gates[5] === "privately_verify_fresh_credential_reference",
-  "credential verification gate mismatch",
+  "credential gate mismatch",
 );
 check(
   gates[6] === "materialize_fresh_direct_provider_signing_request",
@@ -236,38 +254,30 @@ check(
   "requester verification gate mismatch",
 );
 check(
-  gates[9] ===
-    "independently_verify_final_direct_authentication_packet",
+  gates[9] === "independently_verify_final_direct_authentication_packet",
   "final authentication verification gate mismatch",
 );
 check(
-  gates[12] ===
-    "obtain_fresh_operation_bound_confirmation_from_zoso",
-  "confirmation gate mismatch",
+  gates[12] === "obtain_fresh_operation_bound_confirmation_from_zoso",
+  "ZoSo confirmation gate mismatch",
 );
 check(
-  gates.at(-1) ===
-    "make_separate_post_execution_readiness_decision",
+  gates.at(-1) === "make_separate_post_execution_readiness_decision",
   "terminal gate mismatch",
 );
 check(new Set(gates).size === gates.length, "duplicate gate");
 
-const inputs = packet.mandatory_runtime_inputs;
-assert.deepEqual(
-  inputs,
-  {
-    fresh_origin_main: null,
-    trusted_context_reference_verified: false,
-    credential_reference_verified_and_fresh: false,
-    provider_signature_verified: false,
-    requester_signature_verified: false,
-    fresh_direct_authentication_packet_sha256: null,
-    execution_plan_sha256: null,
-    fresh_zoso_confirmation: null,
-    fresh_quote_required: true,
-  },
-  "mandatory runtime inputs must remain exactly unresolved",
-);
+assert.deepEqual(packet.mandatory_runtime_inputs, {
+  fresh_origin_main: null,
+  trusted_context_reference_verified: false,
+  credential_reference_verified_and_fresh: false,
+  provider_signature_verified: false,
+  requester_signature_verified: false,
+  fresh_direct_authentication_packet_sha256: null,
+  execution_plan_sha256: null,
+  fresh_zoso_confirmation: null,
+  fresh_quote_required: true,
+});
 
 const failures = packet.fail_closed_conditions;
 check(
@@ -280,8 +290,10 @@ for (const requiredFailure of [
   "runtime_preimage_drift",
   "non_fresh_or_revoked_credential",
   "trusted_context_reference_mismatch",
+  "non_empty_or_unexpected_replay_state",
   "provider_or_requester_signature_binding_mismatch",
   "fresh_direct_authentication_packet_mismatch",
+  "confirmation_missing_expired_or_mismatched",
   "quote_expired_or_previously_consumed",
   "any_unreviewed_mutation_required",
 ]) {
@@ -299,10 +311,7 @@ check(
   "authority must be an object",
 );
 const authorityValues = Object.values(authority);
-check(
-  authorityValues.length === 12,
-  "authority boundary count mismatch",
-);
+check(authorityValues.length === 12, "authority boundary count mismatch");
 check(
   authorityValues.every((value) => value === false),
   "source packet grants authority",
@@ -326,21 +335,20 @@ console.log(`required_source_commits=${commits.length}`);
 console.log(
   `credential_reference_metadata_commit=${required.credential_reference_metadata}`,
 );
-console.log(
-  `credential_reference_id=${runtimeTruth.credential_reference_id}`,
-);
-console.log(
-  `receiver_classification=${runtimeTruth.receiver_classification}`,
-);
+console.log(`credential_reference_id=${runtimeTruth.credential_reference_id}`);
+console.log(`target_registry_id=${runtimeTruth.target_registry_id}`);
+console.log(`target_registry_sha256=${snapshot.registry_sha256}`);
+console.log(`target_credential_count=${snapshot.credential_count}`);
+console.log(`receiver_classification=${runtimeTruth.receiver_classification}`);
 console.log("source_binding_semantic_map_exact=true");
-console.log("activation_configuration_source_bound=true");
-console.log("trusted_context_source_bound=true");
-console.log("fresh_credential_metadata_source_bound=true");
-console.log("stale_credential_metadata_source_absent=true");
+console.log("credential_metadata_postrestart_source_bound=true");
+console.log("expired_credential_metadata_source_absent=true");
+console.log("pre_restart_credential_metadata_source_absent=true");
 console.log("unrelated_wc_preflight_source_absent=true");
-console.log("receiver_loaded_target_registry=false");
-console.log("receiver_restart_required=true");
+console.log("receiver_loaded_target_registry=true");
+console.log("receiver_restart_required=false");
 console.log("receiver_configuration_revalidation_required=true");
+console.log("receiver_health_observed=true");
 console.log("live_authentication_observed=false");
 console.log("current_runtime_freshness_proven_by_source=false");
 console.log(`ordered_execution_gates=${gates.length}`);
