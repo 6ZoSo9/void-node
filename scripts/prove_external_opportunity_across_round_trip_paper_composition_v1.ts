@@ -5,9 +5,9 @@ import {
   VOID_ACROSS_ROUND_TRIP_PAPER_COMPOSITION_INPUT_SCHEMA_V1,
   VOID_ACROSS_ROUND_TRIP_PAPER_COMPOSITION_RECEIPT_SCHEMA_V1,
   VOID_EXTERNAL_OPPORTUNITY_ACROSS_ROUND_TRIP_PAPER_COMPOSITION_V1,
+  composeAcrossRoundTripPaperV1,
   hashAcrossRoundTripPaperCompositionDocumentV1,
 } from "../src/external_opportunity/across_round_trip_paper_composition_v1.js";
-import { composeAcrossRoundTripPaperPositionGuardedV1 } from "../src/external_opportunity/across_round_trip_paper_position_value_guard_v1.js";
 import { hashAcrossTokenValuationDocumentV1 } from "../src/external_opportunity/across_swap_api_token_valuation_ingestion_v1.js";
 
 type JsonObject = Record<string, unknown>;
@@ -61,7 +61,7 @@ function refreshValuationDigest(input: JsonObject): void {
 }
 
 const fixture = JSON.parse(await readFile(fixturePath, "utf8")) as JsonObject;
-const receipt = composeAcrossRoundTripPaperPositionGuardedV1(fixture);
+const receipt = composeAcrossRoundTripPaperV1(fixture);
 
 assert.equal(fixture.schema, VOID_ACROSS_ROUND_TRIP_PAPER_COMPOSITION_INPUT_SCHEMA_V1);
 assert.equal(receipt.schema, VOID_ACROSS_ROUND_TRIP_PAPER_COMPOSITION_RECEIPT_SCHEMA_V1);
@@ -118,67 +118,67 @@ assert.equal(
 
 const alteredValuationDigest = clone(fixture);
 (alteredValuationDigest.valuation as JsonObject).valuation_sha256 = "b".repeat(64);
-expectHold("altered valuation digest", () => composeAcrossRoundTripPaperPositionGuardedV1(alteredValuationDigest));
+expectHold("altered valuation digest", () => composeAcrossRoundTripPaperV1(alteredValuationDigest));
 
 const inflatedPositionValue = clone(fixture);
 (inflatedPositionValue.valuation as JsonObject).position_value_usd_floor = "99.990400";
 refreshValuationDigest(inflatedPositionValue);
 expectHold("inflated position value with recomputed digest", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(inflatedPositionValue),
+  composeAcrossRoundTripPaperV1(inflatedPositionValue),
 );
 
 const understatedPositionValue = clone(fixture);
 (understatedPositionValue.valuation as JsonObject).position_value_usd_floor = "99.990299";
 refreshValuationDigest(understatedPositionValue);
 expectHold("understated position value with recomputed digest", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(understatedPositionValue),
+  composeAcrossRoundTripPaperV1(understatedPositionValue),
 );
 
 const falseExactPricePrecision = clone(fixture);
 (falseExactPricePrecision.valuation as JsonObject).price_source_precision_digits = 6;
 refreshValuationDigest(falseExactPricePrecision);
 expectHold("position value inconsistent with exact micro-price precision", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(falseExactPricePrecision),
+  composeAcrossRoundTripPaperV1(falseExactPricePrecision),
 );
 
 const widenedValuationAuthority = clone(fixture);
 (widenedValuationAuthority.valuation as JsonObject).execution_authorized = true;
 expectHold("widened valuation authority", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(widenedValuationAuthority),
+  composeAcrossRoundTripPaperV1(widenedValuationAuthority),
 );
 
 const mismatchedStartingAsset = clone(fixture);
 (((mismatchedStartingAsset.forward_quote as JsonObject).input_asset as JsonObject).address) =
   "0x0000000000000000000000000000000000000001";
 expectHold("mismatched valuation and quote asset", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(mismatchedStartingAsset),
+  composeAcrossRoundTripPaperV1(mismatchedStartingAsset),
 );
 
 const mismatchedStartingAmount = clone(fixture);
 (mismatchedStartingAmount.forward_quote as JsonObject).input_amount = "99999999";
 expectHold("mismatched valuation and quote amount", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(mismatchedStartingAmount),
+  composeAcrossRoundTripPaperV1(mismatchedStartingAmount),
 );
 
 const injectedReturnValue = clone(fixture);
 (injectedReturnValue.return_quote as JsonObject).expected_output_value_usd = "999999.000000";
 expectHold("caller supplied return valuation", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(injectedReturnValue),
+  composeAcrossRoundTripPaperV1(injectedReturnValue),
 );
 
 const injectedCapital = clone(fixture);
 (injectedCapital.cost_policy as JsonObject).capital_at_risk_usd = "1.000000";
-expectHold("caller supplied capital value", () => composeAcrossRoundTripPaperPositionGuardedV1(injectedCapital));
+expectHold("caller supplied capital value", () => composeAcrossRoundTripPaperV1(injectedCapital));
 
 const evaluationBeforeEvidence = clone(fixture);
 evaluationBeforeEvidence.evaluated_at = "2026-08-04T02:45:00.100Z";
 expectHold("evaluation before evidence", () =>
-  composeAcrossRoundTripPaperPositionGuardedV1(evaluationBeforeEvidence),
+  composeAcrossRoundTripPaperV1(evaluationBeforeEvidence),
 );
 
 const staleQuote = clone(fixture);
 staleQuote.evaluated_at = "2026-08-04T03:00:00.000Z";
-const staleReceipt = composeAcrossRoundTripPaperPositionGuardedV1(staleQuote);
+const staleReceipt = composeAcrossRoundTripPaperV1(staleQuote);
 assert.equal(staleReceipt.paper_receipt.status, "expired");
 assert.equal(staleReceipt.paper_receipt.quotes_expired, true);
 assert.equal(staleReceipt.execution_authorized, false);
@@ -199,11 +199,26 @@ assert.match(documentation, /paper-only/i);
 assert.match(documentation, /does not perform a live\s+Across request/i);
 assert.match(documentation, /does not authorize execution/i);
 assert.match(documentation, /position-value consistency/i);
+assert.match(documentation, /canonical.*composeAcrossRoundTripPaperV1.*guard/is);
 assert.match(workflow, /permissions:\n  contents: read/);
 assert.match(
   workflow,
   /node --import tsx scripts\/prove_external_opportunity_across_round_trip_paper_composition_v1\.ts/,
 );
+assert.match(
+  source,
+  /assertAcrossRoundTripPaperPositionValueConsistentV1\(value\);/,
+);
+assert.equal(
+  (source.match(/export function composeAcrossRoundTripPaperV1/g) ?? []).length,
+  1,
+);
+assert.doesNotMatch(source, /composeAcrossRoundTripPaperPositionGuardedV1/);
+assert.doesNotMatch(
+  guardSource,
+  /composeAcrossRoundTripPaperV1|composeAcrossRoundTripPaperPositionGuardedV1|AcrossRoundTripPaperCompositionReceiptV1/,
+);
+assert.doesNotMatch(guardSource, /across_round_trip_paper_composition_v1/);
 assert.doesNotMatch(source, /https\.request|fetch\s*\(/);
 assert.doesNotMatch(guardSource, /https\.request|fetch\s*\(/);
 assert.doesNotMatch(source, /private[_ -]?key|seed phrase/i);
@@ -216,6 +231,8 @@ console.log(`expected_ending_value_usd=${receipt.paper_receipt.expected_ending_v
 console.log(`minimum_ending_value_usd=${receipt.paper_receipt.minimum_ending_value_usd}`);
 console.log(`paper_status=${receipt.paper_receipt.status}`);
 console.log(`return_values_amount_derived=${receipt.return_values_amount_derived}`);
+console.log("canonical_composer_position_guarded=true");
+console.log("unguarded_composition_export_present=false");
 console.log("valuation_position_bounds_enforced=true");
 console.log(
   `internal_app_fee_counted_as_profit=${receipt.paper_receipt.internal_app_fee_counted_as_profit}`,
