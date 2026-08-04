@@ -13,6 +13,8 @@ import {
   acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1,
   planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1,
   verifyVoidRealmsCheckpointGraphV1,
+  verifyVoidRealmsPlayerRegionHandoffContentAddressV1,
+  verifyVoidRealmsPlayerRegionHandoffReceiptContentAddressV1,
 } from "../src/game/void_realms_checkpoint_graph_integrity_guard_v1.js";
 import type { VoidRealmsCheckpointGraphV1 } from "../src/game/void_realms_checkpoint_graph_integrity_guard_v1.js";
 
@@ -157,14 +159,31 @@ async function main(): Promise<void> {
       not_before_utc: "2026-08-04T12:20:10Z",
       expires_at_utc: "2026-08-04T12:20:40Z",
     });
+  await verifyVoidRealmsPlayerRegionHandoffContentAddressV1({
+    handoff,
+    manifest,
+    world_checkpoint: worldCheckpoint,
+    source_region: west,
+    destination_region: east,
+    source_checkpoint: west1,
+    destination_checkpoint: east0,
+  });
+
   const receipt =
     await acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
       checkpoint_graph: graph,
+      manifest,
+      source_region: west,
+      destination_region: east,
       handoff,
       world_checkpoint: worldCheckpoint,
       destination_checkpoint: east0,
       accepted_at_utc: "2026-08-04T12:20:20Z",
     });
+  await verifyVoidRealmsPlayerRegionHandoffReceiptContentAddressV1(
+    receipt,
+    handoff,
+  );
   assertCondition(
     receipt.gameplay_state_committed === false,
     "verified handoff acceptance committed gameplay state",
@@ -220,6 +239,156 @@ async function main(): Promise<void> {
     verifyVoidRealmsCheckpointGraphV1(unreferencedLeaseGraph),
   );
 
+  const tamperedManifest = clone(manifest);
+  tamperedManifest.handoff_ttl_seconds = 120;
+  await expectReject("world manifest content-address tampering", () =>
+    planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest: tamperedManifest,
+      world_checkpoint: worldCheckpoint,
+      player_session_id: `voidrps1_${"3".repeat(64)}`,
+      source_region: west,
+      destination_region: east,
+      source_checkpoint: west1,
+      destination_checkpoint: east0,
+      source_position: { x: 1023, y: 64, z: 100 },
+      destination_position: { x: 1024, y: 64, z: 100 },
+      player_public_state_root_sha256: "4".repeat(64),
+      handoff_nonce_hex: "5".repeat(32),
+      not_before_utc: "2026-08-04T12:20:10Z",
+      expires_at_utc: "2026-08-04T12:20:40Z",
+    }),
+  );
+
+  const tamperedRegion = clone(west);
+  tamperedRegion.maximum_x += 1;
+  await expectReject("region descriptor content-address tampering", () =>
+    planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      world_checkpoint: worldCheckpoint,
+      player_session_id: `voidrps1_${"3".repeat(64)}`,
+      source_region: tamperedRegion,
+      destination_region: east,
+      source_checkpoint: west1,
+      destination_checkpoint: east0,
+      source_position: { x: 1023, y: 64, z: 100 },
+      destination_position: { x: 1024, y: 64, z: 100 },
+      player_public_state_root_sha256: "4".repeat(64),
+      handoff_nonce_hex: "5".repeat(32),
+      not_before_utc: "2026-08-04T12:20:10Z",
+      expires_at_utc: "2026-08-04T12:20:40Z",
+    }),
+  );
+
+  const detachedSourceCheckpoint = clone(west1);
+  detachedSourceCheckpoint.state_root_sha256 = "9".repeat(64);
+  await expectReject("supplied checkpoint differs from graph", () =>
+    planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      world_checkpoint: worldCheckpoint,
+      player_session_id: `voidrps1_${"3".repeat(64)}`,
+      source_region: west,
+      destination_region: east,
+      source_checkpoint: detachedSourceCheckpoint,
+      destination_checkpoint: east0,
+      source_position: { x: 1023, y: 64, z: 100 },
+      destination_position: { x: 1024, y: 64, z: 100 },
+      player_public_state_root_sha256: "4".repeat(64),
+      handoff_nonce_hex: "5".repeat(32),
+      not_before_utc: "2026-08-04T12:20:10Z",
+      expires_at_utc: "2026-08-04T12:20:40Z",
+    }),
+  );
+
+  const tamperedHandoffRoot = clone(handoff);
+  tamperedHandoffRoot.player_public_state_root_sha256 = "9".repeat(64);
+  await expectReject("handoff state-root tampering", () =>
+    acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      source_region: west,
+      destination_region: east,
+      handoff: tamperedHandoffRoot,
+      world_checkpoint: worldCheckpoint,
+      destination_checkpoint: east0,
+      accepted_at_utc: "2026-08-04T12:20:20Z",
+    }),
+  );
+
+  const tamperedHandoffAuthority = clone(handoff);
+  tamperedHandoffAuthority.raw_player_state_present = true;
+  await expectReject("handoff authority-field tampering", () =>
+    acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      source_region: west,
+      destination_region: east,
+      handoff: tamperedHandoffAuthority,
+      world_checkpoint: worldCheckpoint,
+      destination_checkpoint: east0,
+      accepted_at_utc: "2026-08-04T12:20:20Z",
+    }),
+  );
+
+  const tamperedHandoffTtl = clone(handoff);
+  tamperedHandoffTtl.expires_at_utc = "2026-08-04T12:22:20Z";
+  await expectReject("handoff TTL tampering", () =>
+    acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      source_region: west,
+      destination_region: east,
+      handoff: tamperedHandoffTtl,
+      world_checkpoint: worldCheckpoint,
+      destination_checkpoint: east0,
+      accepted_at_utc: "2026-08-04T12:20:20Z",
+    }),
+  );
+
+  const detachedDestinationCheckpoint = clone(east0);
+  detachedDestinationCheckpoint.event_log_root_sha256 = "9".repeat(64);
+  await expectReject("acceptance checkpoint differs from graph", () =>
+    acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
+      checkpoint_graph: graph,
+      manifest,
+      source_region: west,
+      destination_region: east,
+      handoff,
+      world_checkpoint: worldCheckpoint,
+      destination_checkpoint: detachedDestinationCheckpoint,
+      accepted_at_utc: "2026-08-04T12:20:20Z",
+    }),
+  );
+
+  const tamperedReceiptTime = clone(receipt);
+  tamperedReceiptTime.accepted_at_utc = "2026-08-04T12:20:21Z";
+  await expectReject("receipt time content-address tampering", () =>
+    verifyVoidRealmsPlayerRegionHandoffReceiptContentAddressV1(
+      tamperedReceiptTime,
+      handoff,
+    ),
+  );
+
+  const tamperedReceiptAuthority = clone(receipt);
+  tamperedReceiptAuthority.gameplay_state_committed = true;
+  await expectReject("receipt authority-field tampering", () =>
+    verifyVoidRealmsPlayerRegionHandoffReceiptContentAddressV1(
+      tamperedReceiptAuthority,
+      handoff,
+    ),
+  );
+
+  const tamperedReceiptId = clone(receipt);
+  tamperedReceiptId.receipt_id = `voidrhr1_${"9".repeat(64)}`;
+  await expectReject("receipt ID substitution", () =>
+    verifyVoidRealmsPlayerRegionHandoffReceiptContentAddressV1(
+      tamperedReceiptId,
+      handoff,
+    ),
+  );
+
   await expectReject("handoff through tampered graph", () =>
     planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1({
       checkpoint_graph: tamperedStateRootGraph,
@@ -246,6 +415,8 @@ async function main(): Promise<void> {
   );
   console.log(`world_id=${manifest.world_id}`);
   console.log(`world_checkpoint_id=${worldCheckpoint.world_checkpoint_id}`);
+  console.log(`handoff_id=${handoff.handoff_id}`);
+  console.log(`handoff_receipt_id=${receipt.receipt_id}`);
   console.log(
     `terminal_checkpoint_count=${verification.terminal_region_checkpoint_ids.length}`,
   );
