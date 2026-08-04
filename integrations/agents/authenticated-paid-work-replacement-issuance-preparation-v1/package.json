@@ -7,6 +7,6 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "prove": "node ../../../scripts/prove_authenticated_paid_work_replacement_issuance_preparation_v1.mjs"
+    "prove": "node ../../../scripts/prove_authenticated_paid_work_replacement_issuance_preparation_v1.mjs && node ../../../scripts/prove_authenticated_paid_work_replacement_issuance_evidence_binding_v1.mjs"
   }
 }
