@@ -45,7 +45,7 @@ export const VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_AUTHORITY_V1 = 
   hard_forbidden_stage_count: 3,
   automatic_retry: false,
   operator_loopback_only_delegated_to_runtime: true,
-  runtime_execution_mounted_v1: false,
+  runtime_execution_mounted_v1: true,
   background_loop: false,
   startup_execution: false,
   filesystem_write: false,
@@ -448,16 +448,21 @@ function buildPlan(input: {
   };
 }
 
-export function buyVoidBoundedOrchestratorApplyActivationStatusV1():
-  Record<string, unknown> {
+export function buyVoidBoundedOrchestratorApplyActivationStatusV1(
+  policy?:
+    BuyVoidBoundedOrchestratorApplyActivationPolicyV1,
+): Record<string, unknown> {
+  const normalizedPolicy = normalizePolicy(policy);
   return {
     marker:
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_GATE_V1,
     version: 1,
     ok: true,
-    enabled: false,
-    enabled_stage_count: 0,
-    allowed_stages: [],
+    enabled: normalizedPolicy.enabled,
+    enabled_stage_count: normalizedPolicy.enabled
+      ? normalizedPolicy.allowed_stages.length
+      : 0,
+    allowed_stages: normalizedPolicy.allowed_stages,
     non_money_candidate_stages: [
       "observe_and_claim",
       "reserve_inventory_and_attempt",
@@ -468,7 +473,7 @@ export function buyVoidBoundedOrchestratorApplyActivationStatusV1():
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_PLAN_CONFIRMATION_V1,
     required_stage_confirmations:
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_STAGE_CONFIRMATIONS_V1,
-    runtime_execution_mounted_v1: false,
+    runtime_execution_mounted_v1: true,
     authority:
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_AUTHORITY_V1,
   };

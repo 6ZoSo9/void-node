@@ -48,7 +48,7 @@ for (const marker of [
   "exact_delegated_confirmation_required: true",
   "exact_stage_confirmation_required: true",
   "stage_allowlist_required: true",
-  "runtime_execution_mounted_v1: false",
+  "runtime_execution_mounted_v1: true",
   "background_loop: false",
   "startup_execution: false",
   "filesystem_write: false",
@@ -57,32 +57,38 @@ for (const marker of [
   "signing: false",
   "transaction_broadcast: false",
   "money_movement: false",
-  'enabled: false',
-  'allowed_stages: []',
   '"execute_reserved_plan"',
   '"reconcile_possible_broadcast"',
   '"closeout_confirmed_delivery"',
-  '"apply_activation_gate_disabled"',
-  '"exact_plan_fingerprint_required"',
-  '"exact_stage_confirmation_required"',
+  '"money_or_terminal_stage_hard_forbidden"',
 ]) {
-  assert.equal(
-    gate.includes(marker),
-    true,
-    `activation gate missing ${marker}`,
-  );
+  assert.equal(gate.includes(marker), true, `gate missing ${marker}`);
 }
 
 for (const marker of [
-  "buyVoidBoundedOrchestratorApplyActivationStatusV1",
-  "evaluateBuyVoidBoundedOrchestratorApplyActivationV1",
-  "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_DEFAULT_POLICY_V1",
-  '"runtime_activation_policy_is_server_controlled"',
-  '"apply_activation_gate_disabled"',
-  "apply_activation_gate:",
-  "apply_activation:",
-  "snapshot: derived.snapshot",
-  "apply: false",
+  "operator_loopback_only: true",
+  "disabled_by_default: true",
+  "runtime_apply_execution_mounted_v1: true",
+  "runtime_apply_non_money_only_v1: true",
+  "runtime_apply_enabled_v1: false",
+  "claim_or_reservation_state_write_possible: true",
+  '"VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ENABLED"',
+  '"VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ALLOWED_STAGES"',
+  "function serverApplyPolicy()",
+  "policy: serverPolicy.policy",
+  'error: "runtime_activation_policy_is_server_controlled"',
+  'error: "server_apply_policy_invalid"',
+  'error: "non_money_runtime_reported_forbidden_authority"',
+  'applyActivation.status !== "authorized"',
+  "apply: true,",
+  "runtime_apply_not_enabled_v1",
+  "effective_max_requests_per_run: 1",
+  "background_loop: false",
+  "startup_execution: false",
+  "wallet_access: false",
+  "signing: false",
+  "transaction_broadcast: false",
+  "money_movement: false",
 ]) {
   assert.equal(
     runtime.includes(marker),
@@ -97,10 +103,26 @@ for (const forbidden of [
   "while (true)",
   "for (;;)",
 ]) {
+  assert.equal(gate.includes(forbidden), false, `gate forbidden ${forbidden}`);
   assert.equal(
-    gate.includes(forbidden),
+    runtime.includes(forbidden),
     false,
-    `activation gate forbidden ${forbidden}`,
+    `runtime forbidden ${forbidden}`,
+  );
+}
+
+for (const forbidden of [
+  "new Wallet(",
+  "sendTransaction(",
+  "broadcastTransaction(",
+  "PRIVATE_KEY",
+  "runBuyVoidNativeExecutionRuntimeCommandV1",
+  "runBuyVoidConfirmedCloseoutV1",
+]) {
+  assert.equal(
+    runtime.includes(forbidden),
+    false,
+    `runtime forbidden money authority ${forbidden}`,
   );
 }
 
@@ -110,10 +132,13 @@ assert.equal(
   ),
   true,
 );
+assert.equal(runtime.includes("snapshot: derived.snapshot,"), true);
+assert.equal(runtime.includes("confirmation: body.confirmation,"), true);
 assert.equal(
-  runtime.includes("apply: true,\n      dependencies:"),
-  false,
-  "runtime must not mount orchestrator apply",
+  runtime.includes(
+    "delegated_confirmation: body.delegated_confirmation,",
+  ),
+  true,
 );
 
 console.log(
@@ -121,8 +146,9 @@ console.log(
 );
 console.log("exact_lane_file_count=8");
 console.log("default_enabled_stage_count=0");
-console.log("runtime_execution_mounted_v1=0");
+console.log("runtime_execution_mounted_v1=1");
 console.log("client_activation_policy=0");
+console.log("non_money_candidate_stage_count=2");
 console.log("money_or_terminal_stage_hard_forbidden_count=3");
 console.log("background_loop=0");
 console.log("startup_execution=0");

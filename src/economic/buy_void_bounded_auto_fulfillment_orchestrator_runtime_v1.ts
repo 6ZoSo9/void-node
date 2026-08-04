@@ -12,9 +12,9 @@ import {
   type BuyVoidBoundedOrchestratorServerSnapshotDependenciesV1,
 } from "./buy_void_bounded_orchestrator_server_snapshot_v1.js";
 import {
-  VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_DEFAULT_POLICY_V1,
   buyVoidBoundedOrchestratorApplyActivationStatusV1,
   evaluateBuyVoidBoundedOrchestratorApplyActivationV1,
+  type BuyVoidBoundedOrchestratorApplyActivationPolicyV1,
 } from "./buy_void_bounded_orchestrator_apply_activation_gate_v1.js";
 
 export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1 =
@@ -34,12 +34,14 @@ export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_AUTHORI
   apply_activation_gate_present: true,
   apply_activation_gate_disabled_by_default: true,
   apply_activation_enabled_stage_count: 0,
-  runtime_apply_execution_mounted_v1: false,
+  runtime_apply_execution_mounted_v1: true,
+  runtime_apply_non_money_only_v1: true,
   legacy_apply_hard_stop_error_v1: "runtime_apply_not_enabled_v1",
   max_requests_per_invocation: 1,
   one_stage_transition_per_invocation: true,
   dry_by_default: true,
   runtime_apply_enabled_v1: false,
+  claim_or_reservation_state_write_possible: true,
   public_route: false,
   background_loop: false,
   startup_execution: false,
@@ -63,11 +65,74 @@ const MAX_REQUESTS_ENV =
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_MAX_REQUESTS_PER_RUN";
 const REQUEST_DIR_ENV =
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_REQUEST_DIR";
+const APPLY_ENABLED_ENV =
+  "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ENABLED";
+const APPLY_ALLOWED_STAGES_ENV =
+  "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ALLOWED_STAGES";
+
+const NON_MONEY_APPLY_STAGES = [
+  "observe_and_claim",
+  "reserve_inventory_and_attempt",
+] as const;
+
+type NonMoneyApplyStageV1 =
+  typeof NON_MONEY_APPLY_STAGES[number];
 
 function enabled(): boolean {
   return /^(1|true|yes|on)$/i.test(
     String(process.env[ENABLE_ENV] || "").trim(),
   );
+}
+
+function isNonMoneyApplyStage(
+  value: string,
+): value is NonMoneyApplyStageV1 {
+  return (
+    NON_MONEY_APPLY_STAGES as readonly string[]
+  ).includes(value);
+}
+
+function serverApplyPolicy(): {
+  policy: BuyVoidBoundedOrchestratorApplyActivationPolicyV1;
+  requested_enabled: boolean;
+  configured_tokens: string[];
+  invalid_tokens: string[];
+  valid: boolean;
+  error: string | null;
+} {
+  const requestedEnabled = /^(1|true|yes|on)$/i.test(
+    String(process.env[APPLY_ENABLED_ENV] || "").trim(),
+  );
+  const configuredTokens = Array.from(new Set(
+    String(process.env[APPLY_ALLOWED_STAGES_ENV] || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  )).sort();
+  const invalidTokens = configuredTokens.filter(
+    (value) => !isNonMoneyApplyStage(value),
+  );
+  const allowedStages = configuredTokens.filter(
+    isNonMoneyApplyStage,
+  );
+  const error = invalidTokens.length > 0
+    ? "invalid_server_apply_stage_allowlist"
+    : requestedEnabled && allowedStages.length === 0
+      ? "enabled_server_apply_policy_requires_stage"
+      : null;
+  const valid = error === null;
+
+  return {
+    policy: {
+      enabled: requestedEnabled && valid,
+      allowed_stages: valid ? allowedStages : [],
+    },
+    requested_enabled: requestedEnabled,
+    configured_tokens: configuredTokens,
+    invalid_tokens: invalidTokens,
+    valid,
+    error,
+  };
 }
 
 function loopback(req: any): boolean {
@@ -133,6 +198,7 @@ export function buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1():
   const configuredMax = Number(
     String(process.env[MAX_REQUESTS_ENV] || "1"),
   );
+  const applyPolicy = serverApplyPolicy();
   return {
     marker:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
@@ -145,13 +211,25 @@ export function buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1():
       Number.isSafeInteger(configuredMax) ? configuredMax : null,
     effective_max_requests_per_run: 1,
     request_dir_env: REQUEST_DIR_ENV,
+    apply_enabled_env: APPLY_ENABLED_ENV,
+    apply_allowed_stages_env: APPLY_ALLOWED_STAGES_ENV,
+    apply_policy_requested_enabled:
+      applyPolicy.requested_enabled,
+    apply_policy_valid: applyPolicy.valid,
+    apply_policy_error: applyPolicy.error,
+    apply_policy_configured_tokens:
+      applyPolicy.configured_tokens,
+    apply_policy_invalid_tokens:
+      applyPolicy.invalid_tokens,
     snapshot_source: "server_derived_request_id_only",
     client_supplied_snapshot_forbidden: true,
     request_id_only_selector: true,
     server_snapshot_authority:
       VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_SERVER_SNAPSHOT_AUTHORITY_V1,
     apply_activation_gate:
-      buyVoidBoundedOrchestratorApplyActivationStatusV1(),
+      buyVoidBoundedOrchestratorApplyActivationStatusV1(
+        applyPolicy.policy,
+      ),
     runtime_surface:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_SURFACE_V1,
     required_confirmation:
@@ -341,10 +419,10 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
       dependencies: options.dependencies,
     });
 
+  const serverPolicy = serverApplyPolicy();
   const applyActivation =
     evaluateBuyVoidBoundedOrchestratorApplyActivationV1({
-      policy:
-        VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ACTIVATION_DEFAULT_POLICY_V1,
+      policy: serverPolicy.policy,
       request_id: requestId,
       derived_snapshot: derived.snapshot,
       snapshot_evidence: derived.evidence,
@@ -358,37 +436,94 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
     });
 
   if (body.apply === true) {
-    if (applyActivation.status !== "held") {
+    if (!serverPolicy.valid) {
       return res.status(503).json({
         marker:
           VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
         ok: false,
-        error: "runtime_apply_execution_unmounted_v1",
+        error: "server_apply_policy_invalid",
+        server_apply_policy: serverPolicy,
         apply_activation: applyActivation,
-        runtime_apply_execution_mounted_v1: false,
+        runtime_apply_execution_mounted_v1: true,
+        money_moving_runtimes_remain_separately_gated: true,
       });
     }
-    return res.status(
-      applyActivation.reason === "apply_activation_gate_disabled"
-        ? 503
-        : 422,
-    ).json({
+
+    if (applyActivation.status !== "authorized") {
+      const disabled =
+        applyActivation.status === "held" &&
+        applyActivation.reason === "apply_activation_gate_disabled";
+      return res.status(disabled ? 503 : 422).json({
+        marker:
+          VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+        ok: false,
+        error: disabled
+          ? "runtime_apply_not_enabled_v1"
+          : applyActivation.status === "held"
+            ? applyActivation.reason
+            : "runtime_apply_authorization_required",
+        ...(disabled
+          ? {
+              activation_error: applyActivation.reason,
+              legacy_apply_hard_stop: true,
+            }
+          : {}),
+        server_apply_policy: serverPolicy,
+        apply_activation: applyActivation,
+        runtime_apply_execution_mounted_v1: true,
+        money_moving_runtimes_remain_separately_gated: true,
+      });
+    }
+
+    const appliedDecision =
+      await runBuyVoidBoundedAutoFulfillmentOrchestratorV1({
+        root_dir: options.root_dir,
+        request_dir: requestDir,
+        snapshot: derived.snapshot,
+        stage_command: stageCommand,
+        apply: true,
+        confirmation: body.confirmation,
+        delegated_confirmation: body.delegated_confirmation,
+        dependencies: options.dependencies,
+      });
+
+    if (
+      appliedDecision.wallet_access_performed ||
+      appliedDecision.signing_performed ||
+      appliedDecision.transaction_broadcast_performed ||
+      appliedDecision.money_movement_performed
+    ) {
+      return res.status(500).json({
+        marker:
+          VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+        ok: false,
+        error: "non_money_runtime_reported_forbidden_authority",
+        apply_activation: applyActivation,
+        decision: appliedDecision,
+      });
+    }
+
+    return res.status(responseStatus(appliedDecision)).json({
       marker:
         VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
-      ok: false,
-      error:
-        applyActivation.reason === "apply_activation_gate_disabled"
-          ? "runtime_apply_not_enabled_v1"
-          : applyActivation.reason,
-      ...(applyActivation.reason === "apply_activation_gate_disabled"
-        ? {
-            activation_error: applyActivation.reason,
-            legacy_apply_hard_stop: true,
-          }
-        : {}),
+      version: 1,
+      ok: appliedDecision.ok,
+      enabled: true,
+      dry_run_only: false,
+      apply_executed: appliedDecision.ok === true,
+      root_dir_server_controlled: true,
+      request_dir_server_controlled: true,
+      effective_max_requests_per_run: 1,
+      action:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+      snapshot_source: "server_derived_request_id_only",
+      derived_snapshot: derived.snapshot,
+      snapshot_evidence: derived.evidence,
+      server_apply_policy: serverPolicy,
       apply_activation: applyActivation,
-      runtime_apply_execution_mounted_v1: false,
+      runtime_apply_execution_mounted_v1: true,
       money_moving_runtimes_remain_separately_gated: true,
+      decision: appliedDecision,
     });
   }
 
