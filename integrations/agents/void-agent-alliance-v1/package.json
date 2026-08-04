@@ -7,6 +7,9 @@
   "engines": {
     "node": ">=22 <23"
   },
-  "exports": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./lifecycle-temporal-guard-v1": "./lifecycle-temporal-guard-v1.mjs"
+  },
   "license": "SEE LICENSE IN ../../../LICENSE"
 }
