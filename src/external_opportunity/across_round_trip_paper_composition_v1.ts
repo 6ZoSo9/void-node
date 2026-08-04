@@ -6,6 +6,7 @@ import {
   hashAcrossTokenValuationDocumentV1,
   type AcrossTokenValuationIngestionResultV1,
 } from "./across_swap_api_token_valuation_ingestion_v1.js";
+import { assertAcrossRoundTripPaperPositionValueConsistentV1 } from "./across_round_trip_paper_position_value_guard_v1.js";
 import {
   VOID_SELF_CAPITAL_ROUND_TRIP_PAPER_INPUT_SCHEMA_V1,
   observeSelfCapitalRoundTripPaperV1,
@@ -567,6 +568,8 @@ export function hashAcrossRoundTripPaperCompositionDocumentV1(value: unknown): s
 export function composeAcrossRoundTripPaperV1(
   value: unknown,
 ): AcrossRoundTripPaperCompositionReceiptV1 {
+  assertAcrossRoundTripPaperPositionValueConsistentV1(value);
+
   const source = record(value, "Across round-trip paper composition input");
   exactKeys(
     source,
