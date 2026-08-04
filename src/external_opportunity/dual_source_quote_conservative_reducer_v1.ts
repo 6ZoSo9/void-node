@@ -344,12 +344,19 @@ export function hashDualSourceQuoteReducerDocumentV1(value: unknown): string {
     .digest("hex");
 }
 
+function compareCodeUnits(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function sourceOrder(
   left: DualSourceQuoteEvidenceV1,
   right: DualSourceQuoteEvidenceV1,
 ): number {
   return (
-    left.provider.localeCompare(right.provider) || left.quote_id.localeCompare(right.quote_id)
+    compareCodeUnits(left.provider, right.provider) ||
+    compareCodeUnits(left.quote_id, right.quote_id)
   );
 }
 
