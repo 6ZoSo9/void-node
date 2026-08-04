@@ -6,14 +6,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PROOF_MARKER = "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CREDENTIAL_REFERENCE_METADATA_V1";
-const SCHEMA_MARKER = "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CREDENTIAL_REFERENCE_METADATA_SCHEMA_V1";
-const SCHEMA_ID = "https://void.network/schemas/authenticated-paid-work-production-activation-credential-reference-metadata-v1.schema.json";
+const PROOF_MARKER =
+  "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CREDENTIAL_REFERENCE_METADATA_V1";
+const SCHEMA_MARKER =
+  "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_CREDENTIAL_REFERENCE_METADATA_SCHEMA_V1";
+const SCHEMA_ID =
+  "https://void.network/schemas/authenticated-paid-work-production-activation-credential-reference-metadata-v1.schema.json";
 
-const METADATA_RELATIVE_PATH =
-  "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json";
-const SCHEMA_RELATIVE_PATH =
-  "schemas/authenticated-paid-work-production-activation-credential-reference-metadata-v1.schema.json";
+const METADATA_RELATIVE_PATH = "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json";
+const DOC_RELATIVE_PATH = "docs/operations/authenticated-paid-work-production-activation-credential-reference-metadata-v1.md";
+const SCHEMA_RELATIVE_PATH = "schemas/authenticated-paid-work-production-activation-credential-reference-metadata-v1.schema.json";
 const ACTIVATION_SOURCE_RELATIVE_PATH =
   "scripts/external_agent_paid_work_authenticated_submission_activation_prerequisite_v1.ts";
 const ACTIVATION_SCHEMA_RELATIVE_PATH =
@@ -26,39 +28,33 @@ const RECEIVER_SOURCE_RELATIVE_PATH =
   "scripts/agent_paid_work_submission_receiver_v1.ts";
 const REGISTRY_DOC_RELATIVE_PATH =
   "docs/operators/agent-paid-work-credential-registry-v1.md";
-const SERVICE_UNIT_ARTIFACT_RELATIVE_PATH =
-  "ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json";
-const SERVICE_UNIT_PROOF_RELATIVE_PATH =
-  "scripts/prove_authenticated_paid_work_production_activation_service_unit_design_v1.mjs";
 
-const EXPECTED_METADATA_SHA256 = "e95e37e34705ae722c979014f567355742ec684917f39ad2543bb6852ae8d742";
-const EXPECTED_REGISTRY_ID = "voidapwcr1_d5dafad265dc38237b11654142b9690c967f06e106e931d47dba2cf1eec996e5";
-const EXPECTED_REGISTRY_SHA256 = "5eda9121fbf72bac5d28289b41314f30a6164b50f636aed0f1198bde7d769cb9";
-const EXPECTED_CREDENTIAL_COUNT = 8;
+const EXPECTED_METADATA_SHA256 = "ddbab84d70d7cc44a5ef030a1161a44fa41b36b6b6850281e0b17b9ffcdb4f9a";
+const EXPECTED_REGISTRY_ID = "voidapwcr1_ce24175f3144131773f730d4989113b949998d79c48c3ddbd9752390122aac4f";
+const EXPECTED_REGISTRY_SHA256 = "92e3149e560f7fa159d8fb5c59cd680cb6547a8a8f8010036bc02c4aa8d6e00e";
+const EXPECTED_CREDENTIAL_COUNT = 9;
 const EXPECTED_CREDENTIAL_ID = "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1";
-const EXPECTED_AGENT_ID = "void-external-agent-e2e-fulfillment-canary-agent-v1";
-const EXPECTED_SOURCE_LOCATOR_SHA256 = "7e350b1c58a25d41317953fce4958eb07ca33810b6546e2021cebd110400d454";
+const EXPECTED_ADDITIONAL_CREDENTIAL_ID =
+  "voidapwc1_1c0f4b2e47c6943bcf3bd1570b9650a332315639877dda2024550fffc9ec2dc3";
+const EXPECTED_REQUESTER_CREDENTIAL_ID =
+  "voidapwc1_3e4068bf267d3e1625f87a27b0ef97a6c96ce5f279614f0f76c80961c65cd6dc";
+const EXPECTED_AGENT_ID =
+  "void-external-agent-e2e-fulfillment-canary-agent-v1";
+const EXPECTED_SOURCE_LOCATOR_SHA256 =
+  "7e350b1c58a25d41317953fce4958eb07ca33810b6546e2021cebd110400d454";
 const EXPECTED_SCOPE = "agent_paid_work_submit";
 const EXPECTED_NOT_BEFORE_UTC = "2026-08-03T15:02:30Z";
 const EXPECTED_EXPIRES_AT_UTC = "2026-08-05T00:00:00Z";
-const EXPECTED_VALIDITY_SECONDS = 118650;
-const EXPECTED_RECONCILIATION_PLAN_ID = "voidapwcrm1_8b520ee91ea465994e8663a5f3c679ff7afaf6920e4cee9eb998bc8173a03413";
-const EXPECTED_RECONCILIATION_PLAN_SHA256 = "66332ff53263714020f9a3b81bb0b78e4227c235377c35f19f323a8765095ad3";
-const EXPECTED_RESPONSE_ID = "voidapwcires1_e5324ce89c4d7a20322c7804eec86706d24458c4981d8465a56132db1c62cdf0";
-const EXPECTED_RESPONSE_SHA256 = "2556b832542d9320508e0b17727a1518633a854d06204da1338ac624880b62e0";
-const EXPECTED_BINDING_ID = "voidapwcb1_77b02c3c54223062915d1d6b4d9ee0464c575899c164c52502391fff492abf56";
-const EXPECTED_BINDING_REGISTRY_ID = "voidapwcbr1_f27a463089e3d00154963b699e39085e9ea08ce321f257270f4e5aa5be0925c2";
-const EXPECTED_BINDING_REGISTRY_SHA256 = "e620f323b8b00fe0bdd5dcbdbed945c4166bf0cf904ed07af1f5ac6be1fccbaa";
-const EXPECTED_BINDING_DESTINATION = "void-external-agent-e2e-fulfillment-canary-v1";
-const EXPECTED_BINDING_REVIEW_DECISION_ID = "voidapwcird1_11a2eea2b2831d3c72aa37f1a72a4799a7b02a7d8056b7a24d08eca8b08f688a";
-const EXPECTED_BINDING_ISSUANCE_PREPARATION_ID = "voidapwcip1_9b02794b68fbc4a25b816fa95cab022bdc5c35039109b0095d99553832cd28e6";
-const EXPECTED_BINDING_VALID_FROM = "2026-08-03T15:02:30.000Z";
-const EXPECTED_BINDING_VALID_UNTIL = "2026-08-05T00:00:00.000Z";
-const EXPECTED_RECEIVER_CLASSIFICATION = "RECEIVER_ACTIVE_STALE_REGISTRY";
-const EXPECTED_RECEIVER_LOADED_REGISTRY_ID = "voidapwcr1_89002fa57d804ced69cc48e832496c131ba460c67fdac34f9664921cc1b01415";
-const EXPECTED_RECEIVER_LOADED_CREDENTIAL_COUNT = 6;
-const EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256 = "f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07";
-const EXPECTED_SERVICE_UNIT_MARKER = "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1";
+const EXPECTED_RECEIVER_CLASSIFICATION =
+  "RECEIVER_ACTIVE_TARGET_REGISTRY";
+const EXPECTED_RESTART_RECEIPT_MARKER =
+  "VOID_PAID_WORK_RECEIVER_NINE_RECORD_REGISTRY_RESTART_V1";
+const EXPECTED_RESTART_RECEIPT_SHA256 = "d488a4f35a32b1ba8c8a0a955ce28b095af585391ae34e87c41a7f6837e48a49";
+const EXPECTED_RESTART_RECORDED_AT_UTC = "2026-08-03T23:08:43.343081Z";
+const EXPECTED_MAIN_PID_BEFORE = 1128846;
+const EXPECTED_MAIN_PID_AFTER = 1426443;
+const EXPECTED_RECEIPT_COUNT = 27;
+const EXPECTED_SUBMISSION_INDEX_COUNT = 27;
 
 const KNOWN_SATISFIED_REQUIREMENTS = Object.freeze([
   "activation_configuration_schema",
@@ -77,13 +73,18 @@ const REMAINING_REQUIREMENTS = Object.freeze([
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 const repoPath = (relativePath) => path.join(repoRoot, relativePath);
-const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const sha256 = (bytes) =>
+  createHash("sha256").update(bytes).digest("hex");
 const isRecord = (value) =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));
 
 function exactKeys(value, expected, label) {
   assert.ok(isRecord(value), `${label} must be an object`);
-  assert.deepEqual(Object.keys(value).sort(), [...expected].sort(), `${label} keys`);
+  assert.deepEqual(
+    Object.keys(value).sort(),
+    [...expected].sort(),
+    `${label} keys`,
+  );
 }
 
 function validateExactSchema(definition, value, label = "value") {
@@ -104,7 +105,9 @@ function validateExactSchema(definition, value, label = "value") {
         );
       }
     }
-    for (const [key, child] of Object.entries(definition.properties ?? {})) {
+    for (const [key, child] of Object.entries(
+      definition.properties ?? {},
+    )) {
       if (Object.hasOwn(value, key)) {
         validateExactSchema(child, value[key], `${label}.${key}`);
       }
@@ -117,7 +120,9 @@ function collectStringValues(value, output = []) {
   else if (Array.isArray(value)) {
     for (const item of value) collectStringValues(item, output);
   } else if (isRecord(value)) {
-    for (const child of Object.values(value)) collectStringValues(child, output);
+    for (const child of Object.values(value)) {
+      collectStringValues(child, output);
+    }
   }
   return output;
 }
@@ -125,16 +130,33 @@ function collectStringValues(value, output = []) {
 const metadataBytes = readFileSync(repoPath(METADATA_RELATIVE_PATH));
 const metadataText = metadataBytes.toString("utf8");
 const metadata = JSON.parse(metadataText);
-const schema = JSON.parse(readFileSync(repoPath(SCHEMA_RELATIVE_PATH), "utf8"));
-const activationSource = readFileSync(repoPath(ACTIVATION_SOURCE_RELATIVE_PATH), "utf8");
-const activationSchemaText = readFileSync(repoPath(ACTIVATION_SCHEMA_RELATIVE_PATH), "utf8");
-const registrySource = readFileSync(repoPath(REGISTRY_SOURCE_RELATIVE_PATH), "utf8");
-const registrySchema = JSON.parse(readFileSync(repoPath(REGISTRY_SCHEMA_RELATIVE_PATH), "utf8"));
-const receiverSource = readFileSync(repoPath(RECEIVER_SOURCE_RELATIVE_PATH), "utf8");
-const registryDoc = readFileSync(repoPath(REGISTRY_DOC_RELATIVE_PATH), "utf8");
-const serviceUnitArtifactBytes = readFileSync(repoPath(SERVICE_UNIT_ARTIFACT_RELATIVE_PATH));
-const serviceUnitArtifact = JSON.parse(serviceUnitArtifactBytes.toString("utf8"));
-const serviceUnitProofSource = readFileSync(repoPath(SERVICE_UNIT_PROOF_RELATIVE_PATH), "utf8");
+const docText = readFileSync(repoPath(DOC_RELATIVE_PATH), "utf8");
+const schema = JSON.parse(
+  readFileSync(repoPath(SCHEMA_RELATIVE_PATH), "utf8"),
+);
+const activationSource = readFileSync(
+  repoPath(ACTIVATION_SOURCE_RELATIVE_PATH),
+  "utf8",
+);
+const activationSchemaText = readFileSync(
+  repoPath(ACTIVATION_SCHEMA_RELATIVE_PATH),
+  "utf8",
+);
+const registrySource = readFileSync(
+  repoPath(REGISTRY_SOURCE_RELATIVE_PATH),
+  "utf8",
+);
+const registrySchema = JSON.parse(
+  readFileSync(repoPath(REGISTRY_SCHEMA_RELATIVE_PATH), "utf8"),
+);
+const receiverSource = readFileSync(
+  repoPath(RECEIVER_SOURCE_RELATIVE_PATH),
+  "utf8",
+);
+const registryDoc = readFileSync(
+  repoPath(REGISTRY_DOC_RELATIVE_PATH),
+  "utf8",
+);
 
 assert.equal(sha256(metadataBytes), EXPECTED_METADATA_SHA256);
 assert.equal(schema.$id, SCHEMA_ID);
@@ -142,68 +164,136 @@ assert.equal(schema.x_void_marker, SCHEMA_MARKER);
 validateExactSchema(schema, metadata, "credential reference metadata");
 
 exactKeys(metadata, [
-  "$schema", "marker", "version", "status", "reference_id",
-  "credential_reference", "registry_snapshot", "evidence_binding",
-  "revalidation", "service_unit_design_binding", "readiness_effect", "authority",
+  "$schema",
+  "marker",
+  "version",
+  "status",
+  "reference_id",
+  "credential_reference",
+  "registry_snapshot",
+  "evidence_binding",
+  "revalidation",
+  "service_unit_design_binding",
+  "readiness_effect",
+  "authority",
 ], "credential reference metadata");
 
 assert.equal(metadata.marker, PROOF_MARKER);
 assert.equal(metadata.version, 1);
-assert.equal(metadata.status, "source_reference_only_credential_read_forbidden");
+assert.equal(
+  metadata.status,
+  "source_reference_only_credential_read_forbidden",
+);
 
 const reference = metadata.credential_reference;
 assert.equal(reference.mode, "credential_registry");
 assert.equal(reference.reference_id, EXPECTED_CREDENTIAL_ID);
-assert.equal(reference.source_locator_sha256, EXPECTED_SOURCE_LOCATOR_SHA256);
-assert.equal(reference.expected_scope, EXPECTED_SCOPE);
-assert.equal(reference.registry_id, EXPECTED_REGISTRY_ID);
 assert.equal(reference.credential_id, EXPECTED_CREDENTIAL_ID);
+assert.equal(reference.registry_id, EXPECTED_REGISTRY_ID);
 assert.equal(reference.agent_id, EXPECTED_AGENT_ID);
+assert.equal(reference.expected_scope, EXPECTED_SCOPE);
+assert.equal(
+  reference.source_locator_sha256,
+  EXPECTED_SOURCE_LOCATOR_SHA256,
+);
 assert.equal(reference.not_before_utc, EXPECTED_NOT_BEFORE_UTC);
 assert.equal(reference.expires_at_utc, EXPECTED_EXPIRES_AT_UTC);
-assert.equal(
-  (Date.parse(reference.expires_at_utc)
-    - Date.parse(reference.not_before_utc)) / 1000,
-  EXPECTED_VALIDITY_SECONDS,
-);
 
 const snapshot = metadata.registry_snapshot;
-assert.equal(snapshot.registry_contract_marker, "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1");
+assert.equal(
+  snapshot.registry_contract_marker,
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1",
+);
 assert.equal(snapshot.registry_contract_version, 1);
 assert.equal(snapshot.registry_sha256, EXPECTED_REGISTRY_SHA256);
 assert.equal(snapshot.credential_count, EXPECTED_CREDENTIAL_COUNT);
-assert.equal(snapshot.registry_environment_variable, "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE");
-assert.equal(snapshot.fallback_environment_variable, "VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE");
 assert.equal(snapshot.raw_token_embedded_in_source, false);
 assert.equal(snapshot.token_digest_embedded_in_source, false);
 assert.equal(snapshot.private_registry_path_disclosed_in_source, false);
 assert.equal(snapshot.private_token_path_disclosed_in_source, false);
 
 const evidence = metadata.evidence_binding;
-assert.equal(evidence.metadata_reconciliation_plan_id, EXPECTED_RECONCILIATION_PLAN_ID);
-assert.equal(evidence.metadata_reconciliation_plan_sha256, EXPECTED_RECONCILIATION_PLAN_SHA256);
-assert.equal(evidence.credential_response_id, EXPECTED_RESPONSE_ID);
-assert.equal(evidence.credential_response_sha256, EXPECTED_RESPONSE_SHA256);
-assert.equal(evidence.binding_id, EXPECTED_BINDING_ID);
-assert.equal(evidence.binding_registry_id, EXPECTED_BINDING_REGISTRY_ID);
-assert.equal(evidence.binding_registry_sha256, EXPECTED_BINDING_REGISTRY_SHA256);
-assert.equal(evidence.binding_destination_wc_account, EXPECTED_BINDING_DESTINATION);
-assert.equal(evidence.binding_review_decision_id, EXPECTED_BINDING_REVIEW_DECISION_ID);
-assert.equal(evidence.binding_issuance_preparation_id, EXPECTED_BINDING_ISSUANCE_PREPARATION_ID);
-assert.equal(evidence.binding_valid_from, EXPECTED_BINDING_VALID_FROM);
-assert.equal(evidence.binding_valid_until, EXPECTED_BINDING_VALID_UNTIL);
-assert.equal(evidence.binding_active, true);
-assert.equal(evidence.binding_unique_for_credential, true);
-assert.equal(evidence.binding_unique_for_destination, true);
-assert.equal(evidence.source_locator_is_normalized_private_token_path_sha256, true);
-assert.equal(evidence.receiver_classification, EXPECTED_RECEIVER_CLASSIFICATION);
-assert.equal(evidence.receiver_loaded_registry_id, EXPECTED_RECEIVER_LOADED_REGISTRY_ID);
-assert.equal(evidence.receiver_loaded_credential_count, EXPECTED_RECEIVER_LOADED_CREDENTIAL_COUNT);
-assert.equal(evidence.receiver_loaded_target_registry, false);
-assert.equal(evidence.receiver_restart_required, true);
-assert.equal(evidence.receiver_configuration_revalidation_required, true);
+assert.equal(
+  evidence.receiver_classification,
+  EXPECTED_RECEIVER_CLASSIFICATION,
+);
+assert.equal(
+  evidence.receiver_loaded_registry_id,
+  EXPECTED_REGISTRY_ID,
+);
+assert.equal(
+  evidence.receiver_loaded_credential_count,
+  EXPECTED_CREDENTIAL_COUNT,
+);
+assert.equal(evidence.receiver_loaded_target_registry, true);
+assert.equal(evidence.receiver_restart_required, false);
+assert.equal(
+  evidence.receiver_configuration_revalidation_required,
+  true,
+);
+assert.equal(evidence.receiver_health_observed, true);
+assert.equal(evidence.receiver_health_http_status, 200);
+assert.equal(
+  evidence.receiver_restart_receipt_marker,
+  EXPECTED_RESTART_RECEIPT_MARKER,
+);
+assert.equal(
+  evidence.receiver_restart_receipt_sha256,
+  EXPECTED_RESTART_RECEIPT_SHA256,
+);
+assert.match(
+  evidence.receiver_restart_receipt_sha256,
+  /^[0-9a-f]{64}$/,
+);
+assert.equal(
+  evidence.receiver_restart_recorded_at_utc,
+  EXPECTED_RESTART_RECORDED_AT_UTC,
+);
+assert.equal(
+  evidence.receiver_main_pid_before,
+  EXPECTED_MAIN_PID_BEFORE,
+);
+assert.equal(
+  evidence.receiver_main_pid_after,
+  EXPECTED_MAIN_PID_AFTER,
+);
+assert.equal(evidence.receiver_main_pid_changed, true);
+assert.equal(
+  evidence.receiver_receipt_count_before,
+  EXPECTED_RECEIPT_COUNT,
+);
+assert.equal(
+  evidence.receiver_receipt_count_after,
+  EXPECTED_RECEIPT_COUNT,
+);
+assert.equal(
+  evidence.receiver_submission_index_count_before,
+  EXPECTED_SUBMISSION_INDEX_COUNT,
+);
+assert.equal(
+  evidence.receiver_submission_index_count_after,
+  EXPECTED_SUBMISSION_INDEX_COUNT,
+);
+assert.equal(
+  evidence.reviewed_eight_record_prefix_preserved_exactly,
+  true,
+);
+assert.equal(evidence.safe_ninth_credential_append_exact, true);
+assert.equal(
+  evidence.additional_installed_credential_id,
+  EXPECTED_ADDITIONAL_CREDENTIAL_ID,
+);
+assert.equal(
+  evidence.fresh_direct_requester_credential_id,
+  EXPECTED_REQUESTER_CREDENTIAL_ID,
+);
+assert.equal(
+  evidence.fresh_direct_requester_used_as_activation_credential,
+  false,
+);
 assert.equal(evidence.live_authentication_observed, false);
 assert.equal(evidence.live_http_status, null);
+
 for (const key of [
   "payment_execution_observed",
   "work_dispatch_observed",
@@ -214,42 +304,23 @@ for (const key of [
   assert.equal(evidence[key], false, `evidence authority false: ${key}`);
 }
 
-for (const [key, value] of Object.entries(metadata.revalidation)) {
-  if (
-    key === "credential_read_required_for_source_proof"
-    || key === "credential_provider_invocation_required_for_source_proof"
-    || key === "current_runtime_freshness_proven_by_source"
-  ) {
-    assert.equal(value, false, `source proof must keep ${key} false`);
-  } else {
-    assert.equal(value, true, `revalidation requirement must remain true: ${key}`);
-  }
-}
-
-
-const serviceUnitBinding = metadata.service_unit_design_binding;
-assert.equal(serviceUnitBinding.artifact_path, SERVICE_UNIT_ARTIFACT_RELATIVE_PATH);
-assert.equal(serviceUnitBinding.artifact_sha256, EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256);
-assert.equal(serviceUnitBinding.artifact_marker, EXPECTED_SERVICE_UNIT_MARKER);
-assert.equal(serviceUnitBinding.proof_path, SERVICE_UNIT_PROOF_RELATIVE_PATH);
-assert.equal(serviceUnitBinding.closes_blocker, "service_unit_design");
-assert.equal(serviceUnitBinding.source_design_created, true);
-assert.equal(serviceUnitBinding.service_unit_file_created, false);
-assert.equal(serviceUnitBinding.service_unit_installed, false);
-assert.equal(serviceUnitBinding.service_started, false);
-assert.equal(serviceUnitBinding.separate_activation_execution_lane_required, true);
-
-assert.equal(sha256(serviceUnitArtifactBytes), EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256);
-assert.equal(serviceUnitArtifact.marker, EXPECTED_SERVICE_UNIT_MARKER);
-assert.equal(serviceUnitArtifact.design_scope.closes_blocker, "service_unit_design");
-assert.equal(serviceUnitArtifact.design_scope.readiness_decision_after_publication, "HOLD");
-assert.equal(serviceUnitArtifact.authority.source_design_created, true);
-assert.equal(serviceUnitArtifact.authority.service_unit_file_created, false);
-assert.equal(serviceUnitArtifact.authority.service_unit_installed, false);
-assert.equal(serviceUnitArtifact.authority.service_started, false);
-assert.equal(serviceUnitArtifact.authority.separate_activation_execution_lane_required, true);
-assert.ok(serviceUnitProofSource.includes(`const EXPECTED_SHA = "${EXPECTED_SERVICE_UNIT_ARTIFACT_SHA256}"`));
-assert.ok(serviceUnitProofSource.includes('console.log("closes_blocker=service_unit_design")'));
+const revalidation = metadata.revalidation;
+assert.equal(
+  revalidation.current_runtime_freshness_proven_by_source,
+  false,
+);
+assert.equal(revalidation.registry_snapshot_revalidation_required, true);
+assert.equal(revalidation.credential_identity_revalidation_required, true);
+assert.equal(revalidation.scope_revalidation_required, true);
+assert.equal(revalidation.validity_window_revalidation_required, true);
+assert.equal(revalidation.revocation_revalidation_required, true);
+assert.equal(revalidation.expired_or_rotated_reference_fails_closed, true);
+assert.equal(revalidation.replacement_requires_separate_reviewed_metadata, true);
+assert.equal(revalidation.credential_read_required_for_source_proof, false);
+assert.equal(
+  revalidation.credential_provider_invocation_required_for_source_proof,
+  false,
+);
 
 assert.deepEqual(
   metadata.readiness_effect.known_satisfied_requirements,
@@ -259,11 +330,16 @@ assert.deepEqual(
   metadata.readiness_effect.remaining_requirements_after_known_satisfied,
   REMAINING_REQUIREMENTS,
 );
-assert.equal(metadata.readiness_effect.satisfies, "credential_reference_metadata");
-assert.equal(metadata.readiness_effect.parallel_service_unit_design_reconciled, true);
+assert.equal(
+  metadata.readiness_effect.satisfies,
+  "credential_reference_metadata",
+);
 assert.equal(metadata.readiness_effect.decision_after_publication, "HOLD");
 assert.equal(metadata.readiness_effect.activation_authorized, false);
-assert.equal(metadata.readiness_effect.separate_activation_execution_lane_required, true);
+assert.equal(
+  metadata.readiness_effect.separate_activation_execution_lane_required,
+  true,
+);
 
 assert.equal(metadata.authority.source_reference_metadata_created, true);
 for (const [key, value] of Object.entries(metadata.authority)) {
@@ -273,49 +349,95 @@ for (const [key, value] of Object.entries(metadata.authority)) {
 }
 
 assert.ok(
-  activationSource.includes("ExternalAgentPaidWorkCredentialReferenceMetadataV1"),
-  "activation credential-reference interface drift",
-);
-assert.ok(
-  activationSource.includes('mode: "credential_registry" | "single_token_fallback"'),
-  "activation credential-reference mode drift",
-);
-assert.ok(activationSource.includes("source_locator_sha256"));
-assert.ok(
   activationSource.includes(
-    "credential-registry metadata must include registry, credential, agent, and validity window",
+    "ExternalAgentPaidWorkCredentialReferenceMetadataV1",
   ),
 );
+assert.ok(activationSource.includes("source_locator_sha256"));
 assert.ok(activationSource.includes("credential_valid_for_activation_window"));
-
 for (const field of [
-  "source_locator_sha256", "expected_scope", "registry_id", "credential_id",
-  "agent_id", "not_before_utc", "expires_at_utc",
+  "source_locator_sha256",
+  "expected_scope",
+  "registry_id",
+  "credential_id",
+  "agent_id",
+  "not_before_utc",
+  "expires_at_utc",
 ]) {
-  assert.ok(activationSchemaText.includes(`"${field}"`), `activation schema drift: ${field}`);
+  assert.ok(
+    activationSchemaText.includes(`"${field}"`),
+    `activation schema drift: ${field}`,
+  );
 }
 
-assert.ok(registrySource.includes("VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1"));
+assert.ok(
+  registrySource.includes(
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_V1",
+  ),
+);
 assert.ok(registrySource.includes("agent_paid_work_submit"));
 assert.equal(
-  registrySchema.properties.credentials.items.properties.scopes.prefixItems[0].const,
+  registrySchema.properties.credentials.items.properties.scopes
+    .prefixItems[0].const,
   EXPECTED_SCOPE,
 );
-assert.ok(receiverSource.includes("VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE"));
-assert.ok(receiverSource.includes("VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE"));
+assert.ok(
+  receiverSource.includes(
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE",
+  ),
+);
+assert.ok(
+  receiverSource.includes(
+    "VOID_AGENT_PAID_WORK_SUBMISSION_TOKEN_FILE",
+  ),
+);
 assert.ok(registryDoc.includes("Raw bearer tokens"));
 
-assert.equal(metadataText.includes("/home/"), false, "private path leaked");
-assert.equal(metadataText.includes('"token_sha256"'), false, "token digest leaked");
-assert.equal(metadataText.includes("Bearer "), false, "bearer credential leaked");
-assert.equal(metadataText.includes("Authorization:"), false, "authorization header leaked");
-assert.equal(metadataText.includes("-----BEGIN"), false, "private material leaked");
+for (const required of [
+  EXPECTED_REGISTRY_ID,
+  EXPECTED_REGISTRY_SHA256,
+  EXPECTED_CREDENTIAL_ID,
+  EXPECTED_ADDITIONAL_CREDENTIAL_ID,
+  EXPECTED_REQUESTER_CREDENTIAL_ID,
+  EXPECTED_RECEIVER_CLASSIFICATION,
+  EXPECTED_RESTART_RECEIPT_SHA256,
+  "receiver restart required: false",
+  "current_runtime_freshness_proven_by_source",
+  "The receipt path is not published.",
+]) {
+  assert.ok(docText.includes(required), `operator document missing: ${required}`);
+}
+
+for (const forbidden of [
+  "/home/",
+  '"token_sha256"',
+  "Bearer ",
+  "Authorization:",
+  "-----BEGIN",
+]) {
+  assert.equal(metadataText.includes(forbidden), false);
+  assert.equal(docText.includes(forbidden), false);
+}
 
 const secretValuePattern =
   /(?:\/home\/|bearer\s+|-----BEGIN|mnemonic|private[_-]?key|sk-[A-Za-z0-9]|gh[opusr]_)/iu;
 for (const value of collectStringValues(metadata)) {
-  assert.doesNotMatch(value, secretValuePattern, "secret or private path value is forbidden");
+  assert.doesNotMatch(
+    value,
+    secretValuePattern,
+    "secret or private path value is forbidden",
+  );
 }
+
+const nodeMajor = Number.parseInt(
+  process.versions.node.split(".")[0],
+  10,
+);
+assert.equal(
+  nodeMajor,
+  22,
+  `proof requires Node.js 22.x, observed ${process.versions.node}`,
+);
 
 console.log(`${PROOF_MARKER}_PROOF_GREEN=true`);
 console.log(`metadata_path=${METADATA_RELATIVE_PATH}`);
@@ -323,31 +445,26 @@ console.log(`metadata_sha256=${EXPECTED_METADATA_SHA256}`);
 console.log(`registry_id=${EXPECTED_REGISTRY_ID}`);
 console.log(`registry_snapshot_sha256=${EXPECTED_REGISTRY_SHA256}`);
 console.log(`registry_credential_count=${EXPECTED_CREDENTIAL_COUNT}`);
-console.log(`credential_reference_id=${EXPECTED_CREDENTIAL_ID}`);
 console.log(`credential_id=${EXPECTED_CREDENTIAL_ID}`);
-console.log(`agent_id=${EXPECTED_AGENT_ID}`);
-console.log(`expected_scope=${EXPECTED_SCOPE}`);
-console.log(`source_locator_sha256=${EXPECTED_SOURCE_LOCATOR_SHA256}`);
-console.log(`observed_not_before_utc=${EXPECTED_NOT_BEFORE_UTC}`);
-console.log(`observed_expires_at_utc=${EXPECTED_EXPIRES_AT_UTC}`);
-console.log(`observed_validity_window_seconds=${EXPECTED_VALIDITY_SECONDS}`);
-console.log(`metadata_reconciliation_plan_id=${EXPECTED_RECONCILIATION_PLAN_ID}`);
-console.log(`credential_response_id=${EXPECTED_RESPONSE_ID}`);
-console.log(`binding_id=${EXPECTED_BINDING_ID}`);
-console.log(`binding_review_decision_id=${EXPECTED_BINDING_REVIEW_DECISION_ID}`);
-console.log(`binding_issuance_preparation_id=${EXPECTED_BINDING_ISSUANCE_PREPARATION_ID}`);
-console.log(`binding_registry_id=${EXPECTED_BINDING_REGISTRY_ID}`);
-console.log(`binding_registry_sha256=${EXPECTED_BINDING_REGISTRY_SHA256}`);
 console.log(`receiver_classification=${EXPECTED_RECEIVER_CLASSIFICATION}`);
-console.log("receiver_loaded_target_registry=false");
-console.log("receiver_restart_required=true");
+console.log("receiver_loaded_target_registry=true");
+console.log("receiver_restart_required=false");
+console.log("receiver_configuration_revalidation_required=true");
+console.log("receiver_health_observed=true");
+console.log("receiver_health_http_status=200");
+console.log(`receiver_restart_receipt_sha256=${EXPECTED_RESTART_RECEIPT_SHA256}`);
+console.log("reviewed_eight_record_prefix_preserved_exactly=true");
+console.log("safe_ninth_credential_append_exact=true");
+console.log(`additional_installed_credential_id=${EXPECTED_ADDITIONAL_CREDENTIAL_ID}`);
+console.log(`fresh_direct_requester_credential_id=${EXPECTED_REQUESTER_CREDENTIAL_ID}`);
+console.log("fresh_direct_requester_used_as_activation_credential=false");
 console.log("live_authentication_observed=false");
-console.log("schema_validation_exact=true");
-console.log("activation_credential_reference_contract_exact=true");
-console.log("credential_registry_contract_exact=true");
-console.log("service_unit_design_contract_exact=true");
-console.log("source_metadata_reconciled_to_fresh_credential=true");
 console.log("current_runtime_freshness_proven_by_source=false");
-console.log("credential_or_token_read=false");
-console.log("receiver_restart=false");
 console.log("activation_authorized=false");
+console.log("credential_or_token_read=false");
+console.log("service_restart=false");
+console.log("payment_execution=false");
+console.log("work_credit_write=false");
+console.log("wallet_or_signer_access=false");
+console.log("transaction_broadcast=false");
+console.log("fund_movement=false");
