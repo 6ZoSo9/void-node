@@ -41,6 +41,11 @@ price can produce. A caller cannot alter `position_value_usd_floor`, recompute
 the self-authored valuation digest, and manufacture starting capital outside
 that interval.
 
+The canonical public `composeAcrossRoundTripPaperV1` entrypoint invokes this
+guard internally before any composition logic. The guard module exports only the
+assertion and does not import or wrap the composer. There is no public unguarded
+composition entrypoint and no optional wrapper path that callers can bypass.
+
 Return-leg expected and minimum USD values are then derived with integer
 arithmetic from the valued starting position:
 
