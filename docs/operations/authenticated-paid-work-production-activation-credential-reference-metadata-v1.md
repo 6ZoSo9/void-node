@@ -79,6 +79,27 @@ state. This metadata must therefore be treated as a content-addressed record of
 reviewed operator evidence, not as an independently source-verifiable runtime
 attestation.
 
+## Post-restart mutation-neutrality proof
+
+The focused source proof derives cross-field invariants that are easy to miss
+when reviewing the individual evidence values:
+
+- the loaded registry count equals the source snapshot count;
+- the reviewed eight-record prefix has exactly one safe append;
+- the loaded registry ID is the selected credential's registry ID;
+- the before and after PIDs are positive, distinct, and agree with the recorded
+  PID-change claim;
+- receipt and submission-index counts are non-negative, remain unchanged across
+  the restart, and agree with each other before and after;
+- the selected, appended, and direct-requester credential IDs remain distinct;
+- no authentication, payment, dispatch, Work Credit, wallet, signer, or fund
+  event is claimed; and
+- readiness remains `HOLD` with all activation authority false.
+
+This proof checks only the checked-in sanitized metadata. It does not prove that
+the private restart receipt is authentic, and it does not convert the captured
+point-in-time observation into current runtime freshness.
+
 ## Freshness and execution boundary
 
 The captured receiver state proves that the nine-record registry was loaded at
@@ -110,4 +131,7 @@ This source lane does not authorize or perform:
 - `config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json`
 - `schemas/authenticated-paid-work-production-activation-credential-reference-metadata-v1.schema.json`
 - `scripts/prove_authenticated_paid_work_production_activation_credential_reference_metadata_v1.mjs`
+- `scripts/prove_authenticated_paid_work_production_activation_credential_reference_temporal_binding_v1.mjs`
+- `scripts/prove_authenticated_paid_work_production_activation_postrestart_mutation_neutrality_v1.mjs`
+- `.github/workflows/authenticated-paid-work-production-activation-credential-reference-metadata-v1.yml`
 - `docs/operations/authenticated-paid-work-production-activation-credential-reference-metadata-v1.md`
