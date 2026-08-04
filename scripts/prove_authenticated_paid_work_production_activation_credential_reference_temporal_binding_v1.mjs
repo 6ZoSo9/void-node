@@ -37,6 +37,7 @@ const metadata = JSON.parse(
   readFileSync(repoPath(METADATA_RELATIVE_PATH), "utf8"),
 );
 const docText = readFileSync(repoPath(DOC_RELATIVE_PATH), "utf8");
+const normalizedDocText = docText.replace(/\s+/gu, " ");
 const serviceArtifactBytes = readFileSync(
   repoPath(SERVICE_ARTIFACT_RELATIVE_PATH),
 );
@@ -135,13 +136,15 @@ assert.equal(metadata.readiness_effect.decision_after_publication, "HOLD");
 assert.equal(metadata.readiness_effect.activation_authorized, false);
 
 for (const token of [
-  "The captured receiver state proves that the nine-record registry was loaded at",
-  "the evidence time. It does not make runtime state permanently fresh.",
+  "The captured receiver state proves that the nine-record registry was loaded at the evidence time. It does not make runtime state permanently fresh.",
   "current_runtime_freshness_proven_by_source",
   "selected credential validity and revocation state",
   "The readiness decision remains `HOLD`.",
 ]) {
-  assert.ok(docText.includes(token), `operator document missing: ${token}`);
+  assert.ok(
+    normalizedDocText.includes(token),
+    `operator document missing: ${token}`,
+  );
 }
 
 const nodeMajor = Number.parseInt(process.versions.node.split(".")[0], 10);
