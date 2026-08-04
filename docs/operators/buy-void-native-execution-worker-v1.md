@@ -24,6 +24,40 @@ The buyer cannot supply a private key, mnemonic, RPC URL, raw signed
 transaction, wallet policy, journal root, or broadcaster configuration through
 this module.
 
+## Deterministic transaction-plan fingerprint
+
+The native sign/broadcast adapter content-addresses the normalized transaction
+plan before the durable submission claim. Fingerprint object keys are ordered by
+explicit ECMAScript UTF-16 code-unit comparison using `<` and `>`.
+
+Locale-aware ordering is forbidden. The deterministic proof statically rejects
+both `localeCompare` and `Intl.Collator`, and independently recomputes the exact
+fingerprint from the normalized plan.
+
+## Attempt-level durable idempotency
+
+The delivery submission guard now binds the first accepted submission identity
+immutably to the pair:
+
+```text
+(adapter_marker, execution_attempt_id)
+```
+
+That immutable binding includes:
+
+- the submission idempotency key;
+- the expected transaction hash; and
+- the transaction-plan fingerprint.
+
+A different idempotency key cannot reopen the same adapter and execution
+attempt, including after a broadcast outcome is unknown. A released claim may
+be reclaimed only with the exact original complete binding. Reusing one
+idempotency key for a different attempt also remains forbidden.
+
+The append-only journal validates this attempt-level invariant while reading.
+A hash-chain-valid journal containing a second binding for the same adapter and
+attempt fails closed.
+
 ## Dry run
 
 Dry run is the default. It verifies all bindings and returns the native
@@ -50,6 +84,22 @@ Apply performs, in order:
    existing pipeline coordinator;
 9. clears the in-memory raw signed transaction reference.
 
+## Adversarial verification
+
+The focused proofs require:
+
+- exact code-unit transaction-plan fingerprinting;
+- static rejection of locale-aware comparators;
+- rejection of an alternate idempotency key after an unknown broadcast;
+- rejection of changed hashes or fingerprints for an existing attempt;
+- rejection of idempotency-key reuse across attempts;
+- exact same-binding retry only after a definitive-not-broadcast release;
+- append-only journal hash-chain verification; and
+- rejection of a forged but rehashed alternate binding for one attempt.
+
+The native execution workflow now triggers when either hardened source file or
+proof changes and runs both proofs before the full build.
+
 ## Safety boundary
 
 - one request per invocation;
@@ -59,23 +109,29 @@ Apply performs, in order:
 - no raw signed transaction persistence or output;
 - no public request-journal write;
 - no inventory decrement or release;
-- no runtime route;
+- no runtime route added by this lane;
 - no background loop or startup execution;
 - no service, Tailscale, remote-machine, or Nimo changes.
 
 When fully applied with real injected dependencies, this worker has wallet,
 signing, transaction-broadcast, and money-movement authority for exactly one
-validated reservation and transaction plan. It remains inactive until a later
-runtime activation lane explicitly configures and calls it.
+validated reservation and transaction plan. This hardening lane does not mount,
+configure, or invoke that authority.
 
 ## Remaining path to paid fulfillment
 
-After this source lane is merged, the remaining work is:
+After this source hardening is merged, the remaining work is:
 
-1. bind server-controlled fee/nonce planning to the live chain-2050 RPC;
-2. connect the existing systemd credential signer and loopback broadcaster;
-3. add receipt reconciliation and confirmation processing;
-4. decrement committed inventory only after confirmed delivery;
-5. update the public request journal and buyer-visible status;
-6. deploy disabled and execute one bounded live purchase canary;
-7. activate the one-request worker under strict operational caps.
+1. separately authorize and mount the `execute_reserved_plan` orchestrator
+   stage under a server-controlled one-request policy;
+2. bind server-controlled fee/nonce planning to the live chain-2050 RPC;
+3. connect the existing systemd credential signer and loopback broadcaster;
+4. add receipt reconciliation and confirmation processing;
+5. decrement committed inventory only after confirmed delivery;
+6. update the public request journal and buyer-visible status;
+7. deploy disabled and execute one bounded live purchase canary;
+8. activate the one-request worker under strict operational caps.
+
+Every deployment, credential use, live RPC call, signing operation, transaction
+broadcast, inventory mutation, and fund-moving action remains a separate
+explicit gate.

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
 export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1 =
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1";
 
@@ -45,6 +46,8 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   append_only_journal: true,
   hash_chain: true,
   exclusive_lock: true,
+  attempt_binding_immutable: true,
+  alternate_idempotency_key_replay_forbidden: true,
   automatic_stale_lock_removal: false,
   rpc_call: false,
   wallet_access: false,
@@ -266,6 +269,51 @@ function withExclusiveLock<T>(
   }
 }
 
+function sameBinding(
+  entry: BuyVoidDeliverySubmissionGuardEntryV1,
+  binding: NormalizedBindingV1,
+): boolean {
+  return (
+    entry.adapter_marker === binding.adapter_marker &&
+    entry.submission_idempotency_key ===
+      binding.submission_idempotency_key &&
+    entry.attempt_id === binding.attempt_id &&
+    entry.expected_transaction_hash ===
+      binding.expected_transaction_hash &&
+    entry.transaction_plan_fingerprint_sha256 ===
+      binding.transaction_plan_fingerprint_sha256
+  );
+}
+
+function sameAttempt(
+  entry: BuyVoidDeliverySubmissionGuardEntryV1,
+  binding: NormalizedBindingV1,
+): boolean {
+  return (
+    entry.adapter_marker === binding.adapter_marker &&
+    entry.attempt_id === binding.attempt_id
+  );
+}
+
+function firstForAttempt(
+  entries: BuyVoidDeliverySubmissionGuardEntryV1[],
+  binding: NormalizedBindingV1,
+): BuyVoidDeliverySubmissionGuardEntryV1 | null {
+  return entries.find((entry) => sameAttempt(entry, binding)) || null;
+}
+
+function latestForKey(
+  entries: BuyVoidDeliverySubmissionGuardEntryV1[],
+  key: string,
+): BuyVoidDeliverySubmissionGuardEntryV1 | null {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index].submission_idempotency_key === key) {
+      return entries[index];
+    }
+  }
+  return null;
+}
+
 function readJournal(
   paths: BuyVoidDeliverySubmissionGuardPathsV1,
 ): BuyVoidDeliverySubmissionGuardEntryV1[] {
@@ -308,7 +356,7 @@ function readJournal(
       throw new Error("submission_guard_journal_hash_mismatch");
     }
 
-    normalizeBinding({
+    const normalizedBinding = normalizeBinding({
       marker:
         value.adapter_marker ||
         "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
@@ -320,6 +368,14 @@ function readJournal(
       transaction_plan_fingerprint_sha256:
         value.transaction_plan_fingerprint_sha256,
     });
+
+    const existingAttempt = firstForAttempt(
+      entries,
+      normalizedBinding,
+    );
+    if (existingAttempt && !sameBinding(existingAttempt, normalizedBinding)) {
+      throw new Error("submission_guard_attempt_binding_mismatch");
+    }
 
     if (
       value.event === "release" &&
@@ -377,34 +433,6 @@ function appendEntry(
   return complete;
 }
 
-function sameBinding(
-  entry: BuyVoidDeliverySubmissionGuardEntryV1,
-  binding: NormalizedBindingV1,
-): boolean {
-  return (
-    entry.adapter_marker === binding.adapter_marker &&
-    entry.submission_idempotency_key ===
-      binding.submission_idempotency_key &&
-    entry.attempt_id === binding.attempt_id &&
-    entry.expected_transaction_hash ===
-      binding.expected_transaction_hash &&
-    entry.transaction_plan_fingerprint_sha256 ===
-      binding.transaction_plan_fingerprint_sha256
-  );
-}
-
-function latestForKey(
-  entries: BuyVoidDeliverySubmissionGuardEntryV1[],
-  key: string,
-): BuyVoidDeliverySubmissionGuardEntryV1 | null {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    if (entries[index].submission_idempotency_key === key) {
-      return entries[index];
-    }
-  }
-  return null;
-}
-
 export function readBuyVoidDeliverySubmissionGuardJournalV1(
   rootDir: string,
 ): BuyVoidDeliverySubmissionGuardEntryV1[] {
@@ -424,6 +452,16 @@ export function createBuyVoidDeliverySubmissionGuardV1(
       const normalized = normalizeBinding(binding);
       return withExclusiveLock(paths, () => {
         const entries = readJournal(paths);
+        const attemptBinding = firstForAttempt(entries, normalized);
+        if (attemptBinding && !sameBinding(attemptBinding, normalized)) {
+          return {
+            claimed: false as const,
+            reason: "submission_attempt_binding_conflict",
+            existing_transaction_hash:
+              attemptBinding.expected_transaction_hash,
+          };
+        }
+
         const latest = latestForKey(
           entries,
           normalized.submission_idempotency_key,
@@ -471,6 +509,14 @@ export function createBuyVoidDeliverySubmissionGuardV1(
 
       return withExclusiveLock(paths, () => {
         const entries = readJournal(paths);
+        const attemptBinding = firstForAttempt(entries, normalized);
+        if (attemptBinding && !sameBinding(attemptBinding, normalized)) {
+          return {
+            released: false as const,
+            reason: "submission_attempt_binding_conflict",
+          };
+        }
+
         const latest = latestForKey(
           entries,
           normalized.submission_idempotency_key,
