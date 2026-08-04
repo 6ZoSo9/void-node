@@ -27,9 +27,15 @@ and subject to explicit exit, suspension, quarantine, and dispute procedures.
 - `verifyAllianceMembershipSignatureV1(manifest, publicKey)` verifies the closed
   manifest, content address, payload digest, detached signature, and public-key
   identity binding.
-- `verifyAllianceMembershipTransitionV1(previous, next, publicKey)` enforces the
-  lifecycle state machine, explicit predecessor chain, and immutable membership
-  commitments.
+- `verifyAllianceMembershipTransitionV1(previous, next, publicKey)` verifies
+  member-signed lifecycle continuity, predecessor linkage, and immutable
+  membership commitments. It is not an admission decision.
+- `verifyAllianceMembershipTransitionTemporalGuardV1(...)` is the
+  registry-facing guard for ordinary member lifecycle changes. It rejects
+  candidate self-promotion and enforces temporal and expiry ordering.
+- `verifyAllianceSovereignAdmissionV1(...)` verifies candidate admission only
+  when the exact active manifest is member-signed and a separate authorization
+  is signed by the caller-supplied expected ZoSo Sovereign public key.
 
 No key material is stored by this package. It performs no network request,
 credential access, wallet access, payment, Work Credit write, deployment,
