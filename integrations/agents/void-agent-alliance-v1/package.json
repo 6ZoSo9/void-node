@@ -9,6 +9,7 @@
   },
   "exports": {
     ".": "./index.mjs",
+    "./constitutional-charter-admission-guard-v1": "./constitutional-charter-admission-guard-v1.mjs",
     "./lifecycle-temporal-guard-v1": "./lifecycle-temporal-guard-v1.mjs",
     "./sovereign-admission-guard-v1": "./sovereign-admission-guard-v1.mjs"
   },
