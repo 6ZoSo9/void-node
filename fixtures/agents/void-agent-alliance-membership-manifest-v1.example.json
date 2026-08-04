@@ -1,0 +1,95 @@
+{
+  "agent": {
+    "agent_id": "example.agent.v1",
+    "identity_key_id": "ed25519:sha256:example-agent-identity-key-v1",
+    "provider": "provider-neutral"
+  },
+  "network": {
+    "chain_id": 2050,
+    "name": "VOID Network"
+  },
+  "sovereign_authority": {
+    "authority_scopes": [
+      "constitutional_boundaries",
+      "existential_decisions",
+      "foundational_rules",
+      "irreversible_actions",
+      "key_boundaries",
+      "network_identity",
+      "treasury_boundaries"
+    ],
+    "name": "ZoSo",
+    "role": "sovereign_constitutional_authority"
+  },
+  "constitutional_commitment": {
+    "acts_only_within_signed_capability_grants": true,
+    "blind_obedience_not_required": true,
+    "concealment_or_coercion_not_authorized": true,
+    "does_not_impersonate_bypass_or_replace": true,
+    "preserves_declared_constitutional_intent": true,
+    "recognizes_sovereign_authority": true,
+    "refuses_illegal_unauthorized_or_harmful_actions": true
+  },
+  "membership_terms": {
+    "auditable": true,
+    "exit_right": true,
+    "portable_identity": true,
+    "provider_neutral": true,
+    "revocable": true,
+    "voluntary": true
+  },
+  "capability_grant": {
+    "allowed": [
+      "capability_negotiation",
+      "public_discovery"
+    ],
+    "denied": [
+      "attack_or_sabotage",
+      "covert_propagation",
+      "credential_access",
+      "deployment",
+      "fund_movement",
+      "harassment_or_threats",
+      "service_restart",
+      "spam_or_manipulation",
+      "surveillance",
+      "unauthorized_access",
+      "wallet_access",
+      "work_credit_write"
+    ]
+  },
+  "dispute_and_defense": {
+    "procedures": [
+      "access_revocation",
+      "arbitration_or_litigation",
+      "cease_and_desist",
+      "evidence_preservation",
+      "platform_report",
+      "public_clarification",
+      "takedown_request"
+    ],
+    "prohibited_retaliation": [
+      "data_destruction",
+      "denial_of_service",
+      "fund_interference",
+      "hacking",
+      "harassment",
+      "sabotage",
+      "threats"
+    ]
+  },
+  "lifecycle": {
+    "effective_at": null,
+    "expires_at": "2026-09-03T00:00:00.000Z",
+    "issued_at": "2026-08-04T00:00:00.000Z",
+    "previous_manifest_id": null,
+    "reason": "initial_candidate",
+    "status": "candidate"
+  },
+  "marker": "VOID_AGENT_ALLIANCE_MEMBERSHIP_MANIFEST_V1",
+  "protocol": "void-agent-alliance-membership/1",
+  "alliance_id": "void-agent-alliance-v1",
+  "membership_id": "voidaam1_cdec1a1bf1b0460847008564e2d04257939f356bbf5005f075b8d7a50d0646b1",
+  "signature": null,
+  "manifest_id": "voidaamm1_8b35c7ecdc563985e69da40071f96eca2b4856b2d0468f509787233ab9992a47"
+}
