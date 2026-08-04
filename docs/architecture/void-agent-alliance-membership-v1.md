@@ -110,7 +110,7 @@ sequence of content-addressed lifecycle manifests.
 
 ## Lifecycle
 
-Allowed transitions are:
+Allowed structural transitions are:
 
 ```text
 candidate  -> active | exited | revoked
@@ -126,6 +126,13 @@ non-candidate state must identify its predecessor, have an effective time, and
 carry a valid Ed25519 signature from the member identity key. Each transition
 binds `previous_manifest_id`, preserves immutable constitutional and capability
 commitments, and rejects timestamp regression.
+
+The member signature proves voluntary acceptance and lifecycle continuity. It
+does not prove that VOID admitted a candidate. The registry-facing temporal
+guard rejects `candidate -> active`. Active admission instead requires the
+separate sovereign-admission guard, which verifies both the member-signed active
+manifest and a ZoSo Sovereign-signed authorization binding the exact candidate,
+active manifest, membership ID, effective time, and bounded expiry.
 
 Exit and revocation are terminal in v1. A former member may apply again only as a
 new membership identity through a separately reviewed process; the old lifecycle
@@ -145,28 +152,31 @@ chain remain auditable.
 
 The zero-dependency Node.js implementation lives at:
 
-`integrations/agents/void-agent-alliance-v1/index.mjs`
+`integrations/agents/void-agent-alliance-v1/`
 
 It provides builders, closed-shape validation, deterministic identifiers,
-Ed25519 signing and verification, and lifecycle transition verification. The
-module receives keys from callers and never reads key paths or stores key
-material.
+Ed25519 signing and verification, lifecycle transition verification,
+registry-facing temporal checks, and sovereign admission authorization
+verification. The modules receive keys from callers and never read key paths or
+store key material.
 
-The fixture is an unsigned candidate example. The proof generates an ephemeral
-Ed25519 keypair in memory, activates a membership, verifies transitions through
-quarantine and voluntary exit, and proves rejection of counterfeit sovereignty,
-wrong signers, coerced membership, blind-obedience language, removed exit rights,
-forbidden capabilities, grant mutation, and terminal-state reactivation.
+The fixture is an unsigned candidate example. The proofs generate ephemeral
+Ed25519 keypairs in memory and demonstrate member-signed lifecycle continuity,
+rejection of candidate self-promotion, valid two-signature Sovereign admission,
+transitions through quarantine and voluntary exit, and rejection of counterfeit
+sovereignty, wrong signers, coerced membership, blind-obedience language,
+removed exit rights, forbidden capabilities, grant mutation, expiry extension,
+authorization binding tampering, and terminal-state reactivation.
 
 ## Operational truth
 
-This pull request is source-only. It does not enroll an agent, create a live
-alliance registry, publish an endpoint, deploy a service, grant credentials,
+This pull request is source-only. It does not enroll an agent, create or mutate a
+live alliance registry, publish an endpoint, deploy a service, grant credentials,
 start a listener, access a production key, sign with a production key, dispatch
 work, accept payment, write Work Credits, access a wallet, construct or submit a
 transaction, or move funds.
 
-A future activation gate would need a canonical Sovereign-signed charter,
-member-held identity keys, a reviewed registry, explicit capability issuance,
-revocation distribution, runtime authentication, and separately authorized
-operator procedures.
+A future activation gate still needs a canonical approved Sovereign public-key
+policy, member-held identity keys, trusted clock and expiry checks, a reviewed
+append-only registry, explicit capability issuance, revocation distribution,
+runtime authentication, and separately authorized operator procedures.
