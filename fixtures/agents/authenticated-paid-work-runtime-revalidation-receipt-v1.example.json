@@ -1,0 +1,89 @@
+{
+  "source": {
+    "reviewed_source_main": "a6a8757b11828a30899b54eed6c261462681c916",
+    "execution_packet_marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1",
+    "execution_packet_status": "source_ready_execution_not_authorized",
+    "execution_packet_merge_commit": "a6a8757b11828a30899b54eed6c261462681c916",
+    "credential_metadata_commit": "cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa"
+  },
+  "target": {
+    "host": "zoso-Precision-Tower-7810",
+    "manager_scope": "systemd_user",
+    "service": "void-agent-paid-work-submission-receiver-v1.service",
+    "listener_host": "127.0.0.1",
+    "listener_port": 4187
+  },
+  "observation": {
+    "captured_at_utc": "2026-08-04T16:50:00.000Z",
+    "evaluated_at_utc": "2026-08-04T16:50:09.250Z",
+    "max_age_seconds": 300,
+    "relative_age_seconds": 10,
+    "clock_synchronized": true
+  },
+  "receiver": {
+    "service_active": true,
+    "main_pid": 1426443,
+    "health_http_status": 200,
+    "listener_loopback_only": true,
+    "loaded_registry_id": "voidapwcr1_ce24175f3144131773f730d4989113b949998d79c48c3ddbd9752390122aac4f",
+    "loaded_registry_sha256": "92e3149e560f7fa159d8fb5c59cd680cb6547a8a8f8010036bc02c4aa8d6e00e",
+    "loaded_credential_count": 9,
+    "target_registry_loaded": true,
+    "restart_required": false,
+    "configuration_revalidation_completed": true,
+    "secret_values_disclosed": false
+  },
+  "credential": {
+    "selected_credential_id": "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1",
+    "agent_id": "void-external-agent-e2e-fulfillment-canary-agent-v1",
+    "scope": "agent_paid_work_submit",
+    "not_before_utc": "2026-08-03T15:02:30.000Z",
+    "expires_at_utc": "2026-08-05T00:00:00.000Z",
+    "identity_verified": true,
+    "scope_verified": true,
+    "validity_window_contains_observation": true,
+    "revocation_checked": true,
+    "revoked": false,
+    "raw_token_read": false,
+    "secret_material_disclosed": false
+  },
+  "replay": {
+    "replay_state_checked": true,
+    "unexpected_mutation_observed": false,
+    "selected_credential_previously_consumed": false,
+    "replay_state_acceptable": true
+  },
+  "runtime_inputs": {
+    "fresh_origin_main": "a6a8757b11828a30899b54eed6c261462681c916",
+    "trusted_context_reference_verified": true,
+    "credential_reference_verified_and_fresh": true,
+    "provider_signature_verified": false,
+    "requester_signature_verified": false,
+    "fresh_direct_authentication_packet_sha256": null,
+    "execution_plan_sha256": null,
+    "fresh_zoso_confirmation": null,
+    "fresh_quote_required": true
+  },
+  "safety": {
+    "live_authentication_performed": false,
+    "payment_execution_performed": false,
+    "work_dispatch_performed": false,
+    "work_credit_write_performed": false,
+    "wallet_or_signer_access_performed": false,
+    "transaction_broadcast_performed": false,
+    "fund_movement_performed": false,
+    "service_mutation_performed": false
+  },
+  "decision": {
+    "status": "HOLD_PENDING_SIGNATURES_QUOTE_PLAN_AND_CONFIRMATION",
+    "runtime_revalidation_satisfied": true,
+    "fresh_signatures_required": true,
+    "fresh_quote_required": true,
+    "execution_plan_digest_required": true,
+    "fresh_zoso_confirmation_required": true,
+    "execution_authorized": false
+  },
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_RECEIPT_V1",
+  "protocol": "void-authenticated-paid-work-runtime-revalidation/1",
+  "receipt_id": "voidapwrr1_e4cb6ffd4864007d9e391184196ea86dbe9e58fd46c9c4b5f6b07005cab0ede6"
+}
