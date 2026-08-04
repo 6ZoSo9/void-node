@@ -4,19 +4,18 @@ Marker: `VOID_REALMS_CHECKPOINT_GRAPH_INTEGRITY_GUARD_V1`
 
 ## Problem
 
-The VOID Realms canonical-world foundation creates content-addressed region
-authority leases, regional checkpoints, and global world checkpoints. Its
-original checkpoint-chain validator proves sequence order, parent linkage,
-increasing ticks, and increasing timestamps.
+The VOID Realms canonical-world foundation creates content-addressed world
+manifests, region descriptors, authority leases, regional checkpoints, global
+world checkpoints, player handoffs, and handoff receipts.
 
-Those structural checks alone do not prove that a supplied object's identifier
-still matches its body. A caller could retain a syntactically valid
-`voidrcp1_...` checkpoint ID while changing a gameplay-state root, public-object
-root, event-log root, lease binding, or timestamp. A global checkpoint could
-similarly retain its identifier while changing its region list or region-set
-root.
+The original regional-chain validator proves sequence order, parent linkage,
+increasing ticks, and increasing timestamps. Those structural checks alone do
+not prove that a supplied identifier still matches its body. A caller could
+retain a syntactically valid ID while changing a state root, event root, lease
+binding, region bounds, handoff root, TTL, authority field, acceptance time, or
+global checkpoint set.
 
-A handoff must not treat identifier shape as content-address verification.
+Identifier shape is not content-address verification.
 
 ## Closed checkpoint graph
 
@@ -26,8 +25,30 @@ The guard verifies one source-only graph containing:
 - one complete checkpoint chain for each included region; and
 - the exact authority leases referenced by those chains.
 
-The graph is accepted only when every identifier is recomputed from the same
-closed body used by the original materializer.
+Every identifier is recomputed from the same closed body used by the original
+materializer.
+
+### World manifest and region descriptors
+
+The guarded handoff path first verifies the deterministic world and region
+context that defines world identity, handoff TTL, bounds, and adjacency.
+
+The world manifest validator requires:
+
+- exact object and authority-boundary keys;
+- canonical marker, version, world name, space, status, and source-only fields;
+- the reviewed numeric ranges and exact `region_size_nodes` derivation;
+- all authority capabilities fixed to false; and
+- exact recomputation of `world_id` from the complete manifest body.
+
+Each region descriptor requires:
+
+- exact keys, marker, version, world, and space binding;
+- exact integer region coordinates and world-derived bounds; and
+- exact recomputation of `region_id`.
+
+A caller cannot enlarge the TTL, alter a region edge, or change adjacency while
+retaining the old world or region ID.
 
 ### Authority lease verification
 
@@ -40,9 +61,6 @@ For each lease, the guard requires:
 - generation-zero versus predecessor consistency; and
 - exact recomputation of `lease_id` from every field except `lease_id`.
 
-An altered authority node, region, validity window, generation, predecessor, or
-authority field invalidates the lease content address.
-
 ### Regional checkpoint verification
 
 For every checkpoint, the guard requires:
@@ -53,12 +71,12 @@ For every checkpoint, the guard requires:
 - sequence-zero versus parent consistency;
 - valid roots, tick, timestamp, and checkpoint identifiers;
 - a timestamp inside the referenced lease window; and
-- exact recomputation of `checkpoint_id` from every field except
-  `checkpoint_id`.
+- exact recomputation of `checkpoint_id`.
 
-After content verification, the existing append-only chain validator still
-requires contiguous sequence numbers, exact parents, stable world and region,
-increasing ticks, and increasing timestamps.
+The existing append-only chain validator then requires contiguous sequence
+numbers, exact parents, stable world and region, increasing ticks, and
+increasing timestamps. Checkpoint IDs must also be globally unique within the
+supplied graph.
 
 ### Global world-checkpoint verification
 
@@ -66,18 +84,48 @@ The global checkpoint must contain exactly the terminal checkpoint from each
 supplied regional chain. The terminal ID list must be unique and canonically
 sorted using deterministic UTF-16 code-unit ordering.
 
-The guard then:
+The guard:
 
-1. recomputes the region-set root from that exact terminal list;
+1. recomputes the region-set root from the exact terminal list;
 2. rejects missing, duplicate, additional, or reordered terminal IDs;
 3. requires the world checkpoint time not to precede any terminal checkpoint;
 4. recomputes the complete `world_checkpoint_id`; and
 5. rejects any supplied lease that is not referenced by a verified checkpoint.
 
-This prevents an apparently valid global checkpoint from anchoring a different
-checkpoint set than its identifier commits to.
+## Closed handoff and receipt verification
 
-## Handoff wrappers
+A graph can be authentic while a separately supplied handoff object is not. The
+guarded path therefore validates the exact handoff and receipt bodies as
+separate content-addressed objects.
+
+### Handoff
+
+The handoff validator requires:
+
+- exact keys, marker, version, identifier formats, status, and false authority
+  fields;
+- an exact content-addressed world manifest and both exact region descriptors;
+- distinct orthogonally adjacent source and destination regions;
+- exact world, region, source-checkpoint, destination-checkpoint, and global
+  checkpoint linkage;
+- source and destination checkpoints anchored in the same verified global
+  checkpoint;
+- an increasing validity window that starts no earlier than the global
+  checkpoint and does not exceed the verified world TTL; and
+- exact recomputation of `handoff_id` from the complete handoff body.
+
+### Receipt
+
+The receipt validator requires:
+
+- exact keys, marker, version, identifier formats, status, and false gameplay
+  commit field;
+- exact binding to the verified handoff, world, destination region, and
+  destination checkpoint;
+- acceptance inside the handoff validity window; and
+- exact recomputation of `receipt_id` from the complete receipt body.
+
+## Registry-facing wrappers
 
 The registry-facing wrappers are:
 
@@ -86,30 +134,37 @@ planVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1(...)
 acceptVoidRealmsPlayerRegionHandoffWithVerifiedCheckpointGraphV1(...)
 ```
 
-Both verify the complete checkpoint graph before delegating to the existing
-source-only handoff functions. Planning additionally requires both source and
-destination checkpoints to be verified terminal checkpoints in the same global
-checkpoint. Acceptance requires the destination checkpoint and global
-checkpoint to remain verified.
+Planning verifies the graph, world manifest, region descriptors, and exact
+supplied checkpoint objects before delegating to the source-only planner. It
+then verifies the newly materialized handoff content address before returning
+it.
+
+Acceptance verifies the graph again, requires the exact supplied global and
+destination checkpoint objects to match the verified graph, recovers the exact
+source and destination terminal checkpoints by ID, validates the supplied
+handoff content address and full linkage, delegates to the source-only receipt
+materializer, and verifies the new receipt content address before returning it.
 
 The lower-level original handoff functions remain deterministic source
-primitives. A registry or runtime that needs checkpoint authenticity should use
-the guarded wrappers rather than treating a formatted checkpoint ID as proof.
+primitives. Registry or runtime code that needs authenticity must use the
+guarded wrappers.
 
 ## Adversarial proof
 
-The focused proof demonstrates:
+The focused proof demonstrates rejection of:
 
-- a valid two-region checkpoint graph;
-- successful source-only handoff planning and acceptance through the guard;
-- rejection after authority-node tampering in a lease;
-- rejection after gameplay-state-root tampering;
-- rejection after event-log-root tampering;
-- rejection after checkpoint-ID substitution;
-- rejection after global region-set-root tampering;
-- rejection of a noncanonical global checkpoint ID ordering;
-- rejection of an otherwise valid but unreferenced authority lease; and
-- rejection before handoff planning when the supplied graph is altered.
+- authority-node, state-root, event-root, checkpoint-ID, global-root, ordering,
+  and unreferenced-lease graph tampering;
+- world manifest TTL tampering while retaining the old world ID;
+- region-bound tampering while retaining the old region ID;
+- a separately supplied checkpoint object that differs from the verified graph;
+- handoff player-state-root, TTL, and authority-field tampering while retaining
+  the old handoff ID;
+- a destination checkpoint object that differs from the verified graph; and
+- receipt time, authority-field, and receipt-ID tampering.
+
+The proof also demonstrates a valid two-region graph, guarded handoff planning,
+guarded acceptance, and exact handoff and receipt verification.
 
 Expected marker:
 
@@ -120,10 +175,11 @@ VOID_REALMS_CHECKPOINT_GRAPH_INTEGRITY_GUARD_V1_PROOF_GREEN
 ## Evidence boundary
 
 This guard proves deterministic source-object shape, linkage, and content
-addressing. It does not prove that a source-only lease or checkpoint is signed,
-currently live, accepted by a production registry, stored durably, or served by
-a current authority host. It does not consult revocation state, authenticate a
-network peer, inspect private player data, or commit gameplay state.
+addressing. It does not prove that a source-only lease, checkpoint, handoff, or
+receipt is signed, currently live, accepted by a production registry, stored
+durably, replay-safe in a live database, or served by a current authority host.
+It does not authenticate a network peer, inspect private player data, or commit
+gameplay state.
 
 Production use still requires separately reviewed signature verification,
 trusted time, lease-generation selection, revocation distribution, persistence,
