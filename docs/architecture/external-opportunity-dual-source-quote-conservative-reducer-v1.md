@@ -4,7 +4,7 @@ Marker: `VOID_EXTERNAL_OPPORTUNITY_DUAL_SOURCE_QUOTE_CONSERVATIVE_REDUCER_V1`
 
 ## Purpose
 
-A paper opportunity should not become more attractive merely because one supplied quote is optimistic. This source-only reducer accepts exactly two quote records for the same route and input amount, validates their structural and timing compatibility, and emits one observer-compatible quote using the less favorable output and expiry values together with the higher cost and fill-time values.
+A paper opportunity should not become more attractive merely because one supplied quote is optimistic. This source-only reducer accepts exactly two quote records for the same route and input amount, validates their structural and timing compatibility, and emits one quote-leg-shaped record using the less favorable output and expiry values together with the higher cost and fill-time values.
 
 The reducer is provider-neutral. It performs no quote acquisition and makes no network request.
 
@@ -36,7 +36,21 @@ The emitted quote uses:
 
 The quote ID is content-addressed from the normalized input, both source quote digests, and the reduced quote fields. Reversing the order of otherwise identical sources does not alter the normalized input digest or reduced quote ID.
 
-The output shape remains compatible with the quote-leg contract used by the self-capital round-trip paper observer.
+The output retains the general quote-leg field shape used by the paper-observation contracts. Shape compatibility does not guarantee compatibility with every narrower consumer invariant.
+
+## Self-capital V1 compatibility boundary
+
+The self-capital round-trip paper observer V1 requires the forward expected output amount to equal the guaranteed minimum output amount. It also requires the return quote to spend that exact guaranteed forward amount.
+
+The general reducer deliberately preserves separate expected and minimum values, so its ordinary output can fail that narrower contract even though the reduction itself is correct. The reducer must not silently weaken the observer or discard expected-value evidence for every consumer.
+
+The separate self-capital forward adapter:
+
+```text
+adaptDualSourceQuoteForSelfCapitalForwardV1(...)
+```
+
+re-verifies the complete input-bound and relative-freshness evidence chain, then collapses the adapted forward expected amount and value to the verified reduced guaranteed minima. The adapter proof demonstrates that the ordinary reduced fixture fails the canonical composer while the adapted quote passes the same guarded entrypoint without weakening inventory-neutrality requirements.
 
 ## Input-bound receipt verification
 
@@ -72,6 +86,8 @@ This reducer prevents one optimistic source from dominating a paper result, but 
 
 USD values remain supplied quote evidence. This lane checks ordering and conservative selection, not independent token-price arithmetic. Existing valuation and composition controls remain separate.
 
+The relative-freshness gate proves age only against a supplied evaluation instant. It does not authenticate that clock or establish wall-clock freshness.
+
 ## Fail-closed conditions
 
 The reducer rejects:
@@ -88,12 +104,14 @@ The reducer rejects:
 - a self-consistent receipt whose derivation differs from the supplied source input;
 - a receipt verified against a different source input.
 
+The self-capital adapter additionally rejects mismatched freshness evidence, upstream digest drift, and any adapted quote that fails to collapse expected amount and value to their guaranteed minima.
+
 ## Authority boundary
 
 This is a paper-only source contract. It performs no live API request, credential access, raw-response retention, transaction-payload retention, balance query, approval, transaction construction, signing, submission, swap or bridge execution, deployment, service restart, Work Credit write, Buy VOID mutation, wallet access, custody, or fund movement.
 
-A reduced quote and a paper-positive downstream receipt are review evidence only. Neither authorizes execution.
+A reduced quote, adapted quote, and paper-positive downstream receipt are review evidence only. None authorizes execution.
 
 ## Next gate
 
-After merge, a separate lane may compose reduced forward and return quotes with authenticated valuation evidence and the existing round-trip paper observer. Provider authentication and any live quote acquisition remain separately reviewed boundaries.
+After merge, a separate lane may compose reduced and adapted quotes with authenticated valuation and acquisition evidence. Provider authentication, trusted clock acquisition, live quote collection, transaction construction, signing, submission, and fund movement remain separately reviewed boundaries.
