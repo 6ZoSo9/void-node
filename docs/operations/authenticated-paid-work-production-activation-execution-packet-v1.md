@@ -109,7 +109,35 @@ mutate a host.
 
 ## Required execution sequence
 
-A later operator lane must perform the packet's eighteen gates in order.
+A later operator lane must perform the packet's eighteen gates in this exact
+order:
+
+```text
+capture_current_origin_main
+verify_required_source_artifacts
+verify_disabled_runtime_preimage
+verify_fresh_persistence_state
+privately_verify_trusted_context_reference
+privately_verify_fresh_credential_reference
+materialize_fresh_direct_provider_signing_request
+verify_provider_signature_and_materialize_requester_signing_request
+verify_requester_signature_and_finalize_direct_authentication_preparation
+independently_verify_final_direct_authentication_packet
+materialize_non_secret_execution_plan
+compute_canonical_execution_plan_sha256
+obtain_fresh_operation_bound_confirmation_from_zoso
+revalidate_origin_main_and_all_prestates
+perform_reviewed_one_shot_activation
+execute_exactly_one_fresh_paid_work_canary
+capture_sanitized_post_execution_evidence
+make_separate_post_execution_readiness_decision
+```
+
+The deterministic proof requires exact deep equality with this complete closed
+array. Matching only the array length, selected positions, or uniqueness is not
+sufficient. Insertion, removal, reordering, or renaming of any gate fails the
+proof. An adversarial test changes the previously unchecked execution-plan gate
+and proves that the altered sequence is rejected.
 
 Before an execution plan can be formed, it must use the reviewed signing-handoff
 CLI to:
@@ -134,6 +162,31 @@ The earlier quote must never be reused. The selected credential must fail closed
 if it is expired, revoked, rotated, mismatched, or not loaded at the fresh
 runtime inspection. The reviewed target-registry observation does not waive any
 of those checks.
+
+## Exact denied-authority map
+
+The packet must contain exactly these twelve keys, each set to `false`:
+
+```text
+execution_authorized=false
+deployment_authorized=false
+service_start_authorized=false
+credential_access_authorized=false
+quote_acceptance_authorized=false
+payment_authority_granted=false
+payment_execution_authorized=false
+work_dispatch_authorized=false
+work_credit_write_authorized=false
+wallet_or_signer_access_authorized=false
+transaction_broadcast_authorized=false
+fund_movement_authorized=false
+```
+
+The proof requires exact deep equality with this closed map. Counting twelve
+false values is not sufficient because a critical denial key could otherwise be
+removed and replaced with an unrelated false field. Adversarial tests prove
+that removing `payment_execution_authorized` and replacing it with a different
+false key are both rejected.
 
 ## Fail-closed conditions
 
@@ -185,5 +238,10 @@ Expected markers:
 
 ```text
 reviewed_main_and_semantic_prerequisite_distinct=true
+ordered_execution_gate_sequence_exact=true
+altered_unchecked_gate_rejected=true
+denied_authority_map_exact=true
+removed_authority_key_rejected=true
+replaced_authority_key_rejected=true
 VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_EXECUTION_PACKET_V1_PROOF_GREEN=true
 ```
