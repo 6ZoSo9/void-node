@@ -91,6 +91,10 @@ keys, wallets, or funds.
 
 ## Identity and content addressing
 
+`identity_key_id` is derived from the member Ed25519 public key SPKI bytes as
+`ed25519:sha256:<digest>`. Signing and verification both recompute that key ID,
+so a valid signature cannot be attached to a different claimed identity key.
+
 `membership_id` is stable for the tuple:
 
 ```text
@@ -117,10 +121,11 @@ exited     -> terminal
 revoked    -> terminal
 ```
 
-A candidate is unsigned and has no effective time. Every non-candidate state must
-have an effective time and a valid Ed25519 signature from the member identity
-key. Each transition binds `previous_manifest_id`, preserves immutable
-constitutional and capability commitments, and rejects timestamp regression.
+A candidate is unsigned, has no effective time, and has no predecessor. Every
+non-candidate state must identify its predecessor, have an effective time, and
+carry a valid Ed25519 signature from the member identity key. Each transition
+binds `previous_manifest_id`, preserves immutable constitutional and capability
+commitments, and rejects timestamp regression.
 
 Exit and revocation are terminal in v1. A former member may apply again only as a
 new membership identity through a separately reviewed process; the old lifecycle
