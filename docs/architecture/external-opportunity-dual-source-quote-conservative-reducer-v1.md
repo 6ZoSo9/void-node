@@ -38,6 +38,27 @@ The quote ID is content-addressed from the normalized input, both source quote d
 
 The output shape remains compatible with the quote-leg contract used by the self-capital round-trip paper observer.
 
+## Input-bound receipt verification
+
+An unkeyed receipt digest proves only that a receipt is internally content-addressed. It does not prove that the receipt was conservatively derived from the claimed source input. A caller could otherwise alter a reduced field, recompute the receipt digest, and produce a self-consistent but false receipt.
+
+Consumers that possess the source input must use:
+
+```text
+verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(input, receipt)
+```
+
+The input-bound verifier:
+
+1. applies the closed receipt parser and digest check;
+2. recomputes the canonical conservative receipt from the supplied source input;
+3. requires the source-input digest to match;
+4. requires exact canonical equality with the recomputed receipt.
+
+`verifyDualSourceQuoteConservativeReducerReceiptV1(receipt)` remains an integrity-only parser. It must not be treated as proof of conservative derivation or source provenance.
+
+The adversarial proof demonstrates that a receipt-only verifier can accept a deliberately altered receipt after its unkeyed digest is recomputed, while the input-bound verifier rejects the same self-consistent forgery.
+
 ## Evidence limitation
 
 Distinct provider labels are not authenticated provider identities. The receipt therefore records:
@@ -63,7 +84,9 @@ The reducer rejects:
 - provider fees or price impact excluded from quoted output;
 - a nonzero internal application fee;
 - transaction payload fields or other widened authority;
-- receipt tampering or digest mismatch.
+- receipt tampering or digest mismatch;
+- a self-consistent receipt whose derivation differs from the supplied source input;
+- a receipt verified against a different source input.
 
 ## Authority boundary
 
