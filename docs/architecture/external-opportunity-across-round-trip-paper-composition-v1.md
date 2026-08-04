@@ -33,8 +33,16 @@ The starting capital and capital-at-risk value are both taken from:
 valuation.position_value_usd_floor
 ```
 
-The caller cannot override either value. Return-leg expected and minimum USD
-values are derived with integer arithmetic from the valued starting position:
+The caller cannot override either value. Before using it, the composer performs
+an independent position-value consistency check against the supplied floored
+price, selector amount, token decimals, and source-price precision. The accepted
+micro-USD position value must fall within the only interval that the floored
+price can produce. A caller cannot alter `position_value_usd_floor`, recompute
+the self-authored valuation digest, and manufacture starting capital outside
+that interval.
+
+Return-leg expected and minimum USD values are then derived with integer
+arithmetic from the valued starting position:
 
 ```text
 return value micros = floor(
@@ -91,6 +99,7 @@ to trade and is not proof that the same opportunity remains available.
 ## Files
 
 - `src/external_opportunity/across_round_trip_paper_composition_v1.ts`
+- `src/external_opportunity/across_round_trip_paper_position_value_guard_v1.ts`
 - `scripts/prove_external_opportunity_across_round_trip_paper_composition_v1.ts`
 - `fixtures/external-opportunity/across-round-trip-paper-composition-v1.example.json`
 - `schemas/external-opportunity-across-round-trip-paper-composition-v1.schema.json`
