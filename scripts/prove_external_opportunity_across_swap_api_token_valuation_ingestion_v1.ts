@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   VOID_ACROSS_TOKEN_VALUATION_INGESTION_RESULT_SCHEMA_V1,
   VOID_EXTERNAL_OPPORTUNITY_ACROSS_TOKEN_VALUATION_INGESTION_V1,
+  acrossTokenValuationReadonlyHttpsGetV1,
   canonicalAcrossTokenValuationJsonV1,
   hashAcrossTokenValuationDocumentV1,
   ingestAcrossTokenValuationV1,
@@ -27,6 +28,10 @@ const documentationPath = new URL(
 );
 const workflowPath = new URL(
   "../.github/workflows/external-opportunity-across-swap-api-token-valuation-ingestion-v1.yml",
+  import.meta.url,
+);
+const sourcePath = new URL(
+  "../src/external_opportunity/across_swap_api_token_valuation_ingestion_v1.ts",
   import.meta.url,
 );
 
@@ -96,18 +101,19 @@ const fixture = JSON.parse(await readFile(fixturePath, "utf8")) as JsonObject;
 const schema = JSON.parse(await readFile(schemaPath, "utf8")) as JsonObject;
 const documentation = await readFile(documentationPath, "utf8");
 const workflow = await readFile(workflowPath, "utf8");
+const source = await readFile(sourcePath, "utf8");
 
 assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
 assert.equal(schema.type, "object");
 assert.equal(schema.additionalProperties, false);
-assert.deepEqual(schema.required, ["api_key", "integrator_id", "selector"]);
-assert.equal(
-  (((schema.properties as JsonObject).integrator_id as JsonObject).pattern),
-  "^0x[0-9a-fA-F]{4}$",
-);
-assert.match(documentation, /performs no live API request/);
+assert.deepEqual(schema.required, ["api_key", "selector"]);
+assert.equal("integrator_id" in (schema.properties as JsonObject), false);
+assert.equal("integrator_id" in fixture, false);
+assert.doesNotMatch(source, /integratorId|integrator_id/);
+assert.match(documentation, /exact `chainId`-only URL/);
+assert.match(documentation, /does not use an `integratorId`/);
 assert.match(documentation, /No floating-point arithmetic is used/);
-assert.match(documentation, /fund[- ]movement/);
+assert.match(documentation, /fund movement/);
 assert.match(
   workflow,
   /node --import tsx scripts\/prove_external_opportunity_across_swap_api_token_valuation_ingestion_v1\.ts/,
@@ -125,7 +131,7 @@ assert.equal(captured.length, 1);
 assert.equal(captured[0].method, "GET");
 assert.equal(
   captured[0].url,
-  "https://app.across.to/api/swap/tokens?chainId=42161&integratorId=0xdead",
+  "https://app.across.to/api/swap/tokens?chainId=42161",
 );
 assert.deepEqual(captured[0].headers, {
   Accept: "application/json",
@@ -234,13 +240,6 @@ await expectHold(
   /unexpected key: wallet/,
 );
 
-const invalidIntegrator = clone(fixture);
-invalidIntegrator.integrator_id = "0xzzzz";
-await expectHold(
-  () => ingestAcrossTokenValuationV1(invalidIntegrator, mockTransport(responseTokens()), fixedClock()),
-  /two-byte 0x-prefixed hex value/,
-);
-
 await expectHold(
   () => ingestAcrossTokenValuationV1(fixture, mockTransport(responseTokens(), [], 503), fixedClock()),
   /returned status 503/,
@@ -262,7 +261,48 @@ await expectHold(
   /response must be an array/,
 );
 
+const transportBoundaryBase: AcrossTokenValuationReadonlyHttpsRequestV1 = {
+  method: "GET",
+  url: "https://app.across.to/api/swap/tokens?chainId=42161",
+  headers: { Accept: "application/json" },
+  timeout_ms: 5000,
+  max_response_bytes: 1_048_576,
+};
+await expectHold(
+  () =>
+    acrossTokenValuationReadonlyHttpsGetV1({
+      ...transportBoundaryBase,
+      url: "https://app.across.to/api/swap/tokens?chainId=42161&integratorId=0xdead",
+    }),
+  /exact chainId-only query/,
+);
+await expectHold(
+  () =>
+    acrossTokenValuationReadonlyHttpsGetV1({
+      ...transportBoundaryBase,
+      url: "https://app.across.to/api/swap/tokens?chainId=42161&chainId=10",
+    }),
+  /exact chainId-only query/,
+);
+await expectHold(
+  () =>
+    acrossTokenValuationReadonlyHttpsGetV1({
+      ...transportBoundaryBase,
+      url: "https://app.across.to/api/swap/tokens?chainId=042161",
+    }),
+  /chainId must be canonical/,
+);
+await expectHold(
+  () =>
+    acrossTokenValuationReadonlyHttpsGetV1({
+      ...transportBoundaryBase,
+      url: "https://app.across.to/api/swap/tokens?chainId=42161#fragment",
+    }),
+  /fragments are forbidden/,
+);
+
 console.log("live_api_request_performed=false");
+console.log("query_boundary=chainId_only");
 console.log("selected_token_matches=1");
 console.log("price_usd_floor=0.999903");
 console.log("position_value_usd_floor=99.990312");
