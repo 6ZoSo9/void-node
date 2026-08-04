@@ -159,7 +159,7 @@ separate decision and cannot be inferred from a successful source merge.
 ## Files
 
 - packet: `config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json`
-- proof: `scripts/prove_authenticated_paid_work_production_activation-execution-packet-v1.mjs`
+- proof: `scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs`
 - workflow: `.github/workflows/authenticated-paid-work-production-activation-execution-packet-v1.yml`
 - document: `docs/operations/authenticated-paid-work-production-activation-execution-packet-v1.md`
 
