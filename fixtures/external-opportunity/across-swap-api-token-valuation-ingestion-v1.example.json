@@ -1,6 +1,5 @@
 {
   "api_key": "synthetic-test-key-not-a-credential",
-  "integrator_id": "0xdead",
   "selector": {
     "chain_id": 42161,
     "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
