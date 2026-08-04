@@ -31,7 +31,37 @@ function expectHold(label: string, operation: () => unknown): void {
 const fixturePath = resolve(
   "fixtures/external-opportunity/dual-source-quote-conservative-reducer-v1.example.json",
 );
+const sourcePath = resolve(
+  "src/external_opportunity/dual_source_quote_conservative_reducer_v1.ts",
+);
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as MutableJson;
+const reducerSource = readFileSync(sourcePath, "utf8");
+
+assert(
+  !reducerSource.includes("localeCompare"),
+  "reducer source must not use locale-sensitive String.localeCompare",
+);
+assert(
+  !reducerSource.includes("Intl.Collator"),
+  "reducer source must not use locale-sensitive Intl.Collator",
+);
+assert(
+  reducerSource.includes("if (left < right) return -1;"),
+  "canonical ordering must use explicit less-than code-unit comparison",
+);
+assert(
+  reducerSource.includes("if (left > right) return 1;"),
+  "canonical ordering must use explicit greater-than code-unit comparison",
+);
+assert(
+  reducerSource.includes("compareCodeUnits(left.provider, right.provider)"),
+  "provider ordering must use the explicit code-unit comparator",
+);
+assert(
+  reducerSource.includes("compareCodeUnits(left.quote_id, right.quote_id)"),
+  "quote-ID tie-break must use the explicit code-unit comparator",
+);
+
 const receipt = reduceDualSourceQuoteConservativelyV1(fixture);
 const verified = verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(
   fixture,
@@ -81,7 +111,50 @@ assert(
   reversedReceipt.reduced_quote.quote_id === receipt.reduced_quote.quote_id,
   "source ordering must not change reduced quote ID",
 );
+assert(
+  reversedReceipt.receipt_sha256 === receipt.receipt_sha256,
+  "source ordering must not change receipt digest",
+);
+assert(
+  JSON.stringify(reversedReceipt.source_quotes) === JSON.stringify(receipt.source_quotes),
+  "source ordering must not change canonical source evidence order",
+);
 verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(reversed, receipt);
+
+const codeUnitFixture = clone(fixture);
+codeUnitFixture.quotes[0].provider = "Z-provider";
+codeUnitFixture.quotes[0].quote_id = "quote-z";
+codeUnitFixture.quotes[1].provider = "a-provider";
+codeUnitFixture.quotes[1].quote_id = "quote-A";
+const codeUnitReceipt = reduceDualSourceQuoteConservativelyV1(codeUnitFixture);
+assert(
+  codeUnitReceipt.source_quotes[0].provider === "Z-provider",
+  "uppercase Z must sort before lowercase a by direct UTF-16 code-unit order",
+);
+const codeUnitReversed = clone(codeUnitFixture);
+codeUnitReversed.quotes.reverse();
+const codeUnitReversedReceipt = reduceDualSourceQuoteConservativelyV1(codeUnitReversed);
+assert(
+  codeUnitReversedReceipt.source_input_sha256 === codeUnitReceipt.source_input_sha256,
+  "code-unit edge-case input digest must be permutation invariant",
+);
+assert(
+  codeUnitReversedReceipt.reduced_quote.quote_id === codeUnitReceipt.reduced_quote.quote_id,
+  "code-unit edge-case quote ID must be permutation invariant",
+);
+assert(
+  codeUnitReversedReceipt.receipt_sha256 === codeUnitReceipt.receipt_sha256,
+  "code-unit edge-case receipt must be permutation invariant",
+);
+assert(
+  JSON.stringify(codeUnitReversedReceipt.source_quotes) ===
+    JSON.stringify(codeUnitReceipt.source_quotes),
+  "code-unit edge-case source evidence order must be canonical",
+);
+verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(
+  codeUnitReversed,
+  codeUnitReceipt,
+);
 
 const sameProvider = clone(fixture);
 sameProvider.quotes[1].provider = sameProvider.quotes[0].provider;
@@ -174,6 +247,9 @@ console.log(`expected_output_value_usd=${receipt.reduced_quote.expected_output_v
 console.log(`minimum_output_value_usd=${receipt.reduced_quote.minimum_output_value_usd}`);
 console.log(`gas_usd=${receipt.reduced_quote.gas_usd}`);
 console.log(`source_identity_authenticated=${receipt.source_identity_authenticated}`);
+console.log("canonical_source_order=explicit_utf16_code_units");
+console.log("source_permutation_invariant=true");
+console.log("locale_dependent_comparators_present=false");
 console.log("receipt_input_bound_verification=true");
 console.log("self_consistent_forgery_rejected=true");
 console.log(`network_access_performed=${receipt.network_access_performed}`);
