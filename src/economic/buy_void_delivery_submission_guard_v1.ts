@@ -48,6 +48,7 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   exclusive_lock: true,
   attempt_binding_immutable: true,
   idempotency_key_binding_immutable: true,
+  release_reason_binding_immutable: true,
   alternate_idempotency_key_replay_forbidden: true,
   replay_lifecycle_verified: true,
   closed_journal_contract: true,
@@ -685,6 +686,12 @@ export function createBuyVoidDeliverySubmissionGuardV1(
           };
         }
         if (latest.event === "release") {
+          if (latest.release_reason !== reason) {
+            return {
+              released: false as const,
+              reason: "submission_release_reason_conflict",
+            };
+          }
           return { released: true as const };
         }
 
