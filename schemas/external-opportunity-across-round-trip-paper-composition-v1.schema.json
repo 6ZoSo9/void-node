@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-opportunity-across-round-trip-paper-composition-v1.schema.json",
+  "title": "VOID Across Round-Trip Paper Composition V1 Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "strategy_id",
+    "evaluated_at",
+    "valuation",
+    "forward_quote",
+    "return_quote",
+    "cost_policy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-across-round-trip-paper-composition-input-v1"
+    },
+    "strategy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "valuation": {
+      "$ref": "#/$defs/valuation"
+    },
+    "forward_quote": {
+      "$ref": "#/$defs/forward_quote"
+    },
+    "return_quote": {
+      "$ref": "#/$defs/return_quote"
+    },
+    "cost_policy": {
+      "$ref": "#/$defs/cost_policy"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "usd": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$",
+      "maxLength": 64
+    },
+    "amount": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$",
+      "maxLength": 128
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chain_id", "address", "symbol", "decimals"],
+      "properties": {
+        "chain_id": { "type": "integer", "minimum": 1, "maximum": 10000000 },
+        "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "symbol": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$", "maxLength": 32 },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 36 }
+      }
+    },
+    "valuation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "marker", "provider", "endpoint", "method", "observed_at",
+        "evaluated_at", "response_bytes", "selector", "selected_token",
+        "price_usd_floor", "position_value_usd_floor",
+        "price_source_precision_digits", "sanitized_token_sha256",
+        "valuation_sha256", "credential_retention", "raw_response_retention",
+        "transaction_payload_retention", "network_mutation_performed",
+        "wallet_or_key_access_performed", "transaction_construction_performed",
+        "transaction_signing_performed", "transaction_submission_performed",
+        "fund_movement_performed", "live_execution_authorized",
+        "execution_authorized"
+      ],
+      "properties": {
+        "schema": { "const": "void-across-token-valuation-ingestion-result-v1" },
+        "marker": { "const": "VOID_EXTERNAL_OPPORTUNITY_ACROSS_TOKEN_VALUATION_INGESTION_V1" },
+        "provider": { "const": "across" },
+        "endpoint": { "const": "https://app.across.to/api/swap/tokens" },
+        "method": { "const": "GET" },
+        "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "evaluated_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "response_bytes": { "type": "integer", "minimum": 2, "maximum": 1048576 },
+        "selector": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chain_id", "address", "amount"],
+          "properties": {
+            "chain_id": { "type": "integer", "minimum": 1, "maximum": 10000000 },
+            "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+            "amount": { "$ref": "#/$defs/amount" }
+          }
+        },
+        "selected_token": { "$ref": "#/$defs/asset" },
+        "price_usd_floor": { "$ref": "#/$defs/usd" },
+        "position_value_usd_floor": { "$ref": "#/$defs/usd" },
+        "price_source_precision_digits": { "type": "integer", "minimum": 0, "maximum": 36 },
+        "sanitized_token_sha256": { "$ref": "#/$defs/sha256" },
+        "valuation_sha256": { "$ref": "#/$defs/sha256" },
+        "credential_retention": { "const": false },
+        "raw_response_retention": { "const": false },
+        "transaction_payload_retention": { "const": false },
+        "network_mutation_performed": { "const": false },
+        "wallet_or_key_access_performed": { "const": false },
+        "transaction_construction_performed": { "const": false },
+        "transaction_signing_performed": { "const": false },
+        "transaction_submission_performed": { "const": false },
+        "fund_movement_performed": { "const": false },
+        "live_execution_authorized": { "const": false },
+        "execution_authorized": { "const": false }
+      }
+    },
+    "quote_core": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "quote_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "quote_expiry_timestamp": { "type": "integer", "minimum": 1, "maximum": 4102444800 },
+        "input_asset": { "$ref": "#/$defs/asset" },
+        "output_asset": { "$ref": "#/$defs/asset" },
+        "input_amount": { "$ref": "#/$defs/amount" },
+        "expected_output_amount": { "$ref": "#/$defs/amount" },
+        "minimum_output_amount": { "$ref": "#/$defs/amount" },
+        "expected_fill_time_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "quoted_output_includes_provider_fees": { "const": true },
+        "quoted_output_includes_price_impact": { "const": true },
+        "app_fee_usd": { "const": "0.000000" },
+        "gas_usd": { "$ref": "#/$defs/usd" }
+      }
+    },
+    "forward_quote": {
+      "allOf": [
+        { "$ref": "#/$defs/quote_core" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider", "quote_id", "observed_at", "quote_expiry_timestamp",
+            "input_asset", "output_asset", "input_amount",
+            "expected_output_amount", "minimum_output_amount",
+            "expected_output_value_usd", "minimum_output_value_usd",
+            "expected_fill_time_seconds", "quoted_output_includes_provider_fees",
+            "quoted_output_includes_price_impact", "app_fee_usd", "gas_usd"
+          ],
+          "properties": {
+            "expected_output_value_usd": { "$ref": "#/$defs/usd" },
+            "minimum_output_value_usd": { "$ref": "#/$defs/usd" }
+          }
+        }
+      ]
+    },
+    "return_quote": {
+      "allOf": [
+        { "$ref": "#/$defs/quote_core" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider", "quote_id", "observed_at", "quote_expiry_timestamp",
+            "input_asset", "output_asset", "input_amount",
+            "expected_output_amount", "minimum_output_amount",
+            "expected_fill_time_seconds", "quoted_output_includes_provider_fees",
+            "quoted_output_includes_price_impact", "app_fee_usd", "gas_usd"
+          ]
+        }
+      ]
+    },
+    "cost_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capital_lock_seconds", "annual_capital_cost_bps", "risk_reserve_bps",
+        "failure_reserve_usd", "safety_buffer_usd",
+        "maximum_quote_skew_seconds"
+      ],
+      "properties": {
+        "capital_lock_seconds": { "type": "integer", "minimum": 1, "maximum": 31536000 },
+        "annual_capital_cost_bps": { "type": "integer", "minimum": 0, "maximum": 100000 },
+        "risk_reserve_bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "failure_reserve_usd": { "$ref": "#/$defs/usd" },
+        "safety_buffer_usd": { "$ref": "#/$defs/usd" },
+        "maximum_quote_skew_seconds": { "type": "integer", "minimum": 0, "maximum": 300 }
+      }
+    }
+  }
+}
