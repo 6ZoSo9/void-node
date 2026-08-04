@@ -3,8 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 
 import {
   buildAllianceMembershipManifestV1,
-  canonicalJson,
-  sha256Hex,
+  computeAllianceIdentityKeyIdV1,
   signAllianceMembershipManifestV1,
   validateAllianceMembershipManifestV1,
   verifyAllianceMembershipSignatureV1,
@@ -30,11 +29,6 @@ function expectReject(label, fn, pattern) {
     return message;
   }
   throw new Error(`${label}_did_not_reject`);
-}
-
-function identityKeyId(publicKey) {
-  const der = publicKey.export({ type: "spki", format: "der" });
-  return `ed25519:sha256:${sha256Hex(der)}`;
 }
 
 function baseInput(agentId, keyId) {
@@ -115,7 +109,7 @@ assert(schema.properties?.sovereign_authority?.properties?.name?.const === "ZoSo
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
 const wrongPair = generateKeyPairSync("ed25519");
-const keyId = identityKeyId(publicKey);
+const keyId = computeAllianceIdentityKeyIdV1(publicKey);
 const common = baseInput("proof.agent.v1", keyId);
 
 const candidate = buildAllianceMembershipManifestV1({
@@ -131,6 +125,34 @@ const candidate = buildAllianceMembershipManifestV1({
   signature: null,
 });
 
+expectReject(
+  "orphan_active_manifest",
+  () => buildAllianceMembershipManifestV1(
+    {
+      ...candidate,
+      lifecycle: {
+        effective_at: "2026-08-04T00:01:00.000Z",
+        expires_at: candidate.lifecycle.expires_at,
+        issued_at: "2026-08-04T00:01:00.000Z",
+        previous_manifest_id: null,
+        reason: "orphan_activation",
+        status: "active",
+      },
+      signature: null,
+    },
+    { allowUnsignedNonCandidate: true },
+  ),
+  /noncandidate_previous_manifest_id_required/,
+);
+
+const chainedCandidate = structuredClone(candidate);
+chainedCandidate.lifecycle.previous_manifest_id = candidate.manifest_id;
+expectReject(
+  "candidate_with_predecessor",
+  () => buildAllianceMembershipManifestV1(chainedCandidate),
+  /candidate_previous_manifest_id_must_be_null/,
+);
+
 const activeUnsigned = lifecycleManifest(
   candidate,
   "active",
@@ -139,6 +161,12 @@ const activeUnsigned = lifecycleManifest(
   "sovereign_charter_accepted",
 );
 const active = signAllianceMembershipManifestV1(activeUnsigned, privateKey);
+
+expectReject(
+  "wrong_signing_key",
+  () => signAllianceMembershipManifestV1(activeUnsigned, wrongPair.privateKey),
+  /signing_key_id_mismatch/,
+);
 
 assert(verifyAllianceMembershipSignatureV1(active, publicKey), "active_signature_not_verified");
 assert(
@@ -149,7 +177,7 @@ assert(
 expectReject(
   "wrong_signer",
   () => verifyAllianceMembershipSignatureV1(active, wrongPair.publicKey),
-  /signature_verification_failed/,
+  /verification_key_id_mismatch/,
 );
 
 const tamperedSovereign = structuredClone(active);
@@ -166,8 +194,6 @@ unauthorizedCapability.capability_grant.allowed = [
   "public_discovery",
   "unauthorized_access",
 ];
-unauthorizedCapability.manifest_id =
-  `voidaamm1_${sha256Hex(canonicalJson({ ...unauthorizedCapability, manifest_id: undefined, signature: undefined }))}`;
 expectReject(
   "allowed_denied_collision",
   () => buildAllianceMembershipManifestV1(unauthorizedCapability),
