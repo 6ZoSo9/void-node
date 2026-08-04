@@ -49,6 +49,8 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   attempt_binding_immutable: true,
   idempotency_key_binding_immutable: true,
   release_reason_binding_immutable: true,
+  retry_safe_release_allowlist: true,
+  terminal_release_reclaim_forbidden: true,
   alternate_idempotency_key_replay_forbidden: true,
   replay_lifecycle_verified: true,
   closed_journal_contract: true,
@@ -69,6 +71,17 @@ const CLAIM_SCHEMA =
   "void_buy_void_delivery_submission_guard_claim_v1";
 const RELEASE_SCHEMA =
   "void_buy_void_delivery_submission_guard_release_v1";
+const RETRY_SAFE_RELEASE_REASONS = new Set([
+  "signer_address_read_failed",
+  "signer_address_mismatch",
+  "transaction_signing_failed",
+  "invalid_raw_signed_transaction_from_signer",
+  "signed_transaction_parse_failed",
+  "signed_transaction_hash_mismatch",
+  "signed_transaction_binding_mismatch",
+  "invalid_provider_submission_id",
+  "broadcast_definitively_not_submitted",
+]);
 const COMMON_ENTRY_KEYS = [
   "schema",
   "marker",
@@ -312,6 +325,10 @@ function normalizeReleaseReason(value: unknown): string {
   return reason;
 }
 
+function releaseReasonAllowsRetry(reason: string): boolean {
+  return RETRY_SAFE_RELEASE_REASONS.has(reason);
+}
+
 function entryHash(
   entry: Omit<
     BuyVoidDeliverySubmissionGuardEntryV1,
@@ -522,6 +539,14 @@ function readJournal(
       if (existingKey?.event === "claim") {
         throw new Error("submission_guard_duplicate_claim");
       }
+      if (
+        existingKey?.event === "release" &&
+        !releaseReasonAllowsRetry(existingKey.release_reason)
+      ) {
+        throw new Error(
+          "submission_guard_non_retryable_release_reclaimed",
+        );
+      }
     } else {
       if (
         normalizeReleaseReason(value.release_reason) !==
@@ -631,6 +656,17 @@ export function createBuyVoidDeliverySubmissionGuardV1(
           return {
             claimed: false as const,
             reason: "submission_already_claimed",
+            existing_transaction_hash:
+              latest.expected_transaction_hash,
+          };
+        }
+        if (
+          latest?.event === "release" &&
+          !releaseReasonAllowsRetry(latest.release_reason)
+        ) {
+          return {
+            claimed: false as const,
+            reason: "submission_release_not_retry_safe",
             existing_transaction_hash:
               latest.expected_transaction_hash,
           };

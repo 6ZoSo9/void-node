@@ -58,6 +58,33 @@ The append-only journal validates this attempt-level invariant while reading.
 A hash-chain-valid journal containing a second binding for the same adapter and
 attempt fails closed.
 
+## Release disposition and retry safety
+
+Exact binding equality is necessary but not sufficient for reclaim. The latest
+durable release reason must also be one of the closed reasons that proves the
+adapter did not submit the transaction:
+
+- `signer_address_read_failed`;
+- `signer_address_mismatch`;
+- `transaction_signing_failed`;
+- `invalid_raw_signed_transaction_from_signer`;
+- `signed_transaction_parse_failed`;
+- `signed_transaction_hash_mismatch`;
+- `signed_transaction_binding_mismatch`;
+- `invalid_provider_submission_id`; or
+- `broadcast_definitively_not_submitted`.
+
+Any other normalized release reason is terminal for reclaim. This includes
+manual-reconciliation and operator dispositions that do not prove the absence
+of a broadcast. The runtime claim path returns
+`submission_release_not_retry_safe` without appending, and journal replay
+rejects a forged claim placed after a terminal release even when the forged
+entry has a valid sequence and hash-chain link.
+
+An equivalent repeated release reason remains idempotent without another
+journal entry. A conflicting reason is rejected and leaves the journal
+byte-for-byte unchanged.
+
 ## Dry run
 
 Dry run is the default. It verifies all bindings and returns the native
@@ -93,7 +120,10 @@ The focused proofs require:
 - rejection of an alternate idempotency key after an unknown broadcast;
 - rejection of changed hashes or fingerprints for an existing attempt;
 - rejection of idempotency-key reuse across attempts;
-- exact same-binding retry only after a definitive-not-broadcast release;
+- exact same-binding retry only after a retry-safe definitive-not-broadcast
+  release;
+- rejection without mutation after a terminal/manual-reconciliation release;
+- replay rejection of a correctly rehashed claim after a terminal release;
 - append-only journal hash-chain verification; and
 - rejection of a forged but rehashed alternate binding for one attempt.
 
