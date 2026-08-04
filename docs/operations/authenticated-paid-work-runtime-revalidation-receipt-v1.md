@@ -53,6 +53,24 @@ A valid receipt requires evidence that:
 The verifier derives the relative age from the two supplied timestamps and fails
 closed on mismatch or staleness.
 
+## Exact trusted-context binding requirement
+
+The base receipt's `trusted_context_reference_verified=true` field is not enough
+for registry-facing acceptance by itself. It does not identify which metadata,
+bundle digest, or private path fingerprint was checked.
+
+Registry-facing review must also call
+`verifyAuthenticatedPaidWorkRuntimeRevalidationWithTrustedContextV1(...)` with
+the companion
+`VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_TRUSTED_CONTEXT_BINDING_V1`
+record. That guard binds the receipt to source commit
+`ac074d53ab937d302c69b6bff54f02d064e37d57`, the exact trusted-context bundle
+SHA-256, the exact private path fingerprint SHA-256, and the same evaluated
+observation time.
+
+See
+`docs/operations/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.md`.
+
 ## Secret and mutation boundary
 
 The receipt must state that no raw token was read, no secret material or service
@@ -93,12 +111,18 @@ contract.
 node --check \
   integrations/agents/authenticated-paid-work-runtime-revalidation-v1/index.mjs
 node --check \
+  integrations/agents/authenticated-paid-work-runtime-revalidation-v1/trusted-context-binding-guard-v1.mjs
+node --check \
   scripts/prove_authenticated_paid_work_runtime_revalidation_receipt_v1.mjs
+node --check \
+  scripts/prove_authenticated_paid_work_runtime_revalidation_trusted_context_binding_v1.mjs
 node scripts/prove_authenticated_paid_work_runtime_revalidation_receipt_v1.mjs
+node scripts/prove_authenticated_paid_work_runtime_revalidation_trusted_context_binding_v1.mjs
 ```
 
-Expected marker:
+Expected markers:
 
 ```text
 VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_RECEIPT_V1_PROOF_GREEN
+VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_TRUSTED_CONTEXT_BINDING_V1_PROOF_GREEN
 ```
