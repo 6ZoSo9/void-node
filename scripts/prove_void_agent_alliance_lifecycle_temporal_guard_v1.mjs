@@ -119,8 +119,17 @@ const active = signAllianceMembershipManifestV1(
 );
 
 assert(
-  verifyAllianceMembershipTransitionTemporalGuardV1(candidate, active, publicKey),
-  "candidate_to_active_temporal_guard_failed",
+  verifyAllianceMembershipTransitionV1(candidate, active, publicKey),
+  "member_signed_candidate_to_active_continuity_failed",
+);
+expectReject(
+  "candidate_self_activation",
+  () => verifyAllianceMembershipTransitionTemporalGuardV1(
+    candidate,
+    active,
+    publicKey,
+  ),
+  /candidate_activation_requires_sovereign_admission_guard/,
 );
 
 const regressedEffective = signAllianceMembershipManifestV1(
@@ -199,6 +208,8 @@ assert(
 console.log(`candidate_manifest_id=${candidate.manifest_id}`);
 console.log(`active_manifest_id=${active.manifest_id}`);
 console.log(`shortened_expiry_manifest_id=${shortenedExpiry.manifest_id}`);
+console.log("candidate_self_activation_rejected=true");
+console.log("sovereign_admission_guard_required=true");
 console.log("effective_time_regression_rejected=true");
 console.log("expiry_extension_rejected=true");
 console.log("shortened_expiry_allowed=true");
