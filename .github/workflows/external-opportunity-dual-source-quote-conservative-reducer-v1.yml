@@ -7,16 +7,20 @@ on:
       - "src/external_opportunity/dual_source_quote_conservative_reducer_input_bound_verifier_v1.ts"
       - "src/external_opportunity/dual_source_quote_conservative_reducer_verification_envelope_v1.ts"
       - "src/external_opportunity/dual_source_quote_relative_freshness_gate_v1.ts"
+      - "src/external_opportunity/dual_source_quote_self_capital_forward_adapter_v1.ts"
       - "scripts/prove_external_opportunity_dual_source_quote_conservative_reducer_v1.ts"
       - "scripts/prove_external_opportunity_dual_source_quote_verification_envelope_v1.ts"
       - "scripts/prove_external_opportunity_dual_source_quote_relative_freshness_gate_v1.ts"
+      - "scripts/prove_external_opportunity_dual_source_quote_self_capital_forward_adapter_v1.ts"
       - "fixtures/external-opportunity/dual-source-quote-conservative-reducer-v1.example.json"
       - "schemas/external-opportunity-dual-source-quote-conservative-reducer-input-v1.schema.json"
       - "schemas/external-opportunity-dual-source-quote-verification-envelope-v1.schema.json"
       - "schemas/external-opportunity-dual-source-quote-relative-freshness-gate-receipt-v1.schema.json"
+      - "schemas/external-opportunity-dual-source-quote-self-capital-forward-adapter-receipt-v1.schema.json"
       - "docs/architecture/external-opportunity-dual-source-quote-conservative-reducer-v1.md"
       - "docs/architecture/external-opportunity-dual-source-quote-verification-envelope-v1.md"
       - "docs/architecture/external-opportunity-dual-source-quote-relative-freshness-gate-v1.md"
+      - "docs/architecture/external-opportunity-dual-source-quote-self-capital-forward-adapter-v1.md"
       - ".github/workflows/external-opportunity-dual-source-quote-conservative-reducer-v1.yml"
   workflow_dispatch:
 
@@ -37,4 +41,5 @@ jobs:
       - run: node --import tsx scripts/prove_external_opportunity_dual_source_quote_conservative_reducer_v1.ts
       - run: node --import tsx scripts/prove_external_opportunity_dual_source_quote_verification_envelope_v1.ts
       - run: node --import tsx scripts/prove_external_opportunity_dual_source_quote_relative_freshness_gate_v1.ts
+      - run: node --import tsx scripts/prove_external_opportunity_dual_source_quote_self_capital_forward_adapter_v1.ts
       - run: npm run build
