@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  hashDualSourceQuoteReducerDocumentV1,
   reduceDualSourceQuoteConservativelyV1,
   verifyDualSourceQuoteConservativeReducerReceiptV1,
 } from "../src/external_opportunity/dual_source_quote_conservative_reducer_v1.js";
+import { verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1 } from "../src/external_opportunity/dual_source_quote_conservative_reducer_input_bound_verifier_v1.js";
 
 type MutableJson = Record<string, any>;
 
@@ -31,7 +33,10 @@ const fixturePath = resolve(
 );
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as MutableJson;
 const receipt = reduceDualSourceQuoteConservativelyV1(fixture);
-const verified = verifyDualSourceQuoteConservativeReducerReceiptV1(receipt);
+const verified = verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(
+  fixture,
+  receipt,
+);
 
 assert(
   verified.reduced_quote.expected_output_amount === "30135000000000000",
@@ -76,6 +81,7 @@ assert(
   reversedReceipt.reduced_quote.quote_id === receipt.reduced_quote.quote_id,
   "source ordering must not change reduced quote ID",
 );
+verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(reversed, receipt);
 
 const sameProvider = clone(fixture);
 sameProvider.quotes[1].provider = sameProvider.quotes[0].provider;
@@ -125,9 +131,38 @@ expectHold("transaction payload field", () =>
 );
 
 const tamperedReceipt = clone(receipt);
-(tamperedReceipt as any).reduced_quote.expected_output_amount = "99999999999999999";
-expectHold("tampered receipt", () =>
+tamperedReceipt.reduced_quote.expected_output_amount = "99999999999999999";
+expectHold("tampered receipt without digest repair", () =>
   verifyDualSourceQuoteConservativeReducerReceiptV1(tamperedReceipt),
+);
+
+const selfConsistentForgery = clone(receipt);
+selfConsistentForgery.reduced_quote.expected_output_amount = "99999999999999999";
+const selfConsistentUnsigned = clone(selfConsistentForgery);
+delete selfConsistentUnsigned.receipt_sha256;
+selfConsistentForgery.receipt_sha256 =
+  hashDualSourceQuoteReducerDocumentV1(selfConsistentUnsigned);
+const integrityOnlyVerification =
+  verifyDualSourceQuoteConservativeReducerReceiptV1(selfConsistentForgery);
+assert(
+  integrityOnlyVerification.reduced_quote.expected_output_amount ===
+    "99999999999999999",
+  "receipt-only verification must be recognized as integrity-only",
+);
+expectHold("self-consistent forged receipt", () =>
+  verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(
+    fixture,
+    selfConsistentForgery,
+  ),
+);
+
+const wrongSourceInput = clone(fixture);
+wrongSourceInput.reduction_id = "different-reduction-v1";
+expectHold("receipt verified against different input", () =>
+  verifyDualSourceQuoteConservativeReducerReceiptAgainstInputV1(
+    wrongSourceInput,
+    receipt,
+  ),
 );
 
 console.log("reduction_id=dual-source-usdc-weth-forward-v1");
@@ -139,6 +174,8 @@ console.log(`expected_output_value_usd=${receipt.reduced_quote.expected_output_v
 console.log(`minimum_output_value_usd=${receipt.reduced_quote.minimum_output_value_usd}`);
 console.log(`gas_usd=${receipt.reduced_quote.gas_usd}`);
 console.log(`source_identity_authenticated=${receipt.source_identity_authenticated}`);
+console.log("receipt_input_bound_verification=true");
+console.log("self_consistent_forgery_rejected=true");
 console.log(`network_access_performed=${receipt.network_access_performed}`);
 console.log(`wallet_or_key_access_performed=${receipt.wallet_or_key_access_performed}`);
 console.log(`transaction_submission_performed=${receipt.transaction_submission_performed}`);
