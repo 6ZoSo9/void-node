@@ -21,7 +21,7 @@ const credentialMetadata = JSON.parse(
 );
 
 const EXPECTED_REVIEWED_MAIN =
-  "621c8d6d59af774b1bcd617505fe75f6bc172c68";
+  "71767df629c1f0034c38ea441c6e2cefc7794820";
 const EXPECTED_CREDENTIAL_METADATA_COMMIT =
   "cfca0c06a82e8e6cee8c0bf360b4a307a054f4aa";
 const EXPECTED_CREDENTIAL_ID =
