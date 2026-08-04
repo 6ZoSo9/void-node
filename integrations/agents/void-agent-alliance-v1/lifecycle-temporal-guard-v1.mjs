@@ -21,13 +21,16 @@ function lifecycleAnchor(manifest) {
 }
 
 /**
- * Verifies the signed membership transition and adds registry-facing temporal
- * invariants that the core lifecycle verifier deliberately keeps separate.
+ * Verifies member-signed lifecycle continuity and adds registry-facing temporal
+ * invariants. Candidate-to-active promotion is deliberately excluded because
+ * active membership additionally requires a separate sovereign-admission
+ * authorization verified by sovereign-admission-guard-v1.
  *
- * The guard prevents a member from:
+ * This guard prevents a member from:
+ * - self-promoting a candidate to active membership;
  * - issuing a successor before the predecessor became effective;
  * - moving a successor's effective time behind the predecessor; or
- * - extending the lifecycle expiry while changing status.
+ * - extending lifecycle expiry while changing status.
  *
  * Expiry may remain unchanged or be shortened. The function does not consult a
  * wall clock and does not prove that either manifest is currently unexpired.
@@ -37,14 +40,19 @@ export function verifyAllianceMembershipTransitionTemporalGuardV1(
   nextValue,
   publicKey,
 ) {
-  verifyAllianceMembershipTransitionV1(previousValue, nextValue, publicKey);
-
   const previous = validateAllianceMembershipManifestV1(previousValue, {
     verifyManifestId: true,
   });
   const next = validateAllianceMembershipManifestV1(nextValue, {
     verifyManifestId: true,
   });
+
+  if (previous.lifecycle.status === "candidate" &&
+      next.lifecycle.status === "active") {
+    fail("candidate_activation_requires_sovereign_admission_guard");
+  }
+
+  verifyAllianceMembershipTransitionV1(previous, next, publicKey);
 
   const previousAnchor = lifecycleAnchor(previous);
   const nextIssuedAt = parseInstant(next.lifecycle.issued_at, "next_issued_at");
