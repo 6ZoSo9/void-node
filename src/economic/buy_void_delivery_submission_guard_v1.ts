@@ -51,6 +51,7 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   alternate_idempotency_key_replay_forbidden: true,
   replay_lifecycle_verified: true,
   closed_journal_contract: true,
+  monotonic_write_timestamp: true,
   automatic_stale_lock_removal: false,
   rpc_call: false,
   wallet_access: false,
@@ -418,6 +419,21 @@ function latestForKey(
   return null;
 }
 
+function nextRecordedAtMs(
+  entries: BuyVoidDeliverySubmissionGuardEntryV1[],
+  now: () => number,
+): number {
+  const candidate = now();
+  if (!Number.isSafeInteger(candidate) || candidate < 0) {
+    throw new Error("submission_guard_write_timestamp_invalid");
+  }
+  const previous = entries.at(-1)?.recorded_at_ms ?? -1;
+  if (candidate < previous) {
+    throw new Error("submission_guard_write_timestamp_regression");
+  }
+  return candidate;
+}
+
 function readJournal(
   paths: BuyVoidDeliverySubmissionGuardPathsV1,
 ): BuyVoidDeliverySubmissionGuardEntryV1[] {
@@ -628,7 +644,7 @@ export function createBuyVoidDeliverySubmissionGuardV1(
           marker:
             VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
           sequence: entries.length + 1,
-          recorded_at_ms: now(),
+          recorded_at_ms: nextRecordedAtMs(entries, now),
           previous_entry_hash_sha256: previous,
           event: "claim",
           ...normalized,
@@ -681,7 +697,7 @@ export function createBuyVoidDeliverySubmissionGuardV1(
           marker:
             VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
           sequence: entries.length + 1,
-          recorded_at_ms: now(),
+          recorded_at_ms: nextRecordedAtMs(entries, now),
           previous_entry_hash_sha256: previous,
           event: "release",
           release_reason: reason,
