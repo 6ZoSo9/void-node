@@ -1,5 +1,6 @@
 import {
   createHash,
+  createPublicKey,
   sign as cryptoSign,
   verify as cryptoVerify,
 } from "node:crypto";
@@ -215,6 +216,18 @@ function unsignedManifestBody(manifest) {
   return body;
 }
 
+export function computeAllianceIdentityKeyIdV1(keyObject) {
+  if (!keyObject || typeof keyObject !== "object") fail("identity_key_object_required");
+  const publicKey = keyObject.type === "private"
+    ? createPublicKey(keyObject)
+    : keyObject;
+  if (publicKey.type !== "public" || publicKey.asymmetricKeyType !== "ed25519") {
+    fail("identity_key_must_be_ed25519");
+  }
+  const der = publicKey.export({ type: "spki", format: "der" });
+  return `ed25519:sha256:${sha256Hex(der)}`;
+}
+
 export function computeAllianceMembershipIdV1(agentId, identityKeyId) {
   if (typeof agentId !== "string" || !AGENT_ID.test(agentId)) {
     fail("agent_id_invalid");
@@ -387,9 +400,15 @@ export function validateAllianceMembershipManifestV1(
 
   if (manifest.lifecycle.status === "candidate") {
     if (effectiveAt !== null) fail("candidate_effective_at_must_be_null");
+    if (manifest.lifecycle.previous_manifest_id !== null) {
+      fail("candidate_previous_manifest_id_must_be_null");
+    }
     if (manifest.signature !== null) fail("candidate_signature_must_be_null");
   } else {
     if (effectiveAt === null) fail("noncandidate_effective_at_required");
+    if (manifest.lifecycle.previous_manifest_id === null) {
+      fail("noncandidate_previous_manifest_id_required");
+    }
     if (manifest.signature === null && options.allowUnsignedNonCandidate === true) {
       // A caller may validate the closed unsigned payload immediately before signing.
     } else {
@@ -414,6 +433,10 @@ export function signAllianceMembershipManifestV1(manifestValue, privateKey) {
   if (manifest.lifecycle?.status === "candidate") {
     fail("candidate_manifest_cannot_be_signed_as_active_membership");
   }
+  const signingKeyId = computeAllianceIdentityKeyIdV1(privateKey);
+  if (signingKeyId !== manifest.agent?.identity_key_id) {
+    fail("signing_key_id_mismatch");
+  }
   manifest.signature = null;
   manifest.manifest_id = computeAllianceManifestIdV1(manifest);
   validateAllianceMembershipManifestV1(manifest, {
@@ -437,6 +460,10 @@ export function verifyAllianceMembershipSignatureV1(manifestValue, publicKey) {
     verifyManifestId: true,
   });
   if (manifest.lifecycle.status === "candidate") fail("candidate_membership_not_active");
+  const verificationKeyId = computeAllianceIdentityKeyIdV1(publicKey);
+  if (verificationKeyId !== manifest.agent.identity_key_id) {
+    fail("verification_key_id_mismatch");
+  }
   const signature = manifest.signature;
   const unsigned = structuredClone(manifest);
   unsigned.signature = null;
