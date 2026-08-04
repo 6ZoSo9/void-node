@@ -47,7 +47,10 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   hash_chain: true,
   exclusive_lock: true,
   attempt_binding_immutable: true,
+  idempotency_key_binding_immutable: true,
   alternate_idempotency_key_replay_forbidden: true,
+  replay_lifecycle_verified: true,
+  closed_journal_contract: true,
   automatic_stale_lock_removal: false,
   rpc_call: false,
   wallet_access: false,
@@ -60,6 +63,35 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
 const HEX64 = /^[0-9a-f]{64}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const MAX_REASON = 160;
+const CLAIM_SCHEMA =
+  "void_buy_void_delivery_submission_guard_claim_v1";
+const RELEASE_SCHEMA =
+  "void_buy_void_delivery_submission_guard_release_v1";
+const COMMON_ENTRY_KEYS = [
+  "schema",
+  "marker",
+  "sequence",
+  "recorded_at_ms",
+  "previous_entry_hash_sha256",
+  "entry_hash_sha256",
+  "event",
+  "adapter_marker",
+  "submission_idempotency_key",
+  "attempt_id",
+  "expected_transaction_hash",
+  "transaction_plan_fingerprint_sha256",
+] as const;
+const CLAIM_ENTRY_KEYS = [...COMMON_ENTRY_KEYS] as const;
+const RELEASE_ENTRY_KEYS = [
+  ...COMMON_ENTRY_KEYS,
+  "release_reason",
+] as const;
+const LEGACY_CLAIM_ENTRY_KEYS = CLAIM_ENTRY_KEYS.filter(
+  (key) => key !== "adapter_marker",
+);
+const LEGACY_RELEASE_ENTRY_KEYS = RELEASE_ENTRY_KEYS.filter(
+  (key) => key !== "adapter_marker",
+);
 
 export type BuyVoidDeliverySubmissionGuardPathsV1 = {
   root_dir: string;
@@ -138,6 +170,78 @@ export function buyVoidDeliverySubmissionGuardPathsV1(
 
 function sha256(value: string | Buffer): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function isRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
+}
+
+function validateJournalEntryShape(
+  value: Record<string, unknown>,
+): BuyVoidDeliverySubmissionAdapterMarkerV1 {
+  const isClaim = value.event === "claim";
+  const isRelease = value.event === "release";
+  if (!isClaim && !isRelease) {
+    throw new Error("submission_guard_journal_contract_mismatch");
+  }
+
+  const currentKeys = isClaim
+    ? CLAIM_ENTRY_KEYS
+    : RELEASE_ENTRY_KEYS;
+  const legacyKeys = isClaim
+    ? LEGACY_CLAIM_ENTRY_KEYS
+    : LEGACY_RELEASE_ENTRY_KEYS;
+  if (
+    !hasExactKeys(value, currentKeys) &&
+    !hasExactKeys(value, legacyKeys)
+  ) {
+    throw new Error("submission_guard_journal_keys_mismatch");
+  }
+
+  const expectedSchema = isClaim
+    ? CLAIM_SCHEMA
+    : RELEASE_SCHEMA;
+  if (value.schema !== expectedSchema) {
+    throw new Error("submission_guard_journal_schema_mismatch");
+  }
+
+  if (
+    !Number.isSafeInteger(value.recorded_at_ms) ||
+    Number(value.recorded_at_ms) < 0
+  ) {
+    throw new Error("submission_guard_journal_timestamp_invalid");
+  }
+
+  const marker =
+    value.adapter_marker ||
+    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1";
+  if (
+    marker !==
+      "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1" &&
+    marker !==
+      "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
+  ) {
+    throw new Error("submission_guard_journal_adapter_mismatch");
+  }
+  return marker as BuyVoidDeliverySubmissionAdapterMarkerV1;
 }
 
 function normalizeBinding(
@@ -326,25 +430,34 @@ function readJournal(
 
   const entries: BuyVoidDeliverySubmissionGuardEntryV1[] = [];
   let previous = "0".repeat(64);
+  let previousRecordedAtMs = -1;
 
   for (let index = 0; index < lines.length; index += 1) {
-    let value: any;
+    let parsed: unknown;
     try {
-      value = JSON.parse(lines[index]);
+      parsed = JSON.parse(lines[index]);
     } catch {
       throw new Error("submission_guard_journal_invalid_json");
     }
+    if (!isRecord(parsed)) {
+      throw new Error("submission_guard_journal_contract_mismatch");
+    }
+    const value = parsed;
+    const adapterMarker = validateJournalEntryShape(value);
 
     if (
-      !value ||
       value.marker !==
         VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1 ||
-      !["claim", "release"].includes(value.event) ||
       value.sequence !== index + 1 ||
       value.previous_entry_hash_sha256 !== previous ||
       !HEX64.test(String(value.entry_hash_sha256 || ""))
     ) {
       throw new Error("submission_guard_journal_contract_mismatch");
+    }
+
+    const recordedAtMs = Number(value.recorded_at_ms);
+    if (recordedAtMs < previousRecordedAtMs) {
+      throw new Error("submission_guard_journal_timestamp_regression");
     }
 
     const {
@@ -357,44 +470,65 @@ function readJournal(
     }
 
     const normalizedBinding = normalizeBinding({
-      marker:
-        value.adapter_marker ||
-        "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+      marker: adapterMarker,
       submission_idempotency_key:
-        value.submission_idempotency_key,
-      attempt_id: value.attempt_id,
+        value.submission_idempotency_key as string,
+      attempt_id: value.attempt_id as string,
       expected_transaction_hash:
-        value.expected_transaction_hash,
+        value.expected_transaction_hash as string,
       transaction_plan_fingerprint_sha256:
-        value.transaction_plan_fingerprint_sha256,
+        value.transaction_plan_fingerprint_sha256 as string,
     });
 
     const existingAttempt = firstForAttempt(
       entries,
       normalizedBinding,
     );
-    if (existingAttempt && !sameBinding(existingAttempt, normalizedBinding)) {
+    if (
+      existingAttempt &&
+      !sameBinding(existingAttempt, normalizedBinding)
+    ) {
       throw new Error("submission_guard_attempt_binding_mismatch");
     }
 
-    if (
-      value.event === "release" &&
-      normalizeReleaseReason(value.release_reason) !==
-        value.release_reason
-    ) {
+    const existingKey = latestForKey(
+      entries,
+      normalizedBinding.submission_idempotency_key,
+    );
+    if (existingKey && !sameBinding(existingKey, normalizedBinding)) {
       throw new Error(
-        "submission_guard_release_reason_mismatch",
+        "submission_guard_idempotency_binding_mismatch",
       );
+    }
+
+    if (value.event === "claim") {
+      if (existingKey?.event === "claim") {
+        throw new Error("submission_guard_duplicate_claim");
+      }
+    } else {
+      if (
+        normalizeReleaseReason(value.release_reason) !==
+          value.release_reason
+      ) {
+        throw new Error(
+          "submission_guard_release_reason_mismatch",
+        );
+      }
+      if (!existingKey) {
+        throw new Error("submission_guard_release_without_claim");
+      }
+      if (existingKey.event !== "claim") {
+        throw new Error("submission_guard_duplicate_release");
+      }
     }
 
     const normalizedValue = {
       ...value,
-      adapter_marker:
-        value.adapter_marker ||
-        "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+      adapter_marker: adapterMarker,
     } as BuyVoidDeliverySubmissionGuardEntryV1;
     entries.push(normalizedValue);
-    previous = recordedHash;
+    previous = String(recordedHash);
+    previousRecordedAtMs = recordedAtMs;
   }
 
   return entries;
