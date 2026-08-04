@@ -130,7 +130,7 @@ const TRANSITIONS = Object.freeze({
 
 const CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const AGENT_ID = /^[a-z0-9][a-z0-9._:-]{2,191}$/;
-const KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._:+/-]{7,255}$/;
+const KEY_ID = /^ed25519:sha256:[a-f0-9]{64}$/;
 const MEMBERSHIP_ID = /^voidaam1_[a-f0-9]{64}$/;
 const MANIFEST_ID = /^voidaamm1_[a-f0-9]{64}$/;
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
