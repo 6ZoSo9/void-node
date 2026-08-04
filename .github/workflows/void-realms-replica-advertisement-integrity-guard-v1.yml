@@ -1,0 +1,37 @@
+name: VOID Realms replica advertisement integrity guard v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-realms-replica-advertisement-integrity-guard-v1.yml"
+      - "docs/architecture/void-realms-replica-advertisement-integrity-guard-v1.md"
+      - "src/game/void_realms_replica_advertisement_integrity_guard_v1.ts"
+      - "scripts/prove_void_realms_replica_advertisement_integrity_guard_v1.ts"
+      - "src/game/void_realms_single_canonical_world_region_checkpoint_handoff_v1.ts"
+      - "src/util/cid.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-realms-replica-advertisement-integrity-guard-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Typecheck source
+        run: npm run typecheck
+      - name: Prove replica advertisement integrity guard
+        run: npx tsx scripts/prove_void_realms_replica_advertisement_integrity_guard_v1.ts
