@@ -65,6 +65,20 @@ The separately authorized restart is bound by sanitized evidence:
 
 The receipt path is not published.
 
+## Receipt authenticity boundary
+
+Source stores the sanitized receipt marker, digest, timestamp, and reported
+outcome. The private receipt bytes and path are deliberately absent, so the
+repository proof cannot reopen the receipt, recompute its digest from private
+evidence, or authenticate who produced it.
+
+The digest is useful for exact comparison with the independently retained
+operator receipt. By itself, it does not prove the receipt's origin, prove that
+the reported runtime observations were true, or establish current receiver
+state. This metadata must therefore be treated as a content-addressed record of
+reviewed operator evidence, not as an independently source-verifiable runtime
+attestation.
+
 ## Freshness and execution boundary
 
 The captured receiver state proves that the nine-record registry was loaded at
