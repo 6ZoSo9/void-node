@@ -30,7 +30,6 @@ export type AcrossTokenValuationSelectorV1 = Readonly<{
 
 export type AcrossTokenValuationIngestionInputV1 = Readonly<{
   api_key: string;
-  integrator_id: string;
   selector: AcrossTokenValuationSelectorV1;
   timeout_ms?: number;
 }>;
@@ -156,14 +155,6 @@ function evmAddress(value: unknown, label: string): string {
   return text.toLowerCase();
 }
 
-function integratorId(value: unknown, label: string): string {
-  const text = requiredString(value, label, 6);
-  if (!/^0x[0-9a-fA-F]{4}$/.test(text)) {
-    hold(`${label} must be a two-byte 0x-prefixed hex value`);
-  }
-  return text.toLowerCase();
-}
-
 function apiKey(value: unknown, label: string): string {
   const text = requiredString(value, label, 1_024);
   if (text.trim() !== text || /\s/.test(text)) {
@@ -275,19 +266,13 @@ function parseSelector(value: unknown): AcrossTokenValuationSelectorV1 {
 
 function parseInput(value: unknown): Readonly<{
   api_key: string;
-  integrator_id: string;
   selector: AcrossTokenValuationSelectorV1;
   timeout_ms: number;
 }> {
   const source = record(value, "ingestion input");
-  allowedKeys(
-    source,
-    ["api_key", "integrator_id", "selector", "timeout_ms"],
-    "ingestion input",
-  );
+  allowedKeys(source, ["api_key", "selector", "timeout_ms"], "ingestion input");
   return Object.freeze({
     api_key: apiKey(source.api_key, "api_key"),
-    integrator_id: integratorId(source.integrator_id, "integrator_id"),
     selector: parseSelector(source.selector),
     timeout_ms:
       source.timeout_ms === undefined
@@ -296,20 +281,31 @@ function parseInput(value: unknown): Readonly<{
   });
 }
 
-function buildUrl(
-  selector: AcrossTokenValuationSelectorV1,
-  selectedIntegratorId: string,
-): URL {
+function exactChainIdQuery(url: URL): number {
+  if (url.hash !== "") hold("Across token endpoint fragments are forbidden");
+  const entries = [...url.searchParams.entries()];
+  if (entries.length !== 1 || entries[0][0] !== "chainId") {
+    hold("Across token endpoint requires an exact chainId-only query");
+  }
+  const chainIdText = entries[0][1];
+  if (!/^[1-9][0-9]*$/.test(chainIdText)) {
+    hold("Across token endpoint chainId must be canonical");
+  }
+  const chainId = Number(chainIdText);
+  return safeInteger(chainId, "Across token endpoint chainId", 1, 10_000_000);
+}
+
+function buildUrl(selector: AcrossTokenValuationSelectorV1): URL {
   const url = new URL(ACROSS_SWAP_TOKENS_PATH, ACROSS_API_ORIGIN);
   url.searchParams.set("chainId", selector.chain_id.toString());
-  url.searchParams.set("integratorId", selectedIntegratorId);
   if (
     url.protocol !== "https:" ||
     url.hostname !== "app.across.to" ||
     url.port !== "" ||
     url.username !== "" ||
     url.password !== "" ||
-    url.pathname !== ACROSS_SWAP_TOKENS_PATH
+    url.pathname !== ACROSS_SWAP_TOKENS_PATH ||
+    exactChainIdQuery(url) !== selector.chain_id
   ) {
     hold("Across token endpoint boundary differs");
   }
@@ -333,12 +329,11 @@ export async function acrossTokenValuationReadonlyHttpsGetV1(
     url.port !== "" ||
     url.username !== "" ||
     url.password !== "" ||
-    url.pathname !== ACROSS_SWAP_TOKENS_PATH ||
-    url.searchParams.get("chainId") === null ||
-    url.searchParams.get("integratorId") === null
+    url.pathname !== ACROSS_SWAP_TOKENS_PATH
   ) {
     hold("Across token transport exact-host boundary differs");
   }
+  exactChainIdQuery(url);
   if (
     !Number.isSafeInteger(input.timeout_ms) ||
     input.timeout_ms < 1_000 ||
@@ -458,7 +453,7 @@ export async function ingestAcrossTokenValuationV1(
 ): Promise<AcrossTokenValuationIngestionResultV1> {
   const input = parseInput(value);
   const observedAt = canonicalInstant(clock(), "observed_at");
-  const url = buildUrl(input.selector, input.integrator_id);
+  const url = buildUrl(input.selector);
   let authorization = `Bearer ${input.api_key}`;
   let response: AcrossTokenValuationReadonlyHttpsResponseV1;
   try {
