@@ -8,7 +8,8 @@
     "node": ">=22 <23"
   },
   "exports": {
-    ".": "./index.mjs"
+    ".": "./index.mjs",
+    "./trusted-context-binding-guard-v1": "./trusted-context-binding-guard-v1.mjs"
   },
   "license": "SEE LICENSE IN ../../../LICENSE"
 }
