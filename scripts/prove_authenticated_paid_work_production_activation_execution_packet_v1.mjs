@@ -60,6 +60,42 @@ const EXPECTED_SOURCE_COMMITS = Object.freeze({
     "32cd4883b95354ab979d12640ffd2e2ac1279e57",
 });
 
+const EXPECTED_ORDERED_EXECUTION_GATES = Object.freeze([
+  "capture_current_origin_main",
+  "verify_required_source_artifacts",
+  "verify_disabled_runtime_preimage",
+  "verify_fresh_persistence_state",
+  "privately_verify_trusted_context_reference",
+  "privately_verify_fresh_credential_reference",
+  "materialize_fresh_direct_provider_signing_request",
+  "verify_provider_signature_and_materialize_requester_signing_request",
+  "verify_requester_signature_and_finalize_direct_authentication_preparation",
+  "independently_verify_final_direct_authentication_packet",
+  "materialize_non_secret_execution_plan",
+  "compute_canonical_execution_plan_sha256",
+  "obtain_fresh_operation_bound_confirmation_from_zoso",
+  "revalidate_origin_main_and_all_prestates",
+  "perform_reviewed_one_shot_activation",
+  "execute_exactly_one_fresh_paid_work_canary",
+  "capture_sanitized_post_execution_evidence",
+  "make_separate_post_execution_readiness_decision",
+]);
+
+const EXPECTED_DENIED_AUTHORITY = Object.freeze({
+  execution_authorized: false,
+  deployment_authorized: false,
+  service_start_authorized: false,
+  credential_access_authorized: false,
+  quote_acceptance_authorized: false,
+  payment_authority_granted: false,
+  payment_execution_authorized: false,
+  work_dispatch_authorized: false,
+  work_credit_write_authorized: false,
+  wallet_or_signer_access_authorized: false,
+  transaction_broadcast_authorized: false,
+  fund_movement_authorized: false,
+});
+
 const FORBIDDEN_UNRELATED_COMMIT =
   "44d9a95e335e9ebabd65e60f7e388385e0d14abe";
 const FORBIDDEN_EXPIRED_CREDENTIAL_METADATA_COMMIT =
@@ -69,6 +105,36 @@ const FORBIDDEN_PRE_RESTART_CREDENTIAL_METADATA_COMMIT =
 
 function check(value, message) {
   if (!value) throw new Error(message);
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function expectRejected(label, operation) {
+  try {
+    operation();
+  } catch (error) {
+    check(error instanceof Error, `${label} must throw an Error`);
+    return;
+  }
+  throw new Error(`${label} did not reject`);
+}
+
+function verifyOrderedExecutionGates(value) {
+  assert.deepEqual(
+    value,
+    EXPECTED_ORDERED_EXECUTION_GATES,
+    "ordered execution gate sequence mismatch",
+  );
+}
+
+function verifyDeniedAuthority(value) {
+  assert.deepEqual(
+    value,
+    EXPECTED_DENIED_AUTHORITY,
+    "denied authority map mismatch",
+  );
 }
 
 check(
@@ -291,46 +357,12 @@ assert.deepEqual(
 );
 
 const gates = packet.ordered_execution_gates;
-check(
-  Array.isArray(gates) && gates.length === 18,
-  "ordered gate count mismatch",
+verifyOrderedExecutionGates(gates);
+const alteredUncheckedGate = clone(gates);
+alteredUncheckedGate[10] = "materialize_unreviewed_execution_plan";
+expectRejected("altered previously unchecked execution gate", () =>
+  verifyOrderedExecutionGates(alteredUncheckedGate),
 );
-check(gates[0] === "capture_current_origin_main", "first gate mismatch");
-check(
-  gates[4] === "privately_verify_trusted_context_reference",
-  "trusted-context gate mismatch",
-);
-check(
-  gates[5] === "privately_verify_fresh_credential_reference",
-  "credential gate mismatch",
-);
-check(
-  gates[6] === "materialize_fresh_direct_provider_signing_request",
-  "provider signing-request gate mismatch",
-);
-check(
-  gates[7] ===
-    "verify_provider_signature_and_materialize_requester_signing_request",
-  "provider verification gate mismatch",
-);
-check(
-  gates[8] ===
-    "verify_requester_signature_and_finalize_direct_authentication_preparation",
-  "requester verification gate mismatch",
-);
-check(
-  gates[9] === "independently_verify_final_direct_authentication_packet",
-  "final authentication verification gate mismatch",
-);
-check(
-  gates[12] === "obtain_fresh_operation_bound_confirmation_from_zoso",
-  "ZoSo confirmation gate mismatch",
-);
-check(
-  gates.at(-1) === "make_separate_post_execution_readiness_decision",
-  "terminal gate mismatch",
-);
-check(new Set(gates).size === gates.length, "duplicate gate");
 
 assert.deepEqual(packet.mandatory_runtime_inputs, {
   fresh_origin_main: null,
@@ -369,21 +401,19 @@ for (const requiredFailure of [
 }
 
 const authority = packet.authority;
-check(
-  authority !== null &&
-    typeof authority === "object" &&
-    !Array.isArray(authority),
-  "authority must be an object",
+verifyDeniedAuthority(authority);
+const removedAuthorityKey = clone(authority);
+delete removedAuthorityKey.payment_execution_authorized;
+expectRejected("removed denied-authority key", () =>
+  verifyDeniedAuthority(removedAuthorityKey),
+);
+const replacedAuthorityKey = clone(authority);
+delete replacedAuthorityKey.payment_execution_authorized;
+replacedAuthorityKey.payment_execution_reviewed = false;
+expectRejected("replaced denied-authority key", () =>
+  verifyDeniedAuthority(replacedAuthorityKey),
 );
 const authorityValues = Object.values(authority);
-check(
-  authorityValues.length === 12,
-  "authority boundary count mismatch",
-);
-check(
-  authorityValues.every((value) => value === false),
-  "source packet grants authority",
-);
 
 const source = fs.readFileSync(packetPath, "utf8");
 check(
@@ -421,9 +451,14 @@ console.log("receiver_health_observed=true");
 console.log("live_authentication_observed=false");
 console.log("current_runtime_freshness_proven_by_source=false");
 console.log(`ordered_execution_gates=${gates.length}`);
+console.log("ordered_execution_gate_sequence_exact=true");
+console.log("altered_unchecked_gate_rejected=true");
 console.log("fresh_direct_signing_gates=4");
 console.log(`fail_closed_conditions=${failures.length}`);
 console.log(`denied_authorities=${authorityValues.length}`);
+console.log("denied_authority_map_exact=true");
+console.log("removed_authority_key_rejected=true");
+console.log("replaced_authority_key_rejected=true");
 console.log("fresh_quote_required=true");
 console.log("provider_signature_verified=false");
 console.log("requester_signature_verified=false");
