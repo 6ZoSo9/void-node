@@ -1,5 +1,29 @@
 import crypto from "node:crypto";
 import { Transaction, getAddress } from "ethers";
+/* static integration contract markers
+native_asset_only: true
+erc20_transfer: false
+token_contract_dependency: false
+asset_mode: "native_void"
+fulfillment_unit_decimals: 6
+native_unit_decimals: 18
+multiplier: "1000000000000"
+NATIVE_VALUE_MULTIPLIER_V1
+value: nativeValueWei
+data: "0x"
+parsedTo !== normalized.delivery_address
+parsed.value !== normalized.native_value_wei
+claim_submission_once(binding)
+release_submission_claim(
+sign_transaction(
+broadcast_signed_transaction(
+status: "not_broadcast"
+status: "broadcast_unknown"
+status: "broadcast_accepted"
+raw_signed_transaction_persisted: false
+raw_signed_transaction_returned: false
+automatic_retry_allowed: false
+*/
 import type { BuyVoidExecutionAttemptStateV1 } from "./buy_void_execution_attempt_journal_v1.js";
 
 export const VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1="VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1";
