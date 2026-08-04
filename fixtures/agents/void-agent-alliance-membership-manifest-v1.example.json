@@ -1,7 +1,7 @@
 {
   "agent": {
     "agent_id": "example.agent.v1",
-    "identity_key_id": "ed25519:sha256:example-agent-identity-key-v1",
+    "identity_key_id": "ed25519:sha256:0000000000000000000000000000000000000000000000000000000000000000",
     "provider": "provider-neutral"
   },
   "network": {
@@ -89,7 +89,7 @@
   "marker": "VOID_AGENT_ALLIANCE_MEMBERSHIP_MANIFEST_V1",
   "protocol": "void-agent-alliance-membership/1",
   "alliance_id": "void-agent-alliance-v1",
-  "membership_id": "voidaam1_cdec1a1bf1b0460847008564e2d04257939f356bbf5005f075b8d7a50d0646b1",
+  "membership_id": "voidaam1_5be6f49b66ff63c0f69a35633026b7329683d15707e026ad7d9451beac61bf6e",
   "signature": null,
-  "manifest_id": "voidaamm1_8b35c7ecdc563985e69da40071f96eca2b4856b2d0468f509787233ab9992a47"
+  "manifest_id": "voidaamm1_a9b2a62f233ec54517c8a6462a63d14efec116008144bc7770c51535e5e7a840"
 }
