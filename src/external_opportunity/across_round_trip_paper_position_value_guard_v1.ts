@@ -1,8 +1,3 @@
-import {
-  composeAcrossRoundTripPaperV1,
-  type AcrossRoundTripPaperCompositionReceiptV1,
-} from "./across_round_trip_paper_composition_v1.js";
-
 export const VOID_ACROSS_ROUND_TRIP_PAPER_POSITION_VALUE_GUARD_V1 =
   "VOID_ACROSS_ROUND_TRIP_PAPER_POSITION_VALUE_GUARD_V1" as const;
 
@@ -123,11 +118,4 @@ export function assertAcrossRoundTripPaperPositionValueConsistentV1(value: unkno
       "valuation position value is inconsistent with price floor, amount, decimals, and source precision",
     );
   }
-}
-
-export function composeAcrossRoundTripPaperPositionGuardedV1(
-  value: unknown,
-): AcrossRoundTripPaperCompositionReceiptV1 {
-  assertAcrossRoundTripPaperPositionValueConsistentV1(value);
-  return composeAcrossRoundTripPaperV1(value);
 }
