@@ -1,0 +1,28 @@
+[Unit]
+Description=VOID public agent-gateway loopback forward v1
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/void/public-agent-gateway-forward-v1.env
+ExecStart=/usr/bin/ssh -NT \
+  -o BatchMode=yes \
+  -o ExitOnForwardFailure=yes \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=%h/.config/void/public-agent-gateway-forward-v1.known_hosts \
+  -o ServerAliveInterval=10 \
+  -o ServerAliveCountMax=3 \
+  -L 127.0.0.1:4113:127.0.0.1:4112 \
+  ${VOID_PUBLIC_AGENT_FORWARD_TARGET}
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=default.target

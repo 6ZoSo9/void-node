@@ -1,0 +1,4 @@
+[Service]
+# Inactive example. Requires the separately installed loopback SSH forward.
+Environment=VOID_AI_AGENT_GATEWAY_UPSTREAM=http://127.0.0.1:4113
+Environment=VOID_AI_AGENT_GATEWAY_TIMEOUT_MS=15000
