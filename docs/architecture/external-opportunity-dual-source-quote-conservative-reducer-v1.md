@@ -34,7 +34,11 @@ The emitted quote uses:
 - the earliest quote expiry;
 - the later observation timestamp.
 
-The quote ID is content-addressed from the normalized input, both source quote digests, and the reduced quote fields. Reversing the order of otherwise identical sources does not alter the normalized input digest or reduced quote ID.
+Before hashing, the two source records are placed in one canonical order. Provider label is the primary ordering key and quote ID is the tie-break. Both keys use direct ECMAScript relational comparison with `<` and `>`, which compares the strings by UTF-16 code-unit order. The reducer does not use locale-aware collation.
+
+`String.prototype.localeCompare()` and `Intl.Collator` are prohibited in this boundary. Their results can depend on locale and ICU configuration, which could cause different hosts to order identical evidence differently and therefore produce different source-input hashes, quote IDs, and receipt digests.
+
+The quote ID is content-addressed from the canonically ordered normalized input, both source quote digests, and the reduced quote fields. Reversing the supplied source order does not alter the normalized input digest, canonical source-evidence order, reduced quote ID, or receipt digest. The focused proof includes an uppercase-versus-lowercase ordering case and statically fails if a locale-dependent comparator is introduced.
 
 The output retains the general quote-leg field shape used by the paper-observation contracts. Shape compatibility does not guarantee compatibility with every narrower consumer invariant.
 
@@ -103,6 +107,8 @@ The reducer rejects:
 - receipt tampering or digest mismatch;
 - a self-consistent receipt whose derivation differs from the supplied source input;
 - a receipt verified against a different source input.
+
+The focused proof also fails if canonical source ordering stops being permutation invariant or if `localeCompare` or `Intl.Collator` appears in the reducer source.
 
 The self-capital adapter additionally rejects mismatched freshness evidence, upstream digest drift, and any adapted quote that fails to collapse expected amount and value to their guaranteed minima.
 
