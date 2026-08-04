@@ -1,0 +1,64 @@
+{
+  "schema": "void-dual-source-quote-conservative-reducer-input-v1",
+  "reduction_id": "dual-source-usdc-weth-forward-v1",
+  "evaluated_at": "2026-08-04T04:00:10.000Z",
+  "maximum_observation_skew_seconds": 5,
+  "quotes": [
+    {
+      "provider": "provider-alpha",
+      "quote_id": "alpha-forward-001",
+      "observed_at": "2026-08-04T04:00:00.000Z",
+      "quote_expiry_timestamp": 1785816300,
+      "input_asset": {
+        "chain_id": 1,
+        "address": "0x0000000000000000000000000000000000000001",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "output_asset": {
+        "chain_id": 1,
+        "address": "0x0000000000000000000000000000000000000002",
+        "symbol": "WETH",
+        "decimals": 18
+      },
+      "input_amount": "100000000",
+      "expected_output_amount": "30150000000000000",
+      "minimum_output_amount": "30090000000000000",
+      "expected_output_value_usd": "100.500000",
+      "minimum_output_value_usd": "100.300000",
+      "expected_fill_time_seconds": 30,
+      "quoted_output_includes_provider_fees": true,
+      "quoted_output_includes_price_impact": true,
+      "app_fee_usd": "0.000000",
+      "gas_usd": "0.300000"
+    },
+    {
+      "provider": "provider-beta",
+      "quote_id": "beta-forward-001",
+      "observed_at": "2026-08-04T04:00:01.000Z",
+      "quote_expiry_timestamp": 1785816280,
+      "input_asset": {
+        "chain_id": 1,
+        "address": "0x0000000000000000000000000000000000000001",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "output_asset": {
+        "chain_id": 1,
+        "address": "0x0000000000000000000000000000000000000002",
+        "symbol": "WETH",
+        "decimals": 18
+      },
+      "input_amount": "100000000",
+      "expected_output_amount": "30135000000000000",
+      "minimum_output_amount": "30075000000000000",
+      "expected_output_value_usd": "100.450000",
+      "minimum_output_value_usd": "100.250000",
+      "expected_fill_time_seconds": 45,
+      "quoted_output_includes_provider_fees": true,
+      "quoted_output_includes_price_impact": true,
+      "app_fee_usd": "0.000000",
+      "gas_usd": "0.350000"
+    }
+  ]
+}

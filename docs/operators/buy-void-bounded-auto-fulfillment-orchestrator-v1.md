@@ -2,14 +2,14 @@
 
 ## Purpose
 
-This lane introduces a bounded five-stage state machine over the existing Buy
-VOID claim, reservation, execution, broadcast-outcome, confirmation, and
+This lane defines a bounded five-stage state machine over the existing Buy VOID
+claim, reservation, execution, broadcast-outcome, confirmation, and
 confirmed-closeout modules.
 
-V1 does **not** enable unattended fulfillment. It creates the composition
-contract and a disabled, loopback-only planning surface so the proven modules
-can be joined without weakening payment, inventory, signing, or retry
-boundaries.
+The operator runtime now mounts source support for applying exactly two
+non-money stages. It remains disabled by default and requires a separately
+configured server policy plus a fresh server-derived plan and exact
+confirmations. This source change does not enable the runtime on any host.
 
 ## Five stages
 
@@ -21,47 +21,91 @@ boundaries.
 
 Only one request and one stage transition are permitted per invocation.
 
+## Runtime apply boundary
+
+The mounted non-money apply bridge can invoke only:
+
+- `observe_and_claim`
+- `reserve_inventory_and_attempt`
+
+The bridge cannot invoke:
+
+- `execute_reserved_plan`
+- `reconcile_possible_broadcast`
+- `closeout_confirmed_delivery`
+
+The hard-forbidden stages remain unavailable even if they are placed in a
+server environment allowlist.
+
+Each apply invocation requires:
+
+- loopback operator access;
+- the parent Buy VOID runtime enabled;
+- the bounded orchestrator runtime enabled;
+- a valid server-controlled non-money apply policy;
+- one server-derived request snapshot;
+- one successful dry-run decision;
+- an exact SHA-256 plan fingerprint echo;
+- the exact orchestrator confirmation;
+- the exact delegated-stage confirmation;
+- the exact stage confirmation;
+- one request and one stage transition only.
+
+## Server-controlled environment policy
+
+Planning/runtime flag:
+
+`VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ENABLED`
+
+Hard request cap:
+
+`VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_MAX_REQUESTS_PER_RUN=1`
+
+Apply gate:
+
+`VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ENABLED`
+
+Comma-separated allowlist:
+
+`VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ALLOWED_STAGES`
+
+The allowlist accepts only `observe_and_claim` and
+`reserve_inventory_and_attempt`. The gate is ineffective unless the apply flag
+is true and at least one valid stage is configured. Invalid or money-moving
+stage tokens fail closed.
+
+Clients cannot provide or override the policy, paths, lifecycle snapshot, or
+enabled stages.
+
 ## Safety contract
 
 - Exact canonical payment identity remains delegated to the verified-payment
   and fulfillment-claim modules.
-- Claim must exist before inventory or execution reservation.
-- A durable reservation and execution attempt must exist before execution.
-- Broadcast-unknown and broadcast-accepted states require reconciliation.
-- No automatic retry is permitted after a broadcast may have occurred.
-- Closeout requires confirmed delivery.
+- Claim must exist before reservation.
+- A durable reservation and execution attempt must exist before native
+  execution.
+- No automatic retry is permitted.
 - Raw signed transactions are never persisted or returned.
 - Background loops and startup execution are forbidden.
-- The orchestrator runtime is disabled by default and dry-run-only in V1.
-- The existing pipeline runtime remains the parent loopback route, but its
-  no-wallet/no-signing/no-broadcast authority is unchanged.
-- Delivery, native-execution, and confirmed-closeout runtimes remain separately
-  gated and are not enabled by this lane.
+- Wallet access, signing, transaction broadcast, native delivery, and confirmed
+  closeout remain separately gated and unavailable through this runtime bridge.
+- A source commit or merged pull request does not set environment variables,
+  invoke apply, deploy code, restart services, or move funds.
 
 ## Runtime surface
 
-The V1 planning command is integrated under the existing loopback-only pipeline
-runtime:
+The loopback-only parent routes remain:
 
 - Status: `/__void/operator/buy-void-runtime-v1/status`
 - Command: `/__void/operator/buy-void-runtime-v1/command`
 - Action: `run_bounded_auto_fulfillment_stage`
 
-Environment flag:
+A dry request returns `apply_activation.plan.plan_fingerprint_sha256` and all
+required confirmations. An apply request is accepted only when the server
+policy authorizes the selected non-money stage and every plan binding matches.
 
-`VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ENABLED`
+## Remaining activation gate
 
-Hard cap:
-
-`VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_MAX_REQUESTS_PER_RUN=1`
-
-Even when the V1 flag is enabled, `apply=true` is held with
-`runtime_apply_not_enabled_v1`. Live stage application remains available only
-through direct trusted composition and is not mounted by this PR.
-
-## Next activation milestone
-
-A later, separately reviewed lane may configure a dedicated apply runtime.
-That lane must retain exact per-stage confirmations, server-controlled
-policies and paths, durable pre-broadcast control, no retry after uncertainty,
-confirmed-only closeout, and a kill switch.
+A separate operator action is still required to configure any environment
+policy, deploy the reviewed source, and invoke a specific request. No runtime
+configuration or stage invocation is part of this source lane.
