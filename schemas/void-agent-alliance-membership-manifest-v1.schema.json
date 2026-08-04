@@ -69,7 +69,7 @@
         },
         "identity_key_id": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+/-]{7,255}$"
+          "pattern": "^ed25519:sha256:[a-f0-9]{64}$"
         },
         "provider": {
           "const": "provider-neutral"
@@ -319,7 +319,7 @@
             },
             "key_id": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+/-]{7,255}$"
+              "pattern": "^ed25519:sha256:[a-f0-9]{64}$"
             },
             "signature_b64": {
               "type": "string",
