@@ -11,6 +11,7 @@ on:
       - 'docs/public/clone-and-run-v1.md'
       - 'docs/public/run-a-node.md'
       - 'README.md'
+      - '.env.example'
       - '.nvmrc'
       - 'Dockerfile'
       - '.github/workflows/void-node-clone-and-run-v1.yml'
