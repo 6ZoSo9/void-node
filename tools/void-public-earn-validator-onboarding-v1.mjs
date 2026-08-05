@@ -3,6 +3,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -31,6 +32,7 @@ export const MIN_VALIDATOR_STAKE_VOID = 10_000n;
 export const MIN_VALIDATOR_STAKE_WEI = parseEther("10000");
 export const REGISTER_FUNCTION = "registerCandidate";
 export const REGISTRY_ABI = Object.freeze([
+  "error NotRegistered()",
   "function minValidatorStake() view returns (uint256)",
   "function maxActiveValidators() view returns (uint256)",
   "function activationChurnLimit() view returns (uint256)",
@@ -55,6 +57,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config({ path: path.join(ROOT, ".env"), override: false });
 
 const DEFAULT_NODE_BASE = "http://127.0.0.1:4100";
+const DEFAULT_EXPECTED_PEERS = 1;
 const DEFAULT_STATE_DIR = path.join(
   os.homedir(),
   ".local",
@@ -80,18 +83,21 @@ function fail(code, message = code, details = {}) {
 }
 
 export function canonicalJson(value) {
-  const seen = new WeakSet();
+  const ancestors = new WeakSet();
   function order(current) {
-    if (current === null || typeof current !== "object") {
-      if (typeof current === "bigint") return current.toString();
-      return current;
+    if (typeof current === "bigint") return current.toString();
+    if (current === null || typeof current !== "object") return current;
+    if (ancestors.has(current)) fail("canonical_json_cycle", "cannot canonicalize cyclic data");
+    ancestors.add(current);
+    let result;
+    if (Array.isArray(current)) {
+      result = current.map(order);
+    } else {
+      result = {};
+      for (const key of Object.keys(current).sort()) result[key] = order(current[key]);
     }
-    if (seen.has(current)) fail("canonical_json_cycle", "cannot canonicalize cyclic data");
-    seen.add(current);
-    if (Array.isArray(current)) return current.map(order);
-    const out = {};
-    for (const key of Object.keys(current).sort()) out[key] = order(current[key]);
-    return out;
+    ancestors.delete(current);
+    return result;
   }
   return JSON.stringify(order(value));
 }
@@ -106,19 +112,25 @@ function contentAddress(prefix, value) {
 
 function normalizeBytes32(raw, label) {
   const value = String(raw || "").trim().toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(value)) fail("invalid_bytes32", `${label} must be 0x plus 64 lowercase hex characters`);
+  if (!/^0x[0-9a-f]{64}$/.test(value)) {
+    fail("invalid_bytes32", `${label} must be 0x plus 64 lowercase hex characters`);
+  }
   return value;
 }
 
 function normalizeNodeId(raw) {
   const value = String(raw || "").trim().toLowerCase().replace(/^0x/, "");
-  if (!/^[0-9a-f]{32,64}$/.test(value)) fail("invalid_node_id", "node ID must be 32 or 64 lowercase hex characters");
+  if (!/^[0-9a-f]{32,64}$/.test(value)) {
+    fail("invalid_node_id", "node ID must be 32 or 64 lowercase hex characters");
+  }
   return value;
 }
 
 function normalizeAccount(raw) {
   const value = String(raw || "").trim();
-  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value)) fail("invalid_participant_account", "participant account contains unsupported characters");
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
+    fail("invalid_participant_account", "participant account contains unsupported characters");
+  }
   return value;
 }
 
@@ -135,6 +147,24 @@ function normalizeUtc(raw = "") {
   return date.toISOString();
 }
 
+function privateHttpHost(rawHostname) {
+  const hostname = String(rawHostname || "").replace(/^\[|\]$/g, "").toLowerCase();
+  if (hostname === "localhost" || hostname === "::1" || hostname.endsWith(".ts.net")) return true;
+  const family = net.isIP(hostname);
+  if (family === 4) {
+    const octets = hostname.split(".").map(Number);
+    return (
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 192 && octets[1] === 168) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127)
+    );
+  }
+  if (family === 6) return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname);
+  return false;
+}
+
 function normalizeOrigin(raw, { allowPrivateHttp = true, label = "origin" } = {}) {
   const value = String(raw || "").trim();
   if (!value || value.length > 512) fail("invalid_origin", `${label} is missing or too long`);
@@ -147,18 +177,10 @@ function normalizeOrigin(raw, { allowPrivateHttp = true, label = "origin" } = {}
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     fail("credentialed_origin_forbidden", `${label} must not contain credentials, query parameters, or fragments`);
   }
-  if (parsed.pathname && parsed.pathname !== "/") fail("origin_path_forbidden", `${label} must be an origin without a path`);
-  const host = parsed.hostname.toLowerCase();
-  const privateHttp = allowPrivateHttp && parsed.protocol === "http:" && (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) ||
-    host.endsWith(".ts.net")
-  );
+  if (parsed.pathname && parsed.pathname !== "/") {
+    fail("origin_path_forbidden", `${label} must be an origin without a path`);
+  }
+  const privateHttp = allowPrivateHttp && parsed.protocol === "http:" && privateHttpHost(parsed.hostname);
   if (parsed.protocol !== "https:" && !privateHttp) {
     fail("insecure_public_origin_forbidden", `${label} must use HTTPS unless it is loopback, private, or Tailnet HTTP`);
   }
@@ -168,7 +190,9 @@ function normalizeOrigin(raw, { allowPrivateHttp = true, label = "origin" } = {}
 function normalizeOptionalText(raw, label, max = 512) {
   const value = String(raw || "").trim();
   if (value.length > max) fail("text_too_long", `${label} exceeds ${max} characters`);
-  if(/[\u0000-\u001f\u007f]/.test(value)) fail("control_character_forbidden", `${label} contains control characters`);
+  if (/[\u0000-\u001f\u007f]/.test(value)) {
+    fail("control_character_forbidden", `${label} contains control characters`);
+  }
   return value;
 }
 
@@ -178,6 +202,14 @@ function parseBoolean(raw, fallback = false) {
   if (["1", "true", "yes", "on"].includes(value)) return true;
   if (["0", "false", "no", "off"].includes(value)) return false;
   fail("invalid_boolean", `invalid boolean: ${raw}`);
+}
+
+function parseInteger(raw, label, minimum, maximum) {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    fail("invalid_integer", `${label} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return value;
 }
 
 function expandHome(raw) {
@@ -237,7 +269,7 @@ function usage() {
 
 Usage:
   ./void-participant.sh onboard [options]
-  ./void-participant.sh node-check [--node-base ORIGIN]
+  ./void-participant.sh node-check [--node-base ORIGIN] [--expected-peer-count N]
   ./void-participant.sh earn-identity [--state-dir PATH]
   ./void-participant.sh earn-status --account ID --coordinator-base ORIGIN --coordinator-node-id HEX
   ./void-participant.sh earn --account ID --coordinator-base ORIGIN --coordinator-node-id HEX
@@ -247,6 +279,7 @@ Usage:
 
 Common options:
   --node-base ORIGIN             Local node origin; default http://127.0.0.1:4100
+  --expected-peer-count N        Minimum visible peers; default 1
   --state-dir PATH               Private local output directory
   --earn-mode no-node|local-executor
   --account ID
@@ -259,7 +292,7 @@ Candidate options:
   --registry ADDRESS
   --owner ADDRESS                Candidate wallet address; wallet stays local
   --reward ADDRESS               Defaults to owner
-  --node-id HEX                  Defaults to node readiness identity
+  --node-id HEX                  Must match the reviewed node identity when supplied
   --consensus-key-hash BYTES32   Optional explicit public fingerprint
   --public-endpoint TEXT
   --p2p-multiaddr TEXT
@@ -271,20 +304,39 @@ remain separate owner/authority-gated actions and are never automatic.
 `;
 }
 
-async function fetchJson(origin, route, timeoutMs = 5000) {
+async function fetchJson(origin, route, timeoutMs = 8_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${origin}${route}`, {
+      method: "GET",
+      redirect: "manual",
       headers: { accept: "application/json" },
       signal: controller.signal,
     });
-    const text = await response.text();
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > 2 * 1024 * 1024) {
+      return { ok: false, status: response.status, error: "response_too_large", body: null };
+    }
     let body;
-    try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 512) }; }
-    return { ok: response.ok, status: response.status, body };
+    try {
+      body = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      return { ok: false, status: response.status, error: "invalid_json", body: null };
+    }
+    return {
+      ok: response.status === 200,
+      status: response.status,
+      error: response.status === 200 ? null : `http_${response.status}`,
+      body,
+    };
   } catch (error) {
-    return { ok: false, status: 0, error: String(error?.name || error || "fetch_failed") };
+    return {
+      ok: false,
+      status: 0,
+      error: error?.name === "AbortError" ? "timeout" : "request_failed",
+      body: null,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -292,15 +344,20 @@ async function fetchJson(origin, route, timeoutMs = 5000) {
 
 function countPeers(body) {
   if (Array.isArray(body)) return body.length;
-  if (Array.isArray(body?.peers)) return body.peers.length;
-  if (Number.isSafeInteger(body?.peer_count)) return body.peer_count;
-  if (Number.isSafeInteger(body?.count)) return body.count;
+  if (!body || typeof body !== "object") return null;
+  for (const key of ["peers", "connected", "items", "nodes"]) {
+    if (Array.isArray(body[key])) return body[key].length;
+  }
+  for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
+    const value = Number(body[key]);
+    if (Number.isInteger(value) && value >= 0) return value;
+  }
   return null;
 }
 
 function pickNodeId(...bodies) {
   for (const body of bodies) {
-    for (const key of ["node_id", "nodeId", "node", "id"]) {
+    for (const key of ["nodeId", "node_id", "node", "id"]) {
       const candidate = String(body?.[key] || "").trim().toLowerCase().replace(/^0x/, "");
       if (/^[0-9a-f]{32,64}$/.test(candidate)) return candidate;
     }
@@ -308,27 +365,60 @@ function pickNodeId(...bodies) {
   return "";
 }
 
-export async function inspectNode(nodeBaseRaw = DEFAULT_NODE_BASE) {
+export async function inspectNode(nodeBaseRaw = DEFAULT_NODE_BASE, options = {}) {
   const nodeBase = normalizeOrigin(nodeBaseRaw, { label: "node base" });
-  const [health, readiness, peers, latest] = await Promise.all([
-    fetchJson(nodeBase, "/healthz"),
+  const expectedPeerCount = parseInteger(
+    options.expectedPeerCount ?? DEFAULT_EXPECTED_PEERS,
+    "expected peer count",
+    0,
+    10_000,
+  );
+  const [health, readiness, latest] = await Promise.all([
+    fetchJson(nodeBase, "/health"),
     fetchJson(nodeBase, "/__void/ready.json"),
-    fetchJson(nodeBase, "/p2p/peers"),
     fetchJson(nodeBase, "/blocks/latest/number2.json"),
   ]);
-  const nodeId = pickNodeId(readiness.body, health.body, peers.body);
-  const ready = readiness.ok && readiness.body?.ready === true;
-  const headReachable = latest.ok && latest.body && typeof latest.body === "object";
+  let peerRoute = "/p2p/peers";
+  let peers = await fetchJson(nodeBase, peerRoute);
+  if (!peers.ok) {
+    peerRoute = "/peers";
+    peers = await fetchJson(nodeBase, peerRoute);
+  }
+
+  const nodeId = pickNodeId(health.body, readiness.body, peers.body);
+  const healthOk = health.ok && health.body?.ok === true && Boolean(nodeId);
+  const readinessOk =
+    readiness.ok &&
+    readiness.body?.ready === true &&
+    Number(readiness.body?.gap) === 0 &&
+    Number(readiness.body?.txroot_live) === 1 &&
+    Array.isArray(readiness.body?.reasons) &&
+    readiness.body.reasons.length === 0;
+  const headNumber = Number(latest.body?.number);
+  const latestOk = latest.ok && Number.isInteger(headNumber) && headNumber >= 0;
+  const headAligned =
+    latestOk &&
+    (!Number.isInteger(readiness.body?.head) || headNumber === readiness.body.head) &&
+    (!Number.isInteger(readiness.body?.lastmile_seen) || headNumber === readiness.body.lastmile_seen);
+  const peerCount = peers.ok ? countPeers(peers.body) : null;
+  const peersOk = Number.isInteger(peerCount) && peerCount >= expectedPeerCount;
   return {
     marker: "VOID_PARTICIPANT_NODE_OBSERVER_CHECK_V1",
     node_base: nodeBase,
     health_reachable: health.ok,
+    health_contract_valid: healthOk,
     readiness_reachable: readiness.ok,
-    ready,
-    latest_block_reachable: Boolean(headReachable),
-    peer_count: peers.ok ? countPeers(peers.body) : null,
+    readiness_contract_valid: readinessOk,
+    ready: readinessOk,
+    latest_block_reachable: latestOk,
+    latest_block_aligned: headAligned,
+    latest_block_number: latestOk ? headNumber : null,
+    peer_route: peerRoute,
+    peer_count: Number.isInteger(peerCount) ? peerCount : null,
+    expected_peer_count: expectedPeerCount,
+    peer_visibility_valid: peersOk,
     node_id: nodeId || null,
-    observer_validation_ready: Boolean(health.ok && ready && headReachable),
+    observer_validation_ready: Boolean(healthOk && readinessOk && headAligned && peersOk),
     consensus_validator_active: false,
     consensus_validator_activation_attempted: false,
     wallet_or_signer_accessed: false,
@@ -338,7 +428,9 @@ export async function inspectNode(nodeBaseRaw = DEFAULT_NODE_BASE) {
 
 function earnClientConfiguration(options) {
   const mode = option(options, "earn-mode", "VOID_PARTICIPANT_EARN_MODE", "no-node").trim();
-  if (!["no-node", "local-executor"].includes(mode)) fail("invalid_earn_mode", "earn mode must be no-node or local-executor");
+  if (!["no-node", "local-executor"].includes(mode)) {
+    fail("invalid_earn_mode", "earn mode must be no-node or local-executor");
+  }
   const accountRaw = option(options, "account", "VOID_PARTICIPANT_ACCOUNT");
   const coordinatorBaseRaw = option(options, "coordinator-base", "VOID_PUBLIC_EARN_COORDINATOR_BASE");
   const coordinatorNodeIdRaw = option(options, "coordinator-node-id", "VOID_PUBLIC_EARN_COORDINATOR_NODE_ID");
@@ -346,7 +438,9 @@ function earnClientConfiguration(options) {
   return {
     mode,
     account: accountRaw ? normalizeAccount(accountRaw) : "",
-    coordinatorBase: coordinatorBaseRaw ? normalizeOrigin(coordinatorBaseRaw, { label: "coordinator base" }) : "",
+    coordinatorBase: coordinatorBaseRaw
+      ? normalizeOrigin(coordinatorBaseRaw, { label: "coordinator base" })
+      : "",
     coordinatorNodeId: coordinatorNodeIdRaw ? normalizeNodeId(coordinatorNodeIdRaw) : "",
     ticketFile: ticketFileRaw ? path.resolve(expandHome(ticketFileRaw)) : "",
   };
@@ -354,28 +448,41 @@ function earnClientConfiguration(options) {
 
 function runEarnClient(subcommand, options, { capture = false } = {}) {
   const config = earnClientConfiguration(options);
-  const stateDir = path.resolve(expandHome(option(options, "earn-state-dir", "VOID_PUBLIC_EARN_STATE_DIR", "")) || path.join(DEFAULT_STATE_DIR, "earn"));
+  const stateDir = path.resolve(
+    expandHome(option(options, "earn-state-dir", "VOID_PUBLIC_EARN_STATE_DIR", "")) ||
+      path.join(DEFAULT_STATE_DIR, "earn"),
+  );
   ensurePrivateDirectory(stateDir);
+
   if (config.mode === "no-node" && subcommand !== "identity" && !config.account) {
     fail("earn_account_required", "no-node earning requires --account or VOID_PARTICIPANT_ACCOUNT");
   }
   if (subcommand !== "identity") {
     if (!config.coordinatorBase) fail("earn_coordinator_base_required", "earning requires --coordinator-base");
-    if (!config.coordinatorNodeId) fail("earn_coordinator_node_id_required", "earning requires --coordinator-node-id");
+    if (!config.coordinatorNodeId) {
+      fail("earn_coordinator_node_id_required", "earning requires --coordinator-node-id");
+    }
   }
+
   let command;
   let args;
-  const env = { ...process.env };
   if (config.mode === "no-node") {
     command = process.execPath;
-    args = [NO_NODE_EARN_CLIENT, subcommand === "identity" ? "identity" : subcommand];
+    args = [NO_NODE_EARN_CLIENT, subcommand];
     if (subcommand !== "identity") {
-      args.push("--account", config.account, "--coordinator-base", config.coordinatorBase, "--coordinator-node-id", config.coordinatorNodeId);
+      args.push(
+        "--account",
+        config.account,
+        "--coordinator-base",
+        config.coordinatorBase,
+        "--coordinator-node-id",
+        config.coordinatorNodeId,
+      );
     }
     args.push("--state-dir", stateDir);
   } else {
     if (subcommand !== "run") {
-      fail("local_executor_run_only", "local-executor mode accepts only the earn command with a trusted ticket file");
+      fail("local_executor_run_only", "local-executor mode accepts only the earn command");
     }
     if (!config.ticketFile || !fs.existsSync(config.ticketFile) || !fs.statSync(config.ticketFile).isFile()) {
       fail("local_executor_ticket_required", "local-executor earning requires --ticket-file");
@@ -383,9 +490,10 @@ function runEarnClient(subcommand, options, { capture = false } = {}) {
     command = "bash";
     args = [LOCAL_EXECUTOR_EARN_CLIENT, config.ticketFile, config.coordinatorBase, config.coordinatorNodeId];
   }
+
   const result = spawnSync(command, args, {
     cwd: ROOT,
-    env,
+    env: { ...process.env },
     encoding: "utf8",
     stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
     maxBuffer: 16 * 1024 * 1024,
@@ -418,24 +526,29 @@ function registryCodeSha256(code) {
 
 async function readRegistryPolicy(provider, registryAddress) {
   const code = await provider.getCode(registryAddress);
-  if (!code || code === "0x") fail("candidate_registry_not_deployed", `no contract bytecode at ${registryAddress}`);
+  if (!code || code === "0x") {
+    fail("candidate_registry_not_deployed", `no contract bytecode at ${registryAddress}`);
+  }
   const registry = new Contract(registryAddress, REGISTRY_ABI, provider);
-  const [minStake, maxActive, churn, authority, candidateCount, waitingCount, activeCount] = await Promise.all([
-    registry.minValidatorStake(),
-    registry.maxActiveValidators(),
-    registry.activationChurnLimit(),
-    registry.owner(),
-    registry.candidateCount(),
-    registry.waitingCount(),
-    registry.activeCount(),
-  ]);
+  const [minStake, maxActive, churn, authority, candidateCount, waitingCount, activeCount] =
+    await Promise.all([
+      registry.minValidatorStake(),
+      registry.maxActiveValidators(),
+      registry.activationChurnLimit(),
+      registry.owner(),
+      registry.candidateCount(),
+      registry.waitingCount(),
+      registry.activeCount(),
+    ]);
   if (BigInt(minStake) !== MIN_VALIDATOR_STAKE_WEI) {
-    fail("candidate_registry_minimum_mismatch", `registry minimum is ${minStake}; policy requires exactly ${MIN_VALIDATOR_STAKE_WEI}`);
+    fail(
+      "candidate_registry_minimum_mismatch",
+      `registry minimum is ${minStake}; policy requires exactly ${MIN_VALIDATOR_STAKE_WEI}`,
+    );
   }
   if (BigInt(maxActive) <= 0n) fail("candidate_registry_active_cap_invalid");
   if (BigInt(churn) <= 0n) fail("candidate_registry_churn_invalid");
   return {
-    code,
     code_sha256: registryCodeSha256(code),
     min_validator_stake_wei: BigInt(minStake).toString(),
     min_validator_stake_void: MIN_VALIDATOR_STAKE_VOID.toString(),
@@ -448,20 +561,45 @@ async function readRegistryPolicy(provider, registryAddress) {
   };
 }
 
+function extractErrorData(error) {
+  const candidates = [
+    error?.data,
+    error?.error?.data,
+    error?.info?.error?.data,
+    error?.info?.data,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && /^0x[0-9a-fA-F]+$/.test(candidate)) return candidate;
+    if (typeof candidate?.data === "string") return candidate.data;
+  }
+  return "";
+}
+
 async function candidateExists(registry, owner) {
   try {
-    const candidate = await registry.getCandidate(owner);
-    return { exists: true, candidate };
-  } catch {
-    return { exists: false, candidate: null };
+    return { exists: true, candidate: await registry.getCandidate(owner) };
+  } catch (error) {
+    const data = extractErrorData(error);
+    if (data) {
+      try {
+        const parsed = REGISTRY_INTERFACE.parseError(data);
+        if (parsed?.name === "NotRegistered") return { exists: false, candidate: null };
+      } catch {
+        // Preserve the original error below.
+      }
+    }
+    throw error;
   }
 }
 
 export function buildCandidatePacketBody(input) {
   const chainId = BigInt(input.chainId);
-  if (chainId !== CHAIN_ID) fail("wrong_chain_id", `expected chain ID ${CHAIN_ID}, got ${chainId}`);
+  if (chainId !== CHAIN_ID) {
+    fail("wrong_chain_id", `expected chain ID ${CHAIN_ID}, got ${chainId}`);
+  }
   const minStakeWei = BigInt(input.registryPolicy.min_validator_stake_wei);
   if (minStakeWei !== MIN_VALIDATOR_STAKE_WEI) fail("candidate_registry_minimum_mismatch");
+
   const owner = normalizeAddress(input.owner, "candidate owner");
   const reward = normalizeAddress(input.reward || owner, "reward address");
   const registry = normalizeAddress(input.registry, "candidate registry");
@@ -486,15 +624,11 @@ export function buildCandidatePacketBody(input) {
     automatic_active_transition: false,
   };
   const metadataHash = keccak256(toUtf8Bytes(canonicalJson(metadata)));
-  const data = REGISTRY_INTERFACE.encodeFunctionData(REGISTER_FUNCTION, [reward, consensusKeyHash, metadataHash]);
-  const unsignedTransaction = {
-    type: 2,
-    chain_id: Number(CHAIN_ID),
-    from: owner,
-    to: registry,
-    value_wei: minStakeWei.toString(),
-    data,
-  };
+  const data = REGISTRY_INTERFACE.encodeFunctionData(REGISTER_FUNCTION, [
+    reward,
+    consensusKeyHash,
+    metadataHash,
+  ]);
   const fundingBalanceWei = BigInt(input.ownerBalanceWei || 0n);
   const fundingReady = fundingBalanceWei >= minStakeWei;
   const body = {
@@ -517,7 +651,14 @@ export function buildCandidatePacketBody(input) {
     minimum_stake_void: MIN_VALIDATOR_STAKE_VOID.toString(),
     stake_funding_ready: fundingReady,
     already_registered: Boolean(input.alreadyRegistered),
-    unsigned_transaction: unsignedTransaction,
+    unsigned_transaction: {
+      type: 2,
+      chain_id: Number(CHAIN_ID),
+      from: owner,
+      to: registry,
+      value_wei: minStakeWei.toString(),
+      data,
+    },
     decision: input.alreadyRegistered
       ? "HOLD_ALREADY_REGISTERED"
       : fundingReady
@@ -534,29 +675,39 @@ export function buildCandidatePacketBody(input) {
       automatic_promotion: false,
     },
   };
-  const packetId = contentAddress("voidvcp1", body);
-  return { ...body, packet_id: packetId };
+  return { ...body, packet_id: contentAddress("voidvcp1", body) };
 }
 
-async function buildCandidatePacket(options, nodeSnapshot = null) {
+async function buildCandidatePacket(options, nodeSnapshot) {
+  if (!nodeSnapshot?.observer_validation_ready) {
+    fail("observer_node_not_ready", "candidate packet requires a strict-green local node observer check");
+  }
   const rpc = normalizeOrigin(option(options, "rpc", "VOID_CHAIN_RPC"), { label: "chain RPC" });
-  const registryAddress = normalizeAddress(option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY"), "candidate registry");
+  const registryAddress = normalizeAddress(
+    option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY"),
+    "candidate registry",
+  );
   const owner = normalizeAddress(option(options, "owner", "VOID_VALIDATOR_OWNER"), "candidate owner");
-  const rewardRaw = option(options, "reward", "VOID_VALIDATOR_REWARD", owner);
-  const reward = normalizeAddress(rewardRaw, "reward address");
+  const reward = normalizeAddress(
+    option(options, "reward", "VOID_VALIDATOR_REWARD", owner),
+    "reward address",
+  );
   const provider = new JsonRpcProvider(rpc);
   const network = await provider.getNetwork();
-  if (BigInt(network.chainId) !== CHAIN_ID) fail("wrong_chain_id", `RPC is chain ${network.chainId}; expected ${CHAIN_ID}`);
+  if (BigInt(network.chainId) !== CHAIN_ID) {
+    fail("wrong_chain_id", `RPC is chain ${network.chainId}; expected ${CHAIN_ID}`);
+  }
   const registryPolicy = await readRegistryPolicy(provider, registryAddress);
   const registry = new Contract(registryAddress, REGISTRY_ABI, provider);
   const [balance, registration] = await Promise.all([
     provider.getBalance(owner),
     candidateExists(registry, owner),
   ]);
-  const nodeIdRaw = option(options, "node-id", "VOID_VALIDATOR_NODE_ID", nodeSnapshot?.node_id || "");
-  if (!nodeIdRaw) fail("validator_node_id_required", "candidate packet requires --node-id or a reachable node readiness identity");
-  const nodeBaseRaw = option(options, "node-base", "VOID_NODE_BASE", nodeSnapshot?.node_base || DEFAULT_NODE_BASE);
-  const nodeBase = normalizeOrigin(nodeBaseRaw, { label: "node base" });
+  const explicitNodeId = option(options, "node-id", "VOID_VALIDATOR_NODE_ID");
+  const nodeId = explicitNodeId ? normalizeNodeId(explicitNodeId) : normalizeNodeId(nodeSnapshot.node_id);
+  if (explicitNodeId && nodeId !== normalizeNodeId(nodeSnapshot.node_id)) {
+    fail("validator_node_id_mismatch", "explicit validator node ID does not match the local observer node identity");
+  }
   const packet = buildCandidatePacketBody({
     chainId: network.chainId,
     rpc,
@@ -564,8 +715,8 @@ async function buildCandidatePacket(options, nodeSnapshot = null) {
     registryPolicy,
     owner,
     reward,
-    nodeId: nodeIdRaw,
-    nodeBase,
+    nodeId,
+    nodeBase: nodeSnapshot.node_base,
     publicEndpoint: option(options, "public-endpoint", "VOID_VALIDATOR_PUBLIC_ENDPOINT"),
     p2pMultiaddr: option(options, "p2p-multiaddr", "VOID_VALIDATOR_P2P_MULTIADDR"),
     consensusKeyHash: option(options, "consensus-key-hash", "VOID_VALIDATOR_CONSENSUS_KEY_HASH"),
@@ -573,9 +724,10 @@ async function buildCandidatePacket(options, nodeSnapshot = null) {
     ownerBalanceWei: balance,
     alreadyRegistered: registration.exists,
   });
-  const stateDir = path.resolve(expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)));
-  const packetDir = path.join(stateDir, "candidate-packets");
-  const packetFile = path.join(packetDir, `${packet.packet_id}.json`);
+  const stateDir = path.resolve(
+    expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)),
+  );
+  const packetFile = path.join(stateDir, "candidate-packets", `${packet.packet_id}.json`);
   atomicWriteJson(packetFile, packet);
   atomicWriteJson(path.join(stateDir, "candidate-packet-latest.json"), packet);
   return { packet, packet_file: packetFile };
@@ -583,30 +735,56 @@ async function buildCandidatePacket(options, nodeSnapshot = null) {
 
 function readPacket(fileRaw) {
   const file = path.resolve(expandHome(fileRaw));
-  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail("candidate_packet_missing", `candidate packet not found: ${file}`);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    fail("candidate_packet_missing", `candidate packet not found: ${file}`);
+  }
   const packet = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (packet?.marker !== CANDIDATE_PACKET_MARKER || packet?.version !== 1) fail("candidate_packet_marker_invalid");
+  if (packet?.marker !== CANDIDATE_PACKET_MARKER || packet?.version !== 1) {
+    fail("candidate_packet_marker_invalid");
+  }
   const copy = { ...packet, packet_id: null };
-  if (contentAddress("voidvcp1", copy) !== packet.packet_id) fail("candidate_packet_content_address_invalid");
+  if (contentAddress("voidvcp1", copy) !== packet.packet_id) {
+    fail("candidate_packet_content_address_invalid");
+  }
   return { packet, file };
 }
 
 export function verifySignedCandidateTransaction(rawTransaction, packet) {
   const raw = String(rawTransaction || "").trim();
-  if (!/^0x[0-9a-fA-F]+$/.test(raw)) fail("signed_transaction_invalid", "signed transaction must be 0x-prefixed hex");
+  if (!/^0x[0-9a-fA-F]+$/.test(raw)) {
+    fail("signed_transaction_invalid", "signed transaction must be 0x-prefixed hex");
+  }
   let transaction;
-  try { transaction = Transaction.from(raw); } catch { fail("signed_transaction_parse_failed"); }
+  try {
+    transaction = Transaction.from(raw);
+  } catch {
+    fail("signed_transaction_parse_failed");
+  }
   if (!transaction.isSigned()) fail("transaction_not_signed");
   const expected = packet.unsigned_transaction;
   if (BigInt(transaction.chainId) !== CHAIN_ID) fail("signed_transaction_chain_mismatch");
-  if (!transaction.to || getAddress(transaction.to) !== getAddress(expected.to)) fail("signed_transaction_registry_mismatch");
-  if (getAddress(transaction.from) !== getAddress(expected.from)) fail("signed_transaction_sender_mismatch");
-  if (BigInt(transaction.value) !== BigInt(expected.value_wei)) fail("signed_transaction_value_mismatch");
-  if (String(transaction.data).toLowerCase() !== String(expected.data).toLowerCase()) fail("signed_transaction_data_mismatch");
+  if (!transaction.to || getAddress(transaction.to) !== getAddress(expected.to)) {
+    fail("signed_transaction_registry_mismatch");
+  }
+  if (!transaction.from || getAddress(transaction.from) !== getAddress(expected.from)) {
+    fail("signed_transaction_sender_mismatch");
+  }
+  if (BigInt(transaction.value) !== BigInt(expected.value_wei)) {
+    fail("signed_transaction_value_mismatch");
+  }
+  if (String(transaction.data).toLowerCase() !== String(expected.data).toLowerCase()) {
+    fail("signed_transaction_data_mismatch");
+  }
   const decoded = REGISTRY_INTERFACE.decodeFunctionData(REGISTER_FUNCTION, transaction.data);
-  if (getAddress(decoded[0]) !== getAddress(packet.reward_address)) fail("signed_transaction_reward_mismatch");
-  if (String(decoded[1]).toLowerCase() !== String(packet.consensus_key_hash).toLowerCase()) fail("signed_transaction_consensus_hash_mismatch");
-  if (String(decoded[2]).toLowerCase() !== String(packet.metadata_hash).toLowerCase()) fail("signed_transaction_metadata_hash_mismatch");
+  if (getAddress(decoded[0]) !== getAddress(packet.reward_address)) {
+    fail("signed_transaction_reward_mismatch");
+  }
+  if (String(decoded[1]).toLowerCase() !== String(packet.consensus_key_hash).toLowerCase()) {
+    fail("signed_transaction_consensus_hash_mismatch");
+  }
+  if (String(decoded[2]).toLowerCase() !== String(packet.metadata_hash).toLowerCase()) {
+    fail("signed_transaction_metadata_hash_mismatch");
+  }
   return {
     transaction_hash: transaction.hash,
     sender: getAddress(transaction.from),
@@ -620,9 +798,18 @@ export function verifySignedCandidateTransaction(rawTransaction, packet) {
 }
 
 async function readCandidateState(options, packetOverride = null) {
-  const rpc = normalizeOrigin(packetOverride?.rpc_origin || option(options, "rpc", "VOID_CHAIN_RPC"), { label: "chain RPC" });
-  const registryAddress = normalizeAddress(packetOverride?.candidate_registry || option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY"), "candidate registry");
-  const owner = normalizeAddress(packetOverride?.candidate_owner || option(options, "owner", "VOID_VALIDATOR_OWNER"), "candidate owner");
+  const rpc = normalizeOrigin(
+    packetOverride?.rpc_origin || option(options, "rpc", "VOID_CHAIN_RPC"),
+    { label: "chain RPC" },
+  );
+  const registryAddress = normalizeAddress(
+    packetOverride?.candidate_registry || option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY"),
+    "candidate registry",
+  );
+  const owner = normalizeAddress(
+    packetOverride?.candidate_owner || option(options, "owner", "VOID_VALIDATOR_OWNER"),
+    "candidate owner",
+  );
   const provider = new JsonRpcProvider(rpc);
   const network = await provider.getNetwork();
   if (BigInt(network.chainId) !== CHAIN_ID) fail("wrong_chain_id");
@@ -646,7 +833,6 @@ async function readCandidateState(options, packetOverride = null) {
   }
   const candidate = result.candidate;
   const stateCode = Number(candidate.state);
-  const state = VALIDATOR_STATES[stateCode] || `unknown-${stateCode}`;
   return {
     marker: "VOID_VALIDATOR_CANDIDATE_STATE_V1",
     chain_id: Number(CHAIN_ID),
@@ -659,7 +845,7 @@ async function readCandidateState(options, packetOverride = null) {
     registered_at_unix: Number(candidate.registeredAt),
     updated_at_unix: Number(candidate.updatedAt),
     registered: true,
-    state,
+    state: VALIDATOR_STATES[stateCode] || `unknown-${stateCode}`,
     state_code: stateCode,
     waiting: stateCode === 2,
     registry_marks_active: stateCode === 3,
@@ -670,24 +856,37 @@ async function readCandidateState(options, packetOverride = null) {
 }
 
 async function submitSignedCandidate(options) {
-  const { packet, file: packetFile } = readPacket(option(options, "packet", "VOID_VALIDATOR_CANDIDATE_PACKET"));
-  const signedFile = path.resolve(expandHome(option(options, "signed-transaction-file", "VOID_VALIDATOR_SIGNED_TRANSACTION_FILE")));
-  if (!signedFile || !fs.existsSync(signedFile) || !fs.statSync(signedFile).isFile()) fail("signed_transaction_file_missing");
+  const { packet, file: packetFile } = readPacket(
+    option(options, "packet", "VOID_VALIDATOR_CANDIDATE_PACKET"),
+  );
+  const signedFile = path.resolve(
+    expandHome(option(options, "signed-transaction-file", "VOID_VALIDATOR_SIGNED_TRANSACTION_FILE")),
+  );
+  if (!signedFile || !fs.existsSync(signedFile) || !fs.statSync(signedFile).isFile()) {
+    fail("signed_transaction_file_missing");
+  }
   const raw = fs.readFileSync(signedFile, "utf8").trim();
   const verified = verifySignedCandidateTransaction(raw, packet);
-  const expectedConfirmation = `SUBMIT VOID VALIDATOR CANDIDATE ${packet.candidate_owner} ON CHAIN ${CHAIN_ID}`;
+  const expectedConfirmation =
+    `SUBMIT VOID VALIDATOR CANDIDATE ${packet.candidate_owner} ON CHAIN ${CHAIN_ID}`;
   const confirmation = option(options, "confirm", "VOID_VALIDATOR_SUBMISSION_CONFIRMATION");
   if (confirmation !== expectedConfirmation) {
     fail("candidate_submission_confirmation_mismatch", `exact confirmation required: ${expectedConfirmation}`);
   }
+
   const provider = new JsonRpcProvider(normalizeOrigin(packet.rpc_origin, { label: "chain RPC" }));
   const before = await readCandidateState({}, packet);
   if (before.registered) fail("candidate_already_registered");
   const response = await provider.broadcastTransaction(raw);
   const receipt = await response.wait(1, 180_000);
-  if (!receipt || Number(receipt.status) !== 1) fail("candidate_registration_transaction_failed");
+  if (!receipt || Number(receipt.status) !== 1) {
+    fail("candidate_registration_transaction_failed");
+  }
   const after = await readCandidateState({}, packet);
-  if (!after.registered || after.state_code !== 1) fail("candidate_registration_state_not_candidate");
+  if (!after.registered || after.state_code !== 1) {
+    fail("candidate_registration_state_not_candidate");
+  }
+
   const body = {
     marker: CANDIDATE_RECEIPT_MARKER,
     version: 1,
@@ -705,20 +904,50 @@ async function submitSignedCandidate(options) {
     wallet_key_read_by_tool: false,
   };
   const final = { ...body, receipt_id: contentAddress("voidvcr1", body) };
-  const stateDir = path.resolve(expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)));
-  const file = path.join(stateDir, "candidate-receipts", `${final.receipt_id}.json`);
-  atomicWriteJson(file, final);
-  return { receipt: final, receipt_file: file, candidate_state: after, signed_transaction: verified };
+  const stateDir = path.resolve(
+    expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)),
+  );
+  const receiptFile = path.join(stateDir, "candidate-receipts", `${final.receipt_id}.json`);
+  atomicWriteJson(receiptFile, final);
+  return {
+    receipt: final,
+    receipt_file: receiptFile,
+    candidate_state: after,
+    signed_transaction: verified,
+  };
+}
+
+function candidateConfiguration(options) {
+  const values = {
+    rpc: option(options, "rpc", "VOID_CHAIN_RPC"),
+    registry: option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY"),
+    owner: option(options, "owner", "VOID_VALIDATOR_OWNER"),
+  };
+  const missing = Object.entries(values)
+    .filter(([, value]) => !String(value || "").trim())
+    .map(([key]) => key);
+  return { values, missing, complete: missing.length === 0 };
 }
 
 async function onboard(options) {
-  const stateDir = path.resolve(expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)));
+  const stateDir = path.resolve(
+    expandHome(option(options, "state-dir", "VOID_PARTICIPANT_ONBOARDING_STATE_DIR", DEFAULT_STATE_DIR)),
+  );
   ensurePrivateDirectory(stateDir);
-  const nodeBase = option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE);
-  const node = await inspectNode(nodeBase);
+  const expectedPeerCount = parseInteger(
+    option(options, "expected-peer-count", "VOID_PARTICIPANT_EXPECTED_PEER_COUNT", DEFAULT_EXPECTED_PEERS),
+    "expected peer count",
+    0,
+    10_000,
+  );
+  const node = await inspectNode(
+    option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE),
+    { expectedPeerCount },
+  );
   const earnConfig = earnClientConfiguration(options);
-  let earnIdentity = null;
-  let earnStatus = null;
+
+  let earnIdentity;
+  let earnStatus;
   if (earnConfig.mode === "no-node") {
     try {
       earnIdentity = runEarnClient("identity", options, { capture: true });
@@ -729,11 +958,7 @@ async function onboard(options) {
       try {
         earnStatus = runEarnClient("status", options, { capture: true });
       } catch (error) {
-        earnStatus = {
-          ready: false,
-          error: error.code || error.message,
-          details: error.details || {},
-        };
+        earnStatus = { ready: false, error: error.code || error.message, details: error.details || {} };
       }
     } else {
       earnStatus = {
@@ -754,25 +979,7 @@ async function onboard(options) {
       ticket_file: earnConfig.ticketFile || null,
     };
   }
-  let candidate = null;
-  const candidateInputsPresent = Boolean(
-    option(options, "rpc", "VOID_CHAIN_RPC") ||
-    option(options, "registry", "VOID_VALIDATOR_CANDIDATE_REGISTRY") ||
-    option(options, "owner", "VOID_VALIDATOR_OWNER"),
-  );
-  if (candidateInputsPresent) {
-    try {
-      candidate = await buildCandidatePacket(options, node);
-    } catch (error) {
-      candidate = { ready: false, error: error.code || error.message, details: error.details || {} };
-    }
-  } else {
-    candidate = {
-      ready: false,
-      error: "candidate_registry_configuration_missing",
-      missing: ["rpc", "registry", "owner"],
-    };
-  }
+
   let earnRun = null;
   if (parseBoolean(option(options, "earn-now", "VOID_PARTICIPANT_EARN_NOW", "false"))) {
     try {
@@ -781,11 +988,30 @@ async function onboard(options) {
       earnRun = { ready: false, error: error.code || error.message, details: error.details || {} };
     }
   }
+
+  const candidateConfig = candidateConfiguration(options);
+  let candidate;
+  if (!candidateConfig.complete) {
+    candidate = {
+      ready: false,
+      error: "candidate_registry_configuration_missing",
+      missing: candidateConfig.missing,
+    };
+  } else {
+    try {
+      candidate = await buildCandidatePacket(options, node);
+    } catch (error) {
+      candidate = { ready: false, error: error.code || error.message, details: error.details || {} };
+    }
+  }
+
   const body = {
     marker: REPORT_MARKER,
     version: 1,
     report_id: null,
-    generated_at_utc: normalizeUtc(option(options, "observed-at", "VOID_ONBOARDING_OBSERVED_AT", new Date().toISOString())),
+    generated_at_utc: normalizeUtc(
+      option(options, "observed-at", "VOID_ONBOARDING_OBSERVED_AT", new Date().toISOString()),
+    ),
     node,
     earning: {
       mode: earnConfig.mode,
@@ -796,6 +1022,7 @@ async function onboard(options) {
       status_command_succeeded: earnStatus?.status === 0,
       earn_run_requested: Boolean(earnRun),
       earn_run_succeeded: earnRun?.status === 0,
+      identity: earnIdentity,
       status: earnStatus,
       run: earnRun,
     },
@@ -821,10 +1048,10 @@ async function onboard(options) {
     },
   };
   const report = { ...body, report_id: contentAddress("voidpor1", body) };
-  const file = path.join(stateDir, "onboarding-reports", `${report.report_id}.json`);
-  atomicWriteJson(file, report);
+  const reportFile = path.join(stateDir, "onboarding-reports", `${report.report_id}.json`);
+  atomicWriteJson(reportFile, report);
   atomicWriteJson(path.join(stateDir, "onboarding-report-latest.json"), report);
-  return { report, report_file: file };
+  return { report, report_file: reportFile };
 }
 
 function printJson(value) {
@@ -838,7 +1065,17 @@ async function main(argv = process.argv.slice(2)) {
     return;
   }
   if (command === "node-check") {
-    printJson(await inspectNode(option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE)));
+    const expectedPeerCount = parseInteger(
+      option(options, "expected-peer-count", "VOID_PARTICIPANT_EXPECTED_PEER_COUNT", DEFAULT_EXPECTED_PEERS),
+      "expected peer count",
+      0,
+      10_000,
+    );
+    printJson(
+      await inspectNode(option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE), {
+        expectedPeerCount,
+      }),
+    );
     return;
   }
   if (command === "earn-identity") {
@@ -854,10 +1091,16 @@ async function main(argv = process.argv.slice(2)) {
     return;
   }
   if (command === "candidate-packet") {
-    let node = null;
-    if (!option(options, "node-id", "VOID_VALIDATOR_NODE_ID")) {
-      node = await inspectNode(option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE));
-    }
+    const expectedPeerCount = parseInteger(
+      option(options, "expected-peer-count", "VOID_PARTICIPANT_EXPECTED_PEER_COUNT", DEFAULT_EXPECTED_PEERS),
+      "expected peer count",
+      0,
+      10_000,
+    );
+    const node = await inspectNode(
+      option(options, "node-base", "VOID_NODE_BASE", DEFAULT_NODE_BASE),
+      { expectedPeerCount },
+    );
     printJson(await buildCandidatePacket(options, node));
     return;
   }
@@ -876,7 +1119,8 @@ async function main(argv = process.argv.slice(2)) {
   fail("unknown_command", `unknown command: ${command}`);
 }
 
-const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
   main().catch((error) => {
     const code = error?.code || error?.name || "onboarding_failed";
