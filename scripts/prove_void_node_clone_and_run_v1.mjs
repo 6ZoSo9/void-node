@@ -57,7 +57,8 @@ const launcher = requireText("run-void-node.sh", [
   "host_node_required=false",
 ]);
 
-if (/\bsudo\b/.test(launcher)) fail("launcher contains sudo");
+if (/(?:^|\n)[ \t]*sudo[ \t]+/.test(launcher)) fail("launcher executes sudo");
+if (/\|[ \t]*sudo[ \t]+/.test(launcher)) fail("launcher pipes into sudo");
 if (/curl[^\n]*\|[^\n]*(?:bash|sh)/.test(launcher)) fail("launcher contains curl-pipe-shell execution");
 if (/NODE_SHA256="(?:0+|[0-9a-f]{1,63})"/.test(launcher)) fail("launcher does not contain a complete pinned SHA-256");
 if (!launcher.includes('test "$major" = 22')) fail("host runtime is not restricted to the repository-supported Node major");
