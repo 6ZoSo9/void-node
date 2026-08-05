@@ -6,7 +6,18 @@ const MARKER = "VOID_PUBLIC_SEED_GATEWAY_V1";
 const BIND_HOST = process.env.VOID_PUBLIC_SEED_BIND || "127.0.0.1";
 const PORT = Number(process.env.VOID_PUBLIC_SEED_PORT || 4111);
 const UPSTREAM = new URL(process.env.VOID_PUBLIC_SEED_UPSTREAM || "http://127.0.0.1:4100");
-const MAX_RANGE = Math.max(1, Number(process.env.VOID_PUBLIC_SEED_MAX_RANGE || 250));
+const MAX_RANGE = Math.max(
+  1,
+  Math.min(1000, Number(process.env.VOID_PUBLIC_SEED_MAX_RANGE || 1000) || 1000),
+);
+const MAX_RESPONSE_BYTES = Math.max(
+  1024 * 1024,
+  Math.min(
+    128 * 1024 * 1024,
+    Number(process.env.VOID_PUBLIC_SEED_MAX_RESPONSE_BYTES || 64 * 1024 * 1024) ||
+      64 * 1024 * 1024,
+  ),
+);
 
 function fail(message) {
   console.error(`${MARKER}_FAIL: ${message}`);
@@ -83,26 +94,63 @@ const server = http.createServer((req, res) => {
         accept: "application/json",
         "user-agent": "void-public-seed-gateway-v1",
       },
-      timeout: 30_000,
+      timeout: 60_000,
     },
     (upstreamResponse) => {
       const status = Number(upstreamResponse.statusCode || 502);
-      const contentType = String(upstreamResponse.headers["content-type"] || "application/json; charset=utf-8");
-      const contentLength = upstreamResponse.headers["content-length"];
-      const headers = {
-        "content-type": contentType,
-        "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
-        "x-void-public-seed-gateway": "v1",
-      };
-      if (contentLength) headers["content-length"] = contentLength;
-      res.writeHead(status, headers);
+      const contentType = String(
+        upstreamResponse.headers["content-type"] || "application/json; charset=utf-8",
+      );
+
       if (method === "HEAD") {
         upstreamResponse.resume();
+        res.writeHead(status, {
+          "content-type": contentType,
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-void-public-seed-gateway": "v1",
+        });
         res.end();
-      } else {
-        upstreamResponse.pipe(res);
+        return;
       }
+
+      const advertisedLength = Number(upstreamResponse.headers["content-length"] || 0);
+      if (Number.isFinite(advertisedLength) && advertisedLength > MAX_RESPONSE_BYTES) {
+        upstreamResponse.destroy();
+        writeJson(res, 502, { ok: false, error: "upstream_response_too_large" });
+        return;
+      }
+
+      const chunks = [];
+      let total = 0;
+      let rejected = false;
+      upstreamResponse.on("data", (chunk) => {
+        if (rejected) return;
+        total += chunk.length;
+        if (total > MAX_RESPONSE_BYTES) {
+          rejected = true;
+          upstreamResponse.destroy();
+          writeJson(res, 502, { ok: false, error: "upstream_response_too_large" });
+          return;
+        }
+        chunks.push(chunk);
+      });
+      upstreamResponse.on("end", () => {
+        if (rejected || res.writableEnded) return;
+        const body = Buffer.concat(chunks, total);
+        res.writeHead(status, {
+          "content-type": contentType,
+          "content-length": body.length,
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-void-public-seed-gateway": "v1",
+        });
+        res.end(body);
+      });
+      upstreamResponse.on("error", (error) => {
+        if (!res.headersSent) writeJson(res, 502, { ok: false, error: "upstream_unavailable" });
+        else res.destroy(error);
+      });
     },
   );
 
@@ -124,6 +172,7 @@ server.listen(PORT, BIND_HOST, () => {
   console.log(`port=${PORT}`);
   console.log(`upstream=${UPSTREAM.origin}`);
   console.log(`max_range=${MAX_RANGE}`);
+  console.log(`max_response_bytes=${MAX_RESPONSE_BYTES}`);
   console.log("methods=GET,HEAD");
   console.log("private_mutation_routes_exposed=false");
 });
