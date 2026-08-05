@@ -142,6 +142,7 @@
               "inventory_reserved",
               "attempt_reserved",
               "transaction_prepared",
+              "broadcast_intent_committed",
               "broadcast_not_attempted",
               "broadcast_unknown",
               "broadcast_accepted",
@@ -217,6 +218,7 @@
               "monotonically_increasing_fencing_token_required",
               "append_only_hash_chain_required",
               "prepared_transaction_hash_required_before_broadcast",
+              "write_ahead_broadcast_intent_required",
               "no_automatic_rebroadcast_after_possible_broadcast",
               "receipt_confirmation_required_before_closeout",
               "caller_supplied_private_material_forbidden",
@@ -255,6 +257,9 @@
                 "const": true
               },
               "prepared_transaction_hash_required_before_broadcast": {
+                "const": true
+              },
+              "write_ahead_broadcast_intent_required": {
                 "const": true
               },
               "no_automatic_rebroadcast_after_possible_broadcast": {
@@ -490,6 +495,45 @@
                     "max_priority_fee_per_gas_wei": {
                       "type": "string",
                       "pattern": "^(0|[1-9][0-9]*)$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "broadcast_intent_committed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "broadcast_intent_id"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "broadcast_intent_id": {
+                      "type": "string",
+                      "pattern": "^voidbvbci1_[0-9a-f]{64}$"
                     }
                   }
                 }
@@ -849,6 +893,7 @@
         "attempt_number",
         "transaction_hash",
         "nonce",
+        "broadcast_intent_id",
         "broadcast_call_may_have_occurred",
         "receipt_status",
         "closeout_id",
@@ -863,6 +908,7 @@
             "inventory_reserved",
             "attempt_reserved",
             "transaction_prepared",
+            "broadcast_intent_committed",
             "broadcast_not_attempted",
             "broadcast_unknown",
             "broadcast_accepted",
@@ -965,6 +1011,17 @@
             }
           ]
         },
+        "broadcast_intent_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^voidbvbci1_[0-9a-f]{64}$"
+            }
+          ]
+        },
         "broadcast_call_may_have_occurred": {
           "type": "boolean"
         },
@@ -1021,6 +1078,7 @@
         "monotonically_increasing_fencing_token_required",
         "append_only_hash_chain_required",
         "prepared_transaction_hash_required_before_broadcast",
+        "write_ahead_broadcast_intent_required",
         "no_automatic_rebroadcast_after_possible_broadcast",
         "receipt_confirmation_required_before_closeout",
         "caller_supplied_private_material_forbidden",
@@ -1059,6 +1117,9 @@
           "const": true
         },
         "prepared_transaction_hash_required_before_broadcast": {
+          "const": true
+        },
+        "write_ahead_broadcast_intent_required": {
           "const": true
         },
         "no_automatic_rebroadcast_after_possible_broadcast": {

@@ -8,6 +8,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -93,7 +94,10 @@ function adaptersFor(outcomes) {
         max_priority_fee_per_gas_wei: "100000000",
       },
     }),
-    execute_prepared_transaction: async () => ({
+    execute_prepared_transaction: async ({ record, broadcast_intent_id }) => {
+      assert.equal(record.state.state, "broadcast_intent_committed");
+      assert.equal(record.state.broadcast_intent_id, broadcast_intent_id);
+      return ({
       outcome: outcomes.execute,
       payload: outcomes.execute === "broadcast_not_attempted"
         ? {
@@ -111,7 +115,8 @@ function adaptersFor(outcomes) {
             broadcast_call_performed: true,
             provider_submission_id_sha256: PROVIDER_SUBMISSION,
           },
-    }),
+      });
+    },
     reconcile_possible_broadcast: async () => ({
       outcome: outcomes.reconcile,
       payload: outcomes.reconcile === "broadcast_accepted"
@@ -227,12 +232,73 @@ try {
   record = createFilesystemSagaStoreV1(storeRoot).recover(SAGA_ID);
   assert.equal(record.state.state, "closed");
   assert.equal(record.state.terminal, true);
-  assert.equal(record.state.event_count, 8);
+  assert.equal(record.state.event_count, 9);
   assert.equal(record.state.transaction_hash, TX_HASH);
   assert.equal(record.state.closeout_id, CLOSEOUT_ID);
   assert.equal(record.state.next_action, null);
   assert.equal(canonicalJsonV1(record.authority), canonicalJsonV1(AUTHORITY));
   validateSagaRecordV1(record);
+
+
+  const crashRoot = join(ROOT, "crash-window-store");
+  mkdirSync(crashRoot, { mode: 0o700 });
+  const crashStore = createFilesystemSagaStoreV1(crashRoot);
+  const crashBaseAdapters = adaptersFor({
+    execute: "broadcast_unknown",
+    reconcile: "receipt_confirmed",
+  });
+  for (const [action, now, utc] of [
+    ["claim_payment", 20_000, "2026-08-05T19:22:00.000Z"],
+    ["reserve_inventory", 21_000, "2026-08-05T19:22:01.000Z"],
+    ["reserve_execution_attempt", 22_000, "2026-08-05T19:22:02.000Z"],
+    ["prepare_transaction", 23_000, "2026-08-05T19:22:03.000Z"],
+  ]) {
+    await advance(crashStore, action, now, utc, crashBaseAdapters);
+  }
+  let providerCalls = 0;
+  const crashAdapters = {
+    ...crashBaseAdapters,
+    execute_prepared_transaction: async ({ record, broadcast_intent_id }) => {
+      assert.equal(record.state.state, "broadcast_intent_committed");
+      assert.equal(record.state.broadcast_intent_id, broadcast_intent_id);
+      providerCalls += 1;
+      throw new Error("simulated_crash_after_external_effect");
+    },
+  };
+  await expectReject(
+    async () => advance(
+      crashStore,
+      "execute_prepared_transaction",
+      24_000,
+      "2026-08-05T19:22:04.000Z",
+      crashAdapters,
+    ),
+    /simulated_crash_after_external_effect/,
+    "crash after external effect",
+  );
+  assert.equal(providerCalls, 1);
+  const durableAfterCrash = createFilesystemSagaStoreV1(crashRoot).recover(SAGA_ID);
+  assert.equal(durableAfterCrash.state.state, "broadcast_intent_committed");
+  assert.equal(durableAfterCrash.state.event_count, 6);
+  assert.equal(durableAfterCrash.state.broadcast_call_may_have_occurred, true);
+  assert.equal(durableAfterCrash.state.next_action, "reconcile_possible_broadcast");
+  assert.notEqual(durableAfterCrash.state.next_action, "execute_prepared_transaction");
+  const restartAfterCrash = await runSagaSupervisorTickV1({
+    store: createFilesystemSagaStoreV1(crashRoot),
+    binding: BINDING,
+    owner_id: "proof-crash-restart",
+    now_ms: 25_000,
+    lease_ttl_ms: 5_000,
+    recorded_at_utc: "2026-08-05T19:22:05.000Z",
+    source_floor_main: SOURCE_MAIN,
+    policy_id: "void-buy-void-saga-policy-v1",
+    apply: false,
+    adapters: crashAdapters,
+  });
+  assert.equal(restartAfterCrash.status, "dry_run");
+  assert.equal(restartAfterCrash.action, "reconcile_possible_broadcast");
+  assert.equal(restartAfterCrash.automatic_execution_allowed, false);
+  assert.equal(providerCalls, 1);
 
   const terminalDry = await runSagaSupervisorTickV1({
     store: createFilesystemSagaStoreV1(storeRoot),
@@ -382,12 +448,48 @@ try {
     now_ms: 10_103,
   });
 
+
+  const staleLeaseLock = join(leaseRoot, "sagas", SAGA_ID, "lease.lock");
+  writeFileSync(staleLeaseLock, "", { mode: 0o600 });
+  utimesSync(staleLeaseLock, new Date(0), new Date(0));
+  const leaseAfterStaleLock = leaseStore.acquireLease({
+    saga_id: SAGA_ID,
+    owner_id: "worker-c",
+    now_ms: 10_200,
+    ttl_ms: 100,
+  });
+  assert.equal(leaseAfterStaleLock.ok, true);
+  assert.equal(leaseAfterStaleLock.lease.fencing_token, 3);
+  leaseStore.releaseLease({
+    saga_id: SAGA_ID,
+    owner_id: "worker-c",
+    fencing_token: 3,
+    now_ms: 10_201,
+  });
+
   const sagaEventsDir = join(leaseRoot, "sagas", SAGA_ID, "events");
-  writeFileSync(join(sagaEventsDir, "ignored.json.tmp-deadbeef"), "partial", { mode: 0o600 });
+  writeFileSync(
+    join(sagaEventsDir, "00000001-voidbvfsge1_" + "c".repeat(64) + ".json.tmp-999998-feedfacefeedface"),
+    "partial",
+    { mode: 0o600 },
+  );
   assert.equal(leaseStore.recover(SAGA_ID).state.event_count, 1);
 
   const target = join(ROOT, "symlink-target.json");
   writeFileSync(target, "{}\n", { mode: 0o600 });
+
+  const temporarySymlink = join(
+    sagaEventsDir,
+    "00000001-voidbvfsge1_" + "b".repeat(64) + ".json.tmp-999999-deadbeefdeadbeef",
+  );
+  symlinkSync(target, temporarySymlink);
+  await expectReject(
+    async () => leaseStore.recover(SAGA_ID),
+    /event_temporary_entry_must_be_direct_file/,
+    "temporary symlink event",
+  );
+  rmSync(temporarySymlink, { force: true });
+
   symlinkSync(target, join(sagaEventsDir, "00000001-voidbvfsge1_" + "a".repeat(64) + ".json"));
   await expectReject(
     async () => leaseStore.recover(SAGA_ID),
@@ -405,9 +507,10 @@ try {
   const validatedFixture = validateSagaRecordV1(fixture);
   assert.equal(validatedFixture.saga_id, SAGA_ID);
   assert.equal(validatedFixture.state.state, "closed");
-  assert.equal(validatedFixture.state.event_count, 8);
-  assert.equal(validatedFixture.events[5].event_type, "broadcast_unknown");
-  assert.equal(validatedFixture.events[6].event_type, "receipt_confirmed");
+  assert.equal(validatedFixture.state.event_count, 9);
+  assert.equal(validatedFixture.events[5].event_type, "broadcast_intent_committed");
+  assert.equal(validatedFixture.events[6].event_type, "broadcast_unknown");
+  assert.equal(validatedFixture.events[7].event_type, "receipt_confirmed");
   assert.equal(validatedFixture.state.automatic_retry_allowed, false);
 
   const schema = JSON.parse(readFileSync(
@@ -423,7 +526,19 @@ try {
   assert.equal(schema.properties.events.maxItems, 64);
   assert.equal(schema.properties.state.properties.automatic_retry_allowed.const, false);
   assert.equal(
+    schema.properties.events.items.properties.event_type.enum.includes("broadcast_intent_committed"),
+    true,
+  );
+  assert.equal(
     schema.properties.events.items.properties.event_type.enum.includes("broadcast_unknown"),
+    true,
+  );
+  assert.equal(
+    schema.properties.state.properties.state.enum.includes("broadcast_intent_committed"),
+    true,
+  );
+  assert.equal(
+    schema.properties.authority.properties.write_ahead_broadcast_intent_required.const,
     true,
   );
   assert.equal(
@@ -442,6 +557,9 @@ try {
     MARKER,
     "Crash consistency",
     "Lease and fencing safety",
+    "broadcast_intent_committed",
+    "write-ahead broadcast intent",
+    "stale lock",
     "broadcast_unknown",
     "reconcile_possible_broadcast",
     "fsync",
@@ -494,8 +612,12 @@ try {
     "fsyncSync",
     "renameSync",
     "fencing_token",
+    "broadcast_intent_committed",
+    "write_ahead_broadcast_intent_required",
     "broadcast_unknown",
     "reconcile_possible_broadcast",
+    "event_temporary_entry_must_be_direct_file",
+    "LOCK_STALE_MS",
     "no_automatic_rebroadcast_after_possible_broadcast",
     "append_lease_not_current",
   ]) {
@@ -511,6 +633,10 @@ try {
     atomic_fsync_rename_store: true,
     stale_worker_fencing_rejected: true,
     restart_recovery_verified: true,
+    write_ahead_broadcast_intent_verified: true,
+    crash_after_external_effect_rebroadcast_forbidden: true,
+    stale_lock_recovery_verified: true,
+    temporary_symlink_rejected: true,
     broadcast_unknown_rebroadcast_forbidden: true,
     receipt_required_before_closeout: true,
     duplicate_closeout_rejected: true,

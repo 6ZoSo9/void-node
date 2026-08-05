@@ -83,6 +83,7 @@ initialized
   -> inventory_reserved
   -> attempt_reserved
   -> transaction_prepared
+  -> broadcast_intent_committed
   -> broadcast_not_attempted | broadcast_unknown | broadcast_accepted
   -> receipt_confirmed | receipt_reverted
   -> closed
@@ -97,14 +98,21 @@ events must bind the same attempt and transaction hash.
 
 ## Broadcast ambiguity rule
 
-After `broadcast_unknown` or `broadcast_accepted`, the only next action is:
+After a durable `broadcast_intent_committed`, `broadcast_unknown`, or
+`broadcast_accepted` state is recovered, the only next action is:
 
 ```text
 reconcile_possible_broadcast
 ```
 
-The supervisor never selects `execute_prepared_transaction` from either state.
-There is no automatic retry flag anywhere in the record.
+Before the broadcast adapter is invoked, the supervisor appends and fsyncs a
+deterministic write-ahead broadcast intent bound to the saga, attempt, and exact
+prepared transaction hash. A crash before, during, or after the adapter call
+therefore recovers to reconciliation rather than another broadcast.
+
+The supervisor never selects `execute_prepared_transaction` from any state in
+which a broadcast may have occurred. There is no automatic retry flag anywhere
+in the record.
 
 A reconciliation may record:
 
@@ -122,14 +130,18 @@ The filesystem store uses:
 
 - direct private directories;
 - direct regular JSON files only;
-- exclusive lock files;
+- exclusive lock files carrying PID, nonce, and acquisition metadata;
+- dead-owner stale lock reclamation plus bounded legacy-lock aging;
 - write-to-new temporary files;
 - file `fsync`;
 - atomic rename; and
 - parent-directory `fsync`.
 
-Incomplete temporary files are ignored. Symlinked or malformed event entries are
-rejected.
+Incomplete temporary files are ignored only when their names match the exact
+atomic-write temporary-file grammar and they are direct regular files. Temporary
+symlinks, malformed temporary names, and symlinked or malformed event entries are
+rejected. A dead process cannot leave a lock file that permanently blocks
+recovery.
 
 A restart reconstructs the complete state by validating and folding every event.
 No mutable summary file is trusted as the source of truth.
@@ -160,10 +172,11 @@ worker has recovered the saga.
 4. derives the next action from server state;
 5. returns a dry-run decision unless explicitly applied;
 6. requires the saga-level and exact action-level confirmations;
-7. invokes one injected stage adapter;
-8. converts only a closed sanitized result into the next event;
-9. appends exactly one event under the current fencing token; and
-10. releases the lease.
+7. for broadcast execution, appends and fsyncs a deterministic write-ahead intent;
+8. invokes one injected stage adapter;
+9. converts only a closed sanitized result into the next event;
+10. appends the result under the current fencing token; and
+11. releases the lease.
 
 The engine does not accept arbitrary caller-selected next states.
 
@@ -199,8 +212,12 @@ The focused proof exercises:
 - deterministic saga and event IDs;
 - a complete closed eight-event fixture;
 - append-only sequence and hash-chain validation;
-- restart recovery after `broadcast_unknown`;
+- crash recovery after the external broadcast effect but before result append;
+- durable write-ahead intent before any injected broadcast adapter call;
+- restart recovery after `broadcast_intent_committed` and `broadcast_unknown`;
 - prohibition on automatic rebroadcast;
+- dead-owner stale lock reclamation;
+- temporary-file symlink rejection;
 - confirmed-receipt-before-closeout ordering;
 - duplicate closeout rejection;
 - conflicting transaction-hash rejection;

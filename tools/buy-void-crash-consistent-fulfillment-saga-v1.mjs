@@ -34,6 +34,7 @@ export const AUTHORITY = Object.freeze({
   monotonically_increasing_fencing_token_required: true,
   append_only_hash_chain_required: true,
   prepared_transaction_hash_required_before_broadcast: true,
+  write_ahead_broadcast_intent_required: true,
   no_automatic_rebroadcast_after_possible_broadcast: true,
   receipt_confirmation_required_before_closeout: true,
   caller_supplied_private_material_forbidden: true,
@@ -56,6 +57,7 @@ export const EVENT_TYPES = Object.freeze([
   "inventory_reserved",
   "attempt_reserved",
   "transaction_prepared",
+  "broadcast_intent_committed",
   "broadcast_not_attempted",
   "broadcast_unknown",
   "broadcast_accepted",
@@ -83,9 +85,13 @@ const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const EVENT_FILE = /^(\d{8})-(voidbvfsge1_[0-9a-f]{64})\.json$/u;
+const EVENT_TEMP_FILE = /^(\d{8})-(voidbvfsge1_[0-9a-f]{64})\.json\.tmp-[0-9]+-[0-9a-f]{16}$/u;
+const BROADCAST_INTENT_ID = /^voidbvbci1_[0-9a-f]{64}$/u;
+const LOCK_SCHEMA = "void_buy_void_crash_consistent_fulfillment_saga_store_lock_v1";
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
 const MAX_EVENTS = 64;
 const MAX_LEASE_TTL_MS = 15 * 60 * 1000;
+const LOCK_STALE_MS = MAX_LEASE_TTL_MS + 60 * 1000;
 
 const FORBIDDEN_KEYS = new Set([
   "private_key",
@@ -278,6 +284,18 @@ export function computeSagaIdV1(binding) {
   return `${SAGA_ID_PREFIX}${digest(canonicalJsonV1(validateSagaBindingV1(binding)))}`;
 }
 
+export function computeBroadcastIntentIdV1(value) {
+  exactKeys(value, ["saga_id", "attempt_id", "transaction_hash"], "broadcast_intent_binding");
+  const sagaId = nonEmptyString(value.saga_id, "broadcast_intent_binding.saga_id", 75);
+  if (!/^voidbvfsg1_[0-9a-f]{64}$/u.test(sagaId)) fail("broadcast_intent_binding.saga_id_invalid");
+  const binding = {
+    saga_id: sagaId,
+    attempt_id: safeId(value.attempt_id, "broadcast_intent_binding.attempt_id"),
+    transaction_hash: transactionHash(value.transaction_hash, "broadcast_intent_binding.transaction_hash"),
+  };
+  return `voidbvbci1_${digest(canonicalJsonV1(binding))}`;
+}
+
 function validatePayload(eventType, payload) {
   directObject(payload, "event.payload");
   assertNoSecretMaterialV1(payload, "event.payload");
@@ -327,6 +345,14 @@ function validatePayload(eventType, payload) {
     if (BigInt(payload.max_priority_fee_per_gas_wei) > BigInt(payload.max_fee_per_gas_wei)) {
       fail("event.payload.priority_fee_exceeds_max_fee");
     }
+    return structuredClone(payload);
+  }
+  if (eventType === "broadcast_intent_committed") {
+    exactKeys(payload, ["attempt_id", "transaction_hash", "broadcast_intent_id"], "event.payload");
+    commonAttempt();
+    transactionHash(payload.transaction_hash, "event.payload.transaction_hash");
+    const intentId = nonEmptyString(payload.broadcast_intent_id, "event.payload.broadcast_intent_id", 75);
+    if (!BROADCAST_INTENT_ID.test(intentId)) fail("event.payload.broadcast_intent_id_invalid");
     return structuredClone(payload);
   }
   if (["broadcast_not_attempted", "broadcast_unknown", "broadcast_accepted"].includes(eventType)) {
@@ -484,6 +510,7 @@ function initialState(binding, sagaId) {
     attempt_number: 0,
     transaction_hash: null,
     nonce: null,
+    broadcast_intent_id: null,
     broadcast_call_may_have_occurred: false,
     receipt_status: null,
     closeout_id: null,
@@ -548,28 +575,40 @@ export function foldSagaEventsV1(events) {
       state.transaction_hash = payload.transaction_hash;
       state.nonce = payload.nonce;
       state.state = "transaction_prepared";
-    } else if (event.event_type === "broadcast_not_attempted") {
+    } else if (event.event_type === "broadcast_intent_committed") {
       requireState(state, ["transaction_prepared", "broadcast_not_attempted"], event.event_type);
+      requireAttemptAndHash(state, payload);
+      const expectedIntentId = computeBroadcastIntentIdV1({
+        saga_id: state.saga_id,
+        attempt_id: state.attempt_id,
+        transaction_hash: state.transaction_hash,
+      });
+      if (payload.broadcast_intent_id !== expectedIntentId) fail("broadcast_intent_id_binding_mismatch");
+      state.broadcast_intent_id = payload.broadcast_intent_id;
+      state.broadcast_call_may_have_occurred = true;
+      state.state = "broadcast_intent_committed";
+    } else if (event.event_type === "broadcast_not_attempted") {
+      requireState(state, ["broadcast_intent_committed"], event.event_type);
       requireAttemptAndHash(state, payload);
       state.broadcast_call_may_have_occurred = false;
       state.state = "broadcast_not_attempted";
     } else if (event.event_type === "broadcast_unknown") {
-      requireState(state, ["transaction_prepared", "broadcast_not_attempted", "broadcast_unknown"], event.event_type);
+      requireState(state, ["broadcast_intent_committed"], event.event_type);
       requireAttemptAndHash(state, payload);
       state.broadcast_call_may_have_occurred = true;
       state.state = "broadcast_unknown";
     } else if (event.event_type === "broadcast_accepted") {
-      requireState(state, ["transaction_prepared", "broadcast_not_attempted", "broadcast_unknown", "broadcast_accepted"], event.event_type);
+      requireState(state, ["broadcast_intent_committed", "broadcast_unknown", "broadcast_accepted"], event.event_type);
       requireAttemptAndHash(state, payload);
       state.broadcast_call_may_have_occurred = true;
       state.state = "broadcast_accepted";
     } else if (event.event_type === "receipt_confirmed") {
-      requireState(state, ["broadcast_unknown", "broadcast_accepted"], event.event_type);
+      requireState(state, ["broadcast_intent_committed", "broadcast_unknown", "broadcast_accepted"], event.event_type);
       requireAttemptAndHash(state, payload);
       state.receipt_status = 1;
       state.state = "receipt_confirmed";
     } else if (event.event_type === "receipt_reverted") {
-      requireState(state, ["broadcast_unknown", "broadcast_accepted"], event.event_type);
+      requireState(state, ["broadcast_intent_committed", "broadcast_unknown", "broadcast_accepted"], event.event_type);
       requireAttemptAndHash(state, payload);
       state.receipt_status = 0;
       state.state = "receipt_reverted";
@@ -615,6 +654,7 @@ export function deriveSagaNextActionV1(state) {
     inventory_reserved: "reserve_execution_attempt",
     attempt_reserved: "prepare_transaction",
     transaction_prepared: "execute_prepared_transaction",
+    broadcast_intent_committed: "reconcile_possible_broadcast",
     broadcast_not_attempted: "execute_prepared_transaction",
     broadcast_unknown: "reconcile_possible_broadcast",
     broadcast_accepted: "reconcile_possible_broadcast",
@@ -660,6 +700,7 @@ export function buildSagaRecordV1(events) {
       attempt_number: state.attempt_number,
       transaction_hash: state.transaction_hash,
       nonce: state.nonce,
+      broadcast_intent_id: state.broadcast_intent_id,
       broadcast_call_may_have_occurred: state.broadcast_call_may_have_occurred,
       receipt_status: state.receipt_status,
       closeout_id: state.closeout_id,
@@ -698,6 +739,7 @@ function buildSagaRecordStateProjection(state) {
     attempt_number: state.attempt_number,
     transaction_hash: state.transaction_hash,
     nonce: state.nonce,
+    broadcast_intent_id: state.broadcast_intent_id,
     broadcast_call_may_have_occurred: state.broadcast_call_may_have_occurred,
     receipt_status: state.receipt_status,
     closeout_id: state.closeout_id,
@@ -742,19 +784,94 @@ function atomicWriteJson(path, value) {
   fsyncDirectory(parent);
 }
 
-function withExclusiveLock(path, operation) {
-  let descriptor;
+function validateStoreLock(value) {
+  exactKeys(value, ["schema", "pid", "nonce", "acquired_at_utc"], "store_lock");
+  if (value.schema !== LOCK_SCHEMA) fail("store_lock_identity_mismatch");
+  safeInteger(value.pid, 1, Number.MAX_SAFE_INTEGER, "store_lock.pid");
+  const nonce = nonEmptyString(value.nonce, "store_lock.nonce", 32);
+  if (!/^[0-9a-f]{32}$/u.test(nonce)) fail("store_lock.nonce_invalid");
+  canonicalUtc(value.acquired_at_utc, "store_lock.acquired_at_utc");
+  return structuredClone(value);
+}
+
+function processIsAlive(pid) {
   try {
-    descriptor = openSync(path, "wx", 0o600);
+    process.kill(pid, 0);
+    return true;
   } catch (error) {
-    if (error?.code === "EEXIST") fail("store_lock_busy");
+    if (error?.code === "ESRCH") return false;
+    if (error?.code === "EPERM") return true;
     throw error;
   }
+}
+
+function inspectExistingStoreLock(path) {
+  const metadata = lstatSync(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) fail("store_lock_must_be_direct_file");
+  let lock = null;
+  if (metadata.size > 0 && metadata.size <= MAX_JSON_BYTES) {
+    try {
+      lock = validateStoreLock(JSON.parse(readFileSync(path, "utf8")));
+    } catch {
+      lock = null;
+    }
+  }
+  const legacyOrMalformedIsStale = Date.now() - metadata.mtimeMs > LOCK_STALE_MS;
+  const stale = lock ? !processIsAlive(lock.pid) : legacyOrMalformedIsStale;
+  return { metadata, lock, stale };
+}
+
+function sameLockFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeMs === right.mtimeMs;
+}
+
+function withExclusiveLock(path, operation) {
+  let descriptor = null;
+  let ownedLock = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      descriptor = openSync(path, "wx", 0o600);
+      ownedLock = validateStoreLock({
+        schema: LOCK_SCHEMA,
+        pid: process.pid,
+        nonce: crypto.randomBytes(16).toString("hex"),
+        acquired_at_utc: new Date().toISOString(),
+      });
+      writeFileSync(descriptor, `${JSON.stringify(ownedLock)}
+`, "utf8");
+      fsyncSync(descriptor);
+      break;
+    } catch (error) {
+      const createdHere = descriptor !== null;
+      if (descriptor !== null) {
+        closeSync(descriptor);
+        descriptor = null;
+      }
+      if (error?.code !== "EEXIST") {
+        if (createdHere && existsSync(path)) {
+          rmSync(path, { force: true });
+          fsyncDirectory(dirname(path));
+        }
+        throw error;
+      }
+      const observed = inspectExistingStoreLock(path);
+      if (!observed.stale) fail("store_lock_busy");
+      const current = lstatSync(path);
+      if (!sameLockFile(observed.metadata, current)) fail("store_lock_reclaim_race");
+      rmSync(path);
+      fsyncDirectory(dirname(path));
+    }
+  }
+  if (descriptor === null || ownedLock === null) fail("store_lock_acquire_failed");
   try {
     return operation();
   } finally {
     closeSync(descriptor);
-    rmSync(path, { force: true });
+    if (!existsSync(path)) fail("store_lock_ownership_lost");
+    const current = validateStoreLock(readJsonFile(path, "store_lock_file"));
+    if (current.pid !== ownedLock.pid || current.nonce !== ownedLock.nonce) fail("store_lock_ownership_lost");
+    rmSync(path);
+    fsyncDirectory(dirname(path));
   }
 }
 
@@ -802,7 +919,11 @@ export function createFilesystemSagaStoreV1(rootDir) {
     const entries = readdirSync(place.events, { withFileTypes: true });
     const files = [];
     for (const entry of entries) {
-      if (entry.name.includes(".tmp-")) continue;
+      if (entry.name.includes(".tmp-")) {
+        if (!EVENT_TEMP_FILE.test(entry.name)) fail("event_temporary_filename_invalid");
+        if (!entry.isFile() || entry.isSymbolicLink()) fail("event_temporary_entry_must_be_direct_file");
+        continue;
+      }
       if (!entry.isFile() || entry.isSymbolicLink()) fail("event_directory_contains_non_regular_entry");
       const match = EVENT_FILE.exec(entry.name);
       if (!match) fail("event_filename_invalid");
@@ -909,7 +1030,12 @@ export function createFilesystemSagaStoreV1(rootDir) {
 export function buildNextEventFromActionResultV1({ record, action, result, fencing_token, recorded_at_utc }) {
   const current = validateSagaRecordV1(record);
   const next = deriveSagaNextActionV1({ ...current.state, terminal: current.state.terminal });
-  if (next.action !== action) fail("action_does_not_match_current_state");
+  const completingWriteAheadBroadcast = action === "execute_prepared_transaction"
+    && current.state.state === "broadcast_intent_committed";
+  if (action === "execute_prepared_transaction" && !completingWriteAheadBroadcast) {
+    fail("broadcast_intent_required_before_execution_result");
+  }
+  if (!completingWriteAheadBroadcast && next.action !== action) fail("action_does_not_match_current_state");
   directObject(result, "action_result");
   assertNoSecretMaterialV1(result, "action_result");
   const mapping = {
@@ -927,7 +1053,7 @@ export function buildNextEventFromActionResultV1({ record, action, result, fenci
     eventType = result.outcome;
   }
   if (action === "reconcile_possible_broadcast") {
-    if (!["broadcast_accepted", "receipt_confirmed", "receipt_reverted"].includes(result.outcome)) {
+    if (!["broadcast_accepted", "receipt_confirmed", "receipt_reverted", "terminal_hold"].includes(result.outcome)) {
       fail("reconciliation_outcome_invalid");
     }
     eventType = result.outcome;
@@ -996,7 +1122,40 @@ export async function runSagaSupervisorTickV1(input) {
     if (input.action_confirmation !== next.required_confirmation) fail("action_confirmation_required");
     const adapter = input.adapters?.[next.action];
     if (typeof adapter !== "function") fail("action_adapter_required");
-    const actionResult = await adapter({ saga_id: sagaId, binding, record, action: next.action });
+    let broadcastIntentEvent = null;
+    if (next.action === "execute_prepared_transaction") {
+      const broadcastIntentId = computeBroadcastIntentIdV1({
+        saga_id: sagaId,
+        attempt_id: record.state.attempt_id,
+        transaction_hash: record.state.transaction_hash,
+      });
+      broadcastIntentEvent = buildSagaEventV1({
+        binding,
+        sequence: record.state.event_count,
+        previous_event_id: record.state.last_event_id,
+        recorded_at_utc: input.recorded_at_utc,
+        event_type: "broadcast_intent_committed",
+        fencing_token: lease.fencing_token,
+        payload: {
+          attempt_id: record.state.attempt_id,
+          transaction_hash: record.state.transaction_hash,
+          broadcast_intent_id: broadcastIntentId,
+        },
+      });
+      record = store.appendEvent({
+        event: broadcastIntentEvent,
+        owner_id: ownerId,
+        fencing_token: lease.fencing_token,
+        now_ms: nowMs,
+      });
+    }
+    const actionResult = await adapter({
+      saga_id: sagaId,
+      binding,
+      record,
+      action: next.action,
+      broadcast_intent_id: broadcastIntentEvent?.payload.broadcast_intent_id || null,
+    });
     const event = buildNextEventFromActionResultV1({
       record,
       action: next.action,
@@ -1010,6 +1169,7 @@ export async function runSagaSupervisorTickV1(input) {
       status: "applied",
       saga_id: sagaId,
       action: next.action,
+      broadcast_intent_event_id: broadcastIntentEvent?.event_id || null,
       event_id: event.event_id,
       state: updated.state,
       automatic_retry_allowed: false,
