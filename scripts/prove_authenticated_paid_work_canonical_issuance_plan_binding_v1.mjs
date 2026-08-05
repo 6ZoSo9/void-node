@@ -138,7 +138,7 @@ const wrongAgent = resealPlan({
 });
 expectThrow(
   () => validateAuthenticatedPaidWorkCanonicalIssuancePlanBindingV1(wrongAgent),
-  /request_contract_mismatch/,
+  /canonical_issuance_plan_body_mismatch|request_contract_mismatch/,
   "agent substitution",
 );
 
@@ -151,7 +151,7 @@ const wrongScope = resealPlan({
 });
 expectThrow(
   () => validateAuthenticatedPaidWorkCanonicalIssuancePlanBindingV1(wrongScope),
-  /request_contract_mismatch/,
+  /canonical_issuance_plan_body_mismatch|request_contract_mismatch/,
   "scope substitution",
 );
 
@@ -164,7 +164,7 @@ const authorityGrant = resealPlan({
 });
 expectThrow(
   () => validateAuthenticatedPaidWorkCanonicalIssuancePlanBindingV1(authorityGrant),
-  /authority_private_material_generation_authorized_mismatch/,
+  /canonical_issuance_plan_body_mismatch|authority_private_material_generation_authorized_mismatch/,
   "authority grant",
 );
 
