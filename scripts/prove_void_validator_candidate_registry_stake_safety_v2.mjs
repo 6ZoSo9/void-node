@@ -13,7 +13,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const paths = Object.freeze({
   contract: "contracts/mainnet0/VoidValidatorCandidateRegistry.sol",
   test: "test/mainnet0/VoidValidatorCandidateRegistry.t.sol",
+  activeExitTest:
+    "test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol",
   policy: "docs/mainnet0/VALIDATOR_POLICY.md",
+  activeExitDoc: "docs/mainnet0/VALIDATOR_ACTIVE_EXIT_SAFETY_V1.md",
   documentation:
     "docs/operators/void-validator-candidate-registry-stake-safety-v2.md",
   workflow:
@@ -58,7 +61,9 @@ function requireAll(source, values, label) {
 
 const contract = read(paths.contract);
 const test = read(paths.test);
+const activeExitTest = read(paths.activeExitTest);
 const policy = read(paths.policy);
+const activeExitDoc = read(paths.activeExitDoc);
 const documentation = read(paths.documentation);
 const workflow = read(paths.workflow);
 
@@ -67,14 +72,22 @@ requireAll(
   [
     "uint256 public constant UNBONDING_DELAY = 7 days;",
     "uint256 public totalStaked;",
+    "uint256 public pendingActiveExitCount;",
     "mapping(address => uint256) public exitRequestedAt;",
+    "mapping(address => bool) public activeSetRemovalRequired;",
+    "mapping(address => bool) public activeSetRemovalConfirmed;",
+    "mapping(address => bytes32) public activeSetRemovalEvidenceHash;",
     "address public pendingOwner;",
     "function requestExit() external",
+    "function confirmActiveSetRemoval(",
     "function finalizeExit() external",
     "function withdrawStake(address payable recipient) external nonReentrant",
     "function acceptOwnership() external",
     "function cancelOwnershipTransfer() external onlyOwner",
+    "event ActiveSetRemovalConfirmed(",
     "event StakeWithdrawn(",
+    "error ActiveSetRemovalNotConfirmed();",
+    "error InvalidActiveSetRemovalEvidence();",
     "error StakeTransferFailed();",
     "error Reentrancy();",
   ],
@@ -140,6 +153,17 @@ assert.equal(
   "registration must not enter Active",
 );
 
+const activeBatchBody = blockFor(contract, "function markActiveBatch(");
+requireAll(
+  activeBatchBody,
+  [
+    "activeCount + pendingActiveExitCount + owners.length",
+    "maxActiveValidators",
+    "revert ActiveCapReached();",
+  ],
+  "active cap",
+);
+
 const jailBody = blockFor(contract, "function jail(");
 requireAll(
   jailBody,
@@ -148,6 +172,9 @@ requireAll(
     "c.state == ValidatorState.Active",
     "c.state != ValidatorState.Candidate",
     "revert InvalidState();",
+    "activeSetRemovalRequired[candidateOwner] = true;",
+    "activeSetRemovalConfirmed[candidateOwner] = true;",
+    "VOID_VALIDATOR_ACTIVE_SET_REMOVAL_OWNER_JAIL_V1",
     "c.state = ValidatorState.Jailed;",
   ],
   "jail",
@@ -174,11 +201,29 @@ requireAll(
     "ValidatorState.Jailed",
     "waitingCount -= 1;",
     "activeCount -= 1;",
+    "pendingActiveExitCount += 1;",
+    "activeSetRemovalRequired[msg.sender] = true;",
+    "activeSetRemovalConfirmed[msg.sender] = false;",
     "exitRequestedAt[msg.sender] = requestedAt;",
     "c.state = ValidatorState.Exiting;",
     "requestedAt + UNBONDING_DELAY",
   ],
   "participant exit request",
+);
+
+const removalBody = blockFor(contract, "function confirmActiveSetRemoval(");
+requireAll(
+  removalBody,
+  [
+    "external onlyOwner",
+    "!activeSetRemovalRequired[candidateOwner]",
+    "activeSetRemovalConfirmed[candidateOwner]",
+    "c.state != ValidatorState.Exiting",
+    "evidenceHash == bytes32(0)",
+    "activeSetRemovalEvidenceHash[candidateOwner] = evidenceHash;",
+    "pendingActiveExitCount -= 1;",
+  ],
+  "active-set removal confirmation",
 );
 
 const finalizeExitBody = blockFor(contract, "function finalizeExit()");
@@ -189,6 +234,9 @@ requireAll(
     "c.state != ValidatorState.Exiting",
     "requestedAt + UNBONDING_DELAY",
     "revert UnbondingNotReady();",
+    "activeSetRemovalRequired[msg.sender] &&",
+    "!activeSetRemovalConfirmed[msg.sender]",
+    "revert ActiveSetRemovalNotConfirmed();",
     "c.state = ValidatorState.Unbonded;",
   ],
   "participant exit finalization",
@@ -200,9 +248,11 @@ requireAll(
   [
     "external onlyOwner",
     "ValidatorState.Waiting",
-    "ValidatorState.Active",
+    "c.state == ValidatorState.Active",
+    "revert ActiveSetRemovalNotConfirmed();",
     "ValidatorState.Candidate",
     "ValidatorState.Jailed",
+    "activeSetRemovalRequired[candidateOwner] &&",
     "c.state = ValidatorState.Unbonded;",
   ],
   "administrative unbonding",
@@ -211,11 +261,6 @@ assert.equal(
   markUnbondedBody.includes("ValidatorState.Exiting"),
   false,
   "owner must not bypass a started exit delay",
-);
-assert.equal(
-  markUnbondedBody.includes("ValidatorState.Unbonded"),
-  true,
-  "administrative unbonding must set Unbonded",
 );
 
 const withdrawalBody = blockFor(contract, "function withdrawStake(");
@@ -297,9 +342,25 @@ requireAll(
     "testOwnershipTransferIsTwoStepAndCancelable",
     "testJailAndAdministrativeUnbondCountersRemainExact",
   ],
-  "Forge test suite",
+  "Forge custody test suite",
 );
 assert.equal(test.includes('import "forge-std/Test.sol"'), false);
+
+requireAll(
+  activeExitTest,
+  [
+    "contract VoidValidatorCandidateRegistryActiveExitTest",
+    "testActiveExitRequiresRemovalConfirmation",
+    "testPendingActiveExitStillConsumesActivationCap",
+    "testDirectAdministrativeUnbondOfActiveIsRejected",
+    "testJailedActiveParticipantKeepsConfirmedRemovalOnDelayedExit",
+    "ActiveSetRemovalNotConfirmed.selector",
+    "InvalidActiveSetRemovalEvidence.selector",
+    "ActiveSetRemovalAlreadyConfirmed.selector",
+  ],
+  "Forge active-exit test suite",
+);
+assert.equal(activeExitTest.includes('import "forge-std/Test.sol"'), false);
 
 const rejectedPacketId =
   "voidvcrudpt1_18c8e237f07c66cbf9f3d647ea2f6d43f2543e9a68102f42c586686709a327b4";
@@ -311,16 +372,30 @@ const rejectedUnsignedHash =
 requireAll(
   policy,
   [
-    "Participant-controlled exit: **available from Candidate, Waiting, Active, or Jailed**",
-    "Participant exit delay: **7 days before Unbonded**",
-    "Stake withdrawal: **candidate owner only",
-    "two-step pending-owner acceptance",
+    "Participant-controlled exit initiation: **available from Candidate, Waiting, Active, or Jailed**",
+    "Active-origin exit finalization: **requires seven days plus explicit active-set removal confirmation**",
+    "pendingActiveExitCount",
+    "Administrative `markUnbonded(...)` is limited to Candidate, Waiting, or",
+    "cannot directly unbond Active",
+    "confirmActiveSetRemoval(...)",
+    "must never be signed, broadcast, extended, or reused",
     rejectedPacketId,
     rejectedPacketSha,
     rejectedUnsignedHash,
-    "must never be signed, broadcast, extended, or reused",
   ],
   "validator policy",
+);
+
+requireAll(
+  activeExitDoc,
+  [
+    "VOID_VALIDATOR_ACTIVE_EXIT_SAFETY_V1",
+    "pendingActiveExitCount",
+    "confirmActiveSetRemoval(...)",
+    "direct administrative `markUnbonded(...)` from Active is rejected",
+    "`README.md` is not changed",
+  ],
+  "active-exit documentation",
 );
 
 requireAll(
@@ -331,7 +406,9 @@ requireAll(
     rejectedPacketId,
     "permanently inaccessible",
     "requestExit()",
-    "finalizeExit()",
+    "confirmActiveSetRemoval(...)` with a",
+    "pendingActiveExitCount",
+    "Direct administrative unbonding from Active is rejected",
     "withdrawStake(...) for that candidate",
     "failed transfer reverts",
     "reentrant withdrawal rejection",
@@ -348,8 +425,10 @@ requireAll(
     "actions/setup-node@v6",
     'node-version: "24"',
     "prove_void_validator_candidate_registry_stake_safety_v2.mjs",
+    "prove_void_validator_candidate_registry_active_exit_safety_v1.mjs",
     "ghcr.io/foundry-rs/foundry:v1.7.1",
     "VoidValidatorCandidateRegistry.t.sol",
+    "VoidValidatorCandidateRegistryActiveExit.t.sol",
     "--evm-version paris",
     "npm run typecheck",
   ],
@@ -364,8 +443,12 @@ console.log(
       decision: DECISION,
       contract_source_sha256: sha256(contract),
       forge_test_source_sha256: sha256(test),
+      active_exit_test_source_sha256: sha256(activeExitTest),
       participant_exit_without_owner: true,
       jailed_exit_without_owner: true,
+      active_exit_removal_confirmation_required: true,
+      pending_active_exit_consumes_cap: true,
+      direct_active_admin_unbond_rejected: true,
       full_additional_stake_withdrawable: true,
       checks_effects_interactions: true,
       reentrancy_guarded: true,
