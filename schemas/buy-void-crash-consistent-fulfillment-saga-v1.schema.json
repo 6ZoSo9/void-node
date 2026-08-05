@@ -1,0 +1,1109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-crash-consistent-fulfillment-saga-v1",
+  "title": "VOID Buy VOID crash-consistent fulfillment saga v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "saga_id",
+    "binding",
+    "events",
+    "state",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_crash_consistent_fulfillment_saga_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CRASH_CONSISTENT_FULFILLMENT_SAGA_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "saga_id": {
+      "type": "string",
+      "pattern": "^voidbvfsg1_[0-9a-f]{64}$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "canonical_payment_identity",
+        "request_key_sha256",
+        "payment_key_sha256",
+        "delivery_address",
+        "void_amount_units",
+        "chain_id",
+        "pool_id"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+        },
+        "canonical_payment_identity": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+        },
+        "request_key_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "payment_key_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "delivery_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "void_amount_units": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "chain_id": {
+          "const": "2050"
+        },
+        "pool_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "marker",
+          "version",
+          "saga_id",
+          "event_id",
+          "sequence",
+          "previous_event_id",
+          "recorded_at_utc",
+          "event_type",
+          "fencing_token",
+          "binding",
+          "payload",
+          "authority"
+        ],
+        "properties": {
+          "schema": {
+            "const": "void_buy_void_crash_consistent_fulfillment_saga_event_v1"
+          },
+          "marker": {
+            "const": "VOID_BUY_VOID_CRASH_CONSISTENT_FULFILLMENT_SAGA_V1"
+          },
+          "version": {
+            "const": 1
+          },
+          "saga_id": {
+            "type": "string",
+            "pattern": "^voidbvfsg1_[0-9a-f]{64}$"
+          },
+          "event_id": {
+            "type": "string",
+            "pattern": "^voidbvfsge1_[0-9a-f]{64}$"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63
+          },
+          "previous_event_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^voidbvfsge1_[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "recorded_at_utc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "event_type": {
+            "enum": [
+              "saga_initialized",
+              "claim_committed",
+              "inventory_reserved",
+              "attempt_reserved",
+              "transaction_prepared",
+              "broadcast_not_attempted",
+              "broadcast_unknown",
+              "broadcast_accepted",
+              "receipt_confirmed",
+              "receipt_reverted",
+              "closeout_committed",
+              "terminal_hold"
+            ]
+          },
+          "fencing_token": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "request_id",
+              "canonical_payment_identity",
+              "request_key_sha256",
+              "payment_key_sha256",
+              "delivery_address",
+              "void_amount_units",
+              "chain_id",
+              "pool_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+              },
+              "canonical_payment_identity": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+              },
+              "request_key_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "payment_key_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "delivery_address": {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]{40}$"
+              },
+              "void_amount_units": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "chain_id": {
+                "const": "2050"
+              },
+              "pool_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+              }
+            }
+          },
+          "payload": {
+            "type": "object"
+          },
+          "authority": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_only_contract",
+              "one_request_per_saga",
+              "one_payment_per_saga",
+              "one_execution_attempt_per_payment",
+              "per_request_lease_required",
+              "monotonically_increasing_fencing_token_required",
+              "append_only_hash_chain_required",
+              "prepared_transaction_hash_required_before_broadcast",
+              "no_automatic_rebroadcast_after_possible_broadcast",
+              "receipt_confirmation_required_before_closeout",
+              "caller_supplied_private_material_forbidden",
+              "caller_supplied_raw_signed_transaction_forbidden",
+              "background_loop",
+              "startup_execution",
+              "network_request",
+              "credential_access",
+              "wallet_access",
+              "signing",
+              "transaction_broadcast",
+              "inventory_decrement",
+              "public_request_mutation",
+              "money_movement"
+            ],
+            "properties": {
+              "source_only_contract": {
+                "const": true
+              },
+              "one_request_per_saga": {
+                "const": true
+              },
+              "one_payment_per_saga": {
+                "const": true
+              },
+              "one_execution_attempt_per_payment": {
+                "const": true
+              },
+              "per_request_lease_required": {
+                "const": true
+              },
+              "monotonically_increasing_fencing_token_required": {
+                "const": true
+              },
+              "append_only_hash_chain_required": {
+                "const": true
+              },
+              "prepared_transaction_hash_required_before_broadcast": {
+                "const": true
+              },
+              "no_automatic_rebroadcast_after_possible_broadcast": {
+                "const": true
+              },
+              "receipt_confirmation_required_before_closeout": {
+                "const": true
+              },
+              "caller_supplied_private_material_forbidden": {
+                "const": true
+              },
+              "caller_supplied_raw_signed_transaction_forbidden": {
+                "const": true
+              },
+              "background_loop": {
+                "const": false
+              },
+              "startup_execution": {
+                "const": false
+              },
+              "network_request": {
+                "const": false
+              },
+              "credential_access": {
+                "const": false
+              },
+              "wallet_access": {
+                "const": false
+              },
+              "signing": {
+                "const": false
+              },
+              "transaction_broadcast": {
+                "const": false
+              },
+              "inventory_decrement": {
+                "const": false
+              },
+              "public_request_mutation": {
+                "const": false
+              },
+              "money_movement": {
+                "const": false
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "saga_initialized"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "source_floor_main",
+                    "policy_id",
+                    "max_attempts"
+                  ],
+                  "properties": {
+                    "source_floor_main": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "max_attempts": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "claim_committed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "claim_id",
+                    "instruction_id"
+                  ],
+                  "properties": {
+                    "claim_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "instruction_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "inventory_reserved"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "reservation_id"
+                  ],
+                  "properties": {
+                    "reservation_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "attempt_reserved"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "attempt_number"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "attempt_number": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "transaction_prepared"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "nonce",
+                    "fulfillment_wallet_fingerprint_sha256",
+                    "gas_limit",
+                    "max_fee_per_gas_wei",
+                    "max_priority_fee_per_gas_wei"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "nonce": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "fulfillment_wallet_fingerprint_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "gas_limit": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "max_fee_per_gas_wei": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "max_priority_fee_per_gas_wei": {
+                      "type": "string",
+                      "pattern": "^(0|[1-9][0-9]*)$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "broadcast_not_attempted"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "reason_code",
+                    "broadcast_call_performed"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "reason_code": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "broadcast_call_performed": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "broadcast_unknown"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "reason_code",
+                    "broadcast_call_performed",
+                    "provider_submission_id_sha256"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "reason_code": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "broadcast_call_performed": {
+                      "const": true
+                    },
+                    "provider_submission_id_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "broadcast_accepted"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "reason_code",
+                    "broadcast_call_performed",
+                    "provider_submission_id_sha256"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "reason_code": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "broadcast_call_performed": {
+                      "const": true
+                    },
+                    "provider_submission_id_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "receipt_confirmed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "block_number",
+                    "block_hash",
+                    "confirmations",
+                    "receipt_status"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "block_number": {
+                      "type": "string",
+                      "pattern": "^(0|[1-9][0-9]*)$"
+                    },
+                    "block_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "confirmations": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "receipt_status": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "receipt_reverted"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "block_number",
+                    "block_hash",
+                    "confirmations",
+                    "receipt_status"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "block_number": {
+                      "type": "string",
+                      "pattern": "^(0|[1-9][0-9]*)$"
+                    },
+                    "block_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "confirmations": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "receipt_status": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "closeout_committed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "attempt_id",
+                    "transaction_hash",
+                    "closeout_id",
+                    "inventory_decremented",
+                    "public_request_fulfilled"
+                  ],
+                  "properties": {
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "transaction_hash": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-f]{64}$"
+                    },
+                    "closeout_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "inventory_decremented": {
+                      "const": true
+                    },
+                    "public_request_fulfilled": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "terminal_hold"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "reason_code",
+                    "related_event_id"
+                  ],
+                  "properties": {
+                    "reason_code": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+                    },
+                    "related_event_id": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^voidbvfsge1_[0-9a-f]{64}$"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "terminal",
+        "event_count",
+        "last_event_id",
+        "last_sequence",
+        "last_fencing_token",
+        "claim_id",
+        "instruction_id",
+        "reservation_id",
+        "attempt_id",
+        "attempt_number",
+        "transaction_hash",
+        "nonce",
+        "broadcast_call_may_have_occurred",
+        "receipt_status",
+        "closeout_id",
+        "automatic_retry_allowed",
+        "next_action"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "initialized",
+            "claimed",
+            "inventory_reserved",
+            "attempt_reserved",
+            "transaction_prepared",
+            "broadcast_not_attempted",
+            "broadcast_unknown",
+            "broadcast_accepted",
+            "receipt_confirmed",
+            "receipt_reverted",
+            "closed",
+            "terminal_hold"
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "event_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "last_event_id": {
+          "type": "string",
+          "pattern": "^voidbvfsge1_[0-9a-f]{64}$"
+        },
+        "last_sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "last_fencing_token": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "claim_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+            }
+          ]
+        },
+        "instruction_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+            }
+          ]
+        },
+        "reservation_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "attempt_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{3,200}$"
+            }
+          ]
+        },
+        "attempt_number": {
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "transaction_hash": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "nonce": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        "broadcast_call_may_have_occurred": {
+          "type": "boolean"
+        },
+        "receipt_status": {
+          "enum": [
+            null,
+            0,
+            1
+          ]
+        },
+        "closeout_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "automatic_retry_allowed": {
+          "const": false
+        },
+        "next_action": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "claim_payment",
+                "reserve_inventory",
+                "reserve_execution_attempt",
+                "prepare_transaction",
+                "execute_prepared_transaction",
+                "reconcile_possible_broadcast",
+                "closeout_confirmed_delivery"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only_contract",
+        "one_request_per_saga",
+        "one_payment_per_saga",
+        "one_execution_attempt_per_payment",
+        "per_request_lease_required",
+        "monotonically_increasing_fencing_token_required",
+        "append_only_hash_chain_required",
+        "prepared_transaction_hash_required_before_broadcast",
+        "no_automatic_rebroadcast_after_possible_broadcast",
+        "receipt_confirmation_required_before_closeout",
+        "caller_supplied_private_material_forbidden",
+        "caller_supplied_raw_signed_transaction_forbidden",
+        "background_loop",
+        "startup_execution",
+        "network_request",
+        "credential_access",
+        "wallet_access",
+        "signing",
+        "transaction_broadcast",
+        "inventory_decrement",
+        "public_request_mutation",
+        "money_movement"
+      ],
+      "properties": {
+        "source_only_contract": {
+          "const": true
+        },
+        "one_request_per_saga": {
+          "const": true
+        },
+        "one_payment_per_saga": {
+          "const": true
+        },
+        "one_execution_attempt_per_payment": {
+          "const": true
+        },
+        "per_request_lease_required": {
+          "const": true
+        },
+        "monotonically_increasing_fencing_token_required": {
+          "const": true
+        },
+        "append_only_hash_chain_required": {
+          "const": true
+        },
+        "prepared_transaction_hash_required_before_broadcast": {
+          "const": true
+        },
+        "no_automatic_rebroadcast_after_possible_broadcast": {
+          "const": true
+        },
+        "receipt_confirmation_required_before_closeout": {
+          "const": true
+        },
+        "caller_supplied_private_material_forbidden": {
+          "const": true
+        },
+        "caller_supplied_raw_signed_transaction_forbidden": {
+          "const": true
+        },
+        "background_loop": {
+          "const": false
+        },
+        "startup_execution": {
+          "const": false
+        },
+        "network_request": {
+          "const": false
+        },
+        "credential_access": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "signing": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "inventory_decrement": {
+          "const": false
+        },
+        "public_request_mutation": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  }
+}
