@@ -16,6 +16,7 @@ export const AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_BOUNDS_V1
   Object.freeze({
     maximum_depth: 64,
     maximum_object_keys: 4_096,
+    maximum_key_bytes: 1_024,
     maximum_array_length: 10_000,
     maximum_total_nodes: 50_000,
     maximum_total_keys: 100_000,
@@ -30,6 +31,13 @@ function codeUnitCompare(left, right) {
   if (left < right) return -1;
   if (left > right) return 1;
   return 0;
+}
+
+function sameOrderedStrings(left, right) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 function requireDataDescriptor(descriptor, label, enumerable) {
@@ -64,7 +72,7 @@ function requireClosedRootShape(value) {
   const expected = [
     ...AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_KEYS_V1,
   ].sort(codeUnitCompare);
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  if (!sameOrderedStrings(actual, expected)) {
     fail("closed_input_keys_mismatch");
   }
 
@@ -107,16 +115,31 @@ function accountKeys(state, count, label, maximumPerContainer) {
   }
 }
 
+function accountStringBytes(state, value) {
+  const bounds =
+    AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_BOUNDS_V1;
+  state.total_string_bytes += Buffer.byteLength(value, "utf8");
+  if (state.total_string_bytes > bounds.maximum_total_string_bytes) {
+    fail("closed_input_maximum_total_string_bytes_exceeded");
+  }
+}
+
+function accountKeyBytes(state, keys, label) {
+  const bounds =
+    AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_BOUNDS_V1;
+  for (const key of keys) {
+    if (Buffer.byteLength(key, "utf8") > bounds.maximum_key_bytes) {
+      fail(`closed_input_maximum_key_bytes_exceeded:${label}`);
+    }
+    accountStringBytes(state, key);
+  }
+}
+
 function cloneClosedJsonValue(value, label, state, depth) {
   if (value === null || typeof value === "boolean") return value;
 
   if (typeof value === "string") {
-    const bounds =
-      AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_BOUNDS_V1;
-    state.total_string_bytes += Buffer.byteLength(value, "utf8");
-    if (state.total_string_bytes > bounds.maximum_total_string_bytes) {
-      fail("closed_input_maximum_total_string_bytes_exceeded");
-    }
+    accountStringBytes(state, value);
     return value;
   }
 
@@ -167,9 +190,10 @@ function cloneClosedJsonValue(value, label, state, depth) {
       "length",
     ].sort(codeUnitCompare);
     const actualKeys = [...ownKeys].sort(codeUnitCompare);
-    if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
+    if (!sameOrderedStrings(actualKeys, expectedKeys)) {
       fail(`closed_input_array_shape_mismatch:${label}`);
     }
+    accountKeyBytes(state, ownKeys, label);
     accountKeys(state, length, label, bounds.maximum_array_length);
 
     const output = [];
@@ -196,6 +220,7 @@ function cloneClosedJsonValue(value, label, state, depth) {
   if (ownKeys.some((key) => typeof key !== "string")) {
     fail(`closed_input_symbol_key_forbidden:${label}`);
   }
+  accountKeyBytes(state, ownKeys, label);
   accountKeys(
     state,
     ownKeys.length,
