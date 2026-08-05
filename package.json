@@ -28,7 +28,9 @@
     "datanet:field-replication:proof-bundle": "node tools/datanet-field-replication-proof-bundle-v1.mjs",
     "datanet:field-replication:proof-bundle:public-summary": "node tools/datanet-field-replication-proof-bundle-public-summary-v1.mjs",
     "datanet:field-replication:public-summary-smoke": "bash tools/check_datanet_field_replication_proof_bundle_public_summary_runtime_v1.sh",
-    "datanet:field-replication:real-two-box-closeout-smoke": "bash tools/check_datanet_field_replication_real_two_box_bounded_public_summary_closeout_runtime_v1.sh"
+    "datanet:field-replication:real-two-box-closeout-smoke": "bash tools/check_datanet_field_replication_real_two_box_bounded_public_summary_closeout_runtime_v1.sh",
+    "participant:onboard": "node tools/void-public-earn-validator-onboarding-v1.mjs",
+    "participant:onboard:proof": "node scripts/prove_public_earn_validator_onboarding_v1.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
