@@ -1,0 +1,13 @@
+{
+  "name": "@void-network/authenticated-paid-work-post-expiry-recovery-preparation-v1",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Source-only post-expiry recovery preparation contract for authenticated paid-work credential rotation.",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "engines": {
+    "node": ">=22 <23"
+  }
+}
