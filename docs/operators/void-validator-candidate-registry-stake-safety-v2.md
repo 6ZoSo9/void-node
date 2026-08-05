@@ -164,8 +164,7 @@ depend on an untracked `forge-std` checkout.
 
 ## Compiler and deployment invalidation
 
-A green source test does not authorize deployment and does not accept the
-bytecode for deployment. After this PR merges, the required sequence is:
+A green source test does not authorize deployment and does not accept the bytecode for deployment. After this PR merges, the required sequence is:
 
 1. regenerate the locked Paris Standard JSON compiler input from the repaired
    source;
