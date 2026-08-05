@@ -7,11 +7,12 @@ MARKER="VOID_NODE_CLONE_AND_RUN_V1"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 COMMAND="${1:-run}"
 
-NODE_VERSION="v22.23.2"
+SUPPORTED_NODE_MAJORS="22 24 26"
+NODE_VERSION="v24.18.0"
 NODE_ARCHIVE="node-${NODE_VERSION}-linux-x64.tar.gz"
 NODE_DIRECTORY="node-${NODE_VERSION}-linux-x64"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_ARCHIVE}"
-NODE_SHA256="b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a"
+NODE_SHA256="783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8"
 RUNTIME_ROOT="$ROOT/.runtime/clone-run-v1"
 RUNTIME_DIR="$RUNTIME_ROOT/$NODE_DIRECTORY"
 RUNTIME_MARKER="$RUNTIME_DIR/.void-runtime-sha256"
@@ -39,8 +40,10 @@ Usage:
   ./run-void-node.sh doctor   Report clone-and-run readiness without starting the node.
   ./run-void-node.sh help     Show this help.
 
-The first run may download the pinned Node.js 22 runtime into .runtime/. It does
-not use sudo or install Node.js globally. It creates a local .env and a private
+Supported host runtimes are Node.js 22, 24, and 26. Node.js 24 LTS is the
+repository default. When no supported host runtime is available, the launcher
+downloads the pinned official Node.js 24 LTS runtime into .runtime/. It does not
+use sudo or install Node.js globally. It creates a local .env and a private
 node-identity key at .nodekey when they do not already exist. That identity key
 is not a wallet, validator, treasury, or operator-authority key.
 HELP
@@ -62,12 +65,19 @@ acquire_lock() {
   LOCK_HELD=1
 }
 
+node_major_supported() {
+  case "${1:-}" in
+    22|24|26) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 host_node_supported() {
   command -v node >/dev/null 2>&1 || return 1
   command -v npm >/dev/null 2>&1 || return 1
   local major
   major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
-  test "$major" = 22
+  node_major_supported "$major"
 }
 
 download_file() {
@@ -88,14 +98,14 @@ local_runtime_green() {
   test -x "$RUNTIME_DIR/bin/npm" || return 1
   test -f "$RUNTIME_MARKER" || return 1
   test "$(cat "$RUNTIME_MARKER" 2>/dev/null || true)" = "$NODE_SHA256" || return 1
-  test "$($RUNTIME_DIR/bin/node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)" = 22
+  test "$($RUNTIME_DIR/bin/node --version 2>/dev/null || true)" = "$NODE_VERSION"
 }
 
 ensure_local_runtime() {
   test "$(uname -s)" = Linux || die "automatic runtime bootstrap currently supports Linux only"
   case "$(uname -m)" in
     x86_64|amd64) ;;
-    *) die "automatic runtime bootstrap currently supports Linux x86-64 only";;
+    *) die "automatic runtime bootstrap currently supports Linux x86-64 only" ;;
   esac
   command -v tar >/dev/null 2>&1 || die "required command not found: tar"
   command -v gzip >/dev/null 2>&1 || die "required command not found: gzip"
@@ -121,8 +131,8 @@ ensure_local_runtime() {
   tar -xzf "$archive" -C "$extracted" --no-same-owner --no-same-permissions
   test -x "$extracted/$NODE_DIRECTORY/bin/node" || die "downloaded runtime is missing bin/node"
   test -x "$extracted/$NODE_DIRECTORY/bin/npm" || die "downloaded runtime is missing bin/npm"
-  test "$($extracted/$NODE_DIRECTORY/bin/node -p 'process.versions.node.split(".")[0]')" = 22 \
-    || die "downloaded runtime is not Node.js 22"
+  test "$($extracted/$NODE_DIRECTORY/bin/node --version)" = "$NODE_VERSION" \
+    || die "downloaded runtime is not the pinned Node.js 24 LTS release"
 
   rm -rf "$RUNTIME_DIR"
   mv "$extracted/$NODE_DIRECTORY" "$RUNTIME_DIR"
@@ -135,14 +145,16 @@ ensure_local_runtime() {
 
 select_runtime() {
   if test "${VOID_CLONE_RUN_FORCE_LOCAL_RUNTIME:-0}" != 1 && host_node_supported; then
+    local major
+    major="$(node -p 'process.versions.node.split(".")[0]')"
     NODE_BIN="$(command -v node)"
     NPM_BIN="$(command -v npm)"
-    RUNTIME_SOURCE="host_node22"
+    RUNTIME_SOURCE="host_node${major}"
   else
     ensure_local_runtime
     NODE_BIN="$RUNTIME_DIR/bin/node"
     NPM_BIN="$RUNTIME_DIR/bin/npm"
-    RUNTIME_SOURCE="repo_local_node22"
+    RUNTIME_SOURCE="repo_local_node24"
   fi
   export PATH="$(dirname "$NODE_BIN"):$PATH"
 }
@@ -257,6 +269,7 @@ prepare_node() {
   say "$MARKER PREPARE_GREEN"
   say "runtime_source=$RUNTIME_SOURCE"
   say "node_version=$($NODE_BIN --version)"
+  say "supported_node_majors=$SUPPORTED_NODE_MAJORS"
   say "env_file=$ENV_FILE"
   say "node_identity_key=$NODE_KEY_FILE"
   say "wallet_key_generated=false"
@@ -276,6 +289,8 @@ doctor() {
   say "runtime_source=$RUNTIME_SOURCE"
   say "node_version=$($NODE_BIN --version 2>/dev/null || echo unavailable)"
   say "npm_version=$($NPM_BIN --version 2>/dev/null || echo unavailable)"
+  say "supported_node_majors=$SUPPORTED_NODE_MAJORS"
+  say "default_node_major=24"
   say "host_node_required=false"
   if test -f "$ENV_FILE"; then say "env_file=true"; else say "env_file=false"; rc=1; fi
   if test -f "$NODE_KEY_FILE" && test "$(stat -c '%a' "$NODE_KEY_FILE" 2>/dev/null || true)" = 600; then
