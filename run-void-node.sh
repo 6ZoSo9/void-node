@@ -11,7 +11,7 @@ NODE_VERSION="v22.23.2"
 NODE_ARCHIVE="node-${NODE_VERSION}-linux-x64.tar.gz"
 NODE_DIRECTORY="node-${NODE_VERSION}-linux-x64"
 NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_ARCHIVE}"
-NODE_SHA256="b294b161bdaf0ce6063902bf141517f2a2022e8dd21b1e09557fb471f3bc882c"
+NODE_SHA256="b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a"
 RUNTIME_ROOT="$ROOT/.runtime/clone-run-v1"
 RUNTIME_DIR="$RUNTIME_ROOT/$NODE_DIRECTORY"
 RUNTIME_MARKER="$RUNTIME_DIR/.void-runtime-sha256"
@@ -171,6 +171,39 @@ ensure_local_configuration() {
   chmod 600 "$NODE_KEY_FILE"
 }
 
+load_env_file() {
+  test -f "$ENV_FILE" || die "missing local configuration: $ENV_FILE"
+  local entry name value
+  while IFS= read -r -d '' entry; do
+    name="${entry%%=*}"
+    value="${entry#*=}"
+    if [[ -v $name ]]; then
+      continue
+    fi
+    printf -v "$name" '%s' "$value"
+    export "$name"
+  done < <(
+    cd "$ROOT"
+    "$NODE_BIN" - "$ENV_FILE" <<'NODE'
+const fs = require("node:fs");
+const dotenv = require("dotenv");
+const source = fs.readFileSync(process.argv[2], "utf8");
+const parsed = dotenv.parse(source);
+for (const [name, value] of Object.entries(parsed)) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(`invalid environment variable name: ${name}`);
+  }
+  process.stdout.write(`${name}=${value}\0`);
+}
+NODE
+  )
+
+  export NODE_PRIVKEY_PATH="${NODE_PRIVKEY_PATH:-$NODE_KEY_FILE}"
+  export DATA_DIR="${DATA_DIR:-$ROOT/data}"
+  export HTTP_PORT="${HTTP_PORT:-4100}"
+  export P2P_PORT="${P2P_PORT:-4700}"
+}
+
 source_fingerprint() {
   if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     local head dirty
@@ -187,8 +220,8 @@ source_fingerprint() {
 }
 
 prepare_node() {
-  select_runtime
   acquire_lock
+  select_runtime
   ensure_local_configuration
 
   local fingerprint previous
@@ -229,7 +262,9 @@ prepare_node() {
 }
 
 doctor() {
+  acquire_lock
   select_runtime
+  release_lock
   local rc=0
   say "marker=$MARKER"
   say "os=$(uname -s)"
@@ -262,6 +297,7 @@ case "$COMMAND" in
       die "do not run VOID as root; use the intended normal user account"
     fi
     prepare_node
+    load_env_file
     say "[$MARKER] starting VOID node"
     say "readiness=http://127.0.0.1:4100/__void/ready.json"
     cd "$ROOT"
