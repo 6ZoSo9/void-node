@@ -26,6 +26,44 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+resolve_ipv4_doh() {
+  local host="$1" dns_json ip
+  for _ in $(seq 1 120); do
+    dns_json="$(
+      curl -fsS --max-time 10 \
+        --get \
+        --data-urlencode "name=$host" \
+        --data-urlencode 'type=A' \
+        -H 'accept: application/dns-json' \
+        https://cloudflare-dns.com/dns-query 2>/dev/null || true
+    )"
+    ip="$(
+      printf '%s' "$dns_json" |
+        node -e '
+          let input = "";
+          process.stdin.setEncoding("utf8");
+          process.stdin.on("data", (chunk) => { input += chunk; });
+          process.stdin.on("end", () => {
+            try {
+              const body = JSON.parse(input || "{}");
+              const answer = Array.isArray(body.Answer)
+                ? body.Answer.find((entry) => entry && entry.type === 1 && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(String(entry.data || "")))
+                : null;
+              if (answer) process.stdout.write(String(answer.data));
+            } catch {}
+          });
+        ' 2>/dev/null || true
+    )"
+    if test -n "$ip"; then
+      printf '%s\n' "$ip"
+      return 0
+    fi
+    kill -0 "$TUNNEL_PID" 2>/dev/null || return 1
+    sleep 2
+  done
+  return 1
+}
+
 cd "$ROOT"
 test "$(uname -s)" = Linux || hold "quick-tunnel helper currently supports Linux only"
 case "$(uname -m)" in
@@ -107,9 +145,31 @@ test -n "$PUBLIC_URL" || {
   hold "quick tunnel URL was not produced"
 }
 
-PUBLIC_READY="$(curl -fsS --retry 12 --retry-delay 2 --max-time 15 "$PUBLIC_URL/__void/ready.json")" ||
+PUBLIC_HOST="${PUBLIC_URL#https://}"
+PUBLIC_IP="$(resolve_ipv4_doh "$PUBLIC_HOST" || true)"
+test -n "$PUBLIC_IP" || {
+  cat "$TUNNEL_LOG" >&2
+  hold "quick tunnel hostname did not become visible through public DNS"
+}
+say "public_dns_host=$PUBLIC_HOST"
+say "public_dns_ipv4=$PUBLIC_IP"
+
+CURL_PUBLIC=(
+  curl
+  --fail
+  --silent
+  --show-error
+  --location
+  --resolve "$PUBLIC_HOST:443:$PUBLIC_IP"
+  --retry 12
+  --retry-all-errors
+  --retry-delay 2
+  --max-time 20
+)
+
+PUBLIC_READY="$("${CURL_PUBLIC[@]}" "$PUBLIC_URL/__void/ready.json")" ||
   hold "public readiness probe failed"
-PUBLIC_HEAD="$(curl -fsS --retry 5 --retry-delay 1 --max-time 15 "$PUBLIC_URL/blocks/latest/number2.json")" ||
+PUBLIC_HEAD="$("${CURL_PUBLIC[@]}" "$PUBLIC_URL/blocks/latest/number2.json")" ||
   hold "public head probe failed"
 printf 'public_ready=%s\n' "$PUBLIC_READY"
 printf 'public_head=%s\n' "$PUBLIC_HEAD"
