@@ -9,6 +9,7 @@ on:
       - 'scripts/prove_void_public_bootstrap_autodiscovery_v1.mjs'
       - 'tools/void-public-seed-gateway-v1.mjs'
       - 'ops/public/run_void_public_seed_quick_tunnel_v1.sh'
+      - 'docs/public/public-bootstrap-autodiscovery-v1.md'
       - 'src/http/follower_routes.ts'
       - '.github/workflows/void-public-bootstrap-autodiscovery-v1.yml'
   workflow_dispatch:
