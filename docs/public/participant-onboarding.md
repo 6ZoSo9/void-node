@@ -65,6 +65,12 @@ VOID_PUBLIC_EARN_COORDINATOR_BASE=
 VOID_PUBLIC_EARN_COORDINATOR_NODE_ID=
 ```
 
+Participants can use the [VOID Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md)
+through the unified wrapper. Participants who already operate a compatible local
+VOID executor can use the [deterministic local-executor participant CLI release pack](wc-public-earning-participant-cli-release-pack-v1.md).
+The release pack does not install or enable an executor, issue a ticket, write WC,
+settle WC to VOID, or move funds.
+
 Then use:
 
 ```bash
