@@ -42,9 +42,9 @@ const markers = {
   "docs/public/current-capability-matrix.md":
     "VOID_CURRENT_CAPABILITY_MATRIX_V1",
   "docs/public/run-a-node.md":
-    "VOID_PUBLIC_RUN_A_NODE_CURRENT_STATE_V2",
+    "VOID_PUBLIC_RUN_A_NODE_CURRENT_STATE_V3",
   "docs/public/participant-onboarding.md":
-    "VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V2",
+    "VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V3",
   "docs/public/docs-freshness-policy.md":
     "VOID_PUBLIC_DOCS_FRESHNESS_POLICY_V1",
 };
@@ -81,11 +81,49 @@ const requiredBoundaryFragments = [
   "Public read-only evidence is not public mutation authority",
   "100 WC : 1 VOID",
   "operator evidence workflow",
+  "Runtime evidence",
+  "Merged source",
+  "Draft review",
+  "Separately authorized activation",
+  "c2decba4e738489fa8c45e041aa7a15c58c64935",
+  "stake-safe",
+  "Automatic fulfillment is not enabled",
+  "PR #1004",
 ];
 
 for (const fragment of requiredBoundaryFragments) {
   if (!rootReadme.includes(fragment)) {
     hold(`required boundary missing from root README: ${fragment}`);
+  }
+}
+
+const datedCurrentStateFiles = [
+  "README.md",
+  "docs/public/README.md",
+  "docs/public/mainnet0-current-public-status.md",
+  "docs/public/current-capability-matrix.md",
+];
+
+for (const file of datedCurrentStateFiles) {
+  const text = currentDocs.get(file) ?? "";
+  if (!text.includes("Reviewed: **August 5, 2026**")) {
+    hold(`August 5 review date missing from ${file}`);
+  }
+  if (!text.includes("c2decba4e738489fa8c45e041aa7a15c58c64935")) {
+    hold(`current main baseline missing from ${file}`);
+  }
+}
+
+for (const stale of [
+  "Source baseline: `main` at `dc0e3bc8edb5708dcd99d6577f80d04721ad3043`.",
+  "Draft canonical issuance-plan gate: [PR #991]",
+  "| Canonical replacement issuance plan | Draft review |",
+  "validator-candidate.md",
+]) {
+  for (const [file, text] of currentDocs.entries()) {
+    if (text.includes(stale)) {
+      hold(`stale current-state claim remains in ${file}: ${stale}`);
+    }
   }
 }
 

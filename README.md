@@ -4,35 +4,69 @@
 
 **PROTECT THE CORE.**
 
-VOID Network is a Mainnet-0 blockchain, DataNet, and useful-work network built for verifiable coordination between people, operators, and AI agents.
-
-The repository is public and operational, but it is still an early network. Public discovery and proof surfaces are intentionally broader than public mutation authority.
+VOID Network is an early Mainnet-0 blockchain, DataNet, useful-work, and agent-coordination network. The repository is public and operational, but public discovery and proof surfaces are intentionally broader than public mutation authority.
 
 ## Current state
 
-Reviewed: **July 20, 2026**
+Reviewed: **August 5, 2026**
 
-### Live now
+Source baseline: `main` at `c2decba4e738489fa8c45e041aa7a15c58c64935`.
 
-- Mainnet-0 block production and multi-node runtime operation.
-- Public node discovery at `/public-node` and `/.well-known/void-public-node.json`.
-- Read-only public status, proof, DataNet, Work Credit, and validator-candidate evidence.
-- Participant-facing application at `/app/` with Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces.
-- DataNet publish, read, verify, mirror, pin, and public evidence paths.
-- Bounded Work Credit earning through coordinator-issued capability tickets and verified remote-executor receipts.
-- Public operator self-checks, offline evidence review, evidence packs, signed attestations, and one-command evidence workflow.
-- Positive-readiness evidence for validator registration while active admission remains disabled.
+This documentation uses four evidence levels:
 
-### Still guarded
+- **Runtime evidence** — a deployed behavior has a published proof within its documented boundary. This README update did not re-probe any host.
+- **Merged source** — code and proofs are on `main`; merge does not mean deployment or activation.
+- **Draft review** — source exists only in an open draft pull request.
+- **Separately authorized activation** — an operator, credential, wallet, signer, service, registry, or constitutional decision is still required.
+
+### What people can use or verify
+
+- Mainnet-0 runtime and multi-node evidence.
+- Public discovery at `/public-node` and `/.well-known/void-public-node.json`.
+- The participant application at `/app/` with Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces.
+- Public read-only status, proof, DataNet, Work Credit, validator-candidate, and operator evidence.
+- DataNet publish, read, verify, mirror, pin, discovery, and evidence paths within their authorized boundaries.
+- Bounded Work Credit earning evidence using coordinator-issued capability tickets and verified receipts.
+- Public operator self-checks, offline evidence packs, signed attestations, and independent verification.
+- Local node installation and participant tooling on supported Node.js releases.
+
+### Development snapshot
+
+| Area | Repository state | Honest boundary |
+|---|---|---|
+| Node installation | Merged source | Node.js 22, 24, and 26 are supported; Node.js 24 LTS is the default. |
+| Buy VOID | Merged source plus draft hardening | Request, receipt, payment-state, canonical candidate discovery, and canonical issuance-plan source exist. Automatic fulfillment is not enabled; the crash-consistent saga remains draft PR #1004. |
+| Public earning | Merged source plus bounded pilot evidence | One-command participant onboarding and a deterministic first 3-WC packet exist; ticket issuance, execution, and WC writes remain gated. |
+| Validator onboarding | Merged source, undeployed | Candidate preparation, 10,000-VOID minimum checks, dual-compiler reproducibility, and stake-safe exit/withdrawal logic are merged. No registry deployment, public pointer, or active admission is authorized. |
+| Authenticated paid work | Canonical issuance plan merged; runtime repair remains draft | The prior credential expired. PR #991 merged the reviewed canonical issuance plan; PRs #994 and #1001 remain source-only draft gates. No current authentication or execution is claimed. |
+| VOID Agent Alliance | Merged source, inactive | Membership and constitutional-admission contracts are voluntary, auditable, revocable, least-authority, provider-neutral, and limited to lawful nonviolent remedies. No agent is enrolled. |
+| VOID Realms | Merged source, source-only | Checkpoint-graph, tri-scale transition, and replica-advertisement integrity guards exist. There is no live world, region authority, or committed gameplay state. |
+| Market planning | Merged source, inactive | A separate USDC/wVOID Base market plan exists. No wrapper, pool, liquidity, wallet action, or funds movement occurred. |
+| Release engineering | Merged source, not a release claim | Deterministic installer, update, qualification, rehearsal, and launch-gate infrastructure exists; merging it does not publish or deploy a release. |
+
+### Current draft gates
+
+- [PR #994](https://github.com/6ZoSo9/void-node/pull/994) — source-only read-only listener/cgroup evidence collector; it has not been run.
+- [PR #995](https://github.com/6ZoSo9/void-node/pull/995) — root lockfile and working-agreement alignment for Node.js 22, 24, and 26.
+- [PR #996](https://github.com/6ZoSo9/void-node/pull/996) — direct-root regular-JSON scope guard for Buy VOID candidate discovery.
+- [PR #1001](https://github.com/6ZoSo9/void-node/pull/1001) — squash-merge ancestry repair for the paid-work private-runtime reconciliation.
+- [PR #1004](https://github.com/6ZoSo9/void-node/pull/1004) — source-only crash-consistent Buy VOID fulfillment saga.
+
+Draft pull requests are not live capabilities and may change before merge.
+
+### Still guarded or not enabled
 
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
 - Automatic Buy VOID fulfillment.
-- Public validator activation or validator mutation.
+- Public validator activation or validator-set mutation.
+- Authenticated paid-work submission with a current credential.
+- VOID Agent Alliance enrollment or live charter activation.
+- A live VOID Realms world or gameplay authority.
 - Treasury movement and private operator routes.
 
-See the [current capability matrix](docs/public/current-capability-matrix.md) for the exact boundary.
+See the [current capability matrix](docs/public/current-capability-matrix.md) for the compact boundary.
 
 ## Start here
 
@@ -42,6 +76,7 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) fo
 | Checking current status | [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) |
 | Running a node | [Run a node](docs/public/run-a-node.md) |
 | Participating or earning Work Credits | [Participant onboarding](docs/public/participant-onboarding.md) |
+| Using one-command earning or validator preparation | [Public earning and validator onboarding](docs/public/public-earn-validator-onboarding-v1.md) |
 | Reviewing public evidence | [`/public-node`](https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node) |
 | Operating a public node | [Operator evidence workflow](docs/public-node/public-node-operator-evidence-workflow-v1.md) |
 | Reviewing validator readiness | [Validator positive-readiness release](docs/validators/validator-registration-positive-readiness-public-release-v1.md) |
@@ -55,7 +90,7 @@ A native chain with chain ID `2050`, segmented storage, peer networking, block a
 
 ### DataNet
 
-A decentralized data layer for storing, serving, mirroring, verifying, weighting, and discovering data. Data can remain persistent without every object receiving equal trust, visibility, or promotion priority.
+A decentralized data layer for storing, serving, mirroring, verifying, weighting, and discovering data. Persistence does not imply equal trust, visibility, or promotion.
 
 ### Work Credits
 
@@ -66,20 +101,17 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
 - Public self-service issuance and settlement are not enabled.
 
-### Participant and operator surfaces
+### AI agents and the Alliance
 
-The application and public-node interfaces expose capability status honestly. A visible button or page does not imply unrestricted authority behind it.
+VOID exposes machine-readable discovery and bounded agent contracts while preserving explicit authentication, replay, capability, and authority boundaries.
 
-The operator evidence workflow composes:
+The [VOID Agent Alliance membership contract](docs/architecture/void-agent-alliance-membership-v1.md) does not grant covert access, propagation, surveillance, manipulation, credential collection, or destructive authority. ZoSo remains VOID's sovereign constitutional authority over network identity, foundational rules, constitutional boundaries, treasury and key boundaries, existential decisions, and irreversible actions.
 
-1. Public-node self-check.
-2. Offline receipt review.
-3. Evidence-pack creation.
-4. Offline evidence-pack review.
-5. Signed operator attestation.
-6. Independent attestation verification.
+### VOID Realms
 
-It is read-only with respect to chain, wallet, Work Credit, Buy VOID, and validator state.
+VOID Realms is currently a source-only distributed-world architecture with integrity guards for [checkpoint graphs](docs/architecture/void-realms-checkpoint-graph-integrity-guard-v1.md), [tri-scale state transitions](docs/architecture/void-realms-triscale-state-transition-integrity-guard-v1.md), and [replica advertisements](docs/architecture/void-realms-replica-advertisement-integrity-guard-v1.md).
+
+No server start, canonical world, live region authority, gameplay-state mutation, deployment, or production claim follows from those merges.
 
 ## Clone and run
 
@@ -95,7 +127,7 @@ cd void-node
 ./run-void-node.sh
 ```
 
-The launcher supports host Node.js **22, 24, and 26**, with Node.js 24 LTS as the repository default. It handles locked dependency installation, local configuration, node-identity creation, build, and startup. If no supported host runtime is available, it downloads the pinned official Node.js `v24.18.0` runtime into the ignored `.runtime/` directory and verifies its exact SHA-256. It does not install Node.js globally or create wallet, validator, treasury, or operator-authority keys.
+The launcher supports host Node.js **22, 24, and 26**, with Node.js 24 LTS as the repository default. If no supported host runtime is available, it downloads pinned Node.js `v24.18.0` into the ignored `.runtime/` directory and verifies its SHA-256. It does not install Node.js globally or create wallet, validator, treasury, or operator-authority keys.
 
 See the complete [clone-and-run guide](docs/public/clone-and-run-v1.md).
 
@@ -105,19 +137,22 @@ Check readiness from another terminal:
 curl -fsS http://127.0.0.1:4100/__void/ready.json
 ```
 
-Healthy readiness should report:
+Healthy readiness should report `ready=true`, `gap=0`, and `txroot_live=1`.
 
-```text
-ready=true
-gap=0
-txroot_live=1
+## Participant commands
+
+```bash
+./void-participant.sh onboard
+./void-participant.sh earn-status
+./void-participant.sh earn
+./void-participant.sh candidate-packet
 ```
 
-Configuration starts in [`.env.example`](.env.example). Common settings include `DATA_DIR`, `HTTP_PORT`, `P2P_PORT`, and `BOOTSTRAP_ADDRS`.
+These commands fail closed when the trusted coordinator, public validator registry, RPC, account, or other required public inputs are unavailable. They do not accept a private key for repository-side custody.
 
 ## Public-node operator evidence
 
-After a node is running, use the one-command evidence workflow with your own values:
+After a node is running, the operator evidence workflow can compose a public self-check, offline review, recursively checksummed pack, signed attestation, and independent verification.
 
 ```bash
 node tools/public-node-operator-evidence-workflow-v1.mjs \
@@ -129,26 +164,23 @@ node tools/public-node-operator-evidence-workflow-v1.mjs \
   --private-key "$HOME/.config/void/operator-keys/your-key.ed25519"
 ```
 
-The output is locally permission-restricted, recursively checksummed, signed in a dedicated SSHSIG namespace, and independently reviewable offline.
-
-Never publish a private key, seed phrase, wallet file, `.env`, or operator secret.
+The signing key remains local. Never publish a private key, seed phrase, wallet file, `.env`, credential, authorization header, or unredacted secret-bearing receipt.
 
 ## Safety boundary
 
 Public read-only evidence is not public mutation authority.
 
-VOID currently distinguishes between:
+A source commit or merged pull request is not a deployment, service restart, credential grant, payment authorization, Work Credit write, validator transition, wallet signature, transaction broadcast, or funds movement.
 
-- **Live** — deployed and usable within the documented boundary.
-- **Bounded pilot** — real and proven, but rate-limited or coordinator-gated.
-- **Guarded** — implemented or demonstrated, but requires explicit trusted action.
-- **Planned** — not yet available.
+Do not send blind deposits, exchange withdrawals, custodial transfers, or funds based only on an unverified message. Buy VOID delivery remains payment-verified, explicitly authorized, replay-protected, and transaction-reference recorded.
 
-Do not send blind deposits, exchange withdrawals, custodial transfers, or funds based only on an unverified message. Buy VOID delivery remains payment-verified and transaction-reference recorded.
+The expired paid-work credential is documented in the [post-expiry recovery preparation](docs/operations/authenticated-paid-work-post-expiry-recovery-preparation-v1.md). The current source does not invent historical listener, trusted-context, authentication, or execution evidence.
 
-## Maintained proof and beta references
+The validator registry's [dual-compiler reproducibility proof](docs/operators/void-validator-candidate-registry-dual-compiler-reproducibility-v1.md) proves byte-for-byte reproducibility only. It is not ZoSo bytecode acceptance, deployment authorization, owner binding, validator registration, or active admission.
 
-Repository guards retain these established verification commands:
+## Maintained proof references
+
+- [Refined tracked raw empty-catch public discovery index](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md)
 
 ```bash
 make public-beta-status
@@ -156,132 +188,48 @@ make public-beta-preflight
 make wc-wallet-proof
 ```
 
-See the [self-hosted beta CI plan](ops/SELF_HOSTED_BETA_CI_PLAN.md) and the [refined tracked raw empty-catches public discovery index](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md).
+See the [self-hosted beta CI plan](ops/SELF_HOSTED_BETA_CI_PLAN.md) and the [public documentation freshness policy](docs/public/docs-freshness-policy.md).
 
 ## Documentation
 
 - [Public docs index](docs/public/README.md)
 - [Current capability matrix](docs/public/current-capability-matrix.md)
-- [Documentation freshness policy](docs/public/docs-freshness-policy.md)
+- [Current public status](docs/public/mainnet0-current-public-status.md)
 - [Developer reference](docs/public/developer-reference.md)
 - [FAQ](docs/public/mainnet0-faq.md)
 - [Whitepaper](docs/public/void-network-whitepaper.md)
-- [Proof cadence](docs/public/proof-cadence.md)
-- [Branch and release policy](docs/public/branch-release-policy.md)
-
-Historical receipts, checkpoint files, launch records, and audit evidence remain immutable. They are evidence of what happened at a specific time, not the canonical description of what is available now.
-
-## Support, security, and contributing
-
 - [Support](SUPPORT.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 
+Historical receipts, checkpoints, audits, and launch records are evidence of a specific event. They are not the canonical description of what is available now.
+
 [![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml)
 
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
-## Verified release installer
+## Release and update infrastructure
 
-The public download lane now has a deterministic Linux x64 archive, stable
-manifest, outer and inner SHA-256 verification, SPDX SBOM, user-scoped
-installer, atomic update/rollback, and CI/tag publishing proof. Start at
-[`docs/public/download-install-release-v1.md`](docs/public/download-install-release-v1.md).
+- [Verified release installer](docs/public/download-install-release-v1.md)
+- [Stable update channel](docs/public/release-update-channel-v1.md)
+- [Immutable publication and promotion](docs/public/release-publication-promotion-v1.md)
+- [Qualification and canary matrix](docs/public/release-qualification-v1.md)
+- [First official release rehearsal](docs/public/first-official-release-rehearsal-v1.md)
+- [First official release launch gate and solo time-lock](docs/public/first-official-release-launch-gate-v1.md)
 
-The installer never starts the service, generates private keys, or activates
-guarded economic/operator lanes unless a separate explicit lane does so.
+The installer never starts a service, generates private keys, or activates guarded economic or operator lanes without a separate explicit gate.
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
 
-## Verified stable update channel
-
-`VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1` adds a stable channel manifest,
-anti-downgrade update checks, SHA-256 and GitHub-attestation verification,
-explicit restart controls, and health-gated automatic rollback.
-
-```bash
-void-node update check --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
-```
-
-See [release update channel v1](docs/public/release-update-channel-v1.md).
-
-## Immutable release publication and promotion
-
-`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1` adds protected immutable
-GitHub Release publication, attested publication and canary receipts,
-hash-chained candidate/stable promotion, freeze, revocation, rollback, and
-public release-channel state.
-
-No real release is published by merging this infrastructure. See
-[release publication and promotion v1](docs/public/release-publication-promotion-v1.md).
-
-## Release qualification and canary matrix
-
-`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1` requires a complete
-fresh-host, WSL2, upgrade, rollback, two-node, and participant-surface matrix,
-plus approval by a reviewer who did not run the qualification targets, before
-stable promotion.
-
-This infrastructure does not publish a release or deploy a live node. See
-[release qualification v1](docs/public/release-qualification-v1.md).
-
-## First official release rehearsal
-
-`VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1` removes tracked Python
-bytecode, enforces bytecode-free proofs, normalizes GitHub operations to
-non-interactive SSH, and rehearses the complete first official release chain
-without publishing a tag or release.
-
-Run:
-
-```bash
-make public-python-bytecode-hygiene-v1-proof
-make public-first-official-release-rehearsal-v1-proof
-```
-
-See [first official release rehearsal v1](docs/public/first-official-release-rehearsal-v1.md).
-
-## First official release launch gate
-
-`VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1` installs the last
-non-publishing control plane before an official VOID release. It also repairs
-the qualification proof so Python syntax validation cannot leak bytecode into
-the repository. The gate freezes an exact clean `main` commit and semantic
-version, binds two deterministic builds to the complete release rehearsal,
-requires independent approval and an expiring single-use authorization, and
-renders an inert publication command.
-
-```bash
-make public-first-official-release-launch-gate-v1-proof
-```
-
-See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
-
-## Solo-operator release time-lock
-
-`VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1` preserves the independent-review
-release path and adds an explicit `solo_time_lock_v1` path for a project with no
-second human reviewer. Solo mode never claims independent review. It requires a
-main-only GitHub environment wait of at least twelve hours, a separate explicit
-risk acknowledgement, and a 14-24 hour authorization window. The publication
-workflow rechecks the live environment after reading the sealed launch record
-and before release mutation can become reachable.
-
-```bash
-make public-first-official-release-launch-gate-v1-proof
-```
-
-See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+<!-- VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1 -->
+<!-- VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1 -->
+<!-- VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1 -->
+<!-- VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1 -->
+<!-- VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1 -->
+<!-- VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1 -->
 
 <!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
-## Public app composition gateway v1
+## Public app composition gateway
 
-The public node now has a dedicated composition boundary that preserves the
-existing Public Earn Gateway while safely serving the VOID App shell and
-sanitized network telemetry. Account-scoped Wallet and Earn records remain
-local or session-authorized only.
+The composition boundary serves the VOID App shell and sanitized network telemetry while keeping account-scoped Wallet and Earn records local or session-authorized.
 
-Proof:
-
-```bash
-make public-app-composition-repair-wall-v1-proof
-```
+See [Public App Composition Gateway v1](docs/public/public-app-composition-gateway-v1.md).
 <!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->
