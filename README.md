@@ -95,7 +95,7 @@ cd void-node
 ./run-void-node.sh
 ```
 
-The launcher handles the repository-supported Node.js 22 runtime, locked dependency installation, local configuration, node-identity creation, build, and startup. It uses an existing compatible host runtime or downloads a pinned SHA-256-verified runtime into the ignored `.runtime/` directory. It does not install Node.js globally or create wallet, validator, treasury, or operator-authority keys.
+The launcher supports host Node.js **22, 24, and 26**, with Node.js 24 LTS as the repository default. It handles locked dependency installation, local configuration, node-identity creation, build, and startup. If no supported host runtime is available, it downloads the pinned official Node.js `v24.18.0` runtime into the ignored `.runtime/` directory and verifies its exact SHA-256. It does not install Node.js globally or create wallet, validator, treasury, or operator-authority keys.
 
 See the complete [clone-and-run guide](docs/public/clone-and-run-v1.md).
 
