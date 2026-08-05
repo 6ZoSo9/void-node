@@ -332,7 +332,7 @@ contract VoidValidatorCandidateRegistryTest is TestBase {
         reg.finalizeExit();
     }
 
-    function testFailedRecipientTransferPreservesStakeAccounting() public {
+    function testRecipientTransferFailurePreservesStakeAccounting() public {
         RejectingStakeRecipient rejecting = new RejectingStakeRecipient();
         _register(alice, "alice", MIN_STAKE);
         reg.markUnbonded(alice);
