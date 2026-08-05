@@ -2,11 +2,19 @@
   "schema": "void_public_bootstrap_v1",
   "network": "VOID Network",
   "chain_id": 2050,
-  "status": "hold_no_public_seed",
-  "generated_at": "2026-08-05T21:30:00Z",
-  "expires_at": null,
-  "sync_endpoints": [],
+  "status": "live_quick_tunnel_test",
+  "generated_at": "2026-08-05T21:44:00Z",
+  "expires_at": "2026-08-06T03:44:00Z",
+  "sync_endpoints": [
+    {
+      "transport": "https",
+      "base": "https://packard-corrected-somebody-epinions.trycloudflare.com",
+      "priority": 10,
+      "enabled": true,
+      "temporary": true
+    }
+  ],
   "onion_endpoints": [],
   "private_tailnet_endpoints_published": false,
-  "notes": "A public HTTPS seed will be added after the first read-only quick-tunnel proof. Onion service support is a secondary transport and is not required for default onboarding."
+  "notes": "First externally verified read-only public seed. Keep the Quick Tunnel process alive for the bounded outside-node proof. Replace with a stable VOID-owned HTTPS seed and add the existing Tor v3 onion transport as an independent mirror."
 }
