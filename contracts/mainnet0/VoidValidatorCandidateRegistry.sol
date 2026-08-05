@@ -38,10 +38,14 @@ contract VoidValidatorCandidateRegistry {
     uint256 public candidateCount;
     uint256 public waitingCount;
     uint256 public activeCount;
+    uint256 public pendingActiveExitCount;
     uint256 public totalStaked;
 
     mapping(address => Candidate) private candidates;
     mapping(address => uint256) public exitRequestedAt;
+    mapping(address => bool) public activeSetRemovalRequired;
+    mapping(address => bool) public activeSetRemovalConfirmed;
+    mapping(address => bytes32) public activeSetRemovalEvidenceHash;
     address[] private candidateOwners;
 
     uint256 private withdrawalStatus = 1;
@@ -61,6 +65,10 @@ contract VoidValidatorCandidateRegistry {
         address indexed owner,
         ValidatorState indexed previousState,
         uint256 withdrawalAvailableAt
+    );
+    event ActiveSetRemovalConfirmed(
+        address indexed owner,
+        bytes32 indexed evidenceHash
     );
     event CandidateUnbonded(address indexed owner);
     event StakeWithdrawn(
@@ -93,6 +101,10 @@ contract VoidValidatorCandidateRegistry {
     error InvalidRecipient();
     error NoStakeAvailable();
     error UnbondingNotReady();
+    error ActiveSetRemovalNotRequired();
+    error ActiveSetRemovalNotConfirmed();
+    error ActiveSetRemovalAlreadyConfirmed();
+    error InvalidActiveSetRemovalEvidence();
     error Reentrancy();
     error StakeTransferFailed();
     error InvalidOwner();
@@ -182,7 +194,10 @@ contract VoidValidatorCandidateRegistry {
         if (owners.length == 0 || owners.length > activationChurnLimit) {
             revert InvalidState();
         }
-        if (activeCount + owners.length > maxActiveValidators) {
+        if (
+            activeCount + pendingActiveExitCount + owners.length >
+            maxActiveValidators
+        ) {
             revert ActiveCapReached();
         }
 
@@ -193,6 +208,9 @@ contract VoidValidatorCandidateRegistry {
 
             c.state = ValidatorState.Active;
             c.updatedAt = block.timestamp;
+            activeSetRemovalRequired[owners[i]] = false;
+            activeSetRemovalConfirmed[owners[i]] = false;
+            activeSetRemovalEvidenceHash[owners[i]] = bytes32(0);
 
             waitingCount -= 1;
             activeCount += 1;
@@ -202,8 +220,9 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Remove a candidate from Candidate, Waiting, or Active status.
-    /// @dev Jailing never transfers or destroys the participant's stake. A jailed
-    ///      participant may still request a delayed exit.
+    /// @dev Jailing never transfers or destroys the participant's stake. For an
+    ///      Active validator, the owner action is the explicit registry-side
+    ///      acknowledgment that the separate active set has removed it.
     function jail(address candidateOwner) external onlyOwner {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
@@ -212,6 +231,21 @@ contract VoidValidatorCandidateRegistry {
             waitingCount -= 1;
         } else if (c.state == ValidatorState.Active) {
             activeCount -= 1;
+            activeSetRemovalRequired[candidateOwner] = true;
+            activeSetRemovalConfirmed[candidateOwner] = true;
+            activeSetRemovalEvidenceHash[candidateOwner] = keccak256(
+                abi.encodePacked(
+                    "VOID_VALIDATOR_ACTIVE_SET_REMOVAL_OWNER_JAIL_V1",
+                    block.chainid,
+                    address(this),
+                    candidateOwner,
+                    block.number
+                )
+            );
+            emit ActiveSetRemovalConfirmed(
+                candidateOwner,
+                activeSetRemovalEvidenceHash[candidateOwner]
+            );
         } else if (c.state != ValidatorState.Candidate) {
             revert InvalidState();
         }
@@ -223,8 +257,9 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Begin a participant-controlled delayed exit.
-    /// @dev Candidate, Waiting, Active, and Jailed participants can always start
-    ///      an exit without registry-owner cooperation.
+    /// @dev An Active participant may request exit without owner cooperation, but
+    ///      cannot finalize until registry authority confirms external active-set
+    ///      removal with a nonzero evidence commitment.
     function requestExit() external {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -234,6 +269,10 @@ contract VoidValidatorCandidateRegistry {
             waitingCount -= 1;
         } else if (previousState == ValidatorState.Active) {
             activeCount -= 1;
+            pendingActiveExitCount += 1;
+            activeSetRemovalRequired[msg.sender] = true;
+            activeSetRemovalConfirmed[msg.sender] = false;
+            activeSetRemovalEvidenceHash[msg.sender] = bytes32(0);
         } else if (
             previousState != ValidatorState.Candidate &&
             previousState != ValidatorState.Jailed
@@ -253,6 +292,33 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
+    /// @notice Bind an external active-set removal proof before active stake exits.
+    /// @dev The evidence hash is public and non-secret. This function does not
+    ///      inspect runtime state; it records the separate operator proof decision.
+    function confirmActiveSetRemoval(
+        address candidateOwner,
+        bytes32 evidenceHash
+    ) external onlyOwner {
+        Candidate storage c = candidates[candidateOwner];
+        if (c.owner == address(0)) revert NotRegistered();
+        if (!activeSetRemovalRequired[candidateOwner]) {
+            revert ActiveSetRemovalNotRequired();
+        }
+        if (activeSetRemovalConfirmed[candidateOwner]) {
+            revert ActiveSetRemovalAlreadyConfirmed();
+        }
+        if (c.state != ValidatorState.Exiting) revert InvalidState();
+        if (evidenceHash == bytes32(0)) {
+            revert InvalidActiveSetRemovalEvidence();
+        }
+
+        activeSetRemovalConfirmed[candidateOwner] = true;
+        activeSetRemovalEvidenceHash[candidateOwner] = evidenceHash;
+        pendingActiveExitCount -= 1;
+
+        emit ActiveSetRemovalConfirmed(candidateOwner, evidenceHash);
+    }
+
     /// @notice Complete a participant-controlled exit after the fixed delay.
     function finalizeExit() external {
         Candidate storage c = candidates[msg.sender];
@@ -264,6 +330,10 @@ contract VoidValidatorCandidateRegistry {
             requestedAt == 0 ||
             block.timestamp < requestedAt + UNBONDING_DELAY
         ) revert UnbondingNotReady();
+        if (
+            activeSetRemovalRequired[msg.sender] &&
+            !activeSetRemovalConfirmed[msg.sender]
+        ) revert ActiveSetRemovalNotConfirmed();
 
         c.state = ValidatorState.Unbonded;
         c.updatedAt = block.timestamp;
@@ -272,8 +342,9 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Administrative removal that makes stake immediately withdrawable.
-    /// @dev This is deliberately limited to Candidate, Waiting, Active, or Jailed.
-    ///      It cannot bypass an already-started participant exit delay.
+    /// @dev Active validators cannot use this direct path. They must first exit
+    ///      or be jailed so external active-set removal is explicitly accounted.
+    ///      An already-started participant exit cannot be bypassed.
     function markUnbonded(address candidateOwner) external onlyOwner {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
@@ -281,13 +352,18 @@ contract VoidValidatorCandidateRegistry {
         if (c.state == ValidatorState.Waiting) {
             waitingCount -= 1;
         } else if (c.state == ValidatorState.Active) {
-            activeCount -= 1;
+            revert ActiveSetRemovalNotConfirmed();
         } else if (
             c.state != ValidatorState.Candidate &&
             c.state != ValidatorState.Jailed
         ) {
             revert InvalidState();
         }
+
+        if (
+            activeSetRemovalRequired[candidateOwner] &&
+            !activeSetRemovalConfirmed[candidateOwner]
+        ) revert ActiveSetRemovalNotConfirmed();
 
         c.state = ValidatorState.Unbonded;
         c.updatedAt = block.timestamp;
