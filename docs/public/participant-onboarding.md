@@ -1,6 +1,6 @@
 # VOID participant onboarding
 
-<!-- VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V2 -->
+<!-- VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V3 -->
 
 This guide explains what a participant can do now and which actions remain guarded.
 
@@ -21,123 +21,163 @@ VOID uses four practical states:
 
 See the [current capability matrix](current-capability-matrix.md).
 
-## 2. Create or unlock your local account wallet
+## 2. Clone, prepare, and run a node
 
-Wallet material must remain local to you.
+```bash
+git clone https://github.com/6ZoSo9/void-node.git
+cd void-node
+./run-void-node.sh prepare
+./run-void-node.sh run
+```
+
+The launcher creates a node identity only. It does not create a wallet,
+validator-stake signer, treasury key, or operator-authority key.
+
+In a second terminal, run the unified participant check:
+
+```bash
+./void-participant.sh onboard
+```
+
+See [public earning and validator-candidate onboarding v1](public-earn-validator-onboarding-v1.md).
+
+## 3. Keep wallet custody local
+
+Wallet material must remain local to the participant.
 
 - Never share a private key or seed phrase.
 - Never upload a wallet file to a support ticket.
-- Never paste secrets into chat, Discord, Reddit, GitHub, or a public receipt.
-- Confirm network, chain ID, recipient, amount, and fee before signing.
+- Never paste secrets into chat, Discord, Reddit, GitHub, `.env`, or a public receipt.
+- Confirm network, chain ID, contract, amount, and fee before signing.
 
 VOID does not provide a public custodial signer.
 
-## 3. Earn Work Credits
+## 4. Earn Work Credits
 
-Work Credits account for useful, verifiable work.
+Work Credits account for useful, verifiable work. Current earning is bounded,
+coordinator-issued, receipt-verified, capped, and duplicate-protected.
 
-Current earning is a bounded remote-executor pilot.
+Configure the trusted coordinator values in `.env`:
 
-Participants who do not want to install or run a full VOID node can use the
-[VOID Public Earn No-Node Client v1](void-public-earn-no-node-client-v1.md).
-The client creates a private local Ed25519 executor identity and performs one
-server-selected `datanet_fetch_verify` ticket at a time. A successful verified
-run must prove an exact `+3 WC` change in the canonical redeemable balance.
+```text
+VOID_PARTICIPANT_ACCOUNT=
+VOID_PUBLIC_EARN_COORDINATOR_BASE=
+VOID_PUBLIC_EARN_COORDINATOR_NODE_ID=
+```
 
-Participants who already operate a compatible local VOID executor can use the
-[deterministic local-executor participant CLI release pack](wc-public-earning-participant-cli-release-pack-v1.md).
-The pack preserves the exact repository CLI and license bytes with a source
-manifest and strict checksums. It does not install or enable an executor, issue
-a ticket, select work, accept a receipt, write WC, settle WC to VOID, access a
-wallet or signer, deploy a service, or move funds.
+Then use:
 
-Before using the client, obtain all three values from the trusted coordinator:
+```bash
+./void-participant.sh earn-status
+./void-participant.sh earn
+```
 
-- your participant account ID;
-- the Public Earn HTTPS gateway origin;
-- the coordinator's exact 32-character lowercase hexadecimal node ID.
-
-Run the client's `status` command before `run`. Availability remains
-coordinator-gated. The client cannot select the task, dataset, input hash, or
-award, and it grants no wallet, settlement, Buy VOID, validator, or operator
-authority.
+The default path reuses the existing Public Earn no-node client, so a person who
+has downloaded a full node can earn without exposing the node or enabling an
+inbound executor. A compatible local executor may instead consume a trusted
+ticket file through `--earn-mode local-executor`.
 
 The flow is:
 
-1. A coordinator issues a capability-bound ticket.
-2. The participant executes the specified task.
-3. The participant produces a result receipt.
-4. The coordinator verifies the receipt and execution identity.
+1. A coordinator offers a capability-bound ticket.
+2. The participant executes the specified bounded task.
+3. The participant produces a signed result receipt.
+4. The coordinator verifies ticket, result, and execution identity.
 5. Duplicate and cap checks run.
-6. The account receives the fixed or bounded award.
+6. The canonical participant account receives the ticket-defined WC award.
 
-A participant does not need unrestricted ledger access. The ticket and receipt carry the minimum authority needed for the specific job.
+There is no public generic-credit route and no permissionless WC settlement.
+The policy conversion remains `100 WC : 1 VOID`, but settlement is a separate
+authorized process.
 
-Current boundaries:
+## 5. Observer validation
 
-- WC are intended to be unlimited accounting units.
-- The policy conversion is `100 WC : 1 VOID`.
-- A settlement tranche is not a lifetime WC supply cap.
-- There is no public generic-credit route.
-- Public self-service settlement is not enabled.
-- A receipt is not automatically accepted merely because it exists.
+A running participant node can independently check readiness, peer visibility,
+and the latest block:
 
-## 4. Use DataNet
+```bash
+./void-participant.sh node-check
+```
 
-Participants can use DataNet workflows to publish, read, verify, mirror, pin, and review data within the available local or authorized path.
+A green observer result proves that the local node can inspect public chain
+state. It does not mean the wallet is registered or the node is in the active
+consensus set.
 
-Public-node DataNet evidence is read-only. Public internet access to evidence does not grant public write authority.
+## 6. Validator candidacy
 
-Data weighting can consider verification, freshness, duplication, suspicion, tombstone state, storage tier, AI visibility, trust, and promotion eligibility.
+The locked Mainnet-0 candidate minimum is **10,000 VOID**.
 
-## 5. Create a Buy VOID request
+Configure only public candidate values:
 
-The Buy surface can guide request creation.
+```text
+VOID_CHAIN_RPC=
+VOID_VALIDATOR_CANDIDATE_REGISTRY=
+VOID_VALIDATOR_OWNER=
+VOID_VALIDATOR_REWARD=
+VOID_VALIDATOR_PUBLIC_ENDPOINT=
+VOID_VALIDATOR_P2P_MULTIADDR=
+```
 
-Fulfillment remains guarded:
+Prepare a self-custodied unsigned registration packet:
 
-1. Payment must be independently verified.
-2. The recipient and request must match.
-3. An operator must explicitly authorize fulfillment.
-4. The VOID transaction reference must be recorded.
-5. The participant should verify the result independently.
+```bash
+./void-participant.sh candidate-packet
+```
 
-Automatic Buy VOID fulfillment is not enabled.
+The tool verifies chain ID `2050`, registry bytecode, the exact 10,000 VOID
+minimum, participant balance, node identity, and exact
+`registerCandidate(...)` calldata. It never accepts a wallet key.
 
-Do not send blind deposits, exchange withdrawals, custodial sends, or money based only on a direct message.
+A successful participant-signed registration creates **Candidate** state only.
+Candidate-to-Waiting and Waiting-to-Active transitions are separate authority
+actions and are never automatic. Active registry state still requires runtime,
+epoch, peer, and consensus proof.
 
-## 6. WC-to-VOID settlement
+Verify the public record with:
 
-The policy conversion is `100 WC : 1 VOID`, but settlement is not a permissionless public route.
+```bash
+./void-participant.sh candidate-verify
+```
 
-Settlement requires the documented explicit authorization, account checks, available settlement capacity, and transaction evidence.
+The repository currently contains the contract and proofs, but candidate
+submission remains blocked until a reviewed public registry address and RPC are
+published. The tool fails closed rather than inventing an address.
 
-## 7. Validator candidacy
+## 7. Use DataNet
 
-A participant may follow the validator candidate path, but active admission remains disabled.
+Participants can publish, read, verify, mirror, pin, and review DataNet objects
+within the available local or authorized path. Public-node evidence remains
+read-only and grants no generic write authority.
 
-Positive-readiness evidence shows that the registration surface is prepared; it does not activate the candidate.
+## 8. Buy and settlement boundaries
 
-See [validator registration positive-readiness public release](../validators/validator-registration-positive-readiness-public-release-v1.md).
+Buy VOID fulfillment remains payment-verified and explicitly authorized. Do not
+send blind deposits, exchange withdrawals, custodial sends, or funds based only
+on a direct message.
 
-## 8. Verify before trusting
+WC-to-VOID settlement is not a permissionless public route. It requires account,
+capacity, authorization, and transaction evidence.
 
-Use public proofs and receipts to verify exact claims:
+## 9. Verify before trusting
 
-- Node readiness.
-- Peer visibility.
-- DataNet object identity.
-- Work Credit ticket and receipt status.
-- Transaction reference.
-- Operator evidence-pack checksums.
-- Signed attestation binding.
-- Validator candidate readiness.
+Verify exact claims through public proofs and receipts:
 
-A tester receipt, candidate record, public page, or operator signature has only the authority explicitly described by its schema and verification policy.
+- node readiness and peers;
+- latest block visibility;
+- DataNet object identity;
+- Work Credit ticket and receipt status;
+- candidate registry state and stake;
+- transaction references;
+- operator evidence checksums; and
+- signed attestations.
+
+A page, receipt, candidate record, or signature has only the authority described
+by its schema and verification policy.
 
 ## Need help?
 
 - [Start here](start-here.md)
 - [Current public status](mainnet0-current-public-status.md)
+- [Public earn and validator onboarding](public-earn-validator-onboarding-v1.md)
 - [Support guide](../../SUPPORT.md)
 - [Security policy](../../SECURITY.md)
