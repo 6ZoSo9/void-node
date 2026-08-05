@@ -1,0 +1,43 @@
+name: Authenticated paid-work post-expiry recovery preparation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-post-expiry-recovery-preparation-v1.yml"
+      - "docs/operations/authenticated-paid-work-post-expiry-recovery-preparation-v1.md"
+      - "fixtures/agents/authenticated-paid-work-post-expiry-recovery-preparation-v1.example.json"
+      - "integrations/agents/authenticated-paid-work-post-expiry-recovery-preparation-v1/**"
+      - "schemas/authenticated-paid-work-post-expiry-recovery-preparation-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_post_expiry_recovery_preparation_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-post-expiry-recovery-preparation-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check integrations/agents/authenticated-paid-work-post-expiry-recovery-preparation-v1/index.mjs
+          node --check scripts/prove_authenticated_paid_work_post_expiry_recovery_preparation_v1.mjs
+      - name: Parse closed JSON artifacts
+        run: |
+          node -e 'const fs=require("node:fs"); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file,"utf8"));' \
+            integrations/agents/authenticated-paid-work-post-expiry-recovery-preparation-v1/package.json \
+            fixtures/agents/authenticated-paid-work-post-expiry-recovery-preparation-v1.example.json \
+            schemas/authenticated-paid-work-post-expiry-recovery-preparation-v1.schema.json
+      - name: Prove post-expiry recovery preparation
+        run: node scripts/prove_authenticated_paid_work_post_expiry_recovery_preparation_v1.mjs
