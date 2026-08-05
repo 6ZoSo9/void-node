@@ -1,0 +1,44 @@
+name: public-release-portable-runtime-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-release-portable-runtime-v1.yml'
+      - '.github/workflows/public-release-distribution-v1.yml'
+      - 'tools/build-public-release-portable-runtime-v1.mjs'
+      - 'ops/public/install-void-node-portable-runtime-v1.sh'
+      - 'release/portable/**'
+      - 'scripts/prove_public_release_portable_runtime_v1.mjs'
+      - 'docs/public/portable-runtime-install-v1.md'
+      - 'docs/public/download-install-release-v1.md'
+      - 'tools/build-public-release-v1.mjs'
+      - 'release/bin/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-release-portable-runtime-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove-portable-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Use Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove host-node-independent release
+        run: node scripts/prove_public_release_portable_runtime_v1.mjs --full
