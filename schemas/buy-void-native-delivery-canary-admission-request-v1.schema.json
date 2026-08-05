@@ -1,0 +1,545 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-native-delivery-canary-admission-request-v1",
+  "title": "VOID Buy VOID native-delivery canary admission request V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "request_id",
+    "evidence_class",
+    "source",
+    "candidate_evidence",
+    "dependency_evidence",
+    "native_execution_dry_run_evidence",
+    "canary_limits",
+    "runtime_posture",
+    "review",
+    "decision",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_native_delivery_canary_admission_request_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_NATIVE_DELIVERY_CANARY_ADMISSION_REQUEST_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^voidbvndcar1_[0-9a-f]{64}$"
+    },
+    "evidence_class": {
+      "enum": [
+        "synthetic_example",
+        "runtime_sanitized"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "main_commit",
+        "candidate_readiness_schema_path",
+        "candidate_readiness_schema_blob",
+        "dependency_readiness_source_path",
+        "dependency_readiness_source_blob",
+        "native_execution_runtime_source_path",
+        "native_execution_runtime_source_blob",
+        "native_execution_idempotency_commit"
+      ],
+      "properties": {
+        "main_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "candidate_readiness_schema_path": {
+          "const": "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json"
+        },
+        "candidate_readiness_schema_blob": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dependency_readiness_source_path": {
+          "const": "src/economic/buy_void_native_delivery_dependency_readiness_v1.ts"
+        },
+        "dependency_readiness_source_blob": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "native_execution_runtime_source_path": {
+          "const": "src/economic/buy_void_native_execution_runtime_v1.ts"
+        },
+        "native_execution_runtime_source_blob": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "native_execution_idempotency_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "candidate_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_marker",
+        "report_sha256",
+        "readiness_status",
+        "eligible_candidate_count",
+        "recommended_request_id",
+        "recommended_plan_fingerprint_sha256",
+        "canonical_request_record_present",
+        "orphan_operator_event_only",
+        "parse_failure_count",
+        "wallet_access_authorized",
+        "signing_authorized",
+        "transaction_broadcast_authorized",
+        "money_movement_authorized"
+      ],
+      "properties": {
+        "report_marker": {
+          "const": "VOID_BUY_VOID_OBSERVE_AND_CLAIM_CANDIDATE_READINESS_V1"
+        },
+        "report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "readiness_status": {
+          "const": "exact_one"
+        },
+        "eligible_candidate_count": {
+          "const": 1
+        },
+        "recommended_request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+        },
+        "recommended_plan_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonical_request_record_present": {
+          "const": true
+        },
+        "orphan_operator_event_only": {
+          "const": false
+        },
+        "parse_failure_count": {
+          "const": 0
+        },
+        "wallet_access_authorized": {
+          "const": false
+        },
+        "signing_authorized": {
+          "const": false
+        },
+        "transaction_broadcast_authorized": {
+          "const": false
+        },
+        "money_movement_authorized": {
+          "const": false
+        }
+      }
+    },
+    "dependency_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_marker",
+        "report_sha256",
+        "status",
+        "credential_id",
+        "chain_id",
+        "wallet_address_fingerprint_sha256",
+        "rpc_url_fingerprint_sha256",
+        "credential_read_performed",
+        "chain_identity_probe_performed",
+        "signing_performed",
+        "transaction_broadcast_performed",
+        "dependency_assignment_performed",
+        "runtime_enablement_performed",
+        "money_movement"
+      ],
+      "properties": {
+        "report_marker": {
+          "const": "VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_READINESS_V1"
+        },
+        "report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "const": "ready"
+        },
+        "credential_id": {
+          "const": "buy-void-native-fulfillment-wallet-v1"
+        },
+        "chain_id": {
+          "const": "2050"
+        },
+        "wallet_address_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rpc_url_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "credential_read_performed": {
+          "const": true
+        },
+        "chain_identity_probe_performed": {
+          "const": true
+        },
+        "signing_performed": {
+          "const": false
+        },
+        "transaction_broadcast_performed": {
+          "const": false
+        },
+        "dependency_assignment_performed": {
+          "const": false
+        },
+        "runtime_enablement_performed": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    },
+    "native_execution_dry_run_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_marker",
+        "report_sha256",
+        "status",
+        "attempt_id",
+        "request_id",
+        "reconstructed_from_server_journals",
+        "plan_fingerprint_sha256",
+        "chain_id",
+        "wallet_address_fingerprint_sha256",
+        "native_value_wei",
+        "gas_limit",
+        "max_fee_per_gas_wei",
+        "max_priority_fee_per_gas_wei",
+        "mutation_performed",
+        "signing_performed",
+        "transaction_broadcast_performed",
+        "money_movement"
+      ],
+      "properties": {
+        "report_marker": {
+          "const": "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1"
+        },
+        "report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "const": "dry_run"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+        },
+        "reconstructed_from_server_journals": {
+          "const": true
+        },
+        "plan_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chain_id": {
+          "const": "2050"
+        },
+        "wallet_address_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "native_value_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "gas_limit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "max_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "max_priority_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "mutation_performed": {
+          "const": false
+        },
+        "signing_performed": {
+          "const": false
+        },
+        "transaction_broadcast_performed": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    },
+    "canary_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_request_count",
+        "maximum_attempt_count",
+        "maximum_native_value_wei",
+        "maximum_gas_limit",
+        "maximum_fee_per_gas_wei",
+        "maximum_priority_fee_per_gas_wei",
+        "maximum_total_fee_wei",
+        "automatic_retry_allowed"
+      ],
+      "properties": {
+        "maximum_request_count": {
+          "const": 1
+        },
+        "maximum_attempt_count": {
+          "const": 1
+        },
+        "maximum_native_value_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maximum_gas_limit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maximum_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maximum_priority_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maximum_total_fee_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "automatic_retry_allowed": {
+          "const": false
+        }
+      }
+    },
+    "runtime_posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistent_dependency_injector_enabled",
+        "persistent_native_delivery_runtime_enabled",
+        "persistent_native_execution_runtime_enabled",
+        "persistent_receipt_runtime_enabled",
+        "service_restart_authorized",
+        "apply_requested"
+      ],
+      "properties": {
+        "persistent_dependency_injector_enabled": {
+          "const": false
+        },
+        "persistent_native_delivery_runtime_enabled": {
+          "const": false
+        },
+        "persistent_native_execution_runtime_enabled": {
+          "const": false
+        },
+        "persistent_receipt_runtime_enabled": {
+          "const": false
+        },
+        "service_restart_authorized": {
+          "const": false
+        },
+        "apply_requested": {
+          "const": false
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live_runtime_evidence_established",
+        "dedicated_wallet_funding_boundary_established",
+        "dedicated_wallet_funding_authorized",
+        "candidate_selected_for_live_execution",
+        "zoso_canary_authorized",
+        "zoso_authorization_id"
+      ],
+      "properties": {
+        "live_runtime_evidence_established": {
+          "type": "boolean"
+        },
+        "dedicated_wallet_funding_boundary_established": {
+          "const": false
+        },
+        "dedicated_wallet_funding_authorized": {
+          "const": false
+        },
+        "candidate_selected_for_live_execution": {
+          "const": false
+        },
+        "zoso_canary_authorized": {
+          "const": false
+        },
+        "zoso_authorization_id": {
+          "type": "null"
+        }
+      }
+    },
+    "decision": {
+      "enum": [
+        "HOLD_PENDING_LIVE_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION",
+        "HOLD_PENDING_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_enablement",
+        "dependency_assignment",
+        "credential_access",
+        "wallet_funding",
+        "wallet_access",
+        "inventory_reservation",
+        "execution_attempt_reservation",
+        "transaction_construction",
+        "signing",
+        "transaction_broadcast",
+        "rpc_mutation",
+        "receipt_closeout",
+        "inventory_decrement",
+        "service_restart",
+        "automatic_retry",
+        "money_movement"
+      ],
+      "properties": {
+        "runtime_enablement": {
+          "const": false
+        },
+        "dependency_assignment": {
+          "const": false
+        },
+        "credential_access": {
+          "const": false
+        },
+        "wallet_funding": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "inventory_reservation": {
+          "const": false
+        },
+        "execution_attempt_reservation": {
+          "const": false
+        },
+        "transaction_construction": {
+          "const": false
+        },
+        "signing": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "rpc_mutation": {
+          "const": false
+        },
+        "receipt_closeout": {
+          "const": false
+        },
+        "inventory_decrement": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "automatic_retry": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_class": {
+            "const": "synthetic_example"
+          }
+        },
+        "required": [
+          "evidence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {
+              "live_runtime_evidence_established": {
+                "const": false
+              }
+            }
+          },
+          "decision": {
+            "const": "HOLD_PENDING_LIVE_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_class": {
+            "const": "runtime_sanitized"
+          }
+        },
+        "required": [
+          "evidence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {
+              "live_runtime_evidence_established": {
+                "const": true
+              }
+            }
+          },
+          "decision": {
+            "const": "HOLD_PENDING_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
+          }
+        }
+      }
+    }
+  ]
+}

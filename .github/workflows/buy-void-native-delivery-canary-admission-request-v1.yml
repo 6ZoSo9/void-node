@@ -1,0 +1,57 @@
+name: Buy VOID native delivery canary admission request v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-native-delivery-canary-admission-request-v1.yml"
+      - "docs/operators/buy-void-native-delivery-canary-admission-request-v1.md"
+      - "fixtures/economic/buy-void-native-delivery-canary-admission-request-v1.example.json"
+      - "schemas/buy-void-native-delivery-canary-admission-request-v1.schema.json"
+      - "tools/buy-void-native-delivery-canary-admission-request-v1.mjs"
+      - "scripts/prove_buy_void_native_delivery_canary_admission_request_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/buy-void-native-delivery-canary-admission-request-v1.yml"
+      - "docs/operators/buy-void-native-delivery-canary-admission-request-v1.md"
+      - "fixtures/economic/buy-void-native-delivery-canary-admission-request-v1.example.json"
+      - "schemas/buy-void-native-delivery-canary-admission-request-v1.schema.json"
+      - "tools/buy-void-native-delivery-canary-admission-request-v1.mjs"
+      - "scripts/prove_buy_void_native_delivery_canary_admission_request_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-native-delivery-canary-admission-request-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove source-only canary admission request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Bind Node runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Validate JSON artifacts
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync("schemas/buy-void-native-delivery-canary-admission-request-v1.schema.json", "utf8"))'
+          node -e 'JSON.parse(require("node:fs").readFileSync("fixtures/economic/buy-void-native-delivery-canary-admission-request-v1.example.json", "utf8"))'
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check tools/buy-void-native-delivery-canary-admission-request-v1.mjs
+          node --check scripts/prove_buy_void_native_delivery_canary_admission_request_v1.mjs
+
+      - name: Prove canary admission request
+        run: node scripts/prove_buy_void_native_delivery_canary_admission_request_v1.mjs
