@@ -75,8 +75,8 @@ for (const required of [
   "VOID_LOCAL_PUBLIC_EARN_GATEWAY_INSTALLER_V1",
   "void-public-earn-gateway-v1.service",
   "VOID_EARN_COORDINATOR_UPSTREAM",
-  "VOID_ADAPTER_HOST=127.0.0.1",
-  "VOID_ADAPTER_PORT=4111",
+  "VOID_ADAPTER_HOST:-127.0.0.1",
+  "VOID_ADAPTER_PORT:-4111",
   "activate-loopback-public-earn-gateway-v1",
   "coordinator_enabled",
   "executor_enabled",
@@ -99,6 +99,11 @@ for (const forbidden of [
 ]) {
   assert.equal(localInstaller.includes(forbidden), false, `local installer exposes ${forbidden}`);
 }
+assert.notEqual(
+  fs.statSync(path.join(ROOT, localInstallerPath)).mode & 0o111,
+  0,
+  "local installer must be executable",
+);
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-gateway-service-binding-v1-"));
 try {
