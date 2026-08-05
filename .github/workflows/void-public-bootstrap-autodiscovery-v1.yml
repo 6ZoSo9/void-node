@@ -1,0 +1,47 @@
+name: void-public-bootstrap-autodiscovery-v1
+
+on:
+  pull_request:
+    paths:
+      - 'run-void-node.sh'
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/prove_void_public_bootstrap_autodiscovery_v1.mjs'
+      - 'tools/void-public-seed-gateway-v1.mjs'
+      - 'ops/public/run_void_public_seed_quick_tunnel_v1.sh'
+      - 'src/http/follower_routes.ts'
+      - '.github/workflows/void-public-bootstrap-autodiscovery-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-autodiscovery-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Syntax-check operator helper
+        run: bash -n ops/public/run_void_public_seed_quick_tunnel_v1.sh
+      - name: Prove public bootstrap autodiscovery
+        run: node scripts/prove_void_public_bootstrap_autodiscovery_v1.mjs
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build runtime artifacts
+        run: npm run build
+      - name: Confirm follower autostart artifact
+        run: grep -F 'VOID_PUBLIC_BOOTSTRAP_AUTOSTART_ACTIVE' dist/http/follower_routes.js
