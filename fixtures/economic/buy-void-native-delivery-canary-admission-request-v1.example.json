@@ -2,12 +2,14 @@
   "schema": "void_buy_void_native_delivery_canary_admission_request_v1",
   "marker": "VOID_BUY_VOID_NATIVE_DELIVERY_CANARY_ADMISSION_REQUEST_V1",
   "version": 1,
-  "request_id": "voidbvndcar1_1cff15d4dd49d548510faf8e0f068f665f76c226c85f34f188ad718dec1acd00",
+  "request_id": "voidbvndcar1_33bd53203c4535dd17f22c61d76bbf9edbe8b4527a59a6e5356dac6ca6b44016",
   "evidence_class": "synthetic_example",
   "source": {
     "main_commit": "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e",
     "candidate_readiness_schema_path": "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json",
     "candidate_readiness_schema_blob": "2a0fc85b582ce59def204060c803f04c385a4094",
+    "candidate_readiness_source_path": "src/economic/buy_void_observe_and_claim_candidate_readiness_v1.ts",
+    "candidate_readiness_source_blob": "f0f2a49a019e32c961ee96b9823830bfdaf9fe40",
     "dependency_readiness_source_path": "src/economic/buy_void_native_delivery_dependency_readiness_v1.ts",
     "dependency_readiness_source_blob": "adc44589068b12644f7a01e37a3503d048ec23da",
     "native_execution_runtime_source_path": "src/economic/buy_void_native_execution_runtime_v1.ts",
@@ -72,6 +74,7 @@
     "maximum_fee_per_gas_wei": "1000000000",
     "maximum_priority_fee_per_gas_wei": "100000000",
     "maximum_total_fee_wei": "21000000000000",
+    "maximum_total_outlay_wei": "1000021000000000000",
     "automatic_retry_allowed": false
   },
   "runtime_posture": {
@@ -83,6 +86,8 @@
     "apply_requested": false
   },
   "review": {
+    "root_scoped_candidate_evidence_established": false,
+    "runtime_evidence_materializer_established": false,
     "live_runtime_evidence_established": false,
     "dedicated_wallet_funding_boundary_established": false,
     "dedicated_wallet_funding_authorized": false,
@@ -90,7 +95,7 @@
     "zoso_canary_authorized": false,
     "zoso_authorization_id": null
   },
-  "decision": "HOLD_PENDING_LIVE_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION",
+  "decision": "HOLD_PENDING_ROOT_SCOPED_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION",
   "authority": {
     "runtime_enablement": false,
     "dependency_assignment": false,
