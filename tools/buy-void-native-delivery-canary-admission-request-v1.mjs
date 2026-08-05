@@ -10,7 +10,7 @@ export const DECISION_SYNTHETIC =
   "HOLD_PENDING_ROOT_SCOPED_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION";
 
 export const SOURCE_BINDING_V1 = Object.freeze({
-  main_commit: "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e",
+  main_commit: "c2decba4e738489fa8c45e041aa7a15c58c64935",
   candidate_readiness_schema_path:
     "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json",
   candidate_readiness_schema_blob:
