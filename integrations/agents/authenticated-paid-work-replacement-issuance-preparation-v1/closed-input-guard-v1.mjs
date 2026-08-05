@@ -1,3 +1,5 @@
+import { isProxy } from "node:util/types";
+
 import {
   buildAuthenticatedPaidWorkReplacementIssuancePreparationV1,
 } from "./index.mjs";
@@ -40,6 +42,12 @@ function sameOrderedStrings(left, right) {
   );
 }
 
+function requireNonProxy(value, label) {
+  if (isProxy(value)) {
+    fail(`closed_input_proxy_forbidden:${label}`);
+  }
+}
+
 function requireDataDescriptor(descriptor, label, enumerable) {
   if (
     !descriptor ||
@@ -54,7 +62,11 @@ function requireDataDescriptor(descriptor, label, enumerable) {
 }
 
 function requireClosedRootShape(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (!value || typeof value !== "object") {
+    fail("closed_input_must_be_object");
+  }
+  requireNonProxy(value, "$");
+  if (Array.isArray(value)) {
     fail("closed_input_must_be_object");
   }
 
@@ -154,6 +166,7 @@ function cloneClosedJsonValue(value, label, state, depth) {
     fail(`closed_input_value_outside_json_domain:${label}`);
   }
 
+  requireNonProxy(value, label);
   accountNode(state, label, depth);
   if (state.seen.has(value)) {
     fail(`closed_input_shared_or_cyclic_reference_forbidden:${label}`);
