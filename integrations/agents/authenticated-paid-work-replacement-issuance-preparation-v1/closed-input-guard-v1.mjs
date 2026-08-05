@@ -265,6 +265,16 @@ function cloneClosedJsonValue(value, label, state, depth) {
   return Object.freeze(output);
 }
 
+export function snapshotAuthenticatedPaidWorkReplacementIssuanceVerificationInputV1(
+  value,
+  label,
+) {
+  if (typeof label !== "string" || !/^\$[A-Za-z0-9_]+$/.test(label)) {
+    fail("closed_input_snapshot_label_invalid");
+  }
+  return cloneClosedJsonValue(value, label, newTraversalState(), 0);
+}
+
 export function validateAuthenticatedPaidWorkReplacementIssuanceClosedInputV1(
   value,
 ) {
