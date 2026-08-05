@@ -197,7 +197,7 @@ cat >"$MANIFEST_OUT" <<JSON
   ],
   "onion_endpoints": [],
   "private_tailnet_endpoints_published": false,
-  "notes": "Temporary external proof endpoint. Replace with seed.voidchain.io after named-tunnel activation."
+  "notes": "Temporary external proof endpoint. Replace only with a stable public HTTPS seed whose DNS, TLS, route boundary, availability, and outside-node synchronization are independently proven; voidchain.io is not a bootstrap dependency."
 }
 JSON
 chmod 600 "$MANIFEST_OUT"
