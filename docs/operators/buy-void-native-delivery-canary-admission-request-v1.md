@@ -44,7 +44,7 @@ The validator no longer accepts arbitrary forty-character source identifiers.
 It requires the exact V1 source state:
 
 ```text
-main_commit=b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e
+main_commit=c2decba4e738489fa8c45e041aa7a15c58c64935
 candidate_readiness_schema_blob=2a0fc85b582ce59def204060c803f04c385a4094
 candidate_readiness_source_blob=f0f2a49a019e32c961ee96b9823830bfdaf9fe40
 dependency_readiness_source_blob=adc44589068b12644f7a01e37a3503d048ec23da
@@ -130,7 +130,7 @@ excluding only `request_id`, with prefix `voidbvndcar1_`.
 Committed synthetic example:
 
 ```text
-voidbvndcar1_33bd53203c4535dd17f22c61d76bbf9edbe8b4527a59a6e5356dac6ca6b44016
+voidbvndcar1_23ae1a9ffa5ea501b295d125b027dce940d317e1ca0c28b1c7808514b4cc0761
 ```
 
 Any changed source binding, evidence field, candidate, plan, wallet

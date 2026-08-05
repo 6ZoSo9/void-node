@@ -2,10 +2,10 @@
   "schema": "void_buy_void_native_delivery_canary_admission_request_v1",
   "marker": "VOID_BUY_VOID_NATIVE_DELIVERY_CANARY_ADMISSION_REQUEST_V1",
   "version": 1,
-  "request_id": "voidbvndcar1_33bd53203c4535dd17f22c61d76bbf9edbe8b4527a59a6e5356dac6ca6b44016",
+  "request_id": "voidbvndcar1_23ae1a9ffa5ea501b295d125b027dce940d317e1ca0c28b1c7808514b4cc0761",
   "evidence_class": "synthetic_example",
   "source": {
-    "main_commit": "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e",
+    "main_commit": "c2decba4e738489fa8c45e041aa7a15c58c64935",
     "candidate_readiness_schema_path": "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json",
     "candidate_readiness_schema_blob": "2a0fc85b582ce59def204060c803f04c385a4094",
     "candidate_readiness_source_path": "src/economic/buy_void_observe_and_claim_candidate_readiness_v1.ts",

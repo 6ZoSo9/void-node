@@ -54,7 +54,7 @@
       ],
       "properties": {
         "main_commit": {
-          "const": "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e"
+          "const": "c2decba4e738489fa8c45e041aa7a15c58c64935"
         },
         "candidate_readiness_schema_path": {
           "const": "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json"

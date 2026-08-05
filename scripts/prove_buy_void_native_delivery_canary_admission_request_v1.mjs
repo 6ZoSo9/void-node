@@ -30,7 +30,7 @@ const TOOL_PATH = join(
   "tools/buy-void-native-delivery-canary-admission-request-v1.mjs",
 );
 const EXPECTED_REQUEST_ID =
-  "voidbvndcar1_33bd53203c4535dd17f22c61d76bbf9edbe8b4527a59a6e5356dac6ca6b44016";
+  "voidbvndcar1_23ae1a9ffa5ea501b295d125b027dce940d317e1ca0c28b1c7808514b4cc0761";
 
 function clone(value) {
   return structuredClone(value);
