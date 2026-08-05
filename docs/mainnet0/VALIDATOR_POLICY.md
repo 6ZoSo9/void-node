@@ -96,8 +96,7 @@ The onboarding tooling:
 
 The unsigned packet produced on August 5, 2026 before this repair is rejected
 for deployment because its bytecode could receive stake but could not return it.
-The following values are historical evidence only and must never be signed,
-broadcast, extended, or reused:
+The following values are historical evidence only and must never be signed, broadcast, extended, or reused:
 
 ```text
 packet_id:
