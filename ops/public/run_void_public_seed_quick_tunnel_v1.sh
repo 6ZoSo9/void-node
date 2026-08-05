@@ -90,6 +90,7 @@ test "$GATEWAY_GREEN" = 1 || {
   >"$TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
+# Cloudflare Quick Tunnels publish one temporary https://*.trycloudflare.com URL.
 PUBLIC_URL=""
 for _ in $(seq 1 90); do
   PUBLIC_URL="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" | tail -n 1 || true)"
