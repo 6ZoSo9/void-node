@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+RELEASE_ROOT="$(cd "$(dirname "$SELF")/.." && pwd -P)"
+ENV_FILE="${VOID_NODE_ENV_FILE:-$HOME/.config/void-node/env}"
+
+if test -r "$ENV_FILE"; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+
+NODE_BIN="$RELEASE_ROOT/runtime/bin/node"
+if test -n "${VOID_NODE_NODE_BIN:-}"; then
+  test "${VOID_NODE_ALLOW_RUNTIME_OVERRIDE:-0}" = 1 || {
+    echo "VOID_NODE_NODE_BIN override requires VOID_NODE_ALLOW_RUNTIME_OVERRIDE=1" >&2
+    exit 78
+  }
+  NODE_BIN="$VOID_NODE_NODE_BIN"
+fi
+
+test -f "$NODE_BIN" && test -x "$NODE_BIN" || {
+  echo "VOID node bundled runtime is missing or not executable: $NODE_BIN" >&2
+  exit 69
+}
+NODE_MAJOR="$($NODE_BIN -p 'process.versions.node.split(".")[0]')"
+test "$NODE_MAJOR" = 22 || {
+  echo "VOID node runtime requires bundled Node.js 22; found $($NODE_BIN --version)" >&2
+  exit 69
+}
+
+export VOID_DATA_DIR="${VOID_DATA_DIR:-$HOME/.local/state/void-node/data}"
+export VOID_HTTP_HOST="${VOID_HTTP_HOST:-127.0.0.1}"
+export VOID_HTTP_PORT="${VOID_HTTP_PORT:-4100}"
+export VOID_P2P_HOST="${VOID_P2P_HOST:-127.0.0.1}"
+export VOID_P2P_PORT="${VOID_P2P_PORT:-4700}"
+mkdir -p "$VOID_DATA_DIR"
+chmod 700 "$VOID_DATA_DIR" 2>/dev/null || true
+
+if test -n "${VOID_NODE_KEY_FILE:-}"; then
+  test -f "$VOID_NODE_KEY_FILE" || {
+    echo "configured VOID_NODE_KEY_FILE does not exist: $VOID_NODE_KEY_FILE" >&2
+    exit 78
+  }
+  KEY_MODE="$(stat -c '%a' "$VOID_NODE_KEY_FILE" 2>/dev/null || true)"
+  case "$KEY_MODE" in
+    400|600) ;;
+    *)
+      echo "VOID_NODE_KEY_FILE must be mode 0400 or 0600; found ${KEY_MODE:-unknown}" >&2
+      exit 78
+      ;;
+  esac
+fi
+
+ENTRY=""
+for candidate in dist/index.js dist/src/index.js src/index.js; do
+  if test -f "$RELEASE_ROOT/$candidate"; then
+    ENTRY="$RELEASE_ROOT/$candidate"
+    break
+  fi
+done
+
+test -n "$ENTRY" || {
+  echo "release has no runnable index.js entry point" >&2
+  exit 70
+}
+
+cd "$RELEASE_ROOT"
+exec "$NODE_BIN" "$ENTRY" "$@"
