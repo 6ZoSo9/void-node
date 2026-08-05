@@ -35,10 +35,7 @@
       "pattern": "^voidbvndcar1_[0-9a-f]{64}$"
     },
     "evidence_class": {
-      "enum": [
-        "synthetic_example",
-        "runtime_sanitized"
-      ]
+      "const": "synthetic_example"
     },
     "source": {
       "type": "object",
@@ -47,6 +44,8 @@
         "main_commit",
         "candidate_readiness_schema_path",
         "candidate_readiness_schema_blob",
+        "candidate_readiness_source_path",
+        "candidate_readiness_source_blob",
         "dependency_readiness_source_path",
         "dependency_readiness_source_blob",
         "native_execution_runtime_source_path",
@@ -55,33 +54,34 @@
       ],
       "properties": {
         "main_commit": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "const": "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e"
         },
         "candidate_readiness_schema_path": {
           "const": "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json"
         },
         "candidate_readiness_schema_blob": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "const": "2a0fc85b582ce59def204060c803f04c385a4094"
+        },
+        "candidate_readiness_source_path": {
+          "const": "src/economic/buy_void_observe_and_claim_candidate_readiness_v1.ts"
+        },
+        "candidate_readiness_source_blob": {
+          "const": "f0f2a49a019e32c961ee96b9823830bfdaf9fe40"
         },
         "dependency_readiness_source_path": {
           "const": "src/economic/buy_void_native_delivery_dependency_readiness_v1.ts"
         },
         "dependency_readiness_source_blob": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "const": "adc44589068b12644f7a01e37a3503d048ec23da"
         },
         "native_execution_runtime_source_path": {
           "const": "src/economic/buy_void_native_execution_runtime_v1.ts"
         },
         "native_execution_runtime_source_blob": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "const": "9a04e0a20da2a2eabf8b87713782179138136174"
         },
         "native_execution_idempotency_commit": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "const": "ac3449d113012c0d37a8b5f099e41f9d081d0279"
         }
       }
     },
@@ -311,6 +311,7 @@
         "maximum_fee_per_gas_wei",
         "maximum_priority_fee_per_gas_wei",
         "maximum_total_fee_wei",
+        "maximum_total_outlay_wei",
         "automatic_retry_allowed"
       ],
       "properties": {
@@ -337,6 +338,10 @@
           "pattern": "^(0|[1-9][0-9]*)$"
         },
         "maximum_total_fee_wei": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maximum_total_outlay_wei": {
           "type": "string",
           "pattern": "^(0|[1-9][0-9]*)$"
         },
@@ -381,6 +386,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "root_scoped_candidate_evidence_established",
+        "runtime_evidence_materializer_established",
         "live_runtime_evidence_established",
         "dedicated_wallet_funding_boundary_established",
         "dedicated_wallet_funding_authorized",
@@ -389,8 +396,14 @@
         "zoso_authorization_id"
       ],
       "properties": {
+        "root_scoped_candidate_evidence_established": {
+          "const": false
+        },
+        "runtime_evidence_materializer_established": {
+          "const": false
+        },
         "live_runtime_evidence_established": {
-          "type": "boolean"
+          "const": false
         },
         "dedicated_wallet_funding_boundary_established": {
           "const": false
@@ -410,10 +423,7 @@
       }
     },
     "decision": {
-      "enum": [
-        "HOLD_PENDING_LIVE_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION",
-        "HOLD_PENDING_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
-      ]
+      "const": "HOLD_PENDING_ROOT_SCOPED_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
     },
     "authority": {
       "type": "object",
@@ -487,59 +497,5 @@
         }
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "evidence_class": {
-            "const": "synthetic_example"
-          }
-        },
-        "required": [
-          "evidence_class"
-        ]
-      },
-      "then": {
-        "properties": {
-          "review": {
-            "properties": {
-              "live_runtime_evidence_established": {
-                "const": false
-              }
-            }
-          },
-          "decision": {
-            "const": "HOLD_PENDING_LIVE_RUNTIME_EVIDENCE_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "evidence_class": {
-            "const": "runtime_sanitized"
-          }
-        },
-        "required": [
-          "evidence_class"
-        ]
-      },
-      "then": {
-        "properties": {
-          "review": {
-            "properties": {
-              "live_runtime_evidence_established": {
-                "const": true
-              }
-            }
-          },
-          "decision": {
-            "const": "HOLD_PENDING_WALLET_FUNDING_BOUNDARY_AND_ZOSO_CANARY_AUTHORIZATION"
-          }
-        }
-      }
-    }
-  ]
+  }
 }
