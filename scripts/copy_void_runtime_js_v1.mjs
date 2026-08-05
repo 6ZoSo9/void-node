@@ -62,4 +62,4 @@ console.log(`marker=${MARKER}`);
 console.log(`source=${path.relative(ROOT, SOURCE)}`);
 console.log(`destination=${path.relative(ROOT, DESTINATION)}`);
 console.log(`bytes=${destinationBytes.length}`);
-console.log(`${MARKER}_GREEN`);
+console.log("VOID_NODE_RUNTIME_JS_COPY_V1_GREEN");
