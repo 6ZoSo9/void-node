@@ -1,0 +1,46 @@
+name: Authenticated paid-work private runtime revalidation plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-private-runtime-revalidation-plan-v1.yml"
+      - "config/activation-candidates/authenticated-paid-work-private-runtime-revalidation-plan-v1.json"
+      - "schemas/authenticated-paid-work-private-runtime-revalidation-plan-v1.schema.json"
+      - "docs/operations/authenticated-paid-work-private-runtime-revalidation-plan-v1.md"
+      - "scripts/prove_authenticated_paid_work_private_runtime_revalidation_plan_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-private-runtime-revalidation-plan-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Require merged replacement contracts
+        run: |
+          test -f integrations/agents/authenticated-paid-work-runtime-revalidation-v1/index.mjs
+          test -f integrations/agents/authenticated-paid-work-credential-rotation-v1/index.mjs
+          test -f integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/index.mjs
+          test -f integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/evidence-binding-guard-v1.mjs
+          test -f integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/closed-input-guard-v1.mjs
+      - name: Parse source contracts
+        run: |
+          python3 -m json.tool config/activation-candidates/authenticated-paid-work-private-runtime-revalidation-plan-v1.json >/dev/null
+          python3 -m json.tool schemas/authenticated-paid-work-private-runtime-revalidation-plan-v1.schema.json >/dev/null
+      - name: Check proof syntax
+        run: node --check scripts/prove_authenticated_paid_work_private_runtime_revalidation_plan_v1.mjs
+      - name: Prove private runtime revalidation plan
+        run: node scripts/prove_authenticated_paid_work_private_runtime_revalidation_plan_v1.mjs
