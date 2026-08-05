@@ -198,7 +198,11 @@ for (const [name, value] of Object.entries(parsed)) {
 NODE
   )
 
-  export NODE_PRIVKEY_PATH="${NODE_PRIVKEY_PATH:-$NODE_KEY_FILE}"
+  if test -z "${NODE_PRIVKEY_PATH:-}" && \
+     test -z "${KEY_FILE:-}" && \
+     test -z "${VOID_NODE_KEY_A:-}"; then
+    export NODE_PRIVKEY_PATH="$NODE_KEY_FILE"
+  fi
   export DATA_DIR="${DATA_DIR:-$ROOT/data}"
   export HTTP_PORT="${HTTP_PORT:-4100}"
   export P2P_PORT="${P2P_PORT:-4700}"
