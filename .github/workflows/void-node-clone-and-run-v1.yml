@@ -6,6 +6,7 @@ on:
       - 'run-void-node.sh'
       - 'void-participant.sh'
       - 'scripts/copy_void_runtime_js_v1.mjs'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
       - 'scripts/prove_void_node_clone_and_run_v1.mjs'
       - 'scripts/prove_public_earn_validator_onboarding_v1.mjs'
       - 'docs/public/clone-and-run-v1.md'
@@ -17,6 +18,7 @@ on:
       - '.github/workflows/void-node-clone-and-run-v1.yml'
       - 'package.json'
       - 'package-lock.json'
+      - 'public/bootstrap/v1.json'
       - 'src/**'
       - 'tsconfig*.json'
   workflow_dispatch:
@@ -87,6 +89,7 @@ jobs:
           grep -F 'treasury_key_generated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'authority_activated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'supported_node_majors=22 24 26' /tmp/void-clone-run-doctor.txt
+          grep -F 'tailnet_required=false' /tmp/void-clone-run-doctor.txt
           if test '${{ matrix.host-node }}' = 20; then
             grep -F 'runtime_source=repo_local_node24' /tmp/void-clone-run-doctor.txt
             grep -F 'node_version=v24.18.0' /tmp/void-clone-run-doctor.txt
@@ -100,7 +103,7 @@ jobs:
           LOG=/tmp/void-clone-run-node.log
           READY=/tmp/void-clone-run-ready.json
           READY_AFTER_GRACE=/tmp/void-clone-run-ready-after-grace.json
-          ./run-void-node.sh run >"$LOG" 2>&1 &
+          VOID_PUBLIC_BOOTSTRAP_DISABLE=1 ./run-void-node.sh run >"$LOG" 2>&1 &
           PID=$!
           cleanup() {
             kill -TERM "$PID" 2>/dev/null || true
