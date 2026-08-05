@@ -45,11 +45,13 @@ const launcher = requireText("run-void-node.sh", [
   "VOID_NODE_CLONE_AND_RUN_V1",
   "v22.23.2",
   "https://nodejs.org/dist/${NODE_VERSION}/${NODE_ARCHIVE}",
-  "b294b161bdaf0ce6063902bf141517f2a2022e8dd21b1e09557fb471f3bc882c",
+  "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
   "sha256sum --check --strict",
   "ci --ignore-scripts --no-audit --no-fund",
   "crypto.randomBytes(32)",
   "mode: 0o600",
+  "dotenv.parse(source)",
+  "export NODE_PRIVKEY_PATH",
   "wallet_key_generated=false",
   "validator_key_generated=false",
   "treasury_key_generated=false",
@@ -64,7 +66,7 @@ if (/NODE_SHA256="(?:0+|[0-9a-f]{1,63})"/.test(launcher)) fail("launcher does no
 if (!launcher.includes('test "$major" = 22')) fail("host runtime is not restricted to the repository-supported Node major");
 if (!launcher.includes('exec "$NODE_BIN" "$ROOT/dist/index.js"')) fail("run path does not invoke the selected verified runtime");
 if (!launcher.includes('flag: "wx"')) fail("node identity creation is not exclusive-create");
-pass("launcher-security-and-runtime-contract");
+pass("launcher-security-runtime-and-env-contract");
 
 run("bash", ["-n", "run-void-node.sh"]);
 const help = run("bash", ["run-void-node.sh", "help"]);
@@ -75,7 +77,7 @@ requireText("docs/public/clone-and-run-v1.md", [
   "git clone https://github.com/6ZoSo9/void-node.git",
   "./run-void-node.sh",
   "Host Node.js, npm, and a global package installation are not required",
-  "node-identity key",
+  "node identity",
 ]);
 requireText("docs/public/run-a-node.md", [
   "./run-void-node.sh",
