@@ -1,0 +1,15 @@
+{
+  "marker": "VOID_PUBLIC_EARN_FIRST_WORK_PACKET_V1",
+  "version": 1,
+  "task_class": "datanet_fetch_verify",
+  "network": "VOID Mainnet-0",
+  "chain_id": 2050,
+  "fixed_award_wc": 3,
+  "purpose": "Verify that an outside participant can fetch an exact public work packet and prove its SHA-256 identity without exposing an inbound executor.",
+  "server_selected_work": true,
+  "participant_selected_dataset": false,
+  "participant_selected_input_hash": false,
+  "participant_selected_award": false,
+  "wallet_or_signer_required": false,
+  "money_movement": false
+}
