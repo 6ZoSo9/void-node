@@ -196,6 +196,7 @@ const EXPECTED = {
 function read(relative) {
   return fs.readFileSync(path.join(root, relative), "utf8");
 }
+
 function readBytes(relative) {
   return fs.readFileSync(path.join(root, relative));
 }
@@ -496,6 +497,7 @@ for (const required of [
 ]) {
   assert.ok(document.includes(required), `document missing: ${required}`);
 }
+
 const workflow = read(WORKFLOW_PATH);
 for (const required of [
   "actions/checkout@v6",
