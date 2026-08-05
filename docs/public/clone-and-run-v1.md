@@ -8,7 +8,7 @@ This is the source-checkout path for a person who wants to clone the public repo
 
 - Linux x86-64. Ubuntu 24.04 and newer comparable Ubuntu releases are the primary targets.
 - Git, because this path begins with a repository clone.
-- Stable network access for the clone and, when needed, the one-time verified runtime download.
+- Stable network access for the clone, the verified runtime download when needed, and public seed synchronization.
 - `bash`, `tar`, `gzip`, `sha256sum`, and either `curl` or `wget`.
 - A normal unprivileged user account.
 - At least 8 GB RAM and persistent disk space.
@@ -27,14 +27,15 @@ cd void-node
 
 Do not use `sudo`.
 
-The first run performs the complete local preparation:
+The first run performs the complete preparation:
 
 1. Selects a compatible host Node.js 22, 24, or 26 runtime, or obtains the verified repository-local Node.js 24 LTS runtime.
 2. Copies `.env.example` to the ignored local `.env` when no local configuration exists.
 3. Creates an ignored mode-0600 `.nodekey` when no node identity exists.
 4. Installs the exact locked npm dependencies.
-5. Builds the TypeScript source.
-6. Starts the node with the selected verified runtime.
+5. Builds the TypeScript source and required JavaScript runtime artifacts.
+6. Resolves an exact-green public HTTPS synchronization seed from the canonical GitHub bootstrap manifest.
+7. Starts the node and its bounded HTTP follower with the selected public seed.
 
 Later runs reuse the prepared dependencies and build while the checked-out source revision is unchanged. Set `VOID_CLONE_RUN_REBUILD=1` to force a fresh locked install and rebuild.
 
@@ -71,6 +72,35 @@ runtime_source=host_node26
 runtime_source=repo_local_node24
 ```
 
+## Public bootstrap
+
+The normal run path retrieves the public bootstrap manifest from:
+
+```text
+https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json
+```
+
+The resolver accepts only the VOID Network manifest for chain ID `2050`. It rejects malformed or expired manifests and rejects loopback, private LAN, link-local, CGNAT, and Tailnet address literals. It probes enabled HTTPS seeds and selects the first exact-green endpoint with a positive head, `gap=0`, and `txroot_live=1`.
+
+The participant does not need:
+
+- Tailscale or Tailnet membership;
+- a VPN or SSH account;
+- private `100.x` addresses;
+- router configuration or port forwarding;
+- manual bootstrap IP editing; or
+- operator approval before synchronization.
+
+A deliberate local-only run can disable discovery explicitly:
+
+```bash
+VOID_PUBLIC_BOOTSTRAP_DISABLE=1 ./run-void-node.sh
+```
+
+An operator or test may override the manifest URL with `VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL`. An explicitly supplied `VOID_FOLLOWER_AUTOSTART_PEER` overrides automatic discovery. These are advanced controls, not normal onboarding steps.
+
+See [public bootstrap autodiscovery v1](public-bootstrap-autodiscovery-v1.md).
+
 ## Node identity boundary
 
 The generated `.nodekey` is a random Ed25519 seed used only as this node's peer identity. It is not a wallet key, validator key, treasury key, operator-attestation key, payment credential, or constitutional-authority key.
@@ -96,13 +126,15 @@ Keep the first terminal open while the node runs. From another terminal:
 curl -fsS http://127.0.0.1:4100/__void/ready.json
 ```
 
-The endpoint should become reachable after startup. A healthy synchronized node should report:
+The local endpoint should become reachable after startup. A synchronized node should report:
 
 ```text
 ready=true
 gap=0
 txroot_live=1
 ```
+
+The first synchronization may take time because blocks are verified and imported locally. The head should advance above zero before full readiness is reached.
 
 Public discovery is available locally at:
 
@@ -118,7 +150,7 @@ Press `Ctrl+C` in the running terminal to stop the process.
 ./run-void-node.sh prepare
 ```
 
-This obtains the runtime when necessary, creates the local configuration and node identity, installs dependencies, and builds the node. It does not start a listener.
+This obtains the runtime when necessary, creates the local configuration and node identity, installs dependencies, and builds the node. It does not start a listener or resolve a public seed.
 
 ## Diagnose
 
@@ -126,7 +158,7 @@ This obtains the runtime when necessary, creates the local configuration and nod
 ./run-void-node.sh doctor
 ```
 
-A prepared checkout reports the selected runtime source, Node.js and npm versions, supported majors, local configuration, mode-0600 node identity, dependency tree, and build state. The report never prints the private key or `.env` contents.
+A prepared checkout reports the selected runtime source, Node.js and npm versions, supported majors, public manifest location, Tailnet independence, local configuration, mode-0600 node identity, dependency tree, and build state. The report never prints the private key or `.env` contents.
 
 On a computer whose system Node.js is unsupported, a normal result is:
 
@@ -134,13 +166,14 @@ On a computer whose system Node.js is unsupported, a normal result is:
 runtime_source=repo_local_node24
 node_version=v24.18.0
 host_node_required=false
+tailnet_required=false
 ```
 
 That is deliberate. The machine's existing Node.js installation is left untouched.
 
 ## Configuration
 
-The launcher creates `.env` only when the file does not already exist. Review it before changing network exposure or bootstrap configuration.
+The launcher creates `.env` only when the file does not already exist. Review it before changing local ports or network exposure.
 
 Common fields are:
 
@@ -148,9 +181,10 @@ Common fields are:
 DATA_DIR
 HTTP_PORT
 P2P_PORT
-BOOTSTRAP_ADDRS
 NODE_PRIVKEY_PATH
 ```
+
+`BOOTSTRAP_ADDRS` is an optional native P2P override and is empty by default. It is not required for public HTTP synchronization.
 
 The default `NODE_PRIVKEY_PATH=.nodekey` binds the generated local node identity. A person who supplies a different key path is responsible for providing a readable supported Ed25519 key with restrictive permissions.
 
