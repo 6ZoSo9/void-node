@@ -20,6 +20,8 @@ LOCK_DIR="$RUNTIME_ROOT/.prepare-lock"
 STAMP_FILE="$RUNTIME_ROOT/prepared-source-v1"
 ENV_FILE="$ROOT/.env"
 NODE_KEY_FILE="$ROOT/.nodekey"
+PUBLIC_BOOTSTRAP_RESOLVER="$ROOT/scripts/resolve_void_public_bootstrap_v1.mjs"
+DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST="https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json"
 
 NODE_BIN=""
 NPM_BIN=""
@@ -46,6 +48,12 @@ downloads the pinned official Node.js 24 LTS runtime into .runtime/. It does not
 use sudo or install Node.js globally. It creates a local .env and a private
 node-identity key at .nodekey when they do not already exist. That identity key
 is not a wallet, validator, treasury, or operator-authority key.
+
+The normal run path resolves an exact-green public HTTPS synchronization seed
+from the repository bootstrap manifest and starts the follower automatically.
+It does not require Tailscale, a VPN, private 100.x addresses, SSH, or manual
+peer editing. Set VOID_PUBLIC_BOOTSTRAP_DISABLE=1 only for intentional local-only
+operation or controlled tests.
 HELP
 }
 
@@ -220,6 +228,48 @@ NODE
   export P2P_PORT="${P2P_PORT:-4700}"
 }
 
+resolve_public_bootstrap() {
+  if test "${VOID_PUBLIC_BOOTSTRAP_DISABLE:-0}" = 1; then
+    say "public_bootstrap=disabled_explicitly"
+    return
+  fi
+
+  if test -n "${VOID_FOLLOWER_AUTOSTART_PEER:-}"; then
+    say "public_bootstrap=manual_override"
+    say "public_sync_source=$VOID_FOLLOWER_AUTOSTART_PEER"
+    return
+  fi
+
+  test -f "$PUBLIC_BOOTSTRAP_RESOLVER" || die "missing public bootstrap resolver"
+  export VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL="${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:-$DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST}"
+
+  local resolved error_log
+  error_log="$RUNTIME_ROOT/public-bootstrap-resolver.log"
+  mkdir -p "$RUNTIME_ROOT"
+  : >"$error_log"
+
+  if ! resolved="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" 2>"$error_log"
+  )"; then
+    cat "$error_log" >&2 || true
+    if test "${VOID_PUBLIC_BOOTSTRAP_OPTIONAL:-0}" = 1; then
+      say "public_bootstrap=unavailable_optional"
+      return
+    fi
+    die "no exact-green public VOID seed is available; local-only mode requires VOID_PUBLIC_BOOTSTRAP_DISABLE=1"
+  fi
+
+  resolved="$(printf '%s' "$resolved" | tail -n 1 | tr -d '\r\n')"
+  test -n "$resolved" || die "public bootstrap resolver returned an empty seed"
+  export VOID_FOLLOWER_AUTOSTART_PEER="$resolved"
+  export VOID_FOLLOWER_AUTOSTART_INTERVAL_MS="${VOID_FOLLOWER_AUTOSTART_INTERVAL_MS:-1000}"
+  export VOID_FOLLOWER_PULL_LIMIT="${VOID_FOLLOWER_PULL_LIMIT:-64}"
+  say "public_bootstrap=resolved"
+  say "public_sync_source=$VOID_FOLLOWER_AUTOSTART_PEER"
+  say "tailnet_required=false"
+}
+
 source_fingerprint() {
   if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     local head dirty
@@ -292,6 +342,8 @@ doctor() {
   say "supported_node_majors=$SUPPORTED_NODE_MAJORS"
   say "default_node_major=24"
   say "host_node_required=false"
+  say "public_bootstrap_manifest=${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:-$DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST}"
+  say "tailnet_required=false"
   if test -f "$ENV_FILE"; then say "env_file=true"; else say "env_file=false"; rc=1; fi
   if test -f "$NODE_KEY_FILE" && test "$(stat -c '%a' "$NODE_KEY_FILE" 2>/dev/null || true)" = 600; then
     say "node_identity_key=true"
@@ -317,6 +369,7 @@ case "$COMMAND" in
     fi
     prepare_node
     load_env_file
+    resolve_public_bootstrap
     say "[$MARKER] starting VOID node"
     say "readiness=http://127.0.0.1:4100/__void/ready.json"
     cd "$ROOT"
