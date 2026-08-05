@@ -38,10 +38,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
       - run: node scripts/prove_void_tor_order_status_onion_readonly_v1.mjs
       - run: python3 scripts/validate_void_tor_capability_parity_v1.py
       - run: node scripts/prove_void_tor_capability_parity_v1.mjs
