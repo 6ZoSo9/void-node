@@ -1,0 +1,88 @@
+name: VOID validator candidate registry stake safety v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-stake-safety-v2.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs"
+      - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/operators/void-validator-candidate-registry-stake-safety-v2.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-stake-safety-v2.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs"
+      - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/operators/void-validator-candidate-registry-stake-safety-v2.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-validator-candidate-registry-stake-safety-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked JavaScript dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove source, policy, and authority boundaries
+        run: |
+          node --check \
+            scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs
+          node \
+            scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs
+
+      - name: Run self-contained Foundry adversarial suite
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache"
+          mkdir -p "$FOUNDRY_HOME" "$FOUNDRY_OUT" "$FOUNDRY_CACHE"
+
+          docker pull "$FOUNDRY_IMAGE"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            -v "$FOUNDRY_HOME:/foundry-home" \
+            -v "$FOUNDRY_OUT:/foundry-out" \
+            -v "$FOUNDRY_CACHE:/foundry-cache" \
+            -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -w /repo \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /repo \
+            --match-path test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
+            --use 0.8.20 \
+            --evm-version paris \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvv
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Typecheck repository
+        run: npm run typecheck
