@@ -51,7 +51,10 @@ const launcher = requireText("run-void-node.sh", [
   "crypto.randomBytes(32)",
   "mode: 0o600",
   "dotenv.parse(source)",
-  "export NODE_PRIVKEY_PATH",
+  "test -z \"${NODE_PRIVKEY_PATH:-}\"",
+  "test -z \"${KEY_FILE:-}\"",
+  "test -z \"${VOID_NODE_KEY_A:-}\"",
+  "export NODE_PRIVKEY_PATH=\"$NODE_KEY_FILE\"",
   "wallet_key_generated=false",
   "validator_key_generated=false",
   "treasury_key_generated=false",
@@ -66,6 +69,9 @@ if (/NODE_SHA256="(?:0+|[0-9a-f]{1,63})"/.test(launcher)) fail("launcher does no
 if (!launcher.includes('test "$major" = 22')) fail("host runtime is not restricted to the repository-supported Node major");
 if (!launcher.includes('exec "$NODE_BIN" "$ROOT/dist/index.js"')) fail("run path does not invoke the selected verified runtime");
 if (!launcher.includes('flag: "wx"')) fail("node identity creation is not exclusive-create");
+if (launcher.includes('export NODE_PRIVKEY_PATH="${NODE_PRIVKEY_PATH:-$NODE_KEY_FILE}"')) {
+  fail("launcher overrides explicit KEY_FILE or VOID_NODE_KEY_A aliases");
+}
 pass("launcher-security-runtime-and-env-contract");
 
 run("bash", ["-n", "run-void-node.sh"]);
