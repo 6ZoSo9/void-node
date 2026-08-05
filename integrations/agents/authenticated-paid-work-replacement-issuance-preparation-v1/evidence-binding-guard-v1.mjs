@@ -13,6 +13,9 @@ import {
   verifyAuthenticatedPaidWorkRuntimeRevalidationWithTrustedContextV1,
 } from "../authenticated-paid-work-runtime-revalidation-v1/trusted-context-binding-guard-v1.mjs";
 import {
+  snapshotAuthenticatedPaidWorkReplacementIssuanceVerificationInputV1,
+} from "./closed-input-guard-v1.mjs";
+import {
   validateAuthenticatedPaidWorkReplacementIssuancePreparationV1,
 } from "./index.mjs";
 
@@ -50,10 +53,22 @@ export function verifyAuthenticatedPaidWorkReplacementIssuancePreparationEvidenc
   packetValue,
   evidenceInputValue,
 ) {
+  const packetSnapshot =
+    snapshotAuthenticatedPaidWorkReplacementIssuanceVerificationInputV1(
+      packetValue,
+      "$packet",
+    );
+  const evidenceInputSnapshot =
+    snapshotAuthenticatedPaidWorkReplacementIssuanceVerificationInputV1(
+      evidenceInputValue,
+      "$evidence_input",
+    );
   const packet =
-    validateAuthenticatedPaidWorkReplacementIssuancePreparationV1(packetValue);
+    validateAuthenticatedPaidWorkReplacementIssuancePreparationV1(
+      packetSnapshot,
+    );
   const evidenceInput = requireRecord(
-    evidenceInputValue,
+    evidenceInputSnapshot,
     "evidence_input",
   );
   assertExactKeys(
