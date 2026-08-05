@@ -1,150 +1,147 @@
-# Authenticated paid-work runtime listener cgroup binding v1
+# Authenticated paid-work runtime listener/cgroup evidence v1
 
 Marker: `VOID_AUTHENTICATED_PAID_WORK_RUNTIME_LISTENER_CGROUP_BINDING_V1`
 
-## Problem
+## Purpose
 
-The existing authenticated paid-work runtime-revalidation receipt requires the
-receiver to be active and loopback-only, but a port-level observation alone does
-not establish that the process owning `127.0.0.1:4187` belongs to the reviewed
-systemd user service. A stale, unrelated, or substituted process could own the
-same port while a superficial health and listener check still looked plausible.
+This contract binds the fixed Precision paid-work receiver listener to a stable
+systemd user-service cgroup snapshot. It distinguishes two evidence classes
+instead of treating an unprivileged same-UID scan as proof of global descriptor
+ownership.
 
-This contract closes the source-side relationship between:
-
-- the exact systemd user service and its reported main process;
-- the complete sanitized service cgroup membership snapshot;
-- the listener owner process identity, including process start time;
-- the target socket inode;
-- the service and listener network namespace inode; and
-- the absence of wildcard, non-loopback, or foreign listeners on target port
-  `4187`.
-
-It is designed as a future companion for replacement-credential runtime
-revalidation. It does not replace the runtime-revalidation receipt, trusted
-context binding, credential validity/revocation checks, replay-state checks, or
-producer authentication.
-
-## Exact target
-
-The verifier fixes the expected target to:
+The fixed target remains:
 
 ```text
 host=zoso-Precision-Tower-7810
 manager_scope=systemd_user
 service=void-agent-paid-work-submission-receiver-v1.service
-protocol=tcp
-address_family=ipv4
-listener=127.0.0.1:4187
+listener=tcp/ipv4/127.0.0.1:4187
 ```
 
-No arbitrary host, service, address, port, protocol, or manager scope is
-accepted.
+Both evidence classes are content-addressed with the existing
+`voidapwrlcb1_...` prefix. The original strong receipt shape and committed
+fixture remain valid and retain their prior receipt ID.
 
-## Sanitized evidence model
+## Strong all-visible-process binding
 
-The builder accepts only a descriptor-only JSON-domain input snapshot. The
-merged PR #972 closed-input guard rejects proxies, accessors, custom prototypes,
-symbols, hidden fields, sparse arrays, cycles, shared references, non-JSON
-values, and resource-bound violations before semantic validation.
+`buildAuthenticatedPaidWorkRuntimeListenerCgroupBindingV1(...)` remains the
+strong builder. It accepts the original ownership shape only when the supplied
+snapshot proves:
 
-The service evidence requires:
+- one exact loopback TCP/IPv4 listener;
+- no wildcard, non-loopback, or IPv6 target listener;
+- complete target-port socket-table accounting;
+- complete descriptor-owner accounting across every visible process;
+- one stable owning process;
+- stable owner PID and process start-time identity;
+- owner membership in the exact service cgroup;
+- matching service and listener network namespaces; and
+- exclusivity of the listener to the expected service cgroup.
 
-- an active service;
-- a positive main PID and process start-time tick value;
-- one SHA-256 fingerprint for the manager-reported control-group path;
-- a complete, bounded, strictly PID-sorted cgroup process list;
-- every member bound to the same cgroup-path fingerprint; and
-- the exact main PID and start time present in that member list.
-
-The listener evidence requires exactly one target-port listener with:
-
-- local address `127.0.0.1`;
-- port `4187`;
-- TCP/IPv4 state `LISTEN`;
-- a positive socket inode;
-- an owner PID present in the service cgroup;
-- an owner start-time tick matching the cgroup process record;
-- the same cgroup-path fingerprint; and
-- the same network namespace inode as the service.
-
-The accompanying ownership summary must state that target-port and socket-owner
-scans were complete, all target listeners were accounted for, and no wildcard,
-non-loopback, or foreign listener was detected.
-
-## Content address
-
-The complete sanitized receipt is content-addressed as:
+A strong receipt requires:
 
 ```text
-voidapwrlcb1_<sha256(canonical JSON without receipt_id)>
-```
-
-Canonical object keys use explicit code-unit ordering through the existing
-canonical JSON function. The content address detects byte-level substitution,
-but is not a signature and does not authenticate the evidence producer.
-
-## Decision boundary
-
-A valid receipt reports:
-
-```text
-sanitized_listener_snapshot_contract_validated=true
+socket_owner_scan_complete=true
+listener_exclusive_to_expected_service_cgroup=true
 listener_cgroup_binding_verified=true
+decision=HOLD_PENDING_COMPOSED_RUNTIME_REVALIDATION
+```
+
+The contract does not define how an operator obtains all-UID visibility. A
+collector must fail closed when any visible process FD namespace is unreadable.
+
+## Bounded same-UID observation
+
+`buildAuthenticatedPaidWorkRuntimeListenerCgroupBoundedObservationV1(...)`
+creates a separately typed bounded receipt. It can prove that one stable
+same-UID owner holds the socket and belongs to the service cgroup, while
+explicitly declining global completeness and exclusivity.
+
+A bounded receipt requires:
+
+```text
+status=sanitized_same_uid_listener_binding_incomplete_cross_uid_authority
+visibility_scope=same_uid_only
+same_uid_socket_owner_scan_complete=true
+cross_uid_socket_owner_scan_complete=false
+socket_owner_scan_complete=false
+listener_owner_within_service_cgroup=true
+listener_exclusive_to_expected_service_cgroup=false
+listener_cgroup_binding_verified=false
+decision=HOLD_PENDING_PRIVILEGED_CROSS_UID_OWNER_VERIFICATION_AND_COMPOSED_RUNTIME_REVALIDATION
+```
+
+It also records visible, same-UID, cross-UID, and deliberately uninspected
+cross-UID process counts. The complete visible-process count must partition
+exactly into same-UID and cross-UID counts, and every cross-UID FD namespace
+must remain represented as uninspected.
+
+A bounded receipt is useful diagnostic evidence, but it cannot satisfy the
+strong listener/cgroup gate or be relabeled into strong evidence.
+
+## Shared safety boundary
+
+Both modes require all safety fields false, including:
+
+- service mutation;
+- credential or raw-token access;
+- private-path disclosure;
+- network requests or live authentication;
+- paid-work submission;
+- quote, payment, dispatch, or Work Credit activity;
+- wallet or signer access;
+- signing or transaction activity; and
+- fund movement.
+
+Both modes also require these decision fields false:
+
+```text
 producer_authentication_established=false
 current_runtime_state_established=false
 complete_runtime_revalidation_established=false
 replacement_credential_validity_established=false
 trusted_context_binding_established=false
 execution_authorized=false
-status=HOLD_PENDING_COMPOSED_RUNTIME_REVALIDATION
 ```
 
-This distinction is mandatory. A structurally and relationally valid sanitized
-snapshot does not independently prove that it came from Precision, that its
-clock is authentic, that it is current beyond the supplied relative-time
-window, or that the future replacement credential is valid and loaded.
+Only the strong receipt may set
+`listener_cgroup_binding_verified=true`.
 
-## Adversarial verification
+## Validation APIs
 
-The focused proof rejects:
-
-- target service substitution;
-- a main PID absent from the cgroup snapshot;
-- a listener owner outside the service cgroup;
-- PID reuse or owner process-start substitution;
-- wildcard and non-loopback listener addresses;
-- more than one target-port listener;
-- service/listener network namespace mismatch;
-- listener cgroup fingerprint substitution;
-- member cgroup fingerprint substitution;
-- unsorted or duplicate cgroup PIDs;
-- a foreign-listener claim;
-- a false target-port count;
-- stale relative-time evidence;
-- any credential-access claim;
-- unknown input fields;
-- root proxies before any proxy trap executes;
-- accessor-backed input before any getter executes; and
-- receipt-ID tampering.
-
-Expected proof marker:
+The compatibility-preserving strong APIs remain:
 
 ```text
-VOID_AUTHENTICATED_PAID_WORK_RUNTIME_LISTENER_CGROUP_BINDING_V1_PROOF_GREEN
+buildAuthenticatedPaidWorkRuntimeListenerCgroupBindingV1
+validateAuthenticatedPaidWorkRuntimeListenerCgroupBindingV1
 ```
 
-## Operational truth
+The bounded APIs are:
 
-This package validates supplied sanitized evidence only. It does not inspect a
-host, read `/proc`, query systemd, enumerate sockets, contact the receiver,
-access a credential or private path, mutate a service, restart anything,
-authenticate, submit paid work, accept a quote, execute payment, dispatch work,
-write Work Credits, access a wallet or signer, sign, construct or broadcast a
-transaction, deploy, or move funds.
+```text
+buildAuthenticatedPaidWorkRuntimeListenerCgroupBoundedObservationV1
+validateAuthenticatedPaidWorkRuntimeListenerCgroupBoundedObservationV1
+```
 
-A separately reviewed operator survey must collect the actual evidence. A later
-composed runtime-revalidation lane must authenticate or otherwise trust the
-evidence source, bind the replacement credential and registry, verify trusted
-context and replay state, and preserve fresh ZoSo confirmation before any live
-paid-work action.
+`validateAuthenticatedPaidWorkRuntimeListenerCgroupEvidenceV1(...)` dispatches
+only between the two exact status values and rejects unknown receipt classes.
+
+## Adversarial requirement
+
+A process under another UID may inherit or receive the same listening socket
+descriptor. A same-UID enumerator cannot see that holder. Therefore:
+
+- a bounded collector must not inspect or fabricate the hidden holder and must
+  emit only the incomplete bounded class; and
+- a strong collector must HOLD if the other-UID FD namespace is unreadable and
+  must reject the snapshot if a readable other-UID holder is discovered.
+
+Synthetic tests that return a "foreign" process through a same-UID enumerator
+are insufficient and do not satisfy this requirement.
+
+## Operational boundary
+
+This source contract does not inspect a host, use sudo, alter procfs or ptrace
+settings, restart a service, access credentials, write a registry or binding,
+authenticate, submit paid work, accept or execute payment, write Work Credits,
+access a wallet or signer, broadcast a transaction, deploy, or move funds.

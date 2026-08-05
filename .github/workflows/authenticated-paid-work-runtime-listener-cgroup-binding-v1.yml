@@ -4,12 +4,22 @@ on:
   pull_request:
     paths:
       - ".github/workflows/authenticated-paid-work-runtime-listener-cgroup-binding-v1.yml"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs"
       - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-binding-v1.md"
-      - "fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json"
-      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/**"
-      - "schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json"
       - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs"
-  workflow_dispatch:
+      - "fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-listener-cgroup-binding-v1.yml"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs"
+      - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-binding-v1.md"
+      - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs"
+      - "fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json"
 
 permissions:
   contents: read
@@ -20,24 +30,38 @@ concurrency:
 
 jobs:
   prove:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
-      - name: Check JavaScript syntax
-        run: |
-          node --check integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs
-          node --check scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Parse closed JSON artifacts
         run: |
-          node -e 'const fs=require("node:fs"); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file,"utf8"));' \
-            integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/package.json \
+          python3 -m json.tool \
             fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json \
-            schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json
-      - name: Prove listener cgroup binding
+            >/dev/null
+          python3 -m json.tool \
+            schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json \
+            >/dev/null
+      - name: Check JavaScript syntax
+        run: |
+          node --check \
+            integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs
+          node --check \
+            integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs
+          node --check \
+            scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs
+      - name: Prove strong and bounded receipt classes
         run: node scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs
+      - name: Typecheck repository
+        run: npm run typecheck

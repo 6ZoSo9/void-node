@@ -7,7 +7,13 @@ on:
       - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.md"
       - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_operator_collector_v1.mjs"
       - "tools/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.mjs"
+      - ".github/workflows/authenticated-paid-work-runtime-listener-cgroup-binding-v1.yml"
       - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs"
+      - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-binding-v1.md"
+      - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs"
+      - "fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json"
   push:
     branches: [main]
     paths:
@@ -15,7 +21,13 @@ on:
       - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.md"
       - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_operator_collector_v1.mjs"
       - "tools/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.mjs"
+      - ".github/workflows/authenticated-paid-work-runtime-listener-cgroup-binding-v1.yml"
       - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs"
+      - "integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs"
+      - "docs/operations/authenticated-paid-work-runtime-listener-cgroup-binding-v1.md"
+      - "scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs"
+      - "fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json"
 
 permissions:
   contents: read
@@ -26,22 +38,44 @@ concurrency:
 
 jobs:
   prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parse contract artifacts
+        run: |
+          python3 -m json.tool \
+            fixtures/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1.example.json \
+            >/dev/null
+          python3 -m json.tool \
+            schemas/authenticated-paid-work-runtime-listener-cgroup-binding-v1.schema.json \
+            >/dev/null
       - name: Check JavaScript syntax
         run: |
-          node --check tools/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.mjs
-          node --check scripts/prove_authenticated_paid_work_runtime_listener_cgroup_operator_collector_v1.mjs
-      - name: Prove read-only collector
+          node --check \
+            integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/index.mjs
+          node --check \
+            integrations/agents/authenticated-paid-work-runtime-listener-cgroup-binding-v1/validation-helpers-v1.mjs
+          node --check \
+            tools/authenticated-paid-work-runtime-listener-cgroup-operator-collector-v1.mjs
+          node --check \
+            scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs
+          node --check \
+            scripts/prove_authenticated_paid_work_runtime_listener_cgroup_operator_collector_v1.mjs
+      - name: Prove dual evidence contract
+        run: node scripts/prove_authenticated_paid_work_runtime_listener_cgroup_binding_v1.mjs
+      - name: Prove dual-mode collector
         run: node scripts/prove_authenticated_paid_work_runtime_listener_cgroup_operator_collector_v1.mjs
       - name: Typecheck repository
         run: npm run typecheck
