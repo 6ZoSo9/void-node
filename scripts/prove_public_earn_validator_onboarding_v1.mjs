@@ -43,6 +43,8 @@ assert.equal(CHAIN_ID, 2050n);
 assert.equal(MIN_VALIDATOR_STAKE_VOID, 10_000n);
 assert.equal(MIN_VALIDATOR_STAKE_WEI, parseEther("10000"));
 assert.equal(canonicalJson({ b: 2, a: { d: 4, c: 3 } }), '{"a":{"c":3,"d":4},"b":2}');
+const shared = { value: 1 };
+assert.equal(canonicalJson({ a: shared, b: shared }), '{"a":{"value":1},"b":{"value":1}}');
 
 const packet = buildCandidatePacketBody({
   chainId: CHAIN_ID,
@@ -179,31 +181,72 @@ const wrongValueSigned = await wallet.signTransaction({
   maxFeePerGas: 2n,
   maxPriorityFeePerGas: 1n,
 });
-assert.throws(() => verifySignedCandidateTransaction(wrongValueSigned, packet), /signed_transaction_value_mismatch/);
+assert.throws(
+  () => verifySignedCandidateTransaction(wrongValueSigned, packet),
+  /signed_transaction_value_mismatch/,
+);
 
-const server = http.createServer((request, response) => {
-  response.setHeader("content-type", "application/json");
-  if (request.url === "/healthz") response.end(JSON.stringify({ ok: true, nodeId }));
-  else if (request.url === "/__void/ready.json") response.end(JSON.stringify({ ready: true, node_id: nodeId }));
-  else if (request.url === "/p2p/peers") response.end(JSON.stringify({ peers: [{ id: "peer-a" }] }));
-  else if (request.url === "/blocks/latest/number2.json") response.end(JSON.stringify({ number: 42 }));
-  else { response.statusCode = 404; response.end(JSON.stringify({ error: "not_found" })); }
-});
-server.listen(0, "127.0.0.1");
-await once(server, "listening");
-try {
-  const address = server.address();
-  const snapshot = await inspectNode(`http://127.0.0.1:${address.port}`);
-  assert.equal(snapshot.ready, true);
+async function withNodeFixture({ gap = 0, txrootLive = 1, peerCount = 1 }, callback) {
+  const server = http.createServer((request, response) => {
+    response.setHeader("content-type", "application/json");
+    if (request.url === "/health") {
+      response.end(JSON.stringify({ ok: true, nodeId, http: 4100, p2p: 4700 }));
+    } else if (request.url === "/__void/ready.json") {
+      response.end(JSON.stringify({
+        ready: gap === 0 && txrootLive === 1,
+        head: 42,
+        lastmile_seen: 42,
+        gap,
+        txroot_live: txrootLive,
+        reasons: gap === 0 && txrootLive === 1 ? [] : ["fixture_not_ready"],
+      }));
+    } else if (request.url === "/p2p/peers") {
+      response.end(JSON.stringify({ peers: Array.from({ length: peerCount }, (_, index) => ({ id: `peer-${index}` })) }));
+    } else if (request.url === "/blocks/latest/number2.json") {
+      response.end(JSON.stringify({ number: 42 }));
+    } else {
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not_found" }));
+    }
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const address = server.address();
+    return await callback(`http://127.0.0.1:${address.port}`);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+}
+
+await withNodeFixture({ gap: 0, txrootLive: 1, peerCount: 1 }, async (base) => {
+  const snapshot = await inspectNode(base);
+  assert.equal(snapshot.health_contract_valid, true);
+  assert.equal(snapshot.readiness_contract_valid, true);
+  assert.equal(snapshot.latest_block_aligned, true);
+  assert.equal(snapshot.peer_visibility_valid, true);
   assert.equal(snapshot.observer_validation_ready, true);
   assert.equal(snapshot.peer_count, 1);
   assert.equal(snapshot.node_id, nodeId);
   assert.equal(snapshot.consensus_validator_active, false);
   assert.equal(snapshot.consensus_validator_activation_attempted, false);
-} finally {
-  server.close();
-  await once(server, "close");
-}
+});
+
+await withNodeFixture({ gap: 1, txrootLive: 1, peerCount: 1 }, async (base) => {
+  const snapshot = await inspectNode(base);
+  assert.equal(snapshot.readiness_contract_valid, false);
+  assert.equal(snapshot.observer_validation_ready, false);
+});
+
+await withNodeFixture({ gap: 0, txrootLive: 1, peerCount: 0 }, async (base) => {
+  const snapshot = await inspectNode(base);
+  assert.equal(snapshot.peer_visibility_valid, false);
+  assert.equal(snapshot.observer_validation_ready, false);
+  const zeroPeerAllowed = await inspectNode(base, { expectedPeerCount: 0 });
+  assert.equal(zeroPeerAllowed.peer_visibility_valid, true);
+  assert.equal(zeroPeerAllowed.observer_validation_ready, true);
+});
 
 const tool = read("tools/void-public-earn-validator-onboarding-v1.mjs");
 for (const forbiddenOption of ["--private-key", "--mnemonic", "--seed-phrase", "--wallet-file"]) {
@@ -216,10 +259,18 @@ for (const required of [
   "SUBMIT VOID VALIDATOR CANDIDATE",
   "automatic_waiting_transition: false",
   "automatic_active_transition: false",
+  'fetchJson(nodeBase, "/health")',
+  "Number(readiness.body?.gap) === 0",
+  "Number(readiness.body?.txroot_live) === 1",
+  '"error NotRegistered()"',
+  "REGISTRY_INTERFACE.parseError(data)",
+  "candidate packet requires a strict-green local node observer check",
 ]) {
   assert.ok(tool.includes(required), `tool missing ${required}`);
 }
+assert.equal(tool.includes('fetchJson(nodeBase, "/healthz")'), false);
 
+const participantWrapperPath = path.join(ROOT, "void-participant.sh");
 const participantWrapper = read("void-participant.sh");
 for (const required of [
   "run-void-node.sh\" prepare",
@@ -228,6 +279,7 @@ for (const required of [
 ]) {
   assert.ok(participantWrapper.includes(required), `participant wrapper missing ${required}`);
 }
+assert.notEqual(fs.statSync(participantWrapperPath).mode & 0o111, 0, "participant wrapper must be executable");
 
 const packageJson = JSON.parse(read("package.json"));
 assert.equal(packageJson.scripts["participant:onboard"], "node tools/void-public-earn-validator-onboarding-v1.mjs");
@@ -298,6 +350,7 @@ for (const required of [
   "actions/setup-node@v6",
   'node-version: "22"',
   "npm run participant:onboard:proof",
+  "npm run typecheck",
 ]) {
   assert.ok(workflow.includes(required), `workflow missing ${required}`);
 }
@@ -307,10 +360,12 @@ console.log(JSON.stringify({
   marker: MARKER,
   chain_id: Number(CHAIN_ID),
   minimum_validator_stake_void: MIN_VALIDATOR_STAKE_VOID.toString(),
+  strict_observer_contract_verified: true,
   unsigned_candidate_packet_verified: true,
   participant_signed_transaction_verification: true,
-  observer_validation_check_verified: true,
+  registry_lookup_fail_closed: true,
   earning_clients_reused: true,
+  wrapper_executable: true,
   automatic_waiting_transition: false,
   automatic_active_transition: false,
   private_key_input_supported: false,
