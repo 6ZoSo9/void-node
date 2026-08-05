@@ -83,7 +83,7 @@ records.
 
 ### Withdrawal
 
-Only the candidate owner may call `withdrawStake(...)` for that candidate.
+Only the candidate owner may call withdrawStake(...) for that candidate.
 Withdrawal requires:
 
 - Unbonded state;
@@ -92,8 +92,7 @@ Withdrawal requires:
 - the non-reentrant withdrawal guard.
 
 The implementation zeros `stakeAmount` and decreases `totalStaked` before the
-external transfer. If the recipient rejects the transfer, the transaction
-reverts and all accounting is restored.
+external transfer. A failed transfer reverts and restores all accounting.
 
 The complete recorded amount is returned. The contract does not retain the
 portion above the 10,000-VOID minimum.
