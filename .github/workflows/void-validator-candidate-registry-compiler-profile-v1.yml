@@ -1,0 +1,54 @@
+name: VOID validator candidate registry compiler profile v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-compiler-profile-v1.yml"
+      - "tools/void-validator-candidate-registry-compiler-profile-v1.mjs"
+      - "schemas/void-validator-candidate-registry-compiler-profile-v1.schema.json"
+      - "scripts/prove_void_validator_candidate_registry_compiler_profile_v1.mjs"
+      - "docs/operators/void-validator-candidate-registry-compiler-profile-v1.md"
+      - "tools/void-validator-candidate-registry-deployment-preparation-v1.mjs"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-compiler-profile-v1.yml"
+      - "tools/void-validator-candidate-registry-compiler-profile-v1.mjs"
+      - "schemas/void-validator-candidate-registry-compiler-profile-v1.schema.json"
+      - "scripts/prove_void_validator_candidate_registry_compiler_profile_v1.mjs"
+      - "docs/operators/void-validator-candidate-registry-compiler-profile-v1.md"
+      - "tools/void-validator-candidate-registry-deployment-preparation-v1.mjs"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-validator-candidate-registry-compiler-profile-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parse schema
+        run: |
+          python3 -m json.tool schemas/void-validator-candidate-registry-compiler-profile-v1.schema.json >/dev/null
+      - name: Check source syntax
+        run: |
+          node --check tools/void-validator-candidate-registry-compiler-profile-v1.mjs
+          node --check scripts/prove_void_validator_candidate_registry_compiler_profile_v1.mjs
+      - name: Prove exact compiler-input and authority boundary
+        run: node scripts/prove_void_validator_candidate_registry_compiler_profile_v1.mjs
+      - run: npm run typecheck
