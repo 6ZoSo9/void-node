@@ -2,7 +2,7 @@
 
 Marker: `VOID_NODE_CLONE_AND_RUN_V1`
 
-This is the source-checkout path for a person who wants to clone the public repository and run a local participant node without manually installing the repository's exact Node.js version or learning the npm build sequence.
+This is the source-checkout path for a person who wants to clone the public repository and run a local participant node without manually installing the repository's preferred Node.js version or learning the npm build sequence.
 
 ## Requirements
 
@@ -13,7 +13,9 @@ This is the source-checkout path for a person who wants to clone the public repo
 - A normal unprivileged user account.
 - At least 8 GB RAM and persistent disk space.
 
-Host Node.js, npm, and a global package installation are not required. The launcher uses a compatible host Node.js 22 installation when one is already present. Otherwise it downloads the pinned official Node.js 22 Linux x64 archive into the ignored repository-local `.runtime/` directory and verifies its exact SHA-256 before use.
+Host Node.js, npm, and a global package installation are not required. The launcher accepts a compatible host **Node.js 22, 24, or 26** installation when one is already present. Node.js 24 LTS is the repository default. If the host is missing Node.js or has an unsupported major such as 20, 23, or 25, the launcher downloads the pinned official Node.js `v24.18.0` Linux x64 archive into the ignored repository-local `.runtime/` directory and verifies its exact SHA-256 before use.
+
+The launcher does not replace or modify the machine's global Node.js installation.
 
 ## Clone and run
 
@@ -27,14 +29,47 @@ Do not use `sudo`.
 
 The first run performs the complete local preparation:
 
-1. Selects a compatible host Node.js 22 runtime or obtains the verified repository-local runtime.
+1. Selects a compatible host Node.js 22, 24, or 26 runtime, or obtains the verified repository-local Node.js 24 LTS runtime.
 2. Copies `.env.example` to the ignored local `.env` when no local configuration exists.
 3. Creates an ignored mode-0600 `.nodekey` when no node identity exists.
 4. Installs the exact locked npm dependencies.
 5. Builds the TypeScript source.
 6. Starts the node with the selected verified runtime.
 
-Later runs reuse the prepared dependencies and build while the checked-out source revision is unchanged. Set `VOID_CLONE_RUN_REBUILD=1` to force a clean locked install and rebuild.
+Later runs reuse the prepared dependencies and build while the checked-out source revision is unchanged. Set `VOID_CLONE_RUN_REBUILD=1` to force a fresh locked install and rebuild.
+
+## Node.js compatibility
+
+The supported host majors are:
+
+```text
+22  Maintenance LTS-compatible baseline
+24  Current repository default and LTS runtime
+26  Current-release compatibility line
+```
+
+The root and source package manifests use this explicit engine boundary:
+
+```text
+^22.0.0 || ^24.0.0 || ^26.0.0
+```
+
+This deliberately excludes unsupported odd-numbered majors and Node.js 20. A host running an excluded major is not modified; the verified repository-local Node.js 24 runtime is used instead.
+
+To see the selected runtime without starting the node:
+
+```bash
+./run-void-node.sh doctor
+```
+
+Typical results include:
+
+```text
+runtime_source=host_node22
+runtime_source=host_node24
+runtime_source=host_node26
+runtime_source=repo_local_node24
+```
 
 ## Node identity boundary
 
@@ -91,13 +126,13 @@ This obtains the runtime when necessary, creates the local configuration and nod
 ./run-void-node.sh doctor
 ```
 
-A prepared checkout reports the selected runtime source, Node.js and npm versions, local configuration, mode-0600 node identity, dependency tree, and build state. The report never prints the private key or `.env` contents.
+A prepared checkout reports the selected runtime source, Node.js and npm versions, supported majors, local configuration, mode-0600 node identity, dependency tree, and build state. The report never prints the private key or `.env` contents.
 
-On a computer whose system Node.js is newer than the repository-supported runtime, a normal result is:
+On a computer whose system Node.js is unsupported, a normal result is:
 
 ```text
-runtime_source=repo_local_node22
-node_version=v22.23.2
+runtime_source=repo_local_node24
+node_version=v24.18.0
 host_node_required=false
 ```
 

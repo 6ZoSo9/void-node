@@ -150,10 +150,15 @@ async function main(): Promise<void> {
   );
 
   const requestIds = new Set<string>();
+  const operatorEventRequestIds = new Set<string>();
   const parseFailures: string[] = [];
   const requestFiles = walkJsonFiles(requestDir);
+  let canonicalRequestJsonFileCount = 0;
+  let operatorEventJsonFileCount = 0;
+  let ignoredNoncanonicalJsonFileCount = 0;
 
   for (const file of requestFiles) {
+    const relative = path.relative(requestDir, file);
     try {
       const value = JSON.parse(
         fs.readFileSync(file, "utf8"),
@@ -161,13 +166,38 @@ async function main(): Promise<void> {
       const requestId = String(
         value.request_id || "",
       ).trim();
-      if (/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
-        requestIds.add(requestId);
+
+      if (!/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
+        ignoredNoncanonicalJsonFileCount += 1;
+        continue;
       }
+
+      const basename = path.basename(file);
+      if (basename === `${requestId}.json`) {
+        requestIds.add(requestId);
+        canonicalRequestJsonFileCount += 1;
+        continue;
+      }
+
+      if (
+        basename.startsWith(`operator-event-${requestId}-`)
+        && basename.endsWith(".json")
+      ) {
+        operatorEventRequestIds.add(requestId);
+        operatorEventJsonFileCount += 1;
+        continue;
+      }
+
+      ignoredNoncanonicalJsonFileCount += 1;
     } catch {
-      parseFailures.push(path.relative(requestDir, file));
+      parseFailures.push(relative);
     }
   }
+
+  const orphanOperatorEventRequestIds =
+    [...operatorEventRequestIds]
+      .filter((requestId) => !requestIds.has(requestId))
+      .sort();
 
   const records: BuyVoidObserveAndClaimCandidateRecordV1[] = [];
 
@@ -310,7 +340,17 @@ async function main(): Promise<void> {
     repository_root: args.repoRoot,
     request_directory: requestDir,
     request_json_file_count: requestFiles.length,
+    canonical_request_json_file_count:
+      canonicalRequestJsonFileCount,
+    operator_event_json_file_count:
+      operatorEventJsonFileCount,
+    ignored_noncanonical_json_file_count:
+      ignoredNoncanonicalJsonFileCount,
     request_id_count: requestIds.size,
+    orphan_operator_event_request_id_count:
+      orphanOperatorEventRequestIds.length,
+    orphan_operator_event_request_ids:
+      orphanOperatorEventRequestIds,
     parse_failure_count: parseFailures.length,
     parse_failures: parseFailures.sort(),
     generated_at: new Date().toISOString(),
@@ -342,6 +382,10 @@ async function main(): Promise<void> {
   console.log(
     "recommended_request_id="
       + (summary.recommended_request_id || "none"),
+  );
+  console.log(
+    "orphan_operator_event_request_id_count="
+      + orphanOperatorEventRequestIds.length,
   );
   console.log("activation_performed=false");
   console.log("runtime_mutation_performed=false");
