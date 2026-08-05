@@ -47,7 +47,7 @@ const launcher = requireText("run-void-node.sh", [
   "https://nodejs.org/dist/${NODE_VERSION}/${NODE_ARCHIVE}",
   "b294b161bdaf0ce6063902bf141517f2a2022e8dd21b1e09557fb471f3bc882c",
   "sha256sum --check --strict",
-  "npm ci --ignore-scripts",
+  "ci --ignore-scripts --no-audit --no-fund",
   "crypto.randomBytes(32)",
   "mode: 0o600",
   "wallet_key_generated=false",
