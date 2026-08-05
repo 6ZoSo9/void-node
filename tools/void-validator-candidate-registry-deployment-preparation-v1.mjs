@@ -142,7 +142,7 @@ function normalizeRpcOrigin(raw) {
   return parsed.origin;
 }
 
-function address(raw) {
+function normalizeAddress(raw) {
   const value = String(raw || "");
   if (!/^0x[0-9a-fA-F]{40}$/.test(value)) fail("resolver_address_invalid");
   return value.toLowerCase();
@@ -160,6 +160,83 @@ function safeAuthorityBoundary(boundary) {
     boundary.validator_state_mutated === false &&
     boundary.fund_movement === false
   );
+}
+
+function parseArtifacts(scan) {
+  if (
+    !scan ||
+    scan.exists !== true ||
+    !Number.isInteger(scan.scanned_files) ||
+    scan.scanned_files < 1 ||
+    !Array.isArray(scan.rejected_files) ||
+    scan.rejected_files.length !== 0 ||
+    !Array.isArray(scan.artifacts) ||
+    scan.artifacts.length !== scan.scanned_files
+  ) {
+    fail("resolver_artifact_evidence_incomplete");
+  }
+
+  const artifactByName = new Map();
+  const allAddresses = new Set();
+  for (const artifact of scan.artifacts) {
+    const name = String(artifact?.name || "");
+    const digest = String(artifact?.sha256 || "").toLowerCase();
+    if (
+      !/^validator-candidate-registry\.[A-Za-z0-9._-]+\.json$/.test(name) ||
+      artifactByName.has(name) ||
+      !/^[0-9a-f]{64}$/.test(digest) ||
+      !Number.isInteger(artifact?.bytes) ||
+      artifact.bytes <= 0 ||
+      !Array.isArray(artifact?.addresses)
+    ) {
+      fail("resolver_artifact_evidence_incomplete");
+    }
+
+    const addresses = new Set();
+    for (const rawAddress of artifact.addresses) {
+      const normalized = normalizeAddress(rawAddress);
+      if (addresses.has(normalized)) fail("resolver_artifact_duplicate_address");
+      addresses.add(normalized);
+      allAddresses.add(normalized);
+    }
+    artifactByName.set(name, { digest, addresses });
+  }
+  if (allAddresses.size < 1) fail("resolver_artifact_addresses_empty");
+  return { artifactByName, allAddresses };
+}
+
+function validateResultSources(resultAddress, sources, artifactByName) {
+  const expected = [...artifactByName.entries()]
+    .filter(([, artifact]) => artifact.addresses.has(resultAddress))
+    .map(([name]) => name)
+    .sort();
+  const actual = [];
+  const seen = new Set();
+
+  for (const source of sources) {
+    const name = String(source?.artifact || "");
+    const digest = String(source?.artifact_sha256 || "").toLowerCase();
+    const artifact = artifactByName.get(name);
+    if (
+      !artifact ||
+      seen.has(name) ||
+      digest !== artifact.digest ||
+      !artifact.addresses.has(resultAddress)
+    ) {
+      fail("resolver_result_source_mismatch", undefined, {
+        address: resultAddress,
+        artifact: name || null,
+      });
+    }
+    seen.add(name);
+    actual.push(name);
+  }
+  actual.sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    fail("resolver_result_source_mismatch", undefined, {
+      address: resultAddress,
+    });
+  }
 }
 
 export function validateResolverReport({
@@ -200,47 +277,12 @@ export function validateResolverReport({
   if (age < -MAX_FUTURE_SKEW_MS) fail("resolver_report_from_future");
   if (age > maximumAge) fail("resolver_report_stale");
 
-  const scan = report.artifact_scan;
-  if (
-    !scan ||
-    scan.exists !== true ||
-    !Number.isInteger(scan.scanned_files) ||
-    scan.scanned_files < 1 ||
-    !Array.isArray(scan.rejected_files) ||
-    scan.rejected_files.length !== 0 ||
-    !Array.isArray(scan.artifacts) ||
-    scan.artifacts.length !== scan.scanned_files
-  ) {
-    fail("resolver_artifact_evidence_incomplete");
-  }
-
-  const artifactAddresses = [];
-  for (const artifact of scan.artifacts) {
-    if (
-      !artifact ||
-      typeof artifact.name !== "string" ||
-      !artifact.name ||
-      !/^[0-9a-f]{64}$/.test(String(artifact.sha256 || "")) ||
-      !Number.isInteger(artifact.bytes) ||
-      artifact.bytes <= 0 ||
-      !Array.isArray(artifact.addresses)
-    ) {
-      fail("resolver_artifact_evidence_incomplete");
-    }
-    for (const rawAddress of artifact.addresses) {
-      artifactAddresses.push(address(rawAddress));
-    }
-  }
-  const uniqueArtifactAddresses = [...new Set(artifactAddresses)].sort();
-  if (uniqueArtifactAddresses.length < 1) {
-    fail("resolver_artifact_addresses_empty");
-  }
-
+  const { artifactByName, allAddresses } = parseArtifacts(report.artifact_scan);
   if (!Array.isArray(report.results) || report.results.length < 1) {
     fail("resolver_results_empty");
   }
 
-  const staleAddresses = [];
+  const resultAddresses = new Set();
   for (const result of report.results) {
     if (
       result?.classification !== "stale_no_code" ||
@@ -255,15 +297,15 @@ export function validateResolverReport({
         classification: result?.classification ?? null,
       });
     }
-    staleAddresses.push(address(result.address));
+    const resultAddress = normalizeAddress(result.address);
+    if (resultAddresses.has(resultAddress)) fail("resolver_duplicate_address");
+    validateResultSources(resultAddress, result.sources, artifactByName);
+    resultAddresses.add(resultAddress);
   }
-  const uniqueAddresses = [...new Set(staleAddresses)].sort();
-  if (uniqueAddresses.length !== staleAddresses.length) {
-    fail("resolver_duplicate_address");
-  }
-  if (
-    JSON.stringify(uniqueAddresses) !== JSON.stringify(uniqueArtifactAddresses)
-  ) {
+
+  const artifacts = [...allAddresses].sort();
+  const results = [...resultAddresses].sort();
+  if (JSON.stringify(results) !== JSON.stringify(artifacts)) {
     fail("resolver_artifact_result_mismatch");
   }
 
@@ -272,8 +314,8 @@ export function validateResolverReport({
     resolver_observed_at_utc: observed.value,
     resolver_age_ms: age,
     rpc_origin: normalizeRpcOrigin(report.rpc_origin),
-    stale_addresses: uniqueAddresses,
-    scanned_artifact_files: scan.scanned_files,
+    stale_addresses: results,
+    scanned_artifact_files: report.artifact_scan.scanned_files,
   };
 }
 
@@ -464,6 +506,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (["-h", "--help"].includes(raw)) {
+      if (options.help === "true") fail("duplicate_option", "help");
       options.help = "true";
       continue;
     }
@@ -480,6 +523,7 @@ function parseArgs(argv) {
       value = argv[index + 1];
       index += 1;
     }
+    if (!value) fail("missing_option_value", key);
     options[key] = value;
   }
   return options;
@@ -571,33 +615,27 @@ async function main(argv = process.argv.slice(2)) {
     fail("resolver_report_json_invalid");
   }
 
-  const contractFile = path.join(ROOT, CONTRACT_PATH);
   const contractBytes = readBounded(
-    contractFile,
+    path.join(ROOT, CONTRACT_PATH),
     MAX_SOURCE_BYTES,
     "contract_source_file_invalid",
   );
-  const preparedAt = new Date().toISOString();
-  const maxReportAgeMs = boundedInteger(
-    options["max-report-age-ms"] || 15 * 60 * 1000,
-    1,
-    24 * 60 * 60 * 1000,
-    "max_report_age_invalid",
-  );
-
   const packet = buildPreparation({
     resolverReport,
     resolverBytes,
     contractBytes,
     sourceCommit,
     sourceBranch,
-    preparedAt,
-    maxReportAgeMs,
+    preparedAt: new Date().toISOString(),
+    maxReportAgeMs: boundedInteger(
+      options["max-report-age-ms"] || 15 * 60 * 1000,
+      1,
+      24 * 60 * 60 * 1000,
+      "max_report_age_invalid",
+    ),
   });
 
-  if (options.output) {
-    atomicWriteJson(options.output, packet);
-  }
+  if (options.output) atomicWriteJson(options.output, packet);
   process.stdout.write(`${JSON.stringify(packet, null, 2)}\n`);
 }
 
