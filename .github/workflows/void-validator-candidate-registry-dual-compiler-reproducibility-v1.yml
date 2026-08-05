@@ -1,0 +1,228 @@
+name: VOID validator candidate registry dual compiler reproducibility v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-dual-compiler-reproducibility-v1.yml"
+      - "tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs"
+      - "scripts/prove_void_validator_candidate_registry_dual_compiler_reproducibility_v1.mjs"
+      - "schemas/void-validator-candidate-registry-dual-compiler-reproducibility-v1.schema.json"
+      - "docs/operators/void-validator-candidate-registry-dual-compiler-reproducibility-v1.md"
+      - "tools/void-validator-candidate-registry-compiler-profile-v1.mjs"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-dual-compiler-reproducibility-v1.yml"
+      - "tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs"
+      - "scripts/prove_void_validator_candidate_registry_dual_compiler_reproducibility_v1.mjs"
+      - "schemas/void-validator-candidate-registry-dual-compiler-reproducibility-v1.schema.json"
+      - "docs/operators/void-validator-candidate-registry-dual-compiler-reproducibility-v1.md"
+      - "tools/void-validator-candidate-registry-compiler-profile-v1.mjs"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-validator-candidate-registry-dual-compiler-reproducibility-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parse schema
+        run: |
+          python3 -m json.tool \
+            schemas/void-validator-candidate-registry-dual-compiler-reproducibility-v1.schema.json \
+            >/dev/null
+      - name: Check source syntax
+        run: |
+          node --check \
+            tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs
+          node --check \
+            scripts/prove_void_validator_candidate_registry_dual_compiler_reproducibility_v1.mjs
+      - name: Prove comparison and authority boundaries
+        run: |
+          node \
+            scripts/prove_void_validator_candidate_registry_dual_compiler_reproducibility_v1.mjs
+      - name: Generate exact Paris Standard JSON input
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+          import {
+            CONTRACT_PATH,
+            buildStandardJsonInput,
+            canonicalJson,
+            sha256,
+          } from "./tools/void-validator-candidate-registry-compiler-profile-v1.mjs";
+
+          const source = fs.readFileSync(CONTRACT_PATH, "utf8");
+          const input = buildStandardJsonInput(source);
+          const output = path.join(
+            process.env.RUNNER_TEMP,
+            "validator-registry-solc-input.json",
+          );
+          fs.writeFileSync(output, `${JSON.stringify(input, null, 2)}\n`, {
+            mode: 0o600,
+          });
+          console.log(`input=${output}`);
+          console.log(`input_canonical_sha256=${sha256(canonicalJson(input))}`);
+          console.log(`evm_version=${input.settings.evmVersion}`);
+          NODE
+      - name: Compile environment A — native official solc container
+        run: |
+          set -Eeuo pipefail
+          INPUT="$RUNNER_TEMP/validator-registry-solc-input.json"
+          OUTPUT="$RUNNER_TEMP/validator-registry-native-solc-output.json"
+          ENVIRONMENT="$RUNNER_TEMP/validator-registry-native-solc-environment.json"
+          IMAGE="ethereum/solc:0.8.20"
+
+          docker pull "$IMAGE"
+          VERSION_OUTPUT="$(docker run --rm "$IMAGE" --version)"
+          case "$VERSION_OUTPUT" in
+            *0.8.20+commit.a1b79de6*) ;;
+            *) echo "HOLD: native compiler release mismatch" >&2; exit 1 ;;
+          esac
+
+          docker run --rm -i "$IMAGE" --standard-json <"$INPUT" >"$OUTPUT"
+          test -s "$OUTPUT"
+
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
+          IMAGE_DIGEST="$(docker image inspect --format '{{join .RepoDigests ","}}' "$IMAGE" || true)"
+          test -n "$IMAGE_ID"
+          test -n "$IMAGE_DIGEST" || IMAGE_DIGEST="$IMAGE_ID"
+
+          python3 - "$ENVIRONMENT" "$VERSION_OUTPUT" "$IMAGE_ID" "$IMAGE_DIGEST" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          target, version, image_id, image_digest = sys.argv[1:]
+          value = {
+              "marker": "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+              "compiler_release": "0.8.20+commit.a1b79de6",
+              "kind": "native-container",
+              "implementation": "ethereum-solc-native-linux-amd64",
+              "version_output": version,
+              "artifact_identity": image_digest,
+              "image_id": image_id,
+              "image_digest": image_digest,
+          }
+          Path(target).write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+          Path(target).chmod(0o600)
+          PY
+      - name: Compile environment B — npm solc-js
+        run: |
+          set -Eeuo pipefail
+          INPUT="$RUNNER_TEMP/validator-registry-solc-input.json"
+          OUTPUT="$RUNNER_TEMP/validator-registry-solcjs-output.json"
+          ENVIRONMENT="$RUNNER_TEMP/validator-registry-solcjs-environment.json"
+          COMPILER_DIR="$RUNNER_TEMP/validator-registry-solcjs"
+
+          mkdir -p "$COMPILER_DIR"
+          npm init --yes --prefix "$COMPILER_DIR" >/dev/null
+          npm install \
+            --prefix "$COMPILER_DIR" \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --save-exact \
+            solc@0.8.20
+
+          SOLCJS="$COMPILER_DIR/node_modules/.bin/solcjs"
+          test -x "$SOLCJS"
+          VERSION_OUTPUT="$($SOLCJS --version)"
+          case "$VERSION_OUTPUT" in
+            *0.8.20+commit.a1b79de6*) ;;
+            *) echo "HOLD: solc-js compiler release mismatch" >&2; exit 1 ;;
+          esac
+
+          "$SOLCJS" --standard-json <"$INPUT" >"$OUTPUT"
+          test -s "$OUTPUT"
+
+          python3 - "$COMPILER_DIR" "$ENVIRONMENT" "$VERSION_OUTPUT" "$(node --version)" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          version_output = sys.argv[3]
+          node_version = sys.argv[4]
+          package = json.loads((root / "node_modules/solc/package.json").read_text(encoding="utf-8"))
+          soljson = root / "node_modules/solc/soljson.js"
+          lock = root / "package-lock.json"
+          soljson_sha = hashlib.sha256(soljson.read_bytes()).hexdigest()
+          lock_sha = hashlib.sha256(lock.read_bytes()).hexdigest()
+          value = {
+              "marker": "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+              "compiler_release": "0.8.20+commit.a1b79de6",
+              "kind": "npm-solcjs",
+              "implementation": "solc-js-emscripten",
+              "version_output": version_output,
+              "artifact_identity": f"npm:solc@{package['version']}:soljson-sha256:{soljson_sha}",
+              "package_version": package["version"],
+              "node_version": node_version,
+              "soljson_sha256": soljson_sha,
+              "package_lock_sha256": lock_sha,
+          }
+          target.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+          target.chmod(0o600)
+          PY
+      - name: Compare both exact compiler outputs
+        run: |
+          set -Eeuo pipefail
+          REVIEW="$RUNNER_TEMP/validator-registry-dual-compiler-review.json"
+          STDOUT="$RUNNER_TEMP/validator-registry-dual-compiler-review.stdout.json"
+
+          node \
+            tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs \
+            --input "$RUNNER_TEMP/validator-registry-solc-input.json" \
+            --output-a "$RUNNER_TEMP/validator-registry-native-solc-output.json" \
+            --environment-a "$RUNNER_TEMP/validator-registry-native-solc-environment.json" \
+            --output-b "$RUNNER_TEMP/validator-registry-solcjs-output.json" \
+            --environment-b "$RUNNER_TEMP/validator-registry-solcjs-environment.json" \
+            --review-output "$REVIEW" \
+            >"$STDOUT"
+
+          cmp "$REVIEW" "$STDOUT"
+          python3 - "$REVIEW" <<'PY'
+          import json
+          import sys
+
+          value = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert value["marker"] == "VOID_VALIDATOR_CANDIDATE_REGISTRY_DUAL_COMPILER_REPRODUCIBILITY_V1"
+          assert value["decision"]["status"] == "HOLD_PENDING_ZOSO_BYTECODE_REVIEW_DEPLOYER_OWNER_BINDING_AND_UNSIGNED_TRANSACTION"
+          assert value["comparison"]["creation_bytecode_exact_match"] is True
+          assert value["comparison"]["runtime_bytecode_exact_match"] is True
+          assert value["comparison"]["zero_compiler_errors"] is True
+          assert value["comparison"]["zero_link_references"] is True
+          assert value["comparison"]["push0_absent_from_creation_opcodes"] is True
+          assert value["comparison"]["push0_absent_from_runtime_opcodes"] is True
+          assert value["decision"]["bytecode_reviewed_by_zoso"] is False
+          assert value["decision"]["unsigned_transaction_constructed"] is False
+          assert value["decision"]["deployment_authorized"] is False
+          assert value["decision"]["transaction_broadcast_authorized"] is False
+          assert value["decision"]["execution_authorized"] is False
+          assert all(flag is False for flag in value["authority"].values())
+          print("creation_bytecode_sha256=" + value["artifacts"]["creation_bytecode_sha256"])
+          print("runtime_bytecode_sha256=" + value["artifacts"]["runtime_bytecode_sha256"])
+          print("deployment_data_sha256=" + value["artifacts"]["deployment_data_sha256"])
+          print("VOID_VALIDATOR_CANDIDATE_REGISTRY_DUAL_COMPILER_REPRODUCIBILITY_V1_REAL_OUTPUT_GREEN")
+          PY
+      - run: npm run typecheck
