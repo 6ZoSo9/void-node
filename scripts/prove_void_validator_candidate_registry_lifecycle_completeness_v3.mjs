@@ -45,6 +45,12 @@ function requireAll(source, values, label) {
   }
 }
 
+function requirePatterns(source, patterns, label) {
+  for (const [description, expression] of patterns) {
+    assert.match(source, expression, `${label} missing ${description}`);
+  }
+}
+
 function blockFor(source, signature) {
   const start = source.indexOf(signature);
   assert.notEqual(start, -1, `missing block ${signature}`);
@@ -276,12 +282,26 @@ requireAll(
     "testReregisterClearsHistoricalActiveExitFlags",
     "testProfileUpdateCannotTakeAnotherCandidatesKey",
     "testWithdrawalBlocksCrossFunctionReentry",
-    "ConsensusKeyAlreadyRegistered.selector",
-    "StakeNotWithdrawn.selector",
-    "NoProfileChange.selector",
-    "Reentrancy.selector",
+    "testWithdrawalFailurePreservesConsensusKeyOwnershipAndStakeAccounting",
   ],
   "lifecycle Foundry suite",
+);
+requirePatterns(
+  lifecycleTest,
+  [
+    [
+      "ConsensusKeyAlreadyRegistered.selector",
+      /ConsensusKeyAlreadyRegistered\s*\.\s*selector/,
+    ],
+    ["StakeNotWithdrawn.selector", /StakeNotWithdrawn\s*\.\s*selector/],
+    ["NoProfileChange.selector", /NoProfileChange\s*\.\s*selector/],
+    ["Reentrancy.selector", /Reentrancy\s*\.\s*selector/],
+    [
+      "StakeTransferFailed.selector",
+      /StakeTransferFailed\s*\.\s*selector/,
+    ],
+  ],
+  "lifecycle Foundry suite selectors",
 );
 assert.equal(lifecycleTest.includes('import "forge-std/Test.sol"'), false);
 
@@ -310,16 +330,29 @@ requireAll(
   [
     MARKER,
     DECISION,
-    "candidateCount as the unique-owner count",
     "consensusKeyOwner(bytes32)",
-    "updateCandidateProfile(...) is candidate-owner-controlled",
     "returnToCandidate()",
     "maxActivationBatchSize()",
     "does not claim to enforce a time-window or epoch churn rate",
     "every state-changing external registry entry point",
+    "a failed stake transfer rolls back stake accounting and consensus-key release atomically",
     "Nothing from the historical packet may be signed, broadcast, extended, or treated as deployment approval.",
   ],
   "operator documentation",
+);
+requirePatterns(
+  documentation,
+  [
+    [
+      "candidateCount as the unique-owner count",
+      /(?:`candidateCount`|candidateCount)\s+as\s+the\s+unique-owner\s+count/,
+    ],
+    [
+      "updateCandidateProfile(...) is candidate-owner-controlled",
+      /(?:`updateCandidateProfile\(\.\.\.\)`|updateCandidateProfile\(\.\.\.\))\s+is\s+candidate-owner-controlled/,
+    ],
+  ],
+  "operator documentation formatting",
 );
 
 requireAll(
@@ -367,6 +400,7 @@ console.log(
       unique_owner_count_preserved: true,
       historical_exit_flags_reset: true,
       cross_function_reentrancy_blocked: true,
+      failed_withdrawal_rolls_back_key_release: true,
       legacy_activation_getter_preserved: true,
       honest_batch_size_alias: true,
       temporal_churn_claimed: false,

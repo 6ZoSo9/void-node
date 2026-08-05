@@ -19,6 +19,7 @@ This V3 lane closes the remaining participant lifecycle gaps before a public reg
 - a Waiting participant can voluntarily return to Candidate without beginning unbonding;
 - a fully exited and fully withdrawn owner can register another lifecycle without duplicating enumeration or unique-owner accounting;
 - withdrawal releases the retired consensus key for later reuse;
+- a failed stake transfer rolls back stake accounting and consensus-key release atomically;
 - every state-changing external entry point shares one reentrancy barrier; and
 - the historical `activationChurnLimit()` getter is explicitly identified as a per-call batch ceiling rather than a temporal churn guarantee.
 
@@ -115,7 +116,8 @@ The isolated Solidity 0.8.20 / Paris Foundry suite proves:
 - successful re-registration does not duplicate candidate enumeration;
 - registration cycles increment exactly;
 - historical active-exit flags are cleared for a new cycle;
-- another candidate's key cannot be taken through profile update; and
+- another candidate's key cannot be taken through profile update;
+- a rejecting withdrawal recipient preserves the participant stake, total stake accounting, and consensus-key ownership; and
 - a withdrawal recipient cannot re-enter `reregisterCandidate(...)` or another mutation.
 
 The source proof also requires all V2 custody and Active-exit protections to remain present.

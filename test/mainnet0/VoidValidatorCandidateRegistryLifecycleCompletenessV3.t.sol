@@ -7,6 +7,7 @@ interface VmLifecycleV3 {
     function deal(address account, uint256 newBalance) external;
     function prank(address msgSender) external;
     function expectRevert(bytes4 revertData) external;
+    function expectRevert(bytes calldata revertData) external;
     function warp(uint256 newTimestamp) external;
 }
 
@@ -32,6 +33,12 @@ abstract contract LifecycleV3TestBase {
 
     function assertFalse(bool value) internal pure {
         require(!value, "expected false");
+    }
+}
+
+contract RejectingWithdrawalRecipientV3 {
+    receive() external payable {
+        revert("reject withdrawal");
     }
 }
 
@@ -125,9 +132,13 @@ contract VoidValidatorCandidateRegistryLifecycleCompletenessV3Test is
 
         vm.prank(bob);
         vm.expectRevert(
-            VoidValidatorCandidateRegistry
-                .ConsensusKeyAlreadyRegistered
-                .selector
+            abi.encodeWithSelector(
+                VoidValidatorCandidateRegistry
+                    .ConsensusKeyAlreadyRegistered
+                    .selector,
+                sharedKey,
+                alice
+            )
         );
         reg.registerCandidate{value: MIN_STAKE}(
             bob,
@@ -320,9 +331,13 @@ contract VoidValidatorCandidateRegistryLifecycleCompletenessV3Test is
 
         vm.prank(alice);
         vm.expectRevert(
-            VoidValidatorCandidateRegistry
-                .ConsensusKeyAlreadyRegistered
-                .selector
+            abi.encodeWithSelector(
+                VoidValidatorCandidateRegistry
+                    .ConsensusKeyAlreadyRegistered
+                    .selector,
+                bobKey,
+                bob
+            )
         );
         reg.updateCandidateProfile(
             alice,
@@ -332,6 +347,41 @@ contract VoidValidatorCandidateRegistryLifecycleCompletenessV3Test is
 
         assertEq(reg.consensusKeyOwner(aliceKey), alice);
         assertEq(reg.consensusKeyOwner(bobKey), bob);
+    }
+
+    function testWithdrawalFailurePreservesConsensusKeyOwnershipAndStakeAccounting()
+        public
+    {
+        bytes32 key = keccak256("alice-failed-withdrawal-key");
+        _register(alice, key, "alice-failed-withdrawal");
+        reg.markUnbonded(alice);
+
+        RejectingWithdrawalRecipientV3 rejectingRecipient =
+            new RejectingWithdrawalRecipientV3();
+
+        vm.prank(alice);
+        vm.expectRevert(
+            VoidValidatorCandidateRegistry.StakeTransferFailed.selector
+        );
+        reg.withdrawStake(payable(address(rejectingRecipient)));
+
+        VoidValidatorCandidateRegistry.Candidate memory afterFailure =
+            reg.getCandidate(alice);
+        assertEq(afterFailure.stakeAmount, MIN_STAKE);
+        assertEq(reg.totalStaked(), MIN_STAKE);
+        assertEq(reg.consensusKeyOwner(key), alice);
+        assertEq(address(reg).balance, MIN_STAKE);
+        assertEq(address(rejectingRecipient).balance, 0);
+
+        vm.prank(alice);
+        reg.withdrawStake(payable(alice));
+
+        VoidValidatorCandidateRegistry.Candidate memory afterSuccess =
+            reg.getCandidate(alice);
+        assertEq(afterSuccess.stakeAmount, 0);
+        assertEq(reg.totalStaked(), 0);
+        assertEq(reg.consensusKeyOwner(key), address(0));
+        assertEq(address(reg).balance, 0);
     }
 
     function testWithdrawalBlocksCrossFunctionReentry() public {
