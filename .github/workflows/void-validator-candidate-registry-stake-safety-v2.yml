@@ -60,7 +60,28 @@ jobs:
           FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home"
           FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out"
           FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache"
-          mkdir -p "$FOUNDRY_HOME" "$FOUNDRY_OUT" "$FOUNDRY_CACHE"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-validator-registry-stake-safety-foundry"
+
+          mkdir -p \
+            "$FOUNDRY_HOME" \
+            "$FOUNDRY_OUT" \
+            "$FOUNDRY_CACHE" \
+            "$FOUNDRY_PROJECT/contracts/mainnet0" \
+            "$FOUNDRY_PROJECT/test/mainnet0"
+
+          install -m 0444 \
+            contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
+            "$FOUNDRY_PROJECT/contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+          install -m 0444 \
+            test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+
+          cmp \
+            contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
+            "$FOUNDRY_PROJECT/contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+          cmp \
+            test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
 
           docker pull "$FOUNDRY_IMAGE"
           docker run --rm \
@@ -70,11 +91,12 @@ jobs:
             -v "$FOUNDRY_HOME:/foundry-home" \
             -v "$FOUNDRY_OUT:/foundry-out" \
             -v "$FOUNDRY_CACHE:/foundry-cache" \
-            -v "$GITHUB_WORKSPACE:/repo:ro" \
-            -w /repo \
+            -v "$FOUNDRY_PROJECT:/proof:ro" \
+            -w /proof \
             "$FOUNDRY_IMAGE" \
             test \
-            --root /repo \
+            --root /proof \
+            --contracts contracts \
             --match-path test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
             --use 0.8.20 \
             --evm-version paris \
