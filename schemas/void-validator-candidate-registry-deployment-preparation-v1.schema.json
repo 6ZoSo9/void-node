@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/void-validator-candidate-registry-deployment-preparation-v1.schema.json",
+  "title": "VOID validator candidate registry deployment preparation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "preparation_id",
+    "marker",
+    "protocol",
+    "version",
+    "prepared_at_utc",
+    "source",
+    "chain",
+    "policy",
+    "compiler_profile",
+    "constructor",
+    "unresolved",
+    "ordered_gates",
+    "authority",
+    "decision"
+  ],
+  "properties": {
+    "preparation_id": {
+      "type": "string",
+      "pattern": "^voidvcrdp1_[0-9a-f]{64}$"
+    },
+    "marker": {
+      "const": "VOID_VALIDATOR_CANDIDATE_REGISTRY_DEPLOYMENT_PREPARATION_V1"
+    },
+    "protocol": {
+      "const": "void-validator-candidate-registry-deployment-preparation/1"
+    },
+    "version": { "const": 1 },
+    "prepared_at_utc": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "source_commit",
+        "source_branch",
+        "contract_path",
+        "contract_source_sha256",
+        "contract_source_bytes",
+        "resolver_report_sha256",
+        "resolver_marker",
+        "resolver_observed_at_utc",
+        "resolver_age_ms",
+        "resolver_decision",
+        "scanned_artifact_files",
+        "stale_candidate_addresses"
+      ],
+      "properties": {
+        "repository": { "const": "6ZoSo9/void-node" },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_branch": { "const": "main" },
+        "contract_path": {
+          "const": "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+        },
+        "contract_source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract_source_bytes": { "type": "integer", "minimum": 1 },
+        "resolver_report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "resolver_marker": {
+          "const": "VOID_VALIDATOR_CANDIDATE_REGISTRY_LIVE_RESOLVER_V1"
+        },
+        "resolver_observed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "resolver_age_ms": {
+          "type": "integer",
+          "minimum": -300000,
+          "maximum": 86400000
+        },
+        "resolver_decision": { "const": "HOLD_NO_LIVE_EXACT_REGISTRY" },
+        "scanned_artifact_files": { "type": "integer", "minimum": 1 },
+        "stale_candidate_addresses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{40}$"
+          }
+        }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chain_id", "rpc_origin"],
+      "properties": {
+        "chain_id": { "const": 2050 },
+        "rpc_origin": { "type": "string", "minLength": 8, "maxLength": 2048 }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_validator_stake_wei",
+        "min_validator_stake_void",
+        "max_active_validators",
+        "activation_churn_limit",
+        "public_registration_starts_as_candidate",
+        "public_registration_activates_validator"
+      ],
+      "properties": {
+        "min_validator_stake_wei": { "const": "10000000000000000000000" },
+        "min_validator_stake_void": { "const": "10000" },
+        "max_active_validators": { "const": "256" },
+        "activation_churn_limit": { "const": "4" },
+        "public_registration_starts_as_candidate": { "const": true },
+        "public_registration_activates_validator": { "const": false }
+      }
+    },
+    "compiler_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "solc_version",
+        "optimizer_enabled",
+        "optimizer_runs",
+        "creation_bytecode_compiled",
+        "creation_bytecode_reviewed"
+      ],
+      "properties": {
+        "solc_version": { "const": "0.8.20" },
+        "optimizer_enabled": { "const": true },
+        "optimizer_runs": { "const": 200 },
+        "creation_bytecode_compiled": { "const": false },
+        "creation_bytecode_reviewed": { "const": false }
+      }
+    },
+    "constructor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signature",
+        "types",
+        "values",
+        "abi_encoded_arguments",
+        "abi_encoded_arguments_sha256"
+      ],
+      "properties": {
+        "signature": { "const": "constructor(uint256,uint256,uint256)" },
+        "types": {
+          "const": ["uint256", "uint256", "uint256"]
+        },
+        "values": {
+          "const": ["10000000000000000000000", "256", "4"]
+        },
+        "abi_encoded_arguments": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{192}$"
+        },
+        "abi_encoded_arguments_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "creation_bytecode_sha256",
+        "runtime_bytecode_sha256",
+        "deployer_address",
+        "resulting_owner_address",
+        "deployment_nonce",
+        "gas_limit",
+        "fee_policy",
+        "unsigned_transaction",
+        "owner_binding_reviewed"
+      ],
+      "properties": {
+        "creation_bytecode_sha256": { "type": "null" },
+        "runtime_bytecode_sha256": { "type": "null" },
+        "deployer_address": { "type": "null" },
+        "resulting_owner_address": { "type": "null" },
+        "deployment_nonce": { "type": "null" },
+        "gas_limit": { "type": "null" },
+        "fee_policy": { "type": "null" },
+        "unsigned_transaction": { "type": "null" },
+        "owner_binding_reviewed": { "const": false }
+      }
+    },
+    "ordered_gates": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credential_file_access_authorized",
+        "private_key_access_authorized",
+        "wallet_or_signer_access_authorized",
+        "creation_bytecode_acceptance_authorized",
+        "transaction_construction_authorized",
+        "signing_authorized",
+        "transaction_broadcast_authorized",
+        "contract_deployment_authorized",
+        "artifact_pointer_write_authorized",
+        "validator_registration_authorized",
+        "validator_waiting_transition_authorized",
+        "validator_activation_authorized",
+        "service_restart_authorized",
+        "fund_movement_authorized"
+      ],
+      "properties": {
+        "credential_file_access_authorized": { "const": false },
+        "private_key_access_authorized": { "const": false },
+        "wallet_or_signer_access_authorized": { "const": false },
+        "creation_bytecode_acceptance_authorized": { "const": false },
+        "transaction_construction_authorized": { "const": false },
+        "signing_authorized": { "const": false },
+        "transaction_broadcast_authorized": { "const": false },
+        "contract_deployment_authorized": { "const": false },
+        "artifact_pointer_write_authorized": { "const": false },
+        "validator_registration_authorized": { "const": false },
+        "validator_waiting_transition_authorized": { "const": false },
+        "validator_activation_authorized": { "const": false },
+        "service_restart_authorized": { "const": false },
+        "fund_movement_authorized": { "const": false }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "source_review_packet_complete",
+        "known_registry_artifacts_proven_stale",
+        "creation_bytecode_reviewed",
+        "deployer_and_owner_binding_resolved",
+        "unsigned_transaction_constructed",
+        "deployment_authorized",
+        "transaction_broadcast_authorized",
+        "execution_authorized",
+        "next_gate"
+      ],
+      "properties": {
+        "status": {
+          "const": "HOLD_PENDING_REVIEWED_CREATION_BYTECODE_DEPLOYER_OWNER_BINDING_AND_SEPARATE_BROADCAST_AUTHORIZATION"
+        },
+        "source_review_packet_complete": { "const": true },
+        "known_registry_artifacts_proven_stale": { "const": true },
+        "creation_bytecode_reviewed": { "const": false },
+        "deployer_and_owner_binding_resolved": { "const": false },
+        "unsigned_transaction_constructed": { "const": false },
+        "deployment_authorized": { "const": false },
+        "transaction_broadcast_authorized": { "const": false },
+        "execution_authorized": { "const": false },
+        "next_gate": {
+          "const": "compile_and_independently_review_exact_creation_bytecode_without_signing_or_broadcast"
+        }
+      }
+    }
+  }
+}
