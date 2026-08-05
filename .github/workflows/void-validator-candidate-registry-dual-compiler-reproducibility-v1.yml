@@ -189,9 +189,16 @@ jobs:
           set -Eeuo pipefail
           REVIEW="$RUNNER_TEMP/validator-registry-dual-compiler-review.json"
           STDOUT="$RUNNER_TEMP/validator-registry-dual-compiler-review.stdout.json"
+          REVIEW_REPO="$RUNNER_TEMP/validator-registry-dual-compiler-review-repo"
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+
+          git clone --no-hardlinks --quiet "$GITHUB_WORKSPACE" "$REVIEW_REPO"
+          git -C "$REVIEW_REPO" checkout --detach --quiet "$SOURCE_COMMIT"
+          test "$(git -C "$REVIEW_REPO" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git -C "$REVIEW_REPO" status --porcelain=v1 --untracked-files=all)"
 
           node \
-            tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs \
+            "$REVIEW_REPO/tools/void-validator-candidate-registry-dual-compiler-reproducibility-v1.mjs" \
             --input "$RUNNER_TEMP/validator-registry-solc-input.json" \
             --output-a "$RUNNER_TEMP/validator-registry-native-solc-output.json" \
             --environment-a "$RUNNER_TEMP/validator-registry-native-solc-environment.json" \
