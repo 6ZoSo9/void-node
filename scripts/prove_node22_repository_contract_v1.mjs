@@ -82,6 +82,7 @@ function walk(directory) {
 }
 
 const rootPackage = readJson("package.json");
+const rootLock = readJson("package-lock.json");
 const sourcePackage = readJson("src/package.json");
 const nvmVersion = read(".nvmrc").trim();
 const dockerfile = read("Dockerfile");
@@ -89,6 +90,7 @@ const launcher = read("run-void-node.sh");
 const participant = read("void-participant.sh");
 
 assert.equal(rootPackage.engines?.node, EXPECTED_ENGINE);
+assert.equal(rootLock.packages?.[""]?.engines?.node, EXPECTED_ENGINE);
 assert.equal(sourcePackage.engines?.node, EXPECTED_ENGINE);
 assert.match(rootPackage.devDependencies?.["@types/node"] ?? "", /^\^22\./);
 assert.match(sourcePackage.devDependencies?.["@types/node"] ?? "", /^\^22\./);
@@ -161,6 +163,7 @@ console.log(
     {
       marker: MARKER,
       expected_engine: EXPECTED_ENGINE,
+      root_lockfile_engine: rootLock.packages?.[""]?.engines?.node,
       supported_node_majors: SUPPORTED_MAJORS,
       default_node_major: Number(nvmVersion),
       docker_node24_stage_count: 2,
