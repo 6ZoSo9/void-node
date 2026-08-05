@@ -21,7 +21,7 @@ The original plan remains byte-for-byte unchanged with SHA-256:
 The current reconciliation is:
 
 ```text
-voidapwprmr1_bea1709aa65b44ebf6bca943b1011aeebf6fb47a8881466782546b7e1f96e6a8
+voidapwprmr1_e3d676f29fe53fd322a75e15c20b9dcc1208c16fe0c849ab48be2eac8a6ef35c
 ```
 
 The current decision is:
@@ -220,7 +220,7 @@ also keeps all operational authority fields false, including:
 - quote acceptance or payment execution;
 - work dispatch or Work Credit writes;
 - wallet or signer access;
-- signing or transaction broadcast; and
+- signing, transaction construction, or transaction broadcast; and
 - fund movement.
 
 Restacking the source branch, proving the overlay, marking the PR ready, or
