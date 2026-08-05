@@ -98,7 +98,7 @@ then
 fi
 
 test "$(sha256sum "$CLOUDFLARED" | awk '{print $1}')" = "$CLOUDFLARED_SHA256" ||
-  hold "installed cloudflared failed verification"
+  hold "installed local cloudflared failed verification"
 
 : >"$GATEWAY_LOG"
 : >"$TUNNEL_LOG"
@@ -197,7 +197,7 @@ cat >"$MANIFEST_OUT" <<JSON
   ],
   "onion_endpoints": [],
   "private_tailnet_endpoints_published": false,
-  "notes": "Temporary external proof endpoint. Replace with seed.voidchain.io after named-tunnel activation."
+  "notes": "Temporary external proof endpoint. Replace only with a stable public HTTPS seed whose DNS, TLS, route boundary, availability, and outside-node synchronization are independently proven; voidchain.io is not a bootstrap dependency."
 }
 JSON
 chmod 600 "$MANIFEST_OUT"
