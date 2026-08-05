@@ -371,6 +371,7 @@ assert.equal(
 const documentation = read(
   "docs/operators/void-validator-candidate-registry-dual-compiler-reproducibility-v1.md",
 );
+const normalizedDocumentation = documentation.replace(/\s+/g, " ");
 for (const required of [
   "two independent compiler environments",
   "EVM target `paris`",
@@ -378,7 +379,10 @@ for (const required of [
   "separate ZoSo bytecode review",
   DECISION,
 ]) {
-  assert.ok(documentation.includes(required), `documentation missing ${required}`);
+  assert.ok(
+    normalizedDocumentation.includes(required),
+    `documentation missing ${required}`,
+  );
 }
 
 const workflow = read(
