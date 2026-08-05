@@ -51,14 +51,14 @@ function resolverReport() {
       exists: true,
       scanned_files: 16,
       rejected_files: [],
-      artifacts: [
-        {
-          name: "validator-candidate-registry.local.current.json",
-          sha256: "a".repeat(64),
-          bytes: 512,
-          addresses: [STALE_ADDRESS],
-        },
-      ],
+      artifacts: Array.from({ length: 16 }, (_, index) => ({
+        name: index === 0
+          ? "validator-candidate-registry.local.current.json"
+          : `validator-candidate-registry.local.${String(index).padStart(2, "0")}.json`,
+        sha256: index.toString(16).padStart(64, "0"),
+        bytes: 512 + index,
+        addresses: index === 0 ? [STALE_ADDRESS] : [],
+      })),
     },
     results: [
       {
@@ -241,6 +241,46 @@ expectCode(
   "resolver_authority_boundary_invalid",
 );
 
+const artifactMismatch = resolverReport();
+artifactMismatch.artifact_scan.artifacts[0].addresses = [
+  "0x1111111111111111111111111111111111111111",
+];
+expectCode(
+  () => packetFor(artifactMismatch),
+  "resolver_artifact_result_mismatch",
+);
+
+const rejectedArtifact = resolverReport();
+rejectedArtifact.artifact_scan.rejected_files = [
+  { name: "validator-candidate-registry.bad.json", reason: "invalid_json" },
+];
+expectCode(
+  () => packetFor(rejectedArtifact),
+  "resolver_artifact_evidence_incomplete",
+);
+
+const publicHttp = resolverReport();
+publicHttp.rpc_origin = "http://example.com";
+expectCode(() => packetFor(publicHttp), "resolver_rpc_origin_invalid");
+
+const resolverBytesMismatch = resolverReport();
+const mismatchedBytes = Buffer.from(`${JSON.stringify({
+  ...resolverBytesMismatch,
+  blockers: ["different"],
+}, null, 2)}\n`);
+expectCode(
+  () => buildPreparation({
+    resolverReport: resolverBytesMismatch,
+    resolverBytes: mismatchedBytes,
+    contractBytes: fs.readFileSync(path.join(ROOT, CONTRACT_PATH)),
+    sourceCommit: SOURCE_COMMIT,
+    sourceBranch: "main",
+    preparedAt: PREPARED_AT,
+    maxReportAgeMs: 15 * 60 * 1000,
+  }),
+  "resolver_report_bytes_mismatch",
+);
+
 const tool = read(TOOL_PATH);
 for (const forbidden of [
   "signTransaction(",
@@ -252,6 +292,7 @@ for (const forbidden of [
   "anvil_setBalance",
   "/mnt/key",
   "workflow_dispatch",
+  "--prepared-at",
 ]) {
   assert.equal(tool.includes(forbidden), false, `tool contains forbidden operation: ${forbidden}`);
 }
@@ -259,6 +300,10 @@ assert.equal(tool.includes("fetch("), false);
 assert.equal(tool.includes("JsonRpcProvider"), false);
 assert.equal(tool.includes('spawnSync("git"'), true);
 assert.equal(tool.includes("atomicWriteJson"), true);
+assert.equal(tool.includes("const allowed = new Set"), true);
+assert.equal(tool.includes("privateHttpHost"), true);
+assert.equal(tool.includes("resolver_report_bytes_mismatch"), true);
+assert.equal(tool.includes("resolver_artifact_result_mismatch"), true);
 
 const schema = readJson(SCHEMA_PATH);
 assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
@@ -302,6 +347,8 @@ for (const required of [
   "does not compile",
   "does not authorize",
   "legacy deploy proof",
+  "current system clock",
+  "does not accept a caller-supplied preparation timestamp",
 ]) {
   assert.ok(doc.includes(required), `documentation missing ${required}`);
 }
