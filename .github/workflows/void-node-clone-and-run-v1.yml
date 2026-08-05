@@ -1,0 +1,117 @@
+name: void-node-clone-and-run-v1
+
+on:
+  pull_request:
+    paths:
+      - 'run-void-node.sh'
+      - 'scripts/prove_void_node_clone_and_run_v1.mjs'
+      - 'docs/public/clone-and-run-v1.md'
+      - 'docs/public/run-a-node.md'
+      - 'README.md'
+      - '.github/workflows/void-node-clone-and-run-v1.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/**'
+      - 'tsconfig*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-node-clone-and-run-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+      - name: Use proof runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Prove clone-and-run contract
+        run: node scripts/prove_void_node_clone_and_run_v1.mjs
+
+  clone-and-run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        host-node: [22, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+      - name: Install host Node.js ${{ matrix.host-node }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '${{ matrix.host-node }}'
+      - name: Start from a clean clone state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .runtime node_modules dist .env .nodekey
+          test ! -e .runtime
+          test ! -e node_modules
+          test ! -e .env
+          test ! -e .nodekey
+      - name: Prepare through the public root launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./run-void-node.sh prepare | tee /tmp/void-clone-run-prepare.txt
+          ./run-void-node.sh doctor | tee /tmp/void-clone-run-doctor.txt
+          test -f .env
+          test -f .nodekey
+          test "$(stat -c '%a' .nodekey)" = 600
+          test -d node_modules
+          test -f dist/index.js
+          grep -F 'wallet_key_generated=false' /tmp/void-clone-run-prepare.txt
+          grep -F 'validator_key_generated=false' /tmp/void-clone-run-prepare.txt
+          grep -F 'treasury_key_generated=false' /tmp/void-clone-run-prepare.txt
+          grep -F 'authority_activated=false' /tmp/void-clone-run-prepare.txt
+          if test '${{ matrix.host-node }}' = 22; then
+            grep -F 'runtime_source=host_node22' /tmp/void-clone-run-doctor.txt
+          else
+            grep -F 'runtime_source=repo_local_node22' /tmp/void-clone-run-doctor.txt
+            grep -F 'node_version=v22.23.2' /tmp/void-clone-run-doctor.txt
+          fi
+      - name: Start and reach the local readiness endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOG=/tmp/void-clone-run-node.log
+          READY=/tmp/void-clone-run-ready.json
+          ./run-void-node.sh run >"$LOG" 2>&1 &
+          PID=$!
+          cleanup() {
+            kill -TERM "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT INT TERM
+
+          GREEN=0
+          for _ in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4100/__void/ready.json >"$READY"; then
+              GREEN=1
+              break
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              cat "$LOG" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if test "$GREEN" != 1; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+          test -s "$READY"
+          grep -E '"ready"|ready' "$READY"
+          cat "$READY"
+          echo 'VOID_NODE_CLONE_AND_RUN_V1_RUNTIME_GREEN'
