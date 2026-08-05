@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-replacement-issuance-preparation-v1.schema.json",
+  "title": "VOID authenticated paid-work replacement issuance preparation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["marker", "protocol", "version", "status", "source", "rotation", "evidence", "replacement_request", "ordered_gates", "decision", "authority", "packet_id"],
+  "properties": {
+    "marker": {"const": "VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_PREPARATION_V1"},
+    "protocol": {"const": "void-authenticated-paid-work-replacement-issuance-preparation/1"},
+    "version": {"const": 1},
+    "status": {"const": "source_prepared_private_issuance_not_authorized"},
+    "packet_id": {"type": "string", "pattern": "^voidapwrip1_[a-f0-9]{64}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "preparation_main", "rotation_merge_commit", "runtime_revalidation_merge_commit"],
+      "properties": {
+        "repository": {"const": "6ZoSo9/void-node"},
+        "preparation_main": {"const": "9d860b668e21c98ad19e63b2c32b463025f05310"},
+        "rotation_merge_commit": {"const": "9d860b668e21c98ad19e63b2c32b463025f05310"},
+        "runtime_revalidation_merge_commit": {"const": "d12b4620cb5a6e199a6a59f21dfae6dd434c550a"}
+      }
+    },
+    "rotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rotation_plan_id", "rotation_runtime_binding_id", "current_credential_id", "destination_wc_account", "rotation_boundary_utc", "old_binding_retirement_required_before_replacement_binding"],
+      "properties": {
+        "rotation_plan_id": {"const": "voidapwcrp1_bf56e97e7bb2143c79babafed556a41637e2a071d151436aeac9efbf43d3dde0"},
+        "rotation_runtime_binding_id": {"const": "voidapwcrrb1_bbc79c19f8b74b5bbbce1246fa147aa553f9edd3b93ec5fb76a963fe12d5523c"},
+        "current_credential_id": {"const": "voidapwc1_13005c1ccf30c2fa0112eeb8801e5cd0186f3fc228fc4a41dda2f73ffed339f1"},
+        "destination_wc_account": {"const": "void-external-agent-e2e-fulfillment-canary-v1"},
+        "rotation_boundary_utc": {"const": "2026-08-05T00:00:00.000Z"},
+        "old_binding_retirement_required_before_replacement_binding": {"const": true}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_receipt_id", "trusted_context_binding_id", "evaluated_at_utc", "contracts_validated", "producer_authentication_established", "current_runtime_state_established", "private_path_disclosed", "bundle_contents_disclosed", "secret_material_disclosed"],
+      "properties": {
+        "runtime_receipt_id": {"type": "string", "pattern": "^voidapwrr1_[a-f0-9]{64}$"},
+        "trusted_context_binding_id": {"type": "string", "pattern": "^voidapwrtcb1_[a-f0-9]{64}$"},
+        "evaluated_at_utc": {"type": "string", "format": "date-time"},
+        "contracts_validated": {"const": true},
+        "producer_authentication_established": {"const": false},
+        "current_runtime_state_established": {"const": false},
+        "private_path_disclosed": {"const": false},
+        "bundle_contents_disclosed": {"const": false},
+        "secret_material_disclosed": {"const": false}
+      }
+    },
+    "replacement_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_issuance_marker", "review_policy_id", "replacement_credential_id", "replacement_credential_must_differ", "agent_id", "scope", "destination_wc_account", "proposed_not_before_utc", "proposed_expires_at_utc", "maximum_credential_lifetime_days", "storage_policy", "private_credential_material_generated"],
+      "properties": {
+        "canonical_issuance_marker": {"const": "VOID_AGENT_PAID_WORK_CANONICAL_REMOTE_CREDENTIAL_ISSUANCE_V1"},
+        "review_policy_id": {"const": "void-agent-paid-work-credential-review-policy-v1"},
+        "replacement_credential_id": {"const": null},
+        "replacement_credential_must_differ": {"const": true},
+        "agent_id": {"const": "void-external-agent-e2e-fulfillment-canary-agent-v1"},
+        "scope": {"const": "agent_paid_work_submit"},
+        "destination_wc_account": {"const": "void-external-agent-e2e-fulfillment-canary-v1"},
+        "proposed_not_before_utc": {"type": "string", "format": "date-time"},
+        "proposed_expires_at_utc": {"type": "string", "format": "date-time"},
+        "maximum_credential_lifetime_days": {"const": 30},
+        "storage_policy": {"const": "nimo_private_only"},
+        "private_credential_material_generated": {"const": false}
+      }
+    },
+    "ordered_gates": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "validate_exact_credential_rotation_plan"},
+        {"const": "validate_rotation_runtime_revalidation_companion"},
+        {"const": "validate_sanitized_runtime_revalidation_receipt"},
+        {"const": "validate_exact_trusted_context_binding"},
+        {"const": "verify_replacement_identity_remains_unresolved_and_distinct"},
+        {"const": "verify_replacement_scope_account_and_bounded_lifetime"},
+        {"const": "prepare_sanitized_canonical_remote_issuance_request"},
+        {"const": "hold_for_nimo_private_credential_material_generation"},
+        {"const": "hold_for_fresh_review_and_append_only_registry_apply"},
+        {"const": "hold_for_receiver_restart_and_replacement_revalidation"},
+        {"const": "hold_until_old_binding_retirement_is_permitted"},
+        {"const": "hold_for_replacement_wc_binding_and_closeout"},
+        {"const": "hold_for_fresh_signatures_quote_plan_and_zoso_confirmation"}
+      ],
+      "items": false,
+      "minItems": 13,
+      "maxItems": 13
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence_contracts_validated", "sanitized_issuance_request_prepared", "private_credential_material_generated", "replacement_credential_id_resolved", "credential_registry_write_completed", "receiver_revalidated", "old_binding_retired", "replacement_binding_applied", "fresh_signatures_quote_plan_confirmation_ready", "execution_authorized"],
+      "properties": {
+        "status": {"const": "HOLD_PENDING_PRIVATE_REPLACEMENT_ISSUANCE_AND_ROTATION"},
+        "evidence_contracts_validated": {"const": true},
+        "sanitized_issuance_request_prepared": {"const": true},
+        "private_credential_material_generated": {"const": false},
+        "replacement_credential_id_resolved": {"const": false},
+        "credential_registry_write_completed": {"const": false},
+        "receiver_revalidated": {"const": false},
+        "old_binding_retired": {"const": false},
+        "replacement_binding_applied": {"const": false},
+        "fresh_signatures_quote_plan_confirmation_ready": {"const": false},
+        "execution_authorized": {"const": false}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["private_credential_material_generation_authorized", "credential_issuance_authorized", "credential_review_approval_authorized", "credential_registry_write_authorized", "receiver_restart_authorized", "old_binding_retirement_authorized", "replacement_binding_authorized", "live_authentication_authorized", "paid_work_submission_authorized", "quote_acceptance_authorized", "payment_authority_granted", "payment_execution_authorized", "work_dispatch_authorized", "work_credit_write_authorized", "wallet_or_signer_access_authorized", "signing_authorized", "transaction_construction_authorized", "transaction_broadcast_authorized", "fund_movement_authorized"],
+      "properties": {
+        "private_credential_material_generation_authorized": {"const": false},
+        "credential_issuance_authorized": {"const": false},
+        "credential_review_approval_authorized": {"const": false},
+        "credential_registry_write_authorized": {"const": false},
+        "receiver_restart_authorized": {"const": false},
+        "old_binding_retirement_authorized": {"const": false},
+        "replacement_binding_authorized": {"const": false},
+        "live_authentication_authorized": {"const": false},
+        "paid_work_submission_authorized": {"const": false},
+        "quote_acceptance_authorized": {"const": false},
+        "payment_authority_granted": {"const": false},
+        "payment_execution_authorized": {"const": false},
+        "work_dispatch_authorized": {"const": false},
+        "work_credit_write_authorized": {"const": false},
+        "wallet_or_signer_access_authorized": {"const": false},
+        "signing_authorized": {"const": false},
+        "transaction_construction_authorized": {"const": false},
+        "transaction_broadcast_authorized": {"const": false},
+        "fund_movement_authorized": {"const": false}
+      }
+    }
+  }
+}
