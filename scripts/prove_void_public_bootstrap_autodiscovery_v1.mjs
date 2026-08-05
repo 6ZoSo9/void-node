@@ -38,6 +38,20 @@ function listen(server, port) {
 function close(server) {
   return new Promise((resolve) => server.close(resolve));
 }
+function runChild(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = childProcess.spawn(command, args, {
+      ...options,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("close", (status, signal) => resolve({ status, signal, stdout, stderr }));
+  });
+}
 async function waitFor(url, attempts = 50) {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -176,11 +190,10 @@ try {
   if (oversized.status !== 404) fail("gateway accepted an oversized range");
   pass("read-only-gateway-runtime");
 
-  const resolved = childProcess.spawnSync(
+  const resolved = await runChild(
     process.execPath,
     ["scripts/resolve_void_public_bootstrap_v1.mjs"],
     {
-      encoding: "utf8",
       env: {
         ...process.env,
         VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: `http://127.0.0.1:${MANIFEST_PORT}/manifest`,
@@ -198,11 +211,10 @@ try {
   }
   pass("resolver-green-runtime");
 
-  const rejected = childProcess.spawnSync(
+  const rejected = await runChild(
     process.execPath,
     ["scripts/resolve_void_public_bootstrap_v1.mjs"],
     {
-      encoding: "utf8",
       env: {
         ...process.env,
         VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: `http://127.0.0.1:${MANIFEST_PORT}/private`,
@@ -211,6 +223,8 @@ try {
     },
   );
   if (rejected.status === 0 || !String(rejected.stderr).includes("private or unsupported literal host")) {
+    process.stderr.write(rejected.stdout || "");
+    process.stderr.write(rejected.stderr || "");
     fail("resolver did not reject private Tailnet seed fixture");
   }
   pass("resolver-private-tailnet-rejection");
@@ -232,6 +246,7 @@ console.log(JSON.stringify({
   tor_onion_secondary: true,
   private_tailnet_seed_rejected: true,
   mutation_routes_exposed: false,
+  synchronous_fixture_deadlock_removed: true,
   status: "GREEN",
 }, null, 2));
 console.log(`${MARKER}_GREEN`);
