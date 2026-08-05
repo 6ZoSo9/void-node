@@ -1,0 +1,12 @@
+{
+  "schema": "void_public_bootstrap_v1",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "status": "hold_no_public_seed",
+  "generated_at": "2026-08-05T21:30:00Z",
+  "expires_at": null,
+  "sync_endpoints": [],
+  "onion_endpoints": [],
+  "private_tailnet_endpoints_published": false,
+  "notes": "A public HTTPS seed will be added after the first read-only quick-tunnel proof. Onion service support is a secondary transport and is not required for default onboarding."
+}
