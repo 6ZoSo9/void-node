@@ -6,8 +6,11 @@ on:
       - ".github/workflows/void-validator-candidate-registry-stake-safety-v2.yml"
       - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
       - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
       - "scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs"
+      - "scripts/prove_void_validator_candidate_registry_active_exit_safety_v1.mjs"
       - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/mainnet0/VALIDATOR_ACTIVE_EXIT_SAFETY_V1.md"
       - "docs/operators/void-validator-candidate-registry-stake-safety-v2.md"
   push:
     branches: [main]
@@ -15,8 +18,11 @@ on:
       - ".github/workflows/void-validator-candidate-registry-stake-safety-v2.yml"
       - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
       - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
       - "scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs"
+      - "scripts/prove_void_validator_candidate_registry_active_exit_safety_v1.mjs"
       - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/mainnet0/VALIDATOR_ACTIVE_EXIT_SAFETY_V1.md"
       - "docs/operators/void-validator-candidate-registry-stake-safety-v2.md"
 
 permissions:
@@ -29,7 +35,7 @@ concurrency:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
         with:
@@ -50,6 +56,10 @@ jobs:
             scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs
           node \
             scripts/prove_void_validator_candidate_registry_stake_safety_v2.mjs
+          node --check \
+            scripts/prove_void_validator_candidate_registry_active_exit_safety_v1.mjs
+          node \
+            scripts/prove_void_validator_candidate_registry_active_exit_safety_v1.mjs
 
       - name: Run self-contained Foundry adversarial suite
         env:
@@ -75,6 +85,9 @@ jobs:
           install -m 0444 \
             test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
             "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+          install -m 0444 \
+            test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
 
           cmp \
             contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
@@ -82,6 +95,9 @@ jobs:
           cmp \
             test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
             "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+          cmp \
+            test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
 
           docker pull "$FOUNDRY_IMAGE"
           docker run --rm \
@@ -98,6 +114,26 @@ jobs:
             --root /proof \
             --contracts contracts \
             --match-path test/mainnet0/VoidValidatorCandidateRegistry.t.sol \
+            --use 0.8.20 \
+            --evm-version paris \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvv
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            -v "$FOUNDRY_HOME:/foundry-home" \
+            -v "$FOUNDRY_OUT:/foundry-out" \
+            -v "$FOUNDRY_CACHE:/foundry-cache" \
+            -v "$FOUNDRY_PROJECT:/proof:ro" \
+            -w /proof \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /proof \
+            --contracts contracts \
+            --match-path test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol \
             --use 0.8.20 \
             --evm-version paris \
             --out /foundry-out \
