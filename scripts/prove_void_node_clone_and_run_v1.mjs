@@ -7,6 +7,8 @@ const MARKER = "VOID_NODE_CLONE_AND_RUN_V1_PROOF";
 const EXPECTED_ENGINE = "^22.0.0 || ^24.0.0 || ^26.0.0";
 const PINNED_NODE = "v24.18.0";
 const PINNED_SHA = "783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8";
+const EXPECTED_BUILD =
+  "tsc -p tsconfig.build.json && node scripts/copy_void_runtime_js_v1.mjs";
 
 function fail(message) {
   console.error(`[FAIL] ${message}`);
@@ -97,6 +99,21 @@ if (participant.includes("node-v22.23.2")) fail("participant wrapper retains inv
 run("bash", ["-n", "void-participant.sh"]);
 pass("participant-runtime-selection");
 
+const runtimeCopy = requireText("scripts/copy_void_runtime_js_v1.mjs", [
+  "VOID_NODE_RUNTIME_JS_COPY_V1",
+  'path.join(ROOT, "src", "wal", "wal_v1.js")',
+  'path.join(ROOT, "dist", "wal")',
+  "source runtime module must be one regular non-symlink file",
+  "destination runtime directory must be one real directory",
+  "fs.renameSync(TEMPORARY, DESTINATION)",
+  "sourceBytes.equals(destinationBytes)",
+  "VOID_NODE_RUNTIME_JS_COPY_V1_GREEN",
+]);
+if (/from ["'](?:https?:|node:http|node:https|node:net|node:tls)/.test(runtimeCopy)) {
+  fail("runtime copy step imports network capability");
+}
+pass("wal-runtime-copy-source-boundary");
+
 requireText("docs/public/clone-and-run-v1.md", [
   "git clone https://github.com/6ZoSo9/void-node.git",
   "./run-void-node.sh",
@@ -122,12 +139,15 @@ if (rootPackage?.engines?.node !== EXPECTED_ENGINE) {
 if (sourcePackage?.engines?.node !== EXPECTED_ENGINE) {
   fail(`unexpected source engine: ${sourcePackage?.engines?.node}`);
 }
+if (rootPackage?.scripts?.build !== EXPECTED_BUILD) {
+  fail(`unexpected root build contract: ${rootPackage?.scripts?.build}`);
+}
 if (read(".nvmrc").trim() !== "24") fail(".nvmrc is not Node.js 24 LTS");
 const dockerfile = read("Dockerfile");
 if ((dockerfile.match(/^FROM node:24-alpine(?:\s|$)/gm) ?? []).length !== 2) {
   fail("Docker build and runtime stages are not both Node.js 24");
 }
-pass("repository-engine-and-defaults");
+pass("repository-engine-build-and-defaults");
 
 const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml", [
   "host-node: [20, 22, 24, 26]",
@@ -136,10 +156,15 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
   "runtime_source=host_node${{ matrix.host-node }}",
   "runtime_source=repo_local_node24",
   `node_version=${PINNED_NODE}`,
+  "test -f dist/wal/wal_v1.js",
+  "cmp -s src/wal/wal_v1.js dist/wal/wal_v1.js",
   "curl -fsS http://127.0.0.1:4100/__void/ready.json",
+  "VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN",
 ]);
 if (!workflow.includes("timeout-minutes:")) fail("workflow lacks a timeout");
-pass("workflow-host-and-fallback-matrix");
+if (!workflow.includes('kill -0 "$PID"')) fail("workflow lacks a post-readiness process liveness check");
+if (!workflow.includes("sleep 5")) fail("workflow lacks the bounded post-readiness grace period");
+pass("workflow-host-fallback-wal-and-sustained-runtime-matrix");
 
 console.log(
   JSON.stringify(
@@ -151,6 +176,9 @@ console.log(
       pinned_fallback: PINNED_NODE,
       pinned_fallback_sha256: PINNED_SHA,
       root_engine: EXPECTED_ENGINE,
+      wal_runtime_artifact_copy: true,
+      wal_runtime_byte_equality: true,
+      sustained_runtime_probe: true,
       invalid_v22_23_2_removed: true,
       status: "GREEN",
     },
