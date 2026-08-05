@@ -5,16 +5,16 @@ Marker: `VOID_VALIDATOR_CANDIDATE_REGISTRY_DEPLOYMENT_PREPARATION_V1`
 ## Purpose
 
 This lane converts a fresh, read-only chain-2050 registry resolver report into a
-content-addressed deployment **review packet**. It closes the gap between
-"all known registry artifacts are stale" and "review the exact contract and
-constructor policy that would be compiled later."
+content-addressed deployment **review packet**. It closes the source gap between
+"the known registry artifacts are stale" and "review the exact contract and
+constructor policy that could be compiled in a later lane."
 
 The packet does not compile creation bytecode. It does not construct, sign, or
 broadcast a transaction. It does not deploy a contract, write a live-selection
 pointer, register a validator, move a candidate to Waiting or Active, restart a
-service, access a credential or wallet, or move funds.
+service, access credentials or a wallet, or move funds.
 
-The source baseline for this v1 lane is main commit:
+The source baseline for v1 is main commit:
 
 ```text
 7dc10098a87dee5e27a558ef73a5ea3c52479f99
@@ -33,20 +33,28 @@ The report must establish all of the following:
 - exact chain ID `2050`;
 - decision `HOLD_NO_LIVE_EXACT_REGISTRY`;
 - `ready=false` and no selected address;
-- at least one scanned local artifact and at least one candidate address;
+- at least one scanned artifact and one candidate address;
+- zero rejected artifact files;
 - every candidate address classified exactly `stale_no_code`;
-- the artifact-address set exactly matches the resolver-result address set;
-- no rejected artifact, RPC error, unreadable live contract, policy mismatch,
-  or live exact registry; and
+- the complete artifact-address set exactly matches the resolver-result set;
+- every result source names the exact artifact that contained its address and
+  supplies the matching artifact SHA-256;
+- the raw report bytes parse to the exact object being evaluated;
+- the RPC origin is HTTPS or private/loopback/Tailscale HTTP; and
 - the resolver's read-only authority boundary remains intact.
 
-The default freshness window is 15 minutes. A report that is stale, materially
-future-dated, uncertain, or live is rejected.
+Duplicate artifact names, duplicate addresses, incomplete source lists, source
+hash mismatches, source-address mismatches, public cleartext HTTP, RPC errors,
+unreadable live code, policy mismatches, or an exact live registry all fail
+closed.
 
-This proves only that the addresses found in the reviewed artifact inventory
-have no code on the queried chain. It is not a global enumeration of every
-contract that could exist on chain 2050. That limitation is why the output
-remains a hold rather than deployment authority.
+The default freshness window is 15 minutes. A report that is stale or more than
+five minutes future-dated is rejected.
+
+This evidence proves only that addresses in the reviewed artifact inventory had
+no bytecode at the queried chain-2050 RPC when the resolver ran. It is not a
+global enumeration of every contract that could exist. That limitation keeps
+the output at HOLD rather than granting deployment authority.
 
 ## Bound source and policy
 
@@ -65,8 +73,8 @@ It also binds the locked constructor policy:
 - constructor signature: `constructor(uint256,uint256,uint256)`.
 
 The constructor arguments are ABI-encoded without compiling the contract. The
-registry constructor makes the future deployer the resulting owner, so the
-review packet deliberately leaves both deployer and owner unresolved.
+registry constructor makes the future deployer the resulting owner, so deployer
+and owner remain explicitly unresolved.
 
 The proposed compiler profile is recorded but not executed:
 
@@ -78,8 +86,8 @@ optimizer_runs=200
 
 ## Usage
 
-First create a new mode-600 resolver report with the maintained read-only
-resolver. Then, from an exact clean `main` checkout:
+First create a new mode-600 report with the maintained read-only resolver. Then,
+from an exact, clean `main` checkout:
 
 ```bash
 node tools/void-validator-candidate-registry-deployment-preparation-v1.mjs \
@@ -87,17 +95,17 @@ node tools/void-validator-candidate-registry-deployment-preparation-v1.mjs \
   --output "$HOME/.local/state/void/validator-candidate-registry-deployment-preparation-v1/review.json"
 ```
 
-The tool uses the current system clock for the freshness decision and does not accept a caller-supplied preparation timestamp. This prevents an old resolver
-report from being made to look fresh by replaying an old timestamp. The only
-optional freshness input is a bounded maximum age:
+The tool uses the current system clock for freshness and does not accept a caller-supplied preparation timestamp. This prevents an old resolver report from
+being replayed with an old timestamp so it appears fresh. The only optional
+freshness control is a bounded maximum age:
 
 ```bash
 --max-report-age-ms 900000
 ```
 
-It reads only the supplied resolver report, the fixed public Solidity source,
-and clean Git metadata. It writes only the requested local mode-600 review
-packet.
+The tool reads only the supplied resolver report, the fixed public Solidity
+source, and clean Git metadata. It rejects unknown and duplicate command-line
+options and writes only the requested local mode-600 review packet.
 
 ## Output decision
 
@@ -113,12 +121,12 @@ The next gate is:
 compile_and_independently_review_exact_creation_bytecode_without_signing_or_broadcast
 ```
 
-A later lane must independently compile the exact bound source, review creation
-and runtime bytecode hashes, bind the deployer to the resulting owner, construct
-an unsigned transaction without signing, and obtain separate ZoSo deployment
-and broadcast authorization. After a successful receipt, the read-only resolver
-must prove exactly one live policy-matching registry before any selection file
-is written.
+A separate future lane must independently compile the exact bound source,
+review creation and runtime bytecode hashes, bind the deployer to the resulting
+owner, construct an unsigned transaction without signing, and obtain separate
+ZoSo deployment and broadcast authorization. After a successful receipt, the
+read-only resolver must prove exactly one live policy-matching registry before
+any selection pointer is written.
 
 ## Legacy deploy proof boundary
 
