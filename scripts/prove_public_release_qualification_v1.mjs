@@ -70,8 +70,8 @@ pass("stable-channel-qualification-binding");
 
 const workflow=need(".github/workflows/public-release-qualification-v1.yml",[
   "environment: void-release-qualification",
-  "actions/checkout@v5",
-  "actions/setup-node@v5",
+  "actions/checkout@v6",
+  "actions/setup-node@v6",
   "actions/upload-artifact@v7",
   "QUALIFY VOID RELEASE",
   "external-target-boundary",

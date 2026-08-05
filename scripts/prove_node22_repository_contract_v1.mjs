@@ -38,6 +38,34 @@ const migratedWorkflows = [
   ".github/workflows/void-tor-order-status-onion-readonly-v1.yml",
 ];
 
+const coreActionWorkflows = [
+  ".github/workflows/beta-proof-guards.yml",
+  ".github/workflows/ci.yml",
+  ".github/workflows/guard-index.yml",
+  ".github/workflows/license-guard.yml",
+  ".github/workflows/ops-guards-autostart.yml",
+  ".github/workflows/ops-guards-header3-gap.yml",
+  ".github/workflows/ops-guards-proposer-loop.yml",
+  ".github/workflows/ops-guards.yml",
+  ".github/workflows/ops-verify.yml",
+  ".github/workflows/prom-guards.yml",
+  ".github/workflows/prom-verify.yml",
+  ".github/workflows/public-first-official-release-rehearsal-v1.yml",
+  ".github/workflows/public-release-canary-v1.yml",
+  ".github/workflows/public-release-qualification-v1.yml",
+  ".github/workflows/public-repo-hygiene.yml",
+  ".github/workflows/secret-check.yml",
+  ".github/workflows/self-hosted-beta-proof.yml",
+];
+
+const coreNodeWorkflows = new Set([
+  ".github/workflows/ci.yml",
+  ".github/workflows/ops-guards-proposer-loop.yml",
+  ".github/workflows/public-first-official-release-rehearsal-v1.yml",
+  ".github/workflows/public-release-canary-v1.yml",
+  ".github/workflows/public-release-qualification-v1.yml",
+]);
+
 function read(path) {
   return readFileSync(join(ROOT, path), "utf8");
 }
@@ -103,6 +131,29 @@ for (const workflowPath of migratedWorkflows) {
   assert.equal(workflow.includes("actions/setup-node@v4"), false, workflowPath);
 }
 
+const legacyCoreActions = [
+  "actions/checkout@v4",
+  "actions/checkout@v5",
+  "actions/setup-node@v4",
+  "actions/setup-node@v5",
+];
+
+for (const workflowPath of coreActionWorkflows) {
+  const workflow = read(workflowPath);
+  assert.ok(workflow.includes("uses: actions/checkout@v6"), workflowPath);
+  for (const legacyAction of legacyCoreActions) {
+    assert.equal(workflow.includes(legacyAction), false, `${workflowPath}: ${legacyAction}`);
+  }
+  if (coreNodeWorkflows.has(workflowPath)) {
+    assert.ok(workflow.includes("uses: actions/setup-node@v6"), workflowPath);
+    assert.match(
+      workflow,
+      /^\s*node-version:\s*(?:"22(?:\.x)?"|'22(?:\.x)?'|22(?:\.x)?)\s*$/m,
+      workflowPath,
+    );
+  }
+}
+
 const intakeProof = read("scripts/prove_paid_datanet_public_pilot_intake_v1.ts");
 for (const expected of [
   "uses: actions/checkout@v6",
@@ -121,6 +172,8 @@ console.log(
       docker_node22_stage_count: 2,
       workflow_count: workflowPaths.length,
       migrated_workflow_count: migratedWorkflows.length,
+      core_action_workflow_count: coreActionWorkflows.length,
+      core_node_workflow_count: coreNodeWorkflows.size,
       static_node20_workflow_count: node20Violations.length,
       status: "GREEN",
     },
