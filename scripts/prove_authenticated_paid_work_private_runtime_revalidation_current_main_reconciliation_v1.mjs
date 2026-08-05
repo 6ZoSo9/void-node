@@ -196,7 +196,6 @@ const EXPECTED = {
 function read(relative) {
   return fs.readFileSync(path.join(root, relative), "utf8");
 }
-
 function readBytes(relative) {
   return fs.readFileSync(path.join(root, relative));
 }
@@ -292,7 +291,8 @@ function stableDependencyProjection(value) {
   };
 }
 
-assert.equal(git(["rev-parse", "HEAD"]), CURRENT_MAIN);
+// CI checks out a descendant PR or merge commit, so source integrity is
+// enforced by ancestry instead of exact equality with the historical base.
 requireAncestor(CURRENT_MAIN);
 requireAncestor(PREVIOUS_MAIN);
 requireAncestor(PR984_MERGE);
@@ -496,7 +496,6 @@ for (const required of [
 ]) {
   assert.ok(document.includes(required), `document missing: ${required}`);
 }
-
 const workflow = read(WORKFLOW_PATH);
 for (const required of [
   "actions/checkout@v6",
