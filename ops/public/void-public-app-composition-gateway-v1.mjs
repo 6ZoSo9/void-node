@@ -167,6 +167,31 @@ const OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS = Math.max(
     process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS || "15000"
   )
 );
+
+// VOID_NODE_HOSTED_PAID_WORK_ORIGIN_BRIDGE_V1
+const AGENT_PAID_WORK_EDGE_MARKER =
+  "VOID_NODE_HOSTED_PAID_WORK_ORIGIN_BRIDGE_V1";
+const AGENT_PAID_WORK_SUBMISSION_PATH =
+  "/__void/agents/paid-work/submissions/v1";
+const AGENT_PAID_WORK_NAMESPACE_PREFIX =
+  "/__void/agents";
+const AGENT_PAID_WORK_GATEWAY_UPSTREAM =
+  normalizeAgentPaidWorkLoopbackUpstream(
+    process.env.VOID_AI_AGENT_GATEWAY_UPSTREAM || "",
+  );
+const AGENT_PAID_WORK_EDGE_MAX_BODY_BYTES = 64 * 1024;
+const AGENT_PAID_WORK_EDGE_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+const AGENT_PAID_WORK_EDGE_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.VOID_AI_AGENT_GATEWAY_TIMEOUT_MS || "15000"),
+);
+if (
+  !Number.isFinite(AGENT_PAID_WORK_EDGE_TIMEOUT_MS)
+  || AGENT_PAID_WORK_EDGE_TIMEOUT_MS > 120000
+) {
+  throw new Error("invalid AI-agent gateway timeout");
+}
+
 const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
   "/.well-known/void-agent-discovery.json",
   "/.well-known/void-agent-discovery.schema.json",
@@ -1125,6 +1150,249 @@ async function proxyOperatorWebhookReceiver(req, res, url) {
   );
 }
 
+
+function normalizeAgentPaidWorkLoopbackUpstream(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("invalid AI-agent gateway upstream URL");
+  }
+
+  if (
+    parsed.protocol !== "http:"
+    || parsed.hostname !== "127.0.0.1"
+    || !parsed.port
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== "/"
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new Error(
+      "AI-agent gateway upstream must be exact loopback HTTP origin",
+    );
+  }
+
+  return parsed.origin;
+}
+
+function agentPaidWorkEdgeHeaders(extra = {}) {
+  return {
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-agent-paid-work-submission-route": "v1",
+    "x-void-node-hosted-paid-work-origin-bridge": "v1",
+    ...extra,
+  };
+}
+
+function sendAgentPaidWorkEdgeJson(
+  res,
+  status,
+  value,
+  method = "GET",
+  extra = {},
+) {
+  return send(
+    res,
+    status,
+    agentPaidWorkEdgeHeaders({
+      "content-type": "application/json; charset=utf-8",
+      ...extra,
+    }),
+    JSON.stringify(value) + "\n",
+    method,
+  );
+}
+
+async function proxyAgentPaidWorkEdge(req, res, url, method) {
+  if (url.search || url.hash) {
+    return sendAgentPaidWorkEdgeJson(
+      res,
+      400,
+      { ok: false, error: "query_not_allowed" },
+      method,
+    );
+  }
+
+  if (!AGENT_PAID_WORK_GATEWAY_UPSTREAM) {
+    return sendAgentPaidWorkEdgeJson(
+      res,
+      503,
+      {
+        ok: false,
+        error: "agent_paid_work_gateway_unavailable",
+      },
+      method,
+    );
+  }
+
+  if (!["GET", "HEAD", "POST"].includes(method)) {
+    return send(
+      res,
+      405,
+      agentPaidWorkEdgeHeaders({
+        "content-type": "text/plain; charset=utf-8",
+        allow: "GET, HEAD, POST",
+      }),
+      "method_not_allowed\n",
+      method,
+    );
+  }
+
+  let body;
+  const headers = {
+    accept: "application/json",
+    "user-agent":
+      "void-public-app-composition-agent-paid-work-edge-v1",
+  };
+
+  if (method === "POST") {
+    const contentType = String(
+      req.headers["content-type"] || "",
+    ).toLowerCase();
+    if (!contentType.startsWith("application/json")) {
+      return sendAgentPaidWorkEdgeJson(
+        res,
+        415,
+        { ok: false, error: "application_json_required" },
+        method,
+      );
+    }
+
+    const authorization = String(
+      req.headers.authorization || "",
+    ).trim();
+    if (!/^Bearer [^\s]{16,8192}$/.test(authorization)) {
+      return sendAgentPaidWorkEdgeJson(
+        res,
+        401,
+        { ok: false, error: "bearer_authorization_required" },
+        method,
+      );
+    }
+
+    try {
+      body = await readBoundedRequestBody(
+        req,
+        AGENT_PAID_WORK_EDGE_MAX_BODY_BYTES,
+      );
+    } catch (error) {
+      if (
+        String(error?.message || "")
+        === "request_body_too_large"
+      ) {
+        return sendAgentPaidWorkEdgeJson(
+          res,
+          413,
+          { ok: false, error: "request_body_too_large" },
+          method,
+        );
+      }
+      throw error;
+    }
+
+    const bodySha = crypto
+      .createHash("sha256")
+      .update(body)
+      .digest("hex");
+    const declaredSha = String(
+      req.headers["x-void-payload-sha256"] || "",
+    ).toLowerCase();
+
+    if (!/^[0-9a-f]{64}$/.test(declaredSha)) {
+      return sendAgentPaidWorkEdgeJson(
+        res,
+        400,
+        { ok: false, error: "payload_sha256_required" },
+        method,
+      );
+    }
+    if (declaredSha !== bodySha) {
+      return sendAgentPaidWorkEdgeJson(
+        res,
+        400,
+        { ok: false, error: "payload_sha256_mismatch" },
+        method,
+      );
+    }
+
+    try {
+      JSON.parse(body.toString("utf8"));
+    } catch {
+      return sendAgentPaidWorkEdgeJson(
+        res,
+        400,
+        { ok: false, error: "invalid_json" },
+        method,
+      );
+    }
+
+    headers.authorization = authorization;
+    headers["content-type"] = "application/json";
+    headers["content-length"] = String(body.length);
+    headers["x-void-payload-sha256"] = bodySha;
+  }
+
+  try {
+    const upstreamResponse = await fetch(
+      `${AGENT_PAID_WORK_GATEWAY_UPSTREAM}${AGENT_PAID_WORK_SUBMISSION_PATH}`,
+      {
+        method,
+        headers,
+        body: method === "POST" ? body : undefined,
+        redirect: "manual",
+        signal: AbortSignal.timeout(
+          AGENT_PAID_WORK_EDGE_TIMEOUT_MS,
+        ),
+      },
+    );
+
+    const responseBody =
+      method === "HEAD"
+        ? Buffer.alloc(0)
+        : Buffer.from(await upstreamResponse.arrayBuffer());
+    if (
+      responseBody.length
+      > AGENT_PAID_WORK_EDGE_MAX_RESPONSE_BYTES
+    ) {
+      throw new Error(
+        "AI-agent gateway response exceeds maximum",
+      );
+    }
+
+    const responseHeaders = copyHeaders(upstreamResponse);
+    delete responseHeaders["set-cookie"];
+    delete responseHeaders.location;
+    delete responseHeaders["www-authenticate"];
+
+    return send(
+      res,
+      upstreamResponse.status,
+      agentPaidWorkEdgeHeaders(responseHeaders),
+      responseBody,
+      method,
+    );
+  } catch (error) {
+    process.stderr.write(
+      `${AGENT_PAID_WORK_EDGE_MARKER} upstream_error=${String(error)}\n`,
+    );
+    return sendAgentPaidWorkEdgeJson(
+      res,
+      502,
+      {
+        ok: false,
+        error: "agent_paid_work_gateway_upstream_failed",
+      },
+      method,
+    );
+  }
+}
+
 function isBlocked(pathname) {
   return blockedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
 }
@@ -1550,6 +1818,31 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://composition.local");
     const pathname = url.pathname;
 
+    if (pathname === AGENT_PAID_WORK_SUBMISSION_PATH) {
+      return await proxyAgentPaidWorkEdge(
+        req,
+        res,
+        url,
+        method,
+      );
+    }
+
+    // agents_namespace_fail_closed
+    if (
+      pathname === AGENT_PAID_WORK_NAMESPACE_PREFIX
+      || pathname.startsWith(
+        `${AGENT_PAID_WORK_NAMESPACE_PREFIX}/`,
+      )
+    ) {
+      return send(
+        res,
+        404,
+        { "content-type": "text/plain; charset=utf-8" },
+        "not_public\n",
+        method,
+      );
+    }
+
     if (method === "POST") {
       if (pathname === OPERATOR_WEBHOOK_RECEIVER_PATH) {
         return await proxyOperatorWebhookReceiver(req, res, url);
@@ -1734,6 +2027,14 @@ const server = http.createServer(async (req, res) => {
             Boolean(OPERATOR_WEBHOOK_RECEIVER_UPSTREAM),
           operator_webhook_receiver_path:
             OPERATOR_WEBHOOK_RECEIVER_PATH,
+          agent_paid_work_edge_marker:
+            AGENT_PAID_WORK_EDGE_MARKER,
+          agent_paid_work_edge_configured:
+            Boolean(AGENT_PAID_WORK_GATEWAY_UPSTREAM),
+          agent_paid_work_submission_path:
+            AGENT_PAID_WORK_SUBMISSION_PATH,
+          agent_paid_work_gateway_upstream_loopback_only: true,
+          agent_paid_work_generic_proxy: false,
           app_public: true,
           participant_handoff_public: true,
           public_discovery_pack_configured:
