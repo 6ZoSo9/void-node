@@ -49,9 +49,9 @@ export function registerFollowerRoutes(app: Express, node: any, metrics?: any) {
   );
   const catchupPullLimit = positiveInteger(
     process.env.VOID_FOLLOWER_CATCHUP_PULL_LIMIT,
-    1000,
+    999,
     64,
-    1000,
+    999,
   );
   const maximumFailureBackoffMs = positiveInteger(
     process.env.VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS,
