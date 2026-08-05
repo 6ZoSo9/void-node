@@ -165,8 +165,7 @@ if [ "$START_SERVICE" = "1" ]; then
     "$VOID_EARN_COORDINATOR_UPSTREAM/wc/public-earning-pilot-v1/status" \
     >"$TMP/status.json" || fail "earn coordinator status is unavailable"
 
-  python3 - "$TMP/health.json" "$TMP/status.json" <<'PY' ||
-    fail "earn coordinator is not ready for bounded public gateway activation"
+  if ! python3 - "$TMP/health.json" "$TMP/status.json" <<'PY'
 import json
 import re
 import sys
@@ -190,6 +189,9 @@ assert claim.get("participant_selected_input_hash") is False, status
 assert claim.get("participant_selected_award") is False, status
 assert claim.get("money_movement") is False, status
 PY
+  then
+    fail "earn coordinator is not ready for bounded public gateway activation"
+  fi
 fi
 
 systemctl --user enable "$SERVICE_NAME"
