@@ -81,24 +81,25 @@ The operator evidence workflow composes:
 
 It is read-only with respect to chain, wallet, Work Credit, Buy VOID, and validator state.
 
-## Local quick start
+## Clone and run
 
 Requirements:
 
-- Linux or WSL2.
-- Node.js 22.
+- Linux x86-64 or WSL2.
 - Git.
+- A normal user account; do not use `sudo`.
 
 ```bash
 git clone https://github.com/6ZoSo9/void-node.git
 cd void-node
-npm ci
-cp .env.example .env
-npm run build
-npm start
+./run-void-node.sh
 ```
 
-Check readiness:
+The launcher handles the repository-supported Node.js 22 runtime, locked dependency installation, local configuration, node-identity creation, build, and startup. It uses an existing compatible host runtime or downloads a pinned SHA-256-verified runtime into the ignored `.runtime/` directory. It does not install Node.js globally or create wallet, validator, treasury, or operator-authority keys.
+
+See the complete [clone-and-run guide](docs/public/clone-and-run-v1.md).
+
+Check readiness from another terminal:
 
 ```bash
 curl -fsS http://127.0.0.1:4100/__void/ready.json
