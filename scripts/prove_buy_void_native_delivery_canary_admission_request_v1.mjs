@@ -6,10 +6,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  DECISION_RUNTIME,
   DECISION_SYNTHETIC,
+  EVIDENCE_CLASS,
   MARKER,
+  SOURCE_BINDING_V1,
   buildBuyVoidNativeDeliveryCanaryAdmissionRequestV1,
+  canonicalJson,
   computeRequestId,
   validateBuyVoidNativeDeliveryCanaryAdmissionRequestV1,
 } from "../tools/buy-void-native-delivery-canary-admission-request-v1.mjs";
@@ -28,7 +30,7 @@ const TOOL_PATH = join(
   "tools/buy-void-native-delivery-canary-admission-request-v1.mjs",
 );
 const EXPECTED_REQUEST_ID =
-  "voidbvndcar1_1cff15d4dd49d548510faf8e0f068f665f76c226c85f34f188ad718dec1acd00";
+  "voidbvndcar1_33bd53203c4535dd17f22c61d76bbf9edbe8b4527a59a6e5356dac6ca6b44016";
 
 function clone(value) {
   return structuredClone(value);
@@ -65,21 +67,54 @@ assert.equal(
   schema.properties.request_id.pattern,
   "^voidbvndcar1_[0-9a-f]{64}$",
 );
+assert.equal(schema.properties.evidence_class.const, EVIDENCE_CLASS);
+assert.equal(schema.properties.decision.const, DECISION_SYNTHETIC);
 assert.equal(schema.properties.authority.additionalProperties, false);
 assert.equal(schema.properties.runtime_posture.additionalProperties, false);
-assert.equal(schema.allOf.length, 2);
+assert.equal(
+  schema.properties.review.properties.live_runtime_evidence_established.const,
+  false,
+);
+assert.equal(
+  schema.properties.review.properties
+    .root_scoped_candidate_evidence_established.const,
+  false,
+);
+assert.equal(
+  schema.properties.review.properties
+    .runtime_evidence_materializer_established.const,
+  false,
+);
+assert.equal(Object.hasOwn(schema, "allOf"), false);
+assert.deepEqual(
+  Object.fromEntries(
+    Object.entries(schema.properties.source.properties).map(([key, value]) => [
+      key,
+      value.const,
+    ]),
+  ),
+  SOURCE_BINDING_V1,
+);
+assert.equal(
+  schema.properties.canary_limits.required.includes(
+    "maximum_total_outlay_wei",
+  ),
+  true,
+);
 
 for (const required of [
   'import crypto from "node:crypto"',
   "void_buy_void_native_delivery_canary_admission_request_v1",
   MARKER,
   "voidbvndcar1_",
+  EVIDENCE_CLASS,
   DECISION_SYNTHETIC,
-  DECISION_RUNTIME,
+  "SOURCE_BINDING_V1",
   "canonicalJson",
   "computeRequestId",
   "validateBuyVoidNativeDeliveryCanaryAdmissionRequestV1",
   "buildBuyVoidNativeDeliveryCanaryAdmissionRequestV1",
+  "maximum_total_outlay_wei",
   "transaction_broadcast",
   "money_movement",
 ]) {
@@ -99,6 +134,7 @@ for (const forbidden of [
   "signTransaction(",
   "writeFile",
   "appendFile",
+  "DECISION_RUNTIME",
 ]) {
   assert.equal(
     toolSource.includes(forbidden),
@@ -123,26 +159,18 @@ for (const forbidden of [
 }
 
 assert.equal(fixture.marker, MARKER);
+assert.equal(fixture.evidence_class, EVIDENCE_CLASS);
 assert.equal(fixture.request_id, EXPECTED_REQUEST_ID);
 assert.equal(computeRequestId(fixture), EXPECTED_REQUEST_ID);
-assert.equal(fixture.source.main_commit, "b724cb1bee1418bbfa5f8ad44974bebf4cd81c9e");
-assert.equal(
-  fixture.source.candidate_readiness_schema_blob,
-  "2a0fc85b582ce59def204060c803f04c385a4094",
-);
-assert.equal(
-  fixture.source.dependency_readiness_source_blob,
-  "adc44589068b12644f7a01e37a3503d048ec23da",
-);
-assert.equal(
-  fixture.source.native_execution_runtime_source_blob,
-  "9a04e0a20da2a2eabf8b87713782179138136174",
-);
-assert.equal(
-  fixture.source.native_execution_idempotency_commit,
-  "ac3449d113012c0d37a8b5f099e41f9d081d0279",
-);
+assert.deepEqual(fixture.source, SOURCE_BINDING_V1);
 assert.equal(fixture.decision, DECISION_SYNTHETIC);
+assert.equal(
+  fixture.canary_limits.maximum_total_outlay_wei,
+  (
+    BigInt(fixture.canary_limits.maximum_native_value_wei) +
+    BigInt(fixture.canary_limits.maximum_total_fee_wei)
+  ).toString(),
+);
 assert.deepEqual(
   validateBuyVoidNativeDeliveryCanaryAdmissionRequestV1(clone(fixture)),
   fixture,
@@ -157,6 +185,19 @@ assert.deepEqual(
   buildBuyVoidNativeDeliveryCanaryAdmissionRequestV1(fixtureInput),
   fixture,
 );
+
+for (const fixed of ["schema", "marker", "version", "request_id"]) {
+  const fixedInput = clone(fixtureInput);
+  fixedInput[fixed] = fixed === "version" ? 1 : "unexpected";
+  assert.throws(
+    () => buildBuyVoidNativeDeliveryCanaryAdmissionRequestV1(fixedInput),
+    new RegExp(`input\\.${fixed} must be omitted`),
+  );
+}
+
+assert.equal(canonicalJson({ b: 2, a: 1 }), '{"a":1,"b":2}');
+assert.throws(() => canonicalJson(undefined), /canonical JSON rejects undefined/);
+assert.throws(() => canonicalJson(Number.NaN), /non-finite numbers/);
 
 const forgedId = clone(fixture);
 forgedId.request_id = `voidbvndcar1_${"f".repeat(64)}`;
@@ -176,6 +217,39 @@ assert.equal(
 );
 
 reject(
+  "runtime evidence-class laundering",
+  fixture,
+  (value) => {
+    value.evidence_class = "runtime_sanitized";
+    value.review.live_runtime_evidence_established = true;
+  },
+  /evidence_class mismatch/,
+);
+reject(
+  "source main spoof",
+  fixture,
+  (value) => {
+    value.source.main_commit = "f".repeat(40);
+  },
+  /source\.main_commit mismatch/,
+);
+reject(
+  "candidate source blob spoof",
+  fixture,
+  (value) => {
+    value.source.candidate_readiness_source_blob = "e".repeat(40);
+  },
+  /source\.candidate_readiness_source_blob mismatch/,
+);
+reject(
+  "native runtime blob spoof",
+  fixture,
+  (value) => {
+    value.source.native_execution_runtime_source_blob = "d".repeat(40);
+  },
+  /source\.native_execution_runtime_source_blob mismatch/,
+);
+reject(
   "multiple candidates",
   fixture,
   (value) => {
@@ -190,7 +264,7 @@ reject(
     value.native_execution_dry_run_evidence.request_id =
       "void-buy-void-other-request-v1";
   },
-  /native_execution_dry_run_evidence.request_id mismatch/,
+  /native_execution_dry_run_evidence\.request_id mismatch/,
 );
 reject(
   "candidate plan mismatch",
@@ -199,7 +273,7 @@ reject(
     value.native_execution_dry_run_evidence.plan_fingerprint_sha256 =
       "b".repeat(64);
   },
-  /native_execution_dry_run_evidence.plan_fingerprint_sha256 mismatch/,
+  /native_execution_dry_run_evidence\.plan_fingerprint_sha256 mismatch/,
 );
 reject(
   "wallet fingerprint mismatch",
@@ -208,7 +282,7 @@ reject(
     value.native_execution_dry_run_evidence.wallet_address_fingerprint_sha256 =
       "c".repeat(64);
   },
-  /native_execution_dry_run_evidence.wallet_address_fingerprint_sha256 mismatch/,
+  /native_execution_dry_run_evidence\.wallet_address_fingerprint_sha256 mismatch/,
 );
 reject(
   "chain mismatch",
@@ -216,7 +290,7 @@ reject(
   (value) => {
     value.dependency_evidence.chain_id = "1";
   },
-  /dependency_evidence.chain_id mismatch/,
+  /dependency_evidence\.chain_id mismatch/,
 );
 reject(
   "orphan-only candidate",
@@ -277,6 +351,14 @@ reject(
   /canary maximum_total_fee_wei mismatch/,
 );
 reject(
+  "total outlay arithmetic",
+  fixture,
+  (value) => {
+    value.canary_limits.maximum_total_outlay_wei = "1";
+  },
+  /canary maximum_total_outlay_wei mismatch/,
+);
+reject(
   "automatic retry",
   fixture,
   (value) => {
@@ -306,7 +388,7 @@ reject(
   (value) => {
     value.dependency_evidence.signing_performed = true;
   },
-  /dependency_evidence.signing_performed must be false/,
+  /dependency_evidence\.signing_performed must be false/,
 );
 reject(
   "dry-run broadcast",
@@ -324,6 +406,30 @@ reject(
     value.native_execution_dry_run_evidence.money_movement = true;
   },
   /money_movement must be false/,
+);
+reject(
+  "root-scoped evidence claim",
+  fixture,
+  (value) => {
+    value.review.root_scoped_candidate_evidence_established = true;
+  },
+  /root_scoped_candidate_evidence_established must be false/,
+);
+reject(
+  "runtime materializer claim",
+  fixture,
+  (value) => {
+    value.review.runtime_evidence_materializer_established = true;
+  },
+  /runtime_evidence_materializer_established must be false/,
+);
+reject(
+  "live runtime claim",
+  fixture,
+  (value) => {
+    value.review.live_runtime_evidence_established = true;
+  },
+  /live_runtime_evidence_established must be false/,
 );
 reject(
   "ZoSo authorization",
@@ -347,7 +453,7 @@ reject(
   (value) => {
     value.authority.signing = true;
   },
-  /authority.signing must be false/,
+  /authority\.signing must be false/,
 );
 reject(
   "broadcast authority",
@@ -355,7 +461,7 @@ reject(
   (value) => {
     value.authority.transaction_broadcast = true;
   },
-  /authority.transaction_broadcast must be false/,
+  /authority\.transaction_broadcast must be false/,
 );
 reject(
   "money authority",
@@ -363,7 +469,7 @@ reject(
   (value) => {
     value.authority.money_movement = true;
   },
-  /authority.money_movement must be false/,
+  /authority\.money_movement must be false/,
 );
 reject(
   "raw URL",
@@ -374,20 +480,28 @@ reject(
   /contains a raw URL/,
 );
 reject(
+  "scheme-only raw URL",
+  fixture,
+  (value) => {
+    value.candidate_evidence.note = "mailto:operator@example.invalid";
+  },
+  /contains a raw URL/,
+);
+reject(
   "raw address",
   fixture,
   (value) => {
-    value.candidate_evidence.recipient = `0x${"1".repeat(40)}`;
+    value.candidate_evidence.recipient = `0X${"1".repeat(40)}`;
   },
   /contains a raw address/,
 );
 reject(
-  "secret field",
+  "normalized secret field",
   fixture,
   (value) => {
-    value.private_key = "not-a-real-key";
+    value["private-key"] = "not-a-real-key";
   },
-  /private_key is forbidden/,
+  /private-key is forbidden/,
 );
 reject(
   "unknown harmless field",
@@ -398,46 +512,12 @@ reject(
   /review keys mismatch/,
 );
 
-const runtimeRequest = clone(fixture);
-runtimeRequest.evidence_class = "runtime_sanitized";
-runtimeRequest.review.live_runtime_evidence_established = true;
-runtimeRequest.decision = DECISION_RUNTIME;
-reseal(runtimeRequest);
-assert.equal(
-  validateBuyVoidNativeDeliveryCanaryAdmissionRequestV1(runtimeRequest)
-    .decision,
-  DECISION_RUNTIME,
-);
-assert.notEqual(runtimeRequest.request_id, fixture.request_id);
-
-reject(
-  "synthetic live-runtime claim",
-  fixture,
-  (value) => {
-    value.review.live_runtime_evidence_established = true;
-  },
-  /review.live_runtime_evidence_established mismatch/,
-);
-reject(
-  "runtime evidence without live flag",
-  runtimeRequest,
-  (value) => {
-    value.review.live_runtime_evidence_established = false;
-  },
-  /review.live_runtime_evidence_established mismatch/,
-);
-reject(
-  "runtime evidence with synthetic decision",
-  runtimeRequest,
-  (value) => {
-    value.decision = DECISION_SYNTHETIC;
-  },
-  /decision mismatch/,
-);
-
 console.log(`marker=${MARKER}`);
+console.log(`evidence_class=${fixture.evidence_class}`);
 console.log(`synthetic_request_id=${fixture.request_id}`);
-console.log(`runtime_request_id=${runtimeRequest.request_id}`);
+console.log("runtime_sanitized_supported=false");
+console.log("root_scoped_candidate_evidence_established=false");
+console.log("runtime_evidence_materializer_established=false");
 console.log("credential_read_performed=false");
 console.log("network_request_performed=false");
 console.log("runtime_mutation_performed=false");
