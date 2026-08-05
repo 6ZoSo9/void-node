@@ -35,8 +35,9 @@ The report must establish all of the following:
 - `ready=false` and no selected address;
 - at least one scanned local artifact and at least one candidate address;
 - every candidate address classified exactly `stale_no_code`;
-- no RPC error, unreadable live contract, policy mismatch, or live exact
-  registry; and
+- the artifact-address set exactly matches the resolver-result address set;
+- no rejected artifact, RPC error, unreadable live contract, policy mismatch,
+  or live exact registry; and
 - the resolver's read-only authority boundary remains intact.
 
 The default freshness window is 15 minutes. A report that is stale, materially
@@ -86,11 +87,11 @@ node tools/void-validator-candidate-registry-deployment-preparation-v1.mjs \
   --output "$HOME/.local/state/void/validator-candidate-registry-deployment-preparation-v1/review.json"
 ```
 
-The tool accepts an optional explicit preparation timestamp for reproducible
-review and an optional bounded resolver-age override:
+The tool uses the current system clock for the freshness decision and does not accept a caller-supplied preparation timestamp. This prevents an old resolver
+report from being made to look fresh by replaying an old timestamp. The only
+optional freshness input is a bounded maximum age:
 
 ```bash
---prepared-at 2026-08-05T09:01:00.000Z
 --max-report-age-ms 900000
 ```
 
