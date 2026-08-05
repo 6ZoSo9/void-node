@@ -256,6 +256,17 @@ expectReject(
   /closed_input_array_shape_mismatch:\$\.runtime_receipt\.injected_sparse/,
 );
 
+const oversizedKeyInput = clone(input);
+oversizedKeyInput.runtime_receipt["k".repeat(1_025)] = true;
+expectReject(
+  "oversized_nested_key",
+  () =>
+    validateAuthenticatedPaidWorkReplacementIssuanceClosedInputV1(
+      oversizedKeyInput,
+    ),
+  /closed_input_maximum_key_bytes_exceeded:\$\.runtime_receipt/,
+);
+
 for (const [label, injected] of [
   ["undefined_value", undefined],
   ["nan_value", Number.NaN],
@@ -280,6 +291,7 @@ assert.deepEqual(
   {
     maximum_depth: 64,
     maximum_object_keys: 4_096,
+    maximum_key_bytes: 1_024,
     maximum_array_length: 10_000,
     maximum_total_nodes: 50_000,
     maximum_total_keys: 100_000,
@@ -298,6 +310,7 @@ console.log("nested_accessors_rejected_without_invocation=true");
 console.log("nested_symbols_and_hidden_fields_rejected=true");
 console.log("custom_prototypes_cycles_and_aliases_rejected=true");
 console.log("sparse_arrays_rejected=true");
+console.log("oversized_property_names_rejected=true");
 console.log("json_domain_and_resource_bounds_enforced=true");
 console.log("sanitized_snapshot_detached_and_deeply_frozen=true");
 console.log("execution_authorized=false");
