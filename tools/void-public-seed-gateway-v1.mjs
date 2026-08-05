@@ -8,7 +8,7 @@ const PORT = Number(process.env.VOID_PUBLIC_SEED_PORT || 4111);
 const UPSTREAM = new URL(process.env.VOID_PUBLIC_SEED_UPSTREAM || "http://127.0.0.1:4100");
 const MAX_RANGE = Math.max(
   1,
-  Math.min(1000, Number(process.env.VOID_PUBLIC_SEED_MAX_RANGE || 1000) || 1000),
+  Math.min(999, Number(process.env.VOID_PUBLIC_SEED_MAX_RANGE || 999) || 999),
 );
 const MAX_RESPONSE_BYTES = Math.max(
   1024 * 1024,
