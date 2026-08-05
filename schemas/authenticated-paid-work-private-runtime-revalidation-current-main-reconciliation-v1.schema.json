@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-private-runtime-revalidation-current-main-reconciliation-v1.schema.json",
+  "title": "Authenticated paid-work private runtime revalidation current-main reconciliation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reconciliation_id",
+    "marker",
+    "protocol",
+    "version",
+    "reconciled_at_utc",
+    "source",
+    "semantic_reconciliation",
+    "required_composed_evidence",
+    "ordered_gates",
+    "authority",
+    "decision"
+  ],
+  "properties": {
+    "reconciliation_id": {
+      "type": "string",
+      "const": "voidapwprmr1_bea1709aa65b44ebf6bca943b1011aeebf6fb47a8881466782546b7e1f96e6a8"
+    },
+    "marker": {
+      "type": "string",
+      "const": "VOID_AUTHENTICATED_PAID_WORK_PRIVATE_RUNTIME_REVALIDATION_CURRENT_MAIN_RECONCILIATION_V1"
+    },
+    "protocol": {
+      "type": "string",
+      "const": "void-authenticated-paid-work-private-runtime-revalidation-current-main-reconciliation/1"
+    },
+    "version": { "type": "integer", "const": 1 },
+    "reconciled_at_utc": {
+      "type": "string",
+      "const": "2026-08-05T08:00:00.000Z"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reconciliation_source_main",
+        "original_plan_commit",
+        "original_plan_parent",
+        "original_plan_sha256",
+        "original_plan_marker",
+        "post_expiry_recovery_pr",
+        "post_expiry_recovery_merge_commit",
+        "post_expiry_recovery_marker",
+        "runtime_listener_cgroup_binding_pr",
+        "runtime_listener_cgroup_binding_merge_commit",
+        "runtime_listener_cgroup_binding_marker"
+      ],
+      "properties": {
+        "reconciliation_source_main": {
+          "type": "string",
+          "const": "0a33693e23981457ebccde4d109571c49c9344ea"
+        },
+        "original_plan_commit": {
+          "type": "string",
+          "const": "fe5e6706d955b68d7758810d280569eaadb9ea4c"
+        },
+        "original_plan_parent": {
+          "type": "string",
+          "const": "68e3ef3a7c15cf5b3623555979766fadf8b670fe"
+        },
+        "original_plan_sha256": {
+          "type": "string",
+          "const": "19017e95bb521d5a077fe30aa96e2d23372c0dd1cdfb1c77270565756bc8ddca"
+        },
+        "original_plan_marker": {
+          "type": "string",
+          "const": "VOID_AUTHENTICATED_PAID_WORK_PRIVATE_RUNTIME_REVALIDATION_PLAN_V1"
+        },
+        "post_expiry_recovery_pr": { "type": "integer", "const": 975 },
+        "post_expiry_recovery_merge_commit": {
+          "type": "string",
+          "const": "19a637eaa5d3c4986c922dea214a7c66ed824ca3"
+        },
+        "post_expiry_recovery_marker": {
+          "type": "string",
+          "const": "VOID_AUTHENTICATED_PAID_WORK_POST_EXPIRY_RECOVERY_PREPARATION_V1"
+        },
+        "runtime_listener_cgroup_binding_pr": {
+          "type": "integer",
+          "const": 976
+        },
+        "runtime_listener_cgroup_binding_merge_commit": {
+          "type": "string",
+          "const": "dfb74b694628d66aa943e20bc97b93dede9071ae"
+        },
+        "runtime_listener_cgroup_binding_marker": {
+          "type": "string",
+          "const": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_LISTENER_CGROUP_BINDING_V1"
+        }
+      }
+    },
+    "semantic_reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_plan_preserved_unchanged",
+        "post_expiry_recovery_contract_is_required",
+        "pre_expiry_runtime_receipt_can_no_longer_be_created",
+        "expired_credential_cannot_be_revalidated_as_current",
+        "canonical_issuance_plan_binding_required",
+        "rotation_plan_id_accepted_as_canonical_issuance_plan",
+        "listener_cgroup_binding_receipt_required",
+        "listener_cgroup_binding_receipt_sufficient_alone",
+        "replacement_credential_validity_required",
+        "trusted_context_binding_required",
+        "producer_authentication_required",
+        "replay_state_verification_required",
+        "fresh_zoso_confirmation_required"
+      ],
+      "properties": {
+        "original_plan_preserved_unchanged": { "const": true },
+        "post_expiry_recovery_contract_is_required": { "const": true },
+        "pre_expiry_runtime_receipt_can_no_longer_be_created": { "const": true },
+        "expired_credential_cannot_be_revalidated_as_current": { "const": true },
+        "canonical_issuance_plan_binding_required": { "const": true },
+        "rotation_plan_id_accepted_as_canonical_issuance_plan": { "const": false },
+        "listener_cgroup_binding_receipt_required": { "const": true },
+        "listener_cgroup_binding_receipt_sufficient_alone": { "const": false },
+        "replacement_credential_validity_required": { "const": true },
+        "trusted_context_binding_required": { "const": true },
+        "producer_authentication_required": { "const": true },
+        "replay_state_verification_required": { "const": true },
+        "fresh_zoso_confirmation_required": { "const": true }
+      }
+    },
+    "required_composed_evidence": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "ordered_gates": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 18,
+      "maxProperties": 18,
+      "patternProperties": {
+        ".*_authorized$": { "const": false }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "current_main_reconciled",
+        "original_plan_source_complete",
+        "post_expiry_recovery_contract_merged",
+        "listener_cgroup_binding_contract_merged",
+        "canonical_issuance_plan_resolved",
+        "replacement_private_material_generated",
+        "replacement_registry_write_completed",
+        "listener_cgroup_binding_evidence_collected",
+        "replacement_runtime_revalidation_satisfied",
+        "trusted_context_binding_satisfied",
+        "old_binding_retired",
+        "replacement_binding_applied",
+        "execution_authorized",
+        "next_gate"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "HOLD_PENDING_CANONICAL_ISSUANCE_PLAN_PRIVATE_ROTATION_AND_COMPOSED_RUNTIME_REVALIDATION"
+        },
+        "current_main_reconciled": { "const": true },
+        "original_plan_source_complete": { "const": true },
+        "post_expiry_recovery_contract_merged": { "const": true },
+        "listener_cgroup_binding_contract_merged": { "const": true },
+        "canonical_issuance_plan_resolved": { "const": false },
+        "replacement_private_material_generated": { "const": false },
+        "replacement_registry_write_completed": { "const": false },
+        "listener_cgroup_binding_evidence_collected": { "const": false },
+        "replacement_runtime_revalidation_satisfied": { "const": false },
+        "trusted_context_binding_satisfied": { "const": false },
+        "old_binding_retired": { "const": false },
+        "replacement_binding_applied": { "const": false },
+        "execution_authorized": { "const": false },
+        "next_gate": {
+          "type": "string",
+          "const": "build_or_select_reviewed_canonical_issuance_plan_bound_to_post_expiry_recovery_packet"
+        }
+      }
+    }
+  }
+}
