@@ -3,6 +3,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { isIP } from "node:net";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -92,6 +93,33 @@ function readBounded(file, maximumBytes, code) {
   return fs.readFileSync(file);
 }
 
+function privateHttpHost(rawHostname) {
+  const hostname = String(rawHostname || "")
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase();
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".ts.net")
+  ) {
+    return true;
+  }
+  const family = isIP(hostname);
+  if (family === 4) {
+    const octets = hostname.split(".").map(Number);
+    return (
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 192 && octets[1] === 168) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127)
+    );
+  }
+  if (family === 6) return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname);
+  return false;
+}
+
 function normalizeRpcOrigin(raw) {
   let parsed;
   try {
@@ -99,8 +127,10 @@ function normalizeRpcOrigin(raw) {
   } catch {
     fail("resolver_rpc_origin_invalid");
   }
+  const privateHttp =
+    parsed.protocol === "http:" && privateHttpHost(parsed.hostname);
   if (
-    !["http:", "https:"].includes(parsed.protocol) ||
+    (parsed.protocol !== "https:" && !privateHttp) ||
     parsed.username ||
     parsed.password ||
     parsed.search ||
@@ -176,11 +206,36 @@ export function validateResolverReport({
     scan.exists !== true ||
     !Number.isInteger(scan.scanned_files) ||
     scan.scanned_files < 1 ||
+    !Array.isArray(scan.rejected_files) ||
+    scan.rejected_files.length !== 0 ||
     !Array.isArray(scan.artifacts) ||
-    scan.artifacts.length < 1
+    scan.artifacts.length !== scan.scanned_files
   ) {
     fail("resolver_artifact_evidence_incomplete");
   }
+
+  const artifactAddresses = [];
+  for (const artifact of scan.artifacts) {
+    if (
+      !artifact ||
+      typeof artifact.name !== "string" ||
+      !artifact.name ||
+      !/^[0-9a-f]{64}$/.test(String(artifact.sha256 || "")) ||
+      !Number.isInteger(artifact.bytes) ||
+      artifact.bytes <= 0 ||
+      !Array.isArray(artifact.addresses)
+    ) {
+      fail("resolver_artifact_evidence_incomplete");
+    }
+    for (const rawAddress of artifact.addresses) {
+      artifactAddresses.push(address(rawAddress));
+    }
+  }
+  const uniqueArtifactAddresses = [...new Set(artifactAddresses)].sort();
+  if (uniqueArtifactAddresses.length < 1) {
+    fail("resolver_artifact_addresses_empty");
+  }
+
   if (!Array.isArray(report.results) || report.results.length < 1) {
     fail("resolver_results_empty");
   }
@@ -191,7 +246,9 @@ export function validateResolverReport({
       result?.classification !== "stale_no_code" ||
       result?.code_present !== false ||
       result?.calls_succeeded !== false ||
-      result?.error !== null
+      result?.error !== null ||
+      !Array.isArray(result?.sources) ||
+      result.sources.length < 1
     ) {
       fail("resolver_contains_uncertain_or_live_registry", undefined, {
         address: result?.address ?? null,
@@ -203,6 +260,11 @@ export function validateResolverReport({
   const uniqueAddresses = [...new Set(staleAddresses)].sort();
   if (uniqueAddresses.length !== staleAddresses.length) {
     fail("resolver_duplicate_address");
+  }
+  if (
+    JSON.stringify(uniqueAddresses) !== JSON.stringify(uniqueArtifactAddresses)
+  ) {
+    fail("resolver_artifact_result_mismatch");
   }
 
   return {
@@ -259,6 +321,15 @@ export function buildPreparation({
 }) {
   if (!Buffer.isBuffer(resolverBytes) || resolverBytes.length <= 0) {
     fail("resolver_bytes_invalid");
+  }
+  let parsedResolverBytes;
+  try {
+    parsedResolverBytes = JSON.parse(resolverBytes.toString("utf8"));
+  } catch {
+    fail("resolver_bytes_json_invalid");
+  }
+  if (canonicalJson(parsedResolverBytes) !== canonicalJson(resolverReport)) {
+    fail("resolver_report_bytes_mismatch");
   }
   validateSource(contractBytes);
   if (!/^[0-9a-f]{40}$/.test(String(sourceCommit || ""))) {
@@ -385,6 +456,11 @@ export function buildPreparation({
 
 function parseArgs(argv) {
   const options = {};
+  const allowed = new Set([
+    "resolver-report",
+    "output",
+    "max-report-age-ms",
+  ]);
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (["-h", "--help"].includes(raw)) {
@@ -394,6 +470,8 @@ function parseArgs(argv) {
     if (!raw.startsWith("--")) fail("unexpected_argument", raw);
     const separator = raw.indexOf("=");
     const key = separator >= 0 ? raw.slice(2, separator) : raw.slice(2);
+    if (!allowed.has(key)) fail("unknown_option", key);
+    if (Object.hasOwn(options, key)) fail("duplicate_option", key);
     let value = separator >= 0 ? raw.slice(separator + 1) : "";
     if (separator < 0) {
       if (index + 1 >= argv.length || argv[index + 1].startsWith("--")) {
@@ -468,7 +546,7 @@ function atomicWriteJson(file, value) {
 }
 
 function usage() {
-  return `${MARKER}\n\nUsage:\n  node tools/void-validator-candidate-registry-deployment-preparation-v1.mjs \\\n    --resolver-report PATH [--output PATH] [--prepared-at ISO_UTC] \\\n    [--max-report-age-ms 900000]\n\nThis command reads a fresh read-only resolver report and the fixed registry\ncontract source. It creates only a mode-600 review packet. It does not compile\nbytecode, access credentials, construct or sign a transaction, broadcast,\ndeploy, register or activate a validator, restart a service, or move funds.\n`;
+  return `${MARKER}\n\nUsage:\n  node tools/void-validator-candidate-registry-deployment-preparation-v1.mjs \\\n    --resolver-report PATH [--output PATH] [--max-report-age-ms 900000]\n\nThis command uses the current system clock to enforce resolver freshness. It\nreads a read-only resolver report and the fixed registry contract source, then\ncreates only a mode-600 review packet. It does not compile bytecode, access\ncredentials, construct or sign a transaction, broadcast, deploy, register or\nactivate a validator, restart a service, or move funds.\n`;
 }
 
 async function main(argv = process.argv.slice(2)) {
@@ -499,7 +577,7 @@ async function main(argv = process.argv.slice(2)) {
     MAX_SOURCE_BYTES,
     "contract_source_file_invalid",
   );
-  const preparedAt = options["prepared-at"] || new Date().toISOString();
+  const preparedAt = new Date().toISOString();
   const maxReportAgeMs = boundedInteger(
     options["max-report-age-ms"] || 15 * 60 * 1000,
     1,
