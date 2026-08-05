@@ -1,7 +1,9 @@
 # Authenticated paid-work replacement issuance closed input guard v1
 
-Marker:
-`VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_GUARD_V1_PROOF_GREEN`
+Markers:
+
+- `VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_GUARD_V1_PROOF_GREEN`
+- `VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_PROXY_REJECTION_V1_PROOF_GREEN`
 
 ## Purpose
 
@@ -16,10 +18,17 @@ validators could therefore encounter nested accessors, symbols, hidden fields,
 custom prototypes, sparse arrays, cycles, aliases, non-JSON values, or mutation
 of the caller-owned graph after validation.
 
+A later deep-snapshot repair still admitted JavaScript `Proxy` objects. A proxy
+can run `getPrototypeOf`, `ownKeys`, descriptor, property-read, or membership
+traps during reflection and can report different evidence shapes across passes.
+That violates the requirement that untrusted evidence be rejected or detached
+before executable behavior can influence validation.
+
 This guard defines the mandatory operator-facing and registry-facing builder
 entrypoint for input that did not originate inside an already reviewed closed
-data path. It now creates one bounded descriptor-only deep snapshot before any
-credential-rotation or runtime-evidence validator reads nested values.
+data path. It creates one bounded descriptor-only deep snapshot before any
+credential-rotation or runtime-evidence validator reads nested values and now
+rejects every root or nested proxy before invoking a proxy trap.
 
 ## Exact root contract
 
@@ -35,6 +44,7 @@ exactly six own enumerable data properties:
 
 The root check occurs before nested evidence traversal. It rejects:
 
+- any root `Proxy`, including a revoked proxy, before reflection;
 - any additional or missing string key;
 - any symbol key;
 - a custom or inherited prototype;
@@ -51,6 +61,11 @@ using property descriptors. It never reads an accessor value. Every nested
 record must use `Object.prototype` or a null prototype and every nested array
 must use `Array.prototype`.
 
+Before `Array.isArray`, prototype inspection, key enumeration, or descriptor
+inspection, the Node.js 22 `node:util/types` `isProxy` primitive rejects the
+current object. This check does not invoke proxy traps. It applies recursively
+to ordinary proxies, array proxies, and revoked proxies.
+
 The traversal permits only the JSON value domain:
 
 - null;
@@ -60,12 +75,12 @@ The traversal permits only the JSON value domain:
 - dense arrays containing only indexed enumerable data properties; and
 - records containing only enumerable string-keyed data properties.
 
-It rejects nested accessors without invoking them, symbol keys, non-enumerable
-fields, custom or inherited prototypes, sparse or augmented arrays, functions,
-`undefined`, symbols, bigint values, `NaN`, infinity, negative zero, cycles, and
-shared object references. Rejecting aliases keeps the accepted graph equivalent
-to a freshly decoded JSON tree rather than an executable or identity-dependent
-JavaScript object graph.
+It rejects proxies before traps, nested accessors without invoking them, symbol
+keys, non-enumerable fields, custom or inherited prototypes, sparse or augmented
+arrays, functions, `undefined`, symbols, bigint values, `NaN`, infinity,
+negative zero, cycles, and shared object references. Rejecting aliases keeps the
+accepted graph equivalent to a freshly decoded JSON tree rather than an
+executable or identity-dependent JavaScript object graph.
 
 The accepted graph is copied into detached objects with immutable data
 properties and is deeply frozen. The underlying preparation builder receives
@@ -78,6 +93,7 @@ The deep snapshot fails closed at these exact limits:
 
 - maximum depth: `64`;
 - maximum keys in one record: `4096`;
+- maximum UTF-8 bytes in one property name: `1024`;
 - maximum array length: `10000`;
 - maximum object or array nodes: `50000`;
 - maximum total record keys and array elements: `100000`; and
@@ -103,12 +119,20 @@ validation.
 The existing builder remains a deterministic lower-level primitive only for
 callers that already prove the same root and deep-data contract. Its acceptance
 of a JavaScript object must not be interpreted as acceptance of undeclared,
-hidden, executable, or mutable input.
+hidden, executable, proxied, or mutable input.
 
-This contract is intentionally for ordinary decoded data. In-process `Proxy`
-objects are outside the accepted calling convention because ECMAScript does not
-provide a universal side-effect-free proxy detector; callers must not supply
-executable proxy graphs to this boundary.
+## Proxy adversarial proof
+
+The focused proxy proof supplies:
+
+- a root object proxy;
+- a nested evidence-record proxy;
+- a nested array proxy; and
+- a revoked nested proxy.
+
+The live proxy handlers count property reads, prototype checks, key enumeration,
+descriptor inspection, and membership tests. Every counter remains zero when
+the guard rejects the input, proving rejection occurs before any trap can run.
 
 ## Security and authority boundary
 
@@ -118,10 +142,10 @@ retire or create a Work Credit binding, authenticate, sign, acquire or accept a
 quote, construct an execution plan, execute payment, dispatch work, write Work
 Credits, access a wallet, broadcast a transaction, or move funds.
 
-Unknown root fields fail before downstream evidence validation. Hidden or
-executable nested fields fail before downstream nested reads. The decision
-remains `HOLD_PENDING_PRIVATE_REPLACEMENT_ISSUANCE_AND_ROTATION`, and execution
-authority remains false.
+Unknown root fields fail before downstream evidence validation. Hidden,
+executable, or proxied nested fields fail before downstream nested reads. The
+decision remains `HOLD_PENDING_PRIVATE_REPLACEMENT_ISSUANCE_AND_ROTATION`, and
+execution authority remains false.
 
 ## Verification
 
@@ -130,12 +154,17 @@ node --check \
   integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/closed-input-guard-v1.mjs
 node --check \
   scripts/prove_authenticated_paid_work_replacement_issuance_closed_input_guard_v1.mjs
+node --check \
+  scripts/prove_authenticated_paid_work_replacement_issuance_proxy_rejection_v1.mjs
 node \
   scripts/prove_authenticated_paid_work_replacement_issuance_closed_input_guard_v1.mjs
+node \
+  scripts/prove_authenticated_paid_work_replacement_issuance_proxy_rejection_v1.mjs
 ```
 
-Expected marker:
+Expected markers:
 
 ```text
 VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_CLOSED_INPUT_GUARD_V1_PROOF_GREEN
+VOID_AUTHENTICATED_PAID_WORK_REPLACEMENT_ISSUANCE_PROXY_REJECTION_V1_PROOF_GREEN
 ```
