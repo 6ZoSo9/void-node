@@ -34,11 +34,11 @@ jobs:
       SOURCE_COMMIT: ${{ inputs.source_commit }}
       PUBLICATION_RECEIPT_SHA256: ${{ inputs.publication_receipt_sha256 }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ inputs.source_commit }}
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           package-manager-cache: false
