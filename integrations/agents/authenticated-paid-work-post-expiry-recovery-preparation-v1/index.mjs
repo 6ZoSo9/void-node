@@ -174,7 +174,7 @@ const DECISION_KEYS = [
 
 const PACKET_ID_RE = /^voidapwperp1_[a-f0-9]{64}$/;
 const COMMIT_RE = /^[a-f0-9]{40}$/;
-const UTC_RE = /^\d{4}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const RAW_CREDENTIAL_RE =
   /voidapwc1\.[A-Za-z0-9._:-]{3,180}\.[A-Za-z0-9_-]{20,}/;
 
@@ -202,7 +202,10 @@ function parseUtc(value, label) {
     fail(`${label}_must_be_iso_utc_milliseconds`);
   }
   const milliseconds = Date.parse(value);
-  if (!Number.isFinite(milliseconds) || new Date(milliseconds).toISOString() !== value) {
+  if (
+    !Number.isFinite(milliseconds) ||
+    new Date(milliseconds).toISOString() !== value
+  ) {
     fail(`${label}_invalid_utc`);
   }
   return { text: value, milliseconds };
@@ -319,7 +322,10 @@ export function validateAuthenticatedPaidWorkPostExpiryRecoveryPreparationV1(
   ) {
     fail("packet_identity_mismatch");
   }
-  if (typeof packet.packet_id !== "string" || !PACKET_ID_RE.test(packet.packet_id)) {
+  if (
+    typeof packet.packet_id !== "string" ||
+    !PACKET_ID_RE.test(packet.packet_id)
+  ) {
     fail("packet_id_invalid");
   }
 
