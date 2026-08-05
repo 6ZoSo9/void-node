@@ -26,8 +26,8 @@ The preceding compiler-profile lane binds:
 - the complete output selection required for bytecode review.
 
 This reproducibility lane compares actual compiler outputs. A successful result
-proves reproducibility between the named environments. It **does not accept the
-bytecode for deployment** and does not establish that either compiler
+proves reproducibility between the named environments. It does not accept the
+bytecode for deployment and does not establish that either compiler
 distribution is trustworthy enough for irreversible use. Those remain a
 separate ZoSo bytecode review and trust-acceptance gate.
 
