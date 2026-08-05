@@ -1,0 +1,44 @@
+name: void-public-bootstrap-catchup-resilience-v1
+
+on:
+  pull_request:
+    paths:
+      - 'src/http/follower_routes.ts'
+      - 'tools/void-public-seed-gateway-v1.mjs'
+      - 'scripts/prove_void_public_bootstrap_catchup_resilience_v1.mjs'
+      - '.github/workflows/void-public-bootstrap-catchup-resilience-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-catchup-resilience-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build runtime artifacts
+        run: npm run build
+      - name: Prove bounded catch-up and seed failover
+        run: npx --no-install tsx scripts/prove_void_public_bootstrap_catchup_resilience_v1.mjs
+      - name: Confirm compiled resilience markers
+        run: |
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS' dist/http/follower_routes.js
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_PEER_FAILOVER' dist/http/follower_routes.js
+          grep -F 'VOID_FOLLOWER_CATCHUP_PULL_LIMIT' dist/http/follower_routes.js
