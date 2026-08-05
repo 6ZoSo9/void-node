@@ -178,3 +178,110 @@ Historical receipts, checkpoint files, launch records, and audit evidence remain
 - [Contributing](CONTRIBUTING.md)
 
 [![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml)
+
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+## Verified release installer
+
+The public download lane now has a deterministic Linux x64 archive, stable
+manifest, outer and inner SHA-256 verification, SPDX SBOM, user-scoped
+installer, atomic update/rollback, and CI/tag publishing proof. Start at
+[`docs/public/download-install-release-v1.md`](docs/public/download-install-release-v1.md).
+
+The installer never starts the service, generates private keys, or activates
+guarded economic/operator lanes unless a separate explicit lane does so.
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
+
+## Verified stable update channel
+
+`VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1` adds a stable channel manifest,
+anti-downgrade update checks, SHA-256 and GitHub-attestation verification,
+explicit restart controls, and health-gated automatic rollback.
+
+```bash
+void-node update check --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
+```
+
+See [release update channel v1](docs/public/release-update-channel-v1.md).
+
+## Immutable release publication and promotion
+
+`VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1` adds protected immutable
+GitHub Release publication, attested publication and canary receipts,
+hash-chained candidate/stable promotion, freeze, revocation, rollback, and
+public release-channel state.
+
+No real release is published by merging this infrastructure. See
+[release publication and promotion v1](docs/public/release-publication-promotion-v1.md).
+
+## Release qualification and canary matrix
+
+`VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1` requires a complete
+fresh-host, WSL2, upgrade, rollback, two-node, and participant-surface matrix,
+plus approval by a reviewer who did not run the qualification targets, before
+stable promotion.
+
+This infrastructure does not publish a release or deploy a live node. See
+[release qualification v1](docs/public/release-qualification-v1.md).
+
+## First official release rehearsal
+
+`VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1` removes tracked Python
+bytecode, enforces bytecode-free proofs, normalizes GitHub operations to
+non-interactive SSH, and rehearses the complete first official release chain
+without publishing a tag or release.
+
+Run:
+
+```bash
+make public-python-bytecode-hygiene-v1-proof
+make public-first-official-release-rehearsal-v1-proof
+```
+
+See [first official release rehearsal v1](docs/public/first-official-release-rehearsal-v1.md).
+
+## First official release launch gate
+
+`VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1` installs the last
+non-publishing control plane before an official VOID release. It also repairs
+the qualification proof so Python syntax validation cannot leak bytecode into
+the repository. The gate freezes an exact clean `main` commit and semantic
+version, binds two deterministic builds to the complete release rehearsal,
+requires independent approval and an expiring single-use authorization, and
+renders an inert publication command.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+## Solo-operator release time-lock
+
+`VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1` preserves the independent-review
+release path and adds an explicit `solo_time_lock_v1` path for a project with no
+second human reviewer. Solo mode never claims independent review. It requires a
+main-only GitHub environment wait of at least twelve hours, a separate explicit
+risk acknowledgement, and a 14-24 hour authorization window. The publication
+workflow rechecks the live environment after reading the sealed launch record
+and before release mutation can become reachable.
+
+```bash
+make public-first-official-release-launch-gate-v1-proof
+```
+
+See [first official release launch gate v1](docs/public/first-official-release-launch-gate-v1.md).
+
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_BEGIN -->
+## Public app composition gateway v1
+
+The public node now has a dedicated composition boundary that preserves the
+existing Public Earn Gateway while safely serving the VOID App shell and
+sanitized network telemetry. Account-scoped Wallet and Earn records remain
+local or session-authorized only.
+
+Proof:
+
+```bash
+make public-app-composition-repair-wall-v1-proof
+```
+<!-- VOID_PUBLIC_APP_COMPOSITION_REPAIR_WALL_V1_END -->
