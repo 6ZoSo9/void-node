@@ -64,7 +64,13 @@ The helper:
 
 Keep the terminal open during the external proof. The temporary URL changes whenever the Quick Tunnel is recreated.
 
-After the URL is verified, publish it in `public/bootstrap/v1.json` for the bounded external test. Replace it with a named tunnel at `seed.voidchain.io` for the stable path.
+After the URL is verified, publish it in `public/bootstrap/v1.json` for the bounded external test. Replace it only with a stable public HTTPS seed hostname whose DNS, TLS, route boundary, availability, and outside-node synchronization have all been independently proven.
+
+## Domain policy
+
+`voidchain.io` is a replaceable legacy DNS alias, not the network identity and not a required bootstrap dependency. Earlier apex and public-route probes were unreliable, so this lane must not assume `voidchain.io`, `seed.voidchain.io`, Google Cloud DNS, or any other unproven custom domain is available.
+
+The canonical discovery authority for this lane is the versioned GitHub manifest. A custom hostname may be added later as one independently verified endpoint without changing VOID identity, the manifest schema, or the participant command.
 
 ## Tor mirror
 
