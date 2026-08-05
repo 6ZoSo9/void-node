@@ -1,0 +1,73 @@
+name: void-public-bootstrap-external-seed-v1
+
+on:
+  pull_request:
+    paths:
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'tools/void-public-seed-gateway-v1.mjs'
+      - '.github/workflows/void-public-bootstrap-external-seed-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-external-seed-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  external-seed-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Resolve and verify the public seed outside the operator Tailnet
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          MANIFEST_URL="https://raw.githubusercontent.com/${REPOSITORY}/${HEAD_SHA}/public/bootstrap/v1.json"
+          printf 'manifest_url=%s\n' "$MANIFEST_URL"
+
+          SEED="$(
+            VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL="$MANIFEST_URL" \
+            node scripts/resolve_void_public_bootstrap_v1.mjs
+          )"
+          SEED="$(printf '%s' "$SEED" | tail -n 1 | tr -d '\r\n')"
+          test -n "$SEED"
+          printf 'resolved_seed=%s\n' "$SEED"
+
+          READY="$(curl -fsS --retry 6 --retry-all-errors --retry-delay 2 --max-time 20 "$SEED/__void/ready.json")"
+          HEAD="$(curl -fsS --retry 6 --retry-all-errors --retry-delay 2 --max-time 20 "$SEED/blocks/latest/number2.json")"
+          printf 'public_ready=%s\n' "$READY"
+          printf 'public_head=%s\n' "$HEAD"
+
+          grep -q '"ready":true' <<<"$READY"
+          grep -q '"gap":0' <<<"$READY"
+          grep -q '"txroot_live":1' <<<"$READY"
+          grep -Eq '"number":[1-9][0-9]*' <<<"$HEAD"
+
+          ADMIN_CODE="$(curl -sS -o /tmp/void-public-admin.out -w '%{http_code}' --max-time 20 "$SEED/admin")"
+          MUTATION_CODE="$(curl -sS -o /tmp/void-public-mutation.out -w '%{http_code}' --max-time 20 -X POST "$SEED/follower/start")"
+          test "$ADMIN_CODE" = 404
+          test "$MUTATION_CODE" = 405
+          grep -q 'route_not_public' /tmp/void-public-admin.out
+          grep -q 'method_not_allowed' /tmp/void-public-mutation.out
+
+          HEADERS="$(curl -fsSI --max-time 20 "$SEED/__void/ready.json")"
+          grep -iq '^x-void-public-seed-gateway: v1' <<<"$HEADERS"
+
+          echo 'VOID_PUBLIC_BOOTSTRAP_EXTERNAL_SEED_V1_GREEN'
+          echo 'tailnet_required=false'
+          echo 'private_mutation_routes_exposed=false'
