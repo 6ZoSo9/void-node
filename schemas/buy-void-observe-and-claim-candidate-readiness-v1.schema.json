@@ -41,6 +41,48 @@
       "type": "integer",
       "minimum": 0
     },
+    "request_json_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "canonical_request_json_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operator_event_json_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ignored_noncanonical_json_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "request_id_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "orphan_operator_event_request_id_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "orphan_operator_event_request_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+      },
+      "uniqueItems": true
+    },
+    "parse_failure_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "parse_failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "eligible_candidate_count": {
       "type": "integer",
       "minimum": 0
