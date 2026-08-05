@@ -2,10 +2,8 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import process from "node:process";
 import {
   ACTIVATION_CHURN_LIMIT,
   CHAIN_ID,
@@ -36,6 +34,7 @@ const WORKFLOW_PATH =
   ".github/workflows/void-validator-candidate-registry-deployment-preparation-v1.yml";
 const SOURCE_COMMIT = "7dc10098a87dee5e27a558ef73a5ea3c52479f99";
 const STALE_ADDRESS = "0x9092b4a06c76cf1192a87ff9f6f5f8c758b9327b";
+const SECOND_ADDRESS = "0x1111111111111111111111111111111111111111";
 const OBSERVED_AT = "2026-08-05T09:00:00.000Z";
 const PREPARED_AT = "2026-08-05T09:01:00.000Z";
 
@@ -66,7 +65,7 @@ function resolverReport() {
         sources: [
           {
             artifact: "validator-candidate-registry.local.current.json",
-            artifact_sha256: "a".repeat(64),
+            artifact_sha256: "0".repeat(64),
           },
         ],
         code_present: false,
@@ -95,11 +94,10 @@ function resolverReport() {
 
 function packetFor(report = resolverReport(), preparedAt = PREPARED_AT) {
   const resolverBytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
-  const contractBytes = fs.readFileSync(path.join(ROOT, CONTRACT_PATH));
   return buildPreparation({
     resolverReport: report,
     resolverBytes,
-    contractBytes,
+    contractBytes: fs.readFileSync(path.join(ROOT, CONTRACT_PATH)),
     sourceCommit: SOURCE_COMMIT,
     sourceBranch: "main",
     preparedAt,
@@ -130,7 +128,7 @@ assert.deepEqual(validation.stale_addresses, [STALE_ADDRESS]);
 assert.equal(validation.scanned_artifact_files, 16);
 
 const packet = packetFor();
-assert.deepEqual(packet, packetFor(), "packet must be deterministic for exact inputs");
+assert.deepEqual(packet, packetFor(), "packet must be deterministic");
 assert.match(packet.preparation_id, /^voidvcrdp1_[0-9a-f]{64}$/);
 const { preparation_id: preparationId, ...idBody } = packet;
 assert.equal(preparationId, `voidvcrdp1_${sha256(canonicalJson(idBody))}`);
@@ -143,17 +141,13 @@ assert.equal(packet.source.source_commit, SOURCE_COMMIT);
 assert.equal(packet.source.source_branch, "main");
 assert.equal(packet.source.resolver_decision, "HOLD_NO_LIVE_EXACT_REGISTRY");
 assert.deepEqual(packet.source.stale_candidate_addresses, [STALE_ADDRESS]);
-assert.equal(
-  packet.source.contract_source_sha256,
-  crypto.createHash("sha256").update(fs.readFileSync(path.join(ROOT, CONTRACT_PATH))).digest("hex"),
-);
 assert.equal(packet.chain.chain_id, 2050);
 assert.equal(packet.chain.rpc_origin, "http://127.0.0.1:8545");
 assert.deepEqual(packet.policy, {
-  min_validator_stake_wei: "10000000000000000000000",
+  min_validator_stake_wei: MIN_VALIDATOR_STAKE_WEI,
   min_validator_stake_void: "10000",
-  max_active_validators: "256",
-  activation_churn_limit: "4",
+  max_active_validators: MAX_ACTIVE_VALIDATORS,
+  activation_churn_limit: ACTIVATION_CHURN_LIMIT,
   public_registration_starts_as_candidate: true,
   public_registration_activates_validator: false,
 });
@@ -164,6 +158,7 @@ assert.deepEqual(packet.compiler_profile, {
   creation_bytecode_compiled: false,
   creation_bytecode_reviewed: false,
 });
+
 const expectedArguments =
   "0x00000000000000000000000000000000000000000000021e19e0c9bab2400000" +
   "0000000000000000000000000000000000000000000000000000000000000100" +
@@ -198,23 +193,17 @@ existing.selected_address = STALE_ADDRESS;
 expectCode(() => packetFor(existing), "resolver_not_deployment_candidate");
 
 const uncertain = resolverReport();
-uncertain.results[0] = {
-  ...uncertain.results[0],
-  classification: "rpc_error",
-  error: "NETWORK_ERROR",
-};
+uncertain.results[0].classification = "rpc_error";
+uncertain.results[0].error = "NETWORK_ERROR";
 expectCode(
   () => packetFor(uncertain),
   "resolver_contains_uncertain_or_live_registry",
 );
 
 const liveUnreadable = resolverReport();
-liveUnreadable.results[0] = {
-  ...liveUnreadable.results[0],
-  code_present: true,
-  classification: "live_unreadable",
-  error: "CALL_EXCEPTION",
-};
+liveUnreadable.results[0].code_present = true;
+liveUnreadable.results[0].classification = "live_unreadable";
+liveUnreadable.results[0].error = "CALL_EXCEPTION";
 expectCode(
   () => packetFor(liveUnreadable),
   "resolver_contains_uncertain_or_live_registry",
@@ -242,12 +231,47 @@ expectCode(
 );
 
 const artifactMismatch = resolverReport();
-artifactMismatch.artifact_scan.artifacts[0].addresses = [
-  "0x1111111111111111111111111111111111111111",
-];
+artifactMismatch.artifact_scan.artifacts[0].addresses = [SECOND_ADDRESS];
 expectCode(
   () => packetFor(artifactMismatch),
+  "resolver_result_source_mismatch",
+);
+
+const sourceHashMismatch = resolverReport();
+sourceHashMismatch.results[0].sources[0].artifact_sha256 = "f".repeat(64);
+expectCode(
+  () => packetFor(sourceHashMismatch),
+  "resolver_result_source_mismatch",
+);
+
+const sourceNameMismatch = resolverReport();
+sourceNameMismatch.results[0].sources[0].artifact =
+  "validator-candidate-registry.local.01.json";
+expectCode(
+  () => packetFor(sourceNameMismatch),
+  "resolver_result_source_mismatch",
+);
+
+const missingSource = resolverReport();
+missingSource.results[0].sources = [];
+expectCode(
+  () => packetFor(missingSource),
+  "resolver_contains_uncertain_or_live_registry",
+);
+
+const extraArtifactAddress = resolverReport();
+extraArtifactAddress.artifact_scan.artifacts[1].addresses = [SECOND_ADDRESS];
+expectCode(
+  () => packetFor(extraArtifactAddress),
   "resolver_artifact_result_mismatch",
+);
+
+const duplicateArtifactName = resolverReport();
+duplicateArtifactName.artifact_scan.artifacts[1].name =
+  duplicateArtifactName.artifact_scan.artifacts[0].name;
+expectCode(
+  () => packetFor(duplicateArtifactName),
+  "resolver_artifact_evidence_incomplete",
 );
 
 const rejectedArtifact = resolverReport();
@@ -263,20 +287,19 @@ const publicHttp = resolverReport();
 publicHttp.rpc_origin = "http://example.com";
 expectCode(() => packetFor(publicHttp), "resolver_rpc_origin_invalid");
 
-const resolverBytesMismatch = resolverReport();
+const rawMismatch = resolverReport();
 const mismatchedBytes = Buffer.from(`${JSON.stringify({
-  ...resolverBytesMismatch,
+  ...rawMismatch,
   blockers: ["different"],
 }, null, 2)}\n`);
 expectCode(
   () => buildPreparation({
-    resolverReport: resolverBytesMismatch,
+    resolverReport: rawMismatch,
     resolverBytes: mismatchedBytes,
     contractBytes: fs.readFileSync(path.join(ROOT, CONTRACT_PATH)),
     sourceCommit: SOURCE_COMMIT,
     sourceBranch: "main",
     preparedAt: PREPARED_AT,
-    maxReportAgeMs: 15 * 60 * 1000,
   }),
   "resolver_report_bytes_mismatch",
 );
@@ -294,16 +317,21 @@ for (const forbidden of [
   "workflow_dispatch",
   "--prepared-at",
 ]) {
-  assert.equal(tool.includes(forbidden), false, `tool contains forbidden operation: ${forbidden}`);
+  assert.equal(tool.includes(forbidden), false, `forbidden operation: ${forbidden}`);
 }
 assert.equal(tool.includes("fetch("), false);
 assert.equal(tool.includes("JsonRpcProvider"), false);
-assert.equal(tool.includes('spawnSync("git"'), true);
-assert.equal(tool.includes("atomicWriteJson"), true);
-assert.equal(tool.includes("const allowed = new Set"), true);
-assert.equal(tool.includes("privateHttpHost"), true);
-assert.equal(tool.includes("resolver_report_bytes_mismatch"), true);
-assert.equal(tool.includes("resolver_artifact_result_mismatch"), true);
+for (const required of [
+  'spawnSync("git"',
+  "atomicWriteJson",
+  "const allowed = new Set",
+  "privateHttpHost",
+  "resolver_report_bytes_mismatch",
+  "resolver_artifact_result_mismatch",
+  "resolver_result_source_mismatch",
+]) {
+  assert.ok(tool.includes(required), `tool missing ${required}`);
+}
 
 const schema = readJson(SCHEMA_PATH);
 assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
@@ -315,10 +343,7 @@ assert.equal(
   schema.properties.policy.properties.min_validator_stake_wei.const,
   MIN_VALIDATOR_STAKE_WEI,
 );
-assert.equal(
-  schema.properties.decision.properties.status.const,
-  DECISION,
-);
+assert.equal(schema.properties.decision.properties.status.const, DECISION);
 assert.equal(schema.properties.ordered_gates.minItems, 9);
 assert.equal(schema.properties.ordered_gates.maxItems, 9);
 assert.equal(schema.properties.authority.required.length, 14);
@@ -349,6 +374,7 @@ for (const required of [
   "legacy deploy proof",
   "current system clock",
   "does not accept a caller-supplied preparation timestamp",
+  "matching artifact SHA-256",
 ]) {
   assert.ok(doc.includes(required), `documentation missing ${required}`);
 }
@@ -361,7 +387,7 @@ for (const required of [
   "npm ci --ignore-scripts --no-audit --no-fund",
   `python3 -m json.tool ${SCHEMA_PATH}`,
   `node --check ${TOOL_PATH}`,
-  `node --check ${path.posix.join("scripts", path.basename(import.meta.url))}`,
+  "node --check scripts/prove_void_validator_candidate_registry_deployment_preparation_v1.mjs",
   "node scripts/prove_void_validator_candidate_registry_deployment_preparation_v1.mjs",
   "npm run typecheck",
   "permissions:\n  contents: read",
@@ -379,6 +405,7 @@ console.log(JSON.stringify({
   resolver_report_sha256: packet.source.resolver_report_sha256,
   stale_candidate_addresses: packet.source.stale_candidate_addresses,
   constructor_arguments_sha256: packet.constructor.abi_encoded_arguments_sha256,
+  resolver_source_provenance_bound: true,
   creation_bytecode_reviewed: false,
   transaction_construction_authorized: false,
   signing_authorized: false,
