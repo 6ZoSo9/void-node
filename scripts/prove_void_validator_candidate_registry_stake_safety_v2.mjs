@@ -291,7 +291,7 @@ requireAll(
     "testWaitingAndActiveExitMaintainCounters",
     "testJailedParticipantCanExitWithoutOwnerCooperation",
     "testOwnerCannotBypassStartedParticipantExitDelay",
-    "testFailedRecipientTransferPreservesStakeAccounting",
+    "testRecipientTransferFailurePreservesStakeAccounting",
     "testWithdrawalReentrancyIsBlocked",
     "testInvalidStateTransitionsAreRejected",
     "testOwnershipTransferIsTwoStepAndCancelable",
