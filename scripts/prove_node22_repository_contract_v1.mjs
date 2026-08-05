@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const MARKER = "VOID_NODE22_REPOSITORY_CONTRACT_V1";
-const EXPECTED_ENGINE = ">=22 <23";
+const MARKER = "VOID_NODE_COMPATIBILITY_REPOSITORY_CONTRACT_V2";
+const EXPECTED_ENGINE = "^22.0.0 || ^24.0.0 || ^26.0.0";
+const SUPPORTED_MAJORS = Object.freeze([22, 24, 26]);
 const ROOT = process.cwd();
 
 const migratedWorkflows = [
@@ -58,14 +59,6 @@ const coreActionWorkflows = [
   ".github/workflows/self-hosted-beta-proof.yml",
 ];
 
-const coreNodeWorkflows = new Set([
-  ".github/workflows/ci.yml",
-  ".github/workflows/ops-guards-proposer-loop.yml",
-  ".github/workflows/public-first-official-release-rehearsal-v1.yml",
-  ".github/workflows/public-release-canary-v1.yml",
-  ".github/workflows/public-release-qualification-v1.yml",
-]);
-
 function read(path) {
   return readFileSync(join(ROOT, path), "utf8");
 }
@@ -77,7 +70,6 @@ function readJson(path) {
 function walk(directory) {
   const absolute = join(ROOT, directory);
   const files = [];
-
   for (const entry of readdirSync(absolute).sort()) {
     const entryPath = join(absolute, entry);
     if (statSync(entryPath).isDirectory()) {
@@ -86,7 +78,6 @@ function walk(directory) {
       files.push(relative(ROOT, entryPath).split("\\").join("/"));
     }
   }
-
   return files;
 }
 
@@ -94,39 +85,47 @@ const rootPackage = readJson("package.json");
 const sourcePackage = readJson("src/package.json");
 const nvmVersion = read(".nvmrc").trim();
 const dockerfile = read("Dockerfile");
+const launcher = read("run-void-node.sh");
+const participant = read("void-participant.sh");
 
 assert.equal(rootPackage.engines?.node, EXPECTED_ENGINE);
 assert.equal(sourcePackage.engines?.node, EXPECTED_ENGINE);
 assert.match(rootPackage.devDependencies?.["@types/node"] ?? "", /^\^22\./);
 assert.match(sourcePackage.devDependencies?.["@types/node"] ?? "", /^\^22\./);
-assert.equal(nvmVersion, "22");
-assert.equal((dockerfile.match(/^FROM node:22-alpine(?:\s|$)/gm) ?? []).length, 2);
+assert.equal(nvmVersion, "24");
+assert.equal((dockerfile.match(/^FROM node:24-alpine(?:\s|$)/gm) ?? []).length, 2);
 assert.equal(dockerfile.includes("FROM node:20"), false);
+assert.ok(launcher.includes('SUPPORTED_NODE_MAJORS="22 24 26"'));
+assert.ok(launcher.includes('NODE_VERSION="v24.18.0"'));
+assert.ok(launcher.includes('RUNTIME_SOURCE="repo_local_node24"'));
+assert.equal(launcher.includes("v22.23.2"), false);
+assert.ok(participant.includes("node-v24.18.0-linux-x64/bin/node"));
+assert.equal(participant.includes("node-v22.23.2"), false);
 
-const workflowPaths = walk(".github/workflows").filter((path) =>
-  /\.ya?ml$/.test(path),
-);
-const staticNode20 =
-  /^\s*node-version:\s*(?:"20(?:\.[^"]*)?"|'20(?:\.[^']*)?'|20(?:\.[0-9A-Za-z*+_.-]+)?)\s*(?:#.*)?$/m;
-const node20Violations = [];
+const workflowPaths = walk(".github/workflows").filter((path) => /\.ya?ml$/.test(path));
+const unsupportedStaticNodeVersions = [];
+const staticNodeVersion = /^\s*node-version:\s*(?:"([0-9]+)(?:\.[^"]*)?"|'([0-9]+)(?:\.[^']*)?'|([0-9]+)(?:\.[0-9A-Za-z*+_.-]+)?)\s*(?:#.*)?$/gm;
 
 for (const workflowPath of workflowPaths) {
-  if (staticNode20.test(read(workflowPath))) {
-    node20Violations.push(workflowPath);
+  const workflow = read(workflowPath);
+  let match;
+  while ((match = staticNodeVersion.exec(workflow)) !== null) {
+    const major = Number(match[1] ?? match[2] ?? match[3]);
+    if (!SUPPORTED_MAJORS.includes(major)) {
+      unsupportedStaticNodeVersions.push(`${workflowPath}:${major}`);
+    }
   }
 }
-
 assert.deepEqual(
-  node20Violations,
+  unsupportedStaticNodeVersions,
   [],
-  `static Node.js 20 workflow declarations remain: ${node20Violations.join(", ")}`,
+  `unsupported static Node.js workflow declarations remain: ${unsupportedStaticNodeVersions.join(", ")}`,
 );
 
 for (const workflowPath of migratedWorkflows) {
   const workflow = read(workflowPath);
   assert.ok(workflow.includes("uses: actions/checkout@v6"), workflowPath);
   assert.ok(workflow.includes("uses: actions/setup-node@v6"), workflowPath);
-  assert.match(workflow, /^\s*node-version:\s*(?:"22"|'22'|22)\s*$/m, workflowPath);
   assert.equal(workflow.includes("actions/checkout@v4"), false, workflowPath);
   assert.equal(workflow.includes("actions/setup-node@v4"), false, workflowPath);
 }
@@ -137,44 +136,39 @@ const legacyCoreActions = [
   "actions/setup-node@v4",
   "actions/setup-node@v5",
 ];
-
 for (const workflowPath of coreActionWorkflows) {
   const workflow = read(workflowPath);
   assert.ok(workflow.includes("uses: actions/checkout@v6"), workflowPath);
   for (const legacyAction of legacyCoreActions) {
     assert.equal(workflow.includes(legacyAction), false, `${workflowPath}: ${legacyAction}`);
   }
-  if (coreNodeWorkflows.has(workflowPath)) {
-    assert.ok(workflow.includes("uses: actions/setup-node@v6"), workflowPath);
-    assert.match(
-      workflow,
-      /^\s*node-version:\s*(?:"22(?:\.x)?"|'22(?:\.x)?'|22(?:\.x)?)\s*$/m,
-      workflowPath,
-    );
-  }
 }
 
-const intakeProof = read("scripts/prove_paid_datanet_public_pilot_intake_v1.ts");
-for (const expected of [
-  "uses: actions/checkout@v6",
-  "uses: actions/setup-node@v6",
-  'node-version: "22"',
-]) {
-  assert.ok(intakeProof.includes(expected), `intake proof missing ${expected}`);
-}
+const compatibilityWorkflow = read(".github/workflows/node22-repository-contract-v1.yml");
+assert.ok(compatibilityWorkflow.includes("node-version: ${{ matrix.node }}"));
+assert.ok(compatibilityWorkflow.includes("node: [22, 24, 26]"));
+assert.ok(compatibilityWorkflow.includes("npm ci --ignore-scripts --no-audit --no-fund"));
+assert.ok(compatibilityWorkflow.includes("npm run build"));
+assert.ok(compatibilityWorkflow.includes("npm run typecheck"));
+
+const cloneWorkflow = read(".github/workflows/void-node-clone-and-run-v1.yml");
+assert.ok(cloneWorkflow.includes("host-node: [20, 22, 24, 26]"));
+assert.ok(cloneWorkflow.includes("runtime_source=repo_local_node24"));
+assert.ok(cloneWorkflow.includes("runtime_source=host_node${{ matrix.host-node }}"));
 
 console.log(
   JSON.stringify(
     {
       marker: MARKER,
       expected_engine: EXPECTED_ENGINE,
-      nvm_version: nvmVersion,
-      docker_node22_stage_count: 2,
+      supported_node_majors: SUPPORTED_MAJORS,
+      default_node_major: Number(nvmVersion),
+      docker_node24_stage_count: 2,
       workflow_count: workflowPaths.length,
       migrated_workflow_count: migratedWorkflows.length,
       core_action_workflow_count: coreActionWorkflows.length,
-      core_node_workflow_count: coreNodeWorkflows.size,
-      static_node20_workflow_count: node20Violations.length,
+      unsupported_static_node_workflow_count: unsupportedStaticNodeVersions.length,
+      invalid_fallback_pin_removed: true,
       status: "GREEN",
     },
     null,
