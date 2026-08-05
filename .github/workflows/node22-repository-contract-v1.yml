@@ -1,0 +1,43 @@
+name: node22-repository-contract-v1
+
+on:
+  pull_request:
+    paths:
+      - ".nvmrc"
+      - "Dockerfile"
+      - "package.json"
+      - "src/package.json"
+      - "scripts/prove_node22_repository_contract_v1.mjs"
+      - "scripts/prove_paid_datanet_public_pilot_intake_v1.ts"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".nvmrc"
+      - "Dockerfile"
+      - "package.json"
+      - "src/package.json"
+      - "scripts/prove_node22_repository_contract_v1.mjs"
+      - "scripts/prove_paid_datanet_public_pilot_intake_v1.ts"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Use repository runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Prove Node 22 repository contract
+        run: node scripts/prove_node22_repository_contract_v1.mjs
