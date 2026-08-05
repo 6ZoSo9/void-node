@@ -5,6 +5,7 @@ on:
     paths:
       - 'run-void-node.sh'
       - 'void-participant.sh'
+      - 'scripts/copy_void_runtime_js_v1.mjs'
       - 'scripts/prove_void_node_clone_and_run_v1.mjs'
       - 'scripts/prove_public_earn_validator_onboarding_v1.mjs'
       - 'docs/public/clone-and-run-v1.md'
@@ -78,6 +79,8 @@ jobs:
           test "$(stat -c '%a' .nodekey)" = 600
           test -d node_modules
           test -f dist/index.js
+          test -f dist/wal/wal_v1.js
+          cmp -s src/wal/wal_v1.js dist/wal/wal_v1.js
           grep -F 'wallet_key_generated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'validator_key_generated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'treasury_key_generated=false' /tmp/void-clone-run-prepare.txt
@@ -89,12 +92,13 @@ jobs:
           else
             grep -F 'runtime_source=host_node${{ matrix.host-node }}' /tmp/void-clone-run-doctor.txt
           fi
-      - name: Start and reach the local readiness endpoint
+      - name: Start and sustain the local readiness endpoint
         shell: bash
         run: |
           set -euo pipefail
           LOG=/tmp/void-clone-run-node.log
           READY=/tmp/void-clone-run-ready.json
+          READY_AFTER_GRACE=/tmp/void-clone-run-ready-after-grace.json
           ./run-void-node.sh run >"$LOG" 2>&1 &
           PID=$!
           cleanup() {
@@ -123,4 +127,18 @@ jobs:
           test -s "$READY"
           grep -E '"ready"|ready' "$READY"
           cat "$READY"
-          echo 'VOID_NODE_CLONE_AND_RUN_V1_RUNTIME_GREEN'
+
+          sleep 5
+          if ! kill -0 "$PID" 2>/dev/null; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:4100/__void/ready.json >"$READY_AFTER_GRACE"
+          test -s "$READY_AFTER_GRACE"
+          grep -E '"ready"|ready' "$READY_AFTER_GRACE"
+          if grep -F 'ERR_MODULE_NOT_FOUND' "$LOG"; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+          cat "$READY_AFTER_GRACE"
+          echo 'VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN'
