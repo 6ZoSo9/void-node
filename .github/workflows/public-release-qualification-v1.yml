@@ -48,8 +48,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
@@ -71,7 +71,7 @@ jobs:
           - os: ubuntu-24.04
             target: ubuntu-24.04-x64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Exact release binding
         shell: bash
         env:
@@ -103,7 +103,7 @@ jobs:
     name: external-target-boundary
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Record required external targets
         run: |
           cat <<'EOF2'
