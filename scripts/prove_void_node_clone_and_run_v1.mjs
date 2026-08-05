@@ -114,6 +114,19 @@ if (/from ["'](?:https?:|node:http|node:https|node:net|node:tls)/.test(runtimeCo
 }
 pass("wal-runtime-copy-source-boundary");
 
+const envExample = requireText(".env.example", [
+  "Set one or more trusted reachable host:port peers, separated by commas.",
+  "The public clone default is intentionally empty",
+  "BOOTSTRAP_ADDRS=",
+]);
+const bootstrapAssignments = envExample
+  .split(/\r?\n/)
+  .filter((line) => line.startsWith("BOOTSTRAP_ADDRS="));
+if (bootstrapAssignments.length !== 1 || bootstrapAssignments[0] !== "BOOTSTRAP_ADDRS=") {
+  fail("public clone bootstrap must be one explicit empty assignment");
+}
+pass("explicit-empty-public-bootstrap-default");
+
 requireText("docs/public/clone-and-run-v1.md", [
   "git clone https://github.com/6ZoSo9/void-node.git",
   "./run-void-node.sh",
@@ -151,6 +164,7 @@ pass("repository-engine-build-and-defaults");
 
 const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml", [
   "host-node: [20, 22, 24, 26]",
+  "'.env.example'",
   "./run-void-node.sh prepare",
   "./run-void-node.sh doctor",
   "runtime_source=host_node${{ matrix.host-node }}",
@@ -164,7 +178,7 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
 if (!workflow.includes("timeout-minutes:")) fail("workflow lacks a timeout");
 if (!workflow.includes('kill -0 "$PID"')) fail("workflow lacks a post-readiness process liveness check");
 if (!workflow.includes("sleep 5")) fail("workflow lacks the bounded post-readiness grace period");
-pass("workflow-host-fallback-wal-and-sustained-runtime-matrix");
+pass("workflow-host-fallback-wal-bootstrap-and-sustained-runtime-matrix");
 
 console.log(
   JSON.stringify(
@@ -178,6 +192,8 @@ console.log(
       root_engine: EXPECTED_ENGINE,
       wal_runtime_artifact_copy: true,
       wal_runtime_byte_equality: true,
+      loopback_bootstrap_default_removed: true,
+      explicit_bootstrap_required: true,
       sustained_runtime_probe: true,
       invalid_v22_23_2_removed: true,
       status: "GREEN",
