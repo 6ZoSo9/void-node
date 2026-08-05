@@ -4,8 +4,13 @@ on:
   pull_request:
     paths:
       - "src/economic/buy_void_native_execution_worker_v1.ts"
+      - "src/economic/buy_void_native_delivery_sign_broadcast_adapter_v1.ts"
+      - "src/economic/buy_void_delivery_submission_guard_v1.ts"
       - "scripts/prove_buy_void_native_execution_worker_v1.ts"
       - "scripts/prove_buy_void_native_execution_worker_guard_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_sign_broadcast_adapter_v1.ts"
+      - "scripts/prove_buy_void_delivery_submission_guard_v1.ts"
+      - "scripts/prove_buy_void_delivery_submission_release_reason_idempotency_v1.ts"
       - "docs/operators/buy-void-native-execution-worker-v1.md"
       - ".github/workflows/buy-void-native-execution-worker-v1.yml"
   workflow_dispatch:
@@ -42,8 +47,13 @@ jobs:
             --allowSyntheticDefaultImports \
             --downlevelIteration \
             --skipLibCheck \
+            src/economic/buy_void_native_delivery_sign_broadcast_adapter_v1.ts \
+            src/economic/buy_void_delivery_submission_guard_v1.ts \
             scripts/prove_buy_void_native_execution_worker_v1.ts \
-            scripts/prove_buy_void_native_execution_worker_guard_v1.ts
+            scripts/prove_buy_void_native_execution_worker_guard_v1.ts \
+            scripts/prove_buy_void_native_delivery_sign_broadcast_adapter_v1.ts \
+            scripts/prove_buy_void_delivery_submission_guard_v1.ts \
+            scripts/prove_buy_void_delivery_submission_release_reason_idempotency_v1.ts
 
       - name: Native execution worker proof
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_execution_worker_v1.ts
@@ -56,6 +66,8 @@ jobs:
           ./node_modules/.bin/tsx scripts/prove_buy_void_inventory_reservation_journal_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_auto_reserve_plan_worker_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_auto_reserve_plan_worker_guard_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_delivery_submission_guard_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_delivery_submission_release_reason_idempotency_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_sign_broadcast_adapter_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts

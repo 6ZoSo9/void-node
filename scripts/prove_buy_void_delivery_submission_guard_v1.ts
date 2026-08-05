@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,14 +11,15 @@ import {
   type BuyVoidDeliverySubmissionBindingV1,
 } from "../src/economic/buy_void_delivery_submission_guard_v1.js";
 
-const root = fs.mkdtempSync(
-  path.join(os.tmpdir(), "void-buy-delivery-submission-guard-v1-"),
-);
-let nowMs = 1_701_600_000_000;
-const guard = createBuyVoidDeliverySubmissionGuardV1(
-  root,
-  () => nowMs++,
-);
+function tempRoot(label: string): string {
+  return fs.mkdtempSync(
+    path.join(os.tmpdir(), `void-buy-${label}-`),
+  );
+}
+
+function sha256(value: string): string {
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+}
 
 const binding: BuyVoidDeliverySubmissionBindingV1 = {
   marker: "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
@@ -27,9 +29,72 @@ const binding: BuyVoidDeliverySubmissionBindingV1 = {
   transaction_plan_fingerprint_sha256: "4".repeat(64),
 };
 
+function appendHashedEntry(
+  root: string,
+  body: Record<string, unknown>,
+): void {
+  const complete = {
+    ...body,
+    entry_hash_sha256: sha256(JSON.stringify(body)),
+  };
+  fs.appendFileSync(
+    buyVoidDeliverySubmissionGuardPathsV1(root).journal_file,
+    `${JSON.stringify(complete)}\n`,
+    "utf8",
+  );
+}
+
+async function seedClaim(
+  label: string,
+  selectedBinding: BuyVoidDeliverySubmissionBindingV1 = binding,
+): Promise<{
+  root: string;
+  first: ReturnType<
+    typeof readBuyVoidDeliverySubmissionGuardJournalV1
+  >[number];
+}> {
+  const root = tempRoot(label);
+  const guard = createBuyVoidDeliverySubmissionGuardV1(
+    root,
+    () => 1_701_700_000_000,
+  );
+  assert.deepEqual(
+    await guard.claim_submission_once(selectedBinding),
+    { claimed: true },
+  );
+  const [first] =
+    readBuyVoidDeliverySubmissionGuardJournalV1(root);
+  return { root, first };
+}
+
 assert.equal(
   VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
-    .append_only_journal,
+    .attempt_binding_immutable,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .idempotency_key_binding_immutable,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .alternate_idempotency_key_replay_forbidden,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .replay_lifecycle_verified,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .closed_journal_contract,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .monotonic_write_timestamp,
   true,
 );
 assert.equal(
@@ -55,57 +120,95 @@ assert.equal(
   false,
 );
 
-const first = await guard.claim_submission_once(binding);
-assert.deepEqual(first, { claimed: true });
+const root = tempRoot("delivery-submission-guard-v1");
+let nowMs = 1_701_600_000_000;
+const guard = createBuyVoidDeliverySubmissionGuardV1(
+  root,
+  () => nowMs++,
+);
+
+assert.deepEqual(
+  await guard.claim_submission_once(binding),
+  { claimed: true },
+);
 
 const duplicate = await guard.claim_submission_once(binding);
 assert.equal(duplicate.claimed, false);
-if (duplicate.claimed) throw new Error("expected duplicate hold");
+if (!("reason" in duplicate)) throw new Error("expected duplicate hold");
 assert.equal(duplicate.reason, "submission_already_claimed");
+
+const alternateKey = await guard.claim_submission_once({
+  ...binding,
+  submission_idempotency_key: "5".repeat(64),
+});
+assert.equal(alternateKey.claimed, false);
+if (!("reason" in alternateKey)) {
+  throw new Error("alternate key reopened the same attempt");
+}
 assert.equal(
-  duplicate.existing_transaction_hash,
+  alternateKey.reason,
+  "submission_attempt_binding_conflict",
+);
+assert.equal(
+  alternateKey.existing_transaction_hash,
   binding.expected_transaction_hash,
 );
 
-const conflict = await guard.claim_submission_once({
+const alteredAttemptBinding = await guard.claim_submission_once({
   ...binding,
-  expected_transaction_hash: `0x${"5".repeat(64)}`,
+  submission_idempotency_key: "6".repeat(64),
+  expected_transaction_hash: `0x${"7".repeat(64)}`,
+  transaction_plan_fingerprint_sha256: "8".repeat(64),
 });
-assert.equal(conflict.claimed, false);
-if (conflict.claimed) throw new Error("expected conflict hold");
+assert.equal(alteredAttemptBinding.claimed, false);
+if (!("reason" in alteredAttemptBinding)) {
+  throw new Error("altered attempt binding was accepted");
+}
 assert.equal(
-  conflict.reason,
+  alteredAttemptBinding.reason,
+  "submission_attempt_binding_conflict",
+);
+
+const keyReuse = await guard.claim_submission_once({
+  ...binding,
+  attempt_id: "9".repeat(64),
+});
+assert.equal(keyReuse.claimed, false);
+if (!("reason" in keyReuse)) throw new Error("key reuse was accepted");
+assert.equal(
+  keyReuse.reason,
   "submission_idempotency_key_conflict",
 );
 
-const released = await guard.release_submission_claim(
-  binding,
-  "broadcast_definitively_not_submitted",
+assert.deepEqual(
+  await guard.release_submission_claim(
+    binding,
+    "broadcast_definitively_not_submitted",
+  ),
+  { released: true },
 );
-assert.deepEqual(released, { released: true });
-
-const duplicateRelease = await guard.release_submission_claim(
-  binding,
-  "broadcast_definitively_not_submitted",
+assert.deepEqual(
+  await guard.claim_submission_once(binding),
+  { claimed: true },
 );
-assert.deepEqual(duplicateRelease, { released: true });
 
-const retryClaim = await guard.claim_submission_once(binding);
-assert.deepEqual(retryClaim, { claimed: true });
+const alternateAfterRelease = await guard.claim_submission_once({
+  ...binding,
+  submission_idempotency_key: "a".repeat(64),
+});
+assert.equal(alternateAfterRelease.claimed, false);
+if (!("reason" in alternateAfterRelease)) {
+  throw new Error("alternate key reopened released attempt binding");
+}
+assert.equal(
+  alternateAfterRelease.reason,
+  "submission_attempt_binding_conflict",
+);
 
 const entries = readBuyVoidDeliverySubmissionGuardJournalV1(root);
-assert.equal(entries.length, 3);
 assert.deepEqual(
   entries.map((entry) => entry.event),
   ["claim", "release", "claim"],
-);
-assert.deepEqual(
-  entries.map((entry) => entry.adapter_marker),
-  [
-    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-    "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-  ],
 );
 assert.deepEqual(
   entries.map((entry) => entry.sequence),
@@ -124,6 +227,115 @@ assert.equal(
   entries[1].entry_hash_sha256,
 );
 
+const equalTimestampRoot = tempRoot(
+  "delivery-submission-equal-write-timestamp-v1",
+);
+const equalTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+  equalTimestampRoot,
+  () => 1_701_800_000_000,
+);
+assert.deepEqual(
+  await equalTimestampGuard.claim_submission_once(binding),
+  { claimed: true },
+);
+assert.deepEqual(
+  await equalTimestampGuard.release_submission_claim(
+    binding,
+    "broadcast_definitively_not_submitted",
+  ),
+  { released: true },
+);
+assert.deepEqual(
+  readBuyVoidDeliverySubmissionGuardJournalV1(equalTimestampRoot)
+    .map((entry) => entry.recorded_at_ms),
+  [1_701_800_000_000, 1_701_800_000_000],
+);
+
+const regressingTimestampRoot = tempRoot(
+  "delivery-submission-regressing-write-timestamp-v1",
+);
+const regressingTimestampValues = [
+  1_701_800_000_001,
+  1_701_800_000_000,
+];
+const regressingTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+  regressingTimestampRoot,
+  () => {
+    const selected = regressingTimestampValues.shift();
+    if (selected === undefined) {
+      throw new Error("proof_clock_exhausted");
+    }
+    return selected;
+  },
+);
+assert.deepEqual(
+  await regressingTimestampGuard.claim_submission_once(binding),
+  { claimed: true },
+);
+const regressingTimestampPaths =
+  buyVoidDeliverySubmissionGuardPathsV1(regressingTimestampRoot);
+const journalBeforeRegressingWrite = fs.readFileSync(
+  regressingTimestampPaths.journal_file,
+  "utf8",
+);
+await assert.rejects(
+  regressingTimestampGuard.release_submission_claim(
+    binding,
+    "broadcast_definitively_not_submitted",
+  ),
+  /submission_guard_write_timestamp_regression/,
+);
+assert.equal(
+  fs.readFileSync(regressingTimestampPaths.journal_file, "utf8"),
+  journalBeforeRegressingWrite,
+);
+assert.deepEqual(
+  readBuyVoidDeliverySubmissionGuardJournalV1(regressingTimestampRoot)
+    .map((entry) => entry.event),
+  ["claim"],
+);
+assert.equal(fs.existsSync(regressingTimestampPaths.lock_file), false);
+
+for (const [label, invalidTimestamp] of [
+  ["negative", -1],
+  ["fractional", 1.5],
+  ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+  ["nan", Number.NaN],
+] as const) {
+  const invalidTimestampRoot = tempRoot(
+    `delivery-submission-invalid-write-timestamp-${label}-v1`,
+  );
+  const invalidTimestampGuard = createBuyVoidDeliverySubmissionGuardV1(
+    invalidTimestampRoot,
+    () => invalidTimestamp,
+  );
+  await assert.rejects(
+    invalidTimestampGuard.claim_submission_once(binding),
+    /submission_guard_write_timestamp_invalid/,
+  );
+  const invalidTimestampPaths =
+    buyVoidDeliverySubmissionGuardPathsV1(invalidTimestampRoot);
+  assert.equal(fs.existsSync(invalidTimestampPaths.journal_file), false);
+  assert.equal(fs.existsSync(invalidTimestampPaths.lock_file), false);
+}
+
+const otherAdapterRoot = tempRoot("delivery-submission-other-adapter-v1");
+const otherAdapterGuard =
+  createBuyVoidDeliverySubmissionGuardV1(otherAdapterRoot);
+assert.deepEqual(
+  await otherAdapterGuard.claim_submission_once(binding),
+  { claimed: true },
+);
+assert.deepEqual(
+  await otherAdapterGuard.claim_submission_once({
+    ...binding,
+    marker:
+      "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+    submission_idempotency_key: "b".repeat(64),
+  }),
+  { claimed: true },
+);
+
 const paths = buyVoidDeliverySubmissionGuardPathsV1(root);
 assert.equal(fs.statSync(paths.state_dir).mode & 0o777, 0o700);
 assert.equal(fs.statSync(paths.journal_file).mode & 0o777, 0o600);
@@ -135,7 +347,7 @@ fs.writeFileSync(paths.lock_file, "operator-lock\n", {
 await assert.rejects(
   guard.claim_submission_once({
     ...binding,
-    submission_idempotency_key: "6".repeat(64),
+    submission_idempotency_key: "c".repeat(64),
   }),
   /submission_guard_lock_exists/,
 );
@@ -145,27 +357,145 @@ assert.equal(
 );
 fs.unlinkSync(paths.lock_file);
 
-const nativeRoot = fs.mkdtempSync(
-  path.join(os.tmpdir(), "void-buy-native-delivery-submission-guard-v1-"),
+const forgedAttempt = await seedClaim(
+  "delivery-submission-forged-attempt-v1",
 );
-const nativeGuard = createBuyVoidDeliverySubmissionGuardV1(nativeRoot);
-const nativeBinding: BuyVoidDeliverySubmissionBindingV1 = {
-  marker: "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-  submission_idempotency_key: "7".repeat(64),
-  attempt_id: "8".repeat(64),
-  expected_transaction_hash: `0x${"9".repeat(64)}`,
-  transaction_plan_fingerprint_sha256: "a".repeat(64),
-};
-assert.deepEqual(
-  await nativeGuard.claim_submission_once(nativeBinding),
-  { claimed: true },
+appendHashedEntry(forgedAttempt.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedAttempt.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key: "d".repeat(64),
+  attempt_id: binding.attempt_id,
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedAttempt.root,
+    ),
+  /submission_guard_attempt_binding_mismatch/,
 );
-const nativeEntries =
-  readBuyVoidDeliverySubmissionGuardJournalV1(nativeRoot);
-assert.equal(nativeEntries.length, 1);
-assert.equal(
-  nativeEntries[0].adapter_marker,
-  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+
+const forgedKeyReuse = await seedClaim(
+  "delivery-submission-forged-key-reuse-v1",
+);
+appendHashedEntry(forgedKeyReuse.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedKeyReuse.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: "e".repeat(64),
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedKeyReuse.root,
+    ),
+  /submission_guard_idempotency_binding_mismatch/,
+);
+
+const forgedDuplicateClaim = await seedClaim(
+  "delivery-submission-forged-duplicate-claim-v1",
+);
+appendHashedEntry(forgedDuplicateClaim.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedDuplicateClaim.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: binding.attempt_id,
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedDuplicateClaim.root,
+    ),
+  /submission_guard_duplicate_claim/,
+);
+
+const forgedReleaseFirstRoot = tempRoot(
+  "delivery-submission-forged-release-first-v1",
+);
+const forgedReleaseFirstPaths =
+  buyVoidDeliverySubmissionGuardPathsV1(
+    forgedReleaseFirstRoot,
+  );
+fs.mkdirSync(forgedReleaseFirstPaths.state_dir, {
+  recursive: true,
+  mode: 0o700,
+});
+appendHashedEntry(forgedReleaseFirstRoot, {
+  schema: "void_buy_void_delivery_submission_guard_release_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 1,
+  recorded_at_ms: 1_701_700_000_000,
+  previous_entry_hash_sha256: "0".repeat(64),
+  event: "release",
+  adapter_marker: binding.marker,
+  submission_idempotency_key:
+    binding.submission_idempotency_key,
+  attempt_id: binding.attempt_id,
+  expected_transaction_hash: binding.expected_transaction_hash,
+  transaction_plan_fingerprint_sha256:
+    binding.transaction_plan_fingerprint_sha256,
+  release_reason: "broadcast_definitively_not_submitted",
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedReleaseFirstRoot,
+    ),
+  /submission_guard_release_without_claim/,
+);
+
+const forgedUnknownKey = await seedClaim(
+  "delivery-submission-forged-unknown-key-v1",
+);
+appendHashedEntry(forgedUnknownKey.root, {
+  schema: "void_buy_void_delivery_submission_guard_claim_v1",
+  marker: "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  sequence: 2,
+  recorded_at_ms: 1_701_700_000_001,
+  previous_entry_hash_sha256:
+    forgedUnknownKey.first.entry_hash_sha256,
+  event: "claim",
+  adapter_marker: binding.marker,
+  submission_idempotency_key: "f".repeat(64),
+  attempt_id: "a".repeat(64),
+  expected_transaction_hash: `0x${"b".repeat(64)}`,
+  transaction_plan_fingerprint_sha256: "c".repeat(64),
+  unexpected_authority: true,
+});
+assert.throws(
+  () =>
+    readBuyVoidDeliverySubmissionGuardJournalV1(
+      forgedUnknownKey.root,
+    ),
+  /submission_guard_journal_keys_mismatch/,
 );
 
 const journalText = fs.readFileSync(paths.journal_file, "utf8");
@@ -178,6 +508,13 @@ for (const forbidden of [
   assert.equal(journalText.includes(forbidden), false);
 }
 
+console.log("attempt_binding_immutable=true");
+console.log("idempotency_key_binding_immutable=true");
+console.log("alternate_idempotency_key_replay_rejected=true");
+console.log("journal_replay_lifecycle_verified=true");
+console.log("closed_journal_contract_verified=true");
+console.log("write_timestamp_prevalidated=true");
+console.log("binding_conflicts_rejected=true");
 console.log(
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1_GREEN",
 );

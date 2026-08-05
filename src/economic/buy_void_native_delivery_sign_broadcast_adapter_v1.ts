@@ -1,8 +1,5 @@
 import crypto from "node:crypto";
-import {
-  Transaction,
-  getAddress,
-} from "ethers";
+import { Transaction, getAddress } from "ethers";
 import type {
   BuyVoidExecutionAttemptStateV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
@@ -49,7 +46,6 @@ export const VOID_BUY_VOID_NATIVE_DELIVERY_UNIT_SCALE_V1 = {
 } as const;
 
 const NATIVE_VALUE_MULTIPLIER_V1 = 1_000_000_000_000n;
-
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const IDEMPOTENCY_KEY = /^[0-9a-f]{64}$/;
@@ -279,11 +275,17 @@ function safeProviderSubmissionId(value: unknown): string {
   return SAFE_PROVIDER_ID.test(normalized) ? normalized : "";
 }
 
+function compareUtf16CodeUnits(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function stableFingerprint(value: Record<string, unknown>): string {
   const encoded = JSON.stringify(
     Object.fromEntries(
       Object.entries(value).sort(([left], [right]) =>
-        left.localeCompare(right),
+        compareUtf16CodeUnits(left, right),
       ),
     ),
   );
@@ -306,7 +308,9 @@ function findForbiddenInputKey(
     return null;
   }
 
-  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, nested] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
     if (FORBIDDEN_INPUT_KEYS.has(key.toLowerCase())) return key;
     if (key !== "dependencies") {
       const found = findForbiddenInputKey(nested, seen);
@@ -344,6 +348,19 @@ function held(
   };
 }
 
+function context(
+  normalized: NormalizedV1,
+  options: Partial<BuyVoidNativeDeliverySignBroadcastHeldV1> = {},
+): Partial<BuyVoidNativeDeliverySignBroadcastHeldV1> {
+  return {
+    attempt_id: normalized.attempt_id,
+    expected_transaction_hash: normalized.expected_transaction_hash,
+    transaction_plan_fingerprint_sha256:
+      normalized.transaction_plan_fingerprint_sha256,
+    ...options,
+  };
+}
+
 function normalizeInput(
   input: BuyVoidNativeDeliverySignBroadcastInputV1,
 ): NormalizedV1 | BuyVoidNativeDeliverySignBroadcastHeldV1 {
@@ -361,7 +378,7 @@ function normalizeInput(
   if (
     attempt.broadcast ||
     attempt.failure ||
-    (attempt as any).postbroadcast_failure ||
+    (attempt as { postbroadcast_failure?: unknown }).postbroadcast_failure ||
     attempt.confirmation
   ) {
     return held("prepared_execution_attempt_not_clean", {
@@ -384,7 +401,9 @@ function normalizeInput(
     });
   }
 
-  const attemptId = String(reservation.attempt_id || "").trim().toLowerCase();
+  const attemptId = String(reservation.attempt_id || "")
+    .trim()
+    .toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(attemptId)) {
     return held("invalid_execution_attempt_id");
   }
@@ -395,11 +414,13 @@ function normalizeInput(
     });
   }
 
+  const basicContext = {
+    attempt_id: attemptId,
+    expected_transaction_hash: expectedHash,
+  };
+
   if (input?.policy?.enabled !== true) {
-    return held("delivery_sign_broadcast_disabled", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_sign_broadcast_disabled", basicContext);
   }
 
   const chainId = parseInteger(input.policy.chain_id);
@@ -411,17 +432,11 @@ function normalizeInput(
     preparedChainId !== chainId ||
     planChainId !== chainId
   ) {
-    return held("delivery_chain_mismatch", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_chain_mismatch", basicContext);
   }
   const chainIdNumber = safeNumber(chainId);
   if (chainIdNumber === null) {
-    return held("delivery_chain_id_out_of_range", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_chain_id_out_of_range", basicContext);
   }
 
   const policyWallet = normalizeAddress(
@@ -429,25 +444,16 @@ function normalizeInput(
   );
   const preparedWallet = normalizeAddress(prepared.fulfillment_wallet);
   if (!policyWallet || preparedWallet !== policyWallet) {
-    return held("fulfillment_wallet_mismatch", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("fulfillment_wallet_mismatch", basicContext);
   }
 
   if (input.policy.asset_mode !== "native_void") {
-    return held("native_delivery_asset_mode_required", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("native_delivery_asset_mode_required", basicContext);
   }
 
   const deliveryAddress = normalizeAddress(prepared.delivery_address);
   if (!deliveryAddress || deliveryAddress === policyWallet) {
-    return held("invalid_native_delivery_address_binding", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("invalid_native_delivery_address_binding", basicContext);
   }
 
   const amount = parseInteger(prepared.void_amount_units);
@@ -459,18 +465,12 @@ function normalizeInput(
     maxAmount <= 0n ||
     amount > maxAmount
   ) {
-    return held("void_delivery_amount_out_of_policy", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("void_delivery_amount_out_of_policy", basicContext);
   }
 
   const nativeValueWei = amount * NATIVE_VALUE_MULTIPLIER_V1;
   if (nativeValueWei <= 0n) {
-    return held("native_delivery_value_conversion_failed", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("native_delivery_value_conversion_failed", basicContext);
   }
 
   const nonceValue = parseInteger(input?.plan?.nonce);
@@ -485,11 +485,9 @@ function normalizeInput(
   const priorityCap = parseInteger(
     input.policy.max_priority_fee_per_gas_wei,
   );
+
   if (nonce === null) {
-    return held("invalid_delivery_nonce", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("invalid_delivery_nonce", basicContext);
   }
   if (
     gasLimit === null ||
@@ -498,10 +496,7 @@ function normalizeInput(
     maxGasLimit <= 0n ||
     gasLimit > maxGasLimit
   ) {
-    return held("delivery_gas_limit_out_of_policy", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_gas_limit_out_of_policy", basicContext);
   }
   if (
     maxFee === null ||
@@ -510,23 +505,15 @@ function normalizeInput(
     feeCap <= 0n ||
     maxFee > feeCap
   ) {
-    return held("delivery_max_fee_out_of_policy", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_max_fee_out_of_policy", basicContext);
   }
   if (
     priorityFee === null ||
-    priorityFee < 0n ||
     priorityCap === null ||
-    priorityCap < 0n ||
     priorityFee > priorityCap ||
     priorityFee > maxFee
   ) {
-    return held("delivery_priority_fee_out_of_policy", {
-      attempt_id: attemptId,
-      expected_transaction_hash: expectedHash,
-    });
+    return held("delivery_priority_fee_out_of_policy", basicContext);
   }
 
   const transactionPlan: BuyVoidNativeDeliveryUnsignedTransactionV1 = {
@@ -593,9 +580,7 @@ function validateSignedTransaction(
   } catch (error) {
     return {
       reason: "signed_transaction_parse_failed",
-      detail: {
-        error_class: safeErrorClass(error),
-      },
+      detail: { error_class: safeErrorClass(error) },
     };
   }
 
@@ -642,17 +627,12 @@ async function releaseClaimForDefinitiveNotBroadcast(
       reason,
     );
   } catch (error) {
-    return held("submission_guard_release_failed", {
+    return held("submission_guard_release_failed", context(normalized, {
       status: "held",
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
       submission_guard_claimed: true,
       submission_guard_released: false,
       signing_performed: options.signing_performed === true,
-      broadcast_call_performed:
-        options.broadcast_call_performed === true,
+      broadcast_call_performed: options.broadcast_call_performed === true,
       reconciliation_required: true,
       retry_allowed: false,
       provider_submission_id: options.provider_submission_id || "",
@@ -660,21 +640,16 @@ async function releaseClaimForDefinitiveNotBroadcast(
         original_reason: reason,
         error_class: safeErrorClass(error),
       },
-    });
+    }));
   }
 
   if (release.released !== true) {
-    return held("submission_guard_release_failed", {
+    return held("submission_guard_release_failed", context(normalized, {
       status: "held",
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
       submission_guard_claimed: true,
       submission_guard_released: false,
       signing_performed: options.signing_performed === true,
-      broadcast_call_performed:
-        options.broadcast_call_performed === true,
+      broadcast_call_performed: options.broadcast_call_performed === true,
       reconciliation_required: true,
       retry_allowed: false,
       provider_submission_id: options.provider_submission_id || "",
@@ -682,25 +657,20 @@ async function releaseClaimForDefinitiveNotBroadcast(
         original_reason: reason,
         release_reason: String(release.reason || "release_refused"),
       },
-    });
+    }));
   }
 
-  return held(reason, {
+  return held(reason, context(normalized, {
     status: "not_broadcast",
-    attempt_id: normalized.attempt_id,
-    expected_transaction_hash: normalized.expected_transaction_hash,
-    transaction_plan_fingerprint_sha256:
-      normalized.transaction_plan_fingerprint_sha256,
     submission_guard_claimed: true,
     submission_guard_released: true,
     signing_performed: options.signing_performed === true,
-    broadcast_call_performed:
-      options.broadcast_call_performed === true,
+    broadcast_call_performed: options.broadcast_call_performed === true,
     reconciliation_required: false,
     retry_allowed: true,
     provider_submission_id: options.provider_submission_id || "",
     ...(options.detail ? { detail: options.detail } : {}),
-  });
+  }));
 }
 
 export async function runBuyVoidNativeDeliverySignBroadcastV1(
@@ -737,28 +707,21 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
     String(input.confirmation || "") !==
     VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_CONFIRMATION_V1
   ) {
-    return held("explicit_confirmation_required", {
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
+    return held("explicit_confirmation_required", context(normalized, {
       detail: {
         required_confirmation:
           VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_CONFIRMATION_V1,
       },
-    });
+    }));
   }
 
   const idempotencyKey = String(
     input.submission_idempotency_key || "",
-  ).trim().toLowerCase();
+  )
+    .trim()
+    .toLowerCase();
   if (!IDEMPOTENCY_KEY.test(idempotencyKey)) {
-    return held("invalid_submission_idempotency_key", {
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
-    });
+    return held("invalid_submission_idempotency_key", context(normalized));
   }
 
   const dependencies = input.dependencies;
@@ -771,12 +734,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
     typeof dependencies.signer?.sign_transaction !== "function" ||
     typeof dependencies.broadcaster?.broadcast_signed_transaction !== "function"
   ) {
-    return held("sign_broadcast_dependencies_required", {
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
-    });
+    return held("sign_broadcast_dependencies_required", context(normalized));
   }
 
   const binding: BuyVoidNativeDeliverySubmissionBindingV1 = {
@@ -794,29 +752,19 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
   try {
     claim = await dependencies.submission_guard.claim_submission_once(binding);
   } catch (error) {
-    return held("submission_guard_failed", {
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
-      detail: {
-        error_class: safeErrorClass(error),
-      },
-    });
+    return held("submission_guard_failed", context(normalized, {
+      detail: { error_class: safeErrorClass(error) },
+    }));
   }
   if (claim.claimed !== true) {
-    return held("submission_guard_already_claimed", {
-      attempt_id: normalized.attempt_id,
-      expected_transaction_hash: normalized.expected_transaction_hash,
-      transaction_plan_fingerprint_sha256:
-        normalized.transaction_plan_fingerprint_sha256,
+    return held("submission_guard_already_claimed", context(normalized, {
       detail: {
         reason: String(claim.reason || "already_claimed"),
         existing_transaction_hash: String(
           claim.existing_transaction_hash || "",
         ),
       },
-    });
+    }));
   }
 
   let signerAddress = "";
@@ -830,11 +778,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
       normalized,
       dependencies,
       binding,
-      {
-        detail: {
-          error_class: safeErrorClass(error),
-        },
-      },
+      { detail: { error_class: safeErrorClass(error) } },
     );
   }
   if (signerAddress !== normalized.fulfillment_wallet_address) {
@@ -843,9 +787,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
       normalized,
       dependencies,
       binding,
-      {
-        detail: { signer_address: signerAddress },
-      },
+      { detail: { signer_address: signerAddress } },
     );
   }
 
@@ -861,11 +803,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
         normalized,
         dependencies,
         binding,
-        {
-          detail: {
-            error_class: safeErrorClass(error),
-          },
-        },
+        { detail: { error_class: safeErrorClass(error) } },
       );
     }
 
@@ -894,12 +832,8 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
         rawSignedTransaction,
       );
     } catch (error) {
-      return held("broadcast_submission_exception_unknown", {
+      return held("broadcast_submission_exception_unknown", context(normalized, {
         status: "broadcast_unknown",
-        attempt_id: normalized.attempt_id,
-        expected_transaction_hash: normalized.expected_transaction_hash,
-        transaction_plan_fingerprint_sha256:
-          normalized.transaction_plan_fingerprint_sha256,
         submission_guard_claimed: true,
         submission_guard_released: false,
         signing_performed: true,
@@ -907,12 +841,11 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
         reconciliation_required: true,
         retry_allowed: false,
         provider_submission_id: safeProviderSubmissionId(
-          (error as any)?.provider_submission_id,
+          (error as { provider_submission_id?: unknown })
+            ?.provider_submission_id,
         ),
-        detail: {
-          error_class: safeErrorClass(error),
-        },
-      });
+        detail: { error_class: safeErrorClass(error) },
+      }));
     }
 
     const rawProviderSubmissionId = String(
@@ -937,30 +870,22 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
           },
         );
       }
-      return held("invalid_provider_submission_id", {
+      return held("invalid_provider_submission_id", context(normalized, {
         status: "broadcast_unknown",
-        attempt_id: normalized.attempt_id,
-        expected_transaction_hash: normalized.expected_transaction_hash,
-        transaction_plan_fingerprint_sha256:
-          normalized.transaction_plan_fingerprint_sha256,
         submission_guard_claimed: true,
         submission_guard_released: false,
         signing_performed: true,
         broadcast_call_performed: true,
         reconciliation_required: true,
         retry_allowed: false,
-      });
+      }));
     }
 
     const returnedHash = normalizeHash(broadcast.transaction_hash);
     if (broadcast.accepted !== true) {
       if (maybeSubmitted) {
-        return held("broadcast_submission_outcome_unknown", {
+        return held("broadcast_submission_outcome_unknown", context(normalized, {
           status: "broadcast_unknown",
-          attempt_id: normalized.attempt_id,
-          expected_transaction_hash: normalized.expected_transaction_hash,
-          transaction_plan_fingerprint_sha256:
-            normalized.transaction_plan_fingerprint_sha256,
           submission_guard_claimed: true,
           submission_guard_released: false,
           signing_performed: true,
@@ -968,7 +893,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
           reconciliation_required: true,
           retry_allowed: false,
           provider_submission_id: providerSubmissionId,
-        });
+        }));
       }
       return releaseClaimForDefinitiveNotBroadcast(
         "broadcast_definitively_not_submitted",
@@ -984,12 +909,8 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
     }
 
     if (returnedHash !== normalized.expected_transaction_hash) {
-      return held("broadcast_accepted_hash_mismatch", {
+      return held("broadcast_accepted_hash_mismatch", context(normalized, {
         status: "broadcast_unknown",
-        attempt_id: normalized.attempt_id,
-        expected_transaction_hash: normalized.expected_transaction_hash,
-        transaction_plan_fingerprint_sha256:
-          normalized.transaction_plan_fingerprint_sha256,
         submission_guard_claimed: true,
         submission_guard_released: false,
         signing_performed: true,
@@ -998,7 +919,7 @@ export async function runBuyVoidNativeDeliverySignBroadcastV1(
         retry_allowed: false,
         provider_submission_id: providerSubmissionId,
         detail: { returned_transaction_hash: returnedHash || "" },
-      });
+      }));
     }
 
     return {
