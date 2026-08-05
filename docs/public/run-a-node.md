@@ -1,6 +1,6 @@
 # Run a VOID node
 
-<!-- VOID_PUBLIC_RUN_A_NODE_CURRENT_STATE_V2 -->
+<!-- VOID_PUBLIC_RUN_A_NODE_CURRENT_STATE_V3 -->
 
 This guide starts a standard VOID node for local participation and read-only public verification.
 
@@ -10,42 +10,68 @@ Running a node does not automatically grant validator, wallet, Work Credit coord
 
 Recommended environment:
 
-- Ubuntu 24.04 LTS or a comparable Linux distribution.
-- Windows 11 with WSL2 is also supported for development.
-- Node.js 22.
+- Ubuntu 24.04 LTS or a newer comparable Ubuntu Linux distribution.
+- Linux x86-64 or Windows 11 with WSL2.
 - Git.
+- A normal unprivileged user account.
 - At least 8 GB RAM.
 - Persistent disk space for chain and DataNet state.
 - Stable network access.
 
-## Install
+A separately installed Node.js or npm is not required for the clone-and-run path. The launcher uses a compatible host Node.js 22 runtime when available or obtains a pinned SHA-256-verified runtime inside the ignored `.runtime/` directory.
+
+## Clone and run
 
 ```bash
 git clone https://github.com/6ZoSo9/void-node.git
 cd void-node
-npm ci
-cp .env.example .env
-npm run build
+./run-void-node.sh
 ```
 
-Review `.env.example` before changing configuration.
+Do not use `sudo`.
 
-Common settings:
+On the first run, the launcher:
+
+1. Selects or obtains the repository-supported Node.js runtime.
+2. Copies `.env.example` to the ignored local `.env` when needed.
+3. Creates an ignored mode-0600 local node-identity key at `.nodekey` when needed.
+4. Installs the exact locked dependencies.
+5. Builds the TypeScript source.
+6. Starts the node.
+
+The `.nodekey` is a peer identity only. It is not a wallet, validator, treasury, payment, or operator-authority key.
+
+See [clone and run v1](clone-and-run-v1.md) for the exact runtime, verification, update, and authority boundary.
+
+Review `.env.example` before changing configuration. Common settings are:
 
 ```text
 DATA_DIR
 HTTP_PORT
 P2P_PORT
 BOOTSTRAP_ADDRS
+NODE_PRIVKEY_PATH
 ```
 
 Keep secrets out of shell history, screenshots, issue reports, and public receipts.
 
-## Start
+## Prepare or diagnose without starting
+
+Prepare the checkout without opening a listener:
 
 ```bash
-npm start
+./run-void-node.sh prepare
 ```
+
+Inspect the selected runtime, configuration, node identity permissions, dependency install, and build:
+
+```bash
+./run-void-node.sh doctor
+```
+
+The doctor output never prints the node private key or `.env` contents.
+
+## Local readiness
 
 The default local HTTP endpoint is normally:
 
@@ -53,7 +79,7 @@ The default local HTTP endpoint is normally:
 http://127.0.0.1:4100
 ```
 
-Check readiness:
+Check readiness from another terminal:
 
 ```bash
 curl -fsS http://127.0.0.1:4100/__void/ready.json
@@ -73,14 +99,16 @@ Check public discovery:
 curl -fsS http://127.0.0.1:4100/.well-known/void-public-node.json
 ```
 
+Press `Ctrl+C` in the running terminal to stop the node.
+
 ## Public exposure
 
-Public exposure is optional.
+Public exposure is optional and is not performed by the clone-and-run launcher.
 
-When exposing the public-node surface, provide the exact external base URL that testers should copy:
+When exposing the public-node surface, provide the exact external base URL that testers should copy. Review the configuration and deployment boundary before starting the node:
 
 ```bash
-PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-node.example npm start
+PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-node.example ./run-void-node.sh
 ```
 
 Begin external review at:
@@ -95,9 +123,9 @@ Use a reverse proxy, TLS, host firewall, and service isolation appropriate to yo
 
 ## Produce operator evidence
 
-Create a dedicated operator attestation key. Do not reuse a wallet key, validator key, treasury key, or account key.
+Create a dedicated operator attestation key. Do not reuse a node identity, wallet key, validator key, treasury key, or account key.
 
-Then run:
+Then run the evidence workflow using the selected Node.js runtime described in its operator documentation:
 
 ```bash
 node tools/public-node-operator-evidence-workflow-v1.mjs \
@@ -139,9 +167,16 @@ Public validator registration remains candidate/waiting only. Active admission r
 
 ## Updating safely
 
-Use a clean checkout or isolated worktree for changes.
+For a stopped source-checkout node:
 
-Before updating a live service:
+```bash
+git pull --ff-only
+./run-void-node.sh
+```
+
+The launcher detects the changed source revision and performs a fresh locked install and build before startup.
+
+Before updating a live service or public deployment:
 
 1. Fetch the intended revision.
 2. Review release and migration notes.
@@ -154,6 +189,7 @@ Documentation-only work does not require a node restart.
 
 ## Help
 
+- [Clone and run v1](clone-and-run-v1.md)
 - [Support guide](../../SUPPORT.md)
 - [Security policy](../../SECURITY.md)
 - [Developer reference](developer-reference.md)
