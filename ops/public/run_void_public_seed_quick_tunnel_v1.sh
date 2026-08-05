@@ -98,7 +98,7 @@ then
 fi
 
 test "$(sha256sum "$CLOUDFLARED" | awk '{print $1}')" = "$CLOUDFLARED_SHA256" ||
-  hold "installed local cloudflared failed verification"
+  hold "installed cloudflared failed verification"
 
 : >"$GATEWAY_LOG"
 : >"$TUNNEL_LOG"
