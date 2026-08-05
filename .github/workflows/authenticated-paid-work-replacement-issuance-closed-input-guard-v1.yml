@@ -7,6 +7,7 @@ on:
       - "docs/operations/authenticated-paid-work-replacement-issuance-closed-input-guard-v1.md"
       - "integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/closed-input-guard-v1.mjs"
       - "scripts/prove_authenticated_paid_work_replacement_issuance_closed_input_guard_v1.mjs"
+      - "scripts/prove_authenticated_paid_work_replacement_issuance_proxy_rejection_v1.mjs"
   workflow_dispatch:
 
 permissions:
@@ -25,11 +26,19 @@ jobs:
         run: >-
           node --check
           integrations/agents/authenticated-paid-work-replacement-issuance-preparation-v1/closed-input-guard-v1.mjs
-      - name: Check proof syntax
+      - name: Check closed-input proof syntax
         run: >-
           node --check
           scripts/prove_authenticated_paid_work_replacement_issuance_closed_input_guard_v1.mjs
+      - name: Check proxy-rejection proof syntax
+        run: >-
+          node --check
+          scripts/prove_authenticated_paid_work_replacement_issuance_proxy_rejection_v1.mjs
       - name: Prove closed input boundary
         run: >-
           node
           scripts/prove_authenticated_paid_work_replacement_issuance_closed_input_guard_v1.mjs
+      - name: Prove proxy rejection before traps
+        run: >-
+          node
+          scripts/prove_authenticated_paid_work_replacement_issuance_proxy_rejection_v1.mjs
