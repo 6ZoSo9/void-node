@@ -317,9 +317,7 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateReturnedToCandidate(msg.sender);
     }
 
-    function moveToWaiting(
-        address candidateOwner
-    ) external onlyOwner nonReentrant {
+    function moveToWaiting(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
         if (c.state != ValidatorState.Candidate) revert InvalidState();
@@ -334,9 +332,7 @@ contract VoidValidatorCandidateRegistry {
     /// @notice Capped admission hook for future epoch activation proofs.
     /// @dev activationChurnLimit limits one call only. This registry does not
     ///      claim to enforce a temporal or epoch churn rate.
-    function markActiveBatch(
-        address[] calldata owners
-    ) external onlyOwner nonReentrant {
+    function markActiveBatch(address[] calldata owners) external onlyOwner nonReentrant {
         if (
             owners.length == 0 ||
             owners.length > activationChurnLimit
@@ -372,9 +368,7 @@ contract VoidValidatorCandidateRegistry {
     /// @dev Jailing never transfers or destroys the participant's stake. For an
     ///      Active validator, the owner action is the explicit registry-side
     ///      acknowledgment that the separate active set has removed it.
-    function jail(
-        address candidateOwner
-    ) external onlyOwner nonReentrant {
+    function jail(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -496,9 +490,7 @@ contract VoidValidatorCandidateRegistry {
     /// @dev Active validators cannot use this direct path. They must first exit
     ///      or be jailed so external active-set removal is explicitly accounted.
     ///      An already-started participant exit cannot be bypassed.
-    function markUnbonded(
-        address candidateOwner
-    ) external onlyOwner nonReentrant {
+    function markUnbonded(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -528,9 +520,7 @@ contract VoidValidatorCandidateRegistry {
     /// @notice Withdraw the candidate's complete recorded stake after unbonding.
     /// @dev All registry mutations are nonReentrant, so a recipient callback
     ///      cannot change registry lifecycle state during the transfer.
-    function withdrawStake(
-        address payable recipient
-    ) external nonReentrant {
+    function withdrawStake(address payable recipient) external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
         if (c.state != ValidatorState.Unbonded) revert InvalidState();
@@ -543,19 +533,14 @@ contract VoidValidatorCandidateRegistry {
         c.stakeAmount = 0;
         c.updatedAt = block.timestamp;
         totalStaked -= amount;
-        if (
-            consensusKeyOwner[releasedConsensusKeyHash] == msg.sender
-        ) {
+        if (consensusKeyOwner[releasedConsensusKeyHash] == msg.sender) {
             delete consensusKeyOwner[releasedConsensusKeyHash];
         }
 
         (bool transferred, ) = recipient.call{value: amount}("");
         if (!transferred) revert StakeTransferFailed();
 
-        emit ConsensusKeyReleased(
-            msg.sender,
-            releasedConsensusKeyHash
-        );
+        emit ConsensusKeyReleased(msg.sender, releasedConsensusKeyHash);
         emit StakeWithdrawn(msg.sender, recipient, amount);
     }
 
@@ -567,9 +552,7 @@ contract VoidValidatorCandidateRegistry {
         return c;
     }
 
-    function getCandidateOwner(
-        uint256 index
-    ) external view returns (address) {
+    function getCandidateOwner(uint256 index) external view returns (address) {
         return candidateOwners[index];
     }
 
@@ -583,9 +566,7 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Start a two-step ownership transfer.
-    function transferOwnership(
-        address newOwner
-    ) external onlyOwner nonReentrant {
+    function transferOwnership(address newOwner) external onlyOwner nonReentrant {
         if (newOwner == address(0) || newOwner == owner) revert InvalidOwner();
         if (pendingOwner != address(0)) revert OwnershipTransferPending();
 
@@ -593,11 +574,7 @@ contract VoidValidatorCandidateRegistry {
         emit OwnershipTransferStarted(owner, newOwner);
     }
 
-    function cancelOwnershipTransfer()
-        external
-        onlyOwner
-        nonReentrant
-    {
+    function cancelOwnershipTransfer() external onlyOwner nonReentrant {
         address canceled = pendingOwner;
         if (canceled == address(0)) revert NoOwnershipTransferPending();
 
