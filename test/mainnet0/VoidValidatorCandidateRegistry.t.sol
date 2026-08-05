@@ -1,8 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
 import "../../contracts/mainnet0/VoidValidatorCandidateRegistry.sol";
+
+interface Vm {
+    function deal(address account, uint256 newBalance) external;
+    function prank(address msgSender) external;
+    function expectRevert(bytes4 revertData) external;
+    function warp(uint256 newTimestamp) external;
+}
+
+abstract contract TestBase {
+    Vm internal constant vm =
+        Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    function assertEq(uint256 left, uint256 right) internal pure {
+        require(left == right, "uint mismatch");
+    }
+
+    function assertEq(address left, address right) internal pure {
+        require(left == right, "address mismatch");
+    }
+
+    function assertFalse(bool value) internal pure {
+        require(!value, "expected false");
+    }
+}
 
 contract RejectingStakeRecipient {
     receive() external payable {
@@ -41,7 +64,7 @@ contract ReentrantStakeOwner {
     }
 }
 
-contract VoidValidatorCandidateRegistryTest is Test {
+contract VoidValidatorCandidateRegistryTest is TestBase {
     VoidValidatorCandidateRegistry reg;
 
     address alice = address(0xA11CE);
@@ -87,13 +110,7 @@ contract VoidValidatorCandidateRegistryTest is Test {
 
     function testPublicRegistrationDoesNotActivateAndTracksAllStake() public {
         uint256 deposited = MIN_STAKE + 777 ether;
-
-        vm.prank(alice);
-        reg.registerCandidate{value: deposited}(
-            alice,
-            keccak256("alice-consensus-key"),
-            keccak256("alice-metadata")
-        );
+        _register(alice, "alice", deposited);
 
         assertEq(reg.candidateCount(), 1);
         assertEq(reg.waitingCount(), 0);
@@ -133,7 +150,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
 
         assertEq(reg.waitingCount(), 1);
         assertEq(reg.activeCount(), 0);
-        assertEq(_state(alice), _stateCode("Waiting"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Waiting)
+        );
     }
 
     function testActivationIsChurnLimitedAndCapLimited() public {
@@ -175,7 +195,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
         vm.prank(alice);
         reg.requestExit();
 
-        assertEq(_state(alice), _stateCode("Exiting"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Exiting)
+        );
         assertEq(reg.exitRequestedAt(alice), block.timestamp);
 
         vm.prank(alice);
@@ -188,7 +211,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
         vm.prank(alice);
         reg.finalizeExit();
 
-        assertEq(_state(alice), _stateCode("Unbonded"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Unbonded)
+        );
 
         uint256 recipientBefore = recipient.balance;
         vm.prank(alice);
@@ -197,7 +223,11 @@ contract VoidValidatorCandidateRegistryTest is Test {
         assertEq(recipient.balance - recipientBefore, deposited);
         assertEq(reg.totalStaked(), 0);
         assertEq(address(reg).balance, 0);
-        assertEq(reg.getCandidate(alice).stakeAmount, 0);
+
+        VoidValidatorCandidateRegistry.Candidate memory c = reg.getCandidate(
+            alice
+        );
+        assertEq(c.stakeAmount, 0);
 
         vm.prank(alice);
         vm.expectRevert(
@@ -221,13 +251,19 @@ contract VoidValidatorCandidateRegistryTest is Test {
         reg.requestExit();
         assertEq(reg.waitingCount(), 1);
         assertEq(reg.activeCount(), 0);
-        assertEq(_state(alice), _stateCode("Exiting"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Exiting)
+        );
 
         vm.prank(bob);
         reg.requestExit();
         assertEq(reg.waitingCount(), 0);
         assertEq(reg.activeCount(), 0);
-        assertEq(_state(bob), _stateCode("Exiting"));
+        assertEq(
+            uint256(_state(bob)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Exiting)
+        );
     }
 
     function testJailedParticipantCanExitWithoutOwnerCooperation() public {
@@ -235,7 +271,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
         reg.jail(alice);
 
         assertEq(reg.waitingCount(), 0);
-        assertEq(_state(alice), _stateCode("Jailed"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Jailed)
+        );
 
         vm.prank(alice);
         reg.requestExit();
@@ -258,7 +297,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
         _register(alice, "alice", MIN_STAKE);
         reg.markUnbonded(alice);
 
-        assertEq(_state(alice), _stateCode("Unbonded"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Unbonded)
+        );
         assertEq(reg.totalStaked(), MIN_STAKE);
 
         vm.prank(bob);
@@ -301,7 +343,10 @@ contract VoidValidatorCandidateRegistryTest is Test {
         );
         reg.withdrawStake(payable(address(rejecting)));
 
-        assertEq(reg.getCandidate(alice).stakeAmount, MIN_STAKE);
+        VoidValidatorCandidateRegistry.Candidate memory c = reg.getCandidate(
+            alice
+        );
+        assertEq(c.stakeAmount, MIN_STAKE);
         assertEq(reg.totalStaked(), MIN_STAKE);
         assertEq(address(reg).balance, MIN_STAKE);
     }
@@ -319,7 +364,6 @@ contract VoidValidatorCandidateRegistryTest is Test {
 
     function testWithdrawalReentrancyIsBlocked() public {
         ReentrantStakeOwner attacker = new ReentrantStakeOwner(reg);
-        vm.deal(address(attacker), MIN_STAKE);
 
         attacker.register{value: MIN_STAKE}();
         reg.markUnbonded(address(attacker));
@@ -327,7 +371,11 @@ contract VoidValidatorCandidateRegistryTest is Test {
 
         assertFalse(attacker.reentrySucceeded());
         assertEq(address(attacker).balance, MIN_STAKE);
-        assertEq(reg.getCandidate(address(attacker)).stakeAmount, 0);
+
+        VoidValidatorCandidateRegistry.Candidate memory c = reg.getCandidate(
+            address(attacker)
+        );
+        assertEq(c.stakeAmount, 0);
         assertEq(reg.totalStaked(), 0);
     }
 
@@ -422,17 +470,26 @@ contract VoidValidatorCandidateRegistryTest is Test {
         reg.jail(alice);
         assertEq(reg.activeCount(), 0);
         assertEq(reg.waitingCount(), 1);
-        assertEq(_state(alice), _stateCode("Jailed"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Jailed)
+        );
 
         reg.markUnbonded(alice);
         assertEq(reg.activeCount(), 0);
         assertEq(reg.waitingCount(), 1);
-        assertEq(_state(alice), _stateCode("Unbonded"));
+        assertEq(
+            uint256(_state(alice)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Unbonded)
+        );
 
         reg.markUnbonded(bob);
         assertEq(reg.activeCount(), 0);
         assertEq(reg.waitingCount(), 0);
-        assertEq(_state(bob), _stateCode("Unbonded"));
+        assertEq(
+            uint256(_state(bob)),
+            uint256(VoidValidatorCandidateRegistry.ValidatorState.Unbonded)
+        );
     }
 
     function _register(
@@ -453,32 +510,9 @@ contract VoidValidatorCandidateRegistryTest is Test {
         reg.moveToWaiting(who);
     }
 
-    function _state(address who) internal view returns (uint256) {
-        return uint256(reg.getCandidate(who).state);
-    }
-
-    function _stateCode(string memory name) internal pure returns (uint256) {
-        bytes32 value = keccak256(bytes(name));
-        if (value == keccak256("Candidate")) {
-            return uint256(
-                VoidValidatorCandidateRegistry.ValidatorState.Candidate
-            );
-        }
-        if (value == keccak256("Waiting")) {
-            return uint256(VoidValidatorCandidateRegistry.ValidatorState.Waiting);
-        }
-        if (value == keccak256("Active")) {
-            return uint256(VoidValidatorCandidateRegistry.ValidatorState.Active);
-        }
-        if (value == keccak256("Exiting")) {
-            return uint256(VoidValidatorCandidateRegistry.ValidatorState.Exiting);
-        }
-        if (value == keccak256("Jailed")) {
-            return uint256(VoidValidatorCandidateRegistry.ValidatorState.Jailed);
-        }
-        if (value == keccak256("Unbonded")) {
-            return uint256(VoidValidatorCandidateRegistry.ValidatorState.Unbonded);
-        }
-        revert("unknown state");
+    function _state(
+        address who
+    ) internal view returns (VoidValidatorCandidateRegistry.ValidatorState) {
+        return reg.getCandidate(who).state;
     }
 }
