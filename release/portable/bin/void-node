@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+RELEASE_ROOT="$(cd "$(dirname "$SELF")/.." && pwd -P)"
+RELEASES_DIR="$(dirname "$RELEASE_ROOT")"
+INSTALL_ROOT="$(dirname "$RELEASES_DIR")"
+CURRENT="$INSTALL_ROOT/current"
+PREVIOUS="$INSTALL_ROOT/previous"
+ENV_FILE="${VOID_NODE_ENV_FILE:-$HOME/.config/void-node/env}"
+UNIT="void-node.service"
+USER_UNIT="$HOME/.config/systemd/user/$UNIT"
+RUNTIME_NODE="$RELEASE_ROOT/runtime/bin/node"
+
+say(){ printf '%s\n' "$*"; }
+die(){ say "ERROR: $*" >&2; exit 1; }
+manager_available(){ command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; }
+
+runtime_node(){
+  local root="${1:-$RELEASE_ROOT}"
+  local runtime="$root/runtime/bin/node"
+  test -f "$runtime" && test -x "$runtime" || die "bundled Node.js runtime missing: $runtime"
+  printf '%s\n' "$runtime"
+}
+
+build_info(){
+  local root="${1:-$RELEASE_ROOT}"
+  local node_bin
+  node_bin="$(runtime_node "$root")"
+  test -f "$root/BUILD-INFO.json" || die "missing $root/BUILD-INFO.json"
+  "$node_bin" -e 'const fs=require("node:fs");const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));console.log(`${j.version} commit=${j.git_commit} built=${j.built_at_utc} runtime=${j.bundled_node_version}`)' "$root/BUILD-INFO.json"
+}
+
+verify_root(){
+  local root="${1:-$RELEASE_ROOT}"
+  test -f "$root/RELEASE-CONTENTS-SHA256" || die "missing internal checksum manifest"
+  (cd "$root" && sha256sum --check --strict RELEASE-CONTENTS-SHA256)
+}
+
+case "${1:-help}" in
+  version)
+    build_info
+    ;;
+  paths)
+    say "release_root=$RELEASE_ROOT"
+    say "install_root=$INSTALL_ROOT"
+    say "current=$CURRENT"
+    say "previous=$PREVIOUS"
+    say "env_file=$ENV_FILE"
+    say "unit=$USER_UNIT"
+    say "runtime_node=$RUNTIME_NODE"
+    ;;
+  verify)
+    verify_root
+    say "VOID_RELEASE_CONTENTS_VERIFIED=true"
+    ;;
+  doctor)
+    rc=0
+    say "marker=VOID_NODE_PORTABLE_RELEASE_DOCTOR_V1"
+    say "release=$(build_info 2>/dev/null || echo unavailable)"
+    if test -f "$RUNTIME_NODE" && test -x "$RUNTIME_NODE"; then
+      say "bundled_node=true"
+      runtime_version="$($RUNTIME_NODE --version 2>/dev/null || true)"
+      say "bundled_node_version=${runtime_version:-unavailable}"
+      if test "$($RUNTIME_NODE -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)" = 22; then
+        say "bundled_node22=true"
+      else
+        say "bundled_node22=false"
+        rc=1
+      fi
+    else
+      say "bundled_node=false"
+      rc=1
+    fi
+    say "host_node_required=false"
+    if test -L "$CURRENT" && test -d "$(readlink -f "$CURRENT")"; then say "current_symlink=true"; else say "current_symlink=false"; rc=1; fi
+    if verify_root >/dev/null 2>&1; then say "checksums=true"; else say "checksums=false"; rc=1; fi
+    if test -f "$ENV_FILE"; then say "env_file=true"; else say "env_file=false"; fi
+    if test -n "${VOID_NODE_KEY_FILE:-}" && test -f "$VOID_NODE_KEY_FILE"; then
+      mode="$(stat -c '%a' "$VOID_NODE_KEY_FILE" 2>/dev/null || true)"
+      case "$mode" in 400|600) say "key_permissions=true";; *) say "key_permissions=false"; rc=1;; esac
+    else
+      say "key_configured=false"
+    fi
+    exit "$rc"
+    ;;
+  enable)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user daemon-reload
+    systemctl --user enable "$UNIT"
+    say "enabled=true"
+    ;;
+  disable)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user disable "$UNIT" || true
+    say "enabled=false"
+    ;;
+  start)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user daemon-reload
+    systemctl --user start "$UNIT"
+    say "started=true"
+    ;;
+  stop)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user stop "$UNIT" || true
+    say "started=false"
+    ;;
+  restart)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user daemon-reload
+    systemctl --user restart "$UNIT"
+    say "restarted=true"
+    ;;
+  status)
+    manager_available || die "systemd user manager unavailable"
+    systemctl --user --no-pager --full status "$UNIT"
+    ;;
+  logs)
+    command -v journalctl >/dev/null 2>&1 || die "journalctl unavailable"
+    exec journalctl --user -u "$UNIT" -n "${VOID_NODE_LOG_LINES:-200}" -f
+    ;;
+  update)
+    exec "$RUNTIME_NODE" "$RELEASE_ROOT/bin/void-node-update" "${@:2}"
+    ;;
+  rollback)
+    test -L "$PREVIOUS" || die "no previous release is available"
+    old_current="$(readlink -f "$CURRENT")"
+    old_previous="$(readlink -f "$PREVIOUS")"
+    verify_root "$old_previous" >/dev/null
+    runtime_node "$old_previous" >/dev/null
+    ln -sfn "$old_previous" "$INSTALL_ROOT/.current.next"
+    mv -Tf "$INSTALL_ROOT/.current.next" "$CURRENT"
+    ln -sfn "$old_current" "$INSTALL_ROOT/.previous.next"
+    mv -Tf "$INSTALL_ROOT/.previous.next" "$PREVIOUS"
+    if manager_available && systemctl --user is-active --quiet "$UNIT"; then
+      systemctl --user restart "$UNIT"
+    fi
+    say "rolled_back_to=$(build_info "$old_previous")"
+    ;;
+  uninstall)
+    exec "$RELEASE_ROOT/install-void-node-v1.sh" uninstall "${@:2}"
+    ;;
+  run)
+    exec "$RELEASE_ROOT/bin/void-node-run" "${@:2}"
+    ;;
+  help|--help|-h|*)
+    cat <<'HELP'
+VOID node portable release manager
+
+  void-node version
+  void-node paths
+  void-node verify
+  void-node doctor
+  void-node enable|disable
+  void-node start|stop|restart|status|logs
+  void-node update check --channel URL
+  void-node update apply --channel URL --yes [--restart-if-running]
+  void-node update rollback
+  void-node rollback
+  void-node uninstall [--yes] [--purge]
+  void-node run [node arguments]
+
+The release uses its verified bundled Node.js runtime. Host Node.js, npm, and
+Git are not required. Install never enables or starts the service unless the
+installer receives --enable and/or --start. No wallet, validator, or treasury
+key is generated.
+HELP
+    ;;
+esac

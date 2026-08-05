@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Ensure script is executable
         run: chmod +x tools/check_index_size.sh
@@ -20,7 +20,7 @@ jobs:
   large-files:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Block files >=10MB in working tree
         run: |
           big=$(find . -type f -size +10M -not -path './.git/*' -printf '%s %p\n' | wc -l)
@@ -33,7 +33,7 @@ jobs:
   no-large-history:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0 }   # IMPORTANT: get full history
       - name: Block blobs >=10MB anywhere in history
         run: |

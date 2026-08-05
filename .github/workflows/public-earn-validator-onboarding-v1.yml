@@ -1,0 +1,53 @@
+name: Public earn and validator candidate onboarding v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-earn-validator-onboarding-v1.yml"
+      - ".env.example"
+      - "package.json"
+      - "void-participant.sh"
+      - "tools/void-public-earn-validator-onboarding-v1.mjs"
+      - "scripts/prove_public_earn_validator_onboarding_v1.mjs"
+      - "docs/public/public-earn-validator-onboarding-v1.md"
+      - "docs/public/participant-onboarding.md"
+      - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/VALIDATOR_STAKING_UPGRADE_ONBOARDING_POLICY.md"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-earn-validator-onboarding-v1.yml"
+      - ".env.example"
+      - "package.json"
+      - "void-participant.sh"
+      - "tools/void-public-earn-validator-onboarding-v1.mjs"
+      - "scripts/prove_public_earn_validator_onboarding_v1.mjs"
+      - "docs/public/public-earn-validator-onboarding-v1.md"
+      - "docs/public/participant-onboarding.md"
+      - "docs/mainnet0/VALIDATOR_POLICY.md"
+      - "docs/VALIDATOR_STAKING_UPGRADE_ONBOARDING_POLICY.md"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run participant:onboard:proof
+      - run: npm run typecheck

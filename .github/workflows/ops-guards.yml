@@ -4,7 +4,7 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Block files >=10MB
         run: |
           bash tools/check_large_worktree_files.sh

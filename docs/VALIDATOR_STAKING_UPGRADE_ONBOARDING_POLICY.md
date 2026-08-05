@@ -1,99 +1,149 @@
 # VALIDATOR STAKING UPGRADE ONBOARDING POLICY
 
-Status: operator policy for onboarding additional validators onto the upgrade-track staking/runtime path.
+Status: operator and participant policy for onboarding additional validators onto
+the upgrade-track staking/runtime path.
 
 ## Purpose
 
-This policy defines when a new validator may be onboarded to the upgrade-track validator staking stack, what inputs are required, and what proof must be captured before the onboarding is considered valid.
-
-This is the path to use after:
-- upgrade-track validator truth became the selected default-read source
-- validator2 onboarding was proven
-- multivalidator readiness gate went green
+This policy defines when a new validator may register as a candidate, when an
+operator may advance that candidate, and what proof must be captured before the
+validator is considered active.
 
 ## Scope
 
-This policy applies to the upgrade-track validator stack only.
+This policy applies to the upgrade-track validator stack and the Mainnet-0
+candidate/waiting boundary.
 
 It does not:
-- mutate frozen Mainnet-0 validator contracts
-- remove the frozen rollback path
-- claim that participant/UI staking is ready on frozen contracts
+
+- mutate frozen Mainnet-0 validator contracts;
+- remove the frozen rollback path;
+- give a downloaded node automatic validator authority;
+- let an operator collect a participant wallet key; or
+- treat candidate registration as active consensus.
 
 ## Minimum validator onboarding requirements
 
 A candidate validator must have:
 
-- a unique reward address
-- a unique consensus key
-- enough native gas for:
-  - token approve
-  - registerAndStake
-  - activate
-- enough VOID to satisfy minimum stake
-- a known operator identity / name in the local wallet bundle or equivalent secure source
+- a unique participant-controlled candidate wallet;
+- a participant-selected reward address;
+- a unique public consensus-key fingerprint bound to the node identity;
+- enough native gas for the candidate transaction;
+- at least **10,000 VOID** for the candidate stake;
+- a healthy node with readiness, latest-block, and peer evidence;
+- public endpoint or P2P metadata where applicable; and
+- an exact participant-signed candidate registration.
+
+The participant wallet remains self-custodied. Private keys, seed phrases,
+mnemonics, and wallet files must never be supplied to VOID tooling or an
+operator.
+
+## Participant-signed candidate registration
+
+The public candidate transaction is:
+
+```text
+registerCandidate(reward, consensusKeyHash, metadataHash)
+```
+
+on chain ID `2050`, with exactly 10,000 VOID as the transaction value unless a
+later locked policy explicitly changes the minimum.
+
+The participant onboarding tool may prepare and content-address the unsigned
+transaction, and may verify an already signed transaction. It cannot sign for
+the participant.
+
+A successful registration creates **Candidate** state only.
+
+## Candidate, Waiting, and Active separation
+
+The Mainnet-0 sequence is:
+
+1. participant registers Candidate with self-custodied stake;
+2. registry authority reviews evidence and may move Candidate to Waiting;
+3. selection respects the active cap and activation churn limit;
+4. registry authority may move a bounded Waiting batch to Active;
+5. runtime/epoch evidence proves the active node is actually participating; and
+6. public status is updated only after exact proof.
+
+There is **no automatic promotion** from Candidate to Waiting or from Waiting to
+Active.
 
 ## Funding model
 
-Current proven onboarding path is:
+Public candidate onboarding does not use the historical treasury-funded
+operator sequence. The participant supplies their own candidate stake and gas.
 
-1. gas-funder sends native gas to required EOAs
-2. VoidTreasury sends stake amount to OpsTreasury
-3. OpsTreasury spends stake amount to validator candidate EOA
-4. validator candidate approves staking contract
-5. validator candidate calls registerAndStake(...)
-6. validator candidate calls activate()
-7. deployer/admin captures next epoch and publishes target window
-8. manifest is exported, verified, imported, and live-published
+The older operator-funded path remains historical evidence for controlled
+validators. It must not be presented as the public participant path and must not
+be used to request participant secrets.
 
-## Required proof after onboarding
+## Required proof after candidate registration
 
-A validator onboarding is only considered successful if all of the following are true:
+Candidate registration is successful only if:
 
-- candidate address appears in active validator set
-- next epoch manifest verifies successfully
-- next epoch validator count increases as expected
-- next epoch total power increases as expected
-- published / publishedMatch are true for the next epoch
-- runtime live routes load the new epoch successfully
-- shadow mismatch count remains zero
-- multivalidator readiness gate remains green
+- the transaction succeeded on chain ID `2050`;
+- the registry record owner equals the participant wallet;
+- reward, consensus-key hash, metadata hash, and stake match the reviewed packet;
+- stake is at least 10,000 VOID;
+- state is exactly `Candidate`; and
+- Waiting, Active, and runtime-consensus claims remain false.
 
-## Rollback / failure policy
+## Required proof after Waiting admission
 
-If onboarding partially succeeds but proof fails:
+Waiting admission is valid only if:
 
-- do not continue onboarding more validators
-- inspect active validator set
-- inspect latest epoch manifest
-- inspect shadow latest and diag/all
-- prefer halting further onboarding over piling on more state changes
+- the exact candidate record was reviewed;
+- the authority transaction succeeded;
+- state is exactly `Waiting`;
+- active validator count did not increase; and
+- no runtime consensus claim is made.
 
-If the validator appears active but runtime proof fails, treat that as a serious operational mismatch and resolve it before proceeding.
+## Required proof after active onboarding
 
-## Current minimum stake assumption
+A validator onboarding is considered active only when all of the following are true:
 
-Current proofs use:
-- `1000 VOID` minimum stake per validator
+- registry state is `Active`;
+- the activation batch respected the cap and churn limit;
+- the candidate address appears in the active validator set;
+- next-epoch manifest verifies successfully;
+- next-epoch validator count and power change as expected;
+- published and published-match checks are true;
+- runtime live routes load the new epoch successfully;
+- shadow mismatch count remains zero; and
+- multivalidator readiness remains green.
 
-This remains the current Mainnet-0 validator minimum unless superseded by a later locked policy.
+## Rollback and failure policy
+
+If any step partially succeeds but proof fails:
+
+- do not continue onboarding more validators;
+- do not claim active validation;
+- inspect candidate, waiting, active, and epoch state;
+- inspect latest manifest and shadow diagnostics; and
+- prefer halting further mutation over piling on additional state changes.
+
+## Current minimum stake
+
+The locked Mainnet-0 minimum is **10,000 VOID** per validator candidate.
+
+Any proof, deployment parameter, documentation, or interface that still assumes
+1,000 VOID is stale and must fail review.
 
 ## Current operator posture
 
-Until broader public staking exists, onboarding remains an operator-run controlled sequence using the secure local key material and treasury funding path already proven in this repo.
+Until a reviewed public candidate-registry address is deployed and published,
+participant tooling must stop at readiness and unsigned-packet preparation.
+After deployment, participant registration remains self-signed, while Waiting
+and Active transitions remain controlled, explicit, auditable, and separate.
 
-## Machine gate
+## Machine gates
 
-Before onboarding any additional validator, run:
+Before active onboarding, run:
 
-- `ops/mainnet/validator-staking-upgrade-multivalidator-readiness.sh`
-- `ops/mainnet/validator-staking-upgrade-onboarding-runbook-gate.sh`
+- `ops/mainnet/validator-staking-upgrade-multivalidator-readiness.sh`;
+- `ops/mainnet/validator-staking-upgrade-onboarding-runbook-gate.sh`; and
+- `npm run participant:onboard:proof`.
 
-If either fails, do not onboard the next validator.
-
-## Next practical lane after this doc
-
-If the runbook gate is green, next likely step is:
-- validator3 onboarding proof
-or
-- turning this operator flow into a cleaner admin/runbook UX
+If any gate fails, do not activate the validator.
