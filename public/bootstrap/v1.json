@@ -16,5 +16,5 @@
   ],
   "onion_endpoints": [],
   "private_tailnet_endpoints_published": false,
-  "notes": "First externally verified read-only public seed. Keep the Quick Tunnel process alive for the bounded outside-node proof. Replace with a stable VOID-owned HTTPS seed and add the existing Tor v3 onion transport as an independent mirror."
+  "notes": "First externally verified read-only public seed. GitHub Actions run 31051513155 independently verified this endpoint outside the operator Tailnet. Keep the Quick Tunnel process alive for the bounded outside-node proof. Replace with a stable VOID-owned HTTPS seed and add the Tor v3 onion transport as an independent mirror."
 }
