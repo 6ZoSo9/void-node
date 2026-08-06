@@ -1259,6 +1259,8 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       detail: custodyDecision.detail,
     });
   }
+  const externalSigningPerformed =
+    custodyDecision.external_signing_performed;
   const custody = custodyDecision.custody;
   if (!custody) {
     return held(
@@ -1267,7 +1269,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "prepared_transaction_custody_projection_missing",
       {
         mutation_performed: planDecision.mutation_performed,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
       },
     );
@@ -1282,7 +1284,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "injected_after_custody_record",
       {
         mutation_performed: true,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
         detail: {
           error_class: String(
@@ -1304,7 +1306,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "prepared_transaction_attempt_reread_missing",
       {
         mutation_performed: true,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
       },
     );
@@ -1345,7 +1347,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         }`,
         {
           mutation_performed: true,
-          external_signing_performed: true,
+          external_signing_performed: externalSigningPerformed,
           reconciliation_required: true,
         },
       );
@@ -1363,7 +1365,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "prepared_transaction_attempt_unreadable",
       {
         mutation_performed: true,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
       },
     );
@@ -1383,7 +1385,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       String((error as Error)?.message || error),
       {
         mutation_performed: true,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
       },
     );
@@ -1398,7 +1400,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "injected_after_execution_attempt_preparation",
       {
         mutation_performed: true,
-        external_signing_performed: true,
+        external_signing_performed: externalSigningPerformed,
         reconciliation_required: true,
         detail: {
           error_class: String(
@@ -1428,7 +1430,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         String((error as Error)?.message || error),
         {
           mutation_performed: true,
-          external_signing_performed: true,
+          external_signing_performed: externalSigningPerformed,
           reconciliation_required: true,
         },
       );
@@ -1467,7 +1469,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         "prepared_transaction_saga_append_failed",
         {
           mutation_performed: true,
-          external_signing_performed: true,
+          external_signing_performed: externalSigningPerformed,
           reconciliation_required: true,
           detail: {
             error_class: String(
@@ -1492,7 +1494,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         }`,
         {
           mutation_performed: true,
-          external_signing_performed: true,
+          external_signing_performed: externalSigningPerformed,
           reconciliation_required: true,
         },
       );
@@ -1514,7 +1516,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         String((error as Error)?.message || error),
         {
           mutation_performed: true,
-          external_signing_performed: true,
+          external_signing_performed: externalSigningPerformed,
           reconciliation_required: true,
         },
       );
@@ -1537,7 +1539,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     execution_attempt: attempt,
     saga_state: sagaResult.state || {},
     wallet_access_performed: false,
-    external_signing_performed: true,
+    external_signing_performed: externalSigningPerformed,
     transaction_broadcast_performed: false,
     raw_signed_transaction_persisted: false,
     raw_signed_transaction_returned: false,
