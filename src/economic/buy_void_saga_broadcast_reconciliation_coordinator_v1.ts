@@ -19,6 +19,10 @@ import {
   type BuyVoidBroadcastOutcomeStateV1,
 } from "./buy_void_broadcast_outcome_journal_v1.js";
 import {
+  listBuyVoidPreparedTransactionPlanReservationsV1,
+  type BuyVoidPreparedTransactionPlanReservationV1,
+} from "./buy_void_prepared_transaction_plan_reservation_v1.js";
+import {
   readBuyVoidPreparedTransactionCustodyV1,
   type BuyVoidPreparedTransactionCustodyPublicProjectionV1,
 } from "./buy_void_prepared_transaction_custody_v1.js";
@@ -55,8 +59,10 @@ export const VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_AUTHORITY_V1 = {
   exact_saga_selector: true,
   server_controlled_policy: true,
   stable_policy_fingerprint_echo_required: true,
+  prepared_transaction_plan_required: true,
   prepared_transaction_custody_required: true,
   saga_write_ahead_broadcast_intent_required: true,
+  external_submit_inside_supervisor_adapter_only: true,
   durable_broadcast_evidence_before_projection_writes: true,
   canonical_execution_and_outcome_journals_required: true,
   saga_event_after_projection_writes: true,
@@ -80,10 +86,11 @@ export const VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_AUTHORITY_V1 = {
 } as const;
 
 const SHA256 = /^[0-9a-f]{64}$/;
-const HASH = /^0x[0-9a-f]{64}$/;
 const SAGA_ID = /^voidbvfsg1_[0-9a-f]{64}$/;
 const SAGA_ROOT = "buy-void-crash-consistent-saga-runtime-v1";
+const EVIDENCE_ROOT = "buy-void-saga-broadcast-evidence-v1";
 const LEASE_TTL_MS = 30_000;
+const NATIVE_VALUE_MULTIPLIER = 1_000_000_000_000n;
 const SOURCE_FLOOR = "c4f742c2c2c33c91fcaa27dc462505cd5c19abdc";
 
 export type BuyVoidSagaBroadcastReconciliationFaultStageV1 =
@@ -98,6 +105,10 @@ export type BuyVoidSagaBroadcastReconciliationDependenciesV1 = {
     root_dir: string;
     attempt_id: string;
   }) => unknown | null;
+  list_plans?: (input: {
+    root_dir: string;
+    wallet_address: string;
+  }) => BuyVoidPreparedTransactionPlanReservationV1[];
   run_pipeline_command?: (
     command: Record<string, unknown>,
   ) => unknown | Promise<unknown>;
@@ -237,7 +248,6 @@ type SagaStoreV1 = {
 type SagaModuleV1 = {
   ADVANCE_CONFIRMATION: string;
   ACTION_CONFIRMATIONS: Record<string, string>;
-  computeBroadcastIntentIdV1: (input: Record<string, unknown>) => string;
   deriveSagaNextActionV1: (state: Record<string, unknown>) => {
     action: string | null;
     terminal: boolean;
@@ -258,10 +268,23 @@ type ReconstructedV1 = {
     | "reconcile_possible_broadcast";
   attempt: BuyVoidExecutionAttemptStateV1;
   intent: BuyVoidFulfillmentJournalIntentV1;
+  plan: BuyVoidPreparedTransactionPlanReservationV1;
   custody: BuyVoidPreparedTransactionCustodyPublicProjectionV1;
   evidence: BuyVoidSagaBroadcastEvidenceStateV1 | null;
   outcome: BuyVoidBroadcastOutcomeStateV1 | null;
   policy: BuyVoidSagaBroadcastReconciliationServerPolicyV1;
+};
+
+type CurrentCallV1 = {
+  broadcaster_called: boolean;
+  submission_call_performed: boolean;
+  transaction_broadcast_performed: boolean;
+  money_movement_performed: boolean;
+};
+
+type ExecuteCaptureV1 = CurrentCallV1 & {
+  outcome: BuyVoidPreparedTransactionBroadcasterReadyV1 | null;
+  evidence: BuyVoidSagaBroadcastEvidenceStateV1 | null;
 };
 
 function held(
@@ -352,6 +375,7 @@ function dependencies(
   return {
     list_claims: listBuyVoidFulfillmentJournalClaimsV1,
     read_attempt: readBuyVoidExecutionAttemptV1 as any,
+    list_plans: listBuyVoidPreparedTransactionPlanReservationsV1,
     run_pipeline_command: runBuyVoidPipelineCommandV1 as any,
     read_custody: readBuyVoidPreparedTransactionCustodyV1,
     read_evidence: readBuyVoidSagaBroadcastEvidenceStateV1,
@@ -365,6 +389,18 @@ function dependencies(
 
 function sagaRoot(rootDir: string): string {
   return path.join(rootDir, SAGA_ROOT);
+}
+
+function evidenceExists(rootDir: string, attemptId: string): boolean {
+  return fs.existsSync(
+    path.join(
+      rootDir,
+      EVIDENCE_ROOT,
+      "attempts",
+      attemptId,
+      "events",
+    ),
+  );
 }
 
 function exactIntent(
@@ -389,6 +425,29 @@ function exactIntent(
       matches.length === 0
         ? "broadcast_reconciliation_claim_missing"
         : "broadcast_reconciliation_claim_ambiguous",
+    );
+  }
+  return matches[0];
+}
+
+function exactPlan(
+  rootDir: string,
+  attempt: BuyVoidExecutionAttemptStateV1,
+  listPlans: ReturnType<typeof dependencies>["list_plans"],
+): BuyVoidPreparedTransactionPlanReservationV1 {
+  const prepared = attempt.prepared;
+  if (!prepared) throw new Error("prepared_execution_attempt_required");
+  const matches = listPlans({
+    root_dir: rootDir,
+    wallet_address: prepared.fulfillment_wallet,
+  }).filter((plan) =>
+    plan.attempt_id === attempt.reservation.attempt_id,
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? "broadcast_reconciliation_plan_missing"
+        : "broadcast_reconciliation_plan_ambiguous",
     );
   }
   return matches[0];
@@ -419,21 +478,29 @@ function assertReconstructedBinding(
   reconstructed: ReconstructedV1,
   sagaId: string,
 ): void {
-  const { record, attempt, custody, policy, evidence, outcome } = reconstructed;
+  const {
+    record,
+    attempt,
+    intent,
+    plan,
+    custody,
+    policy,
+    evidence,
+    outcome,
+  } = reconstructed;
   const prepared = attempt.prepared;
-  if (!prepared || attempt.reservation.attempt_id !== record.state.attempt_id) {
+  const reservation = attempt.reservation;
+  if (!prepared || reservation.attempt_id !== record.state.attempt_id) {
     throw new Error("broadcast_reconciliation_attempt_binding_invalid");
   }
   if (
     record.saga_id !== sagaId ||
     record.state.transaction_hash !== prepared.void_delivery_tx_hash ||
-    record.binding.request_id !== attempt.reservation.request_id ||
+    record.binding.request_id !== reservation.request_id ||
     record.binding.canonical_payment_identity !==
-      attempt.reservation.canonical_payment_identity ||
-    record.binding.request_key_sha256 !==
-      attempt.reservation.request_key_sha256 ||
-    record.binding.payment_key_sha256 !==
-      attempt.reservation.payment_key_sha256 ||
+      reservation.canonical_payment_identity ||
+    record.binding.request_key_sha256 !== reservation.request_key_sha256 ||
+    record.binding.payment_key_sha256 !== reservation.payment_key_sha256 ||
     record.binding.delivery_address !== prepared.delivery_address ||
     record.binding.void_amount_units !== prepared.void_amount_units ||
     record.binding.chain_id !== "2050" ||
@@ -450,11 +517,35 @@ function assertReconstructedBinding(
     throw new Error("broadcast_reconciliation_economic_policy_conflict");
   }
   if (
+    intent.claim?.canonical_payment_identity !==
+      reservation.canonical_payment_identity ||
+    intent.claim?.request_id !== reservation.request_id ||
+    intent.claim?.instruction_id !== reservation.instruction_id
+  ) {
+    throw new Error("broadcast_reconciliation_intent_conflict");
+  }
+  const expectedNativeValue =
+    (BigInt(prepared.void_amount_units) * NATIVE_VALUE_MULTIPLIER)
+      .toString();
+  if (
+    plan.saga_id !== sagaId ||
+    plan.attempt_id !== reservation.attempt_id ||
+    plan.chain_id !== "2050" ||
+    plan.wallet_address !== prepared.fulfillment_wallet ||
+    plan.delivery_address !== prepared.delivery_address ||
+    plan.native_value_wei !== expectedNativeValue ||
+    plan.nonce !== record.state.nonce ||
+    plan.reservation_status !== "reserved"
+  ) {
+    throw new Error("broadcast_reconciliation_plan_conflict");
+  }
+  if (
     custody.saga_id !== sagaId ||
-    custody.attempt_id !== attempt.reservation.attempt_id ||
+    custody.attempt_id !== reservation.attempt_id ||
     custody.signed_transaction_hash !== prepared.void_delivery_tx_hash ||
     custody.transaction_plan_fingerprint_sha256 !==
-      prepared.transaction_binding_fingerprint ||
+      plan.transaction_plan_fingerprint_sha256 ||
+    custody.nonce !== plan.nonce ||
     custody.custody_handle_private !== true ||
     Object.prototype.hasOwnProperty.call(custody, "custody_handle")
   ) {
@@ -471,7 +562,7 @@ function assertReconstructedBinding(
   if (evidence) {
     if (
       evidence.saga_id !== sagaId ||
-      evidence.attempt_id !== attempt.reservation.attempt_id ||
+      evidence.attempt_id !== reservation.attempt_id ||
       evidence.broadcast_intent_id !== record.state.broadcast_intent_id ||
       evidence.transaction_hash !== prepared.void_delivery_tx_hash
     ) {
@@ -481,44 +572,65 @@ function assertReconstructedBinding(
       assertReceiptBinding(evidence.latest.receipt, reconstructed);
     }
   }
-  if (outcome) {
-    if (
-      outcome.attempt_id !== attempt.reservation.attempt_id ||
+  if (
+    outcome &&
+    (
+      outcome.attempt_id !== reservation.attempt_id ||
       outcome.void_delivery_tx_hash !== prepared.void_delivery_tx_hash
-    ) {
-      throw new Error("broadcast_reconciliation_outcome_conflict");
-    }
+    )
+  ) {
+    throw new Error("broadcast_reconciliation_outcome_conflict");
   }
 }
 
 async function reconstruct(
   input: RunBuyVoidSagaBroadcastReconciliationInputV1,
   deps: ReturnType<typeof dependencies>,
-): Promise<ReconstructedV1 | Extract<BuyVoidSagaBroadcastReconciliationDecisionV1, { ok: false }>> {
+): Promise<
+  | ReconstructedV1
+  | Extract<BuyVoidSagaBroadcastReconciliationDecisionV1, { ok: false }>
+> {
   let rootDir: string;
   try {
     rootDir = absoluteRoot(input?.root_dir);
   } catch (error) {
-    return held(input?.apply === true, "input", text((error as Error)?.message || error));
+    return held(
+      input?.apply === true,
+      "input",
+      text((error as Error)?.message || error),
+    );
   }
   const sagaId = text(input?.saga_id).toLowerCase();
   if (!SAGA_ID.test(sagaId)) {
-    return held(input?.apply === true, "input", "broadcast_reconciliation_saga_id_invalid");
+    return held(
+      input?.apply === true,
+      "input",
+      "broadcast_reconciliation_saga_id_invalid",
+    );
   }
   const policyDecision =
     readBuyVoidSagaBroadcastReconciliationServerPolicyV1();
   if ("reason" in policyDecision) {
-    return held(input?.apply === true, "server_policy", policyDecision.reason, {
-      detail: {
-        missing_envs: policyDecision.missing_envs,
-        ...(policyDecision.detail || {}),
+    return held(
+      input?.apply === true,
+      "server_policy",
+      policyDecision.reason,
+      {
+        detail: {
+          missing_envs: policyDecision.missing_envs,
+          ...(policyDecision.detail || {}),
+        },
       },
-    });
+    );
   }
   const root = sagaRoot(rootDir);
   const sagaDir = path.join(root, "sagas", sagaId);
   if (!fs.existsSync(sagaDir)) {
-    return held(input?.apply === true, "saga_reconstruction", "broadcast_reconciliation_saga_not_found");
+    return held(
+      input?.apply === true,
+      "saga_reconstruction",
+      "broadcast_reconciliation_saga_not_found",
+    );
   }
   let saga: SagaModuleV1;
   let store: SagaStoreV1;
@@ -528,44 +640,64 @@ async function reconstruct(
     store = saga.createFilesystemSagaStoreV1(root);
     record = store.recover(sagaId);
   } catch (error) {
-    return held(input?.apply === true, "saga_reconstruction", "broadcast_reconciliation_saga_read_failed", {
-      detail: {
-        message: text((error as Error)?.message || error).slice(0, 240),
+    return held(
+      input?.apply === true,
+      "saga_reconstruction",
+      "broadcast_reconciliation_saga_read_failed",
+      {
+        detail: {
+          message: text((error as Error)?.message || error).slice(0, 240),
+        },
       },
-    });
+    );
   }
   if (!record) {
-    return held(input?.apply === true, "saga_reconstruction", "broadcast_reconciliation_saga_empty");
+    return held(
+      input?.apply === true,
+      "saga_reconstruction",
+      "broadcast_reconciliation_saga_empty",
+    );
   }
   let next: ReturnType<SagaModuleV1["deriveSagaNextActionV1"]>;
   try {
-    next = saga.deriveSagaNextActionV1({
-      ...record.state,
-      terminal: record.state.terminal,
-    });
+    next = saga.deriveSagaNextActionV1(record.state);
   } catch (error) {
-    return held(input?.apply === true, "saga_reconstruction", "broadcast_reconciliation_next_action_failed", {
-      detail: {
-        message: text((error as Error)?.message || error).slice(0, 240),
+    return held(
+      input?.apply === true,
+      "saga_reconstruction",
+      "broadcast_reconciliation_next_action_failed",
+      {
+        detail: {
+          message: text((error as Error)?.message || error).slice(0, 240),
+        },
       },
-    });
+    );
   }
   if (
     next.terminal ||
     (next.action !== "execute_prepared_transaction" &&
       next.action !== "reconcile_possible_broadcast")
   ) {
-    return held(input?.apply === true, "saga_reconstruction", "broadcast_reconciliation_action_outside_boundary", {
-      detail: {
-        state: text(record.state?.state),
-        next_action: next.action,
-        terminal: next.terminal,
+    return held(
+      input?.apply === true,
+      "saga_reconstruction",
+      "broadcast_reconciliation_action_outside_boundary",
+      {
+        detail: {
+          state: text(record.state?.state),
+          next_action: next.action,
+          terminal: next.terminal,
+        },
       },
-    });
+    );
   }
   const attemptId = text(record.state?.attempt_id).toLowerCase();
   if (!SHA256.test(attemptId)) {
-    return held(input?.apply === true, "journal_reconstruction", "broadcast_reconciliation_attempt_id_invalid");
+    return held(
+      input?.apply === true,
+      "journal_reconstruction",
+      "broadcast_reconciliation_attempt_id_invalid",
+    );
   }
   try {
     const attempt = deps.read_attempt({
@@ -574,15 +706,15 @@ async function reconstruct(
     }) as BuyVoidExecutionAttemptStateV1 | null;
     if (!attempt) throw new Error("broadcast_reconciliation_attempt_missing");
     const intent = exactIntent(deps.list_claims(rootDir), attempt);
+    const plan = exactPlan(rootDir, attempt, deps.list_plans);
     const custody = deps.read_custody({
       root_dir: rootDir,
       attempt_id: attemptId,
     });
     if (!custody) throw new Error("broadcast_reconciliation_custody_missing");
-    const evidence = deps.read_evidence({
-      root_dir: rootDir,
-      attempt_id: attemptId,
-    });
+    const evidence = evidenceExists(rootDir, attemptId)
+      ? deps.read_evidence({ root_dir: rootDir, attempt_id: attemptId })
+      : null;
     const outcome = deps.read_outcome({
       root_dir: rootDir,
       attempt_id: attemptId,
@@ -595,6 +727,7 @@ async function reconstruct(
       action: next.action,
       attempt,
       intent,
+      plan,
       custody,
       evidence,
       outcome,
@@ -603,11 +736,16 @@ async function reconstruct(
     assertReconstructedBinding(reconstructed, sagaId);
     return reconstructed;
   } catch (error) {
-    return held(input?.apply === true, "journal_reconstruction", "broadcast_reconciliation_journal_read_failed", {
-      detail: {
-        message: text((error as Error)?.message || error).slice(0, 240),
+    return held(
+      input?.apply === true,
+      "journal_reconstruction",
+      "broadcast_reconciliation_journal_read_failed",
+      {
+        detail: {
+          message: text((error as Error)?.message || error).slice(0, 240),
+        },
       },
-    });
+    );
   }
 }
 
@@ -620,28 +758,51 @@ function exactConfirmations(
     text(input.confirmation) !==
       VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_CONFIRMATION_V1
   ) {
-    return held(true, "confirmation", "broadcast_reconciliation_confirmation_required");
+    return held(
+      true,
+      "confirmation",
+      "broadcast_reconciliation_confirmation_required",
+    );
   }
   if (
     text(input.policy_fingerprint_sha256) !==
       reconstructed.policy.combined_policy_fingerprint_sha256
   ) {
-    return held(true, "confirmation", "broadcast_reconciliation_policy_fingerprint_required");
+    return held(
+      true,
+      "confirmation",
+      "broadcast_reconciliation_policy_fingerprint_required",
+    );
   }
-  if (text(input.saga_confirmation) !== reconstructed.saga.ADVANCE_CONFIRMATION) {
-    return held(true, "confirmation", "broadcast_reconciliation_saga_confirmation_required");
+  if (
+    text(input.saga_confirmation) !==
+      reconstructed.saga.ADVANCE_CONFIRMATION
+  ) {
+    return held(
+      true,
+      "confirmation",
+      "broadcast_reconciliation_saga_confirmation_required",
+    );
   }
   const requiredAction =
     reconstructed.saga.ACTION_CONFIRMATIONS[reconstructed.action];
   if (text(input.saga_action_confirmation) !== requiredAction) {
-    return held(true, "confirmation", "broadcast_reconciliation_action_confirmation_required");
+    return held(
+      true,
+      "confirmation",
+      "broadcast_reconciliation_action_confirmation_required",
+    );
   }
   if (
     reconstructed.action === "execute_prepared_transaction" &&
     text(input.broadcast_confirmation) !==
       VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCAST_CONFIRMATION_V1
   ) {
-    return held(true, "confirmation", "broadcast_reconciliation_broadcast_confirmation_required");
+    return held(
+      true,
+      "confirmation",
+      "broadcast_reconciliation_broadcast_confirmation_required",
+    );
   }
   return null;
 }
@@ -725,7 +886,8 @@ async function persistProjections(
   nowMs: number,
 ): Promise<void> {
   const attemptId = reconstructed.attempt.reservation.attempt_id;
-  const transactionHash = reconstructed.attempt.prepared!.void_delivery_tx_hash;
+  const transactionHash =
+    reconstructed.attempt.prepared!.void_delivery_tx_hash;
   if (outcome.status === "not_submitted") return;
 
   let attempt = deps.read_attempt({
@@ -757,7 +919,12 @@ async function persistProjections(
     return;
   }
 
-  if (!attempt.broadcast || !["broadcast_accepted", "confirmed", "reverted"].includes(journal?.status || "")) {
+  if (
+    !attempt.broadcast ||
+    !["broadcast_accepted", "confirmed", "reverted"].includes(
+      journal?.status || "",
+    )
+  ) {
     await requirePipelineApplied(deps, {
       action: "record_broadcast_accepted",
       root_dir: reconstructed.root_dir,
@@ -893,7 +1060,11 @@ function sagaActionResult(
   }
   const receipt = outcome.receipt;
   const confirmations = Number(receipt.confirmation_count);
-  if (!Number.isSafeInteger(confirmations) || confirmations < 1 || confirmations > 1_000_000) {
+  if (
+    !Number.isSafeInteger(confirmations) ||
+    confirmations < 1 ||
+    confirmations > 1_000_000
+  ) {
     throw new Error("saga_receipt_confirmation_count_out_of_range");
   }
   return {
@@ -912,6 +1083,25 @@ function sagaActionResult(
   };
 }
 
+function evidenceDecision(
+  reconstructed: ReconstructedV1,
+  deps: ReturnType<typeof dependencies>,
+  outcome: BuyVoidPreparedTransactionBroadcasterReadyV1,
+  broadcastIntentId: string,
+  nowMs: number,
+) {
+  return deps.record_evidence({
+    root_dir: reconstructed.root_dir,
+    saga_id: reconstructed.record.saga_id,
+    attempt_id: reconstructed.attempt.reservation.attempt_id,
+    broadcast_intent_id: broadcastIntentId,
+    transaction_hash:
+      reconstructed.attempt.prepared!.void_delivery_tx_hash,
+    outcome,
+    now_ms: nowMs,
+  });
+}
+
 async function appendReconciledNotSubmitted(
   reconstructed: ReconstructedV1,
   input: RunBuyVoidSagaBroadcastReconciliationInputV1,
@@ -927,7 +1117,9 @@ async function appendReconciledNotSubmitted(
     ttl_ms: LEASE_TTL_MS,
   });
   if (!lease?.ok) {
-    throw new Error(`reconciled_not_submitted_lease_held:${text(lease?.reason)}`);
+    throw new Error(
+      `reconciled_not_submitted_lease_held:${text(lease?.reason)}`,
+    );
   }
   try {
     const current = reconstructed.store.recover(sagaId);
@@ -941,7 +1133,9 @@ async function appendReconciledNotSubmitted(
         reconstructed.saga.ACTION_CONFIRMATIONS
           .reconcile_possible_broadcast
     ) {
-      throw new Error("reconciled_not_submitted_action_confirmation_required");
+      throw new Error(
+        "reconciled_not_submitted_action_confirmation_required",
+      );
     }
     const result = sagaActionResult(
       outcome,
@@ -974,96 +1168,429 @@ async function appendReconciledNotSubmitted(
   }
 }
 
-async function observeExternalOutcome(
+function finalSuccess(
   reconstructed: ReconstructedV1,
   deps: ReturnType<typeof dependencies>,
+  action: ReconstructedV1["action"],
+  externalStatus: BuyVoidPreparedTransactionBroadcasterReadyV1["status"],
+  currentCall: CurrentCallV1,
+): BuyVoidSagaBroadcastReconciliationDecisionV1 {
+  const attemptId = reconstructed.attempt.reservation.attempt_id;
+  const finalAttempt = deps.read_attempt({
+    root_dir: reconstructed.root_dir,
+    attempt_id: attemptId,
+  }) as BuyVoidExecutionAttemptStateV1 | null;
+  const finalEvidence = deps.read_evidence({
+    root_dir: reconstructed.root_dir,
+    attempt_id: attemptId,
+  });
+  const finalOutcome = deps.read_outcome({
+    root_dir: reconstructed.root_dir,
+    attempt_id: attemptId,
+  });
+  const finalSaga = reconstructed.store.recover(
+    reconstructed.record.saga_id,
+  );
+  if (!finalAttempt || !finalEvidence || !finalSaga) {
+    return held(
+      true,
+      "journal_reconstruction",
+      "broadcast_reconciliation_final_state_missing",
+      {
+        mutation_performed: true,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
+  }
+  const sagaState = text(finalSaga.state?.state);
+  const reconciliationRequired =
+    externalStatus === "unknown" ||
+    externalStatus === "accepted" ||
+    (action === "execute_prepared_transaction" &&
+      (externalStatus === "confirmed" || externalStatus === "reverted")) ||
+    [
+      "broadcast_intent_committed",
+      "broadcast_unknown",
+      "broadcast_accepted",
+    ].includes(sagaState);
+  return {
+    ok: true,
+    status: externalStatus,
+    applied: true,
+    mutation_performed: true,
+    saga_id: reconstructed.record.saga_id,
+    attempt_id: attemptId,
+    action,
+    evidence: finalEvidence,
+    execution_attempt: finalAttempt,
+    broadcast_outcome: finalOutcome,
+    saga_state: finalSaga.state,
+    broadcaster_called: currentCall.broadcaster_called,
+    submission_call_performed:
+      currentCall.submission_call_performed,
+    transaction_broadcast_performed:
+      currentCall.transaction_broadcast_performed,
+    reconciliation_required: reconciliationRequired,
+    automatic_retry_allowed: false,
+    signed_payload_bytes_persisted: false,
+    signed_payload_bytes_returned: false,
+    money_movement_performed:
+      currentCall.money_movement_performed,
+  };
+}
+
+async function executePreparedTransaction(
+  reconstructed: ReconstructedV1,
   input: RunBuyVoidSagaBroadcastReconciliationInputV1,
-): Promise<{
-  outcome: BuyVoidPreparedTransactionBroadcasterReadyV1;
-  broadcaster_called: boolean;
-  submission_call_performed: boolean;
-  current_call_money_movement: boolean;
-}> {
-  if (reconstructed.action === "execute_prepared_transaction") {
-    if (!deps.broadcaster) {
-      throw new Error("prepared_broadcaster_dependency_required");
-    }
-    await deps.fault_inject?.("after_broadcast_intent_before_submit");
-    const decision = await submitBuyVoidPreparedTransactionFromCustodyV1({
-      saga_id: reconstructed.record.saga_id,
-      broadcast_intent_id:
-        reconstructed.saga.computeBroadcastIntentIdV1({
-          saga_id: reconstructed.record.saga_id,
-          attempt_id: reconstructed.attempt.reservation.attempt_id,
-          transaction_hash:
-            reconstructed.attempt.prepared!.void_delivery_tx_hash,
-        }),
-      custody: reconstructed.custody,
-      broadcaster: deps.broadcaster,
+  deps: ReturnType<typeof dependencies>,
+  nowMs: number,
+): Promise<BuyVoidSagaBroadcastReconciliationDecisionV1> {
+  const capture: ExecuteCaptureV1 = {
+    outcome: null,
+    evidence: null,
+    broadcaster_called: false,
+    submission_call_performed: false,
+    transaction_broadcast_performed: false,
+    money_movement_performed: false,
+  };
+  let result: any;
+  try {
+    result = await reconstructed.saga.runSagaSupervisorTickV1({
+      store: reconstructed.store,
+      binding: reconstructed.record.binding,
+      owner_id: ownerId(),
+      now_ms: nowMs,
+      lease_ttl_ms: LEASE_TTL_MS,
+      recorded_at_utc: new Date(nowMs).toISOString(),
+      source_floor_main: SOURCE_FLOOR,
+      policy_id: reconstructed.policy.economic_policy.saga_policy_id,
       apply: true,
-      confirmation: input.broadcast_confirmation,
+      confirmation: input.saga_confirmation,
+      action_confirmation: input.saga_action_confirmation,
+      adapters: {
+        execute_prepared_transaction: async (adapterInput: any) => {
+          await deps.fault_inject?.(
+            "after_broadcast_intent_before_submit",
+          );
+          if (!deps.broadcaster) {
+            throw new Error("prepared_broadcaster_dependency_required");
+          }
+          capture.broadcaster_called = true;
+          const submission =
+            await submitBuyVoidPreparedTransactionFromCustodyV1({
+              saga_id: reconstructed.record.saga_id,
+              broadcast_intent_id:
+                text(adapterInput?.broadcast_intent_id),
+              custody: reconstructed.custody,
+              broadcaster: deps.broadcaster,
+              apply: true,
+              confirmation: input.broadcast_confirmation,
+            });
+          capture.submission_call_performed =
+            submission.submission_call_performed === true;
+          capture.transaction_broadcast_performed =
+            submission.transaction_broadcast_performed === true;
+          capture.money_movement_performed =
+            submission.money_movement_performed === true;
+          if ("reason" in submission) {
+            throw new Error(`external_submit_held:${submission.reason}`);
+          }
+          if (!submission.outcome) {
+            throw new Error("external_submit_outcome_missing");
+          }
+          capture.outcome = submission.outcome;
+          await deps.fault_inject?.(
+            "after_external_outcome_before_evidence",
+          );
+          const evidence = evidenceDecision(
+            reconstructed,
+            deps,
+            submission.outcome,
+            text(adapterInput?.broadcast_intent_id),
+            nowMs,
+          );
+          if ("reason" in evidence) {
+            throw new Error(
+              `broadcast_evidence_held:${evidence.reason}`,
+            );
+          }
+          capture.evidence = evidence.state;
+          await deps.fault_inject?.(
+            "after_evidence_before_projection",
+          );
+          await persistProjections(
+            reconstructed,
+            deps,
+            submission.outcome,
+            nowMs,
+          );
+          await deps.fault_inject?.(
+            "after_projection_before_saga",
+          );
+          return sagaActionResult(
+            submission.outcome,
+            reconstructed.attempt.reservation.attempt_id,
+            reconstructed.attempt.prepared!.void_delivery_tx_hash,
+            true,
+          );
+        },
+      },
     });
-    if ("reason" in decision) {
-      throw new Error(`external_submit_held:${decision.reason}`);
+  } catch (error) {
+    return held(
+      true,
+      capture.outcome ? "saga_append" : "external_submission",
+      text((error as Error)?.message || error).slice(0, 240),
+      {
+        mutation_performed:
+          Boolean(capture.evidence) ||
+          capture.submission_call_performed,
+        reconciliation_required:
+          capture.submission_call_performed ||
+          Boolean(capture.evidence),
+        ...capture,
+      },
+    );
+  }
+  if (!result || result.ok !== true || result.status !== "applied") {
+    return held(
+      true,
+      capture.outcome ? "saga_append" : "external_submission",
+      `broadcast_saga_supervisor_held:${text(result?.reason || result?.status)}`,
+      {
+        mutation_performed:
+          Boolean(capture.evidence) ||
+          capture.submission_call_performed,
+        reconciliation_required:
+          capture.submission_call_performed ||
+          Boolean(capture.evidence),
+        ...capture,
+      },
+    );
+  }
+  if (!capture.outcome || !capture.evidence) {
+    return held(
+      true,
+      "saga_append",
+      "broadcast_execute_capture_missing",
+      {
+        mutation_performed: true,
+        reconciliation_required: true,
+        ...capture,
+      },
+    );
+  }
+  return finalSuccess(
+    reconstructed,
+    deps,
+    "execute_prepared_transaction",
+    capture.outcome.status,
+    capture,
+  );
+}
+
+async function reconcilePossibleBroadcast(
+  reconstructed: ReconstructedV1,
+  input: RunBuyVoidSagaBroadcastReconciliationInputV1,
+  deps: ReturnType<typeof dependencies>,
+  nowMs: number,
+): Promise<BuyVoidSagaBroadcastReconciliationDecisionV1> {
+  const currentCall: CurrentCallV1 = {
+    broadcaster_called: false,
+    submission_call_performed: false,
+    transaction_broadcast_performed: false,
+    money_movement_performed: false,
+  };
+  let outcome: BuyVoidPreparedTransactionBroadcasterReadyV1;
+  const durable = reconstructed.evidence?.latest;
+  if (
+    durable &&
+    ["not_submitted", "confirmed", "reverted"].includes(
+      durable.outcome,
+    )
+  ) {
+    outcome = eventOutcome(durable);
+  } else if (deps.broadcaster) {
+    currentCall.broadcaster_called = true;
+    const inspection =
+      await inspectBuyVoidPreparedTransactionSubmissionV1({
+        saga_id: reconstructed.record.saga_id,
+        broadcast_intent_id:
+          text(reconstructed.record.state.broadcast_intent_id),
+        custody: reconstructed.custody,
+        broadcaster: deps.broadcaster,
+      });
+    if ("reason" in inspection) {
+      return held(
+        true,
+        "external_inspection",
+        inspection.reason,
+        {
+          detail: inspection.detail,
+          reconciliation_required: true,
+          ...currentCall,
+        },
+      );
     }
-    if (!decision.outcome) {
-      throw new Error("external_submit_outcome_missing");
+    if (!inspection.outcome) {
+      return held(
+        true,
+        "external_inspection",
+        "external_inspection_outcome_missing",
+        {
+          reconciliation_required: true,
+          ...currentCall,
+        },
+      );
     }
-    return {
-      outcome: decision.outcome,
-      broadcaster_called: true,
-      submission_call_performed:
-        decision.outcome.submission_call_performed,
-      current_call_money_movement:
-        decision.outcome.submission_call_performed &&
-        decision.outcome.status !== "not_submitted",
-    };
+    outcome = inspection.outcome;
+  } else if (durable) {
+    outcome = eventOutcome(durable);
+  } else {
+    return held(
+      true,
+      "external_inspection",
+      "prepared_broadcaster_dependency_required",
+      { reconciliation_required: true },
+    );
   }
 
-  const existing = reconstructed.evidence?.latest;
+  await deps.fault_inject?.(
+    "after_external_outcome_before_evidence",
+  );
+  const evidence = evidenceDecision(
+    reconstructed,
+    deps,
+    outcome,
+    text(reconstructed.record.state.broadcast_intent_id),
+    nowMs,
+  );
+  if ("reason" in evidence) {
+    return held(
+      true,
+      "evidence_persistence",
+      evidence.reason,
+      {
+        detail: evidence.detail,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
+  }
+  try {
+    await deps.fault_inject?.(
+      "after_evidence_before_projection",
+    );
+    await persistProjections(
+      reconstructed,
+      deps,
+      outcome,
+      nowMs,
+    );
+    await deps.fault_inject?.(
+      "after_projection_before_saga",
+    );
+  } catch (error) {
+    return held(
+      true,
+      "projection_persistence",
+      text((error as Error)?.message || error).slice(0, 240),
+      {
+        mutation_performed: evidence.mutation_performed,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
+  }
+
+  if (outcome.status === "unknown") {
+    return held(
+      true,
+      "saga_append",
+      "broadcast_reconciliation_still_unknown",
+      {
+        mutation_performed: evidence.mutation_performed,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
+  }
   if (
-    existing &&
-    (existing.outcome === "not_submitted" ||
-      existing.outcome === "confirmed" ||
-      existing.outcome === "reverted")
+    outcome.status === "accepted" &&
+    reconstructed.record.state.state === "broadcast_accepted"
   ) {
-    return {
-      outcome: eventOutcome(existing),
-      broadcaster_called: false,
-      submission_call_performed: false,
-      current_call_money_movement: false,
-    };
+    return held(
+      true,
+      "saga_append",
+      "broadcast_reconciliation_receipt_pending",
+      {
+        mutation_performed: evidence.mutation_performed,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
   }
-  if (!deps.broadcaster) {
-    if (existing) {
-      return {
-        outcome: eventOutcome(existing),
-        broadcaster_called: false,
-        submission_call_performed: false,
-        current_call_money_movement: false,
-      };
+
+  try {
+    if (outcome.status === "not_submitted") {
+      await appendReconciledNotSubmitted(
+        reconstructed,
+        input,
+        outcome,
+        nowMs,
+      );
+    } else {
+      const result =
+        await reconstructed.saga.runSagaSupervisorTickV1({
+          store: reconstructed.store,
+          binding: reconstructed.record.binding,
+          owner_id: ownerId(),
+          now_ms: nowMs,
+          lease_ttl_ms: LEASE_TTL_MS,
+          recorded_at_utc: new Date(nowMs).toISOString(),
+          source_floor_main: SOURCE_FLOOR,
+          policy_id:
+            reconstructed.policy.economic_policy.saga_policy_id,
+          apply: true,
+          confirmation: input.saga_confirmation,
+          action_confirmation: input.saga_action_confirmation,
+          adapters: {
+            reconcile_possible_broadcast: async () =>
+              sagaActionResult(
+                outcome,
+                reconstructed.attempt.reservation.attempt_id,
+                reconstructed.attempt.prepared!
+                  .void_delivery_tx_hash,
+                false,
+              ),
+          },
+        });
+      if (!result || result.ok !== true || result.status !== "applied") {
+        throw new Error(
+          `broadcast_saga_supervisor_held:${text(result?.reason || result?.status)}`,
+        );
+      }
     }
-    throw new Error("prepared_broadcaster_dependency_required");
+  } catch (error) {
+    return held(
+      true,
+      "saga_append",
+      text((error as Error)?.message || error).slice(0, 240),
+      {
+        mutation_performed: true,
+        reconciliation_required: true,
+        ...currentCall,
+      },
+    );
   }
-  const decision = await inspectBuyVoidPreparedTransactionSubmissionV1({
-    saga_id: reconstructed.record.saga_id,
-    broadcast_intent_id:
-      reconstructed.record.state.broadcast_intent_id,
-    custody: reconstructed.custody,
-    broadcaster: deps.broadcaster,
-  });
-  if ("reason" in decision) {
-    throw new Error(`external_inspection_held:${decision.reason}`);
-  }
-  if (!decision.outcome) {
-    throw new Error("external_inspection_outcome_missing");
-  }
-  return {
-    outcome: decision.outcome,
-    broadcaster_called: true,
-    submission_call_performed: false,
-    current_call_money_movement: false,
-  };
+  return finalSuccess(
+    reconstructed,
+    deps,
+    "reconcile_possible_broadcast",
+    outcome.status,
+    currentCall,
+  );
 }
 
 export async function runBuyVoidSagaBroadcastReconciliationV1(
@@ -1086,7 +1613,8 @@ export async function runBuyVoidSagaBroadcastReconciliationV1(
         VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_CONFIRMATION_V1,
       required_policy_fingerprint_sha256:
         reconstructed.policy.combined_policy_fingerprint_sha256,
-      required_saga_confirmation: reconstructed.saga.ADVANCE_CONFIRMATION,
+      required_saga_confirmation:
+        reconstructed.saga.ADVANCE_CONFIRMATION,
       required_saga_action_confirmation:
         reconstructed.saga.ACTION_CONFIRMATIONS[reconstructed.action],
       required_broadcast_confirmation:
@@ -1108,221 +1636,32 @@ export async function runBuyVoidSagaBroadcastReconciliationV1(
     };
   }
 
-  const confirmationHold = exactConfirmations(input, reconstructed);
+  const confirmationHold = exactConfirmations(
+    input,
+    reconstructed,
+  );
   if (confirmationHold) return confirmationHold;
   const nowMs = deps.now_ms();
   if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
-    return held(true, "input", "broadcast_reconciliation_server_clock_invalid");
+    return held(
+      true,
+      "input",
+      "broadcast_reconciliation_server_clock_invalid",
+    );
   }
 
-  let external: Awaited<ReturnType<typeof observeExternalOutcome>>;
-  try {
-    external = await observeExternalOutcome(
+  if (reconstructed.action === "execute_prepared_transaction") {
+    return executePreparedTransaction(
       reconstructed,
-      deps,
       input,
-    );
-    await deps.fault_inject?.("after_external_outcome_before_evidence");
-  } catch (error) {
-    return held(true,
-      reconstructed.action === "execute_prepared_transaction"
-        ? "external_submission"
-        : "external_inspection",
-      text((error as Error)?.message || error).slice(0, 240),
-      {
-        broadcaster_called:
-          reconstructed.action === "execute_prepared_transaction" ||
-          Boolean(deps.broadcaster),
-        submission_call_performed:
-          reconstructed.action === "execute_prepared_transaction",
-        transaction_broadcast_performed:
-          reconstructed.action === "execute_prepared_transaction",
-        reconciliation_required: true,
-        money_movement_performed:
-          reconstructed.action === "execute_prepared_transaction",
-      },
-    );
-  }
-
-  const intentId = reconstructed.action === "execute_prepared_transaction"
-    ? reconstructed.saga.computeBroadcastIntentIdV1({
-        saga_id: reconstructed.record.saga_id,
-        attempt_id: reconstructed.attempt.reservation.attempt_id,
-        transaction_hash:
-          reconstructed.attempt.prepared!.void_delivery_tx_hash,
-      })
-    : reconstructed.record.state.broadcast_intent_id;
-  const evidenceDecision = deps.record_evidence({
-    root_dir: reconstructed.root_dir,
-    saga_id: reconstructed.record.saga_id,
-    attempt_id: reconstructed.attempt.reservation.attempt_id,
-    broadcast_intent_id: intentId,
-    transaction_hash:
-      reconstructed.attempt.prepared!.void_delivery_tx_hash,
-    outcome: external.outcome,
-    now_ms: nowMs,
-  });
-  if ("reason" in evidenceDecision) {
-    return held(true, "evidence_persistence", evidenceDecision.reason, {
-      detail: evidenceDecision.detail,
-      broadcaster_called: external.broadcaster_called,
-      submission_call_performed:
-        external.submission_call_performed,
-      transaction_broadcast_performed:
-        external.submission_call_performed,
-      reconciliation_required: true,
-      money_movement_performed:
-        external.current_call_money_movement,
-    });
-  }
-  try {
-    await deps.fault_inject?.("after_evidence_before_projection");
-    await persistProjections(
-      reconstructed,
       deps,
-      external.outcome,
       nowMs,
     );
-    await deps.fault_inject?.("after_projection_before_saga");
-  } catch (error) {
-    return held(true, "projection_persistence", text((error as Error)?.message || error).slice(0, 240), {
-      mutation_performed: evidenceDecision.mutation_performed,
-      broadcaster_called: external.broadcaster_called,
-      submission_call_performed:
-        external.submission_call_performed,
-      transaction_broadcast_performed:
-        external.submission_call_performed,
-      reconciliation_required: true,
-      money_movement_performed:
-        external.current_call_money_movement,
-    });
   }
-
-  let sagaState: any;
-  try {
-    if (
-      reconstructed.action === "reconcile_possible_broadcast" &&
-      external.outcome.status === "not_submitted"
-    ) {
-      sagaState = await appendReconciledNotSubmitted(
-        reconstructed,
-        input,
-        external.outcome,
-        nowMs,
-      );
-    } else if (
-      reconstructed.action === "reconcile_possible_broadcast" &&
-      external.outcome.status === "unknown"
-    ) {
-      return held(true, "saga_append", "broadcast_reconciliation_still_unknown", {
-        mutation_performed:
-          evidenceDecision.mutation_performed,
-        broadcaster_called: external.broadcaster_called,
-        reconciliation_required: true,
-      });
-    } else if (
-      reconstructed.action === "reconcile_possible_broadcast" &&
-      external.outcome.status === "accepted" &&
-      reconstructed.record.state.state === "broadcast_accepted"
-    ) {
-      return held(true, "saga_append", "broadcast_reconciliation_receipt_pending", {
-        mutation_performed:
-          evidenceDecision.mutation_performed,
-        broadcaster_called: external.broadcaster_called,
-        reconciliation_required: true,
-      });
-    } else {
-      const result = await reconstructed.saga.runSagaSupervisorTickV1({
-        store: reconstructed.store,
-        binding: reconstructed.record.binding,
-        owner_id: ownerId(),
-        now_ms: nowMs,
-        lease_ttl_ms: LEASE_TTL_MS,
-        recorded_at_utc: new Date(nowMs).toISOString(),
-        source_floor_main: SOURCE_FLOOR,
-        policy_id: reconstructed.policy.economic_policy.saga_policy_id,
-        apply: true,
-        confirmation: input.saga_confirmation,
-        action_confirmation: input.saga_action_confirmation,
-        adapters: {
-          [reconstructed.action]: async () =>
-            sagaActionResult(
-              external.outcome,
-              reconstructed.attempt.reservation.attempt_id,
-              reconstructed.attempt.prepared!.void_delivery_tx_hash,
-              reconstructed.action === "execute_prepared_transaction",
-            ),
-        },
-      });
-      if (!result || result.ok !== true || result.status !== "applied") {
-        throw new Error(
-          `broadcast_saga_supervisor_held:${text(result?.reason || result?.status)}`,
-        );
-      }
-      sagaState = reconstructed.store.recover(
-        reconstructed.record.saga_id,
-      );
-    }
-  } catch (error) {
-    return held(true, "saga_append", text((error as Error)?.message || error).slice(0, 240), {
-      mutation_performed: true,
-      broadcaster_called: external.broadcaster_called,
-      submission_call_performed:
-        external.submission_call_performed,
-      transaction_broadcast_performed:
-        external.submission_call_performed,
-      reconciliation_required: true,
-      money_movement_performed:
-        external.current_call_money_movement,
-    });
-  }
-
-  const finalAttempt = deps.read_attempt({
-    root_dir: reconstructed.root_dir,
-    attempt_id: reconstructed.attempt.reservation.attempt_id,
-  }) as BuyVoidExecutionAttemptStateV1 | null;
-  const finalOutcome = deps.read_outcome({
-    root_dir: reconstructed.root_dir,
-    attempt_id: reconstructed.attempt.reservation.attempt_id,
-  });
-  const finalEvidence = deps.read_evidence({
-    root_dir: reconstructed.root_dir,
-    attempt_id: reconstructed.attempt.reservation.attempt_id,
-  });
-  if (!finalAttempt || !finalEvidence || !sagaState) {
-    return held(true, "journal_reconstruction", "broadcast_reconciliation_final_state_missing", {
-      mutation_performed: true,
-      reconciliation_required: true,
-    });
-  }
-
-  return {
-    ok: true,
-    status: external.outcome.status,
-    applied: true,
-    mutation_performed: true,
-    saga_id: reconstructed.record.saga_id,
-    attempt_id: reconstructed.attempt.reservation.attempt_id,
-    action: reconstructed.action,
-    evidence: finalEvidence,
-    execution_attempt: finalAttempt,
-    broadcast_outcome: finalOutcome,
-    saga_state: sagaState.state,
-    broadcaster_called: external.broadcaster_called,
-    submission_call_performed:
-      external.submission_call_performed,
-    transaction_broadcast_performed:
-      external.submission_call_performed,
-    reconciliation_required:
-      external.outcome.status === "unknown" ||
-      external.outcome.status === "accepted" ||
-      (reconstructed.action === "execute_prepared_transaction" &&
-        (external.outcome.status === "confirmed" ||
-          external.outcome.status === "reverted")),
-    automatic_retry_allowed: false,
-    signed_payload_bytes_persisted: false,
-    signed_payload_bytes_returned: false,
-    money_movement_performed:
-      external.current_call_money_movement,
-  };
+  return reconcilePossibleBroadcast(
+    reconstructed,
+    input,
+    deps,
+    nowMs,
+  );
 }
