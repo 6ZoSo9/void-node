@@ -19,6 +19,9 @@ import {
   probePublicSeedSample,
   resolvePublicDns,
 } from "./lib/void_public_seed_qualification_v1.mjs";
+import {
+  classifyVoidPublicBootstrapManifestMediaTypeV1,
+} from "./lib/void_public_bootstrap_manifest_media_type_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_RESOLVER_V1";
 const DEFAULT_MANIFEST =
@@ -242,10 +245,19 @@ async function requestManifestOne(normalized, address) {
           failOnce(terminalManifestError(`manifest request returned HTTP ${status}`));
           return;
         }
-        const contentType = String(response.headers["content-type"] || "").toLowerCase();
-        if (!contentType.startsWith("application/json")) {
+        const mediaDecision =
+          classifyVoidPublicBootstrapManifestMediaTypeV1({
+            hostname: normalized.hostname,
+            pathname: normalized.url.pathname,
+            content_type: response.headers["content-type"],
+          });
+        if (!mediaDecision.ok) {
           response.destroy();
-          failOnce(terminalManifestError("manifest response is not application/json"));
+          failOnce(
+            terminalManifestError(
+              "manifest response media type is not allowed",
+            ),
+          );
           return;
         }
 
