@@ -14,7 +14,7 @@ import { createTorPublicSeedClientAdapterV1 } from "../tools/void-tor-public-see
 const MARKER = "VOID_TOR_PUBLIC_BOOTSTRAP_INTEGRATION_V1_PROOF";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const RESOLVER = path.join(ROOT, "scripts", "resolve_void_tor_public_bootstrap_v1.mjs");
-const ONION = `${"a".repeat(56)}.onion`;
+const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
 const QUALIFICATION = `voidpsq1_${"b".repeat(64)}`;
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-bootstrap-integration-"));
 const manifestPath = path.join(temporary, "bootstrap.json");
@@ -223,6 +223,7 @@ try {
   console.log("[PASS] local rejections produce zero additional SOCKS requests");
 
   console.log(`${MARKER}_GREEN`);
+  console.log("checksum_valid_onion_identity_required=true");
   console.log("local_manifest_id_pinned=true");
   console.log("manifest_substitution_rejected=true");
   console.log("adapter_numeric_parameters_bounded=true");
