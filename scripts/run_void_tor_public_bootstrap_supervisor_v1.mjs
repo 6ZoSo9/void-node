@@ -31,6 +31,7 @@ async function main() {
   });
 
   let stopping = false;
+  let forwardedSignal = null;
   let adapterClosePromise = null;
 
   function closeAdapter() {
@@ -54,6 +55,7 @@ async function main() {
   function stop(signal) {
     if (stopping) return;
     stopping = true;
+    forwardedSignal = signal;
     if (child.exitCode === null && child.signalCode === null) child.kill(signal);
     void closeAdapter().catch((error) => {
       console.error(`${MARKER}_ADAPTER_CLOSE_ERROR: ${error?.stack || error}`);
@@ -82,8 +84,13 @@ async function main() {
       console.error(`${MARKER}_ADAPTER_CLOSE_ERROR: ${error?.stack || error}`);
       process.exit(1);
     }
+
     if (signal) {
-      console.error(`${MARKER}_CHILD_SIGNAL=${signal}`);
+      if (stopping && forwardedSignal === signal) {
+        console.log(`${MARKER}_EXPECTED_CHILD_SIGNAL=${signal}`);
+        process.exit(0);
+      }
+      console.error(`${MARKER}_UNEXPECTED_CHILD_SIGNAL=${signal}`);
       process.exit(1);
     }
     process.exit(Number.isInteger(code) ? code : 1);
