@@ -48,6 +48,26 @@ reloads nginx. Certbot obtains the certificate; the packet installs the nginx
 certificate paths explicitly because Certbot does not assume automatic web
 server installation for IP-address certificates.
 
+## Runtime immutability
+
+Preparation and runtime are intentionally separate. The installation workflow
+may perform the one-time dependency install and TypeScript build before service
+activation, but the systemd node service does not call the clone/run launcher.
+
+At service start and every restart:
+
+- systemd executes the already-built `dist/index.js` entrypoint directly with
+  the configured Node.js binary;
+- the exact source checkout is explicitly read-only inside the service;
+- the only writable node-service path is the dedicated `/var/lib/void-node`
+  state parent; and
+- writable data paths are rejected if they contain, equal, or sit inside the
+  target source checkout.
+
+This prevents a service restart from silently running `npm ci`, rebuilding
+`dist/`, creating launcher-local runtime/configuration material, or otherwise
+mutating the exact source checkout.
+
 ## Snapshot boundary
 
 A VPS cannot become a useful stable seed from an empty local chain while the
@@ -92,6 +112,9 @@ Verification checks:
 - restricted-gateway source hash bound to that checkout;
 - globally routable IPv4 only;
 - exact generated file set, sizes, hashes, and modes;
+- direct built node runtime entrypoint with no prepare/build tooling on restart;
+- read-only source checkout with only the dedicated node-state parent writable;
+- writable-path/source-tree disjointness;
 - node HTTP loopback-only binding;
 - gateway HTTP loopback-only binding;
 - public P2P advertisement on TCP 4700;

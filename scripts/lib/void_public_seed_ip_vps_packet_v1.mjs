@@ -86,6 +86,27 @@ export function requireServiceUser(value) {
   return user;
 }
 
+function pathContains(parentPath, childPath) {
+  const relative = path.relative(parentPath, childPath);
+  return (
+    relative === "" ||
+    (
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative)
+    )
+  );
+}
+
+function assertRuntimeWritablePathDisjoint(targetRepoRoot, dataParent) {
+  if (
+    pathContains(targetRepoRoot, dataParent) ||
+    pathContains(dataParent, targetRepoRoot)
+  ) {
+    throw new Error("runtime writable data parent must not overlap target repository root");
+  }
+}
+
 function git(repoRoot, args) {
   const result = childProcess.spawnSync("git", ["-C", repoRoot, ...args], {
     encoding: "utf8",
@@ -152,14 +173,15 @@ User=${input.service_user}
 Group=${input.service_user}
 WorkingDirectory=${input.target_repo_root}
 EnvironmentFile=/etc/void/public-seed-node-v1.env
-ExecStart=${input.target_repo_root}/run-void-node.sh run
+ExecStart=${input.node_path} ${input.target_repo_root}/dist/index.js
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=${input.data_parent} ${input.target_repo_root}
+ReadOnlyPaths=${input.target_repo_root}
+ReadWritePaths=${input.data_parent}
 LockPersonality=true
 RestrictSUIDSGID=true
 SystemCallArchitectures=native
@@ -315,10 +337,22 @@ node ${input.target_repo_root}/scripts/verify_void_public_seed_ip_vps_packet_v1.
 Required source and data preparation:
 1. Create service user ${input.service_user}.
 2. Install exact source ${input.source_head} at ${input.target_repo_root}.
-3. Run ./run-void-node.sh prepare as ${input.service_user}.
-4. Import a validated chain snapshot to ${input.data_dir}.
-5. Do not import wallet, signer, validator, treasury, Work Credit, Buy VOID,
+3. Run ./run-void-node.sh prepare exactly once as ${input.service_user} before
+   service installation. This is an installation-time build step, not a runtime
+   entrypoint.
+4. Confirm ${input.target_repo_root}/dist/index.js exists and the Git checkout
+   still resolves to ${input.source_head} before activation.
+5. Import a validated chain snapshot to ${input.data_dir}.
+6. Do not import wallet, signer, validator, treasury, Work Credit, Buy VOID,
    payment, or operator authority material.
+
+Runtime immutability contract:
+- the node service executes ${input.node_path} ${input.target_repo_root}/dist/index.js directly;
+- service start and restart never invoke run-void-node.sh, npm, or a build step;
+- ${input.target_repo_root} is explicitly read-only inside the node service;
+- only ${input.data_parent} is writable by the node service; and
+- source or build changes require an explicit stop, prepare, verify, and restart
+  workflow outside the running service.
 
 Generated installation targets:
 - void-public-seed-node-v1.env -> /etc/void/public-seed-node-v1.env (0600)
@@ -473,6 +507,7 @@ export function buildPacket({
     node_path: requireAbsolutePath(nodePath, "Node.js path"),
   };
   input.data_parent = path.dirname(input.data_dir);
+  assertRuntimeWritablePathDisjoint(input.target_repo_root, input.data_parent);
 
   const generated = generatedPacketFiles(input);
 
@@ -586,6 +621,10 @@ export function verifyPacket(packetDir, { repoRoot, expectedHead } = {}) {
     node_path: requireAbsolutePath(packet.node_path, "Node.js path"),
   };
   metadataInput.data_parent = path.dirname(metadataInput.data_dir);
+  assertRuntimeWritablePathDisjoint(
+    metadataInput.target_repo_root,
+    metadataInput.data_parent,
+  );
 
   if (packet.public_https !== `https://${packet.public_ip}`) throw new Error("public HTTPS binding mismatch");
   if (packet.public_p2p !== `${packet.public_ip}:4700`) throw new Error("public P2P binding mismatch");
@@ -748,6 +787,26 @@ export function verifyPacket(packetDir, { repoRoot, expectedHead } = {}) {
     "VOID_PUBLIC_BOOTSTRAP_DISABLE=1",
   ]) {
     if (!env.includes(marker)) throw new Error(`node environment marker missing: ${marker}`);
+  }
+
+  const nodeUnit = contents.get("void-public-seed-node-v1.service");
+  const expectedNodeExec =
+    `ExecStart=${packet.node_path} ${packet.target_repo_root}/dist/index.js`;
+  if (!nodeUnit.includes(expectedNodeExec)) {
+    throw new Error("node service does not execute the built runtime directly");
+  }
+  if (nodeUnit.includes("run-void-node.sh") || nodeUnit.includes("npm ")) {
+    throw new Error("node service runtime must not invoke preparation or build tooling");
+  }
+  if (!nodeUnit.includes(`ReadOnlyPaths=${packet.target_repo_root}`)) {
+    throw new Error("node service source checkout is not explicitly read-only");
+  }
+  const writableLines = nodeUnit
+    .split("\n")
+    .filter((line) => line.startsWith("ReadWritePaths="));
+  const expectedWritableLines = [`ReadWritePaths=${path.dirname(packet.data_dir)}`];
+  if (canonicalJson(writableLines) !== canonicalJson(expectedWritableLines)) {
+    throw new Error("node service writable-path contract mismatch");
   }
 
   const tls = contents.get("nginx-void-public-seed-tls-v1.conf");

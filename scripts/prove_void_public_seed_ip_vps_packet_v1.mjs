@@ -72,6 +72,24 @@ assert.equal(verified.public_https, "https://1.1.1.1");
 assert.equal(verified.public_p2p, "1.1.1.1:4700");
 assert.deepEqual(verified.required_inbound_tcp_ports, [80, 443, 4700]);
 assert.deepEqual(verified.forbidden_public_tcp_ports, [4100, 4111]);
+
+const nodeUnit = fs.readFileSync(
+  path.join(output, "void-public-seed-node-v1.service"),
+  "utf8",
+);
+assert.match(
+  nodeUnit,
+  /^ExecStart=\/usr\/bin\/node \/opt\/void\/void-node\/dist\/index\.js$/m,
+);
+assert.doesNotMatch(nodeUnit, /run-void-node\.sh/);
+assert.doesNotMatch(nodeUnit, /npm /);
+assert.match(nodeUnit, /^ReadOnlyPaths=\/opt\/void\/void-node$/m);
+assert.deepEqual(
+  nodeUnit.split("\n").filter((line) => line.startsWith("ReadWritePaths=")),
+  ["ReadWritePaths=/var/lib/void-node"],
+);
+console.log("[PASS] node service runtime is direct-built, source-read-only, and data-only writable");
+
 const verifierSuccess = run(process.execPath, [
   verifier,
   output,
@@ -251,6 +269,28 @@ expectFailure(
 );
 console.log("[PASS] wrong source head is rejected");
 
+for (const overlappingDataDir of [
+  "/opt/void/void-node/data_a",
+  "/opt/void/data_a",
+]) {
+  expectFailure(
+    process.execPath,
+    [
+      builder,
+      "--public-ip", "1.1.1.1",
+      "--repo-root", repo,
+      "--expected-head", head,
+      "--output", path.join(
+        root,
+        `overlap-${overlappingDataDir.replaceAll("/", "-")}`,
+      ),
+      "--data-dir", overlappingDataDir,
+    ],
+    /runtime writable data parent must not overlap target repository root/,
+  );
+}
+console.log("[PASS] writable runtime paths cannot contain or sit inside the source checkout");
+
 fs.writeFileSync(path.join(repo, "dirty.txt"), "dirty\n");
 expectFailure(
   process.execPath,
@@ -303,6 +343,11 @@ console.log("public_https_port=443");
 console.log("public_p2p_port=4700");
 console.log("node_http_loopback_only=true");
 console.log("gateway_http_loopback_only=true");
+console.log("node_runtime_entrypoint_direct_built=true");
+console.log("node_runtime_prepare_on_restart=false");
+console.log("node_source_checkout_runtime_read_only=true");
+console.log("node_runtime_writable_path_data_only=true");
+console.log("runtime_writable_source_overlap_accepted=false");
 console.log("certbot_shortlived_profile_required=true");
 console.log("certificate_issued=false");
 console.log("manifest_published=false");
