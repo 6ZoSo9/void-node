@@ -1,9 +1,12 @@
 import {
   buyVoidConfirmedCloseoutRuntimeRootDirV1,
 } from "./buy_void_confirmed_closeout_runtime_v1.js";
-import {
-  listBuyVoidConfirmedStatesV1,
+import type {
+  BuyVoidConfirmedStateV1,
 } from "./buy_void_confirmed_state_journal_v1.js";
+import {
+  resolveBuyVoidConfirmedStatesByRequestV1 as listBuyVoidConfirmedStatesV1,
+} from "./buy_void_confirmed_state_request_resolution_v1.js";
 
 export const VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1 =
   "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1";
@@ -35,7 +38,6 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     event: Record<string, any>,
   ) => Promise<unknown>,
 ): Promise<BuyVoidManualFulfilledConfirmedStateGateResultV1> {
-
   let effective_prior_status = "";
   try {
     const projected_request =
@@ -99,10 +101,11 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
       };
     }
 
-    let confirmed_states: any[] = [];
+    let confirmed_states: BuyVoidConfirmedStateV1[] = [];
     try {
       confirmed_states = listBuyVoidConfirmedStatesV1(
         buyVoidConfirmedCloseoutRuntimeRootDirV1(),
+        id,
       );
     } catch (error: any) {
       return {
@@ -121,16 +124,7 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
       };
     }
 
-    const normalized_delivery_tx_hash = void_delivery_tx_hash
-      .trim()
-      .toLowerCase();
-    const expected_delivery_address = String(
-      found?.delivery_address || "",
-    )
-      .trim()
-      .toLowerCase();
-
-    const matching_confirmed_states = confirmed_states.filter(
+    const request_confirmed_states = confirmed_states.filter(
       (state: any) => {
         const state_request_id = String(state?.request_id || "").trim();
         const confirmation_request_id = String(
@@ -142,6 +136,55 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
         const allocation_request_id = String(
           state?.allocation_status?.request_id || "",
         ).trim();
+        return (
+          state?.schema === "void_buy_void_confirmed_state_v1" &&
+          state?.marker ===
+            "VOID_BUY_VOID_CONFIRMED_STATE_JOURNAL_V1" &&
+          /^[0-9a-f]{64}$/.test(String(state?.state_id || "")) &&
+          /^[0-9a-f]{64}$/.test(
+            String(state?.projection_fingerprint || ""),
+          ) &&
+          state_request_id === id &&
+          confirmation_request_id === id &&
+          buyer_request_id === id &&
+          allocation_request_id === id
+        );
+      },
+    );
+
+    if (request_confirmed_states.length !== 1) {
+      return {
+        ok: false,
+        status_code: 409,
+        body: {
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error:
+            request_confirmed_states.length > 1
+              ? "manual_fulfilled_confirmed_state_ambiguous"
+              : "manual_fulfilled_requires_canonical_confirmed_state",
+          request_id: id,
+          operator_status,
+          void_delivery_tx_hash,
+          prior_status: effective_prior_status,
+          canonical_confirmed_state_required: true,
+          canonical_confirmed_state_match_count:
+            request_confirmed_states.length,
+        },
+      };
+    }
+
+    const normalized_delivery_tx_hash = void_delivery_tx_hash
+      .trim()
+      .toLowerCase();
+    const expected_delivery_address = String(
+      found?.delivery_address || "",
+    )
+      .trim()
+      .toLowerCase();
+
+    const matching_confirmed_states = request_confirmed_states.filter(
+      (state: any) => {
         const confirmation_tx = String(
           state?.confirmation?.void_delivery_tx_hash || "",
         )
@@ -183,9 +226,6 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
         ).trim();
 
         return (
-          state?.schema === "void_buy_void_confirmed_state_v1" &&
-          state?.marker ===
-            "VOID_BUY_VOID_CONFIRMED_STATE_JOURNAL_V1" &&
           state?.confirmation?.schema ===
             "void_buy_void_confirmed_fulfillment_record_v1" &&
           state?.confirmation?.marker ===
@@ -196,14 +236,6 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
             "void_buy_void_allocation_fulfilled_status_v1" &&
           state?.fulfillment_receipt?.schema ===
             "void_buy_void_fulfillment_receipt_v1" &&
-          /^[0-9a-f]{64}$/.test(String(state?.state_id || "")) &&
-          /^[0-9a-f]{64}$/.test(
-            String(state?.projection_fingerprint || ""),
-          ) &&
-          state_request_id === id &&
-          confirmation_request_id === id &&
-          buyer_request_id === id &&
-          allocation_request_id === id &&
           confirmation_tx === normalized_delivery_tx_hash &&
           receipt_tx === normalized_delivery_tx_hash &&
           buyer_tx === normalized_delivery_tx_hash &&
@@ -245,17 +277,14 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
         body: {
           schema: "void_buy_void_operator_mark_v1",
           ok: false,
-          error:
-            matching_confirmed_states.length > 1
-              ? "manual_fulfilled_confirmed_state_ambiguous"
-              : "manual_fulfilled_requires_canonical_confirmed_state",
+          error: "manual_fulfilled_requires_canonical_confirmed_state",
           request_id: id,
           operator_status,
           void_delivery_tx_hash,
           prior_status: effective_prior_status,
           canonical_confirmed_state_required: true,
-          canonical_confirmed_state_match_count:
-            matching_confirmed_states.length,
+          canonical_confirmed_state_match_count: 0,
+          canonical_confirmed_request_state_count: 1,
         },
       };
     }
