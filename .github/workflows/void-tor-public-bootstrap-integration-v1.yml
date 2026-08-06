@@ -11,6 +11,7 @@ on:
       - 'scripts/prove_void_tor_native_bootstrap_transport_v1.mjs'
       - 'scripts/prove_void_tor_public_bootstrap_integration_v1.mjs'
       - 'scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs'
+      - 'tools/lib/void-tor-onion-descriptor-v1.mjs'
       - 'tools/void-tor-public-seed-client-adapter-v1.mjs'
   workflow_dispatch:
 
@@ -48,6 +49,7 @@ jobs:
           node --check scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
           node --check scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
           node --check scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs
+          node --check tools/lib/void-tor-onion-descriptor-v1.mjs
           node --check tools/void-tor-public-seed-client-adapter-v1.mjs
 
       - name: Prove Tor transport boundary
