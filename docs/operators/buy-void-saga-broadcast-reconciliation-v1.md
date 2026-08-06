@@ -27,10 +27,11 @@ Blind retry is forbidden after the write-ahead intent because the first submissi
 This source-only lane is stacked on the exact prepared-transaction custody head:
 
 ```text
-c4f742c2c2c33c91fcaa27dc462505cd5c19abdc
+c242632b7013305ab192ea69413f78bff0a56649
 ```
 
-The parent pull request remains a separate review and merge gate.
+The child is `12` commits ahead and `0` behind that parent without history
+rewrite. The parent pull request remains a separate review and merge gate.
 
 ## Opaque broadcaster contract
 
@@ -108,6 +109,17 @@ It does not store a custody handle, signed payload bytes, credentials, wallet ma
 
 The receipt record includes the block hash required by the saga event. This permits recovery when terminal execution/outcome journals were written but the process terminated before the saga append.
 
+Terminal evidence is immutable. After `confirmed` or `reverted` is recorded,
+only an exact semantic duplicate is accepted. A changed provider identity,
+receipt status, block number, block hash, confirmation snapshot, address, or
+amount holds without appending another event.
+
+Duplicate comparison explicitly projects only saga, attempt, intent,
+transaction, outcome, provider, submission-state, and receipt fields.
+Append-only metadata such as sequence, event ID, previous-event link,
+recording time, provider fingerprint, and authority metadata cannot alter
+semantic idempotency.
+
 ## Definitive not-submitted recovery
 
 A process may terminate after `broadcast_intent_committed` but before entering the external submitter.
@@ -150,6 +162,9 @@ The real-filesystem proof builds the parent stack through `transaction_prepared`
 - submit-before-evidence termination is recovered by inspection only;
 - evidence-before-projection termination is recovered without resubmission;
 - projection-before-saga termination is recovered entirely from durable evidence and canonical journals;
+- an exact duplicate terminal receipt is idempotent;
+- a conflicting terminal receipt is rejected without changing the evidence head;
+- read-only inspection reports zero current-call submission, broadcast, and money movement;
 - a persistent unknown state remains held;
 - unknown can advance to accepted after inspection;
 - confirmed recovery reaches `receipt_confirmed`;

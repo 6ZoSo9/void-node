@@ -602,7 +602,18 @@ function semanticFingerprint(
     | "receipt"
   >,
 ): string {
-  return sha256(canonical(event));
+  return sha256(canonical({
+    saga_id: event.saga_id,
+    attempt_id: event.attempt_id,
+    broadcast_intent_id: event.broadcast_intent_id,
+    transaction_hash: event.transaction_hash,
+    outcome: event.outcome,
+    provider_submission_id: event.provider_submission_id,
+    submission_call_performed: event.submission_call_performed,
+    submission_may_have_occurred:
+      event.submission_may_have_occurred,
+    receipt: event.receipt,
+  }));
 }
 
 function stateFromEvents(
@@ -687,10 +698,6 @@ export function recordBuyVoidSagaBroadcastEvidenceV1(
         ) {
           return held("broadcast_evidence_binding_conflict");
         }
-        validateProgression(
-          current?.latest.outcome || null,
-          normalized.outcome,
-        );
         const semantic = {
           saga_id: sagaId,
           attempt_id: attemptId,
@@ -705,11 +712,25 @@ export function recordBuyVoidSagaBroadcastEvidenceV1(
             normalized.submission_may_have_occurred,
           receipt: normalized.receipt,
         };
-        if (
-          current &&
+        const semanticMatchesLatest =
+          current !== null &&
           semanticFingerprint(current.latest) ===
-            semanticFingerprint(semantic)
-        ) {
+            semanticFingerprint(semantic);
+        if (current?.terminal && !semanticMatchesLatest) {
+          return held(
+            "broadcast_evidence_terminal_evidence_conflict",
+            {
+              previous_event_id: current.latest.event_id,
+              previous_outcome: current.latest.outcome,
+              next_outcome: normalized.outcome,
+            },
+          );
+        }
+        validateProgression(
+          current?.latest.outcome || null,
+          normalized.outcome,
+        );
+        if (current && semanticMatchesLatest) {
           return {
             ok: true,
             status: "duplicate",
