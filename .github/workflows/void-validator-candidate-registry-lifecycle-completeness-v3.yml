@@ -1,0 +1,112 @@
+name: VOID validator candidate registry lifecycle completeness v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-lifecycle-completeness-v3.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
+      - "scripts/prove_void_validator_candidate_registry_lifecycle_completeness_v3.mjs"
+      - "docs/operators/void-validator-candidate-registry-lifecycle-completeness-v3.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-validator-candidate-registry-lifecycle-completeness-v3.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistry.t.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryActiveExit.t.sol"
+      - "scripts/prove_void_validator_candidate_registry_lifecycle_completeness_v3.mjs"
+      - "docs/operators/void-validator-candidate-registry-lifecycle-completeness-v3.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-validator-candidate-registry-lifecycle-completeness-v3-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked JavaScript dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove lifecycle source and authority boundaries
+        run: |
+          node --check \
+            scripts/prove_void_validator_candidate_registry_lifecycle_completeness_v3.mjs
+          node \
+            scripts/prove_void_validator_candidate_registry_lifecycle_completeness_v3.mjs
+
+      - name: Run isolated Foundry lifecycle suite
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home-v3"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out-v3"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache-v3"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-validator-registry-lifecycle-v3-foundry"
+
+          mkdir -p \
+            "$FOUNDRY_HOME" \
+            "$FOUNDRY_OUT" \
+            "$FOUNDRY_CACHE" \
+            "$FOUNDRY_PROJECT/contracts/mainnet0" \
+            "$FOUNDRY_PROJECT/test/mainnet0"
+
+          install -m 0444 \
+            contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
+            "$FOUNDRY_PROJECT/contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+          install -m 0444 \
+            test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol"
+
+          cmp \
+            contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
+            "$FOUNDRY_PROJECT/contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+          cmp \
+            test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol"
+
+          docker pull "$FOUNDRY_IMAGE"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            -v "$FOUNDRY_HOME:/foundry-home" \
+            -v "$FOUNDRY_OUT:/foundry-out" \
+            -v "$FOUNDRY_CACHE:/foundry-cache" \
+            -v "$FOUNDRY_PROJECT:/proof:ro" \
+            -w /proof \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /proof \
+            --contracts contracts \
+            --match-path test/mainnet0/VoidValidatorCandidateRegistryLifecycleCompletenessV3.t.sol \
+            --use 0.8.20 \
+            --evm-version paris \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvv
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Typecheck repository
+        run: npm run typecheck

@@ -31,6 +31,10 @@ contract VoidValidatorCandidateRegistry {
 
     uint256 public immutable minValidatorStake;
     uint256 public immutable maxActiveValidators;
+
+    /// @notice Legacy-compatible per-call activation batch ceiling.
+    /// @dev Despite the historical name, this does not enforce a time- or
+    ///      epoch-based churn rate. Epoch admission policy remains external.
     uint256 public immutable activationChurnLimit;
 
     address public owner;
@@ -42,6 +46,8 @@ contract VoidValidatorCandidateRegistry {
     uint256 public totalStaked;
 
     mapping(address => Candidate) private candidates;
+    mapping(address => uint256) public registrationCycle;
+    mapping(bytes32 => address) public consensusKeyOwner;
     mapping(address => uint256) public exitRequestedAt;
     mapping(address => bool) public activeSetRemovalRequired;
     mapping(address => bool) public activeSetRemovalConfirmed;
@@ -57,7 +63,24 @@ contract VoidValidatorCandidateRegistry {
         bytes32 metadataHash,
         uint256 stakeAmount
     );
-
+    event CandidateReRegistered(
+        address indexed owner,
+        address indexed reward,
+        bytes32 indexed consensusKeyHash,
+        bytes32 metadataHash,
+        uint256 stakeAmount,
+        uint256 registrationCycle
+    );
+    event CandidateProfileUpdated(
+        address indexed owner,
+        address indexed oldReward,
+        address indexed newReward,
+        bytes32 oldConsensusKeyHash,
+        bytes32 newConsensusKeyHash,
+        bytes32 oldMetadataHash,
+        bytes32 newMetadataHash
+    );
+    event CandidateReturnedToCandidate(address indexed owner);
     event CandidateMovedToWaiting(address indexed owner);
     event CandidateMarkedActive(address indexed owner);
     event CandidateJailed(address indexed owner);
@@ -76,6 +99,10 @@ contract VoidValidatorCandidateRegistry {
         address indexed recipient,
         uint256 amount
     );
+    event ConsensusKeyReleased(
+        address indexed owner,
+        bytes32 indexed consensusKeyHash
+    );
     event OwnershipTransferStarted(
         address indexed currentOwner,
         address indexed pendingOwner
@@ -92,7 +119,13 @@ contract VoidValidatorCandidateRegistry {
     error NotRegistered();
     error InvalidReward();
     error InvalidConsensusKey();
+    error ConsensusKeyAlreadyRegistered(
+        bytes32 consensusKeyHash,
+        address registeredOwner
+    );
     error StakeTooLow();
+    error StakeNotWithdrawn();
+    error NoProfileChange();
     error InvalidState();
     error ActiveCapReached();
     error InvalidMinimumStake();
@@ -142,14 +175,18 @@ contract VoidValidatorCandidateRegistry {
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
+    /// @notice Honest semantic alias for the legacy compatibility getter.
+    function maxActivationBatchSize() external view returns (uint256) {
+        return activationChurnLimit;
+    }
+
     function registerCandidate(
         address reward,
         bytes32 consensusKeyHash,
         bytes32 metadataHash
-    ) external payable {
+    ) external payable nonReentrant {
         if (candidates[msg.sender].owner != address(0)) revert AlreadyRegistered();
-        if (reward == address(0)) revert InvalidReward();
-        if (consensusKeyHash == bytes32(0)) revert InvalidConsensusKey();
+        _validateProfile(reward, consensusKeyHash, msg.sender);
         if (msg.value < minValidatorStake) revert StakeTooLow();
 
         candidates[msg.sender] = Candidate({
@@ -163,6 +200,8 @@ contract VoidValidatorCandidateRegistry {
             state: ValidatorState.Candidate
         });
 
+        consensusKeyOwner[consensusKeyHash] = msg.sender;
+        registrationCycle[msg.sender] = 1;
         candidateOwners.push(msg.sender);
         candidateCount += 1;
         totalStaked += msg.value;
@@ -176,7 +215,109 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
-    function moveToWaiting(address candidateOwner) external onlyOwner {
+    /// @notice Re-enter candidacy after a complete prior exit and withdrawal.
+    /// @dev The address remains one unique candidate owner; candidateCount and
+    ///      candidateOwners are not duplicated across registration cycles.
+    function reregisterCandidate(
+        address reward,
+        bytes32 consensusKeyHash,
+        bytes32 metadataHash
+    ) external payable nonReentrant {
+        Candidate storage c = candidates[msg.sender];
+        if (c.owner == address(0)) revert NotRegistered();
+        if (c.state != ValidatorState.Unbonded) revert InvalidState();
+        if (c.stakeAmount != 0) revert StakeNotWithdrawn();
+
+        _validateProfile(reward, consensusKeyHash, msg.sender);
+        if (msg.value < minValidatorStake) revert StakeTooLow();
+
+        uint256 cycle = registrationCycle[msg.sender] + 1;
+        c.reward = reward;
+        c.consensusKeyHash = consensusKeyHash;
+        c.metadataHash = metadataHash;
+        c.stakeAmount = msg.value;
+        c.registeredAt = block.timestamp;
+        c.updatedAt = block.timestamp;
+        c.state = ValidatorState.Candidate;
+
+        registrationCycle[msg.sender] = cycle;
+        consensusKeyOwner[consensusKeyHash] = msg.sender;
+        exitRequestedAt[msg.sender] = 0;
+        activeSetRemovalRequired[msg.sender] = false;
+        activeSetRemovalConfirmed[msg.sender] = false;
+        activeSetRemovalEvidenceHash[msg.sender] = bytes32(0);
+        totalStaked += msg.value;
+
+        emit CandidateReRegistered(
+            msg.sender,
+            reward,
+            consensusKeyHash,
+            metadataHash,
+            msg.value,
+            cycle
+        );
+    }
+
+    /// @notice Update public validator profile before Waiting admission.
+    /// @dev A Waiting participant may first call returnToCandidate(). Active,
+    ///      Exiting, Jailed, and Unbonded records cannot mutate their profile.
+    function updateCandidateProfile(
+        address reward,
+        bytes32 consensusKeyHash,
+        bytes32 metadataHash
+    ) external nonReentrant {
+        Candidate storage c = candidates[msg.sender];
+        if (c.owner == address(0)) revert NotRegistered();
+        if (c.state != ValidatorState.Candidate) revert InvalidState();
+
+        _validateProfile(reward, consensusKeyHash, msg.sender);
+        if (
+            c.reward == reward &&
+            c.consensusKeyHash == consensusKeyHash &&
+            c.metadataHash == metadataHash
+        ) revert NoProfileChange();
+
+        address oldReward = c.reward;
+        bytes32 oldConsensusKeyHash = c.consensusKeyHash;
+        bytes32 oldMetadataHash = c.metadataHash;
+
+        if (oldConsensusKeyHash != consensusKeyHash) {
+            if (consensusKeyOwner[oldConsensusKeyHash] == msg.sender) {
+                delete consensusKeyOwner[oldConsensusKeyHash];
+            }
+            consensusKeyOwner[consensusKeyHash] = msg.sender;
+        }
+
+        c.reward = reward;
+        c.consensusKeyHash = consensusKeyHash;
+        c.metadataHash = metadataHash;
+        c.updatedAt = block.timestamp;
+
+        emit CandidateProfileUpdated(
+            msg.sender,
+            oldReward,
+            reward,
+            oldConsensusKeyHash,
+            consensusKeyHash,
+            oldMetadataHash,
+            metadataHash
+        );
+    }
+
+    /// @notice Voluntarily leave Waiting without beginning stake unbonding.
+    function returnToCandidate() external nonReentrant {
+        Candidate storage c = candidates[msg.sender];
+        if (c.owner == address(0)) revert NotRegistered();
+        if (c.state != ValidatorState.Waiting) revert InvalidState();
+
+        waitingCount -= 1;
+        c.state = ValidatorState.Candidate;
+        c.updatedAt = block.timestamp;
+
+        emit CandidateReturnedToCandidate(msg.sender);
+    }
+
+    function moveToWaiting(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
         if (c.state != ValidatorState.Candidate) revert InvalidState();
@@ -188,10 +329,14 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateMovedToWaiting(candidateOwner);
     }
 
-    /// @notice Minimal capped admission hook for future epoch activation proofs.
-    /// @dev Public registration never calls this function.
-    function markActiveBatch(address[] calldata owners) external onlyOwner {
-        if (owners.length == 0 || owners.length > activationChurnLimit) {
+    /// @notice Capped admission hook for future epoch activation proofs.
+    /// @dev activationChurnLimit limits one call only. This registry does not
+    ///      claim to enforce a temporal or epoch churn rate.
+    function markActiveBatch(address[] calldata owners) external onlyOwner nonReentrant {
+        if (
+            owners.length == 0 ||
+            owners.length > activationChurnLimit
+        ) {
             revert InvalidState();
         }
         if (
@@ -223,7 +368,7 @@ contract VoidValidatorCandidateRegistry {
     /// @dev Jailing never transfers or destroys the participant's stake. For an
     ///      Active validator, the owner action is the explicit registry-side
     ///      acknowledgment that the separate active set has removed it.
-    function jail(address candidateOwner) external onlyOwner {
+    function jail(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -260,7 +405,7 @@ contract VoidValidatorCandidateRegistry {
     /// @dev An Active participant may request exit without owner cooperation, but
     ///      cannot finalize until registry authority confirms external active-set
     ///      removal with a nonzero evidence commitment.
-    function requestExit() external {
+    function requestExit() external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -298,7 +443,7 @@ contract VoidValidatorCandidateRegistry {
     function confirmActiveSetRemoval(
         address candidateOwner,
         bytes32 evidenceHash
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
         if (!activeSetRemovalRequired[candidateOwner]) {
@@ -320,7 +465,7 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Complete a participant-controlled exit after the fixed delay.
-    function finalizeExit() external {
+    function finalizeExit() external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
         if (c.state != ValidatorState.Exiting) revert InvalidState();
@@ -345,7 +490,7 @@ contract VoidValidatorCandidateRegistry {
     /// @dev Active validators cannot use this direct path. They must first exit
     ///      or be jailed so external active-set removal is explicitly accounted.
     ///      An already-started participant exit cannot be bypassed.
-    function markUnbonded(address candidateOwner) external onlyOwner {
+    function markUnbonded(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -373,7 +518,8 @@ contract VoidValidatorCandidateRegistry {
     }
 
     /// @notice Withdraw the candidate's complete recorded stake after unbonding.
-    /// @dev Checks-effects-interactions and a reentrancy guard protect the transfer.
+    /// @dev All registry mutations are nonReentrant, so a recipient callback
+    ///      cannot change registry lifecycle state during the transfer.
     function withdrawStake(address payable recipient) external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -383,17 +529,24 @@ contract VoidValidatorCandidateRegistry {
         uint256 amount = c.stakeAmount;
         if (amount == 0) revert NoStakeAvailable();
 
+        bytes32 releasedConsensusKeyHash = c.consensusKeyHash;
         c.stakeAmount = 0;
         c.updatedAt = block.timestamp;
         totalStaked -= amount;
+        if (consensusKeyOwner[releasedConsensusKeyHash] == msg.sender) {
+            delete consensusKeyOwner[releasedConsensusKeyHash];
+        }
 
         (bool transferred, ) = recipient.call{value: amount}("");
         if (!transferred) revert StakeTransferFailed();
 
+        emit ConsensusKeyReleased(msg.sender, releasedConsensusKeyHash);
         emit StakeWithdrawn(msg.sender, recipient, amount);
     }
 
-    function getCandidate(address candidateOwner) external view returns (Candidate memory) {
+    function getCandidate(
+        address candidateOwner
+    ) external view returns (Candidate memory) {
         Candidate memory c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
         return c;
@@ -407,8 +560,13 @@ contract VoidValidatorCandidateRegistry {
         return candidateOwners.length;
     }
 
+    /// @notice Explicit alias for candidateCount's unique-owner semantics.
+    function uniqueCandidateOwnerCount() external view returns (uint256) {
+        return candidateCount;
+    }
+
     /// @notice Start a two-step ownership transfer.
-    function transferOwnership(address newOwner) external onlyOwner {
+    function transferOwnership(address newOwner) external onlyOwner nonReentrant {
         if (newOwner == address(0) || newOwner == owner) revert InvalidOwner();
         if (pendingOwner != address(0)) revert OwnershipTransferPending();
 
@@ -416,7 +574,7 @@ contract VoidValidatorCandidateRegistry {
         emit OwnershipTransferStarted(owner, newOwner);
     }
 
-    function cancelOwnershipTransfer() external onlyOwner {
+    function cancelOwnershipTransfer() external onlyOwner nonReentrant {
         address canceled = pendingOwner;
         if (canceled == address(0)) revert NoOwnershipTransferPending();
 
@@ -424,7 +582,7 @@ contract VoidValidatorCandidateRegistry {
         emit OwnershipTransferCanceled(owner, canceled);
     }
 
-    function acceptOwnership() external {
+    function acceptOwnership() external nonReentrant {
         if (msg.sender != pendingOwner) revert NotPendingOwner();
 
         address oldOwner = owner;
@@ -432,5 +590,25 @@ contract VoidValidatorCandidateRegistry {
         pendingOwner = address(0);
 
         emit OwnershipTransferred(oldOwner, msg.sender);
+    }
+
+    function _validateProfile(
+        address reward,
+        bytes32 consensusKeyHash,
+        address candidateOwner
+    ) private view {
+        if (reward == address(0)) revert InvalidReward();
+        if (consensusKeyHash == bytes32(0)) revert InvalidConsensusKey();
+
+        address registeredOwner = consensusKeyOwner[consensusKeyHash];
+        if (
+            registeredOwner != address(0) &&
+            registeredOwner != candidateOwner
+        ) {
+            revert ConsensusKeyAlreadyRegistered(
+                consensusKeyHash,
+                registeredOwner
+            );
+        }
     }
 }
