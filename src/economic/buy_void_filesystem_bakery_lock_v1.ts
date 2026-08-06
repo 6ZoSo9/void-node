@@ -215,7 +215,13 @@ function scanQueue(queue: string): {
       if (!TEMP.test(entry.name) || !entry.isFile() || entry.isSymbolicLink()) {
         throw new Error("bakery_lock_temporary_entry_invalid");
       }
-      const metadata = fs.lstatSync(full);
+      let metadata: fs.Stats;
+      try {
+        metadata = fs.lstatSync(full);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code === "ENOENT") continue;
+        throw error;
+      }
       if (Date.now() - metadata.mtimeMs > STALE_TEMP_MS) {
         removeOwnClaim(full);
         changed = true;
