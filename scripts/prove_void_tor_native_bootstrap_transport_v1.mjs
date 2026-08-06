@@ -12,7 +12,7 @@ import {
 const MARKER = "VOID_TOR_NATIVE_BOOTSTRAP_TRANSPORT_V1_PROOF";
 const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
 const INVALID_ONION = `${"a".repeat(56)}.onion`;
-const QUALIFICATION = `voidpsq1_${"b".repeat(64)}`;
+const QUALIFICATION = `voidptq1_${"b".repeat(64)}`;
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -139,6 +139,13 @@ try {
   const endpoints = validateTorNativeEndpoints([rawEndpoint], now);
   assert.equal(endpoints.length, 1);
   assert.equal(endpoints[0].hostname, ONION);
+  assert.throws(
+    () => validateTorNativeEndpoints([{
+      ...rawEndpoint,
+      qualification_id: `voidpsq1_${"c".repeat(64)}`,
+    }], now),
+    /qualification ID is malformed/,
+  );
   assert.throws(
     () => validateTorNativeEndpoints([{ ...rawEndpoint, unknown: true }], now),
     /keys mismatch/,
@@ -268,6 +275,7 @@ try {
   console.log(`${MARKER}_GREEN`);
   console.log("checksum_valid_onion_identity_required=true");
   console.log("qualification_freshness_required=true");
+  console.log("tor_qualification_receipt_prefix_required=true");
   console.log("unsafe_request_target_rejected=true");
   console.log("socks_handshake_fragmentation_proven=true");
   console.log("remote_private_route_requested=false");

@@ -30,7 +30,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WRAPPER = path.join(ROOT, "scripts", "resolve_void_tor_public_bootstrap_release_root_v1.mjs");
 const PRODUCTION_ROOT = path.join(ROOT, "config", TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME);
 const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
-const QUALIFICATION = `voidpsq1_${"b".repeat(64)}`;
+const QUALIFICATION = `voidptq1_${"b".repeat(64)}`;
 const AUTHORITY = Object.freeze({
   private_routes_exposed: false,
   wallet_authority: false,

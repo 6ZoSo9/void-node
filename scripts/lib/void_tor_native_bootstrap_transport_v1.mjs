@@ -147,7 +147,7 @@ export function validateTorNativeEndpoints(
     ) {
       throw new Error("onion endpoint priority is invalid");
     }
-    if (!/^voidpsq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
+    if (!/^voidptq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
       throw new Error("onion endpoint qualification ID is malformed");
     }
     const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));

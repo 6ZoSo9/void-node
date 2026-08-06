@@ -39,7 +39,7 @@ Required values include:
 - `base=http://<56-base32>.onion` with virtual port 80 and no path;
 - `enabled=true`;
 - `temporary=false`;
-- a content-addressed qualification ID;
+- a content-addressed `voidptq1_<sha256>` qualification ID emitted by the Tor seed qualification contract;
 - a bounded valid qualification timestamp; and
 - a positive qualified head.
 
@@ -79,8 +79,11 @@ certificate_authority_required=false
 cloud_provider_required=false
 socks_proxy_loopback_only=true
 gateway_identity_required=true
+tor_qualification_receipt_prefix_required=true
 wallet_signer_validator_wc_money_authority=0
 ```
+
+The client accepts the canonical `voidptq1_...` receipt namespace and rejects the incompatible legacy `voidpsq1_...` prefix.
 
 ## Next integration steps
 
