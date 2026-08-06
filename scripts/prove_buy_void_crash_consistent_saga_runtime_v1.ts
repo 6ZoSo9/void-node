@@ -643,6 +643,182 @@ async function main(): Promise<void> {
   fs.writeFileSync(requestFile, backup);
   assert.equal(store.recover(sagaId).state.event_count, count);
 
+  const unanchoredRoot = path.join(base, "unanchored-attempt-root");
+  const unanchoredRequestDir = path.join(
+    base,
+    "unanchored-attempt-requests",
+  );
+  fs.mkdirSync(unanchoredRoot, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(unanchoredRequestDir, { recursive: true, mode: 0o700 });
+  durableJson(path.join(unanchoredRequestDir, `${REQUEST_ID}.json`), {
+    request_id: REQUEST_ID,
+  });
+  const unanchoredIntent = intent(clock += 1000);
+  const unanchoredInventory = reserveBuyVoidInventoryV1({
+    root_dir: unanchoredRoot,
+    intent: unanchoredIntent as any,
+    policy: {
+      inventory_reservation_enabled: true,
+      pool_id: POOL_ID,
+      inventory_policy_version: "proof-policy-v1",
+      pool_capacity_void_units: "10000000",
+      max_reservation_void_units: "5000000",
+    },
+    apply: true,
+    now_ms: clock += 1000,
+  });
+  if ("reason" in unanchoredInventory) {
+    throw new Error(String(unanchoredInventory.reason));
+  }
+  assert.equal(unanchoredInventory.ok, true);
+  const unanchoredAttempt = reserveBuyVoidExecutionAttemptV1({
+    root_dir: unanchoredRoot,
+    intent: unanchoredIntent as any,
+    policy: {
+      attempt_journal_enabled: true,
+      max_attempts_per_payment: 1,
+      chain_id: "2049",
+      fulfillment_wallet_allowlist: [WALLET],
+    },
+    now_ms: clock += 1000,
+  });
+  if ("reason" in unanchoredAttempt) {
+    throw new Error(String(unanchoredAttempt.reason));
+  }
+  assert.equal(unanchoredAttempt.ok, true);
+  const unanchoredDependencies: Record<string, any> = {
+    derive_snapshot: () => ({
+      status: "ready",
+      snapshot: { request_id: REQUEST_ID, status: "payment_verified" },
+      evidence: { source: "unanchored_attempt_policy_proof" },
+    }),
+    list_claims: () => [unanchoredIntent],
+    list_inventory: (input: any) =>
+      listBuyVoidInventoryReservationsV1(input),
+    list_attempts: () =>
+      listBuyVoidExecutionAttemptsV1(unanchoredRoot),
+    reserve_inventory: async () => {
+      throw new Error("unanchored_inventory_mutation_forbidden");
+    },
+    run_pipeline_command: async () => {
+      throw new Error("unanchored_pipeline_mutation_forbidden");
+    },
+    now_ms: () => (clock += 1000),
+  };
+  const walletEnv =
+    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1
+      .fulfillment_wallet_address;
+  const originalWallet = process.env[walletEnv];
+  process.env[walletEnv] =
+    "0x5555555555555555555555555555555555555555";
+  const unanchoredAttemptHeld = await invoke({
+    root: unanchoredRoot,
+    requestDir: unanchoredRequestDir,
+    body: {
+      action: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+    },
+    dependencies: unanchoredDependencies,
+  });
+  if (originalWallet === undefined) delete process.env[walletEnv];
+  else process.env[walletEnv] = originalWallet;
+  assert.equal(unanchoredAttemptHeld.code, 409);
+  assert.match(
+    unanchoredAttemptHeld.body.reason,
+    /execution_attempt_without_saga_policy_anchor/,
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        unanchoredRoot,
+        "buy-void-crash-consistent-saga-runtime-v1",
+      ),
+    ),
+    false,
+  );
+
+  const maxImportRoot = path.join(base, "inventory-max-import-root");
+  const maxImportRequestDir = path.join(
+    base,
+    "inventory-max-import-requests",
+  );
+  fs.mkdirSync(maxImportRoot, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(maxImportRequestDir, { recursive: true, mode: 0o700 });
+  durableJson(path.join(maxImportRequestDir, `${REQUEST_ID}.json`), {
+    request_id: REQUEST_ID,
+  });
+  const maxImportIntent = intent(clock += 1000);
+  const maxImportInventory = reserveBuyVoidInventoryV1({
+    root_dir: maxImportRoot,
+    intent: maxImportIntent as any,
+    policy: {
+      inventory_reservation_enabled: true,
+      pool_id: POOL_ID,
+      inventory_policy_version: "proof-policy-v1",
+      pool_capacity_void_units: "10000000",
+      max_reservation_void_units: "5000000",
+    },
+    apply: true,
+    now_ms: clock += 1000,
+  });
+  if ("reason" in maxImportInventory) {
+    throw new Error(String(maxImportInventory.reason));
+  }
+  assert.equal(maxImportInventory.ok, true);
+  const maximumReservationEnv =
+    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1
+      .max_reservation_void_units;
+  const originalMaximumReservation =
+    process.env[maximumReservationEnv];
+  process.env[maximumReservationEnv] = "1000000";
+  const maxImportHeld = await invoke({
+    root: maxImportRoot,
+    requestDir: maxImportRequestDir,
+    body: {
+      action: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+    },
+    dependencies: {
+      derive_snapshot: () => ({
+        status: "ready",
+        snapshot: { request_id: REQUEST_ID, status: "payment_verified" },
+        evidence: { source: "inventory_max_import_policy_proof" },
+      }),
+      list_claims: () => [maxImportIntent],
+      list_inventory: (input: any) =>
+        listBuyVoidInventoryReservationsV1(input),
+      list_attempts: () => [],
+      reserve_inventory: async () => {
+        throw new Error("max_import_inventory_mutation_forbidden");
+      },
+      run_pipeline_command: async () => {
+        throw new Error("max_import_pipeline_mutation_forbidden");
+      },
+      now_ms: () => (clock += 1000),
+    },
+  });
+  if (originalMaximumReservation === undefined) {
+    delete process.env[maximumReservationEnv];
+  } else {
+    process.env[maximumReservationEnv] =
+      originalMaximumReservation;
+  }
+  assert.equal(maxImportHeld.code, 409);
+  assert.match(
+    maxImportHeld.body.reason,
+    /inventory_server_max_reservation_conflict/,
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        maxImportRoot,
+        "buy-void-crash-consistent-saga-runtime-v1",
+      ),
+    ),
+    false,
+  );
+
+
   assert.deepEqual(VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1, {
     operator_loopback_only: true,
     disabled_by_default: true,
@@ -691,6 +867,11 @@ async function main(): Promise<void> {
   console.log("claim_restart_duplicate_write=0");
   console.log("inventory_restart_duplicate_write=0");
   console.log("attempt_restart_duplicate_write=0");
+  console.log("unanchored_execution_attempt_import=held");
+  console.log("changed_wallet_unanchored_attempt_import=held");
+  console.log("unanchored_execution_chain_import=held");
+  console.log("inventory_maximum_import_conflict=held");
+  console.log("anchored_attempt_backfill_exactly_once=true");
   console.log("wallet_signing_broadcast_money=0");
 }
 
