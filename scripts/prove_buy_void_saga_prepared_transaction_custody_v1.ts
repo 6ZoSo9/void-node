@@ -19,10 +19,12 @@ import {
   listBuyVoidPreparedTransactionPlanReservationsV1,
   reserveBuyVoidPreparedTransactionPlanV1,
 } from "../src/economic/buy_void_prepared_transaction_plan_reservation_v1.js";
-import type {
-  BuyVoidPreparedTransactionCustodianDecisionV1,
-  BuyVoidPreparedTransactionCustodianPrepareRequestV1,
-  BuyVoidPreparedTransactionCustodianV1,
+import {
+  VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
+  prepareBuyVoidTransactionInCustodyV1,
+  type BuyVoidPreparedTransactionCustodianDecisionV1,
+  type BuyVoidPreparedTransactionCustodianPrepareRequestV1,
+  type BuyVoidPreparedTransactionCustodianV1,
 } from "../src/economic/buy_void_prepared_transaction_custody_v1.js";
 import {
   VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_CONFIRMATION_V1,
@@ -364,6 +366,10 @@ function recursiveFiles(root: string): string[] {
   return output;
 }
 
+function plannerHex(value: bigint): string {
+  return `0x${value.toString(16)}`;
+}
+
 async function main(): Promise<void> {
   const saved = new Map<string, string | undefined>();
   const configured = { ...economicEnv(), ...preparationEnv() };
@@ -373,318 +379,562 @@ async function main(): Promise<void> {
   }
 
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "void-prepared-custody-"));
-  const root = path.join(base, "root");
-  fs.mkdirSync(root, { recursive: true, mode: 0o700 });
-  const claimed = intent();
-  const reservedInventory = inventory(claimed);
-  const economic = readBuyVoidCrashConsistentSagaServerPolicyV1();
-  if ("reason" in economic) throw new Error(economic.reason);
-  const executionPolicy = economic.policy.execution_policy as
-    BuyVoidExecutionAttemptPolicyV1;
-  const attemptDecision = reserveBuyVoidExecutionAttemptV1({
-    root_dir: root,
-    intent: claimed as any,
-    policy: executionPolicy,
-    now_ms: Date.parse("2026-08-06T10:10:01.000Z"),
-  });
-  assert.equal(attemptDecision.ok, true);
-  if ("reason" in attemptDecision) throw new Error(attemptDecision.reason);
-  const attemptId = attemptDecision.attempt.reservation.attempt_id;
-  const initialized = await initializeSaga({
-    root,
-    intent: claimed,
-    inventory: reservedInventory,
-    attempt_id: attemptId,
-    policy_id: economic.policy.saga_policy_id,
-  });
+  try {
+    const root = path.join(base, "root");
+    fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+    const claimed = intent();
+    const reservedInventory = inventory(claimed);
+    const economic = readBuyVoidCrashConsistentSagaServerPolicyV1();
+    if ("reason" in economic) throw new Error(String(economic.reason));
+    const executionPolicy = economic.policy.execution_policy as
+      BuyVoidExecutionAttemptPolicyV1;
+    const attemptDecision = reserveBuyVoidExecutionAttemptV1({
+      root_dir: root,
+      intent: claimed as any,
+      policy: executionPolicy,
+      now_ms: Date.parse("2026-08-06T10:10:01.000Z"),
+    });
+    assert.equal(attemptDecision.ok, true);
+    if ("reason" in attemptDecision) {
+      throw new Error(String(attemptDecision.reason));
+    }
+    const attemptId = attemptDecision.attempt.reservation.attempt_id;
+    const initialized = await initializeSaga({
+      root,
+      intent: claimed,
+      inventory: reservedInventory,
+      attempt_id: attemptId,
+      policy_id: economic.policy.saga_policy_id,
+    });
 
-  const custodian = new FakeCustodian();
-  let clock = Date.parse("2026-08-06T10:11:00.000Z");
-  let plannerCalls = 0;
-  let pipelinePrepareCalls = 0;
-  let fault: BuyVoidSagaPreparedTransactionFaultStageV1 | null = null;
-  const transport = async (call: any) => {
-    plannerCalls += 1;
-    const resultByMethod: Record<string, string> = {
-      eth_chainId: "0x802",
-      eth_getTransactionCount: "0x7",
-      eth_gasPrice: "0x3b9aca00",
-      eth_getBalance: "0x3635c9adc5dea00000",
+    const custodian = new FakeCustodian();
+    let clock = Date.parse("2026-08-06T10:11:00.000Z");
+    let plannerCalls = 0;
+    let pipelinePrepareCalls = 0;
+    let fault: BuyVoidSagaPreparedTransactionFaultStageV1 | null = null;
+    let pendingNonce = 7n;
+    let balanceWei = 1_000_000_000_000_000_000_000n;
+    let gasPriceWei = 1_000_000_000n;
+    const transport = async (call: any) => {
+      plannerCalls += 1;
+      const resultByMethod: Record<string, string> = {
+        eth_chainId: "0x802",
+        eth_getTransactionCount: plannerHex(pendingNonce),
+        eth_gasPrice: plannerHex(gasPriceWei),
+        eth_getBalance: plannerHex(balanceWei),
+      };
+      return {
+        ok: true as const,
+        result: resultByMethod[call.method],
+        provider_submission_id: `proof-${call.method}`,
+        http_status: 200,
+      };
     };
-    return {
-      ok: true as const,
-      result: resultByMethod[call.method],
-      provider_submission_id: `proof-${call.method}`,
-      http_status: 200,
+    const dependencies: any = {
+      list_claims: () => [claimed],
+      list_inventory: () => [reservedInventory],
+      planner_transport: transport,
+      custodian,
+      run_pipeline_command: async (command: Record<string, any>) => {
+        if (command.action === "prepare_execution") {
+          pipelinePrepareCalls += 1;
+          assert.equal(
+            command.confirmation,
+            VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
+          );
+        }
+        return runBuyVoidPipelineCommandV1(command as any);
+      },
+      now_ms: () => (clock += 1000),
+      fault_inject: async (
+        stage: BuyVoidSagaPreparedTransactionFaultStageV1,
+      ) => {
+        if (fault === stage) {
+          fault = null;
+          throw new Error(`fault:${stage}`);
+        }
+      },
     };
-  };
-  const dependencies = {
-    list_claims: () => [claimed],
-    list_inventory: () => [reservedInventory],
-    planner_transport: transport,
-    custodian,
-    run_pipeline_command: async (command: Record<string, any>) => {
-      if (command.action === "prepare_execution") {
-        pipelinePrepareCalls += 1;
-        assert.equal(
-          command.confirmation,
-          VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
-        );
-      }
-      return runBuyVoidPipelineCommandV1(command as any);
-    },
-    now_ms: () => (clock += 1000),
-    fault_inject: async (stage: BuyVoidSagaPreparedTransactionFaultStageV1) => {
-      if (fault === stage) {
-        fault = null;
-        throw new Error(`fault:${stage}`);
-      }
-    },
-  };
 
-  const dry = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    root_dir: root,
-    attempt_id: attemptId,
-    dependencies,
-  });
-  assert.equal(dry.ok, true);
-  if ("reason" in dry || dry.status !== "dry_run") {
-    throw new Error("dry run failed");
-  }
-  const dryInput = { ...dry, root_dir: root };
-  assert.equal(dry.existing_plan, null);
-  assert.equal(dry.existing_custody, null);
-  assert.equal(dry.planner.pending_nonce, 7);
-  assert.equal(plannerCalls, 4);
+    const rpcEnv =
+      VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_POLICY_ENVS_V1.rpc_url;
+    const safeRpc = process.env[rpcEnv];
+    for (const unsafe of [
+      "http://localhost:18545/",
+      "http://127.0.0.1:18545/?network=2050",
+      "http://127.0.0.1:18545/rpc",
+    ]) {
+      process.env[rpcEnv] = unsafe;
+      const rejected = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        root_dir: root,
+        attempt_id: attemptId,
+        dependencies,
+      });
+      assert.equal(rejected.ok, false);
+      if (!("reason" in rejected)) throw new Error("unsafe RPC was accepted");
+      assert.equal(
+        rejected.reason,
+        "preparation_rpc_must_be_numeric_loopback_origin",
+      );
+      assert.equal(rejected.stage, "server_policy");
+    }
+    process.env[rpcEnv] = safeRpc;
 
-  fault = "after_plan_reservation";
-  const afterPlan = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(afterPlan.ok, false);
-  if (!("reason" in afterPlan)) throw new Error("plan fault did not hold");
-  assert.equal(afterPlan.reason, "injected_after_plan_reservation");
-  assert.equal(custodian.prepareCalls, 0);
-  let plans = listBuyVoidPreparedTransactionPlanReservationsV1({
-    root_dir: root,
-    wallet_address: WALLET,
-  });
-  assert.equal(plans.length, 1);
-  assert.equal(plans[0].nonce, 7);
-
-  const walletKey = digest(`void-buy-wallet-v1\n2050\n${WALLET}`);
-  const attemptIndex = path.join(
-    root,
-    "buy-void-prepared-transaction-plan-reservation-v1",
-    "wallets",
-    walletKey,
-    "attempts",
-    `${attemptId}.json`,
-  );
-  fs.rmSync(attemptIndex);
-  assert.equal(fs.existsSync(attemptIndex), false);
-
-  const afterExternalCustody = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(afterExternalCustody.ok, false);
-  if (!("reason" in afterExternalCustody)) {
-    throw new Error("external custody fault did not hold");
-  }
-  assert.equal(afterExternalCustody.stage, "custody");
-  assert.equal(custodian.prepareCalls, 1);
-  assert.equal(custodian.prepared.size, 1);
-  assert.equal(fs.existsSync(attemptIndex), true);
-  assert.equal(plannerCalls, 8);
-
-  fault = "after_custody_record";
-  const afterCustodyRecord = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(afterCustodyRecord.ok, false);
-  if (!("reason" in afterCustodyRecord)) {
-    throw new Error("custody record fault did not hold");
-  }
-  assert.equal(afterCustodyRecord.reason, "injected_after_custody_record");
-  assert.equal(custodian.prepareCalls, 2);
-  assert.equal(custodian.prepared.size, 1);
-  assert.equal(pipelinePrepareCalls, 0);
-
-  fault = "after_execution_attempt_preparation";
-  const afterExecutionPrepare = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(afterExecutionPrepare.ok, false);
-  if (!("reason" in afterExecutionPrepare)) {
-    throw new Error("execution prepare fault did not hold");
-  }
-  assert.equal(
-    afterExecutionPrepare.reason,
-    "injected_after_execution_attempt_preparation",
-  );
-  assert.equal(pipelinePrepareCalls, 1);
-  assert.ok(custodian.inspectCalls >= 1);
-  assert.equal(
-    initialized.saga
-      .createFilesystemSagaStoreV1(
-        path.join(root, "buy-void-crash-consistent-saga-runtime-v1"),
-      )
-      .recover(initialized.saga_id)
-      .state.state,
-    "attempt_reserved",
-  );
-
-  const completed = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(completed.ok, true);
-  if ("reason" in completed) throw new Error(completed.reason);
-  assert.equal(completed.status, "prepared");
-  assert.equal(completed.plan.nonce, 7);
-  assert.equal(completed.execution_attempt.status, "prepared");
-  assert.equal(completed.transaction_broadcast_performed, false);
-  assert.equal(completed.wallet_access_performed, false);
-  assert.equal(completed.raw_signed_transaction_persisted, false);
-  assert.equal(completed.raw_signed_transaction_returned, false);
-  assert.equal(completed.money_movement_performed, false);
-  assert.equal(pipelinePrepareCalls, 1);
-  assert.equal(custodian.prepared.size, 1);
-  assert.equal(plannerCalls, 8);
-  assert.equal(
-    JSON.stringify(completed).includes('"custody_handle":"'),
-    false,
-  );
-
-  const sagaRecord = initialized.saga
-    .createFilesystemSagaStoreV1(
-      path.join(root, "buy-void-crash-consistent-saga-runtime-v1"),
-    )
-    .recover(initialized.saga_id);
-  assert.deepEqual(
-    sagaRecord.events.map((event: any) => event.event_type),
-    [
-      "saga_initialized",
-      "claim_committed",
-      "inventory_reserved",
-      "attempt_reserved",
-      "transaction_prepared",
-    ],
-  );
-  assert.equal(
-    sagaRecord.state.transaction_hash,
-    completed.custody.signed_transaction_hash,
-  );
-  assert.equal(sagaRecord.state.nonce, 7);
-
-  const duplicate = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
-    ...applyFrom(dryInput),
-    dependencies,
-  } as any);
-  assert.equal(duplicate.ok, true);
-  if ("reason" in duplicate) throw new Error(duplicate.reason);
-  assert.equal(duplicate.status, "duplicate");
-  assert.equal(pipelinePrepareCalls, 1);
-  assert.equal(custodian.prepared.size, 1);
-  assert.equal(plannerCalls, 8);
-
-  const secondAttempt = "d".repeat(64);
-  const secondPlan = reserveBuyVoidPreparedTransactionPlanV1({
-    root_dir: root,
-    saga_id: `voidbvfsg1_${"e".repeat(64)}`,
-    attempt_id: secondAttempt,
-    chain_id: "2050",
-    wallet_address: WALLET,
-    observed_pending_nonce: 7,
-    delivery_address: "0x9999999999999999999999999999999999999999",
-    native_value_wei: "2500000000000000000",
-    gas_limit: "21000",
-    max_fee_per_gas_wei: "1100000000",
-    max_priority_fee_per_gas_wei: "100000000",
-    economic_policy_fingerprint_sha256:
-      economic.policy.fingerprints.combined_policy_sha256,
-    preparation_policy_fingerprint_sha256:
-      completed.plan.preparation_policy_fingerprint_sha256,
-    now_ms: clock + 1000,
-  });
-  assert.equal(secondPlan.ok, true);
-  if ("reason" in secondPlan) throw new Error(secondPlan.reason);
-  assert.equal(secondPlan.reservation.nonce, 8);
-
-  const changedSameAttempt = reserveBuyVoidPreparedTransactionPlanV1({
-    root_dir: root,
-    saga_id: initialized.saga_id,
-    attempt_id: attemptId,
-    chain_id: "2050",
-    wallet_address: WALLET,
-    observed_pending_nonce: 7,
-    delivery_address: DELIVERY,
-    native_value_wei: "2500000000000000000",
-    gas_limit: "22000",
-    max_fee_per_gas_wei: "1100000000",
-    max_priority_fee_per_gas_wei: "100000000",
-    economic_policy_fingerprint_sha256:
-      economic.policy.fingerprints.combined_policy_sha256,
-    preparation_policy_fingerprint_sha256:
-      completed.plan.preparation_policy_fingerprint_sha256,
-  });
-  assert.equal(changedSameAttempt.ok, false);
-  assert.equal("reason" in changedSameAttempt, true);
-  plans = listBuyVoidPreparedTransactionPlanReservationsV1({
-    root_dir: root,
-    wallet_address: WALLET,
-  });
-  assert.deepEqual(plans.map((plan) => plan.nonce).sort((a, b) => a - b), [7, 8]);
-
-  const custodyRoot = path.join(
-    root,
-    "buy-void-prepared-transaction-custody-v1",
-  );
-  const custodyFiles = recursiveFiles(custodyRoot);
-  assert.equal(custodyFiles.length, 1);
-  const custodyStat = fs.lstatSync(custodyFiles[0]);
-  assert.equal(custodyStat.mode & 0o077, 0);
-  const custodyRecord = JSON.parse(
-    fs.readFileSync(custodyFiles[0], "utf8"),
-  ) as Record<string, unknown>;
-  assert.equal(custodyRecord.raw_signed_transaction_persisted, false);
-  assert.equal(custodyRecord.raw_signed_transaction_returned, false);
-  for (const secretKey of [
-    "private_key",
-    "privatekey",
-    "mnemonic",
-    "seed",
-    "seed_phrase",
-    "raw_signed_transaction",
-    "signed_transaction",
-    "signed_payload",
-    "keystore",
-  ]) {
+    const dry = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      root_dir: root,
+      attempt_id: attemptId,
+      dependencies,
+    });
+    assert.equal(dry.ok, true);
+    if ("reason" in dry || dry.status !== "dry_run") {
+      throw new Error("dry run failed");
+    }
+    const dryInput = { ...dry, root_dir: root };
+    assert.equal(dry.existing_plan, null);
+    assert.equal(dry.existing_custody, null);
+    assert.equal(dry.planner.pending_nonce, 7);
+    assert.deepEqual(dry.planner.rpc_methods_used, [
+      "eth_chainId",
+      "eth_getTransactionCount",
+      "eth_gasPrice",
+      "eth_getBalance",
+    ]);
     assert.equal(
-      Object.prototype.hasOwnProperty.call(custodyRecord, secretKey),
+      fs.existsSync(
+        path.join(root, "buy-void-prepared-transaction-custody-v1"),
+      ),
       false,
-      secretKey,
+      "dry run created custody directories",
     );
-  }
 
-  for (const [name, value] of saved) {
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  }
-  fs.rmSync(base, { recursive: true, force: true });
+    fault = "after_plan_reservation";
+    const afterPlan = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      ...applyFrom(dryInput),
+      dependencies,
+    } as any);
+    assert.equal(afterPlan.ok, false);
+    if (!("reason" in afterPlan)) throw new Error("plan fault did not hold");
+    assert.equal(afterPlan.reason, "injected_after_plan_reservation");
+    assert.equal(custodian.prepareCalls, 0);
+    let plans = listBuyVoidPreparedTransactionPlanReservationsV1({
+      root_dir: root,
+      wallet_address: WALLET,
+    });
+    assert.equal(plans.length, 1);
+    assert.equal(plans[0].nonce, 7);
 
-  console.log(`${MARKER}_PROOF_GREEN`);
-  console.log("nonce_7_unique=true");
-  console.log("same_pending_nonce_second_attempt_nonce=8");
-  console.log("external_custody_prepare_unique=1");
-  console.log("execution_prepare_write_unique=1");
-  console.log("raw_signed_transaction_application_visibility=false");
-  console.log("transaction_broadcast=false");
-  console.log("money_movement=false");
+    pendingNonce = 8n;
+    const nonceDrift = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      ...applyFrom(dryInput),
+      dependencies,
+    } as any);
+    assert.equal(nonceDrift.ok, false);
+    if (!("reason" in nonceDrift)) throw new Error("nonce drift was accepted");
+    assert.equal(
+      nonceDrift.reason,
+      "prepared_transaction_reserved_nonce_below_live_pending",
+    );
+    assert.equal(nonceDrift.stage, "nonce_fee_planning");
+    assert.equal(custodian.prepareCalls, 0);
+    pendingNonce = 7n;
+
+    balanceWei = 1n;
+    const depleted = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      ...applyFrom(dryInput),
+      dependencies,
+    } as any);
+    assert.equal(depleted.ok, false);
+    if (!("reason" in depleted)) throw new Error("depleted balance accepted");
+    assert.equal(
+      depleted.reason,
+      "prepared_transaction_live_planning_failed:fulfillment_wallet_balance_insufficient",
+    );
+    assert.equal(depleted.stage, "nonce_fee_planning");
+    assert.equal(custodian.prepareCalls, 0);
+    balanceWei = 1_000_000_000_000_000_000_000n;
+
+    const smuggleRoot = path.join(base, "smuggle-root");
+    fs.mkdirSync(smuggleRoot, { recursive: true, mode: 0o700 });
+    const smuggleAttempt = "b".repeat(64);
+    const smugglePlanDecision = reserveBuyVoidPreparedTransactionPlanV1({
+      root_dir: smuggleRoot,
+      saga_id: `voidbvfsg1_${"c".repeat(64)}`,
+      attempt_id: smuggleAttempt,
+      chain_id: "2050",
+      wallet_address: WALLET,
+      observed_pending_nonce: 1,
+      delivery_address: DELIVERY,
+      native_value_wei: "2500000000000000000",
+      gas_limit: "21000",
+      max_fee_per_gas_wei: "1100000000",
+      max_priority_fee_per_gas_wei: "100000000",
+      economic_policy_fingerprint_sha256:
+        economic.policy.fingerprints.combined_policy_sha256,
+      preparation_policy_fingerprint_sha256:
+        dry.required_preparation_policy_fingerprint_sha256,
+      now_ms: clock + 1,
+    });
+    assert.equal(smugglePlanDecision.ok, true);
+    if ("reason" in smugglePlanDecision) {
+      throw new Error(String(smugglePlanDecision.reason));
+    }
+    const smugglingCustodian: BuyVoidPreparedTransactionCustodianV1 = {
+      prepare_once: async (request) => ({
+        ok: true,
+        status: "prepared",
+        custody_handle: `custody:void-buy:${request.attempt_id}:${request.nonce}`,
+        signed_transaction_hash:
+          `0x${digest(`smuggled\n${request.idempotency_key_sha256}`)}`,
+        wallet_address: request.wallet_address,
+        signer_fingerprint_sha256: digest("smuggle-signer"),
+        transaction_plan_fingerprint_sha256:
+          request.transaction_plan_fingerprint_sha256,
+        payload: `0x${"9".repeat(128)}`,
+      } as any),
+      inspect_prepared: async () => ({
+        ok: false,
+        status: "held",
+        reason: "not_expected",
+      }),
+    };
+    const smuggled = await prepareBuyVoidTransactionInCustodyV1({
+      root_dir: smuggleRoot,
+      plan: smugglePlanDecision.reservation,
+      custodian: smugglingCustodian,
+      apply: true,
+      confirmation:
+        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
+      now_ms: clock + 2,
+    });
+    assert.equal(smuggled.ok, false);
+    if (!("reason" in smuggled)) throw new Error("smuggled result accepted");
+    assert.equal(smuggled.reason, "prepared_custody_failed");
+    assert.match(
+      String(smuggled.detail?.message || ""),
+      /custodian_prepared_result_keys_invalid/,
+    );
+    assert.equal(smuggled.external_signing_performed, true);
+    const smuggleRecords = path.join(
+      smuggleRoot,
+      "buy-void-prepared-transaction-custody-v1",
+      "records",
+    );
+    assert.deepEqual(
+      fs.existsSync(smuggleRecords) ? fs.readdirSync(smuggleRecords) : [],
+      [],
+    );
+
+    const walletKey = digest(`void-buy-wallet-v1\n2050\n${WALLET}`);
+    const attemptIndex = path.join(
+      root,
+      "buy-void-prepared-transaction-plan-reservation-v1",
+      "wallets",
+      walletKey,
+      "attempts",
+      `${attemptId}.json`,
+    );
+    fs.rmSync(attemptIndex);
+    assert.equal(fs.existsSync(attemptIndex), false);
+
+    const afterExternalCustody =
+      await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        ...applyFrom(dryInput),
+        dependencies,
+      } as any);
+    assert.equal(afterExternalCustody.ok, false);
+    if (!("reason" in afterExternalCustody)) {
+      throw new Error("external custody fault did not hold");
+    }
+    assert.equal(afterExternalCustody.stage, "custody");
+    assert.equal(afterExternalCustody.external_signing_performed, true);
+    assert.equal(custodian.prepareCalls, 1);
+    assert.equal(custodian.prepared.size, 1);
+    assert.equal(fs.existsSync(attemptIndex), true);
+
+    fault = "after_custody_record";
+    const afterCustodyRecord =
+      await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        ...applyFrom(dryInput),
+        dependencies,
+      } as any);
+    assert.equal(afterCustodyRecord.ok, false);
+    if (!("reason" in afterCustodyRecord)) {
+      throw new Error("custody record fault did not hold");
+    }
+    assert.equal(afterCustodyRecord.reason, "injected_after_custody_record");
+    assert.equal(afterCustodyRecord.external_signing_performed, true);
+    assert.equal(custodian.prepareCalls, 2);
+    assert.equal(custodian.prepared.size, 1);
+    assert.equal(pipelinePrepareCalls, 0);
+
+    fault = "after_execution_attempt_preparation";
+    const afterExecutionPrepare =
+      await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        ...applyFrom(dryInput),
+        dependencies,
+      } as any);
+    assert.equal(afterExecutionPrepare.ok, false);
+    if (!("reason" in afterExecutionPrepare)) {
+      throw new Error("execution prepare fault did not hold");
+    }
+    assert.equal(
+      afterExecutionPrepare.reason,
+      "injected_after_execution_attempt_preparation",
+    );
+    assert.equal(afterExecutionPrepare.external_signing_performed, true);
+    assert.equal(pipelinePrepareCalls, 1);
+    assert.ok(custodian.inspectCalls >= 1);
+    assert.equal(
+      initialized.saga
+        .createFilesystemSagaStoreV1(
+          path.join(root, "buy-void-crash-consistent-saga-runtime-v1"),
+        )
+        .recover(initialized.saga_id)
+        .state.state,
+      "attempt_reserved",
+    );
+
+    const completed = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      ...applyFrom(dryInput),
+      dependencies,
+    } as any);
+    if ("stage" in completed) {
+      throw new Error(
+        `completion failed:${completed.stage}:${completed.reason}:` +
+          JSON.stringify(completed.detail || {}),
+      );
+    }
+    if (completed.status !== "prepared") {
+      throw new Error(`completion status invalid:${completed.status}`);
+    }
+    assert.equal(completed.plan.nonce, 7);
+    assert.equal(completed.execution_attempt.status, "prepared");
+    assert.equal(completed.external_signing_performed, true);
+    assert.equal(completed.transaction_broadcast_performed, false);
+    assert.equal(completed.wallet_access_performed, false);
+    assert.equal(completed.raw_signed_transaction_persisted, false);
+    assert.equal(completed.raw_signed_transaction_returned, false);
+    assert.equal(completed.money_movement_performed, false);
+    assert.equal(pipelinePrepareCalls, 1);
+    assert.equal(custodian.prepared.size, 1);
+    assert.equal(
+      JSON.stringify(completed).includes('"custody_handle":"'),
+      false,
+    );
+
+    const sagaRoot = path.join(
+      root,
+      "buy-void-crash-consistent-saga-runtime-v1",
+    );
+    const sagaRecord = initialized.saga
+      .createFilesystemSagaStoreV1(sagaRoot)
+      .recover(initialized.saga_id);
+    assert.deepEqual(
+      sagaRecord.events.map((event: any) => event.event_type),
+      [
+        "saga_initialized",
+        "claim_committed",
+        "inventory_reserved",
+        "attempt_reserved",
+        "transaction_prepared",
+      ],
+    );
+    assert.equal(
+      sagaRecord.state.transaction_hash,
+      completed.custody.signed_transaction_hash,
+    );
+    assert.equal(sagaRecord.state.nonce, 7);
+    const preparedEvent = sagaRecord.events.find(
+      (event: any) => event.event_type === "transaction_prepared",
+    );
+    assert.ok(preparedEvent);
+    assert.equal(
+      preparedEvent.payload.fulfillment_wallet_fingerprint_sha256,
+      digest(WALLET),
+    );
+    assert.equal(
+      preparedEvent.payload.gas_limit,
+      completed.plan.gas_limit,
+    );
+    assert.equal(
+      preparedEvent.payload.max_fee_per_gas_wei,
+      completed.plan.max_fee_per_gas_wei,
+    );
+    assert.equal(
+      preparedEvent.payload.max_priority_fee_per_gas_wei,
+      completed.plan.max_priority_fee_per_gas_wei,
+    );
+
+    const duplicate = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+      ...applyFrom(dryInput),
+      dependencies,
+    } as any);
+    assert.equal(duplicate.ok, true);
+    if ("reason" in duplicate) throw new Error(String(duplicate.reason));
+    assert.equal(duplicate.status, "duplicate");
+    assert.equal(pipelinePrepareCalls, 1);
+    assert.equal(custodian.prepared.size, 1);
+
+    const conflictingSagaModule = async () => {
+      const real = initialized.saga;
+      return {
+        ...real,
+        createFilesystemSagaStoreV1: (storeRoot: string) => {
+          const store = real.createFilesystemSagaStoreV1(storeRoot);
+          return Object.freeze({
+            root_dir: store.root_dir,
+            recover: (sagaId: string) => {
+              const record = store.recover(sagaId);
+              if (!record) return record;
+              const clone = structuredClone(record);
+              if (clone.state?.state === "transaction_prepared") {
+                const prepared = clone.events.find(
+                  (event: any) =>
+                    event.event_type === "transaction_prepared",
+                );
+                if (prepared) {
+                  prepared.payload.max_fee_per_gas_wei =
+                    (BigInt(prepared.payload.max_fee_per_gas_wei) + 1n)
+                      .toString();
+                }
+              }
+              return clone;
+            },
+            acquireLease: (input: Record<string, unknown>) =>
+              store.acquireLease(input),
+            releaseLease: (input: Record<string, unknown>) =>
+              store.releaseLease(input),
+            appendEvent: (input: Record<string, unknown>) =>
+              store.appendEvent(input),
+          });
+        },
+      };
+    };
+    const fullBindingConflict =
+      await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        ...applyFrom(dryInput),
+        dependencies: {
+          ...dependencies,
+          load_saga_module: conflictingSagaModule,
+        },
+      } as any);
+    assert.equal(fullBindingConflict.ok, false);
+    if (!("reason" in fullBindingConflict)) {
+      throw new Error("full saga conflict was accepted");
+    }
+    assert.equal(
+      fullBindingConflict.reason,
+      "prepared_transaction_existing_saga_conflict:max_fee_per_gas_wei",
+    );
+    assert.equal(fullBindingConflict.stage, "saga_append");
+    assert.equal(fullBindingConflict.external_signing_performed, true);
+
+    const secondAttempt = "d".repeat(64);
+    const secondPlan = reserveBuyVoidPreparedTransactionPlanV1({
+      root_dir: root,
+      saga_id: `voidbvfsg1_${"e".repeat(64)}`,
+      attempt_id: secondAttempt,
+      chain_id: "2050",
+      wallet_address: WALLET,
+      observed_pending_nonce: 7,
+      delivery_address: "0x9999999999999999999999999999999999999999",
+      native_value_wei: "2500000000000000000",
+      gas_limit: "21000",
+      max_fee_per_gas_wei: "1100000000",
+      max_priority_fee_per_gas_wei: "100000000",
+      economic_policy_fingerprint_sha256:
+        economic.policy.fingerprints.combined_policy_sha256,
+      preparation_policy_fingerprint_sha256:
+        completed.plan.preparation_policy_fingerprint_sha256,
+      now_ms: clock + 1000,
+    });
+    assert.equal(secondPlan.ok, true);
+    if ("reason" in secondPlan) throw new Error(String(secondPlan.reason));
+    assert.equal(secondPlan.reservation.nonce, 8);
+
+    const changedSameAttempt = reserveBuyVoidPreparedTransactionPlanV1({
+      root_dir: root,
+      saga_id: initialized.saga_id,
+      attempt_id: attemptId,
+      chain_id: "2050",
+      wallet_address: WALLET,
+      observed_pending_nonce: 7,
+      delivery_address: DELIVERY,
+      native_value_wei: "2500000000000000000",
+      gas_limit: "22000",
+      max_fee_per_gas_wei: "1100000000",
+      max_priority_fee_per_gas_wei: "100000000",
+      economic_policy_fingerprint_sha256:
+        economic.policy.fingerprints.combined_policy_sha256,
+      preparation_policy_fingerprint_sha256:
+        completed.plan.preparation_policy_fingerprint_sha256,
+    });
+    assert.equal(changedSameAttempt.ok, false);
+    plans = listBuyVoidPreparedTransactionPlanReservationsV1({
+      root_dir: root,
+      wallet_address: WALLET,
+    });
+    assert.deepEqual(
+      plans.map((plan) => plan.nonce).sort((a, b) => a - b),
+      [7, 8],
+    );
+
+    const custodyRoot = path.join(
+      root,
+      "buy-void-prepared-transaction-custody-v1",
+    );
+    const custodyFiles = recursiveFiles(custodyRoot);
+    assert.equal(custodyFiles.length, 1);
+    const custodyStat = fs.lstatSync(custodyFiles[0]);
+    assert.equal(custodyStat.mode & 0o077, 0);
+    const custodyRecord = JSON.parse(
+      fs.readFileSync(custodyFiles[0], "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(custodyRecord.raw_signed_transaction_persisted, false);
+    assert.equal(custodyRecord.raw_signed_transaction_returned, false);
+    assert.deepEqual(Object.keys(custodyRecord).sort(), [
+      "application_private_key_accessed",
+      "application_wallet_accessed",
+      "custody_handle",
+      "custody_handle_fingerprint_sha256",
+      "custody_status",
+      "idempotency_key_sha256",
+      "marker",
+      "money_movement_authorized",
+      "nonce",
+      "plan_reservation_id",
+      "raw_signed_transaction_persisted",
+      "raw_signed_transaction_returned",
+      "recorded_at_ms",
+      "saga_id",
+      "schema",
+      "signed_transaction_hash",
+      "signer_fingerprint_sha256",
+      "transaction_broadcast_authorized",
+      "transaction_plan_fingerprint_sha256",
+      "version",
+      "wallet_address_fingerprint_sha256",
+      "attempt_id",
+    ].sort());
+
+    assert.ok(plannerCalls >= 4);
+    console.log(`${MARKER}_PROOF_GREEN`);
+    console.log("nonce_drift_before_signing_fail_closed=true");
+    console.log("depleted_balance_before_signing_fail_closed=true");
+    console.log("numeric_loopback_rpc_required=true");
+    console.log("custodian_unknown_fields_rejected=true");
+    console.log("full_saga_duplicate_binding_required=true");
+    console.log("custody_record_private=true");
+    console.log("external_signing_after_custodian_call_conservative=true");
+    console.log("transaction_broadcast=false");
+    console.log("money_movement=false");
+  } finally {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {

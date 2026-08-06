@@ -6,7 +6,9 @@ on:
       - ".github/workflows/buy-void-saga-prepared-transaction-custody-v1.yml"
       - "docs/operators/buy-void-saga-prepared-transaction-custody-v1.md"
       - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts"
       - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
       - "src/economic/buy_void_saga_prepared_transaction_coordinator_v1.ts"
       - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
@@ -21,7 +23,9 @@ on:
       - ".github/workflows/buy-void-saga-prepared-transaction-custody-v1.yml"
       - "docs/operators/buy-void-saga-prepared-transaction-custody-v1.md"
       - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts"
       - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
       - "src/economic/buy_void_saga_prepared_transaction_coordinator_v1.ts"
       - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
@@ -60,7 +64,9 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Prove crash-consistent prepared transaction custody
-        run: npx tsx scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts
+        run: |
+          npx tsx scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts
+          npx tsx scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts
 
       - name: Typecheck repository
         run: npm run typecheck

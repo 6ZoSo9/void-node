@@ -16,6 +16,8 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_AUTHORITY_V1 = {
   external_custodian_dependency_required: true,
   custodian_prepare_once_required: true,
   custodian_inspection_required: true,
+  exact_custodian_result_schema_required: true,
+  opaque_handle_namespace_required: true,
   application_private_key_access: false,
   application_wallet_access: false,
   application_signing: false,
@@ -35,19 +37,8 @@ const RECORD_SCHEMA =
 const SHA256 = /^[0-9a-f]{64}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
-const HANDLE = /^[A-Za-z0-9._:@/-]{16,240}$/;
+const HANDLE = /^custody:void-buy:[A-Za-z0-9._:@/-]{1,220}$/;
 const MAX_JSON_BYTES = 256 * 1024;
-const FORBIDDEN_RESULT_KEYS = new Set([
-  "privatekey",
-  "mnemonic",
-  "seed",
-  "seedphrase",
-  "rawtransaction",
-  "rawsignedtransaction",
-  "signedtransaction",
-  "signedpayload",
-  "keystore",
-]);
 
 export type BuyVoidPreparedTransactionCustodianPrepareRequestV1 = {
   idempotency_key_sha256: string;
@@ -95,11 +86,13 @@ export type BuyVoidPreparedTransactionCustodianV1 = {
   prepare_once: (
     request: Readonly<BuyVoidPreparedTransactionCustodianPrepareRequestV1>,
   ) => Promise<BuyVoidPreparedTransactionCustodianDecisionV1>;
-  inspect_prepared: (request: Readonly<{
-    idempotency_key_sha256: string;
-    attempt_id: string;
-    custody_handle: string;
-  }>) => Promise<BuyVoidPreparedTransactionCustodianDecisionV1>;
+  inspect_prepared: (
+    request: Readonly<{
+      idempotency_key_sha256: string;
+      attempt_id: string;
+      custody_handle: string;
+    }>,
+  ) => Promise<BuyVoidPreparedTransactionCustodianDecisionV1>;
 };
 
 export type BuyVoidPreparedTransactionCustodyRecordV1 = {
@@ -159,8 +152,8 @@ export type BuyVoidPreparedTransactionCustodyDecisionV1 =
       applied: true;
       mutation_performed: boolean;
       custody: BuyVoidPreparedTransactionCustodyPublicProjectionV1;
-      custodian_called: boolean;
-      external_signing_performed: boolean;
+      custodian_called: true;
+      external_signing_performed: true;
       transaction_broadcast_performed: false;
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
@@ -233,23 +226,27 @@ function safeNow(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : Date.now();
 }
 
-function forbiddenResultKey(value: unknown, depth = 0): string | null {
-  if (!value || typeof value !== "object") return null;
-  if (depth > 12) return "__custodian_result_depth_exceeded__";
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = forbiddenResultKey(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${label}_keys_invalid`);
   }
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (FORBIDDEN_RESULT_KEYS.has(normalized)) return key;
-    const found = forbiddenResultKey(child, depth + 1);
-    if (found) return found;
+}
+
+function directObject(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label}_object_required`);
   }
-  return null;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error(`${label}_prototype_invalid`);
+  }
+  return value as Record<string, unknown>;
 }
 
 function validatePlan(
@@ -257,7 +254,8 @@ function validatePlan(
 ): string | null {
   if (
     !plan ||
-    plan.marker !== "VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1" ||
+    plan.marker !==
+      "VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1" ||
     plan.version !== 1 ||
     !SHA256.test(String(plan.reservation_id || "")) ||
     !SHA256.test(String(plan.attempt_id || "")) ||
@@ -296,7 +294,10 @@ function ensurePrivateDirectory(directory: string): void {
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("prepared_custody_directory_must_be_direct_directory");
   }
-  if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+  if (
+    typeof process.getuid === "function" &&
+    metadata.uid !== process.getuid()
+  ) {
     throw new Error("prepared_custody_directory_owner_mismatch");
   }
   if ((metadata.mode & 0o077) !== 0) {
@@ -313,11 +314,17 @@ function fsyncDirectory(directory: string): void {
   }
 }
 
-function recordPath(rootDir: string, attemptId: string): string {
+function recordPath(
+  rootDir: string,
+  attemptId: string,
+  options: { create?: boolean } = {},
+): string {
   const root = custodyRoot(rootDir);
   const records = path.join(root, "records");
-  ensurePrivateDirectory(root);
-  ensurePrivateDirectory(records);
+  if (options.create !== false) {
+    ensurePrivateDirectory(root);
+    ensurePrivateDirectory(records);
+  }
   return path.join(records, `${attemptId}.json`);
 }
 
@@ -326,7 +333,9 @@ function atomicCreateJson(file: string, value: unknown): "created" | "exists" {
   ensurePrivateDirectory(parent);
   const temporary = path.join(
     parent,
-    `.${path.basename(file)}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`,
+    `.${path.basename(file)}.tmp-${process.pid}-${crypto
+      .randomBytes(8)
+      .toString("hex")}`,
   );
   const descriptor = fs.openSync(temporary, "wx", 0o600);
   try {
@@ -353,20 +362,22 @@ function atomicCreateJson(file: string, value: unknown): "created" | "exists" {
   }
 }
 
-function readJsonObject(file: string): Record<string, any> | null {
+function readJsonObject(file: string): Record<string, unknown> | null {
   try {
     const metadata = fs.lstatSync(file);
     if (!metadata.isFile() || metadata.isSymbolicLink()) {
       throw new Error("prepared_custody_record_must_be_direct_file");
     }
+    if ((metadata.mode & 0o077) !== 0) {
+      throw new Error("prepared_custody_record_must_be_private");
+    }
     if (metadata.size < 2 || metadata.size > MAX_JSON_BYTES) {
       throw new Error("prepared_custody_record_size_out_of_range");
     }
-    const value = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("prepared_custody_record_object_required");
-    }
-    return value as Record<string, any>;
+    return directObject(
+      JSON.parse(fs.readFileSync(file, "utf8")),
+      "prepared_custody_record",
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
     throw error;
@@ -376,13 +387,15 @@ function readJsonObject(file: string): Record<string, any> | null {
 function idempotencyKey(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
 ): string {
-  return sha256([
-    "void-buy-prepared-transaction-custody-v1",
-    plan.saga_id,
-    plan.attempt_id,
-    plan.reservation_id,
-    plan.transaction_plan_fingerprint_sha256,
-  ].join("\n"));
+  return sha256(
+    [
+      "void-buy-prepared-transaction-custody-v1",
+      plan.saga_id,
+      plan.attempt_id,
+      plan.reservation_id,
+      plan.transaction_plan_fingerprint_sha256,
+    ].join("\n"),
+  );
 }
 
 function prepareRequest(
@@ -407,30 +420,55 @@ function prepareRequest(
   };
 }
 
+const PREPARED_KEYS = [
+  "ok",
+  "status",
+  "custody_handle",
+  "signed_transaction_hash",
+  "wallet_address",
+  "signer_fingerprint_sha256",
+  "transaction_plan_fingerprint_sha256",
+] as const;
+
+const HELD_KEYS = ["ok", "status", "reason"] as const;
+
 function validateCustodianDecision(
   decision: BuyVoidPreparedTransactionCustodianDecisionV1,
   request: BuyVoidPreparedTransactionCustodianPrepareRequestV1,
 ): BuyVoidPreparedTransactionCustodianPreparedV1 {
-  const forbidden = forbiddenResultKey(decision);
-  if (forbidden) throw new Error(`custodian_result_forbidden_key:${forbidden}`);
-  if ("reason" in decision) {
-    throw new Error(
-      `custodian_prepare_held:${String(decision.reason || "unknown")}`,
-    );
+  const object = directObject(decision, "custodian_result");
+  if (object.ok === false) {
+    exactKeys(object, HELD_KEYS, "custodian_held_result");
+    if (
+      object.status !== "held" ||
+      typeof object.reason !== "string" ||
+      !object.reason.trim() ||
+      object.reason.length > 240
+    ) {
+      throw new Error("custodian_held_result_invalid");
+    }
+    throw new Error(`custodian_prepare_held:${object.reason}`);
   }
-  const wallet = normalizedAddress(decision.wallet_address);
-  const hash = String(decision.signed_transaction_hash || "")
+
+  exactKeys(object, PREPARED_KEYS, "custodian_prepared_result");
+  const wallet = normalizedAddress(object.wallet_address);
+  const hash = String(object.signed_transaction_hash || "")
     .trim()
     .toLowerCase();
-  const handle = String(decision.custody_handle || "").trim();
+  const handle = String(object.custody_handle || "").trim();
   const signerFingerprint = String(
-    decision.signer_fingerprint_sha256 || "",
-  ).trim().toLowerCase();
+    object.signer_fingerprint_sha256 || "",
+  )
+    .trim()
+    .toLowerCase();
   const planFingerprint = String(
-    decision.transaction_plan_fingerprint_sha256 || "",
-  ).trim().toLowerCase();
+    object.transaction_plan_fingerprint_sha256 || "",
+  )
+    .trim()
+    .toLowerCase();
   if (
-    !["prepared", "duplicate"].includes(decision.status) ||
+    object.ok !== true ||
+    (object.status !== "prepared" && object.status !== "duplicate") ||
     !HANDLE.test(handle) ||
     !HASH.test(hash) ||
     wallet !== request.wallet_address ||
@@ -441,7 +479,7 @@ function validateCustodianDecision(
   }
   return {
     ok: true,
-    status: decision.status,
+    status: object.status,
     custody_handle: handle,
     signed_transaction_hash: hash,
     wallet_address: wallet,
@@ -467,15 +505,13 @@ function buildRecord(input: {
     transaction_plan_fingerprint_sha256:
       input.plan.transaction_plan_fingerprint_sha256,
     nonce: input.plan.nonce,
-    wallet_address_fingerprint_sha256:
-      sha256(input.plan.wallet_address),
+    wallet_address_fingerprint_sha256: sha256(input.plan.wallet_address),
     signer_fingerprint_sha256:
       input.prepared.signer_fingerprint_sha256,
     custody_handle: input.prepared.custody_handle,
     custody_handle_fingerprint_sha256:
       sha256(input.prepared.custody_handle),
-    signed_transaction_hash:
-      input.prepared.signed_transaction_hash,
+    signed_transaction_hash: input.prepared.signed_transaction_hash,
     custody_status: "prepared",
     application_private_key_accessed: false,
     application_wallet_accessed: false,
@@ -486,27 +522,54 @@ function buildRecord(input: {
   };
 }
 
+const RECORD_KEYS = [
+  "schema",
+  "marker",
+  "version",
+  "recorded_at_ms",
+  "saga_id",
+  "attempt_id",
+  "plan_reservation_id",
+  "idempotency_key_sha256",
+  "transaction_plan_fingerprint_sha256",
+  "nonce",
+  "wallet_address_fingerprint_sha256",
+  "signer_fingerprint_sha256",
+  "custody_handle",
+  "custody_handle_fingerprint_sha256",
+  "signed_transaction_hash",
+  "custody_status",
+  "application_private_key_accessed",
+  "application_wallet_accessed",
+  "raw_signed_transaction_persisted",
+  "raw_signed_transaction_returned",
+  "transaction_broadcast_authorized",
+  "money_movement_authorized",
+] as const;
+
 function parseRecord(
-  value: Record<string, any>,
+  value: Record<string, unknown>,
 ): BuyVoidPreparedTransactionCustodyRecordV1 {
+  exactKeys(value, RECORD_KEYS, "prepared_custody_record");
   if (
     value.schema !== RECORD_SCHEMA ||
     value.marker !== VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_V1 ||
     value.version !== 1 ||
     !Number.isSafeInteger(value.recorded_at_ms) ||
-    value.recorded_at_ms <= 0 ||
+    Number(value.recorded_at_ms) <= 0 ||
     !/^voidbvfsg1_[0-9a-f]{64}$/.test(String(value.saga_id || "")) ||
     !SHA256.test(String(value.attempt_id || "")) ||
     !SHA256.test(String(value.plan_reservation_id || "")) ||
     !SHA256.test(String(value.idempotency_key_sha256 || "")) ||
     !SHA256.test(String(value.transaction_plan_fingerprint_sha256 || "")) ||
     !Number.isSafeInteger(value.nonce) ||
-    value.nonce < 0 ||
+    Number(value.nonce) < 0 ||
     !SHA256.test(String(value.wallet_address_fingerprint_sha256 || "")) ||
     !SHA256.test(String(value.signer_fingerprint_sha256 || "")) ||
     !HANDLE.test(String(value.custody_handle || "")) ||
     !SHA256.test(String(value.custody_handle_fingerprint_sha256 || "")) ||
-    value.custody_handle_fingerprint_sha256 !== sha256(value.custody_handle) ||
+    value.custody_handle_fingerprint_sha256 !==
+      sha256(String(value.custody_handle)) ||
     !HASH.test(String(value.signed_transaction_hash || "")) ||
     value.custody_status !== "prepared" ||
     value.application_private_key_accessed !== false ||
@@ -518,7 +581,7 @@ function parseRecord(
   ) {
     throw new Error("prepared_custody_record_invalid");
   }
-  return value as BuyVoidPreparedTransactionCustodyRecordV1;
+  return value as unknown as BuyVoidPreparedTransactionCustodyRecordV1;
 }
 
 function assertRecordMatchesPlan(
@@ -579,7 +642,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
 
   if (
     String(input?.confirmation || "") !==
-      VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1
+    VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1
   ) {
     return held(true, "prepared_custody_confirmation_required", {
       detail: {
@@ -598,12 +661,14 @@ export async function prepareBuyVoidTransactionInCustodyV1(
     return held(true, "prepared_custodian_dependency_required");
   }
 
+  let custodianCalled = false;
   try {
     const file = recordPath(input.root_dir, input.plan.attempt_id);
     const existingRaw = readJsonObject(file);
     if (existingRaw) {
       const existing = parseRecord(existingRaw);
       assertRecordMatchesPlan(existing, input.plan);
+      custodianCalled = true;
       const inspected = validateCustodianDecision(
         await custodian.inspect_prepared({
           idempotency_key_sha256: existing.idempotency_key_sha256,
@@ -613,6 +678,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
         prepareRequest(input.plan),
       );
       if (
+        inspected.status !== "duplicate" ||
         inspected.custody_handle !== existing.custody_handle ||
         inspected.signed_transaction_hash !==
           existing.signed_transaction_hash ||
@@ -628,7 +694,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
         mutation_performed: false,
         custody: publicProjection(existing),
         custodian_called: true,
-        external_signing_performed: false,
+        external_signing_performed: true,
         transaction_broadcast_performed: false,
         raw_signed_transaction_persisted: false,
         raw_signed_transaction_returned: false,
@@ -637,18 +703,8 @@ export async function prepareBuyVoidTransactionInCustodyV1(
     }
 
     const request = prepareRequest(input.plan);
-    let external: BuyVoidPreparedTransactionCustodianDecisionV1;
-    try {
-      external = await custodian.prepare_once(request);
-    } catch (error) {
-      return held(true, "prepared_custodian_call_failed", {
-        custodian_called: true,
-        external_signing_performed: true,
-        detail: {
-          error_class: String((error as Error)?.name || "Error").slice(0, 80),
-        },
-      });
-    }
+    custodianCalled = true;
+    const external = await custodian.prepare_once(request);
     const prepared = validateCustodianDecision(external, request);
     const record = buildRecord({
       plan: input.plan,
@@ -664,7 +720,8 @@ export async function prepareBuyVoidTransactionInCustodyV1(
       if (
         raced.custody_handle !== record.custody_handle ||
         raced.signed_transaction_hash !== record.signed_transaction_hash ||
-        raced.signer_fingerprint_sha256 !== record.signer_fingerprint_sha256
+        raced.signer_fingerprint_sha256 !==
+          record.signer_fingerprint_sha256
       ) {
         throw new Error("prepared_custody_race_conflict");
       }
@@ -675,7 +732,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
         mutation_performed: false,
         custody: publicProjection(raced),
         custodian_called: true,
-        external_signing_performed: prepared.status === "prepared",
+        external_signing_performed: true,
         transaction_broadcast_performed: false,
         raw_signed_transaction_persisted: false,
         raw_signed_transaction_returned: false,
@@ -690,7 +747,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
       mutation_performed: true,
       custody: publicProjection(record),
       custodian_called: true,
-      external_signing_performed: prepared.status === "prepared",
+      external_signing_performed: true,
       transaction_broadcast_performed: false,
       raw_signed_transaction_persisted: false,
       raw_signed_transaction_returned: false,
@@ -698,7 +755,8 @@ export async function prepareBuyVoidTransactionInCustodyV1(
     };
   } catch (error) {
     return held(true, "prepared_custody_failed", {
-      custodian_called: true,
+      custodian_called: custodianCalled,
+      external_signing_performed: custodianCalled,
       detail: {
         message: String((error as Error)?.message || error).slice(0, 240),
       },
@@ -714,7 +772,9 @@ export function readBuyVoidPreparedTransactionCustodyV1(input: {
   if (!SHA256.test(attemptId)) {
     throw new Error("prepared_custody_attempt_id_invalid");
   }
-  const raw = readJsonObject(recordPath(input.root_dir, attemptId));
+  const raw = readJsonObject(
+    recordPath(input.root_dir, attemptId, { create: false }),
+  );
   if (!raw) return null;
   return publicProjection(parseRecord(raw));
 }

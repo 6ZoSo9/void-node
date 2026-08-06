@@ -56,18 +56,22 @@ It assumes the exact-green server-policy, identity-conflict, lease, fencing, and
 - transaction-template fingerprint; and
 - final transaction-plan fingerprint.
 
-The allocator does not use a shared stale lock. It publishes one immutable file per wallet nonce with an atomic hard-link create.
+The allocator serializes the complete per-wallet nonce-allocation critical section with the repository's wallet-scoped filesystem bakery lock. Each contender publishes a unique choosing claim and monotonically ordered ticket. Dead-process claims are reclaimed, while one live process never removes another live process's claim.
+
+Inside that lock, the allocator still publishes one immutable file per wallet nonce with an atomic hard-link create.
 
 For one wallet:
 
 1. the planner's pending nonce is a floor, not an exclusive assignment;
-2. the allocator scans existing immutable local claims;
-3. it attempts the first available nonce at or above both the pending floor and the highest local reservation;
-4. an atomic collision advances to the next nonce;
-5. the same attempt and same template recover idempotently; and
-6. the same attempt with a changed template fails closed.
+2. allocation and same-attempt recovery execute under one wallet-scoped lock;
+3. the allocator scans existing immutable local claims;
+4. it attempts the first available nonce at or above both the pending floor and the highest local reservation;
+5. the same attempt and same template recover idempotently;
+6. if a prior reservation is below a caller's newer observed pending floor, that caller fails closed instead of accepting a stale nonce;
+7. an atomic nonce collision remains a defensive fallback; and
+8. the same attempt with a changed template fails closed.
 
-A separate attempt index is published after the nonce claim. If the process terminates after the nonce file but before the attempt index, retry scans the nonce records, finds the unique attempt, validates the exact template, and repairs the missing index. More than one nonce for one attempt is corruption and fails closed.
+A separate attempt index is published after the nonce claim. If the process terminates after the nonce file but before the attempt index, retry scans the nonce records, finds the unique attempt, validates the exact template, and repairs the missing index. A process that dies while holding an allocation ticket cannot permanently block the wallet because its dead ticket is reclaimed.
 
 Nonce release is intentionally absent. Releasing or reassigning a nonce requires later chain reconciliation and is a separate gate.
 
@@ -170,6 +174,9 @@ The proof establishes:
 - one saga `transaction_prepared` event;
 - exact transaction-hash and nonce agreement across custody, execution journal, and saga;
 - a second attempt observing pending nonce 7 receives local nonce 8;
+- two simultaneous processes for the same attempt and pending floors 7 and 8 leave exactly one nonce reservation;
+- a higher observed pending floor fails closed when a lower reservation won first;
+- a dead allocation ticket is reclaimed before the next attempt reserves a nonce;
 - changed-plan reuse of the first attempt is rejected without another nonce;
 - the custody file is private;
 - the public result contains no opaque handle;

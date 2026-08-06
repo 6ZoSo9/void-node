@@ -21,6 +21,7 @@ import {
 import {
   planBuyVoidNativeExecutionNonceFeeV1,
   type BuyVoidNativeExecutionNonceFeePlanDecisionV1,
+  type BuyVoidNativeExecutionNonceFeePlanReadyV1,
   type BuyVoidNativeExecutionNonceFeePlannerPolicyV1,
   type BuyVoidNativeExecutionPlannerTransportV1,
 } from "./buy_void_native_execution_nonce_fee_planner_v1.js";
@@ -55,9 +56,14 @@ export const VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_AUTHORITY_V1 = {
   exact_attempt_selector: true,
   server_controlled_economic_policy: true,
   server_controlled_preparation_policy: true,
+  numeric_loopback_rpc_only: true,
   read_only_nonce_fee_planning: true,
+  live_pre_sign_revalidation_required: true,
+  reserved_nonce_drift_fails_closed: true,
   durable_local_nonce_reservation: true,
   opaque_external_custody_required: true,
+  exact_custodian_result_schema_required: true,
+  full_saga_prepared_binding_required: true,
   application_private_key_access: false,
   application_wallet_access: false,
   application_signing: false,
@@ -102,9 +108,15 @@ export type BuyVoidSagaPreparedTransactionFaultStageV1 =
 
 export type BuyVoidSagaPreparedTransactionDependenciesV1 = {
   list_claims?: (rootDir: string) => unknown[];
-  list_inventory?: (input: { root_dir: string; pool_id: string }) => unknown[];
+  list_inventory?: (input: {
+    root_dir: string;
+    pool_id: string;
+  }) => unknown[];
   list_attempts?: (rootDir: string) => unknown[];
-  read_attempt?: (input: { root_dir: string; attempt_id: string }) => unknown | null;
+  read_attempt?: (input: {
+    root_dir: string;
+    attempt_id: string;
+  }) => unknown | null;
   run_pipeline_command?: (
     command: Record<string, unknown>,
   ) => unknown | Promise<unknown>;
@@ -149,10 +161,7 @@ export type BuyVoidSagaPreparedTransactionDecisionV1 =
       required_custody_confirmation:
         typeof VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1;
       required_pipeline_confirmation: string;
-      planner: BuyVoidNativeExecutionNonceFeePlanDecisionV1 & {
-        ok: true;
-        status: "planned";
-      };
+      planner: BuyVoidNativeExecutionNonceFeePlanReadyV1;
       existing_plan: BuyVoidPreparedTransactionPlanReservationV1 | null;
       existing_custody:
         BuyVoidPreparedTransactionCustodyPublicProjectionV1 | null;
@@ -222,15 +231,14 @@ type SagaStoreV1 = {
 type SagaModuleV1 = {
   ADVANCE_CONFIRMATION: string;
   ACTION_CONFIRMATIONS: Record<string, string>;
-  validateSagaBindingV1: (binding: Record<string, unknown>) => Record<string, any>;
+  validateSagaBindingV1: (
+    binding: Record<string, unknown>,
+  ) => Record<string, any>;
   computeSagaIdV1: (binding: Record<string, unknown>) => string;
-  deriveSagaNextActionV1: (state: Record<string, unknown>) => {
-    action: string | null;
-    terminal: boolean;
-    required_confirmation: string | null;
-  };
   createFilesystemSagaStoreV1: (rootDir: string) => SagaStoreV1;
-  runSagaSupervisorTickV1: (input: Record<string, unknown>) => Promise<any>;
+  runSagaSupervisorTickV1: (
+    input: Record<string, unknown>,
+  ) => Promise<any>;
 };
 
 type PreparationPolicyV1 = {
@@ -248,12 +256,9 @@ type PreparationPolicyDecisionV1 =
   | {
       ok: true;
       policy: PreparationPolicyV1;
-      reason?: never;
-      missing?: never;
     }
   | {
       ok: false;
-      policy?: never;
       missing: string[];
       reason: string;
     };
@@ -277,13 +282,16 @@ type HeldLikeV1 = {
 function hasReason(value: unknown): value is HeldLikeV1 {
   return Boolean(
     value &&
-    typeof value === "object" &&
-    typeof (value as { reason?: unknown }).reason === "string",
+      typeof value === "object" &&
+      typeof (value as { reason?: unknown }).reason === "string",
   );
 }
 
 function held(
-  stage: Extract<BuyVoidSagaPreparedTransactionDecisionV1, { ok: false }>["stage"],
+  stage: Extract<
+    BuyVoidSagaPreparedTransactionDecisionV1,
+    { ok: false }
+  >["stage"],
   applied: boolean,
   reason: string,
   options: {
@@ -347,8 +355,7 @@ function parsePositive(value: unknown): bigint | null {
   try {
     const parsed = BigInt(raw);
     return parsed > 0n ? parsed : null;
-  } catch (error) {
-    void error;
+  } catch {
     return null;
   }
 }
@@ -372,32 +379,49 @@ function policyValues(): PreparationPolicyDecisionV1 {
   const missing = Object.entries(
     VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_POLICY_ENVS_V1,
   )
-    .filter(([key]) => !values[
-      key as keyof typeof VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_POLICY_ENVS_V1
-    ])
+    .filter(
+      ([key]) =>
+        !values[
+          key as keyof typeof VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_POLICY_ENVS_V1
+        ],
+    )
     .map(([, name]) => name)
     .sort();
   if (missing.length) {
-    return { ok: false, missing, reason: "preparation_policy_not_configured" };
+    return {
+      ok: false,
+      missing,
+      reason: "preparation_policy_not_configured",
+    };
   }
 
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(values.rpc_url);
-  } catch (error) {
-    void error;
-    return { ok: false, missing: [], reason: "preparation_rpc_url_invalid" };
+  } catch {
+    return {
+      ok: false,
+      missing: [],
+      reason: "preparation_rpc_url_invalid",
+    };
   }
+  const hostname = parsedUrl.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
   if (
     parsedUrl.protocol !== "http:" ||
     parsedUrl.username ||
     parsedUrl.password ||
+    parsedUrl.search ||
     parsedUrl.hash ||
-    !["127.0.0.1", "::1", "localhost"].includes(
-      parsedUrl.hostname.toLowerCase(),
-    )
+    parsedUrl.pathname !== "/" ||
+    (hostname !== "127.0.0.1" && hostname !== "::1")
   ) {
-    return { ok: false, missing: [], reason: "preparation_rpc_must_be_loopback" };
+    return {
+      ok: false,
+      missing: [],
+      reason: "preparation_rpc_must_be_numeric_loopback_origin",
+    };
   }
 
   const gasLimit = parsePositive(values.gas_limit);
@@ -416,10 +440,13 @@ function policyValues(): PreparationPolicyDecisionV1 {
     multiplier < 10_000n ||
     multiplier > 50_000n
   ) {
-    return { ok: false, missing: [], reason: "preparation_policy_invalid" };
+    return {
+      ok: false,
+      missing: [],
+      reason: "preparation_policy_invalid",
+    };
   }
 
-  parsedUrl.pathname = parsedUrl.pathname || "/";
   const normalizedUrl = parsedUrl.toString();
   const stable = {
     rpc_url_fingerprint_sha256: sha256(normalizedUrl),
@@ -441,13 +468,16 @@ function policyValues(): PreparationPolicyDecisionV1 {
 
 function dependencies(
   supplied?: BuyVoidSagaPreparedTransactionDependenciesV1,
-): Required<Omit<
-  BuyVoidSagaPreparedTransactionDependenciesV1,
-  "planner_transport" | "custodian"
->> & Pick<
-  BuyVoidSagaPreparedTransactionDependenciesV1,
-  "planner_transport" | "custodian"
-> {
+): Required<
+  Omit<
+    BuyVoidSagaPreparedTransactionDependenciesV1,
+    "planner_transport" | "custodian"
+  >
+> &
+  Pick<
+    BuyVoidSagaPreparedTransactionDependenciesV1,
+    "planner_transport" | "custodian"
+  > {
   return {
     list_claims: listBuyVoidFulfillmentJournalClaimsV1,
     list_inventory: listBuyVoidInventoryReservationsV1,
@@ -480,8 +510,10 @@ function matchesIdentity(
     text(value.request_id) === text(reservation.request_id) ||
     text(value.canonical_payment_identity) ===
       text(reservation.canonical_payment_identity) ||
-    text(value.request_key_sha256) === text(reservation.request_key_sha256) ||
-    text(value.payment_key_sha256) === text(reservation.payment_key_sha256)
+    text(value.request_key_sha256) ===
+      text(reservation.request_key_sha256) ||
+    text(value.payment_key_sha256) ===
+      text(reservation.payment_key_sha256)
   );
 }
 
@@ -518,7 +550,12 @@ function existingSagaStore(
   const root = path.join(rootDir, SAGA_ROOT);
   const sagaDirectory = path.join(root, "sagas", sagaId);
   const eventsDirectory = path.join(sagaDirectory, "events");
-  for (const directory of [root, path.join(root, "sagas"), sagaDirectory, eventsDirectory]) {
+  for (const directory of [
+    root,
+    path.join(root, "sagas"),
+    sagaDirectory,
+    eventsDirectory,
+  ]) {
     const metadata = fs.lstatSync(directory);
     if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
       throw new Error("prepared_transaction_saga_directory_invalid");
@@ -535,15 +572,20 @@ async function reconstruct(input: {
   deps: ReturnType<typeof dependencies>;
 }): Promise<ReconstructedV1> {
   const attempt = one(
-    input.deps.list_attempts(input.root_dir)
+    input.deps
+      .list_attempts(input.root_dir)
       .map((value) => value as BuyVoidExecutionAttemptStateV1)
-      .filter((value) =>
-        text(value?.reservation?.attempt_id).toLowerCase() === input.attempt_id
+      .filter(
+        (value) =>
+          text(value?.reservation?.attempt_id).toLowerCase() ===
+          input.attempt_id,
       ),
     "prepared_transaction_attempt",
   );
   if (!["reserved", "prepared"].includes(attempt.status)) {
-    throw new Error(`prepared_transaction_attempt_status_invalid:${attempt.status}`);
+    throw new Error(
+      `prepared_transaction_attempt_status_invalid:${attempt.status}`,
+    );
   }
   if (
     attempt.broadcast ||
@@ -554,27 +596,38 @@ async function reconstruct(input: {
     throw new Error("prepared_transaction_attempt_not_clean");
   }
   const reservation = attempt.reservation;
-  const claims = input.deps.list_claims(input.root_dir)
+  const claims = input.deps
+    .list_claims(input.root_dir)
     .map((value) => value as BuyVoidFulfillmentJournalIntentV1)
-    .filter((value) => matchesIdentity({
-      request_id: value.claim?.request_id,
-      canonical_payment_identity: value.claim?.canonical_payment_identity,
-      request_key_sha256: value.request_key_sha256,
-      payment_key_sha256: value.payment_key_sha256,
-    }, reservation));
+    .filter((value) =>
+      matchesIdentity(
+        {
+          request_id: value.claim?.request_id,
+          canonical_payment_identity:
+            value.claim?.canonical_payment_identity,
+          request_key_sha256: value.request_key_sha256,
+          payment_key_sha256: value.payment_key_sha256,
+        },
+        reservation,
+      ),
+    );
   const intent = one(claims, "prepared_transaction_claim");
-  const inventories = input.deps.list_inventory({
-    root_dir: input.root_dir,
-    pool_id: "void-fixed-price-pool-v1",
-  })
+  const inventories = input.deps
+    .list_inventory({
+      root_dir: input.root_dir,
+      pool_id: "void-fixed-price-pool-v1",
+    })
     .map((value) => value as BuyVoidInventoryReservationV1)
     .filter((value) => matchesIdentity(value as any, reservation));
-  const inventory = one(inventories, "prepared_transaction_inventory");
+  const inventory = one(
+    inventories,
+    "prepared_transaction_inventory",
+  );
 
-  const walletAllowlist = input.server_policy.execution_policy
-    .fulfillment_wallet_allowlist
-    .map(normalizeAddress)
-    .filter(Boolean);
+  const walletAllowlist =
+    input.server_policy.execution_policy.fulfillment_wallet_allowlist
+      .map(normalizeAddress)
+      .filter(Boolean);
   if (walletAllowlist.length !== 1) {
     throw new Error("prepared_transaction_wallet_allowlist_must_have_one");
   }
@@ -588,7 +641,7 @@ async function reconstruct(input: {
   if (!record) throw new Error("prepared_transaction_saga_missing");
   if (
     record.events?.[0]?.payload?.policy_id !==
-      input.server_policy.saga_policy_id
+    input.server_policy.saga_policy_id
   ) {
     throw new Error("prepared_transaction_saga_policy_conflict");
   }
@@ -606,7 +659,9 @@ async function reconstruct(input: {
     inventory.canonical_payment_identity !==
       reservation.canonical_payment_identity ||
     inventory.delivery_address !==
-      normalizeAddress(intent.claim.unsigned_instruction.delivery_address) ||
+      normalizeAddress(
+        intent.claim.unsigned_instruction.delivery_address,
+      ) ||
     inventory.reserved_void_units !==
       text(intent.claim.unsigned_instruction.void_amount_units)
   ) {
@@ -648,7 +703,9 @@ async function runPlanner(input: {
   const voidUnits = parsePositive(
     input.reconstructed.intent.claim.unsigned_instruction.void_amount_units,
   );
-  if (voidUnits === null) throw new Error("prepared_transaction_void_amount_invalid");
+  if (voidUnits === null) {
+    throw new Error("prepared_transaction_void_amount_invalid");
+  }
   const nativeValue = voidUnits * NATIVE_VALUE_MULTIPLIER;
   const policy: BuyVoidNativeExecutionNonceFeePlannerPolicyV1 = {
     rpc_url: input.preparation_policy.rpc_url,
@@ -673,6 +730,52 @@ async function runPlanner(input: {
     : await input.deps.plan_nonce_fee(policy);
 }
 
+function plannerReady(
+  decision: BuyVoidNativeExecutionNonceFeePlanDecisionV1,
+): decision is BuyVoidNativeExecutionNonceFeePlanReadyV1 {
+  return (
+    decision.ok === true &&
+    decision.status === "planned" &&
+    decision.chain_id === "2050" &&
+    decision.sufficient_balance === true
+  );
+}
+
+function validatePlannerBinding(input: {
+  planner: BuyVoidNativeExecutionNonceFeePlanReadyV1;
+  preparation_policy: PreparationPolicyV1;
+  reconstructed: ReconstructedV1;
+}): void {
+  if (
+    input.planner.wallet_address !==
+      input.reconstructed.wallet_address ||
+    input.planner.rpc_url_fingerprint_sha256 !==
+      input.preparation_policy.rpc_url_fingerprint_sha256 ||
+    !Number.isSafeInteger(input.planner.pending_nonce) ||
+    input.planner.pending_nonce < 0 ||
+    input.planner.transaction_plan.chain_id !== "2050" ||
+    input.planner.rpc_methods_used.join(",") !==
+      "eth_chainId,eth_getTransactionCount,eth_gasPrice,eth_getBalance"
+  ) {
+    throw new Error("prepared_transaction_live_planner_binding_invalid");
+  }
+}
+
+function validatePlanAgainstLiveState(input: {
+  plan: BuyVoidPreparedTransactionPlanReservationV1;
+  planner: BuyVoidNativeExecutionNonceFeePlanReadyV1;
+}): void {
+  if (input.planner.pending_nonce > input.plan.nonce) {
+    throw new Error("prepared_transaction_reserved_nonce_below_live_pending");
+  }
+  if (
+    BigInt(input.planner.computed_max_fee_per_gas_wei) >
+      BigInt(input.plan.max_fee_per_gas_wei)
+  ) {
+    throw new Error("prepared_transaction_reserved_fee_below_live_requirement");
+  }
+}
+
 function validatePreparedAttempt(input: {
   attempt: BuyVoidExecutionAttemptStateV1;
   plan: BuyVoidPreparedTransactionPlanReservationV1;
@@ -695,7 +798,66 @@ function validatePreparedAttempt(input: {
     input.attempt.prepared.signed_transaction_persisted !== false ||
     input.attempt.prepared.raw_transaction_persisted !== false
   ) {
-    throw new Error("prepared_transaction_execution_attempt_binding_conflict");
+    throw new Error(
+      "prepared_transaction_execution_attempt_binding_conflict",
+    );
+  }
+}
+
+function expectedSagaPreparedState(input: {
+  attempt_id: string;
+  custody: BuyVoidPreparedTransactionCustodyPublicProjectionV1;
+  plan: BuyVoidPreparedTransactionPlanReservationV1;
+}): Record<string, unknown> {
+  return {
+    attempt_id: input.attempt_id,
+    transaction_hash: input.custody.signed_transaction_hash,
+    nonce: input.plan.nonce,
+    fulfillment_wallet_fingerprint_sha256:
+      sha256(input.plan.wallet_address),
+    gas_limit: input.plan.gas_limit,
+    max_fee_per_gas_wei: input.plan.max_fee_per_gas_wei,
+    max_priority_fee_per_gas_wei:
+      input.plan.max_priority_fee_per_gas_wei,
+  };
+}
+
+function assertSagaPreparedRecord(
+  record: Record<string, any>,
+  expected: Record<string, unknown>,
+): void {
+  if (
+    record?.state?.attempt_id !== expected.attempt_id ||
+    record?.state?.transaction_hash !== expected.transaction_hash ||
+    record?.state?.nonce !== expected.nonce
+  ) {
+    throw new Error(
+      "prepared_transaction_existing_saga_conflict:reduced_state",
+    );
+  }
+  const preparedEvents = Array.isArray(record?.events)
+    ? record.events.filter(
+        (event: Record<string, any>) =>
+          event?.event_type === "transaction_prepared",
+      )
+    : [];
+  if (preparedEvents.length !== 1) {
+    throw new Error(
+      "prepared_transaction_existing_saga_conflict:event_count",
+    );
+  }
+  const payload = preparedEvents[0]?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error(
+      "prepared_transaction_existing_saga_conflict:event_payload",
+    );
+  }
+  for (const [key, value] of Object.entries(expected)) {
+    if (payload[key] !== value) {
+      throw new Error(
+        `prepared_transaction_existing_saga_conflict:${key}`,
+      );
+    }
   }
 }
 
@@ -704,53 +866,146 @@ function confirmations(saga: SagaModuleV1): {
   saga_action_confirmation: string;
 } {
   const action = saga.ACTION_CONFIRMATIONS.prepare_transaction;
-  if (!action) throw new Error("prepared_transaction_saga_confirmation_missing");
+  if (!action) {
+    throw new Error("prepared_transaction_saga_confirmation_missing");
+  }
   return {
     saga_confirmation: saga.ADVANCE_CONFIRMATION,
     saga_action_confirmation: action,
   };
 }
 
+async function livePlannerOrHeld(input: {
+  reconstructed: ReconstructedV1;
+  preparation_policy: PreparationPolicyV1;
+  deps: ReturnType<typeof dependencies>;
+  applied: boolean;
+  stageReason: string;
+}): Promise<
+  | { ok: true; planner: BuyVoidNativeExecutionNonceFeePlanReadyV1 }
+  | { ok: false; decision: Extract<BuyVoidSagaPreparedTransactionDecisionV1, { ok: false }> }
+> {
+  let decision: BuyVoidNativeExecutionNonceFeePlanDecisionV1;
+  try {
+    decision = await runPlanner({
+      reconstructed: input.reconstructed,
+      preparation_policy: input.preparation_policy,
+      deps: input.deps,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      decision: held(
+        "nonce_fee_planning",
+        input.applied,
+        `${input.stageReason}_planner_exception`,
+        {
+          detail: {
+            error_class: String(
+              (error as Error)?.name || "Error",
+            ).slice(0, 80),
+          },
+        },
+      ),
+    };
+  }
+  if (!plannerReady(decision)) {
+    return {
+      ok: false,
+      decision: held(
+        "nonce_fee_planning",
+        input.applied,
+        `${input.stageReason}:${decision.reason}`,
+        { detail: decision.detail },
+      ),
+    };
+  }
+  try {
+    validatePlannerBinding({
+      planner: decision,
+      preparation_policy: input.preparation_policy,
+      reconstructed: input.reconstructed,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      decision: held(
+        "nonce_fee_planning",
+        input.applied,
+        String((error as Error)?.message || error),
+      ),
+    };
+  }
+  return { ok: true, planner: decision };
+}
+
 export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
   input: RunBuyVoidSagaPreparedTransactionInputV1,
 ): Promise<BuyVoidSagaPreparedTransactionDecisionV1> {
   const applied = input?.apply === true;
-  let rootDir = "";
   const attemptId = text(input?.attempt_id).toLowerCase();
   if (!SHA256.test(attemptId)) {
-    return held("input", applied, "prepared_transaction_attempt_id_invalid");
+    return held(
+      "input",
+      applied,
+      "prepared_transaction_attempt_id_invalid",
+    );
   }
+
+  let rootDir: string;
   try {
     rootDir = absoluteRoot(input?.root_dir);
   } catch (error) {
-    return held("input", applied, String((error as Error)?.message || error));
+    return held(
+      "input",
+      applied,
+      String((error as Error)?.message || error),
+    );
   }
 
-  const serverPolicyDecision = readBuyVoidCrashConsistentSagaServerPolicyV1();
-  if (hasReason(serverPolicyDecision)) {
-    return held("server_policy", applied, serverPolicyDecision.reason, {
-      detail: { missing_envs: serverPolicyDecision.missing_envs || [] },
-    });
-  }
-  const preparationPolicyDecision = policyValues();
-  if (hasReason(preparationPolicyDecision)) {
+  const serverPolicyDecision =
+    readBuyVoidCrashConsistentSagaServerPolicyV1();
+  if ("reason" in serverPolicyDecision) {
     return held(
       "server_policy",
       applied,
-      preparationPolicyDecision.reason,
-      { detail: { missing_envs: preparationPolicyDecision.missing || [] } },
+      String(serverPolicyDecision.reason),
+      {
+        detail: {
+          missing_envs: serverPolicyDecision.missing_envs || [],
+        },
+      },
+    );
+  }
+  const preparationPolicyDecision = policyValues();
+  if ("reason" in preparationPolicyDecision) {
+    return held(
+      "server_policy",
+      applied,
+      String(preparationPolicyDecision.reason),
+      { detail: { missing_envs: preparationPolicyDecision.missing } },
     );
   }
   const serverPolicy = serverPolicyDecision.policy;
-  const preparationPolicy = preparationPolicyDecision.policy!;
+  const preparationPolicy = preparationPolicyDecision.policy;
   const deps = dependencies(input?.dependencies);
+
   let saga: SagaModuleV1;
   try {
     saga = await deps.load_saga_module();
   } catch (error) {
-    return held("saga_reconstruction", applied, "prepared_transaction_saga_module_failed", {
-      detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
-    });
+    return held(
+      "saga_reconstruction",
+      applied,
+      "prepared_transaction_saga_module_failed",
+      {
+        detail: {
+          error_class: String(
+            (error as Error)?.name || "Error",
+          ).slice(0, 80),
+        },
+      },
+    );
   }
 
   let reconstructed: ReconstructedV1;
@@ -772,7 +1027,8 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
 
   const required = confirmations(saga);
   let existingPlan: BuyVoidPreparedTransactionPlanReservationV1 | null;
-  let existingCustody: BuyVoidPreparedTransactionCustodyPublicProjectionV1 | null;
+  let existingCustody:
+    BuyVoidPreparedTransactionCustodyPublicProjectionV1 | null;
   try {
     existingPlan = existingPlanForAttempt(
       rootDir,
@@ -791,57 +1047,30 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     );
   }
 
-  let planner: BuyVoidNativeExecutionNonceFeePlanDecisionV1;
+  const initialPlanner = await livePlannerOrHeld({
+    reconstructed,
+    preparation_policy: preparationPolicy,
+    deps,
+    applied,
+    stageReason: "prepared_transaction_live_planning_failed",
+  });
+  if ("decision" in initialPlanner) return initialPlanner.decision;
+
   if (existingPlan) {
-    planner = {
-      ok: true,
-      marker: "VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1",
-      version: 1,
-      status: "planned",
-      chain_id: "2050",
-      wallet_address: existingPlan.wallet_address,
-      wallet_address_fingerprint_sha256:
-        sha256(existingPlan.wallet_address),
-      rpc_url_fingerprint_sha256:
-        preparationPolicy.rpc_url_fingerprint_sha256,
-      transaction_plan: {
-        chain_id: "2050",
-        nonce: existingPlan.nonce,
-        gas_limit: existingPlan.gas_limit,
-        max_fee_per_gas_wei: existingPlan.max_fee_per_gas_wei,
-        max_priority_fee_per_gas_wei:
-          existingPlan.max_priority_fee_per_gas_wei,
-      },
-      pending_nonce: existingPlan.nonce,
-      observed_gas_price_wei: "0",
-      computed_max_fee_per_gas_wei:
-        existingPlan.max_fee_per_gas_wei,
-      configured_priority_fee_per_gas_wei:
-        existingPlan.max_priority_fee_per_gas_wei,
-      estimated_max_transaction_cost_wei: "0",
-      observed_wallet_balance_wei: "0",
-      sufficient_balance: true,
-      rpc_methods_used: [],
-      mutation_performed: false,
-      signing_performed: false,
-      transaction_broadcast_performed: false,
-    };
-  } else {
     try {
-      planner = await runPlanner({
-        reconstructed,
-        preparation_policy: preparationPolicy,
-        deps,
+      validatePlanAgainstLiveState({
+        plan: existingPlan,
+        planner: initialPlanner.planner,
       });
     } catch (error) {
-      return held("nonce_fee_planning", applied, "prepared_transaction_planner_exception", {
-        detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
-      });
-    }
-    if (hasReason(planner)) {
-      return held("nonce_fee_planning", applied, planner.reason, {
-        detail: planner.detail,
-      });
+      return held(
+        "nonce_fee_planning",
+        applied,
+        String((error as Error)?.message || error),
+        {
+          reconciliation_required: existingCustody !== null,
+        },
+      );
     }
   }
 
@@ -866,7 +1095,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
       required_pipeline_confirmation:
         VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
-      planner: planner as Extract<typeof planner, { ok: true }>,
+      planner: initialPlanner.planner,
       existing_plan: existingPlan,
       existing_custody: existingCustody,
       wallet_access_performed: false,
@@ -893,37 +1122,59 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     text(input.pipeline_confirmation) !==
       VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution
   ) {
-    return held("input", true, "prepared_transaction_exact_confirmations_required");
+    return held(
+      "input",
+      true,
+      "prepared_transaction_exact_confirmations_required",
+    );
   }
   if (!deps.custodian) {
-    return held("custody", true, "prepared_transaction_custodian_required");
+    return held(
+      "custody",
+      true,
+      "prepared_transaction_custodian_required",
+    );
   }
 
   const nowMs = deps.now_ms();
   if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
-    return held("input", true, "prepared_transaction_server_clock_invalid");
+    return held(
+      "input",
+      true,
+      "prepared_transaction_server_clock_invalid",
+    );
   }
   const voidUnits = parsePositive(
     reconstructed.intent.claim.unsigned_instruction.void_amount_units,
   );
   if (voidUnits === null) {
-    return held("journal_reconstruction", true, "prepared_transaction_void_amount_invalid");
+    return held(
+      "journal_reconstruction",
+      true,
+      "prepared_transaction_void_amount_invalid",
+    );
   }
-  const transactionPlan = (planner as Extract<typeof planner, { ok: true }>).transaction_plan;
+
   const planDecision = reserveBuyVoidPreparedTransactionPlanV1({
     root_dir: rootDir,
     saga_id: reconstructed.saga_id,
     attempt_id: attemptId,
     chain_id: "2050",
     wallet_address: reconstructed.wallet_address,
-    observed_pending_nonce: transactionPlan.nonce,
+    observed_pending_nonce: initialPlanner.planner.pending_nonce,
     delivery_address:
       reconstructed.intent.claim.unsigned_instruction.delivery_address,
     native_value_wei: voidUnits * NATIVE_VALUE_MULTIPLIER,
-    gas_limit: transactionPlan.gas_limit,
-    max_fee_per_gas_wei: transactionPlan.max_fee_per_gas_wei,
-    max_priority_fee_per_gas_wei:
-      transactionPlan.max_priority_fee_per_gas_wei,
+    gas_limit: existingPlan
+      ? existingPlan.gas_limit
+      : initialPlanner.planner.transaction_plan.gas_limit,
+    max_fee_per_gas_wei: existingPlan
+      ? existingPlan.max_fee_per_gas_wei
+      : initialPlanner.planner.transaction_plan.max_fee_per_gas_wei,
+    max_priority_fee_per_gas_wei: existingPlan
+      ? existingPlan.max_priority_fee_per_gas_wei
+      : initialPlanner.planner.transaction_plan
+          .max_priority_fee_per_gas_wei,
     economic_policy_fingerprint_sha256:
       serverPolicy.fingerprints.combined_policy_sha256,
     preparation_policy_fingerprint_sha256:
@@ -931,19 +1182,63 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     now_ms: nowMs,
   });
   if (hasReason(planDecision)) {
-    return held("plan_reservation", true, planDecision.reason, {
-      detail: planDecision.detail,
-    });
+    return held(
+      "plan_reservation",
+      true,
+      planDecision.reason,
+      { detail: planDecision.detail },
+    );
   }
   const plan = planDecision.reservation;
+
   try {
     await deps.fault_inject("after_plan_reservation");
   } catch (error) {
-    return held("plan_reservation", true, "injected_after_plan_reservation", {
-      mutation_performed: true,
+    return held(
+      "plan_reservation",
+      true,
+      "injected_after_plan_reservation",
+      {
+        mutation_performed: true,
+        reconciliation_required: true,
+        detail: {
+          error_class: String(
+            (error as Error)?.name || "Error",
+          ).slice(0, 80),
+        },
+      },
+    );
+  }
+
+  const preSignPlanner = await livePlannerOrHeld({
+    reconstructed,
+    preparation_policy: preparationPolicy,
+    deps,
+    applied: true,
+    stageReason: "prepared_transaction_pre_sign_revalidation_failed",
+  });
+  if ("decision" in preSignPlanner) {
+    return {
+      ...preSignPlanner.decision,
+      mutation_performed: planDecision.mutation_performed,
       reconciliation_required: true,
-      detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
+    };
+  }
+  try {
+    validatePlanAgainstLiveState({
+      plan,
+      planner: preSignPlanner.planner,
     });
+  } catch (error) {
+    return held(
+      "nonce_fee_planning",
+      true,
+      String((error as Error)?.message || error),
+      {
+        mutation_performed: planDecision.mutation_performed,
+        reconciliation_required: true,
+      },
+    );
   }
 
   const custodyDecision = await prepareBuyVoidTransactionInCustodyV1({
@@ -960,28 +1255,42 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       mutation_performed: planDecision.mutation_performed,
       external_signing_performed:
         custodyDecision.external_signing_performed,
-      reconciliation_required:
-        custodyDecision.custodian_called,
+      reconciliation_required: custodyDecision.custodian_called,
       detail: custodyDecision.detail,
     });
   }
-  if (!custodyDecision.custody) {
-    return held("custody", true, "prepared_transaction_custody_projection_missing", {
-      mutation_performed: planDecision.mutation_performed,
-      reconciliation_required: true,
-    });
-  }
   const custody = custodyDecision.custody;
+  if (!custody) {
+    return held(
+      "custody",
+      true,
+      "prepared_transaction_custody_projection_missing",
+      {
+        mutation_performed: planDecision.mutation_performed,
+        external_signing_performed: true,
+        reconciliation_required: true,
+      },
+    );
+  }
+
   try {
     await deps.fault_inject("after_custody_record");
   } catch (error) {
-    return held("custody", true, "injected_after_custody_record", {
-      mutation_performed: true,
-      external_signing_performed:
-        custodyDecision.external_signing_performed,
-      reconciliation_required: true,
-      detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
-    });
+    return held(
+      "custody",
+      true,
+      "injected_after_custody_record",
+      {
+        mutation_performed: true,
+        external_signing_performed: true,
+        reconciliation_required: true,
+        detail: {
+          error_class: String(
+            (error as Error)?.name || "Error",
+          ).slice(0, 80),
+        },
+      },
+    );
   }
 
   let attempt = deps.read_attempt({
@@ -989,13 +1298,18 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     attempt_id: attemptId,
   }) as BuyVoidExecutionAttemptStateV1 | null;
   if (!attempt) {
-    return held("execution_attempt_preparation", true, "prepared_transaction_attempt_reread_missing", {
-      mutation_performed: true,
-      external_signing_performed:
-        custodyDecision.external_signing_performed,
-      reconciliation_required: true,
-    });
+    return held(
+      "execution_attempt_preparation",
+      true,
+      "prepared_transaction_attempt_reread_missing",
+      {
+        mutation_performed: true,
+        external_signing_performed: true,
+        reconciliation_required: true,
+      },
+    );
   }
+
   if (attempt.status === "reserved") {
     const pipeline = await deps.run_pipeline_command({
       action: "prepare_execution",
@@ -1009,7 +1323,8 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         from_address: reconstructed.wallet_address,
         to_address: plan.delivery_address,
         amount_units:
-          reconstructed.intent.claim.unsigned_instruction.void_amount_units,
+          reconstructed.intent.claim.unsigned_instruction
+            .void_amount_units,
       },
       apply: true,
       confirmation:
@@ -1017,15 +1332,20 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       now_ms: nowMs,
     });
     const pipelineObject = pipeline as Record<string, any>;
-    if (!pipelineObject || pipelineObject.ok !== true || pipelineObject.status !== "applied") {
+    if (
+      !pipelineObject ||
+      pipelineObject.ok !== true ||
+      pipelineObject.status !== "applied"
+    ) {
       return held(
         "execution_attempt_preparation",
         true,
-        `prepared_transaction_pipeline_held:${text(pipelineObject?.reason) || "unknown"}`,
+        `prepared_transaction_pipeline_held:${
+          text(pipelineObject?.reason) || "unknown"
+        }`,
         {
           mutation_performed: true,
-          external_signing_performed:
-            custodyDecision.external_signing_performed,
+          external_signing_performed: true,
           reconciliation_required: true,
         },
       );
@@ -1035,14 +1355,20 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       attempt_id: attemptId,
     }) as BuyVoidExecutionAttemptStateV1 | null;
   }
+
   if (!attempt) {
-    return held("execution_attempt_preparation", true, "prepared_transaction_attempt_unreadable", {
-      mutation_performed: true,
-      external_signing_performed:
-        custodyDecision.external_signing_performed,
-      reconciliation_required: true,
-    });
+    return held(
+      "execution_attempt_preparation",
+      true,
+      "prepared_transaction_attempt_unreadable",
+      {
+        mutation_performed: true,
+        external_signing_performed: true,
+        reconciliation_required: true,
+      },
+    );
   }
+
   try {
     validatePreparedAttempt({
       attempt,
@@ -1057,12 +1383,12 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       String((error as Error)?.message || error),
       {
         mutation_performed: true,
-        external_signing_performed:
-          custodyDecision.external_signing_performed,
+        external_signing_performed: true,
         reconciliation_required: true,
       },
     );
   }
+
   try {
     await deps.fault_inject("after_execution_attempt_preparation");
   } catch (error) {
@@ -1072,26 +1398,40 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       "injected_after_execution_attempt_preparation",
       {
         mutation_performed: true,
-        external_signing_performed:
-          custodyDecision.external_signing_performed,
+        external_signing_performed: true,
         reconciliation_required: true,
-        detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
+        detail: {
+          error_class: String(
+            (error as Error)?.name || "Error",
+          ).slice(0, 80),
+        },
       },
     );
   }
 
+  const expectedSaga = expectedSagaPreparedState({
+    attempt_id: attemptId,
+    custody,
+    plan,
+  });
   let sagaResult: Record<string, any>;
-  const currentSaga = reconstructed.saga_store.recover(reconstructed.saga_id);
+  const currentSaga = reconstructed.saga_store.recover(
+    reconstructed.saga_id,
+  );
   if (text(currentSaga?.state?.state) === "transaction_prepared") {
-    if (
-      currentSaga.state.attempt_id !== attemptId ||
-      currentSaga.state.transaction_hash !== custody.signed_transaction_hash ||
-      currentSaga.state.nonce !== plan.nonce
-    ) {
-      return held("saga_append", true, "prepared_transaction_existing_saga_conflict", {
-        mutation_performed: true,
-        reconciliation_required: true,
-      });
+    try {
+      assertSagaPreparedRecord(currentSaga, expectedSaga);
+    } catch (error) {
+      return held(
+        "saga_append",
+        true,
+        String((error as Error)?.message || error),
+        {
+          mutation_performed: true,
+          external_signing_performed: true,
+          reconciliation_required: true,
+        },
+      );
     }
     sagaResult = {
       ok: true,
@@ -1100,10 +1440,12 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     };
   } else {
     try {
-      const result = await saga.runSagaSupervisorTickV1({
+      sagaResult = (await saga.runSagaSupervisorTickV1({
         store: reconstructed.saga_store,
         binding: reconstructed.binding,
-        owner_id: `void-buy-prepare-${process.pid}-${crypto.randomBytes(16).toString("hex")}`,
+        owner_id: `void-buy-prepare-${process.pid}-${crypto
+          .randomBytes(16)
+          .toString("hex")}`,
         now_ms: nowMs,
         lease_ttl_ms: LEASE_TTL_MS,
         recorded_at_utc: new Date(nowMs).toISOString(),
@@ -1114,39 +1456,65 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         action_confirmation: required.saga_action_confirmation,
         adapters: {
           prepare_transaction: async () => ({
-            payload: {
-              attempt_id: attemptId,
-              transaction_hash: custody.signed_transaction_hash,
-              nonce: plan.nonce,
-              fulfillment_wallet_fingerprint_sha256:
-                sha256(reconstructed.wallet_address),
-              gas_limit: plan.gas_limit,
-              max_fee_per_gas_wei: plan.max_fee_per_gas_wei,
-              max_priority_fee_per_gas_wei:
-                plan.max_priority_fee_per_gas_wei,
-            },
+            payload: expectedSaga,
           }),
         },
-      });
-      sagaResult = result as Record<string, any>;
+      })) as Record<string, any>;
     } catch (error) {
-      return held("saga_append", true, "prepared_transaction_saga_append_failed", {
-        mutation_performed: true,
-        external_signing_performed:
-          custodyDecision.external_signing_performed,
-        reconciliation_required: true,
-        detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
-      });
-    }
-    if (!sagaResult || sagaResult.ok !== true || sagaResult.status !== "applied") {
       return held(
         "saga_append",
         true,
-        `prepared_transaction_saga_held:${text(sagaResult?.reason) || text(sagaResult?.status) || "unknown"}`,
+        "prepared_transaction_saga_append_failed",
         {
           mutation_performed: true,
-          external_signing_performed:
-            custodyDecision.external_signing_performed,
+          external_signing_performed: true,
+          reconciliation_required: true,
+          detail: {
+            error_class: String(
+              (error as Error)?.name || "Error",
+            ).slice(0, 80),
+          },
+        },
+      );
+    }
+    if (
+      !sagaResult ||
+      sagaResult.ok !== true ||
+      sagaResult.status !== "applied"
+    ) {
+      return held(
+        "saga_append",
+        true,
+        `prepared_transaction_saga_held:${
+          text(sagaResult?.reason) ||
+          text(sagaResult?.status) ||
+          "unknown"
+        }`,
+        {
+          mutation_performed: true,
+          external_signing_performed: true,
+          reconciliation_required: true,
+        },
+      );
+    }
+    try {
+      const appended = reconstructed.saga_store.recover(
+        reconstructed.saga_id,
+      );
+      if (!appended) {
+        throw new Error(
+          "prepared_transaction_existing_saga_conflict:record_missing",
+        );
+      }
+      assertSagaPreparedRecord(appended, expectedSaga);
+    } catch (error) {
+      return held(
+        "saga_append",
+        true,
+        String((error as Error)?.message || error),
+        {
+          mutation_performed: true,
+          external_signing_performed: true,
           reconciliation_required: true,
         },
       );
@@ -1155,7 +1523,8 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
 
   return {
     ok: true,
-    status: sagaResult.status === "duplicate" ? "duplicate" : "prepared",
+    status:
+      sagaResult.status === "duplicate" ? "duplicate" : "prepared",
     applied: true,
     mutation_performed:
       planDecision.mutation_performed ||
@@ -1168,8 +1537,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     execution_attempt: attempt,
     saga_state: sagaResult.state || {},
     wallet_access_performed: false,
-    external_signing_performed:
-      custodyDecision.external_signing_performed,
+    external_signing_performed: true,
     transaction_broadcast_performed: false,
     raw_signed_transaction_persisted: false,
     raw_signed_transaction_returned: false,
