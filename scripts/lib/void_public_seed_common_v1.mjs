@@ -27,6 +27,8 @@ const TEMPORARY_HOST_SUFFIXES = Object.freeze([
 
 const NON_PUBLIC_V4 = new net.BlockList();
 const NON_PUBLIC_V6 = new net.BlockList();
+const PUBLIC_GLOBAL_UNICAST_V6 = new net.BlockList();
+PUBLIC_GLOBAL_UNICAST_V6.addSubnet("2000::", 3, "ipv6");
 for (const [network, prefix] of [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
@@ -40,6 +42,7 @@ for (const [network, prefix] of [
   ["198.18.0.0", 15],
   ["198.51.100.0", 24],
   ["203.0.113.0", 24],
+  ["192.88.99.0", 24],
   ["224.0.0.0", 4],
   ["240.0.0.0", 4],
 ]) {
@@ -49,8 +52,14 @@ for (const [network, prefix] of [
   ["::", 128],
   ["::1", 128],
   ["::ffff:0:0", 96],
+  ["64:ff9b:1::", 48],
   ["100::", 64],
+  ["100:0:0:1::", 64],
+  ["2001:2::", 48],
+  ["2001:10::", 28],
   ["2001:db8::", 32],
+  ["3fff::", 20],
+  ["5f00::", 16],
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],
@@ -66,11 +75,10 @@ export function assertPlainObject(value, label) {
 }
 
 export function assertSafeInteger(value, label, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < min || number > max) {
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
     throw new Error(`${label} must be an integer from ${min} through ${max}`);
   }
-  return number;
+  return value;
 }
 
 export function normalizeHostname(hostname) {
@@ -87,7 +95,12 @@ export function isTemporarySeedHostname(hostname) {
 export function isPublicIpAddress(address) {
   const family = net.isIP(address);
   if (family === 4) return !NON_PUBLIC_V4.check(address, "ipv4");
-  if (family === 6) return !NON_PUBLIC_V6.check(address, "ipv6");
+  if (family === 6) {
+    return (
+      PUBLIC_GLOBAL_UNICAST_V6.check(address, "ipv6") &&
+      !NON_PUBLIC_V6.check(address, "ipv6")
+    );
+  }
   return false;
 }
 

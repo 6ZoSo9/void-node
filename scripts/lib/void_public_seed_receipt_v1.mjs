@@ -91,7 +91,7 @@ export function validateQualificationReceipt(
 ) {
   const receipt = assertPlainObject(structuredClone(rawReceipt), "qualification receipt");
   if (receipt.schema !== QUALIFICATION_SCHEMA) throw new Error("unexpected qualification schema");
-  if (receipt.network !== NETWORK || Number(receipt.chain_id) !== CHAIN_ID) {
+  if (receipt.network !== NETWORK || receipt.chain_id !== CHAIN_ID) {
     throw new Error("qualification network or chain ID mismatch");
   }
   verifyQualificationId(receipt);
@@ -114,7 +114,12 @@ export function validateQualificationReceipt(
   if (!Array.isArray(receipt.samples) || receipt.samples.length < requiredSamples) {
     throw new Error(`qualification requires at least ${requiredSamples} samples`);
   }
-  if (Number(receipt.sample_count) !== receipt.samples.length) {
+  const declaredSampleCount = assertSafeInteger(
+    receipt.sample_count,
+    "qualification sample_count",
+    { min: 1, max: 20 },
+  );
+  if (declaredSampleCount !== receipt.samples.length) {
     throw new Error("qualification sample_count mismatch");
   }
 
@@ -133,14 +138,14 @@ export function validateQualificationReceipt(
     const readyHead = assertSafeInteger(sample.ready_head, "sample ready_head", { min: 1 });
     const head = assertSafeInteger(sample.head, "sample head", { min: 1 });
     const rangeHead = assertSafeInteger(sample.range_head, "sample range_head", { min: 1 });
-    if (sample.ready !== true || Number(sample.gap) !== 0 || Number(sample.txroot_live) !== 1) {
+    if (sample.ready !== true || sample.gap !== 0 || sample.txroot_live !== 1) {
       throw new Error("qualification sample is not exact-green");
     }
     if (sample.gateway_header !== "v1") throw new Error("qualification sample gateway header mismatch");
-    if (Number(sample.private_route_status) !== 404 || sample.private_route_error !== "route_not_public") {
+    if (sample.private_route_status !== 404 || sample.private_route_error !== "route_not_public") {
       throw new Error("qualification sample private-route boundary mismatch");
     }
-    if (Number(sample.mutation_status) !== 405 || sample.mutation_error !== "method_not_allowed") {
+    if (sample.mutation_status !== 405 || sample.mutation_error !== "method_not_allowed") {
       throw new Error("qualification sample mutation boundary mismatch");
     }
     if (Math.abs(head - readyHead) > 64 || rangeHead > Math.max(head, readyHead)) {
