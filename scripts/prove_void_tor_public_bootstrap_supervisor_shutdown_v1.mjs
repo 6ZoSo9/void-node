@@ -42,9 +42,6 @@ try {
     nodeFixture,
     [
       '#!/usr/bin/env node',
-      'import process from "node:process";',
-      'process.once("SIGTERM", () => process.exit(0));',
-      'process.once("SIGINT", () => process.exit(0));',
       'setInterval(() => {}, 1000);',
       '',
     ].join("\n"),
@@ -92,9 +89,13 @@ try {
   assert.equal(result.signal, null);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /VOID_TOR_PUBLIC_BOOTSTRAP_SUPERVISOR_V1_ACTIVE/);
+  assert.match(result.stdout, /VOID_TOR_PUBLIC_BOOTSTRAP_SUPERVISOR_V1_EXPECTED_CHILD_SIGNAL=SIGTERM/);
   assert.match(result.stdout, /transport=tor_v3_http/);
   assert.match(result.stdout, /dns_resolution_required=false/);
-  assert.doesNotMatch(result.stderr, /ERR_SERVER_NOT_RUNNING|ADAPTER_CLOSE_ERROR/);
+  assert.doesNotMatch(
+    result.stderr,
+    /ERR_SERVER_NOT_RUNNING|ADAPTER_CLOSE_ERROR|UNEXPECTED_CHILD_SIGNAL/,
+  );
 
   const baseMatch = /adapter_base=http:\/\/127\.0\.0\.1:([0-9]+)/.exec(result.stdout);
   assert.ok(baseMatch, "supervisor did not report its loopback adapter port");
@@ -103,6 +104,7 @@ try {
   console.log(`${MARKER}_GREEN`);
   console.log("checksum_valid_onion_identity_required=true");
   console.log("signal_forwarded_to_child=true");
+  console.log("forwarded_child_signal_treated_as_expected=true");
   console.log("adapter_close_idempotent=true");
   console.log("adapter_listener_closed=true");
   console.log("double_close_error=false");
