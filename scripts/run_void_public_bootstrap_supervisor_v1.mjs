@@ -9,7 +9,13 @@ async function main() {
   const peers = String(process.env.VOID_PUBLIC_SEED_CLIENT_PEERS || "").trim();
   if (!peers) throw new Error("VOID_PUBLIC_SEED_CLIENT_PEERS is required");
 
-  const adapter = await createPublicSeedClientAdapterV1({ peers });
+  const configuredPort = String(process.env.VOID_PUBLIC_SEED_CLIENT_PORT || "").trim();
+  const port = configuredPort ? Number(configuredPort) : 0;
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error("VOID_PUBLIC_SEED_CLIENT_PORT must be an integer from 0 through 65535");
+  }
+
+  const adapter = await createPublicSeedClientAdapterV1({ peers, port });
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
   const child = childProcess.spawn(process.execPath, [nodeEntry], {
     env: {
