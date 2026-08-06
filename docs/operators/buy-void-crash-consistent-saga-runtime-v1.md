@@ -149,7 +149,7 @@ pool_id=void-fixed-price-pool-v1
 
 Before the first claim exists, the runtime uses the existing pipeline dry run with the server verification and fulfillment policies to derive the candidate binding. The applied claim is reread from the canonical fulfillment journal and must produce the same binding and remain valid under the same stable server policy.
 
-## Restart reconciliation
+## Restart reconciliation and concurrency
 
 The saga is the restart coordinator. Its existing filesystem store supplies:
 
@@ -159,15 +159,22 @@ The saga is the restart coordinator. Its existing filesystem store supplies:
 - atomic event persistence; and
 - exact current-head validation before append.
 
-For every stage, the adapter first reads the legacy durable projection:
+Every mounted invocation receives a fresh cryptographically random lease owner ID. A process-global owner is forbidden because the saga lease treats the same active owner as a renewal. With a unique invocation owner, two overlapping HTTP commands in the same Node process cannot share one lease or fencing token. The second invocation holds before entering a delegated business adapter.
 
-- an existing matching claim completes `claim_payment` without claiming again;
-- an existing matching inventory reservation completes `reserve_inventory` without reserving again; and
-- an existing matching attempt completes `reserve_execution_attempt` without creating another attempt.
+For every stage, the adapter first reads the complete identity conflict domain, not only the selected request ID. A projection matches the saga when any canonical identity key matches:
+
+- request ID;
+- canonical payment identity;
+- request-key SHA-256; or
+- payment-key SHA-256.
+
+An existing matching claim completes `claim_payment` without claiming again. An existing matching inventory reservation completes `reserve_inventory` without reserving again. An existing matching attempt completes `reserve_execution_attempt` without creating another attempt.
 
 This handles termination after a legacy projection commits but before the corresponding saga event appends. A retry backfills the missing saga event from validated server evidence.
 
 The opposite ordering is prevented: the saga does not append a business event until the delegated legacy operation returns and the resulting canonical projection has been reread and validated.
+
+A supervisor response is successful only when it is exactly `ok=true` and `status=applied`. A returned lease hold or any other non-applied result is surfaced as a fail-closed runtime hold; it can never be wrapped in an outer applied response.
 
 ## Conflict behavior
 
@@ -175,12 +182,14 @@ The runtime holds with zero further writes when it sees:
 
 - caller-supplied policy or execution material;
 - a missing or mismatched stable policy fingerprint;
-- more than one claim for the request;
-- more than one inventory reservation matching the request or payment;
-- more than one execution attempt;
+- more than one claim matching the request or payment identity domain;
+- more than one inventory reservation matching the request or payment identity domain;
+- more than one execution attempt matching the request or payment identity domain;
 - an attempt without a canonical inventory reservation;
 - an inventory reservation without a canonical claim;
 - a saga, claim, reservation, attempt, or server-policy binding mismatch;
+- an active saga lease held by another invocation;
+- a supervisor result that is held, terminal, malformed, or otherwise not applied;
 - a malformed, symlinked, oversized, or non-object canonical request file; or
 - a stage beyond the three non-money actions.
 
@@ -199,7 +208,7 @@ The focused real-filesystem proof rejects caller attempts to substitute:
 
 Every substitution produces zero claim, inventory, attempt, and saga writes.
 
-The proof also injects failure immediately after each delegated durable projection write:
+The restart proof injects failure immediately after each delegated durable projection write:
 
 - claim write;
 - inventory-reservation write; and
@@ -214,16 +223,26 @@ inventory_reserved
 attempt_reserved
 ```
 
+The concurrency and identity proof:
+
+- overlaps two apply commands inside one Node process against the real filesystem saga lease;
+- proves the second command holds before a second adapter entry;
+- proves exactly one delegated claim mutation occurs;
+- rejects a matching request plus a conflicting same-payment claim history;
+- rejects matching plus conflicting same-payment inventory histories;
+- rejects matching plus conflicting same-payment execution-attempt histories;
+- proves each conflict creates zero saga writes; and
+- proves a held supervisor response is not reported as applied.
+
 Additional verification covers:
 
 - stable and observation policy fingerprints;
 - exact policy-fingerprint echo before apply;
 - immutable saga policy binding;
-- increasing fencing tokens;
+- increasing fencing tokens across independent invocations;
 - dry-run zero writes;
 - loopback enforcement and default-off behavior;
 - malformed and symlinked request rejection;
-- conflicting projection zero-write behavior;
 - parent runtime dispatch; and
 - Node.js 22, 24, and 26 compatibility.
 
@@ -232,6 +251,7 @@ Expected markers:
 ```text
 VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_V1_PROOF_GREEN
 VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1_PROOF_GREEN
+VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONCURRENCY_IDENTITY_V1_PROOF_GREEN
 VOID_BUY_VOID_RUNTIME_INPUT_DEPTH_FAIL_CLOSED_V1_PROOF_GREEN
 ```
 
