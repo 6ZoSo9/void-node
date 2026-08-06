@@ -155,7 +155,28 @@ try {
     () => validateTorNativeEndpoints([{ ...rawEndpoint, base: `http://${INVALID_ONION}` }], now),
     /checksum-valid Tor v3|checksum|version/,
   );
-  console.log("[PASS] closed onion manifest endpoint contract");
+  assert.throws(
+    () => validateTorNativeEndpoints([rawEndpoint], Number.NaN),
+    /validation time is invalid/,
+  );
+  assert.throws(
+    () => validateTorNativeEndpoints([rawEndpoint], now, 59_999),
+    /qualification age bound is invalid/,
+  );
+  assert.throws(
+    () => validateTorNativeEndpoints([rawEndpoint], now, 24 * 60 * 60 * 1000 + 1),
+    /qualification age bound is invalid/,
+  );
+  assert.throws(
+    () => validateTorNativeEndpoints([
+      {
+        ...rawEndpoint,
+        qualified_at: new Date(now - 2 * 60 * 60 * 1000 - 1).toISOString(),
+      },
+    ], now),
+    /qualification is stale/,
+  );
+  console.log("[PASS] closed fresh onion manifest endpoint contract");
 
   const port = await listen(fixture);
   const response = await requestOnionJson({
@@ -204,7 +225,15 @@ try {
     }),
     /path is invalid/,
   );
-  console.log("[PASS] local-only Tor proxy and query-pollution boundary");
+  await expectReject(
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      path: "/__void/ready.json\r\nX-Leak: 1",
+      socksPort: 9050,
+    }),
+    /path is invalid/,
+  );
+  console.log("[PASS] local-only Tor proxy and request-target safety boundary");
 
   await expectReject(
     () => requestOnionRouteV1(`http://${ONION}`, "/admin", { socksPort: 9050 }),
@@ -221,15 +250,25 @@ try {
   await expectReject(
     () => requestOnionRouteV1(
       `http://${ONION}`,
+      "/__void/ready.json\r\nX-Leak: 1",
+      { socksPort: 9050 },
+    ),
+    /public route is invalid/,
+  );
+  await expectReject(
+    () => requestOnionRouteV1(
+      `http://${ONION}`,
       "/blocks/range?from=0&to=999",
       { socksPort: 9050 },
     ),
     /exceeds 999/,
   );
-  console.log("[PASS] remote private and query-polluted routes rejected before SOCKS connect");
+  console.log("[PASS] remote private and unsafe routes rejected before SOCKS connect");
 
   console.log(`${MARKER}_GREEN`);
   console.log("checksum_valid_onion_identity_required=true");
+  console.log("qualification_freshness_required=true");
+  console.log("unsafe_request_target_rejected=true");
   console.log("socks_handshake_fragmentation_proven=true");
   console.log("remote_private_route_requested=false");
   console.log("dns_resolution_required=false");
