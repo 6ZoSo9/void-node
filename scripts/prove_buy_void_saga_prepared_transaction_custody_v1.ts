@@ -191,6 +191,7 @@ class FakeCustodian implements BuyVoidPreparedTransactionCustodianV1 {
   prepareCalls = 0;
   inspectCalls = 0;
   throwAfterFirstExternalPrepare = true;
+  throwOnInspect = false;
 
   async prepare_once(
     request: Readonly<BuyVoidPreparedTransactionCustodianPrepareRequestV1>,
@@ -228,6 +229,10 @@ class FakeCustodian implements BuyVoidPreparedTransactionCustodianV1 {
     custody_handle: string;
   }>): Promise<BuyVoidPreparedTransactionCustodianDecisionV1> {
     this.inspectCalls += 1;
+    if (this.throwOnInspect) {
+      this.throwOnInspect = false;
+      throw new Error("injected_inspection_failure");
+    }
     const existing = this.prepared.get(request.idempotency_key_sha256);
     if (!existing) return { ok: false, status: "held", reason: "missing" };
     if (
@@ -667,6 +672,24 @@ async function main(): Promise<void> {
     assert.equal(custodian.prepared.size, 1);
     assert.equal(pipelinePrepareCalls, 0);
 
+    const prepareCallsBeforeInspectionFailure = custodian.prepareCalls;
+    custodian.throwOnInspect = true;
+    const inspectionFailure =
+      await runBuyVoidSagaPreparedTransactionCoordinatorV1({
+        ...applyFrom(dryInput),
+        dependencies,
+      } as any);
+    assert.equal(inspectionFailure.ok, false);
+    if (!("reason" in inspectionFailure)) {
+      throw new Error("inspection failure did not hold");
+    }
+    assert.equal(inspectionFailure.reason, "prepared_custody_failed");
+    assert.equal(inspectionFailure.stage, "custody");
+    assert.equal(inspectionFailure.external_signing_performed, false);
+    assert.equal(inspectionFailure.reconciliation_required, true);
+    assert.equal(custodian.prepareCalls, prepareCallsBeforeInspectionFailure);
+    assert.equal(pipelinePrepareCalls, 0);
+
     fault = "after_execution_attempt_preparation";
     const afterExecutionPrepare =
       await runBuyVoidSagaPreparedTransactionCoordinatorV1({
@@ -681,9 +704,9 @@ async function main(): Promise<void> {
       afterExecutionPrepare.reason,
       "injected_after_execution_attempt_preparation",
     );
-    assert.equal(afterExecutionPrepare.external_signing_performed, true);
+    assert.equal(afterExecutionPrepare.external_signing_performed, false);
     assert.equal(pipelinePrepareCalls, 1);
-    assert.ok(custodian.inspectCalls >= 1);
+    assert.ok(custodian.inspectCalls >= 2);
     assert.equal(
       initialized.saga
         .createFilesystemSagaStoreV1(
@@ -709,7 +732,7 @@ async function main(): Promise<void> {
     }
     assert.equal(completed.plan.nonce, 7);
     assert.equal(completed.execution_attempt.status, "prepared");
-    assert.equal(completed.external_signing_performed, true);
+    assert.equal(completed.external_signing_performed, false);
     assert.equal(completed.transaction_broadcast_performed, false);
     assert.equal(completed.wallet_access_performed, false);
     assert.equal(completed.raw_signed_transaction_persisted, false);
@@ -772,6 +795,7 @@ async function main(): Promise<void> {
     assert.equal(duplicate.ok, true);
     if ("reason" in duplicate) throw new Error(String(duplicate.reason));
     assert.equal(duplicate.status, "duplicate");
+    assert.equal(duplicate.external_signing_performed, false);
     assert.equal(pipelinePrepareCalls, 1);
     assert.equal(custodian.prepared.size, 1);
 
@@ -827,7 +851,7 @@ async function main(): Promise<void> {
       "prepared_transaction_existing_saga_conflict:max_fee_per_gas_wei",
     );
     assert.equal(fullBindingConflict.stage, "saga_append");
-    assert.equal(fullBindingConflict.external_signing_performed, true);
+    assert.equal(fullBindingConflict.external_signing_performed, false);
 
     const secondAttempt = "d".repeat(64);
     const secondPlan = reserveBuyVoidPreparedTransactionPlanV1({
@@ -925,7 +949,9 @@ async function main(): Promise<void> {
     console.log("custodian_unknown_fields_rejected=true");
     console.log("full_saga_duplicate_binding_required=true");
     console.log("custody_record_private=true");
-    console.log("external_signing_after_custodian_call_conservative=true");
+    console.log("post_prepare_ambiguity_current_call_signing=true");
+    console.log("inspection_only_current_call_signing=false");
+    console.log("inspection_failure_current_call_signing=false");
     console.log("transaction_broadcast=false");
     console.log("money_movement=false");
   } finally {
