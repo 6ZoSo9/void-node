@@ -1,0 +1,57 @@
+name: Buy VOID saga terminal closeout v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-saga-terminal-closeout-v1.yml"
+      - "docs/operators/buy-void-saga-terminal-closeout-v1.md"
+      - "scripts/prove_buy_void_saga_terminal_closeout_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_server_policy_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_model_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_artifacts_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_reconstruction_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-saga-terminal-closeout-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: prove (${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove canonical terminal closeout and crash recovery
+        run: npx tsx scripts/prove_buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: |
+          git diff --check
+          test -z "$(git status --short)"
