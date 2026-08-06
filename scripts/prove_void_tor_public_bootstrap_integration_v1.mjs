@@ -161,6 +161,17 @@ try {
   assert.match(wrongRoot.stderr, /expected trust-root ID/);
   console.log("[PASS] manifest substitution rejection");
 
+  await assert.rejects(
+    () => createTorPublicSeedClientAdapterV1({
+      peers: resolver.stdout.trim(),
+      port: 1.5,
+      socksPort,
+      timeoutMs: 3000,
+    }),
+    /adapter port must be an integer/,
+  );
+  console.log("[PASS] direct adapter numeric configuration boundary");
+
   adapter = await createTorPublicSeedClientAdapterV1({
     peers: resolver.stdout.trim(),
     port: 0,
@@ -198,15 +209,24 @@ try {
   assert.equal(status.domain_registrar_required, false);
   assert.equal(status.certificate_authority_required, false);
   assert.equal(status.socks_proxy_loopback_only, true);
+
+  const pollutedStatusResponse = await fetch(
+    `${adapter.base}/__void/tor-public-seed-client-v1.json?leak=1`,
+  );
+  assert.equal(pollutedStatusResponse.status, 400);
+  const pollutedStatus = await pollutedStatusResponse.json();
+  assert.equal(pollutedStatus.error, "invalid_request");
   console.log("[PASS] Tor resolver-to-loopback-adapter composition");
 
   assert.equal(requested.length, 3);
   assert.deepEqual(requested, requested.map(() => ({ hostname: ONION, port: 80 })));
-  console.log("[PASS] SOCKS domain-name routing with zero clearnet DNS");
+  console.log("[PASS] local rejections produce zero additional SOCKS requests");
 
   console.log(`${MARKER}_GREEN`);
   console.log("local_manifest_id_pinned=true");
   console.log("manifest_substitution_rejected=true");
+  console.log("adapter_numeric_parameters_bounded=true");
+  console.log("local_status_query_rejected=true");
   console.log("resolver_adapter_composed=true");
   console.log("block_range_contiguous=true");
   console.log("dns_resolution_required=false");
