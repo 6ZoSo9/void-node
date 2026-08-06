@@ -83,9 +83,6 @@ const MAX_JSON_BYTES = 4 * 1024 * 1024;
 const MAX_INPUT_NESTING_DEPTH = 16;
 const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__";
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{3,160}$/;
-const OWNER_ID = `void-buy-saga-${process.pid}-${crypto
-  .randomBytes(8)
-  .toString("hex")}`;
 
 const CALLER_POLICY_KEYS = new Set([
   "policy",
@@ -207,6 +204,10 @@ function canonical(value: unknown): string {
 
 function same(left: unknown, right: unknown): boolean {
   return canonical(left) === canonical(right);
+}
+
+function invocationOwnerId(): string {
+  return `void-buy-saga-${process.pid}-${crypto.randomBytes(16).toString("hex")}`;
 }
 
 function loopback(req: any): boolean {
@@ -357,6 +358,66 @@ function inventoryFor(
     .filter((value): value is Record<string, any> => Boolean(value))
     .filter((value) => text(value.request_id) === requestId) as
     BuyVoidInventoryReservationV1[];
+}
+
+function projectionMatchesBinding(
+  value: {
+    request_id?: unknown;
+    canonical_payment_identity?: unknown;
+    request_key_sha256?: unknown;
+    payment_key_sha256?: unknown;
+  },
+  binding: BuyVoidCrashConsistentSagaBindingV1,
+): boolean {
+  return (
+    text(value.request_id) === binding.request_id ||
+    text(value.canonical_payment_identity) === binding.canonical_payment_identity ||
+    text(value.request_key_sha256) === binding.request_key_sha256 ||
+    text(value.payment_key_sha256) === binding.payment_key_sha256
+  );
+}
+
+function intentsForBinding(
+  deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
+  rootDir: string,
+  binding: BuyVoidCrashConsistentSagaBindingV1,
+): BuyVoidFulfillmentJournalIntentV1[] {
+  return deps
+    .list_claims(rootDir)
+    .map(objectValue)
+    .filter((value): value is Record<string, any> => Boolean(value))
+    .filter((value) => projectionMatchesBinding({
+      request_id: value.claim?.request_id,
+      canonical_payment_identity: value.claim?.canonical_payment_identity,
+      request_key_sha256: value.request_key_sha256,
+      payment_key_sha256: value.payment_key_sha256,
+    }, binding)) as BuyVoidFulfillmentJournalIntentV1[];
+}
+
+function inventoryForBinding(
+  deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
+  rootDir: string,
+  binding: BuyVoidCrashConsistentSagaBindingV1,
+): BuyVoidInventoryReservationV1[] {
+  return deps
+    .list_inventory({ root_dir: rootDir, pool_id: POOL_ID })
+    .map(objectValue)
+    .filter((value): value is Record<string, any> => Boolean(value))
+    .filter((value) => projectionMatchesBinding(value, binding)) as
+    BuyVoidInventoryReservationV1[];
+}
+
+function attemptsForBinding(
+  deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
+  rootDir: string,
+  binding: BuyVoidCrashConsistentSagaBindingV1,
+): BuyVoidExecutionAttemptStateV1[] {
+  return deps
+    .list_attempts(rootDir)
+    .map(objectValue)
+    .filter((value): value is Record<string, any> => Boolean(value))
+    .filter((value) => projectionMatchesBinding(value.reservation || {}, binding)) as
+    BuyVoidExecutionAttemptStateV1[];
 }
 
 function exactlyOneOrNull<T>(values: T[], label: string): T | null {
@@ -618,7 +679,11 @@ function delegatedConfirmation(action: string): string | null {
 
 function responseStatus(reason: string): number {
   if (reason.includes("confirmation_required")) return 428;
-  if (reason.includes("conflict") || reason.includes("multiple_")) return 409;
+  if (
+    reason.includes("conflict") ||
+    reason.includes("multiple_") ||
+    reason.includes("lease_held")
+  ) return 409;
   if (reason.includes("disabled") || reason.includes("not_configured")) return 503;
   return 422;
 }
@@ -742,9 +807,18 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     }));
     const sagaId = saga.computeSagaIdV1(binding);
     const recovered = recoverWithoutCreate(saga, rootDir, sagaId);
-    const intent = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
-    const reservation = exactlyOneOrNull(inventoryFor(deps, rootDir, requestId), "inventory");
-    const attempt = exactlyOneOrNull(attemptsFor(deps, rootDir, requestId), "attempt");
+    const intent = exactlyOneOrNull(
+      intentsForBinding(deps, rootDir, binding),
+      "claim",
+    );
+    const reservation = exactlyOneOrNull(
+      inventoryForBinding(deps, rootDir, binding),
+      "inventory",
+    );
+    const attempt = exactlyOneOrNull(
+      attemptsForBinding(deps, rootDir, binding),
+      "attempt",
+    );
     assertProjection({
       binding,
       record: recovered.record,
@@ -819,7 +893,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     }
     const adapters: Record<string, () => Promise<Record<string, unknown>>> = {
       claim_payment: async () => {
-        let selected = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
+        let selected = exactlyOneOrNull(
+          intentsForBinding(deps, rootDir, binding),
+          "claim",
+        );
         if (!selected) {
           const applied = objectValue(await deps.run_pipeline_command({
             action: "verify_and_claim",
@@ -835,7 +912,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           if (!applied || applied.ok !== true || applied.status !== "applied") {
             throw new Error(`delegated_claim_held:${text(applied?.reason) || "unknown"}`);
           }
-          selected = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
+          selected = exactlyOneOrNull(
+            intentsForBinding(deps, rootDir, binding),
+            "claim",
+          );
         }
         if (!selected) throw new Error("claim_projection_missing_after_apply");
         assertIntentServerPolicy(selected, serverPolicy);
@@ -850,9 +930,15 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         };
       },
       reserve_inventory: async () => {
-        const selectedIntent = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
+        const selectedIntent = exactlyOneOrNull(
+          intentsForBinding(deps, rootDir, binding),
+          "claim",
+        );
         if (!selectedIntent) throw new Error("inventory_requires_claim");
-        let selected = exactlyOneOrNull(inventoryFor(deps, rootDir, requestId), "inventory");
+        let selected = exactlyOneOrNull(
+          inventoryForBinding(deps, rootDir, binding),
+          "inventory",
+        );
         if (!selected) {
           const applied = objectValue(await deps.reserve_inventory({
             root_dir: rootDir,
@@ -864,18 +950,30 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           if (!applied || applied.ok !== true || applied.applied !== true) {
             throw new Error(`delegated_inventory_held:${text(applied?.reason) || "unknown"}`);
           }
-          selected = exactlyOneOrNull(inventoryFor(deps, rootDir, requestId), "inventory");
+          selected = exactlyOneOrNull(
+            inventoryForBinding(deps, rootDir, binding),
+            "inventory",
+          );
         }
         if (!selected) throw new Error("inventory_projection_missing_after_apply");
         return { payload: { reservation_id: selected.reservation_id } };
       },
       reserve_execution_attempt: async () => {
-        const selectedIntent = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
-        const selectedInventory = exactlyOneOrNull(inventoryFor(deps, rootDir, requestId), "inventory");
+        const selectedIntent = exactlyOneOrNull(
+          intentsForBinding(deps, rootDir, binding),
+          "claim",
+        );
+        const selectedInventory = exactlyOneOrNull(
+          inventoryForBinding(deps, rootDir, binding),
+          "inventory",
+        );
         if (!selectedIntent || !selectedInventory) {
           throw new Error("attempt_requires_claim_and_inventory");
         }
-        let selected = exactlyOneOrNull(attemptsFor(deps, rootDir, requestId), "attempt");
+        let selected = exactlyOneOrNull(
+          attemptsForBinding(deps, rootDir, binding),
+          "attempt",
+        );
         if (!selected) {
           const applied = objectValue(await deps.run_pipeline_command({
             action: "reserve_execution",
@@ -889,7 +987,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           if (!applied || applied.ok !== true || applied.status !== "applied") {
             throw new Error(`delegated_attempt_held:${text(applied?.reason) || "unknown"}`);
           }
-          selected = exactlyOneOrNull(attemptsFor(deps, rootDir, requestId), "attempt");
+          selected = exactlyOneOrNull(
+            attemptsForBinding(deps, rootDir, binding),
+            "attempt",
+          );
         }
         if (!selected) throw new Error("attempt_projection_missing_after_apply");
         return {
@@ -902,10 +1003,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     };
 
     const store = recovered.store || saga.createFilesystemSagaStoreV1(sagaRoot(rootDir));
-    const result = await saga.runSagaSupervisorTickV1({
+    const result = objectValue(await saga.runSagaSupervisorTickV1({
       store,
       binding,
-      owner_id: OWNER_ID,
+      owner_id: invocationOwnerId(),
       now_ms: nowMs,
       lease_ttl_ms: LEASE_TTL_MS,
       recorded_at_utc: new Date(nowMs).toISOString(),
@@ -915,7 +1016,12 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       confirmation: body.saga_confirmation,
       action_confirmation: body.action_confirmation,
       adapters,
-    });
+    }));
+    if (!result || result.ok !== true || result.status !== "applied") {
+      throw new Error(
+        `saga_supervisor_held:${text(result?.reason) || text(result?.status) || "unknown"}`,
+      );
+    }
     return res.status(200).json({
       marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
       version: 1,
