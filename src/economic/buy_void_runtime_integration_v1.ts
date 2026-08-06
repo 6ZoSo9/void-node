@@ -17,6 +17,11 @@ import {
   buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1,
   handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1,
 } from "./buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.js";
+import {
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+  buyVoidCrashConsistentSagaRuntimeStatusV1,
+  handleBuyVoidCrashConsistentSagaRuntimeCommandV1,
+} from "./buy_void_crash_consistent_saga_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -180,12 +185,18 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
     root_dir_source: String(process.env[ROOT_ENV] || "").trim()
       ? ROOT_ENV
       : "server_default",
-    supported_actions: Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+    supported_actions: [
+      ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+      VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+    ],
     required_confirmations: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
     authority: VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1,
     coordinator_authority: VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
     bounded_auto_fulfillment_orchestrator:
       buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1(),
+    crash_consistent_saga_runtime:
+      buyVoidCrashConsistentSagaRuntimeStatusV1(),
   };
 }
 
@@ -234,6 +245,17 @@ export function handleBuyVoidRuntimeCommandV1(
 
   if (
     String((body as any).action || "") ===
+    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
+      req,
+      res,
+      { root_dir: buyVoidRuntimeRootDirV1() },
+    );
+  }
+
+  if (
+    String((body as any).action || "") ===
     VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1
   ) {
     return handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -250,7 +272,11 @@ export function handleBuyVoidRuntimeCommandV1(
       marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
       ok: false,
       error: "invalid_pipeline_action",
-      supported_actions: Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+      supported_actions: [
+        ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      ],
     });
   }
 
