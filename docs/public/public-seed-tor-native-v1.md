@@ -31,7 +31,7 @@ node scripts/install_void_public_seed_tor_v1.mjs plan \
   --tor "$TOR_BIN"
 ```
 
-Install and enable the user units without starting them:
+Install the user units in a stopped and disabled state. Installation first stops and disables any prior copies, rejects symlink-parent path escapes, and writes configuration and units atomically without following symlink targets:
 
 ```bash
 node scripts/install_void_public_seed_tor_v1.mjs install \
@@ -50,21 +50,23 @@ node scripts/install_void_public_seed_tor_v1.mjs activate \
   --tor "$TOR_BIN"
 ```
 
-Activation verifies the local node is exact-green, refuses occupied loopback gateway or SOCKS ports, starts the restricted gateway, starts Tor, validates the checksum-bearing v3 address, then performs three observations through SOCKS5 domain addressing.
+The activation confirmation is checked before any managed file or systemd mutation. Only confirmed activation enables the units. Activation begins from stopped and disabled units, requires a numeric positive local head, refuses occupied loopback gateway or SOCKS ports, starts the restricted gateway, starts Tor, validates the checksum-bearing v3 address, then performs three observations through SOCKS5 domain addressing. The cleanup boundary covers readiness, port, enablement, startup, identity, and qualification failures; every failed activation disables and stops both units while preserving the onion identity.
 
 ## Qualification contract
 
 The `voidptq1_` receipt requires:
 
 - checksum-valid Tor v3 identity;
-- loopback-only SOCKS proxy;
+- loopback-only SOCKS proxy, rejected before any network access;
 - SOCKS domain addressing with remote name resolution;
 - `x-void-public-seed-gateway: v1` on every response;
 - positive, agreeing readiness and latest heads;
 - `ready=true`, `gap=0`, and `txroot_live=1`;
 - exact one-block retrieval of the qualified head;
-- at least three strictly ordered observations over at least one minute; and
-- no head regression.
+- at least three strictly ordered, closed-schema observations over at least one minute;
+- a fresh final observation bound to the receipt generation time;
+- numeric positive observation heads with no head regression; and
+- an exact requested onion virtual port on every SOCKS observation.
 
 The receipt records:
 

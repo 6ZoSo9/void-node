@@ -10,7 +10,12 @@ import {
   qualifyTorSeedV1,
   validateObservationV1,
 } from "./qualify_void_public_seed_tor_v1.mjs";
-import { renderTorSeedV1 } from "./install_void_public_seed_tor_v1.mjs";
+import {
+  managedPathV1,
+  renderTorSeedV1,
+  validateLocalReadyV1,
+  writeManagedFileV1,
+} from "./install_void_public_seed_tor_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_TOR_V1_PROOF";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -94,6 +99,28 @@ assert.equal(receipt.maximum_head, 1002);
 assert.deepEqual(new Set(Object.values(receipt.authority)), new Set([false]));
 console.log("[PASS] content-addressed exact-green Tor qualification");
 
+let remoteRequestCount = 0;
+await assert.rejects(
+  () => qualifyTorSeedV1({
+    onionHostname: onion,
+    sourceSha: "a".repeat(40),
+    socksHost: "192.0.2.10",
+    socksPort: 19051,
+    virtualPort: 80,
+    samples: 3,
+    intervalMs: 30_000,
+    timeoutMs: 5_000,
+    maxBytes: 1_000_000,
+    request: async () => {
+      remoteRequestCount += 1;
+      throw new Error("remote request must not execute");
+    },
+  }),
+  /numeric loopback/,
+);
+assert.equal(remoteRequestCount, 0);
+console.log("[PASS] remote SOCKS proxy rejected before network access");
+
 const good = response(onion, { ready: true, head: 7, gap: 0, txroot_live: 1 });
 const latest = response(onion, { number: 7 });
 const range = response(onion, [{ number: 7 }]);
@@ -102,6 +129,7 @@ assert.throws(() => validateObservationV1({
   readyResponse: { ...good, socks: { ...good.socks, remote_dns: false } },
   headResponse: latest,
   rangeResponse: range,
+  virtualPort: 80,
   observedAt: "2026-08-06T12:00:00.000Z",
 }), /remote name resolution/);
 assert.throws(() => buildTorQualificationReceiptV1({
@@ -111,8 +139,88 @@ assert.throws(() => buildTorQualificationReceiptV1({
     { observed_at: "2026-08-06T12:00:00.000Z", head: 8 },
     { observed_at: "2026-08-06T12:01:00.000Z", head: 9 },
   ],
+  generatedAt: "2026-08-06T12:01:30.000Z",
 }), /strictly ordered/);
-console.log("[PASS] DNS-leak and observation-order rejection");
+
+const freshObservations = [
+  { observed_at: "2026-08-06T12:00:00.000Z", head: 7 },
+  { observed_at: "2026-08-06T12:00:30.000Z", head: 8 },
+  { observed_at: "2026-08-06T12:01:00.000Z", head: 9 },
+];
+assert.throws(() => buildTorQualificationReceiptV1({
+  sourceSha: "a".repeat(40),
+  onionHostname: onion,
+  virtualPort: 80,
+  socksHost: "127.0.0.1",
+  socksPort: 19051,
+  observations: freshObservations.map((item, index) =>
+    index === 0 ? { ...item, extra: true } : item),
+  generatedAt: "2026-08-06T12:01:30.000Z",
+}), /keys mismatch/);
+assert.throws(() => buildTorQualificationReceiptV1({
+  sourceSha: "a".repeat(40),
+  onionHostname: onion,
+  virtualPort: 80,
+  socksHost: "127.0.0.1",
+  socksPort: 19051,
+  observations: freshObservations.map((item, index) =>
+    index === 0 ? { ...item, head: "7" } : item),
+  generatedAt: "2026-08-06T12:01:30.000Z",
+}), /must be an integer/);
+assert.throws(() => buildTorQualificationReceiptV1({
+  sourceSha: "a".repeat(40),
+  onionHostname: onion,
+  virtualPort: 80,
+  socksHost: "127.0.0.1",
+  socksPort: 19051,
+  observations: freshObservations,
+  generatedAt: "2026-08-06T12:10:00.000Z",
+}), /stale/);
+console.log("[PASS] DNS-leak, closed observation, freshness, and ordering rejection");
+
+assert.equal(validateLocalReadyV1({
+  ready: true,
+  head: 7,
+  gap: 0,
+  txroot_live: 1,
+}), 7);
+for (const head of [undefined, "7", Number.NaN, 0]) {
+  assert.throws(() => validateLocalReadyV1({
+    ready: true,
+    head,
+    gap: 0,
+    txroot_live: 1,
+  }), /positive integer/);
+}
+console.log("[PASS] strict positive local readiness head");
+
+const pathSafetyRoot = fs.mkdtempSync(
+  path.join(os.homedir(), ".void-tor-seed-path-safety-"),
+);
+let outsideRoot = null;
+try {
+  outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-seed-outside-"));
+  const escape = path.join(pathSafetyRoot, "escape");
+  fs.symlinkSync(outsideRoot, escape, "dir");
+  assert.throws(
+    () => managedPathV1(path.join(escape, "config"), ROOT, "test root"),
+    /beneath HOME/,
+  );
+
+  const victim = path.join(pathSafetyRoot, "victim.txt");
+  const link = path.join(pathSafetyRoot, "managed.txt");
+  fs.writeFileSync(victim, "original\n", { mode: 0o600 });
+  fs.symlinkSync(victim, link);
+  assert.throws(
+    () => writeManagedFileV1(link, "changed\n", 0o600, "test managed file"),
+    /non-symlink regular file/,
+  );
+  assert.equal(fs.readFileSync(victim, "utf8"), "original\n");
+  console.log("[PASS] managed path and symlink-target escape rejection");
+} finally {
+  fs.rmSync(pathSafetyRoot, { recursive: true, force: true });
+  if (outsideRoot) fs.rmSync(outsideRoot, { recursive: true, force: true });
+}
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-seed-proof-"));
 try {
@@ -162,7 +270,36 @@ for (const relative of [
 }
 const installer = fs.readFileSync(path.join(ROOT, "scripts/install_void_public_seed_tor_v1.mjs"), "utf8");
 assert.match(installer, /activate-void-public-seed-tor-v1/);
-assert.match(installer, /disable", "--now"/);
+const writeRenderSource = /function writeRender[\s\S]*?\n}\n\nasync function fetchReady/.exec(installer)?.[0];
+assert.ok(writeRenderSource, "writeRender source not found");
+assert.doesNotMatch(writeRenderSource, /"enable"/);
+assert.match(writeRenderSource, /disableAutoStartV1\(\{ stop: true \}\)/);
+assert.ok(
+  writeRenderSource.indexOf("disableAutoStartV1") <
+    writeRenderSource.indexOf("prepareOwnedRoot"),
+  "existing units must be disabled and stopped before managed file mutation",
+);
+assert.match(writeRenderSource, /writeManagedFileV1/);
+const activateSource = /async function activate[\s\S]*?\n}\n\nasync function main/.exec(installer)?.[0];
+assert.ok(activateSource, "activate source not found");
+assert.match(activateSource, /"enable"/);
+assert.ok(
+  activateSource.indexOf("try {") < activateSource.indexOf("fetchReady"),
+  "activation cleanup must cover readiness failures",
+);
+assert.ok(
+  activateSource.indexOf("try {") < activateSource.indexOf("portAvailable"),
+  "activation cleanup must cover port failures",
+);
+assert.match(activateSource, /disableAutoStartV1\(\{ stop: true \}\)/);
+const mainSource = /async function main[\s\S]*?\n}\n\nconst invoked/.exec(installer)?.[0];
+assert.ok(mainSource, "main source not found");
+assert.ok(
+  mainSource.indexOf("VOID_PUBLIC_SEED_TOR_CONFIRM") <
+    mainSource.indexOf("writeRender(options, rendered)"),
+  "activation confirmation must precede installation mutation",
+);
+assert.match(installer, /"disable", "--now"/);
 assert.match(installer, /onion_identity_preserved=true/);
 assert.doesNotMatch(installer, /rmSync\([^\n]*hidden|unlinkSync\([^\n]*hostname/);
 console.log("[PASS] fail-closed activation and identity preservation");
@@ -170,6 +307,15 @@ console.log("[PASS] fail-closed activation and identity preservation");
 console.log(`${MARKER}_GREEN`);
 console.log("tor_v3=true");
 console.log("onion_identity_persistent=true");
+console.log("socks_proxy_loopback_preflight=true");
+console.log("activation_confirmation_precedes_mutation=true");
+console.log("activation_cleanup_covers_prestart_failures=true");
+console.log("install_auto_start_enabled=false");
+console.log("install_services_stopped=true");
+console.log("managed_path_symlink_escape_rejected=true");
+console.log("managed_file_symlink_target_rejected=true");
+console.log("strict_positive_local_head_required=true");
+console.log("qualification_observations_fresh=true");
 console.log("socks_remote_dns=true");
 console.log("dns_required=false");
 console.log("registrar_required=false");

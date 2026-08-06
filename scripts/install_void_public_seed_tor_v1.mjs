@@ -66,10 +66,28 @@ function isInside(parent, candidate) {
   return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`));
 }
 
-function managedPath(raw, repoRoot, label) {
-  const resolved = path.resolve(raw);
+function canonicalManagedPathV1(rawPath) {
+  const absolute = path.resolve(rawPath);
+  if (fs.existsSync(absolute) && fs.lstatSync(absolute).isSymbolicLink()) {
+    fail("managed path must not be a symlink");
+  }
+  let cursor = absolute;
+  const suffix = [];
+  while (!fs.existsSync(cursor)) {
+    const parent = path.dirname(cursor);
+    if (parent === cursor) fail("managed path has no existing ancestor");
+    suffix.unshift(path.basename(cursor));
+    cursor = parent;
+  }
+  return path.join(fs.realpathSync(cursor), ...suffix);
+}
+
+export function managedPathV1(raw, repoRoot, label) {
+  const resolved = canonicalManagedPathV1(raw);
   const home = fs.realpathSync(os.homedir());
-  if (!isInside(home, resolved) || resolved === home) fail(`${label} must be a dedicated path beneath HOME`);
+  if (!isInside(home, resolved) || resolved === home) {
+    fail(`${label} must be a dedicated path beneath HOME`);
+  }
   if (isInside(repoRoot, resolved)) fail(`${label} must remain outside the repository`);
   return resolved;
 }
@@ -97,6 +115,60 @@ function prepareOwnedRoot(root, kind) {
     const entries = fs.readdirSync(root);
     if (entries.length !== 0) fail(`${kind} root is non-empty without an ownership sentinel`);
     fs.writeFileSync(sentinel, expected, { flag: "wx", mode: 0o600 });
+  }
+}
+
+
+function preparePrivateDirectoryV1(target, label) {
+  if (fs.existsSync(target)) {
+    const stat = fs.lstatSync(target);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      fail(`${label} must be a real directory`);
+    }
+  } else {
+    fs.mkdirSync(target, { mode: 0o700 });
+  }
+  fs.chmodSync(target, 0o700);
+}
+
+export function writeManagedFileV1(target, content, mode = 0o600, label = "managed file") {
+  const destination = path.resolve(target);
+  if (fs.existsSync(destination)) {
+    const stat = fs.lstatSync(destination);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      fail(`${label} must be a non-symlink regular file`);
+    }
+  }
+  const temporary = `${destination}.tmp-${process.pid}-${crypto.randomBytes(12).toString("hex")}`;
+  try {
+    fs.writeFileSync(temporary, content, { flag: "wx", mode });
+    fs.renameSync(temporary, destination);
+    fs.chmodSync(destination, mode);
+  } finally {
+    if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
+  }
+}
+
+function unitIsEnabledV1(unit) {
+  return run("systemctl", ["--user", "is-enabled", "--quiet", unit], {
+    allowFailure: true,
+  }).status === 0;
+}
+
+function unitIsActiveV1(unit) {
+  return run("systemctl", ["--user", "is-active", "--quiet", unit], {
+    allowFailure: true,
+  }).status === 0;
+}
+
+function disableAutoStartV1({ stop = false } = {}) {
+  const args = stop
+    ? ["--user", "disable", "--now", TOR_UNIT, GATEWAY_UNIT]
+    : ["--user", "disable", TOR_UNIT, GATEWAY_UNIT];
+  run("systemctl", args, { allowFailure: true });
+  for (const unit of [TOR_UNIT, GATEWAY_UNIT]) {
+    if (unitIsEnabledV1(unit)) fail(`${unit} remained enabled`);
+    if (stop && unitIsActiveV1(unit)) fail(`${unit} remained active`);
   }
 }
 
@@ -209,40 +281,87 @@ function normalizedOptions(args) {
     dataRoot: path.join(os.homedir(), ".local", "share", "void", "tor-public-seed-v1"),
     stateRoot: path.join(os.homedir(), ".local", "state", "void", "tor-public-seed-v1"),
   };
-  const configRoot = managedPath(args.configRoot || defaults.configRoot, repoRoot, "config root");
-  const dataRoot = managedPath(args.dataRoot || defaults.dataRoot, repoRoot, "data root");
-  const stateRoot = managedPath(args.stateRoot || defaults.stateRoot, repoRoot, "state root");
+  const configRoot = managedPathV1(args.configRoot || defaults.configRoot, repoRoot, "config root");
+  const dataRoot = managedPathV1(args.dataRoot || defaults.dataRoot, repoRoot, "data root");
+  const stateRoot = managedPathV1(args.stateRoot || defaults.stateRoot, repoRoot, "state root");
+  const unitDir = managedPathV1(
+    path.join(os.homedir(), ".config", "systemd", "user"),
+    repoRoot,
+    "systemd user unit root",
+  );
   assertNoOverlap([["config root", configRoot], ["data root", dataRoot], ["state root", stateRoot]]);
+  for (const [label, managedRoot] of [
+    ["config root", configRoot],
+    ["data root", dataRoot],
+    ["state root", stateRoot],
+  ]) {
+    if (isInside(managedRoot, unitDir) || isInside(unitDir, managedRoot)) {
+      fail(`${label} and systemd user unit root must not overlap`);
+    }
+  }
   const nodePath = realExecutable(process.execPath, "Node.js executable");
   const torPath = realExecutable(args.tor, "Tor executable");
   const torVersion = run(torPath, ["--version"]).stdout.split(/\r?\n/)[0];
   if (!/\bTor\b/i.test(torVersion)) fail("Tor executable did not identify itself");
-  return { ...args, repoRoot, configRoot, dataRoot, stateRoot, nodePath, torPath, torVersion };
+  return {
+    ...args,
+    repoRoot,
+    configRoot,
+    dataRoot,
+    stateRoot,
+    unitDir,
+    nodePath,
+    torPath,
+    torVersion,
+  };
 }
 
 function writeRender(options, rendered) {
-  for (const [root, kind] of [[options.configRoot, "config"], [options.dataRoot, "data"], [options.stateRoot, "state"]]) prepareOwnedRoot(root, kind);
-  fs.mkdirSync(rendered.paths.torData, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(rendered.paths.hiddenService, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(rendered.paths.qualificationDir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(rendered.paths.torrcPath, rendered.torrc, { mode: 0o600 });
-  const unitDir = path.join(os.homedir(), ".config", "systemd", "user");
-  fs.mkdirSync(unitDir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(unitDir, GATEWAY_UNIT), rendered.gatewayUnit, { mode: 0o600 });
-  fs.writeFileSync(path.join(unitDir, TOR_UNIT), rendered.torUnit, { mode: 0o600 });
+  disableAutoStartV1({ stop: true });
+  for (const [root, kind] of [
+    [options.configRoot, "config"],
+    [options.dataRoot, "data"],
+    [options.stateRoot, "state"],
+  ]) prepareOwnedRoot(root, kind);
+  preparePrivateDirectoryV1(rendered.paths.torData, "Tor data directory");
+  preparePrivateDirectoryV1(rendered.paths.hiddenService, "hidden-service directory");
+  preparePrivateDirectoryV1(rendered.paths.qualificationDir, "qualification directory");
+  writeManagedFileV1(rendered.paths.torrcPath, rendered.torrc, 0o600, "Tor configuration");
+  fs.mkdirSync(options.unitDir, { recursive: true, mode: 0o700 });
+  const unitStat = fs.lstatSync(options.unitDir);
+  if (unitStat.isSymbolicLink() || !unitStat.isDirectory()) {
+    fail("systemd user unit root must be a real directory");
+  }
+  const gatewayUnitPath = path.join(options.unitDir, GATEWAY_UNIT);
+  const torUnitPath = path.join(options.unitDir, TOR_UNIT);
+  writeManagedFileV1(gatewayUnitPath, rendered.gatewayUnit, 0o600, "gateway unit");
+  writeManagedFileV1(torUnitPath, rendered.torUnit, 0o600, "Tor unit");
   run(options.torPath, ["--verify-config", "-f", rendered.paths.torrcPath]);
   if (run("bash", ["-lc", "command -v systemd-analyze >/dev/null 2>&1"], { allowFailure: true }).status === 0) {
-    run("systemd-analyze", ["verify", path.join(unitDir, GATEWAY_UNIT), path.join(unitDir, TOR_UNIT)]);
+    run("systemd-analyze", ["verify", gatewayUnitPath, torUnitPath]);
   }
   run("systemctl", ["--user", "daemon-reload"]);
-  run("systemctl", ["--user", "enable", GATEWAY_UNIT, TOR_UNIT]);
-  return unitDir;
+  disableAutoStartV1({ stop: true });
+  return options.unitDir;
 }
 
 async function fetchReady(url) {
   const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });
   if (response.status !== 200) fail(`readiness returned HTTP ${response.status}`);
   return response.json();
+}
+
+export function validateLocalReadyV1(local) {
+  if (!local || typeof local !== "object" || Array.isArray(local)) {
+    fail("local node readiness must be an object");
+  }
+  if (local.ready !== true || local.gap !== 0 || local.txroot_live !== 1) {
+    fail("local node is not exact-green");
+  }
+  if (!Number.isSafeInteger(local.head) || local.head <= 0) {
+    fail("local node head must be a positive integer");
+  }
+  return local.head;
 }
 
 async function waitForGateway(port) {
@@ -267,23 +386,35 @@ async function portAvailable(port) {
 }
 
 async function activate(options, rendered) {
-  if (process.env.VOID_PUBLIC_SEED_TOR_CONFIRM !== CONFIRM) fail(`activation requires VOID_PUBLIC_SEED_TOR_CONFIRM=${CONFIRM}`);
-  const local = await fetchReady("http://127.0.0.1:4100/__void/ready.json");
-  if (local.ready !== true || Number(local.head) <= 0 || Number(local.gap) !== 0 || Number(local.txroot_live) !== 1) fail("local node is not exact-green");
-  for (const port of [options.gatewayPort, options.socksPort]) if (!(await portAvailable(port))) fail(`required loopback port is occupied: ${port}`);
-  let started = false;
+  if (process.env.VOID_PUBLIC_SEED_TOR_CONFIRM !== CONFIRM) {
+    fail(`activation requires VOID_PUBLIC_SEED_TOR_CONFIRM=${CONFIRM}`);
+  }
+  let activated = false;
   try {
+    const local = await fetchReady("http://127.0.0.1:4100/__void/ready.json");
+    const localHead = validateLocalReadyV1(local);
+    for (const port of [options.gatewayPort, options.socksPort]) {
+      if (!(await portAvailable(port))) fail(`required loopback port is occupied: ${port}`);
+    }
+    run("systemctl", ["--user", "enable", GATEWAY_UNIT, TOR_UNIT]);
+    for (const unit of [GATEWAY_UNIT, TOR_UNIT]) {
+      if (!unitIsEnabledV1(unit)) fail(`${unit} did not become enabled`);
+    }
     run("systemctl", ["--user", "restart", GATEWAY_UNIT]);
-    started = true;
     await waitForGateway(options.gatewayPort);
     run("systemctl", ["--user", "restart", TOR_UNIT]);
     for (let attempt = 0; attempt < 180 && !fs.existsSync(rendered.paths.hostnameFile); attempt += 1) {
-      if (run("systemctl", ["--user", "is-active", "--quiet", TOR_UNIT], { allowFailure: true }).status !== 0) fail("Tor service exited before creating its identity");
+      if (run("systemctl", ["--user", "is-active", "--quiet", TOR_UNIT], { allowFailure: true }).status !== 0) {
+        fail("Tor service exited before creating its identity");
+      }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     if (!fs.existsSync(rendered.paths.hostnameFile)) fail("Tor did not create a v3 onion hostname");
     const onion = validateOnionHostname(fs.readFileSync(rendered.paths.hostnameFile, "utf8").trim());
-    const output = path.join(rendered.paths.qualificationDir, `qualification-${options.expectedHead}-${new Date().toISOString().replace(/[-:.]/g, "")}.json`);
+    const output = path.join(
+      rendered.paths.qualificationDir,
+      `qualification-${options.expectedHead}-${new Date().toISOString().replace(/[-:.]/g, "")}.json`,
+    );
     run(options.nodePath, [
       rendered.paths.qualifierSource,
       "--onion-hostname", onion,
@@ -295,18 +426,20 @@ async function activate(options, rendered) {
       "--interval-ms", "30000",
       "--output", output,
     ]);
-    started = false;
+    activated = true;
     console.log(`${MARKER}_ACTIVATED`);
+    console.log(`local_head=${localHead}`);
     console.log(`onion_hostname=${onion}`);
     console.log(`qualification_file=${output}`);
+    console.log("services_enabled=true");
     console.log("socks_remote_dns=true");
     console.log("dns_required=false");
     console.log("registrar_required=false");
     console.log("cloud_account_required=false");
     console.log("manifest_published=false");
   } finally {
-    if (started) {
-      run("systemctl", ["--user", "disable", "--now", TOR_UNIT, GATEWAY_UNIT], { allowFailure: true });
+    if (!activated) {
+      disableAutoStartV1({ stop: true });
       console.error("fail_closed_services_stopped=true");
       console.error("onion_identity_preserved=true");
     }
@@ -328,6 +461,12 @@ async function main() {
     return;
   }
   if (!new Set(["install", "activate"]).has(options.command)) fail(`unsupported command ${options.command}`);
+  if (
+    options.command === "activate" &&
+    process.env.VOID_PUBLIC_SEED_TOR_CONFIRM !== CONFIRM
+  ) {
+    fail(`activation requires VOID_PUBLIC_SEED_TOR_CONFIRM=${CONFIRM}`);
+  }
   const unitDir = writeRender(options, rendered);
   console.log(`${MARKER}_INSTALLED`);
   console.log(`gateway_unit=${path.join(unitDir, GATEWAY_UNIT)}`);
@@ -335,6 +474,7 @@ async function main() {
   console.log(`identity_dir=${rendered.paths.hiddenService}`);
   console.log("identity_preserved=true");
   console.log("services_started=false");
+  if (options.command === "install") console.log("services_enabled=false");
   if (options.command === "activate") await activate(options, rendered);
   console.log("wallet_signer_validator_wc_money_authority=0");
 }

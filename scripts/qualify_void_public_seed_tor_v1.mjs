@@ -12,6 +12,9 @@ import {
 
 const MARKER = "VOID_PUBLIC_SEED_TOR_QUALIFICATION_V1";
 const RECEIPT_SCHEMA = "void_public_seed_tor_qualification_v1";
+const LOOPBACK_SOCKS_HOSTS = new Set(["127.0.0.1", "::1"]);
+const MAX_OBSERVATION_AGE_MS = 5 * 60 * 1000;
+const MAX_OBSERVATION_FUTURE_SKEW_MS = 2 * 60 * 1000;
 const AUTHORITY = Object.freeze({
   private_routes_exposed: false,
   wallet_authority: false,
@@ -43,12 +46,37 @@ function exactObject(value, label) {
   return value;
 }
 
+function exactKeys(value, expected, label) {
+  const object = exactObject(value, label);
+  const actual = Object.keys(object).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) fail(`${label} keys mismatch`);
+  return object;
+}
+
+function strictPositiveInteger(value, label, minimum = 1, maximum = Number.MAX_SAFE_INTEGER) {
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    fail(`${label} must be an integer from ${minimum} through ${maximum}`);
+  }
+  return value;
+}
+
+function canonicalTimestamp(value, label) {
+  const time = new Date(value);
+  if (!Number.isFinite(time.getTime()) || time.toISOString() !== value) {
+    fail(`${label} is not canonical`);
+  }
+  return time;
+}
+
 function parseJsonResponse(response, label) {
   if (response.status !== 200) fail(`${label} returned HTTP ${response.status}`);
   if (String(response.headers?.["x-void-public-seed-gateway"] || "") !== "v1") {
     fail(`${label} is missing x-void-public-seed-gateway: v1`);
   }
-  if (!String(response.headers?.["content-type"] || "").toLowerCase().startsWith("application/json")) {
+  if (!/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(
+    String(response.headers?.["content-type"] || "").trim(),
+  )) {
     fail(`${label} is not application/json`);
   }
   if (response.socks?.remote_dns !== true || response.socks?.address_type !== "domain") {
@@ -69,7 +97,14 @@ function blockNumber(block) {
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
-export function validateObservationV1({ onionHostname, readyResponse, headResponse, rangeResponse, observedAt }) {
+export function validateObservationV1({
+  onionHostname,
+  virtualPort,
+  readyResponse,
+  headResponse,
+  rangeResponse,
+  observedAt,
+}) {
   const ready = exactObject(parseJsonResponse(readyResponse, "Tor seed readiness"), "Tor seed readiness");
   if (ready.ready !== true || Number(ready.gap) !== 0 || Number(ready.txroot_live) !== 1) {
     fail("Tor seed readiness is not exact-green");
@@ -83,46 +118,73 @@ export function validateObservationV1({ onionHostname, readyResponse, headRespon
   if (!blocks || blocks.length !== 1 || blockNumber(blocks[0]) !== latestHead) {
     fail("Tor seed range does not contain the exact qualified head");
   }
+  const expectedPort = positiveInteger(virtualPort, "virtual port", 1, 65535);
   for (const response of [readyResponse, headResponse, rangeResponse]) {
     if (response.socks.requested_hostname !== onionHostname) fail("SOCKS requested hostname mismatch");
+    if (response.socks.requested_port !== expectedPort) fail("SOCKS requested port mismatch");
   }
-  const time = new Date(observedAt);
-  if (!Number.isFinite(time.getTime()) || time.toISOString() !== observedAt) fail("observation timestamp is not canonical");
+  const time = canonicalTimestamp(observedAt, "observation timestamp");
   return Object.freeze({ observed_at: observedAt, head: latestHead });
 }
 
-export function buildTorQualificationReceiptV1({ sourceSha, onionHostname, virtualPort, socksHost, socksPort, observations }) {
+export function buildTorQualificationReceiptV1({
+  sourceSha,
+  onionHostname,
+  virtualPort,
+  socksHost,
+  socksPort,
+  observations,
+  generatedAt = new Date().toISOString(),
+}) {
   if (!/^[0-9a-f]{40}$/.test(String(sourceSha))) fail("source SHA must be 40 lowercase hexadecimal characters");
   const onion = validateOnionHostname(onionHostname);
   const virtual = positiveInteger(virtualPort, "virtual port", 1, 65535);
-  if (!["127.0.0.1", "::1"].includes(String(socksHost))) fail("SOCKS host must be numeric loopback");
+  const normalizedSocksHost = String(socksHost);
+  if (!LOOPBACK_SOCKS_HOSTS.has(normalizedSocksHost)) fail("SOCKS host must be numeric loopback");
   const socks = positiveInteger(socksPort, "SOCKS port", 1, 65535);
   if (!Array.isArray(observations) || observations.length < 3 || observations.length > 12) {
     fail("qualification requires from three through twelve observations");
   }
-  let previousTime = 0;
+  const generated = canonicalTimestamp(generatedAt, "qualification generated_at");
+  const normalizedObservations = [];
+  let previousTime = Number.NEGATIVE_INFINITY;
   let previousHead = 0;
-  for (const [index, observation] of observations.entries()) {
-    exactObject(observation, `observation ${index + 1}`);
-    const time = Date.parse(String(observation.observed_at));
-    const head = positiveInteger(observation.head, `observation ${index + 1} head`);
-    if (!Number.isFinite(time) || new Date(time).toISOString() !== observation.observed_at) fail("observation timestamp is invalid");
+  for (const [index, rawObservation] of observations.entries()) {
+    const observation = exactKeys(
+      rawObservation,
+      ["observed_at", "head"],
+      `observation ${index + 1}`,
+    );
+    const time = canonicalTimestamp(
+      observation.observed_at,
+      `observation ${index + 1} timestamp`,
+    ).getTime();
+    const head = strictPositiveInteger(observation.head, `observation ${index + 1} head`);
     if (time <= previousTime) fail("qualification observations are not strictly ordered");
     if (index > 0 && head < previousHead) fail("Tor seed head regressed during qualification");
+    normalizedObservations.push({ observed_at: observation.observed_at, head });
     previousTime = time;
     previousHead = head;
   }
-  const span = Date.parse(observations.at(-1).observed_at) - Date.parse(observations[0].observed_at);
+  const firstTime = Date.parse(normalizedObservations[0].observed_at);
+  const lastTime = Date.parse(normalizedObservations.at(-1).observed_at);
+  const span = lastTime - firstTime;
   if (span < 60_000 || span > 30 * 60_000) fail("qualification observation span must be from one through thirty minutes");
+  if (lastTime > generated.getTime() + MAX_OBSERVATION_FUTURE_SKEW_MS) {
+    fail("qualification observations are unreasonably in the future");
+  }
+  if (generated.getTime() - lastTime > MAX_OBSERVATION_AGE_MS) {
+    fail("qualification observations are stale");
+  }
   const body = {
     schema: RECEIPT_SCHEMA,
-    generated_at: new Date().toISOString(),
+    generated_at: generated.toISOString(),
     source_sha: sourceSha,
     transport: {
       protocol: "tor-v3",
       onion_hostname: onion,
       virtual_port: virtual,
-      socks_proxy: { host: socksHost, port: socks },
+      socks_proxy: { host: normalizedSocksHost, port: socks },
       socks_remote_dns: true,
       dns_required: false,
       registrar_required: false,
@@ -130,12 +192,12 @@ export function buildTorQualificationReceiptV1({ sourceSha, onionHostname, virtu
       cloud_account_required: false,
       tailnet_required: false,
     },
-    sample_count: observations.length,
-    first_observed_at: observations[0].observed_at,
-    last_observed_at: observations.at(-1).observed_at,
-    minimum_head: Math.min(...observations.map((item) => item.head)),
-    maximum_head: Math.max(...observations.map((item) => item.head)),
-    observations: structuredClone(observations),
+    sample_count: normalizedObservations.length,
+    first_observed_at: normalizedObservations[0].observed_at,
+    last_observed_at: normalizedObservations.at(-1).observed_at,
+    minimum_head: Math.min(...normalizedObservations.map((item) => item.head)),
+    maximum_head: Math.max(...normalizedObservations.map((item) => item.head)),
+    observations: normalizedObservations,
     gateway_contract: {
       identity_header: "x-void-public-seed-gateway: v1",
       ready: true,
@@ -154,16 +216,29 @@ export function buildTorQualificationReceiptV1({ sourceSha, onionHostname, virtu
 }
 
 function profile({ onionHostname, virtualPort, socksHost, socksPort, timeoutMs, maxBytes }) {
+  const normalizedSocksHost = String(socksHost);
+  if (!LOOPBACK_SOCKS_HOSTS.has(normalizedSocksHost)) {
+    fail("SOCKS host must be numeric loopback");
+  }
+  const boundedTimeout = positiveInteger(timeoutMs, "timeout ms", 1_000, 120_000);
   return {
     transport: {
       onion_hostname: validateOnionHostname(onionHostname),
       virtual_port: positiveInteger(virtualPort, "virtual port", 1, 65535),
-      socks_proxy: { host: socksHost, port: positiveInteger(socksPort, "SOCKS port", 1, 65535) },
+      socks_proxy: {
+        host: normalizedSocksHost,
+        port: positiveInteger(socksPort, "SOCKS port", 1, 65535),
+      },
     },
     limits: {
-      connect_timeout_ms: timeoutMs,
-      request_timeout_ms: timeoutMs,
-      max_response_bytes: maxBytes,
+      connect_timeout_ms: boundedTimeout,
+      request_timeout_ms: boundedTimeout,
+      max_response_bytes: positiveInteger(
+        maxBytes,
+        "max response bytes",
+        64 * 1024,
+        128 * 1024 * 1024,
+      ),
       request_attempts: 2,
       retry_delay_ms: 250,
     },
@@ -174,9 +249,11 @@ export async function qualifyTorSeedV1(options) {
   const request = options.request || httpGetViaSocks;
   const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const clock = options.clock || (() => new Date().toISOString());
+  const samples = positiveInteger(options.samples, "samples", 3, 12);
+  const intervalMs = positiveInteger(options.intervalMs, "interval ms", 20_000, 10 * 60_000);
   const configured = profile(options);
   const observations = [];
-  for (let index = 0; index < options.samples; index += 1) {
+  for (let index = 0; index < samples; index += 1) {
     const readyResponse = await request(configured, "/__void/ready.json");
     const ready = JSON.parse(readyResponse.body.toString("utf8"));
     const head = positiveInteger(ready.head, "Tor seed readiness head");
@@ -184,12 +261,13 @@ export async function qualifyTorSeedV1(options) {
     const rangeResponse = await request(configured, `/blocks/range?from=${head}&to=${head}`);
     observations.push(validateObservationV1({
       onionHostname: configured.transport.onion_hostname,
+      virtualPort: configured.transport.virtual_port,
       readyResponse,
       headResponse,
       rangeResponse,
       observedAt: clock(),
     }));
-    if (index + 1 < options.samples) await sleep(options.intervalMs);
+    if (index + 1 < samples) await sleep(intervalMs);
   }
   return buildTorQualificationReceiptV1({
     sourceSha: options.sourceSha,
@@ -198,6 +276,7 @@ export async function qualifyTorSeedV1(options) {
     socksHost: configured.transport.socks_proxy.host,
     socksPort: configured.transport.socks_proxy.port,
     observations,
+    generatedAt: clock(),
   });
 }
 
@@ -231,6 +310,8 @@ async function main() {
   console.log(`onion_hostname=${receipt.transport.onion_hostname}`);
   console.log(`qualified_head=${receipt.maximum_head}`);
   console.log(`output=${output}`);
+  console.log("socks_proxy_loopback_only=true");
+  console.log("qualification_observations_fresh=true");
   console.log("socks_remote_dns=true");
   console.log("dns_required=false");
   console.log("registrar_required=false");
