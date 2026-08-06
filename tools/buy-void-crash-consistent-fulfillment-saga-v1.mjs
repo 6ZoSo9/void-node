@@ -87,11 +87,19 @@ const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const EVENT_FILE = /^(\d{8})-(voidbvfsge1_[0-9a-f]{64})\.json$/u;
 const EVENT_TEMP_FILE = /^(\d{8})-(voidbvfsge1_[0-9a-f]{64})\.json\.tmp-[0-9]+-[0-9a-f]{16}$/u;
 const BROADCAST_INTENT_ID = /^voidbvbci1_[0-9a-f]{64}$/u;
-const LOCK_SCHEMA = "void_buy_void_crash_consistent_fulfillment_saga_store_lock_v1";
+const LOCK_CLAIM_SCHEMA =
+  "void_buy_void_crash_consistent_fulfillment_saga_store_lock_claim_v2";
+const LOCK_CHOOSING_FILE = /^choosing-([0-9]+)-([0-9a-f]{32})\.json$/u;
+const LOCK_TICKET_FILE = /^ticket-(\d{16})-([0-9]+)-([0-9a-f]{32})\.json$/u;
+const LOCK_CLAIM_TEMP_FILE =
+  /^(?:choosing-[0-9]+-[0-9a-f]{32}|ticket-\d{16}-[0-9]+-[0-9a-f]{32})\.json\.tmp-[0-9]+-[0-9a-f]{16}$/u;
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
 const MAX_EVENTS = 64;
 const MAX_LEASE_TTL_MS = 15 * 60 * 1000;
 const LOCK_STALE_MS = MAX_LEASE_TTL_MS + 60 * 1000;
+const LOCK_MAX_WAIT_MS = 30_000;
+const LOCK_POLL_MS = 5;
+const LOCK_SLEEP_ARRAY = new Int32Array(new SharedArrayBuffer(4));
 
 const FORBIDDEN_KEYS = new Set([
   "private_key",
@@ -784,13 +792,25 @@ function atomicWriteJson(path, value) {
   fsyncDirectory(parent);
 }
 
-function validateStoreLock(value) {
-  exactKeys(value, ["schema", "pid", "nonce", "acquired_at_utc"], "store_lock");
-  if (value.schema !== LOCK_SCHEMA) fail("store_lock_identity_mismatch");
-  safeInteger(value.pid, 1, Number.MAX_SAFE_INTEGER, "store_lock.pid");
-  const nonce = nonEmptyString(value.nonce, "store_lock.nonce", 32);
-  if (!/^[0-9a-f]{32}$/u.test(nonce)) fail("store_lock.nonce_invalid");
-  canonicalUtc(value.acquired_at_utc, "store_lock.acquired_at_utc");
+function validateStoreLockClaim(value) {
+  exactKeys(
+    value,
+    ["schema", "pid", "nonce", "phase", "ticket", "created_at_utc"],
+    "store_lock_claim",
+  );
+  if (value.schema !== LOCK_CLAIM_SCHEMA) fail("store_lock_claim_identity_mismatch");
+  safeInteger(value.pid, 1, Number.MAX_SAFE_INTEGER, "store_lock_claim.pid");
+  const nonce = nonEmptyString(value.nonce, "store_lock_claim.nonce", 32);
+  if (!/^[0-9a-f]{32}$/u.test(nonce)) fail("store_lock_claim.nonce_invalid");
+  if (!["choosing", "ticket"].includes(value.phase)) {
+    fail("store_lock_claim.phase_invalid");
+  }
+  if (value.phase === "choosing") {
+    if (value.ticket !== null) fail("store_lock_claim.choosing_ticket_must_be_null");
+  } else {
+    safeInteger(value.ticket, 1, Number.MAX_SAFE_INTEGER, "store_lock_claim.ticket");
+  }
+  canonicalUtc(value.created_at_utc, "store_lock_claim.created_at_utc");
   return structuredClone(value);
 }
 
@@ -805,73 +825,162 @@ function processIsAlive(pid) {
   }
 }
 
-function inspectExistingStoreLock(path) {
-  const metadata = lstatSync(path);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) fail("store_lock_must_be_direct_file");
-  let lock = null;
-  if (metadata.size > 0 && metadata.size <= MAX_JSON_BYTES) {
-    try {
-      lock = validateStoreLock(JSON.parse(readFileSync(path, "utf8")));
-    } catch {
-      lock = null;
-    }
+function removeUniqueStoreLockClaim(path) {
+  try {
+    rmSync(path);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
   }
-  const legacyOrMalformedIsStale = Date.now() - metadata.mtimeMs > LOCK_STALE_MS;
-  const stale = lock ? !processIsAlive(lock.pid) : legacyOrMalformedIsStale;
-  return { metadata, lock, stale };
 }
 
-function sameLockFile(left, right) {
-  return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeMs === right.mtimeMs;
+function scanStoreLockClaims(queue) {
+  const choosing = [];
+  const tickets = [];
+  let changed = false;
+
+  for (const entry of readdirSync(queue, { withFileTypes: true })) {
+    const fullPath = join(queue, entry.name);
+    if (entry.name.includes(".tmp-")) {
+      if (!LOCK_CLAIM_TEMP_FILE.test(entry.name)) {
+        fail("store_lock_claim_temporary_filename_invalid");
+      }
+      if (!entry.isFile() || entry.isSymbolicLink()) {
+        fail("store_lock_claim_temporary_entry_must_be_direct_file");
+      }
+      let metadata;
+      try {
+        metadata = lstatSync(fullPath);
+      } catch (error) {
+        if (error?.code === "ENOENT") continue;
+        throw error;
+      }
+      if (Date.now() - metadata.mtimeMs > LOCK_STALE_MS) {
+        removeUniqueStoreLockClaim(fullPath);
+        changed = true;
+      }
+      continue;
+    }
+
+    const choosingMatch = LOCK_CHOOSING_FILE.exec(entry.name);
+    const ticketMatch = LOCK_TICKET_FILE.exec(entry.name);
+    if (!choosingMatch && !ticketMatch) fail("store_lock_queue_entry_invalid");
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      fail("store_lock_claim_must_be_direct_file");
+    }
+
+    let metadata = null;
+    let claim = null;
+    try {
+      metadata = lstatSync(fullPath);
+      claim = validateStoreLockClaim(JSON.parse(readFileSync(fullPath, "utf8")));
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      if (metadata && Date.now() - metadata.mtimeMs > LOCK_STALE_MS) {
+        removeUniqueStoreLockClaim(fullPath);
+        changed = true;
+        continue;
+      }
+      fail("store_lock_claim_corrupt");
+    }
+
+    const match = choosingMatch || ticketMatch;
+    const pid = Number(match[choosingMatch ? 1 : 2]);
+    const nonce = match[choosingMatch ? 2 : 3];
+    if (claim.pid !== pid || claim.nonce !== nonce) {
+      fail("store_lock_claim_filename_binding_mismatch");
+    }
+    if (choosingMatch) {
+      if (claim.phase !== "choosing" || claim.ticket !== null) {
+        fail("store_lock_choosing_claim_binding_mismatch");
+      }
+    } else {
+      const ticket = Number(ticketMatch[1]);
+      safeInteger(ticket, 1, Number.MAX_SAFE_INTEGER, "store_lock_filename_ticket");
+      if (claim.phase !== "ticket" || claim.ticket !== ticket) {
+        fail("store_lock_ticket_claim_binding_mismatch");
+      }
+    }
+
+    if (!processIsAlive(claim.pid)) {
+      removeUniqueStoreLockClaim(fullPath);
+      changed = true;
+      continue;
+    }
+
+    const item = { path: fullPath, name: entry.name, ...claim };
+    if (choosingMatch) choosing.push(item);
+    else tickets.push(item);
+  }
+
+  if (changed) fsyncDirectory(queue);
+  return { choosing, tickets };
+}
+
+function sleepForStoreLock(ms) {
+  Atomics.wait(LOCK_SLEEP_ARRAY, 0, 0, ms);
 }
 
 function withExclusiveLock(path, operation) {
-  let descriptor = null;
-  let ownedLock = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      descriptor = openSync(path, "wx", 0o600);
-      ownedLock = validateStoreLock({
-        schema: LOCK_SCHEMA,
-        pid: process.pid,
-        nonce: crypto.randomBytes(16).toString("hex"),
-        acquired_at_utc: new Date().toISOString(),
-      });
-      writeFileSync(descriptor, `${JSON.stringify(ownedLock)}
-`, "utf8");
-      fsyncSync(descriptor);
-      break;
-    } catch (error) {
-      const createdHere = descriptor !== null;
-      if (descriptor !== null) {
-        closeSync(descriptor);
-        descriptor = null;
-      }
-      if (error?.code !== "EEXIST") {
-        if (createdHere && existsSync(path)) {
-          rmSync(path, { force: true });
-          fsyncDirectory(dirname(path));
-        }
-        throw error;
-      }
-      const observed = inspectExistingStoreLock(path);
-      if (!observed.stale) fail("store_lock_busy");
-      const current = lstatSync(path);
-      if (!sameLockFile(observed.metadata, current)) fail("store_lock_reclaim_race");
-      rmSync(path);
-      fsyncDirectory(dirname(path));
-    }
-  }
-  if (descriptor === null || ownedLock === null) fail("store_lock_acquire_failed");
+  const queue = ensurePrivateDirectory(`${path}.queue`);
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const baseClaim = {
+    schema: LOCK_CLAIM_SCHEMA,
+    pid: process.pid,
+    nonce,
+    created_at_utc: new Date().toISOString(),
+  };
+  const choosingPath = join(queue, `choosing-${process.pid}-${nonce}.json`);
+  let ticketPath = null;
+
+  atomicWriteJson(choosingPath, {
+    ...baseClaim,
+    phase: "choosing",
+    ticket: null,
+  });
+
   try {
+    const initial = scanStoreLockClaims(queue);
+    const maximumTicket = initial.tickets.reduce(
+      (maximum, claim) => Math.max(maximum, claim.ticket),
+      0,
+    );
+    const ticket = maximumTicket + 1;
+    safeInteger(ticket, 1, Number.MAX_SAFE_INTEGER, "store_lock_ticket");
+    ticketPath = join(
+      queue,
+      `ticket-${String(ticket).padStart(16, "0")}-${process.pid}-${nonce}.json`,
+    );
+    atomicWriteJson(ticketPath, {
+      ...baseClaim,
+      phase: "ticket",
+      ticket,
+    });
+    removeUniqueStoreLockClaim(choosingPath);
+    fsyncDirectory(queue);
+
+    const deadline = Date.now() + LOCK_MAX_WAIT_MS;
+    for (;;) {
+      const scanned = scanStoreLockClaims(queue);
+      const ownTicket = scanned.tickets.find((claim) => claim.path === ticketPath);
+      if (!ownTicket) fail("store_lock_ownership_lost");
+      if (scanned.choosing.length === 0) {
+        scanned.tickets.sort(
+          (left, right) =>
+            left.ticket - right.ticket ||
+            left.pid - right.pid ||
+            left.nonce.localeCompare(right.nonce),
+        );
+        if (scanned.tickets[0]?.path === ticketPath) break;
+      }
+      if (Date.now() >= deadline) fail("store_lock_wait_timeout");
+      sleepForStoreLock(LOCK_POLL_MS);
+    }
+
     return operation();
   } finally {
-    closeSync(descriptor);
-    if (!existsSync(path)) fail("store_lock_ownership_lost");
-    const current = validateStoreLock(readJsonFile(path, "store_lock_file"));
-    if (current.pid !== ownedLock.pid || current.nonce !== ownedLock.nonce) fail("store_lock_ownership_lost");
-    rmSync(path);
-    fsyncDirectory(dirname(path));
+    removeUniqueStoreLockClaim(choosingPath);
+    if (ticketPath) removeUniqueStoreLockClaim(ticketPath);
+    fsyncDirectory(queue);
   }
 }
 
