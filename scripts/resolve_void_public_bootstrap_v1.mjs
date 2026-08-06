@@ -142,6 +142,11 @@ async function requestManifestOne(normalized, address) {
       {
         method: "GET",
         agent: false,
+        family,
+        autoSelectFamily: false,
+        ...(normalized.url.protocol === "https:"
+          ? { servername: normalized.hostname }
+          : {}),
         headers: {
           accept: "application/json",
           connection: "close",
