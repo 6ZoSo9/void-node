@@ -1,0 +1,58 @@
+name: Buy VOID manual fulfilled complete request state set v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-manual-fulfilled-complete-request-state-set-v1.yml"
+      - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
+      - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-manual-fulfilled-complete-request-state-set-v1.yml"
+      - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
+      - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-manual-fulfilled-complete-request-state-set-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove complete request state resolution and ambiguity hold
+        run: |
+          node_modules/.bin/tsx \
+            scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Check diff hygiene
+        run: git diff --check
