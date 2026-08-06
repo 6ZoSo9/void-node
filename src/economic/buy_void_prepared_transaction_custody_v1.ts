@@ -153,7 +153,7 @@ export type BuyVoidPreparedTransactionCustodyDecisionV1 =
       mutation_performed: boolean;
       custody: BuyVoidPreparedTransactionCustodyPublicProjectionV1;
       custodian_called: true;
-      external_signing_performed: true;
+      external_signing_performed: boolean;
       transaction_broadcast_performed: false;
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
@@ -662,6 +662,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
   }
 
   let custodianCalled = false;
+  let prepareOnceCalled = false;
   try {
     const file = recordPath(input.root_dir, input.plan.attempt_id);
     const existingRaw = readJsonObject(file);
@@ -694,7 +695,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
         mutation_performed: false,
         custody: publicProjection(existing),
         custodian_called: true,
-        external_signing_performed: true,
+        external_signing_performed: false,
         transaction_broadcast_performed: false,
         raw_signed_transaction_persisted: false,
         raw_signed_transaction_returned: false,
@@ -704,6 +705,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
 
     const request = prepareRequest(input.plan);
     custodianCalled = true;
+    prepareOnceCalled = true;
     const external = await custodian.prepare_once(request);
     const prepared = validateCustodianDecision(external, request);
     const record = buildRecord({
@@ -756,7 +758,7 @@ export async function prepareBuyVoidTransactionInCustodyV1(
   } catch (error) {
     return held(true, "prepared_custody_failed", {
       custodian_called: custodianCalled,
-      external_signing_performed: custodianCalled,
+      external_signing_performed: prepareOnceCalled,
       detail: {
         message: String((error as Error)?.message || error).slice(0, 240),
       },
