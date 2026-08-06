@@ -16,7 +16,9 @@ async function main() {
   }
 
   const adapter = await createTorPublicSeedClientAdapterV1({ peers, port });
-  const nodeEntry = String(process.env.VOID_TOR_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
+  const nodeEntry = String(
+    process.env.VOID_TOR_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js",
+  );
   const child = childProcess.spawn(process.execPath, [nodeEntry], {
     env: {
       ...process.env,
@@ -29,27 +31,62 @@ async function main() {
   });
 
   let stopping = false;
-  const stop = (signal) => {
+  let adapterClosePromise = null;
+
+  function closeAdapter() {
+    if (adapterClosePromise) return adapterClosePromise;
+    adapterClosePromise = new Promise((resolve, reject) => {
+      if (!adapter.server.listening) {
+        resolve();
+        return;
+      }
+      adapter.server.close((error) => {
+        if (error && error.code !== "ERR_SERVER_NOT_RUNNING") {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+    return adapterClosePromise;
+  }
+
+  function stop(signal) {
     if (stopping) return;
     stopping = true;
     if (child.exitCode === null && child.signalCode === null) child.kill(signal);
-    adapter.server.close();
-  };
+    void closeAdapter().catch((error) => {
+      console.error(`${MARKER}_ADAPTER_CLOSE_ERROR: ${error?.stack || error}`);
+      process.exitCode = 1;
+    });
+  }
 
   process.once("SIGINT", () => stop("SIGINT"));
   process.once("SIGTERM", () => stop("SIGTERM"));
-  child.once("error", (error) => {
+
+  child.once("error", async (error) => {
     console.error(`${MARKER}_CHILD_ERROR: ${error?.stack || error}`);
-    stop("SIGTERM");
+    stopping = true;
+    try {
+      await closeAdapter();
+    } catch (closeError) {
+      console.error(`${MARKER}_ADAPTER_CLOSE_ERROR: ${closeError?.stack || closeError}`);
+    }
+    process.exit(1);
   });
-  child.once("exit", (code, signal) => {
-    adapter.server.close(() => {
-      if (signal) {
-        console.error(`${MARKER}_CHILD_SIGNAL=${signal}`);
-        process.exit(1);
-      }
-      process.exit(Number.isInteger(code) ? code : 1);
-    });
+
+  child.once("exit", async (code, signal) => {
+    try {
+      await closeAdapter();
+    } catch (error) {
+      console.error(`${MARKER}_ADAPTER_CLOSE_ERROR: ${error?.stack || error}`);
+      process.exit(1);
+    }
+    if (signal) {
+      console.error(`${MARKER}_CHILD_SIGNAL=${signal}`);
+      process.exit(1);
+    }
+    process.exit(Number.isInteger(code) ? code : 1);
   });
 
   console.log(`${MARKER}_ACTIVE`);
