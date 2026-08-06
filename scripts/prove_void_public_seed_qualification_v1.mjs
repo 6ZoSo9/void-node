@@ -80,7 +80,7 @@ async function jsonResponse(url, options) {
 }
 
 for (const [path, needles] of [
-  ["tools/void-public-seed-gateway-v1.mjs", ["gateway must bind to loopback", "Math.min(999", "upstream_response_too_large"]],
+  ["tools/void-public-seed-gateway-v1.mjs", ["numeric loopback literal", "Math.min(999", "upstream_response_too_large", "upstream_redirect_not_allowed"]],
   ["scripts/lib/void_public_seed_common_v1.mjs", ["temporary tunnel provider hostnames cannot qualify", "NON_PUBLIC_V4", "NON_PUBLIC_V6"]],
   ["scripts/lib/void_public_seed_probe_v1.mjs", ["pinnedAddresses", "connected_addresses", "unexpected address"]],
   ["scripts/lib/void_public_seed_receipt_v1.mjs", ["private_tailnet_endpoints_published", "qualification_id", "temporary provider cannot qualify"]],
@@ -102,6 +102,25 @@ await expectReject(
   /non-public address 100\.64\.0\.9/,
   "mixed public/private DNS is rejected before connection",
 );
+
+const unsafeBind = childProcess.spawnSync(
+  process.execPath,
+  ["tools/void-public-seed-gateway-v1.mjs"],
+  {
+    env: {
+      ...process.env,
+      VOID_PUBLIC_SEED_BIND: "localhost",
+      VOID_PUBLIC_SEED_PORT: String(GATEWAY_PORT),
+    },
+    encoding: "utf8",
+  },
+);
+assert(unsafeBind.status !== 0, "gateway accepted hostname-based bind");
+assert(
+  `${unsafeBind.stdout || ""}${unsafeBind.stderr || ""}`.includes("numeric loopback literal"),
+  "gateway hostname-bind failure marker missing",
+);
+pass("gateway rejects hostname-based loopback ambiguity");
 
 const largeBody = JSON.stringify({ payload: "x".repeat(2 * 1024 * 1024) });
 const upstream = http.createServer((req, res) => {
@@ -132,7 +151,9 @@ const upstream = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/head") {
-    res.end(JSON.stringify({ number: 2000 }));
+    res.statusCode = 302;
+    res.setHeader("location", "http://127.0.0.1/private");
+    res.end(JSON.stringify({ ok: false, redirect: true }));
     return;
   }
   if (url.pathname === "/api/health") {
@@ -179,6 +200,11 @@ try {
   assert(tooWide.response.status === 404, "1000-block range was accepted");
   const duplicate = await jsonResponse(`${base}/blocks/range?from=1&from=2&to=2`);
   assert(duplicate.response.status === 404, "duplicate range parameters were accepted");
+  const redirected = await jsonResponse(`${base}/head`);
+  assert(
+    redirected.response.status === 502 && redirected.json?.error === "upstream_redirect_not_allowed",
+    "upstream redirect was not rejected",
+  );
   const oversized = await jsonResponse(`${base}/__void/demo/summary.json`);
   assert(
     oversized.response.status === 502 && oversized.json?.error === "upstream_response_too_large",
@@ -280,6 +306,17 @@ try {
     "tampered receipt cannot publish",
   );
 
+  const futureGeneratedReceipt = createQualificationReceipt({
+    endpoint: "https://seed.future-generated.example.com",
+    samples,
+    generatedAt: new Date(nowMs + 60 * 60 * 1000).toISOString(),
+  });
+  expectThrow(
+    () => buildBootstrapManifest([futureGeneratedReceipt], { nowMs }),
+    /generated_at is from the future/,
+    "future-generated receipt cannot publish",
+  );
+
   const staleSamples = samples.map((sample) => ({
     ...sample,
     observed_at: new Date(Date.parse(sample.observed_at) - 4 * 60 * 60 * 1000).toISOString(),
@@ -294,7 +331,7 @@ try {
     /stale/,
     "stale qualification cannot publish",
   );
-  pass("publication gate rejects temporary, private, short, tampered, and stale evidence");
+  pass("publication gate rejects temporary, private, short, tampered, future, and stale evidence");
 } finally {
   if (gateway && gateway.exitCode === null) {
     gateway.kill("SIGTERM");
