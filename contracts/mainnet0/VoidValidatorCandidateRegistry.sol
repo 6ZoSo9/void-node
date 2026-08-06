@@ -26,6 +26,7 @@ contract VoidValidatorCandidateRegistry {
         ValidatorState state;
     }
 
+    /// @notice Mainnet-0 participant-controlled exit delay.
     uint256 public constant UNBONDING_DELAY = 7 days;
 
     uint256 public immutable minValidatorStake;
@@ -174,6 +175,7 @@ contract VoidValidatorCandidateRegistry {
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
+    /// @notice Honest semantic alias for the legacy compatibility getter.
     function maxActivationBatchSize() external view returns (uint256) {
         return activationChurnLimit;
     }
@@ -213,6 +215,9 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
+    /// @notice Re-enter candidacy after a complete prior exit and withdrawal.
+    /// @dev The address remains one unique candidate owner; candidateCount and
+    ///      candidateOwners are not duplicated across registration cycles.
     function reregisterCandidate(
         address reward,
         bytes32 consensusKeyHash,
@@ -253,6 +258,9 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
+    /// @notice Update public validator profile before Waiting admission.
+    /// @dev A Waiting participant may first call returnToCandidate(). Active,
+    ///      Exiting, Jailed, and Unbonded records cannot mutate their profile.
     function updateCandidateProfile(
         address reward,
         bytes32 consensusKeyHash,
@@ -296,6 +304,7 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
+    /// @notice Voluntarily leave Waiting without beginning stake unbonding.
     function returnToCandidate() external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -320,17 +329,22 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateMovedToWaiting(candidateOwner);
     }
 
-    function markActiveBatch(
-        address[] calldata owners
-    ) external onlyOwner nonReentrant {
+    /// @notice Capped admission hook for future epoch activation proofs.
+    /// @dev activationChurnLimit limits one call only. This registry does not
+    ///      claim to enforce a temporal or epoch churn rate.
+    function markActiveBatch(address[] calldata owners) external onlyOwner nonReentrant {
         if (
             owners.length == 0 ||
             owners.length > activationChurnLimit
-        ) revert InvalidState();
+        ) {
+            revert InvalidState();
+        }
         if (
             activeCount + pendingActiveExitCount + owners.length >
             maxActiveValidators
-        ) revert ActiveCapReached();
+        ) {
+            revert ActiveCapReached();
+        }
 
         for (uint256 i = 0; i < owners.length; i++) {
             Candidate storage c = candidates[owners[i]];
@@ -350,6 +364,10 @@ contract VoidValidatorCandidateRegistry {
         }
     }
 
+    /// @notice Remove a candidate from Candidate, Waiting, or Active status.
+    /// @dev Jailing never transfers or destroys the participant's stake. For an
+    ///      Active validator, the owner action is the explicit registry-side
+    ///      acknowledgment that the separate active set has removed it.
     function jail(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
@@ -383,6 +401,10 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateJailed(candidateOwner);
     }
 
+    /// @notice Begin a participant-controlled delayed exit.
+    /// @dev An Active participant may request exit without owner cooperation, but
+    ///      cannot finalize until registry authority confirms external active-set
+    ///      removal with a nonzero evidence commitment.
     function requestExit() external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -415,6 +437,9 @@ contract VoidValidatorCandidateRegistry {
         );
     }
 
+    /// @notice Bind an external active-set removal proof before active stake exits.
+    /// @dev The evidence hash is public and non-secret. This function does not
+    ///      inspect runtime state; it records the separate operator proof decision.
     function confirmActiveSetRemoval(
         address candidateOwner,
         bytes32 evidenceHash
@@ -439,6 +464,7 @@ contract VoidValidatorCandidateRegistry {
         emit ActiveSetRemovalConfirmed(candidateOwner, evidenceHash);
     }
 
+    /// @notice Complete a participant-controlled exit after the fixed delay.
     function finalizeExit() external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -461,9 +487,11 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateUnbonded(msg.sender);
     }
 
-    function markUnbonded(
-        address candidateOwner
-    ) external onlyOwner nonReentrant {
+    /// @notice Administrative removal that makes stake immediately withdrawable.
+    /// @dev Active validators cannot use this direct path. They must first exit
+    ///      or be jailed so external active-set removal is explicitly accounted.
+    ///      An already-started participant exit cannot be bypassed.
+    function markUnbonded(address candidateOwner) external onlyOwner nonReentrant {
         Candidate storage c = candidates[candidateOwner];
         if (c.owner == address(0)) revert NotRegistered();
 
@@ -491,6 +519,9 @@ contract VoidValidatorCandidateRegistry {
         emit CandidateUnbonded(candidateOwner);
     }
 
+    /// @notice Withdraw the candidate's complete recorded stake after unbonding.
+    /// @dev All registry mutations are nonReentrant, so a recipient callback
+    ///      cannot change registry lifecycle state during the transfer.
     function withdrawStake(address payable recipient) external nonReentrant {
         Candidate storage c = candidates[msg.sender];
         if (c.owner == address(0)) revert NotRegistered();
@@ -530,13 +561,13 @@ contract VoidValidatorCandidateRegistry {
         return candidateOwners.length;
     }
 
+    /// @notice Explicit alias for candidateCount's unique-owner semantics.
     function uniqueCandidateOwnerCount() external view returns (uint256) {
         return candidateCount;
     }
 
-    function transferOwnership(
-        address newOwner
-    ) external onlyOwner nonReentrant {
+    /// @notice Start a two-step ownership transfer.
+    function transferOwnership(address newOwner) external onlyOwner nonReentrant {
         if (newOwner == address(0) || newOwner == owner) revert InvalidOwner();
         if (pendingOwner != address(0)) revert OwnershipTransferPending();
 
