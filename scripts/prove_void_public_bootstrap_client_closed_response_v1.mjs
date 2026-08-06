@@ -143,14 +143,24 @@ async function invokeAdapter(peers, route) {
 }
 
 function runResolver(args, env = {}) {
-  return childProcess.spawnSync(
-    process.execPath,
-    ["scripts/resolve_void_public_bootstrap_v1.mjs", ...args],
-    {
-      env: { ...process.env, ...env },
-      encoding: "utf8",
-    },
-  );
+  return new Promise((resolve, reject) => {
+    const child = childProcess.spawn(
+      process.execPath,
+      ["scripts/resolve_void_public_bootstrap_v1.mjs", ...args],
+      {
+        env: { ...process.env, ...env },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
+    child.once("error", reject);
+    child.once("close", (status, signal) => {
+      resolve({ status, signal, stdout, stderr });
+    });
+  });
 }
 
 function authorityFalse() {
@@ -233,7 +243,7 @@ try {
   fs.writeFileSync(topLevelPath, `${JSON.stringify(resealedTopLevel)}\n`, {
     mode: 0o600,
   });
-  const topLevelDecision = runResolver([
+  const topLevelDecision = await runResolver([
     "--allow-hold",
     "--local-hold-file",
     topLevelPath,
@@ -256,7 +266,7 @@ try {
   fs.writeFileSync(authorityPath, `${JSON.stringify(resealedAuthority)}\n`, {
     mode: 0o600,
   });
-  const authorityDecision = runResolver([
+  const authorityDecision = await runResolver([
     "--allow-hold",
     "--local-hold-file",
     authorityPath,
@@ -306,7 +316,7 @@ try {
     res.end(bytes);
   });
   const manifestPort = await listen(manifestServer);
-  const endpointDecision = runResolver([], {
+  const endpointDecision = await runResolver([], {
     VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "1",
     VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: "3000",
     VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:
