@@ -52,6 +52,8 @@ const GLOBAL_MARK = "__void_buy_void_runtime_integration_v1";
 const ENABLE_ENV = "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED";
 const ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
 const JSON_LIMIT = "256kb";
+const MAX_INPUT_NESTING_DEPTH = 12;
+const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__";
 
 const FORBIDDEN_INPUT_KEYS = new Set([
   "private_key",
@@ -128,7 +130,10 @@ function normalizedKey(value: unknown): string {
 }
 
 function findForbiddenInputKey(value: unknown, depth = 0): string | null {
-  if (!value || typeof value !== "object" || depth > 12) return null;
+  if (!value || typeof value !== "object") return null;
+  if (depth > MAX_INPUT_NESTING_DEPTH) {
+    return INPUT_NESTING_DEPTH_SENTINEL;
+  }
 
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -238,8 +243,11 @@ export function handleBuyVoidRuntimeCommandV1(
     return res.status(400).json({
       marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
       ok: false,
-      error: "forbidden_execution_material",
+      error: forbiddenKey === INPUT_NESTING_DEPTH_SENTINEL
+        ? "input_nesting_depth_exceeded"
+        : "forbidden_execution_material",
       forbidden_key: forbiddenKey,
+      max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
     });
   }
 
