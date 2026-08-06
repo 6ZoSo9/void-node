@@ -101,6 +101,7 @@ export function validateQualificationReceipt(
     throw new Error("temporary provider cannot qualify for publication");
   }
   assertAuthorityBoundary(receipt.authority);
+  const generatedAt = parseTime(receipt.generated_at, "qualification generated_at");
 
   const requiredSamples = assertSafeInteger(minSamples, "minimum samples", { min: 1, max: 20 });
   const requiredSpan = assertSafeInteger(minSpanMs, "minimum span", { min: 0, max: 24 * 60 * 60 * 1000 });
@@ -166,6 +167,12 @@ export function validateQualificationReceipt(
 
   if (lastObserved - firstObserved < requiredSpan) {
     throw new Error(`qualification observation span is less than ${requiredSpan} ms`);
+  }
+  if (generatedAt < lastObserved) {
+    throw new Error("qualification generated_at predates the final sample");
+  }
+  if (generatedAt > nowMs + 5 * 60 * 1000) {
+    throw new Error("qualification generated_at is from the future");
   }
   if (lastObserved > nowMs + 5 * 60 * 1000) throw new Error("qualification receipt is from the future");
   if (nowMs - lastObserved > allowedAge) throw new Error("qualification receipt is stale");
