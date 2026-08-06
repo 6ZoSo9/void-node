@@ -14,6 +14,9 @@ import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-clien
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_CLIENT_RESILIENCE_V1_PROOF";
 const LOOPBACK = "127.0.0.1";
+const LOCAL_HOLD_PATH = `/tmp/void-public-bootstrap-client-${process.pid}-hold.json`;
+const LOCAL_TAMPERED_PATH = `/tmp/void-public-bootstrap-client-${process.pid}-tampered.json`;
+const LOCAL_STABLE_PATH = `/tmp/void-public-bootstrap-client-${process.pid}-stable.json`;
 
 function fail(message) {
   throw new Error(message);
@@ -39,6 +42,19 @@ async function close(server) {
   if (!server.listening) return;
   server.close();
   await once(server, "close");
+}
+
+function removeFixture(path) {
+  try {
+    fs.unlinkSync(path);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      console.error("VOID_PUBLIC_BOOTSTRAP_CLIENT_FIXTURE_CLEANUP_FAILURE", {
+        path,
+        message: error?.message || String(error),
+      });
+    }
+  }
 }
 
 function sendJson(req, res, status, body) {
@@ -172,6 +188,9 @@ for (const file of laneFiles) {
 const staticSource = laneFiles.map((file) => fs.readFileSync(file, "utf8")).join("\n");
 for (const marker of [
   "hold_no_stable_seed",
+  "local_hold_no_stable_seed",
+  "canonical_manifest_published=false",
+  "--local-hold-file",
   "VOID_PUBLIC_BOOTSTRAP_REQUIRE",
   "VOID_PUBLIC_SEED_CLIENT_ADAPTER_V1",
   "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1",
@@ -182,6 +201,18 @@ for (const marker of [
 ]) {
   assert(staticSource.includes(marker), `missing static marker ${marker}`);
 }
+assert(
+  staticSource.includes("grep -Fq 'manifest request returned HTTP 404'"),
+  "launcher local hold fallback is not limited to explicit canonical 404",
+);
+assert(
+  staticSource.includes('test "$manifest_override" = 0'),
+  "launcher local hold fallback does not reject custom manifest URLs",
+);
+assert(
+  staticSource.includes('test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1'),
+  "launcher local hold fallback does not preserve required-sync failure",
+);
 assert(
   !/(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g.test(staticSource),
   "lane contains a raw empty catch",
@@ -308,7 +339,47 @@ try {
   });
   assert(expiredResult.code !== 0, "resolver accepted an expired manifest");
   assert(expiredResult.stderr.includes("manifest is expired"), "expiry rejection was unclear");
-  pass("content-addressed hold and stable manifest resolution");
+  pass("content-addressed remote hold and stable manifest resolution");
+
+  fs.writeFileSync(LOCAL_HOLD_PATH, `${JSON.stringify(hold)}\n`, { mode: 0o600 });
+  const localTampered = structuredClone(hold);
+  localTampered.notes = `${String(localTampered.notes || "")} tampered`;
+  fs.writeFileSync(LOCAL_TAMPERED_PATH, `${JSON.stringify(localTampered)}\n`, { mode: 0o600 });
+  fs.writeFileSync(LOCAL_STABLE_PATH, `${JSON.stringify(stable)}\n`, { mode: 0o600 });
+
+  const localHoldResult = await runNode(
+    [resolver, "--allow-hold", "--local-hold-file", LOCAL_HOLD_PATH],
+    {},
+  );
+  assert(
+    localHoldResult.code === 0 && localHoldResult.stdout.trim() === "",
+    "verified local hold did not return a clean hold",
+  );
+  assert(
+    localHoldResult.stderr.includes("manifest_source=local_hold_file"),
+    "verified local hold source marker missing",
+  );
+
+  const localTamperedResult = await runNode(
+    [resolver, "--allow-hold", "--local-hold-file", LOCAL_TAMPERED_PATH],
+    {},
+  );
+  assert(localTamperedResult.code !== 0, "resolver accepted a tampered local hold");
+  assert(
+    localTamperedResult.stderr.includes("manifest ID does not match"),
+    "local hold tamper rejection was unclear",
+  );
+
+  const localStableResult = await runNode(
+    [resolver, "--allow-hold", "--local-hold-file", LOCAL_STABLE_PATH],
+    fixtureEnv,
+  );
+  assert(localStableResult.code !== 0, "resolver accepted a local stable manifest fallback");
+  assert(
+    localStableResult.stderr.includes("local fallback accepts only hold_no_stable_seed"),
+    "local stable fallback rejection was unclear",
+  );
+  pass("local fallback accepts only an untampered content-addressed hold");
 
   process.env.VOID_FOLLOWER_AUTOSTART_PEERS = adapter.base;
   process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE = "1";
@@ -354,11 +425,16 @@ try {
   if (manifestServer) await close(manifestServer);
   await close(badGateway);
   await close(goodGateway);
+  removeFixture(LOCAL_HOLD_PATH);
+  removeFixture(LOCAL_TAMPERED_PATH);
+  removeFixture(LOCAL_STABLE_PATH);
 }
 
 console.log(`${MARKER}_GREEN`);
 console.log("stable_seed_published=false");
 console.log("public_manifest_status=hold_no_stable_seed");
+console.log("canonical_manifest_published=false_until_parent_merge");
+console.log("local_fallback_accepts_stable_seed=false");
 console.log("tailnet_required=false");
 console.log("direct_remote_fetch_from_node=false");
 console.log("private_mutation_routes_exposed=false");
