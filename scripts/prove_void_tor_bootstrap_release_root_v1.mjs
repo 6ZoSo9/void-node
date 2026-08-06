@@ -317,6 +317,14 @@ try {
     /keys mismatch/,
   );
 
+  const stringChainRoot = structuredClone(root);
+  stringChainRoot.chain_id = String(TOR_BOOTSTRAP_CHAIN_ID);
+  stringChainRoot.root_id = torBootstrapReleaseRootId(stringChainRoot);
+  assert.throws(
+    () => validateTorBootstrapReleaseRoot(stringChainRoot, { allowHold: false }),
+    /network contract mismatch/,
+  );
+
   const resealedUnknownManifest = structuredClone(manifest);
   resealedUnknownManifest.unknown = true;
   resealedUnknownManifest.manifest_id = contentId(
