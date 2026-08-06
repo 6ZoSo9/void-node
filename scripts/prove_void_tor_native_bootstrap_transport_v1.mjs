@@ -27,11 +27,17 @@ async function expectReject(fn, pattern) {
   await assert.rejects(fn, pattern);
 }
 
+function writeFragments(socket, fragments, delayMs = 8) {
+  for (const [index, fragment] of fragments.entries()) {
+    setTimeout(() => socket.write(Buffer.from(fragment)), index * delayMs);
+  }
+}
+
 const requestedHosts = [];
 const fixture = net.createServer((socket) => {
   socket.once("data", (greeting) => {
     assert.deepEqual([...greeting], [0x05, 0x01, 0x00]);
-    socket.write(Buffer.from([0x05, 0x00]));
+    writeFragments(socket, [[0x05], [0x00]]);
     socket.once("data", (request) => {
       assert.equal(request[0], 0x05);
       assert.equal(request[1], 0x01);
@@ -40,7 +46,11 @@ const fixture = net.createServer((socket) => {
       const hostname = request.subarray(5, 5 + length).toString("ascii");
       const port = request.readUInt16BE(5 + length);
       requestedHosts.push({ hostname, port });
-      socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80]));
+      writeFragments(socket, [
+        [0x05, 0x00],
+        [0x00, 0x01, 127],
+        [0, 0, 1, 0, 80],
+      ]);
       socket.once("data", (httpRequest) => {
         const text = httpRequest.toString("utf8");
         assert.match(text, /^GET \/__void\/ready\.json HTTP\/1\.1\r\n/);
@@ -142,7 +152,7 @@ try {
   assert.deepEqual(response, { ready: true, head: 1856587, gap: 0, txroot_live: 1 });
   assert.deepEqual(requestedHosts, [{ hostname: ONION, port: 80 }]);
   await close(fixture);
-  console.log("[PASS] SOCKS5 domain-name transport without DNS resolution");
+  console.log("[PASS] fragmented SOCKS5 domain-name transport without DNS resolution");
 
   const badPort = await listen(badIdentity);
   await expectReject(
@@ -171,6 +181,7 @@ try {
   console.log("[PASS] local-only Tor proxy and query-pollution boundary");
 
   console.log(`${MARKER}_GREEN`);
+  console.log("socks_handshake_fragmentation_proven=true");
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
   console.log("certificate_authority_required=false");
