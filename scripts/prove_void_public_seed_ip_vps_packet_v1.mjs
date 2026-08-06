@@ -5,7 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { verifyPacket } from "./lib/void_public_seed_ip_vps_packet_v1.mjs";
+import {
+  packetId,
+  verifyPacket,
+} from "./lib/void_public_seed_ip_vps_packet_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_IP_VPS_PACKET_V1_PROOF";
 
@@ -83,6 +86,77 @@ fs.symlinkSync("packet.json", extraSymlink);
 assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
 fs.unlinkSync(extraSymlink);
 console.log("[PASS] unrecorded file, directory, and symlink are rejected");
+
+const packetPath = path.join(output, "packet.json");
+const originalPacketText = fs.readFileSync(packetPath, "utf8");
+
+function expectPacketMutationRejected(mutator, pattern) {
+  const packet = JSON.parse(originalPacketText);
+  mutator(packet);
+  packet.packet_id = packetId(packet);
+  fs.writeFileSync(packetPath, `${JSON.stringify(packet, null, 2)}\n`, { mode: 0o600 });
+  try {
+    assert.throws(() => verifyPacket(output), pattern);
+  } finally {
+    fs.writeFileSync(packetPath, originalPacketText, { mode: 0o600 });
+  }
+}
+
+expectPacketMutationRejected(
+  (packet) => {
+    delete packet.authority;
+  },
+  /top-level field set mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.authority = {};
+  },
+  /authority contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.activation = {};
+  },
+  /activation contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.certbot.certificate_profile = "default";
+  },
+  /certbot contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.snapshot.required_before_activation = false;
+  },
+  /snapshot contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.service_user = "otheruser";
+  },
+  /generated content mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.gateway_source_sha256 = "0".repeat(63);
+  },
+  /gateway source SHA-256 is invalid/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.generated_at = "not-an-iso-timestamp";
+  },
+  /generated_at is invalid/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.unrecognized_contract = false;
+  },
+  /top-level field set mismatch/,
+);
+console.log("[PASS] packet metadata schema and generated-content bindings fail closed");
 
 for (const privateIp of [
   "0.0.0.1",
@@ -162,6 +236,10 @@ console.log(`${MARKER}_GREEN`);
 console.log("new_source_files=6");
 console.log("packet_directory_exact_set_enforced=true");
 console.log("unrecorded_packet_entries_accepted=false");
+console.log("packet_top_level_schema_exact=true");
+console.log("packet_nested_contracts_exact=true");
+console.log("packet_metadata_generated_content_bound=true");
+console.log("self_recomputed_weakened_packet_accepted=false");
 console.log("domain_required=false");
 console.log("tailscale_required=false");
 console.log("public_https_port=443");

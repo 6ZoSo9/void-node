@@ -422,6 +422,20 @@ export function packetId(body) {
   return `voidipvsp1_${sha256(canonicalJson(copy))}`;
 }
 
+function generatedPacketFiles(input) {
+  return new Map([
+    ["void-public-seed-node-v1.env", { content: renderNodeEnv(input), mode: 0o600 }],
+    ["void-public-seed-node-v1.service", { content: renderNodeUnit(input), mode: 0o600 }],
+    ["void-public-seed-gateway-v1.service", { content: renderGatewayUnit(input), mode: 0o600 }],
+    ["nginx-void-public-seed-bootstrap-v1.conf", { content: renderNginxBootstrap(input), mode: 0o600 }],
+    ["nginx-void-public-seed-tls-v1.conf", { content: renderNginxTls(input), mode: 0o600 }],
+    ["certbot-renew-deploy-hook-v1.sh", { content: renderDeployHook(), mode: 0o700 }],
+    ["void-public-seed-cert-renew-v1.service", { content: renderRenewService(), mode: 0o600 }],
+    ["void-public-seed-cert-renew-v1.timer", { content: renderRenewTimer(), mode: 0o600 }],
+    ["INSTALL.txt", { content: renderInstall(input), mode: 0o600 }],
+  ]);
+}
+
 export function buildPacket({
   publicIp,
   repoRoot,
@@ -456,17 +470,7 @@ export function buildPacket({
   };
   input.data_parent = path.dirname(input.data_dir);
 
-  const generated = new Map([
-    ["void-public-seed-node-v1.env", { content: renderNodeEnv(input), mode: 0o600 }],
-    ["void-public-seed-node-v1.service", { content: renderNodeUnit(input), mode: 0o600 }],
-    ["void-public-seed-gateway-v1.service", { content: renderGatewayUnit(input), mode: 0o600 }],
-    ["nginx-void-public-seed-bootstrap-v1.conf", { content: renderNginxBootstrap(input), mode: 0o600 }],
-    ["nginx-void-public-seed-tls-v1.conf", { content: renderNginxTls(input), mode: 0o600 }],
-    ["certbot-renew-deploy-hook-v1.sh", { content: renderDeployHook(), mode: 0o700 }],
-    ["void-public-seed-cert-renew-v1.service", { content: renderRenewService(), mode: 0o600 }],
-    ["void-public-seed-cert-renew-v1.timer", { content: renderRenewTimer(), mode: 0o600 }],
-    ["INSTALL.txt", { content: renderInstall(input), mode: 0o600 }],
-  ]);
+  const generated = generatedPacketFiles(input);
 
   const temporary = `${outputPath}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
   fs.mkdirSync(temporary, { recursive: false, mode: 0o700 });
@@ -504,12 +508,71 @@ export function verifyPacket(packetDir) {
     throw new Error("packet.json must be one regular non-symlink file");
   }
   const packet = JSON.parse(fs.readFileSync(packetPath, "utf8"));
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) {
+    throw new Error("packet must be one object");
+  }
+
+  const requiredTopLevelFields = [
+    "schema",
+    "network",
+    "chain_id",
+    "generated_at",
+    "source_head",
+    "gateway_source_sha256",
+    "public_ip",
+    "public_https",
+    "public_p2p",
+    "service_user",
+    "target_repo_root",
+    "data_dir",
+    "node_identity_path",
+    "acme_webroot",
+    "node_path",
+    "required_inbound_tcp_ports",
+    "forbidden_public_tcp_ports",
+    "certbot",
+    "snapshot",
+    "files",
+    "authority",
+    "activation",
+    "packet_id",
+  ].sort();
+  if (
+    canonicalJson(Object.keys(packet).sort()) !==
+    canonicalJson(requiredTopLevelFields)
+  ) {
+    throw new Error("packet top-level field set mismatch");
+  }
+
   if (packet.schema !== SCHEMA || packet.network !== NETWORK || Number(packet.chain_id) !== CHAIN_ID) {
     throw new Error("packet schema or network mismatch");
   }
   if (packet.packet_id !== packetId(packet)) throw new Error("packet ID does not match content");
   normalizePublicIpv4(packet.public_ip);
   if (!/^[0-9a-f]{40}$/.test(packet.source_head)) throw new Error("packet source head is invalid");
+  if (!/^[0-9a-f]{64}$/.test(packet.gateway_source_sha256)) {
+    throw new Error("gateway source SHA-256 is invalid");
+  }
+  if (
+    typeof packet.generated_at !== "string" ||
+    Number.isNaN(Date.parse(packet.generated_at)) ||
+    new Date(packet.generated_at).toISOString() !== packet.generated_at
+  ) {
+    throw new Error("packet generated_at is invalid");
+  }
+
+  const metadataInput = {
+    source_head: packet.source_head,
+    public_ip: packet.public_ip,
+    service_user: requireServiceUser(packet.service_user),
+    target_repo_root: requireAbsolutePath(packet.target_repo_root, "target repository root"),
+    data_dir: requireAbsolutePath(packet.data_dir, "data directory"),
+    node_identity_path: requireAbsolutePath(packet.node_identity_path, "node identity path"),
+    acme_webroot: requireAbsolutePath(packet.acme_webroot, "ACME webroot"),
+    node_path: requireAbsolutePath(packet.node_path, "Node.js path"),
+  };
+  metadataInput.data_parent = path.dirname(metadataInput.data_dir);
+
   if (packet.public_https !== `https://${packet.public_ip}`) throw new Error("public HTTPS binding mismatch");
   if (packet.public_p2p !== `${packet.public_ip}:4700`) throw new Error("public P2P binding mismatch");
   if (canonicalJson(packet.required_inbound_tcp_ports) !== canonicalJson([80, 443, 4700])) {
@@ -518,21 +581,83 @@ export function verifyPacket(packetDir) {
   if (canonicalJson(packet.forbidden_public_tcp_ports) !== canonicalJson([4100, 4111])) {
     throw new Error("forbidden public port contract mismatch");
   }
-  for (const [key, value] of Object.entries(packet.authority || {})) {
-    if (value !== false) throw new Error(`authority flag ${key} must be false`);
+
+  const expectedCertbot = {
+    minimum_version: `${REQUIRED_CERTBOT_MAJOR}.${REQUIRED_CERTBOT_MINOR}`,
+    certificate_profile: "shortlived",
+    challenge: "http-01 via webroot",
+    automatic_renewal_required: true,
+    install_plugin_assumed: false,
+  };
+  if (canonicalJson(packet.certbot) !== canonicalJson(expectedCertbot)) {
+    throw new Error("packet certbot contract mismatch");
   }
-  for (const [key, value] of Object.entries(packet.activation || {})) {
-    if (value !== false) throw new Error(`activation flag ${key} must be false`);
+
+  const expectedSnapshot = {
+    required_before_activation: true,
+    wallet_material_allowed: false,
+    authority_material_allowed: false,
+  };
+  if (canonicalJson(packet.snapshot) !== canonicalJson(expectedSnapshot)) {
+    throw new Error("packet snapshot contract mismatch");
+  }
+
+  const expectedAuthority = {
+    private_mutation_routes_exposed: false,
+    wallet_authority: false,
+    signer_authority: false,
+    validator_authority: false,
+    treasury_authority: false,
+    work_credit_authority: false,
+    buy_void_authority: false,
+    money_movement_authority: false,
+  };
+  if (canonicalJson(packet.authority) !== canonicalJson(expectedAuthority)) {
+    throw new Error("packet authority contract mismatch");
+  }
+
+  const expectedActivation = {
+    services_started: false,
+    certificate_issued: false,
+    manifest_published: false,
+    vps_access_performed: false,
+  };
+  if (canonicalJson(packet.activation) !== canonicalJson(expectedActivation)) {
+    throw new Error("packet activation contract mismatch");
   }
 
   if (!Array.isArray(packet.files) || packet.files.length !== 9) {
     throw new Error("packet must contain exactly nine generated files");
   }
   const contents = new Map();
+  const recordsByName = new Map();
+  const requiredRecordFields = ["name", "sha256", "bytes", "mode"].sort();
   for (const record of packet.files) {
-    if (!record || typeof record.name !== "string" || record.name.includes("/") || record.name.includes("\\")) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) {
+      throw new Error("packet file record must be one object");
+    }
+    if (
+      canonicalJson(Object.keys(record).sort()) !==
+      canonicalJson(requiredRecordFields)
+    ) {
+      throw new Error("packet file record field set mismatch");
+    }
+    if (typeof record.name !== "string" || record.name.includes("/") || record.name.includes("\\")) {
       throw new Error("packet file name is invalid");
     }
+    if (!/^[0-9a-f]{64}$/.test(record.sha256)) {
+      throw new Error(`packet file SHA-256 is invalid: ${record.name}`);
+    }
+    if (!Number.isSafeInteger(record.bytes) || record.bytes < 0) {
+      throw new Error(`packet file byte count is invalid: ${record.name}`);
+    }
+    if (!/^[0-7]{4}$/.test(record.mode)) {
+      throw new Error(`packet file mode is invalid: ${record.name}`);
+    }
+    if (recordsByName.has(record.name)) {
+      throw new Error(`packet file record is duplicated: ${record.name}`);
+    }
+    recordsByName.set(record.name, record);
     const target = path.join(root, record.name);
     const stat = fs.lstatSync(target);
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`packet file is unsafe: ${record.name}`);
@@ -568,6 +693,18 @@ export function verifyPacket(packetDir) {
     canonicalJson(expectedDirectoryNames)
   ) {
     throw new Error("packet directory file set mismatch");
+  }
+
+  const expectedGenerated = generatedPacketFiles(metadataInput);
+  for (const [name, expected] of expectedGenerated) {
+    const record = recordsByName.get(name);
+    const expectedMode = expected.mode.toString(8).padStart(4, "0");
+    if (record.mode !== expectedMode) {
+      throw new Error(`packet generated file mode contract mismatch: ${name}`);
+    }
+    if (contents.get(name) !== expected.content) {
+      throw new Error(`packet generated content mismatch: ${name}`);
+    }
   }
 
   const combined = [...contents.values()].join("\n");
