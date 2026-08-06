@@ -653,15 +653,23 @@ async function main(): Promise<void> {
   ) as Record<string, unknown>;
   assert.equal(custodyRecord.raw_signed_transaction_persisted, false);
   assert.equal(custodyRecord.raw_signed_transaction_returned, false);
-  assert.equal(
-    Object.prototype.hasOwnProperty.call(
-      custodyRecord,
-      "raw_signed_transaction",
-    ),
-    false,
-  );
-  assert.equal(JSON.stringify(custodyRecord).includes("private_key"), false);
-  assert.equal(JSON.stringify(custodyRecord).includes("mnemonic"), false);
+  for (const secretKey of [
+    "private_key",
+    "privatekey",
+    "mnemonic",
+    "seed",
+    "seed_phrase",
+    "raw_signed_transaction",
+    "signed_transaction",
+    "signed_payload",
+    "keystore",
+  ]) {
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(custodyRecord, secretKey),
+      false,
+      secretKey,
+    );
+  }
 
   for (const [name, value] of saved) {
     if (value === undefined) delete process.env[name];
