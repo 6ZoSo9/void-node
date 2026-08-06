@@ -10,7 +10,7 @@ import process from "node:process";
 const MARKER = "VOID_TOR_PUBLIC_BOOTSTRAP_SUPERVISOR_SHUTDOWN_V1_PROOF";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SUPERVISOR = path.join(ROOT, "scripts", "run_void_tor_public_bootstrap_supervisor_v1.mjs");
-const ONION = `${"a".repeat(56)}.onion`;
+const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-supervisor-shutdown-"));
 const nodeFixture = path.join(temporary, "fixture-node.mjs");
 
@@ -101,6 +101,7 @@ try {
   await assertPortClosed(Number(baseMatch[1]));
 
   console.log(`${MARKER}_GREEN`);
+  console.log("checksum_valid_onion_identity_required=true");
   console.log("signal_forwarded_to_child=true");
   console.log("adapter_close_idempotent=true");
   console.log("adapter_listener_closed=true");
