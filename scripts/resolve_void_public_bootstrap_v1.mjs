@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
@@ -46,6 +47,27 @@ function positiveInteger(raw, fallback, minimum, maximum) {
   const value = Number(raw);
   if (!Number.isFinite(value)) return fallback;
   return Math.min(maximum, Math.max(minimum, Math.floor(value)));
+}
+
+function terminalManifestError(message) {
+  const error = new Error(message);
+  error.terminalManifestResponse = true;
+  return error;
+}
+
+function localHoldFileArgument(argv = process.argv.slice(2)) {
+  const indexes = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--local-hold-file") indexes.push(index);
+  }
+  if (indexes.length > 1) throw new Error("--local-hold-file may be supplied only once");
+  if (indexes.length === 0) return "";
+  const index = indexes[0];
+  const value = String(argv[index + 1] || "").trim();
+  if (!value || value.startsWith("--")) {
+    throw new Error("--local-hold-file requires a path");
+  }
+  return value;
 }
 
 const TIMEOUT_MS = positiveInteger(
@@ -150,25 +172,25 @@ async function requestManifestOne(normalized, address) {
         const status = Number(response.statusCode || 0);
         if (status >= 300 && status < 400) {
           response.destroy();
-          failOnce(new Error(`manifest request redirected with HTTP ${status}`));
+          failOnce(terminalManifestError(`manifest request redirected with HTTP ${status}`));
           return;
         }
         if (status !== 200) {
           response.destroy();
-          failOnce(new Error(`manifest request returned HTTP ${status}`));
+          failOnce(terminalManifestError(`manifest request returned HTTP ${status}`));
           return;
         }
         const contentType = String(response.headers["content-type"] || "").toLowerCase();
         if (!contentType.startsWith("application/json")) {
           response.destroy();
-          failOnce(new Error("manifest response is not application/json"));
+          failOnce(terminalManifestError("manifest response is not application/json"));
           return;
         }
 
         const advertised = Number(response.headers["content-length"] || 0);
         if (Number.isFinite(advertised) && advertised > MAX_MANIFEST_BYTES) {
           response.destroy();
-          failOnce(new Error("manifest advertised an oversized response"));
+          failOnce(terminalManifestError("manifest advertised an oversized response"));
           return;
         }
 
@@ -179,7 +201,7 @@ async function requestManifestOne(normalized, address) {
           total += chunk.length;
           if (total > MAX_MANIFEST_BYTES) {
             response.destroy();
-            failOnce(new Error("manifest exceeded the response limit"));
+            failOnce(terminalManifestError("manifest exceeded the response limit"));
             return;
           }
           chunks.push(chunk);
@@ -213,6 +235,7 @@ async function fetchManifest(rawUrl) {
       return await requestManifestOne(normalized, address);
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
+      if (error?.terminalManifestResponse === true) throw error;
     }
   }
   throw new Error(`manifest failed on every pinned address: ${errors.join(" | ")}`);
@@ -336,19 +359,57 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
   return Object.freeze({ manifest, hold: false, endpoints });
 }
 
+function readLocalHoldManifest(path) {
+  const target = String(path || "").trim();
+  if (!target) throw new Error("local hold manifest path is empty");
+  const linkStatus = fs.lstatSync(target);
+  if (linkStatus.isSymbolicLink()) throw new Error("local hold manifest must not be a symlink");
+  if (!linkStatus.isFile()) throw new Error("local hold manifest must be a regular file");
+  if (linkStatus.size < 2 || linkStatus.size > MAX_MANIFEST_BYTES) {
+    throw new Error("local hold manifest size is invalid");
+  }
+  const manifest = parseJsonBytes(fs.readFileSync(target), "local hold manifest");
+  const validated = validateManifest(manifest);
+  if (!validated.hold) {
+    throw new Error("local fallback accepts only hold_no_stable_seed manifests");
+  }
+  return Object.freeze({ target: fs.realpathSync(target), ...validated });
+}
+
+function emitHold({ source, manifest, manifestId }) {
+  console.error(`marker=${MARKER}`);
+  console.error(`manifest_source=${source}`);
+  console.error(`manifest=${manifest}`);
+  console.error(`manifest_id=${manifestId}`);
+  console.error("status=hold_no_stable_seed");
+  console.error("tailnet_required=false");
+  console.error(`${MARKER}_HOLD`);
+}
+
 async function main() {
+  const localHoldFile = localHoldFileArgument();
+  if (localHoldFile) {
+    const validated = readLocalHoldManifest(localHoldFile);
+    emitHold({
+      source: "local_hold_file",
+      manifest: validated.target,
+      manifestId: validated.manifest.manifest_id,
+    });
+    if (ALLOW_HOLD) return;
+    throw new Error("local manifest is in hold_no_stable_seed state");
+  }
+
   const errors = [];
   for (const manifestUrl of manifestUrls()) {
     try {
       const validated = validateManifest(await fetchManifest(manifestUrl));
       if (validated.hold) {
-        console.error(`marker=${MARKER}`);
-        console.error(`manifest=${manifestUrl}`);
-        console.error(`manifest_id=${validated.manifest.manifest_id}`);
-        console.error("status=hold_no_stable_seed");
-        console.error("tailnet_required=false");
-        console.error(`${MARKER}_HOLD`);
-        if (ALLOW_HOLD) process.exit(0);
+        emitHold({
+          source: "remote_https",
+          manifest: manifestUrl,
+          manifestId: validated.manifest.manifest_id,
+        });
+        if (ALLOW_HOLD) return;
         throw new Error("manifest is in hold_no_stable_seed state");
       }
 
@@ -377,6 +438,7 @@ async function main() {
       if (live.length === 0) throw new Error("no qualified manifest endpoint is currently exact-green");
 
       console.error(`marker=${MARKER}`);
+      console.error("manifest_source=remote_https");
       console.error(`manifest=${manifestUrl}`);
       console.error(`manifest_id=${validated.manifest.manifest_id}`);
       console.error(`live_seed_count=${live.length}`);
@@ -384,13 +446,13 @@ async function main() {
       console.error("private_mutation_routes_exposed=false");
       console.error(`${MARKER}_GREEN`);
       process.stdout.write(`${live.join(",")}\n`);
-      process.exit(0);
+      return;
     } catch (error) {
       errors.push(`${manifestUrl}: ${error?.message || String(error)}`);
     }
   }
 
-  fail(errors.join(" | "));
+  throw new Error(errors.join(" | "));
 }
 
 main().catch((error) => {
