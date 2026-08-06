@@ -1,0 +1,105 @@
+name: VOID public bootstrap client resilience v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-client-resilience-v1.yml"
+      - "public/bootstrap/v1.json"
+      - "run-void-node.sh"
+      - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/lib/void_public_seed_client_transport_v1.mjs"
+      - "scripts/lib/void_public_seed_qualification_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "src/http/follower_routes.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "docs/public/public-bootstrap-client-resilience-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-bootstrap-client-resilience-v1.yml"
+      - "public/bootstrap/v1.json"
+      - "run-void-node.sh"
+      - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/lib/void_public_seed_client_transport_v1.mjs"
+      - "scripts/lib/void_public_seed_qualification_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "src/http/follower_routes.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "docs/public/public-bootstrap-client-resilience-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-client-resilience-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  client-node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check client source
+        run: |
+          bash -n run-void-node.sh
+          node --check scripts/resolve_void_public_bootstrap_v1.mjs
+          node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+          node --check scripts/lib/void_public_seed_client_transport_v1.mjs
+          node --check tools/void-public-seed-client-adapter-v1.mjs
+          node -e 'const m=require("./public/bootstrap/v1.json"); if(m.status!=="hold_no_stable_seed"||m.sync_endpoints.length!==0) process.exit(1)'
+
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build runtime artifacts
+        run: npm run build
+
+      - name: Prove public bootstrap client resilience
+        run: npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+
+      - name: Confirm compiled catch-up boundary
+        run: |
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS' dist/http/follower_routes.js
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE' dist/http/follower_routes.js
+          grep -F 'VOID_FOLLOWER_CATCHUP_PULL_LIMIT' dist/http/follower_routes.js
