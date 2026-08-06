@@ -113,6 +113,40 @@ const malformedJson = net.createServer((socket) => {
   });
 });
 
+function typeConfusedFixture(expectedTarget, bodyValue) {
+  return net.createServer((socket) => {
+    socket.once("data", () => {
+      socket.write(Buffer.from([0x05, 0x00]));
+      socket.once("data", () => {
+        socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80]));
+        socket.once("data", (httpRequest) => {
+          const [requestLine] = httpRequest.toString("utf8").split("\r\n");
+          assert.equal(requestLine, `GET ${expectedTarget} HTTP/1.1`);
+          const body = `${JSON.stringify(bodyValue)}\n`;
+          socket.end([
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json",
+            "X-VOID-Public-Seed-Gateway: v1",
+            `Content-Length: ${Buffer.byteLength(body)}`,
+            "Connection: close",
+            "",
+            body,
+          ].join("\r\n"));
+        });
+      });
+    });
+  });
+}
+
+const typeConfusedReady = typeConfusedFixture(
+  "/__void/ready.json",
+  { ready: true, head: "1856587", gap: "0", txroot_live: "1" },
+);
+const typeConfusedRange = typeConfusedFixture(
+  "/blocks/range?from=10&to=10",
+  [{ number: "10" }],
+);
+
 try {
   assert.equal(normalizeOnionV3Hostname(ONION.toUpperCase()), ONION);
   assert.equal(normalizeOnionBase(`http://${ONION}`).base, `http://${ONION}`);
@@ -216,6 +250,29 @@ try {
   await close(malformedJson);
   console.log("[PASS] malformed onion response rejection");
 
+  const confusedReadyPort = await listen(typeConfusedReady);
+  await expectReject(
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      socksPort: confusedReadyPort,
+      timeoutMs: 3000,
+    }),
+    /exact-green|positive integer/,
+  );
+  await close(typeConfusedReady);
+
+  const confusedRangePort = await listen(typeConfusedRange);
+  await expectReject(
+    () => requestOnionRouteV1(
+      `http://${ONION}`,
+      "/blocks/range?from=10&to=10",
+      { socksPort: confusedRangePort, timeoutMs: 3000 },
+    ),
+    /not contiguous/,
+  );
+  await close(typeConfusedRange);
+  console.log("[PASS] numeric response types fail closed before adapter forwarding");
+
   await expectReject(
     () => requestOnionJson({
       base: `http://${ONION}`,
@@ -285,9 +342,16 @@ try {
   console.log("cloud_provider_required=false");
   console.log("socks_proxy_loopback_only=true");
   console.log("gateway_identity_required=true");
+  console.log("response_numeric_types_strict=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
-  for (const server of [fixture, badIdentity, malformedJson]) {
+  for (const server of [
+    fixture,
+    badIdentity,
+    malformedJson,
+    typeConfusedReady,
+    typeConfusedRange,
+  ]) {
     if (server.listening) await close(server);
   }
 }

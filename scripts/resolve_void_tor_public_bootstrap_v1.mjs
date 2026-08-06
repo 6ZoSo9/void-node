@@ -176,13 +176,13 @@ async function main() {
         socksPort,
         timeoutMs,
       });
-      const head = Number(sample.head);
+      const head = sample.head;
       if (
         sample.ready !== true ||
         !Number.isSafeInteger(head) ||
         head < endpoint.qualified_head ||
-        Number(sample.gap) !== 0 ||
-        Number(sample.txroot_live) !== 1
+        sample.gap !== 0 ||
+        sample.txroot_live !== 1
       ) {
         throw new Error("Tor seed live readiness is not exact-green or is below its qualified head");
       }

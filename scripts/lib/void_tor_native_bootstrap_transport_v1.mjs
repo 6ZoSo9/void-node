@@ -450,18 +450,16 @@ function parseJson(bytes, label) {
 }
 
 function positiveInteger(value, label) {
-  const number = Number(value);
-  if (!Number.isSafeInteger(number) || number <= 0) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${label} must be a positive integer`);
   }
-  return number;
+  return value;
 }
 
 function blockNumber(block) {
   if (!block || typeof block !== "object" || Array.isArray(block)) return null;
   const candidate = block.number ?? block.header?.number;
-  const number = Number(candidate);
-  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+  return Number.isSafeInteger(candidate) && candidate >= 0 ? candidate : null;
 }
 
 function validateOnionSeedResponse(route, bytes) {
@@ -472,8 +470,8 @@ function validateOnionSeedResponse(route, bytes) {
     const ready = plainObject(value, "onion readiness response");
     if (
       ready.ready !== true ||
-      Number(ready.gap) !== 0 ||
-      Number(ready.txroot_live) !== 1
+      ready.gap !== 0 ||
+      ready.txroot_live !== 1
     ) {
       throw new Error("onion readiness response is not exact-green");
     }
