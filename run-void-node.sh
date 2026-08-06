@@ -22,6 +22,7 @@ ENV_FILE="$ROOT/.env"
 NODE_KEY_FILE="$ROOT/.nodekey"
 PUBLIC_BOOTSTRAP_RESOLVER="$ROOT/scripts/resolve_void_public_bootstrap_v1.mjs"
 PUBLIC_BOOTSTRAP_SUPERVISOR="$ROOT/scripts/run_void_public_bootstrap_supervisor_v1.mjs"
+LOCAL_PUBLIC_BOOTSTRAP_MANIFEST="$ROOT/public/bootstrap/v1.json"
 DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST="https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json"
 
 NODE_BIN=""
@@ -55,8 +56,10 @@ The normal run path retrieves the canonical public bootstrap manifest, verifies
 its content address and authority boundary, and live-probes stable HTTPS seeds
 through DNS-pinned requests. When a stable seed exists, the node follows only a
 numeric-loopback client adapter. A hold manifest starts the local node without
-claiming public synchronization. Set VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 when the
-run must fail unless stable public synchronization is available.
+claiming public synchronization. Before the canonical artifact is first merged,
+an explicit HTTP 404 may fall back only to the checked-in, verified hold file.
+Set VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 when the run must fail unless stable public
+synchronization is available.
 HELP
 }
 
@@ -245,18 +248,48 @@ resolve_public_bootstrap() {
 
   test -f "$PUBLIC_BOOTSTRAP_RESOLVER" || die "missing public bootstrap resolver"
   test -f "$PUBLIC_BOOTSTRAP_SUPERVISOR" || die "missing public bootstrap supervisor"
+
+  local manifest_override=0
+  if test -n "${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URLS:-}" || \
+     test -n "${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:-}"; then
+    manifest_override=1
+  fi
   export VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL="${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:-$DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST}"
 
-  local resolved error_log
+  local resolved error_log local_hold_log local_hold_output
   error_log="$RUNTIME_ROOT/public-bootstrap-resolver.log"
+  local_hold_log="$RUNTIME_ROOT/public-bootstrap-local-hold.log"
   mkdir -p "$RUNTIME_ROOT"
   : >"$error_log"
+  : >"$local_hold_log"
 
   if ! resolved="$(
     cd "$ROOT"
     "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" --allow-hold 2>"$error_log"
   )"; then
+    if test "$manifest_override" = 0 && \
+       test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1 && \
+       grep -Fq 'manifest request returned HTTP 404' "$error_log" && \
+       test -f "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST"; then
+      if local_hold_output="$(
+        cd "$ROOT"
+        "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" \
+          --allow-hold \
+          --local-hold-file "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST" \
+          2>"$local_hold_log"
+      )" && test -z "$(printf '%s' "$local_hold_output" | tr -d '\r\n')"; then
+        PUBLIC_BOOTSTRAP_STATE="local_hold_no_stable_seed"
+        say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+        say "canonical_manifest_published=false"
+        say "local_hold_manifest_verified=true"
+        say "public_sync_active=false"
+        say "tailnet_required=false"
+        return
+      fi
+    fi
+
     cat "$error_log" >&2 || true
+    cat "$local_hold_log" >&2 || true
     if test "${VOID_PUBLIC_BOOTSTRAP_OPTIONAL:-0}" = 1 && \
        test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1; then
       PUBLIC_BOOTSTRAP_STATE="unavailable_optional"
@@ -272,6 +305,7 @@ resolve_public_bootstrap() {
   if test -z "$resolved"; then
     PUBLIC_BOOTSTRAP_STATE="hold_no_stable_seed"
     say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+    say "canonical_manifest_published=true"
     say "public_sync_active=false"
     say "tailnet_required=false"
     if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1; then
@@ -288,6 +322,7 @@ resolve_public_bootstrap() {
   export VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS="${VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS:-30000}"
   PUBLIC_BOOTSTRAP_STATE="resolved_stable_https_seed"
   say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+  say "canonical_manifest_published=true"
   say "public_seed_count=$(printf '%s' "$resolved" | awk -F, '{print NF}')"
   say "public_sync_active=true"
   say "public_sync_via_loopback_adapter=true"
