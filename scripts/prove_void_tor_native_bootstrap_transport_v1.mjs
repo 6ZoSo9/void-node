@@ -5,6 +5,7 @@ import {
   normalizeOnionBase,
   normalizeOnionV3Hostname,
   requestOnionJson,
+  requestOnionRouteV1,
   validateTorNativeEndpoints,
 } from "./lib/void_tor_native_bootstrap_transport_v1.mjs";
 
@@ -180,8 +181,23 @@ try {
   );
   console.log("[PASS] local-only Tor proxy and query-pollution boundary");
 
+  await expectReject(
+    () => requestOnionRouteV1(`http://${ONION}`, "/admin", { socksPort: 9050 }),
+    /route is not public/,
+  );
+  await expectReject(
+    () => requestOnionRouteV1(`http://${ONION}`, "/__void/ready.json?leak=1", { socksPort: 9050 }),
+    /does not accept query parameters/,
+  );
+  await expectReject(
+    () => requestOnionRouteV1(`http://${ONION}`, "/blocks/range?from=0&to=999", { socksPort: 9050 }),
+    /exceeds 999/,
+  );
+  console.log("[PASS] remote private and query-polluted routes rejected before SOCKS connect");
+
   console.log(`${MARKER}_GREEN`);
   console.log("socks_handshake_fragmentation_proven=true");
+  console.log("remote_private_route_requested=false");
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
   console.log("certificate_authority_required=false");
