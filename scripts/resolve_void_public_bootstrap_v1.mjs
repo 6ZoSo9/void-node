@@ -108,20 +108,6 @@ function terminalManifestError(message) {
   return error;
 }
 
-function allowedManifestMediaType(normalized, rawContentType) {
-  const mediaType = String(rawContentType || "")
-    .split(";", 1)[0]
-    .trim()
-    .toLowerCase();
-  if (mediaType === "application/json" || mediaType.endsWith("+json")) {
-    return true;
-  }
-  return (
-    mediaType === "text/plain" &&
-    normalized.url.pathname.toLowerCase().endsWith(".json")
-  );
-}
-
 function localHoldFileArgument(argv = process.argv.slice(2)) {
   const indexes = [];
   for (let index = 0; index < argv.length; index += 1) {
@@ -219,7 +205,7 @@ async function requestManifestOne(normalized, address) {
           ? { servername: normalized.hostname }
           : {}),
         headers: {
-          accept: "application/json, text/plain;q=0.9",
+          accept: "application/json",
           connection: "close",
           "user-agent": "void-node/public-bootstrap-resolver-v1",
         },
@@ -256,14 +242,10 @@ async function requestManifestOne(normalized, address) {
           failOnce(terminalManifestError(`manifest request returned HTTP ${status}`));
           return;
         }
-        const contentType = String(response.headers["content-type"] || "");
-        if (!allowedManifestMediaType(normalized, contentType)) {
+        const contentType = String(response.headers["content-type"] || "").toLowerCase();
+        if (!contentType.startsWith("application/json")) {
           response.destroy();
-          failOnce(
-            terminalManifestError(
-              "manifest response media type is not allowed for a JSON document",
-            ),
-          );
+          failOnce(terminalManifestError("manifest response is not application/json"));
           return;
         }
 
