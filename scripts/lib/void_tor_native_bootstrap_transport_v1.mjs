@@ -117,6 +117,7 @@ function readExact(socket, bytes, timeoutMs) {
     function finish(error, value) {
       if (settled) return;
       settled = true;
+      socket.pause();
       cleanup();
       if (buffer.length > bytes) socket.unshift(buffer.subarray(bytes));
       if (error) reject(error);
@@ -130,6 +131,7 @@ function readExact(socket, bytes, timeoutMs) {
     socket.on("data", onData);
     socket.on("error", finish);
     socket.on("close", onClose);
+    socket.resume();
   });
 }
 
@@ -139,31 +141,36 @@ async function socks5Connect({ socksHost, socksPort, hostname, port, timeoutMs }
   const hostBytes = Buffer.from(normalizeOnionV3Hostname(hostname), "ascii");
   const socket = net.createConnection({ host: socksHost, port: socksPort });
   socket.setNoDelay(true);
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Tor SOCKS connection timed out")), timeoutMs);
-    socket.once("connect", () => { clearTimeout(timer); resolve(); });
-    socket.once("error", (error) => { clearTimeout(timer); reject(error); });
-  });
-  socket.write(Buffer.from([0x05, 0x01, 0x00]));
-  const greeting = await readExact(socket, 2, timeoutMs);
-  if (greeting[0] !== 0x05 || greeting[1] !== 0x00) throw new Error("Tor SOCKS proxy rejected no-auth mode");
-  const request = Buffer.alloc(7 + hostBytes.length);
-  request.set([0x05, 0x01, 0x00, 0x03, hostBytes.length], 0);
-  hostBytes.copy(request, 5);
-  request.writeUInt16BE(port, 5 + hostBytes.length);
-  socket.write(request);
-  const prefix = await readExact(socket, 4, timeoutMs);
-  if (prefix[0] !== 0x05 || prefix[1] !== 0x00) throw new Error(`Tor SOCKS connect failed with code ${prefix[1]}`);
-  const atyp = prefix[3];
-  let remainder;
-  if (atyp === 0x01) remainder = 6;
-  else if (atyp === 0x04) remainder = 18;
-  else if (atyp === 0x03) {
-    const length = await readExact(socket, 1, timeoutMs);
-    remainder = length[0] + 2;
-  } else throw new Error("Tor SOCKS proxy returned an invalid address type");
-  await readExact(socket, remainder, timeoutMs);
-  return socket;
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Tor SOCKS connection timed out")), timeoutMs);
+      socket.once("connect", () => { clearTimeout(timer); resolve(); });
+      socket.once("error", (error) => { clearTimeout(timer); reject(error); });
+    });
+    socket.write(Buffer.from([0x05, 0x01, 0x00]));
+    const greeting = await readExact(socket, 2, timeoutMs);
+    if (greeting[0] !== 0x05 || greeting[1] !== 0x00) throw new Error("Tor SOCKS proxy rejected no-auth mode");
+    const request = Buffer.alloc(7 + hostBytes.length);
+    request.set([0x05, 0x01, 0x00, 0x03, hostBytes.length], 0);
+    hostBytes.copy(request, 5);
+    request.writeUInt16BE(port, 5 + hostBytes.length);
+    socket.write(request);
+    const prefix = await readExact(socket, 4, timeoutMs);
+    if (prefix[0] !== 0x05 || prefix[1] !== 0x00) throw new Error(`Tor SOCKS connect failed with code ${prefix[1]}`);
+    const atyp = prefix[3];
+    let remainder;
+    if (atyp === 0x01) remainder = 6;
+    else if (atyp === 0x04) remainder = 18;
+    else if (atyp === 0x03) {
+      const length = await readExact(socket, 1, timeoutMs);
+      remainder = length[0] + 2;
+    } else throw new Error("Tor SOCKS proxy returned an invalid address type");
+    await readExact(socket, remainder, timeoutMs);
+    return socket;
+  } catch (error) {
+    socket.destroy();
+    throw error;
+  }
 }
 
 export async function requestOnionJson({ base, path = "/__void/ready.json", socksHost = "127.0.0.1", socksPort = 9050, timeoutMs = 15_000, maxBytes = 1024 * 1024 }) {
