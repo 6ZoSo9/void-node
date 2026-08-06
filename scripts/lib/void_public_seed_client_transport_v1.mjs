@@ -53,6 +53,9 @@ function requestPinnedAddress(
       {
         method,
         agent: false,
+        family,
+        autoSelectFamily: false,
+        ...(target.protocol === "https:" ? { servername: target.hostname } : {}),
         headers: {
           accept: "application/json",
           connection: "close",
