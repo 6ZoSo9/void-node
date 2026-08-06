@@ -9,7 +9,8 @@ import {
 } from "./lib/void_tor_native_bootstrap_transport_v1.mjs";
 
 const MARKER = "VOID_TOR_NATIVE_BOOTSTRAP_TRANSPORT_V1_PROOF";
-const ONION = `${"a".repeat(56)}.onion`;
+const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
+const INVALID_ONION = `${"a".repeat(56)}.onion`;
 const QUALIFICATION = `voidpsq1_${"b".repeat(64)}`;
 
 function listen(server) {
@@ -105,9 +106,10 @@ try {
   assert.equal(normalizeOnionV3Hostname(ONION.toUpperCase()), ONION);
   assert.equal(normalizeOnionBase(`http://${ONION}`).base, `http://${ONION}`);
   assert.throws(() => normalizeOnionV3Hostname("seed.example.org"), /Tor v3/);
+  assert.throws(() => normalizeOnionV3Hostname(INVALID_ONION), /checksum-valid Tor v3/);
   assert.throws(() => normalizeOnionBase(`https://${ONION}`), /http over Tor/);
   assert.throws(() => normalizeOnionBase(`http://${ONION}:8080`), /virtual port 80/);
-  console.log("[PASS] canonical Tor v3 endpoint boundary");
+  console.log("[PASS] canonical checksum-valid Tor v3 endpoint boundary");
 
   const now = Date.now();
   const rawEndpoint = {
