@@ -245,6 +245,8 @@ try {
     ready_head: 3000 + index,
     head: 3000 + index,
     range_head: 3000 + index,
+    address_source: "dns",
+    endpoint_address: null,
     dns_addresses: ["1.1.1.1", "2606:4700:4700::1111"],
     connected_addresses: ["1.1.1.1"],
   }));

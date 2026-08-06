@@ -1,0 +1,79 @@
+name: VOID public-seed IP-literal qualification v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-ip-literal-qualification-v1.yml"
+      - "docs/public/public-seed-ip-literal-qualification-v1.md"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "scripts/prove_void_public_seed_ip_literal_qualification_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-ip-literal-qualification-v1.yml"
+      - "docs/public/public-seed-ip-literal-qualification-v1.md"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "scripts/prove_void_public_seed_ip_literal_qualification_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-ip-literal-qualification-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove-node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove public IP-literal qualification boundary
+        run: |
+          node --check scripts/lib/void_public_seed_common_v1.mjs
+          node --check scripts/lib/void_public_seed_probe_v1.mjs
+          node --check scripts/lib/void_public_seed_receipt_v1.mjs
+          node --check scripts/prove_void_public_seed_ip_literal_qualification_v1.mjs
+          node scripts/prove_void_public_seed_ip_literal_qualification_v1.mjs
+
+  repository-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and prove inherited qualification contract
+        run: |
+          npm run typecheck
+          node scripts/prove_void_public_seed_qualification_v1.mjs

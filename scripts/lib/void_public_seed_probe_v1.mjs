@@ -10,7 +10,7 @@ import {
   isPublicIpAddress,
   normalizePublicSeedBase,
   parseJsonBytes,
-  resolvePublicDns,
+  resolvePublicSeedAddresses,
   sortedUnion,
 } from "./void_public_seed_common_v1.mjs";
 import { createQualificationReceipt } from "./void_public_seed_receipt_v1.mjs";
@@ -237,11 +237,14 @@ export async function probePublicSeedSample(
   } = {},
 ) {
   const normalized = normalizePublicSeedBase(rawBase, { allowLoopbackFixture });
-  const dnsBefore = await resolvePublicDns(normalized.hostname, { lookup, allowLoopbackFixture });
+  const addressesBefore = await resolvePublicSeedAddresses(normalized, {
+    lookup,
+    allowLoopbackFixture,
+  });
   const requestOptions = {
     timeoutMs,
     maxBytes,
-    pinnedAddresses: dnsBefore,
+    pinnedAddresses: addressesBefore,
     allowLoopbackFixture,
   };
   const startedAt = now();
@@ -313,7 +316,10 @@ export async function probePublicSeedSample(
   requireStatus(headOnly, 200, "seed readiness HEAD");
   requireGatewayHeader(headOnly, "seed readiness HEAD");
 
-  const dnsAfter = await resolvePublicDns(normalized.hostname, { lookup, allowLoopbackFixture });
+  const addressesAfter = await resolvePublicSeedAddresses(normalized, {
+    lookup,
+    allowLoopbackFixture,
+  });
   const finishedAt = now();
 
   return Object.freeze({
@@ -330,7 +336,12 @@ export async function probePublicSeedSample(
     private_route_error: admin.json.error,
     mutation_status: mutation.status,
     mutation_error: mutation.json.error,
-    dns_addresses: sortedUnion(dnsBefore, dnsAfter),
+    address_source: normalized.address_source,
+    endpoint_address: normalized.endpoint_address,
+    dns_addresses:
+      normalized.address_source === "dns"
+        ? sortedUnion(addressesBefore, addressesAfter)
+        : [],
     connected_addresses: sortedUnion(
       [ready.remote_address, head.remote_address, range.remote_address],
       [admin.remote_address, mutation.remote_address, headOnly.remote_address],

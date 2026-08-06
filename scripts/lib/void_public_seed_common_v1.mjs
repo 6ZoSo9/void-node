@@ -27,6 +27,8 @@ const TEMPORARY_HOST_SUFFIXES = Object.freeze([
 
 const NON_PUBLIC_V4 = new net.BlockList();
 const NON_PUBLIC_V6 = new net.BlockList();
+const PUBLIC_V6 = new net.BlockList();
+PUBLIC_V6.addSubnet("2000::", 3, "ipv6");
 for (const [network, prefix] of [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
@@ -36,7 +38,11 @@ for (const [network, prefix] of [
   ["172.16.0.0", 12],
   ["192.0.0.0", 24],
   ["192.0.2.0", 24],
+  ["192.31.196.0", 24],
+  ["192.52.193.0", 24],
+  ["192.88.99.0", 24],
   ["192.168.0.0", 16],
+  ["192.175.48.0", 24],
   ["198.18.0.0", 15],
   ["198.51.100.0", 24],
   ["203.0.113.0", 24],
@@ -49,8 +55,16 @@ for (const [network, prefix] of [
   ["::", 128],
   ["::1", 128],
   ["::ffff:0:0", 96],
+  ["64:ff9b::", 96],
+  ["64:ff9b:1::", 48],
   ["100::", 64],
+  ["100:0:0:1::", 64],
+  ["2001::", 23],
   ["2001:db8::", 32],
+  ["2002::", 16],
+  ["2620:4f:8000::", 48],
+  ["3fff::", 20],
+  ["5f00::", 16],
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],
@@ -85,10 +99,28 @@ export function isTemporarySeedHostname(hostname) {
 }
 
 export function isPublicIpAddress(address) {
-  const family = net.isIP(address);
-  if (family === 4) return !NON_PUBLIC_V4.check(address, "ipv4");
-  if (family === 6) return !NON_PUBLIC_V6.check(address, "ipv6");
+  const normalized = normalizeHostname(address).split("%")[0];
+  const family = net.isIP(normalized);
+  if (family === 4) return !NON_PUBLIC_V4.check(normalized, "ipv4");
+  if (family === 6) {
+    return (
+      PUBLIC_V6.check(normalized, "ipv6") &&
+      !NON_PUBLIC_V6.check(normalized, "ipv6")
+    );
+  }
   return false;
+}
+
+export function ipAddressesEqual(left, right) {
+  const leftAddress = normalizeHostname(left).split("%")[0];
+  const rightAddress = normalizeHostname(right).split("%")[0];
+  const leftFamily = net.isIP(leftAddress);
+  const rightFamily = net.isIP(rightAddress);
+  if (!leftFamily || leftFamily !== rightFamily) return false;
+  const family = leftFamily === 4 ? "ipv4" : "ipv6";
+  const block = new net.BlockList();
+  block.addAddress(leftAddress, family);
+  return block.check(rightAddress, family);
 }
 
 export function normalizePublicSeedBase(
@@ -109,6 +141,7 @@ export function normalizePublicSeedBase(
   }
 
   const hostname = normalizeHostname(url.hostname);
+  const ipFamily = net.isIP(hostname);
   const loopbackFixture =
     allowLoopbackFixture &&
     url.protocol === "http:" &&
@@ -118,26 +151,40 @@ export function normalizePublicSeedBase(
     throw new Error("stable public seed must use HTTPS");
   }
   if (!loopbackFixture) {
-    if (net.isIP(hostname)) throw new Error("stable public seed must use a DNS hostname");
-    if (!hostname.includes(".")) throw new Error("stable public seed hostname must be fully qualified");
-    if (
-      hostname === "localhost" ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal") ||
-      hostname.endsWith(".home") ||
-      hostname.endsWith(".lan")
-    ) {
-      throw new Error("stable public seed hostname is private or local");
-    }
-    if (!allowTemporaryFixture && isTemporarySeedHostname(hostname)) {
-      throw new Error("temporary tunnel provider hostnames cannot qualify as stable seeds");
+    if (ipFamily) {
+      if (!isPublicIpAddress(hostname)) {
+        throw new Error(`stable public seed IP literal is non-public: ${hostname}`);
+      }
+    } else {
+      if (!hostname.includes(".")) {
+        throw new Error("stable public seed hostname must be fully qualified");
+      }
+      if (
+        hostname === "localhost" ||
+        hostname.endsWith(".local") ||
+        hostname.endsWith(".internal") ||
+        hostname.endsWith(".home") ||
+        hostname.endsWith(".lan")
+      ) {
+        throw new Error("stable public seed hostname is private or local");
+      }
+      if (!allowTemporaryFixture && isTemporarySeedHostname(hostname)) {
+        throw new Error("temporary tunnel provider hostnames cannot qualify as stable seeds");
+      }
     }
   }
 
+  const addressSource = loopbackFixture
+    ? "loopback_fixture"
+    : ipFamily
+      ? "ip_literal"
+      : "dns";
   return Object.freeze({
     base: url.origin,
     hostname,
     loopback_fixture: loopbackFixture,
+    address_source: addressSource,
+    endpoint_address: addressSource === "ip_literal" ? hostname : null,
   });
 }
 
@@ -164,6 +211,27 @@ export async function resolvePublicDns(
     }
   }
   return addresses;
+}
+
+export async function resolvePublicSeedAddresses(
+  normalizedSeed,
+  { lookup = dns.promises.lookup, allowLoopbackFixture = false } = {},
+) {
+  const seed = assertPlainObject(normalizedSeed, "normalized public seed");
+  if (seed.address_source === "ip_literal") {
+    const address = normalizeHostname(seed.endpoint_address);
+    if (!net.isIP(address) || address !== seed.hostname || !isPublicIpAddress(address)) {
+      throw new Error("public seed IP-literal binding is invalid");
+    }
+    return [address];
+  }
+  if (seed.address_source === "dns" || seed.address_source === "loopback_fixture") {
+    if (seed.endpoint_address !== null) {
+      throw new Error("DNS public seed must not declare endpoint_address");
+    }
+    return resolvePublicDns(seed.hostname, { lookup, allowLoopbackFixture });
+  }
+  throw new Error(`unsupported public seed address_source ${seed.address_source || "missing"}`);
 }
 
 function normalizeForCanonicalJson(value) {

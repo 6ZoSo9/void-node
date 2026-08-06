@@ -9,6 +9,7 @@ import {
   QUALIFICATION_SCHEMA,
   assertPlainObject,
   assertSafeInteger,
+  ipAddressesEqual,
   isPublicIpAddress,
   isTemporarySeedHostname,
   normalizePublicSeedBase,
@@ -37,6 +38,8 @@ export function createQualificationReceipt(
     endpoint: normalized.base,
     hostname: normalized.hostname,
     loopback_fixture: normalized.loopback_fixture,
+    address_source: normalized.address_source,
+    endpoint_address: normalized.endpoint_address,
     temporary_provider: isTemporarySeedHostname(normalized.hostname),
     sample_count: samples.length,
     samples: structuredClone(samples),
@@ -97,6 +100,12 @@ export function validateQualificationReceipt(
   if (receipt.loopback_fixture !== false) throw new Error("loopback fixture cannot qualify for publication");
   const normalized = normalizePublicSeedBase(receipt.endpoint);
   if (receipt.hostname !== normalized.hostname) throw new Error("qualification hostname mismatch");
+  if (receipt.address_source !== normalized.address_source) {
+    throw new Error("qualification address_source mismatch");
+  }
+  if (receipt.endpoint_address !== normalized.endpoint_address) {
+    throw new Error("qualification endpoint_address mismatch");
+  }
   if (receipt.temporary_provider !== false || isTemporarySeedHostname(receipt.hostname)) {
     throw new Error("temporary provider cannot qualify for publication");
   }
@@ -144,13 +153,8 @@ export function validateQualificationReceipt(
     if (head < previousHead) throw new Error("qualification head regressed across samples");
     previousHead = head;
 
-    if (!Array.isArray(sample.dns_addresses) || sample.dns_addresses.length === 0) {
-      throw new Error("qualification sample has no DNS evidence");
-    }
-    for (const address of sample.dns_addresses) {
-      if (!isPublicIpAddress(String(address))) {
-        throw new Error(`qualification sample contains non-public DNS address ${address}`);
-      }
+    if (sample.address_source !== receipt.address_source) {
+      throw new Error("qualification sample address_source mismatch");
     }
     if (!Array.isArray(sample.connected_addresses) || sample.connected_addresses.length === 0) {
       throw new Error("qualification sample has no connected-address evidence");
@@ -159,9 +163,41 @@ export function validateQualificationReceipt(
       if (!isPublicIpAddress(String(address))) {
         throw new Error(`qualification sample contains non-public connected address ${address}`);
       }
-      if (!sample.dns_addresses.includes(address)) {
-        throw new Error(`qualification sample connected address ${address} is not DNS-bound`);
+    }
+
+    if (receipt.address_source === "dns") {
+      if (sample.endpoint_address !== null) {
+        throw new Error("DNS qualification sample must not declare endpoint_address");
       }
+      if (!Array.isArray(sample.dns_addresses) || sample.dns_addresses.length === 0) {
+        throw new Error("qualification sample has no DNS evidence");
+      }
+      for (const address of sample.dns_addresses) {
+        if (!isPublicIpAddress(String(address))) {
+          throw new Error(`qualification sample contains non-public DNS address ${address}`);
+        }
+      }
+      for (const address of sample.connected_addresses) {
+        if (!sample.dns_addresses.includes(address)) {
+          throw new Error(`qualification sample connected address ${address} is not DNS-bound`);
+        }
+      }
+    } else if (receipt.address_source === "ip_literal") {
+      if (!ipAddressesEqual(sample.endpoint_address, receipt.endpoint_address)) {
+        throw new Error("IP-literal qualification sample endpoint_address mismatch");
+      }
+      if (!Array.isArray(sample.dns_addresses) || sample.dns_addresses.length !== 0) {
+        throw new Error("IP-literal qualification sample must not contain DNS evidence");
+      }
+      for (const address of sample.connected_addresses) {
+        if (!ipAddressesEqual(address, receipt.endpoint_address)) {
+          throw new Error(
+            `IP-literal qualification connection ${address} does not match endpoint ${receipt.endpoint_address}`,
+          );
+        }
+      }
+    } else {
+      throw new Error(`unsupported qualification address_source ${receipt.address_source}`);
     }
   }
 
