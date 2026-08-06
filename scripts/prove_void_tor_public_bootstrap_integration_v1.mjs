@@ -18,6 +18,10 @@ const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
 const QUALIFICATION = `voidptq1_${"b".repeat(64)}`;
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "void-tor-bootstrap-integration-"));
 const manifestPath = path.join(temporary, "bootstrap.json");
+const stringChainManifestPath = path.join(
+  temporary,
+  "bootstrap-string-chain-id.json",
+);
 const requested = [];
 
 function listen(server) {
@@ -140,6 +144,44 @@ try {
   };
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
 
+  const stringChainManifestBody = {
+    ...manifestBody,
+    chain_id: String(manifestBody.chain_id),
+  };
+  const stringChainManifest = {
+    ...stringChainManifestBody,
+    manifest_id: contentId(
+      "voidpbm1_",
+      stringChainManifestBody,
+      "manifest_id",
+    ),
+  };
+  fs.writeFileSync(
+    stringChainManifestPath,
+    `${JSON.stringify(stringChainManifest, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+
+  const stringChain = await runResolver(
+    [
+      "--manifest-file",
+      stringChainManifestPath,
+      "--expected-manifest-id",
+      stringChainManifest.manifest_id,
+    ],
+    {
+      VOID_TOR_SOCKS_HOST: "192.0.2.1",
+      VOID_TOR_SOCKS_PORT: "19051",
+      VOID_TOR_BOOTSTRAP_TIMEOUT_MS: "1000",
+    },
+  );
+  assert.equal(stringChain.code, 1);
+  assert.match(stringChain.stderr, /network contract mismatch/);
+  assert.equal(requested.length, 0);
+  console.log(
+    "[PASS] direct resolver rejects string Tor manifest chain IDs before SOCKS access",
+  );
+
   const socksPort = await listen(socks);
   const resolver = await runResolver(
     ["--manifest-file", manifestPath, "--expected-manifest-id", manifest.manifest_id],
@@ -225,6 +267,7 @@ try {
   console.log(`${MARKER}_GREEN`);
   console.log("checksum_valid_onion_identity_required=true");
   console.log("local_manifest_id_pinned=true");
+  console.log("strict_numeric_manifest_chain_id_required=true");
   console.log("manifest_substitution_rejected=true");
   console.log("adapter_numeric_parameters_bounded=true");
   console.log("local_status_query_rejected=true");

@@ -115,7 +115,12 @@ function validateAuthority(raw) {
 
 function validateManifest(rawManifest, expectedManifestId, nowMs = Date.now()) {
   const manifest = exactKeys(structuredClone(rawManifest), MANIFEST_KEYS, "Tor bootstrap manifest");
-  if (manifest.schema !== SCHEMA || manifest.network !== NETWORK || Number(manifest.chain_id) !== CHAIN_ID) {
+  if (
+    manifest.schema !== SCHEMA ||
+    manifest.network !== NETWORK ||
+    !Number.isSafeInteger(manifest.chain_id) ||
+    manifest.chain_id !== CHAIN_ID
+  ) {
     throw new Error("Tor bootstrap manifest network contract mismatch");
   }
   if (manifest.status !== "stable_tor_seed") {
