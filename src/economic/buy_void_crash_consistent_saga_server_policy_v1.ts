@@ -96,10 +96,13 @@ export type BuyVoidCrashConsistentSagaServerPolicyDecisionV1 =
       ok: true;
       status: "configured";
       policy: BuyVoidCrashConsistentSagaServerPolicyV1;
+      reason?: never;
+      missing_envs?: never;
     }
   | {
       ok: false;
       status: "held";
+      policy?: never;
       reason: string;
       missing_envs: string[];
       detail?: Record<string, unknown>;
@@ -173,8 +176,19 @@ function fingerprint(value: unknown): string {
 function configuredValues(
   env: NodeJS.ProcessEnv,
 ):
-  | { ok: true; values: Record<keyof typeof VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1, string> }
-  | { ok: false; missing: string[] } {
+  | {
+      ok: true;
+      values: Record<
+        keyof typeof VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
+        string
+      >;
+      missing?: never;
+    }
+  | {
+      ok: false;
+      values?: never;
+      missing: string[];
+    } {
   const values = {} as Record<
     keyof typeof VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
     string
@@ -197,7 +211,7 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
   env: NodeJS.ProcessEnv = process.env,
 ): BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
   const configured = configuredValues(env);
-  if (!configured.ok) {
+  if ("missing" in configured) {
     return held("server_policy_not_configured", configured.missing);
   }
   const values = configured.values;
