@@ -1,0 +1,57 @@
+name: VOID public seed raw-IP VPS packet v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-ip-vps-packet-v1.yml"
+      - "docs/public/public-seed-ip-vps-packet-v1.md"
+      - "scripts/lib/void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/build_void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/verify_void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/prove_void_public_seed_ip_vps_packet_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-ip-vps-packet-v1.yml"
+      - "docs/public/public-seed-ip-vps-packet-v1.md"
+      - "scripts/lib/void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/build_void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/verify_void_public_seed_ip_vps_packet_v1.mjs"
+      - "scripts/prove_void_public_seed_ip_vps_packet_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-ip-vps-packet-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          node --check scripts/lib/void_public_seed_ip_vps_packet_v1.mjs
+          node --check scripts/build_void_public_seed_ip_vps_packet_v1.mjs
+          node --check scripts/verify_void_public_seed_ip_vps_packet_v1.mjs
+          node --check scripts/prove_void_public_seed_ip_vps_packet_v1.mjs
+
+      - name: Prove raw-IP VPS packet boundary
+        run: node scripts/prove_void_public_seed_ip_vps_packet_v1.mjs

@@ -1,0 +1,326 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import childProcess from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import {
+  packetId,
+  verifyPacket,
+} from "./lib/void_public_seed_ip_vps_packet_v1.mjs";
+
+const MARKER = "VOID_PUBLIC_SEED_IP_VPS_PACKET_V1_PROOF";
+
+function run(command, args, options = {}) {
+  const result = childProcess.spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...options,
+  });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed\n${result.stdout}\n${result.stderr}`);
+  }
+  return result;
+}
+
+function expectFailure(command, args, pattern, options = {}) {
+  const result = childProcess.spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...options,
+  });
+  assert.notEqual(result.status, 0, `${command} unexpectedly succeeded`);
+  assert.match(`${result.stdout}\n${result.stderr}`, pattern);
+}
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-ip-vps-packet-proof-"));
+const repo = path.join(root, "source");
+const output = path.join(root, "packet");
+fs.mkdirSync(path.join(repo, "tools"), { recursive: true, mode: 0o700 });
+fs.writeFileSync(
+  path.join(repo, "tools", "void-public-seed-gateway-v1.mjs"),
+  'console.log("VOID_PUBLIC_SEED_GATEWAY_V1_READY");\n',
+  { mode: 0o600 },
+);
+
+run("git", ["init", "-q", repo]);
+run("git", ["-C", repo, "config", "user.name", "VOID proof"]);
+run("git", ["-C", repo, "config", "user.email", "void-proof@example.invalid"]);
+run("git", ["-C", repo, "add", "."]);
+run("git", ["-C", repo, "commit", "-q", "-m", "fixture"]);
+const head = run("git", ["-C", repo, "rev-parse", "HEAD"]).stdout.trim();
+
+const builder = path.resolve("scripts/build_void_public_seed_ip_vps_packet_v1.mjs");
+const verifier = path.resolve("scripts/verify_void_public_seed_ip_vps_packet_v1.mjs");
+
+run(process.execPath, [
+  builder,
+  "--public-ip", "1.1.1.1",
+  "--repo-root", repo,
+  "--expected-head", head,
+  "--output", output,
+]);
+
+const verified = verifyPacket(output);
+assert.equal(verified.public_ip, "1.1.1.1");
+assert.equal(verified.public_https, "https://1.1.1.1");
+assert.equal(verified.public_p2p, "1.1.1.1:4700");
+assert.deepEqual(verified.required_inbound_tcp_ports, [80, 443, 4700]);
+assert.deepEqual(verified.forbidden_public_tcp_ports, [4100, 4111]);
+assert.equal(verified.continuity.mode, "loopback_http_pull");
+assert.equal(verified.continuity.origin, "http://127.0.0.1:4199");
+assert.equal(verified.continuity.public_listener, false);
+assert.equal(verified.continuity.credentials_embedded, false);
+assert.equal(verified.continuity.publication_requires_live_progress, true);
+const generatedEnv = fs.readFileSync(
+  path.join(output, "void-public-seed-node-v1.env"),
+  "utf8",
+);
+for (const marker of [
+  "VOID_FOLLOWER_AUTOSTART_PEERS=http://127.0.0.1:4199",
+  "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE=1",
+  "VOID_FOLLOWER_CATCHUP_PULL_LIMIT=999",
+  "VOID_PUBLIC_BOOTSTRAP_DISABLE=1",
+]) {
+  assert.ok(generatedEnv.includes(marker), `continuity environment marker missing: ${marker}`);
+}
+run(process.execPath, [verifier, output]);
+console.log("[PASS] exact public-IP VPS packet builds and verifies with live continuity");
+
+const extraFile = path.join(output, "unrecorded-extra.txt");
+fs.writeFileSync(extraFile, "unrecorded packet material\n", { mode: 0o600 });
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.unlinkSync(extraFile);
+
+const extraDirectory = path.join(output, "unrecorded-extra-directory");
+fs.mkdirSync(extraDirectory, { mode: 0o700 });
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.rmdirSync(extraDirectory);
+
+const extraSymlink = path.join(output, "unrecorded-extra-symlink");
+fs.symlinkSync("packet.json", extraSymlink);
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.unlinkSync(extraSymlink);
+console.log("[PASS] unrecorded file, directory, and symlink are rejected");
+
+const packetPath = path.join(output, "packet.json");
+const originalPacketText = fs.readFileSync(packetPath, "utf8");
+
+function expectPacketMutationRejected(mutator, pattern) {
+  const packet = JSON.parse(originalPacketText);
+  mutator(packet);
+  packet.packet_id = packetId(packet);
+  fs.writeFileSync(packetPath, `${JSON.stringify(packet, null, 2)}\n`, { mode: 0o600 });
+  try {
+    assert.throws(() => verifyPacket(output), pattern);
+  } finally {
+    fs.writeFileSync(packetPath, originalPacketText, { mode: 0o600 });
+  }
+}
+
+expectPacketMutationRejected(
+  (packet) => {
+    delete packet.authority;
+  },
+  /top-level field set mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.authority = {};
+  },
+  /authority contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.activation = {};
+  },
+  /activation contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.certbot.certificate_profile = "default";
+  },
+  /certbot contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.snapshot.required_before_activation = false;
+  },
+  /snapshot contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.service_user = "otheruser";
+  },
+  /generated content mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.gateway_source_sha256 = "0".repeat(63);
+  },
+  /gateway source SHA-256 is invalid/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.generated_at = "not-an-iso-timestamp";
+  },
+  /generated_at is invalid/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.unrecognized_contract = false;
+  },
+  /top-level field set mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    delete packet.continuity;
+  },
+  /top-level field set mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.continuity.follower_autostart_required = false;
+    packet.continuity.publication_requires_live_progress = false;
+  },
+  /continuity contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.continuity.origin = "http://127.0.0.1:4201";
+  },
+  /generated content mismatch/,
+);
+console.log("[PASS] packet metadata schema, continuity, and generated-content bindings fail closed");
+
+for (const continuityOrigin of [
+  "https://127.0.0.1:4199",
+  "http://localhost:4199",
+  "http://1.1.1.1:4199",
+  "http://user@127.0.0.1:4199",
+  "http://127.0.0.1:4100",
+  "http://127.0.0.1:4199/path",
+  "http://127.0.0.1:4199?query=1",
+]) {
+  expectFailure(
+    process.execPath,
+    [
+      builder,
+      "--public-ip", "1.1.1.1",
+      "--repo-root", repo,
+      "--expected-head", head,
+      "--continuity-origin", continuityOrigin,
+      "--output", path.join(
+        root,
+        `reject-continuity-${Buffer.from(continuityOrigin).toString("hex").slice(0, 32)}`,
+      ),
+    ],
+    /continuity origin/,
+  );
+}
+console.log("[PASS] non-loopback and ambiguous continuity origins fail closed");
+
+for (const privateIp of [
+  "0.0.0.1",
+  "10.0.0.1",
+  "100.64.0.1",
+  "127.0.0.1",
+  "169.254.1.1",
+  "172.16.0.1",
+  "192.0.2.1",
+  "192.168.1.1",
+  "198.18.0.1",
+  "198.51.100.1",
+  "203.0.113.1",
+  "224.0.0.1",
+]) {
+  expectFailure(
+    process.execPath,
+    [
+      builder,
+      "--public-ip", privateIp,
+      "--repo-root", repo,
+      "--expected-head", head,
+      "--output", path.join(root, `reject-${privateIp.replaceAll(".", "-")}`),
+    ],
+    /globally routable IPv4 literal/,
+  );
+}
+console.log("[PASS] non-public IPv4 ranges fail closed");
+
+expectFailure(
+  process.execPath,
+  [
+    builder,
+    "--public-ip", "1.1.1.1",
+    "--repo-root", repo,
+    "--expected-head", "0".repeat(40),
+    "--output", path.join(root, "wrong-head"),
+  ],
+  /head mismatch/,
+);
+console.log("[PASS] wrong source head is rejected");
+
+fs.writeFileSync(path.join(repo, "dirty.txt"), "dirty\n");
+expectFailure(
+  process.execPath,
+  [
+    builder,
+    "--public-ip", "1.1.1.1",
+    "--repo-root", repo,
+    "--expected-head", head,
+    "--output", path.join(root, "dirty-output"),
+  ],
+  /completely clean/,
+);
+fs.unlinkSync(path.join(repo, "dirty.txt"));
+console.log("[PASS] dirty source checkout is rejected");
+
+expectFailure(
+  process.execPath,
+  [
+    builder,
+    "--public-ip", "1.1.1.1",
+    "--repo-root", repo,
+    "--expected-head", head,
+    "--output", path.join(repo, "packet-inside-repo"),
+  ],
+  /outside the repository/,
+);
+console.log("[PASS] packet output inside source repository is rejected");
+
+const tls = path.join(output, "nginx-void-public-seed-tls-v1.conf");
+fs.appendFileSync(tls, "\n# tamper\n");
+assert.throws(() => verifyPacket(output), /hash or size mismatch/);
+console.log("[PASS] tampered packet file is rejected");
+
+console.log(`${MARKER}_GREEN`);
+console.log("new_source_files=6");
+console.log("packet_directory_exact_set_enforced=true");
+console.log("unrecorded_packet_entries_accepted=false");
+console.log("packet_top_level_schema_exact=true");
+console.log("packet_nested_contracts_exact=true");
+console.log("packet_metadata_generated_content_bound=true");
+console.log("self_recomputed_weakened_packet_accepted=false");
+console.log("domain_required=false");
+console.log("tailscale_required=false");
+console.log("public_https_port=443");
+console.log("public_p2p_port=4700");
+console.log("node_http_loopback_only=true");
+console.log("gateway_http_loopback_only=true");
+console.log("continuity_top_level_schema_exact=true");
+console.log("continuity_metadata_generated_content_bound=true");
+console.log("continuity_mode=loopback_http_pull");
+console.log("continuity_public_listener=false");
+console.log("continuity_credentials_embedded=false");
+console.log("snapshot_only_publication_allowed=false");
+console.log("bounded_follower_autostart_required=true");
+console.log("certbot_shortlived_profile_required=true");
+console.log("certificate_issued=false");
+console.log("manifest_published=false");
+console.log("vps_access=false");
+console.log("wallet_authority=false");
+console.log("signer_authority=false");
+console.log("validator_authority=false");
+console.log("money_movement_authority=false");
