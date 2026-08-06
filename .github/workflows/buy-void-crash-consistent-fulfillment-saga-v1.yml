@@ -1,0 +1,63 @@
+name: Buy VOID crash-consistent fulfillment saga v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
+      - "docs/operators/buy-void-crash-consistent-fulfillment-saga-v1.md"
+      - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
+      - "schemas/buy-void-crash-consistent-fulfillment-saga-v1.schema.json"
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
+      - "docs/operators/buy-void-crash-consistent-fulfillment-saga-v1.md"
+      - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
+      - "schemas/buy-void-crash-consistent-fulfillment-saga-v1.schema.json"
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-crash-consistent-fulfillment-saga-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Parse JSON contracts
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync("schemas/buy-void-crash-consistent-fulfillment-saga-v1.schema.json", "utf8"))'
+          node -e 'JSON.parse(require("node:fs").readFileSync("fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json", "utf8"))'
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs
+          node --check scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs
+
+      - name: Prove crash-consistent fulfillment saga
+        run: node scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Check diff hygiene
+        run: git diff --check
