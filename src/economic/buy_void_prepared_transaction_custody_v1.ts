@@ -73,12 +73,18 @@ export type BuyVoidPreparedTransactionCustodianPreparedV1 = {
   wallet_address: string;
   signer_fingerprint_sha256: string;
   transaction_plan_fingerprint_sha256: string;
+  reason?: never;
 };
 
 export type BuyVoidPreparedTransactionCustodianHeldV1 = {
   ok: false;
   status: "held";
   reason: string;
+  custody_handle?: never;
+  signed_transaction_hash?: never;
+  wallet_address?: never;
+  signer_fingerprint_sha256?: never;
+  transaction_plan_fingerprint_sha256?: never;
 };
 
 export type BuyVoidPreparedTransactionCustodianDecisionV1 =
@@ -144,6 +150,8 @@ export type BuyVoidPreparedTransactionCustodyDecisionV1 =
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
       money_movement_performed: false;
+      reason?: never;
+      detail?: never;
     }
   | {
       ok: true;
@@ -157,6 +165,8 @@ export type BuyVoidPreparedTransactionCustodyDecisionV1 =
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
       money_movement_performed: false;
+      reason?: never;
+      detail?: never;
     }
   | {
       ok: false;
@@ -171,6 +181,7 @@ export type BuyVoidPreparedTransactionCustodyDecisionV1 =
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
       money_movement_performed: false;
+      custody?: never;
     };
 
 export type PrepareBuyVoidTransactionCustodyInputV1 = {
@@ -190,7 +201,7 @@ function held(
     external_signing_performed?: boolean;
     detail?: Record<string, unknown>;
   } = {},
-): BuyVoidPreparedTransactionCustodyDecisionV1 {
+): Extract<BuyVoidPreparedTransactionCustodyDecisionV1, { ok: false }> {
   return {
     ok: false,
     status: "held",
@@ -402,9 +413,9 @@ function validateCustodianDecision(
 ): BuyVoidPreparedTransactionCustodianPreparedV1 {
   const forbidden = forbiddenResultKey(decision);
   if (forbidden) throw new Error(`custodian_result_forbidden_key:${forbidden}`);
-  if (!decision || decision.ok !== true) {
+  if ("reason" in decision) {
     throw new Error(
-      `custodian_prepare_held:${String((decision as BuyVoidPreparedTransactionCustodianHeldV1)?.reason || "unknown")}`,
+      `custodian_prepare_held:${String(decision.reason || "unknown")}`,
     );
   }
   const wallet = normalizedAddress(decision.wallet_address);
