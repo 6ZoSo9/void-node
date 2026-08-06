@@ -162,6 +162,8 @@ export type BuyVoidSagaPreparedTransactionDecisionV1 =
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
       money_movement_performed: false;
+      reason?: never;
+      detail?: never;
     }
   | {
       ok: true;
@@ -181,6 +183,8 @@ export type BuyVoidSagaPreparedTransactionDecisionV1 =
       raw_signed_transaction_returned: false;
       automatic_retry_allowed: false;
       money_movement_performed: false;
+      reason?: never;
+      detail?: never;
     }
   | {
       ok: false;
@@ -207,6 +211,8 @@ export type BuyVoidSagaPreparedTransactionDecisionV1 =
       reconciliation_required: boolean;
       automatic_retry_allowed: false;
       money_movement_performed: false;
+      plan?: never;
+      custody?: never;
     };
 
 type SagaStoreV1 = {
@@ -238,6 +244,20 @@ type PreparationPolicyV1 = {
   fingerprint_sha256: string;
 };
 
+type PreparationPolicyDecisionV1 =
+  | {
+      ok: true;
+      policy: PreparationPolicyV1;
+      reason?: never;
+      missing?: never;
+    }
+  | {
+      ok: false;
+      policy?: never;
+      missing: string[];
+      reason: string;
+    };
+
 type ReconstructedV1 = {
   intent: BuyVoidFulfillmentJournalIntentV1;
   inventory: BuyVoidInventoryReservationV1;
@@ -249,6 +269,19 @@ type ReconstructedV1 = {
   saga_record: any;
 };
 
+type HeldLikeV1 = {
+  reason: string;
+  detail?: Record<string, unknown>;
+};
+
+function hasReason(value: unknown): value is HeldLikeV1 {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    typeof (value as { reason?: unknown }).reason === "string",
+  );
+}
+
 function held(
   stage: Extract<BuyVoidSagaPreparedTransactionDecisionV1, { ok: false }>["stage"],
   applied: boolean,
@@ -259,7 +292,7 @@ function held(
     reconciliation_required?: boolean;
     detail?: Record<string, unknown>;
   } = {},
-): BuyVoidSagaPreparedTransactionDecisionV1 {
+): Extract<BuyVoidSagaPreparedTransactionDecisionV1, { ok: false }> {
   return {
     ok: false,
     status: "held",
@@ -328,9 +361,7 @@ function absoluteRoot(value: unknown): string {
   return path.resolve(raw);
 }
 
-function policyValues():
-  | { ok: true; policy: PreparationPolicyV1 }
-  | { ok: false; missing: string[]; reason: string } {
+function policyValues(): PreparationPolicyDecisionV1 {
   const values = Object.fromEntries(
     Object.entries(VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_POLICY_ENVS_V1)
       .map(([key, name]) => [key, text(process.env[name])]),
@@ -696,18 +727,18 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
   }
 
   const serverPolicyDecision = readBuyVoidCrashConsistentSagaServerPolicyV1();
-  if (!serverPolicyDecision.ok) {
+  if (hasReason(serverPolicyDecision)) {
     return held("server_policy", applied, serverPolicyDecision.reason, {
-      detail: { missing_envs: serverPolicyDecision.missing_envs },
+      detail: { missing_envs: serverPolicyDecision.missing_envs || [] },
     });
   }
   const preparationPolicyDecision = policyValues();
-  if (!preparationPolicyDecision.ok) {
+  if (hasReason(preparationPolicyDecision)) {
     return held(
       "server_policy",
       applied,
       preparationPolicyDecision.reason,
-      { detail: { missing_envs: preparationPolicyDecision.missing } },
+      { detail: { missing_envs: preparationPolicyDecision.missing || [] } },
     );
   }
   const serverPolicy = serverPolicyDecision.policy;
@@ -807,7 +838,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
         detail: { error_class: String((error as Error)?.name || "Error").slice(0, 80) },
       });
     }
-    if (!planner.ok) {
+    if (hasReason(planner)) {
       return held("nonce_fee_planning", applied, planner.reason, {
         detail: planner.detail,
       });
@@ -899,7 +930,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       preparationPolicy.fingerprint_sha256,
     now_ms: nowMs,
   });
-  if (!planDecision.ok) {
+  if (hasReason(planDecision)) {
     return held("plan_reservation", true, planDecision.reason, {
       detail: planDecision.detail,
     });
@@ -924,7 +955,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
     now_ms: nowMs,
   });
-  if (!custodyDecision.ok) {
+  if (hasReason(custodyDecision)) {
     return held("custody", true, custodyDecision.reason, {
       mutation_performed: planDecision.mutation_performed,
       external_signing_performed:
@@ -932,6 +963,12 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
       reconciliation_required:
         custodyDecision.custodian_called,
       detail: custodyDecision.detail,
+    });
+  }
+  if (!custodyDecision.custody) {
+    return held("custody", true, "prepared_transaction_custody_projection_missing", {
+      mutation_performed: planDecision.mutation_performed,
+      reconciliation_required: true,
     });
   }
   const custody = custodyDecision.custody;
