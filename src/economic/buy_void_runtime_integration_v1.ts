@@ -17,6 +17,11 @@ import {
   buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1,
   handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1,
 } from "./buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.js";
+import {
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+  buyVoidCrashConsistentSagaRuntimeStatusV1,
+  handleBuyVoidCrashConsistentSagaRuntimeCommandV1,
+} from "./buy_void_crash_consistent_saga_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -47,6 +52,8 @@ const GLOBAL_MARK = "__void_buy_void_runtime_integration_v1";
 const ENABLE_ENV = "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED";
 const ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
 const JSON_LIMIT = "256kb";
+const MAX_INPUT_NESTING_DEPTH = 12;
+const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__";
 
 const FORBIDDEN_INPUT_KEYS = new Set([
   "private_key",
@@ -123,7 +130,10 @@ function normalizedKey(value: unknown): string {
 }
 
 function findForbiddenInputKey(value: unknown, depth = 0): string | null {
-  if (!value || typeof value !== "object" || depth > 12) return null;
+  if (!value || typeof value !== "object") return null;
+  if (depth > MAX_INPUT_NESTING_DEPTH) {
+    return INPUT_NESTING_DEPTH_SENTINEL;
+  }
 
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -180,12 +190,18 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
     root_dir_source: String(process.env[ROOT_ENV] || "").trim()
       ? ROOT_ENV
       : "server_default",
-    supported_actions: Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+    supported_actions: [
+      ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+      VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+    ],
     required_confirmations: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
     authority: VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1,
     coordinator_authority: VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
     bounded_auto_fulfillment_orchestrator:
       buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1(),
+    crash_consistent_saga_runtime:
+      buyVoidCrashConsistentSagaRuntimeStatusV1(),
   };
 }
 
@@ -227,9 +243,23 @@ export function handleBuyVoidRuntimeCommandV1(
     return res.status(400).json({
       marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
       ok: false,
-      error: "forbidden_execution_material",
+      error: forbiddenKey === INPUT_NESTING_DEPTH_SENTINEL
+        ? "input_nesting_depth_exceeded"
+        : "forbidden_execution_material",
       forbidden_key: forbiddenKey,
+      max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
     });
+  }
+
+  if (
+    String((body as any).action || "") ===
+    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
+      req,
+      res,
+      { root_dir: buyVoidRuntimeRootDirV1() },
+    );
   }
 
   if (
@@ -250,7 +280,11 @@ export function handleBuyVoidRuntimeCommandV1(
       marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
       ok: false,
       error: "invalid_pipeline_action",
-      supported_actions: Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+      supported_actions: [
+        ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      ],
     });
   }
 
