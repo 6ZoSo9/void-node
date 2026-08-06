@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import net from "node:net";
 import { validateV3OnionHostname } from "../../tools/lib/void-tor-onion-descriptor-v1.mjs";
 
+const DEFAULT_MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
+
 export const TOR_NATIVE_ENDPOINT_KEYS = Object.freeze([
   "transport",
   "base",
@@ -71,8 +73,20 @@ export function normalizeOnionBase(raw) {
   return Object.freeze({ base: `http://${hostname}`, hostname, port: 80 });
 }
 
-export function validateTorNativeEndpoints(rawEndpoints, nowMs = Date.now()) {
+export function validateTorNativeEndpoints(
+  rawEndpoints,
+  nowMs = Date.now(),
+  maxQualificationAgeMs = DEFAULT_MAX_QUALIFICATION_AGE_MS,
+) {
   if (!Array.isArray(rawEndpoints)) throw new Error("onion_endpoints must be an array");
+  if (!Number.isFinite(nowMs)) throw new Error("onion endpoint validation time is invalid");
+  if (
+    !Number.isSafeInteger(maxQualificationAgeMs) ||
+    maxQualificationAgeMs < 60_000 ||
+    maxQualificationAgeMs > 24 * 60 * 60 * 1000
+  ) {
+    throw new Error("onion endpoint qualification age bound is invalid");
+  }
   if (rawEndpoints.length < 1 || rawEndpoints.length > 8) {
     throw new Error("Tor-native bootstrap requires one through eight onion endpoints");
   }
@@ -93,6 +107,9 @@ export function validateTorNativeEndpoints(rawEndpoints, nowMs = Date.now()) {
     if (!Number.isFinite(qualifiedAt) || qualifiedAt > nowMs + 5 * 60 * 1000) {
       throw new Error("onion endpoint qualification time is invalid");
     }
+    if (nowMs - qualifiedAt > maxQualificationAgeMs) {
+      throw new Error("onion endpoint qualification is stale");
+    }
     if (!Number.isSafeInteger(endpoint.qualified_head) || endpoint.qualified_head <= 0) {
       throw new Error("onion endpoint qualified head must be positive");
     }
@@ -103,6 +120,20 @@ export function validateTorNativeEndpoints(rawEndpoints, nowMs = Date.now()) {
   }
   if (endpoints.length === 0) throw new Error("no enabled Tor-native endpoint remains");
   return Object.freeze(endpoints.sort((a, b) => a.priority - b.priority || a.base.localeCompare(b.base)));
+}
+
+function normalizeRequestPath(raw) {
+  const path = String(raw || "");
+  if (
+    !path.startsWith("/") ||
+    path.length > 2048 ||
+    path.includes("?") ||
+    path.includes("#") ||
+    /[^\x21-\x7e]/.test(path)
+  ) {
+    throw new Error("onion request path is invalid");
+  }
+  return path;
 }
 
 function readExact(socket, bytes, timeoutMs) {
@@ -177,9 +208,7 @@ async function socks5Connect({ socksHost, socksPort, hostname, port, timeoutMs }
 
 export async function requestOnionJson({ base, path = "/__void/ready.json", socksHost = "127.0.0.1", socksPort = 9050, timeoutMs = 15_000, maxBytes = 1024 * 1024 }) {
   const endpoint = normalizeOnionBase(base);
-  if (!path.startsWith("/") || path.includes("?") || path.includes("#") || path.length > 2048) {
-    throw new Error("onion request path is invalid");
-  }
+  const requestPath = normalizeRequestPath(path);
   const socket = await socks5Connect({ socksHost, socksPort, hostname: endpoint.hostname, port: endpoint.port, timeoutMs });
   return await new Promise((resolve, reject) => {
     let settled = false;
@@ -216,6 +245,6 @@ export async function requestOnionJson({ base, path = "/__void/ready.json", sock
       catch (error) { return finish(new Error(`onion JSON is invalid: ${error.message}`)); }
     });
     socket.resume();
-    socket.write([`GET ${path} HTTP/1.1`, `Host: ${endpoint.hostname}`, "Accept: application/json", "Connection: close", "User-Agent: void-node/tor-native-bootstrap-v1", "", ""].join("\r\n"));
+    socket.write([`GET ${requestPath} HTTP/1.1`, `Host: ${endpoint.hostname}`, "Accept: application/json", "Connection: close", "User-Agent: void-node/tor-native-bootstrap-v1", "", ""].join("\r\n"));
   });
 }
