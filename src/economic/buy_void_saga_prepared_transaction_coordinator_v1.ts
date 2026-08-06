@@ -742,7 +742,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
     );
   }
   const serverPolicy = serverPolicyDecision.policy;
-  const preparationPolicy = preparationPolicyDecision.policy;
+  const preparationPolicy = preparationPolicyDecision.policy!;
   const deps = dependencies(input?.dependencies);
   let saga: SagaModuleV1;
   try {
