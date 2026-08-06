@@ -52,6 +52,10 @@ node scripts/install_void_public_seed_tor_v1.mjs activate \
 
 Activation verifies the local node is exact-green, refuses occupied loopback gateway or SOCKS ports, starts the restricted gateway, starts Tor, validates the checksum-bearing v3 address, then performs three observations through SOCKS5 domain addressing.
 
+The seed transport is separate from the general Tor agent client path validator. It accepts only the maintained fixed read routes plus one canonical bounded range route of the exact form `/blocks/range?from=<decimal>&to=<decimal>`. It rejects mutation paths, duplicate or reordered query parameters, non-canonical decimal bounds, ranges above 999 blocks, redirects, chunked responses, duplicate headers, missing or inconsistent `Content-Length`, non-JSON bodies, missing gateway identity, wrong response shapes, and noncontiguous block ranges.
+
+Managed roots reject symlinked existing ancestors before writing. Tor configuration and user units are written by private atomic replacement, and installation refuses to replace either service while it is active.
+
 ## Qualification contract
 
 The `voidptq1_` receipt requires:
