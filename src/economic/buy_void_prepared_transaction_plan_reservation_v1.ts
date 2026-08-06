@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {
+  withBuyVoidFilesystemBakeryLockV1,
+} from "./buy_void_filesystem_bakery_lock_v1.js";
 
 export const VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 =
   "VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1";
@@ -8,6 +11,8 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 =
 export const VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_AUTHORITY_V1 = {
   source_only_contract: true,
   one_wallet_nonce_per_reservation: true,
+  wallet_scoped_nonce_allocation_lock: true,
+  dead_nonce_allocation_claim_cleanup: true,
   immutable_nonce_claim: true,
   atomic_nonce_publication: true,
   crash_recoverable_attempt_index: true,
@@ -355,6 +360,10 @@ function initializePaths(paths: PathsV1): void {
   ]) ensurePrivateDirectory(directory);
 }
 
+function nonceAllocationLockPath(paths: PathsV1): string {
+  return path.join(paths.wallet, "nonce-allocation");
+}
+
 function fsyncDirectory(directory: string): void {
   const descriptor = fs.openSync(directory, "r");
   try {
@@ -584,6 +593,9 @@ function assertCompatible(
   record: BuyVoidPreparedTransactionPlanReservationV1,
   input: NormalizedInputV1,
 ): void {
+  if (record.nonce < input.observed_pending_nonce) {
+    throw new Error("prepared_plan_reserved_nonce_below_observed_pending");
+  }
   if (
     record.saga_id !== input.saga_id ||
     record.attempt_id !== input.attempt_id ||
@@ -680,7 +692,10 @@ export function reserveBuyVoidPreparedTransactionPlanV1(
   try {
     const paths = pathsFor(normalized);
     initializePaths(paths);
-    const recovered = recoverAttempt(paths, normalized);
+    return withBuyVoidFilesystemBakeryLockV1(
+      nonceAllocationLockPath(paths),
+      () => {
+        const recovered = recoverAttempt(paths, normalized);
     if (recovered.record) {
       return {
         ok: true,
@@ -779,9 +794,11 @@ export function reserveBuyVoidPreparedTransactionPlanV1(
       }
       candidate += 1;
     }
-    return held("prepared_plan_nonce_probe_cap_reached", {
-      max_nonce_probes: MAX_NONCE_PROBES,
-    });
+        return held("prepared_plan_nonce_probe_cap_reached", {
+          max_nonce_probes: MAX_NONCE_PROBES,
+        });
+      },
+    );
   } catch (error) {
     return held("prepared_plan_reservation_failed", {
       message: String((error as Error)?.message || error).slice(0, 240),
