@@ -12,7 +12,6 @@ import {
 import {
   listBuyVoidInventoryReservationsV1,
   reserveBuyVoidInventoryV1,
-  type BuyVoidInventoryReservationPolicyV1,
   type BuyVoidInventoryReservationV1,
 } from "./buy_void_inventory_reservation_journal_v1.js";
 import {
@@ -23,6 +22,12 @@ import {
   runBuyVoidPipelineCommandV1,
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
 } from "./buy_void_pipeline_coordinator_v1.js";
+import {
+  readBuyVoidCrashConsistentSagaServerPolicyV1,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
+  type BuyVoidCrashConsistentSagaServerPolicyV1,
+} from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1 =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1";
@@ -37,9 +42,15 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
   server_controlled_root_dir: true,
   server_controlled_request_dir: true,
   server_derived_request_snapshot: true,
+  server_controlled_verification_policy: true,
+  server_controlled_fulfillment_policy: true,
   server_controlled_inventory_policy: true,
+  server_controlled_execution_policy: true,
+  caller_supplied_policy_forbidden: true,
   caller_supplied_binding_forbidden: true,
   caller_supplied_intent_forbidden: true,
+  stable_policy_fingerprint_echo_required: true,
+  stable_policy_fingerprint_bound_in_saga: true,
   one_request_per_invocation: true,
   one_business_stage_per_invocation: true,
   per_request_lease_required: true,
@@ -65,23 +76,53 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
 const ENABLE_ENV = "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
 const REQUEST_DIR_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_REQUEST_DIR";
-const INVENTORY_POLICY_VERSION_ENV =
-  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION";
-const POOL_CAPACITY_ENV =
-  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS";
-const MAX_RESERVATION_ENV =
-  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS";
 const SOURCE_FLOOR_MAIN = "74f90863d738531a75eb3b4c886ad44543ae0419";
-const POLICY_ID = "void-buy-void-saga-runtime-non-money-v1";
 const POOL_ID = "void-fixed-price-pool-v1";
 const LEASE_TTL_MS = 30_000;
 const MAX_JSON_BYTES = 4 * 1024 * 1024;
+const MAX_INPUT_NESTING_DEPTH = 16;
+const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__";
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{3,160}$/;
-const SAFE_ID = /^[A-Za-z0-9._:-]{3,200}$/;
-const DECIMAL = /^(0|[1-9][0-9]*)$/;
 const OWNER_ID = `void-buy-saga-${process.pid}-${crypto
   .randomBytes(8)
   .toString("hex")}`;
+
+const CALLER_POLICY_KEYS = new Set([
+  "policy",
+  "verificationpolicy",
+  "fulfillmentpolicy",
+  "inventorypolicy",
+  "executionpolicy",
+  "allowedchains",
+  "minconfirmationsbychain",
+  "usdccontractbychain",
+  "receiveaddressbychain",
+  "currentblocknumberbychain",
+  "ratevoidunitsnumerator",
+  "ratevoidunitsdenominator",
+  "poolremainingvoidunits",
+  "maxattemptsperpayment",
+  "fulfillmentwalletallowlist",
+]);
+
+const CALLER_EXECUTION_KEYS = new Set([
+  "binding",
+  "intent",
+  "request",
+  "snapshot",
+  "rootdir",
+  "requestdir",
+  "privatekey",
+  "mnemonic",
+  "seedphrase",
+  "rawtransaction",
+  "rawsignedtransaction",
+  "signedtransaction",
+  "walletsecret",
+  "keystore",
+  "rpcurl",
+  "broadcasturl",
+]);
 
 export type BuyVoidCrashConsistentSagaBindingV1 = {
   request_id: string;
@@ -97,6 +138,7 @@ export type BuyVoidCrashConsistentSagaBindingV1 = {
 type SagaStoreV1 = {
   recover: (sagaId: string) => any | null;
 };
+
 type SagaModuleV1 = {
   ADVANCE_CONFIRMATION: string;
   ACTION_CONFIRMATIONS: Record<string, string>;
@@ -133,20 +175,26 @@ type RuntimeOptionsV1 = {
   dependencies?: BuyVoidCrashConsistentSagaRuntimeDependenciesV1;
 };
 
+type ForbiddenDecisionV1 =
+  | { kind: "none" }
+  | { kind: "depth"; key: typeof INPUT_NESTING_DEPTH_SENTINEL }
+  | { kind: "policy"; key: string }
+  | { kind: "execution"; key: string };
+
 function enabled(): boolean {
   return /^(1|true|yes|on)$/i.test(String(process.env[ENABLE_ENV] || "").trim());
 }
+
 function text(value: unknown): string {
   return String(value ?? "").trim();
 }
+
 function objectValue(value: unknown): Record<string, any> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, any>)
     : null;
 }
-function hash(value: string): string {
-  return crypto.createHash("sha256").update(value, "utf8").digest("hex");
-}
+
 function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -156,38 +204,46 @@ function canonical(value: unknown): string {
     .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
     .join(",")}}`;
 }
+
 function same(left: unknown, right: unknown): boolean {
   return canonical(left) === canonical(right);
 }
+
 function loopback(req: any): boolean {
   const address = text(
     req?.socket?.remoteAddress || req?.connection?.remoteAddress || req?.ip || "",
   ).toLowerCase();
   return ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address);
 }
-function forbiddenKey(value: unknown, depth = 0): string {
-  if (!value || typeof value !== "object" || depth > 16) return "";
-  const forbidden = new Set([
-    "binding", "intent", "request", "snapshot", "rootdir", "requestdir",
-    "privatekey", "mnemonic", "seedphrase", "rawtransaction",
-    "rawsignedtransaction", "signedtransaction", "walletsecret", "keystore",
-    "rpcurl", "broadcasturl",
-  ]);
+
+function normalizedKey(value: unknown): string {
+  return text(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function forbiddenDecision(value: unknown, depth = 0): ForbiddenDecisionV1 {
+  if (!value || typeof value !== "object") return { kind: "none" };
+  if (depth > MAX_INPUT_NESTING_DEPTH) {
+    return { kind: "depth", key: INPUT_NESTING_DEPTH_SENTINEL };
+  }
   if (Array.isArray(value)) {
     for (const item of value) {
-      const nested = forbiddenKey(item, depth + 1);
-      if (nested) return nested;
+      const nested = forbiddenDecision(item, depth + 1);
+      if (nested.kind !== "none") return nested;
     }
-    return "";
+    return { kind: "none" };
   }
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (forbidden.has(normalized)) return key;
-    const nested = forbiddenKey(child, depth + 1);
-    if (nested) return nested;
+    const normalized = normalizedKey(key);
+    if (CALLER_POLICY_KEYS.has(normalized)) return { kind: "policy", key };
+    if (CALLER_EXECUTION_KEYS.has(normalized)) {
+      return { kind: "execution", key };
+    }
+    const nested = forbiddenDecision(child, depth + 1);
+    if (nested.kind !== "none") return nested;
   }
-  return "";
+  return { kind: "none" };
 }
+
 function absolute(value: unknown, label: string): string {
   const raw = text(value);
   if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
@@ -195,6 +251,7 @@ function absolute(value: unknown, label: string): string {
   }
   return path.resolve(raw);
 }
+
 function requestDirectory(options: RuntimeOptionsV1): string {
   return absolute(
     options.request_dir ||
@@ -203,6 +260,7 @@ function requestDirectory(options: RuntimeOptionsV1): string {
     "server_controlled_request_dir",
   );
 }
+
 function readRequest(directory: string, requestId: string): Record<string, any> {
   const file = path.join(directory, `${requestId}.json`);
   const relative = path.relative(directory, file);
@@ -222,32 +280,22 @@ function readRequest(directory: string, requestId: string): Record<string, any> 
   }
   return request;
 }
-function positiveEnv(name: string): string {
-  const value = text(process.env[name]);
-  if (!DECIMAL.test(value) || BigInt(value) <= 0n) {
-    throw new Error(`${name.toLowerCase()}_required`);
+
+function claimReceipt(stageCommand: Record<string, unknown> | null): unknown {
+  if (!stageCommand) throw new Error("claim_stage_command_required");
+  const keys = Object.keys(stageCommand).sort();
+  if (keys.length !== 1 || keys[0] !== "receipt") {
+    throw new Error("claim_stage_command_receipt_only");
   }
-  return value;
+  const receipt = objectValue(stageCommand.receipt);
+  if (!receipt) throw new Error("claim_receipt_object_required");
+  return receipt;
 }
-function inventoryPolicy(): BuyVoidInventoryReservationPolicyV1 {
-  const version = text(process.env[INVENTORY_POLICY_VERSION_ENV]);
-  if (!SAFE_ID.test(version)) throw new Error("inventory_policy_version_required");
-  const capacity = positiveEnv(POOL_CAPACITY_ENV);
-  const maximum = positiveEnv(MAX_RESERVATION_ENV);
-  if (BigInt(maximum) > BigInt(capacity)) {
-    throw new Error("inventory_reservation_cap_exceeds_capacity");
-  }
-  return {
-    inventory_reservation_enabled: true,
-    pool_id: POOL_ID,
-    inventory_policy_version: version,
-    pool_capacity_void_units: capacity,
-    max_reservation_void_units: maximum,
-  };
-}
+
 function sagaRoot(rootDir: string): string {
   return path.join(rootDir, "buy-void-crash-consistent-saga-runtime-v1");
 }
+
 async function defaultSagaModule(): Promise<SagaModuleV1> {
   const dynamicImport = new Function(
     "specifier",
@@ -255,6 +303,7 @@ async function defaultSagaModule(): Promise<SagaModuleV1> {
   ) as (specifier: string) => Promise<SagaModuleV1>;
   return dynamicImport("../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs");
 }
+
 function dependencies(
   supplied?: BuyVoidCrashConsistentSagaRuntimeDependenciesV1,
 ): Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1> {
@@ -270,6 +319,7 @@ function dependencies(
     ...(supplied || {}),
   };
 }
+
 function intentsFor(
   deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
   rootDir: string,
@@ -282,6 +332,7 @@ function intentsFor(
     .filter((value) => text(value.claim?.request_id) === requestId) as
     BuyVoidFulfillmentJournalIntentV1[];
 }
+
 function attemptsFor(
   deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
   rootDir: string,
@@ -294,6 +345,7 @@ function attemptsFor(
     .filter((value) => text(value.reservation?.request_id) === requestId) as
     BuyVoidExecutionAttemptStateV1[];
 }
+
 function inventoryFor(
   deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
   rootDir: string,
@@ -306,10 +358,12 @@ function inventoryFor(
     .filter((value) => text(value.request_id) === requestId) as
     BuyVoidInventoryReservationV1[];
 }
+
 function exactlyOneOrNull<T>(values: T[], label: string): T | null {
   if (values.length > 1) throw new Error(`multiple_${label}_records`);
   return values[0] || null;
 }
+
 function bindingFromIntent(
   intent: BuyVoidFulfillmentJournalIntentV1,
 ): BuyVoidCrashConsistentSagaBindingV1 {
@@ -325,10 +379,15 @@ function bindingFromIntent(
     pool_id: POOL_ID,
   };
 }
+
 function bindingFromClaim(claim: Record<string, any>): BuyVoidCrashConsistentSagaBindingV1 {
   const instruction = claim.unsigned_instruction;
   const requestId = text(claim.request_id);
   const paymentIdentity = text(claim.canonical_payment_identity);
+  const hash = (value: string): string => crypto
+    .createHash("sha256")
+    .update(value, "utf8")
+    .digest("hex");
   return {
     request_id: requestId,
     canonical_payment_identity: paymentIdentity,
@@ -340,24 +399,105 @@ function bindingFromClaim(claim: Record<string, any>): BuyVoidCrashConsistentSag
     pool_id: POOL_ID,
   };
 }
+
+function parsePositive(value: unknown): bigint | null {
+  const raw = text(value);
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) return null;
+  try {
+    const parsed = BigInt(raw);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function assertIntentServerPolicy(
+  intent: BuyVoidFulfillmentJournalIntentV1,
+  serverPolicy: BuyVoidCrashConsistentSagaServerPolicyV1,
+): void {
+  const chain = text(intent.verification_binding?.source_chain).toLowerCase();
+  const verification = serverPolicy.verification_policy;
+  const fulfillment = serverPolicy.fulfillment_policy;
+  if (!verification.allowed_chains.includes(chain)) {
+    throw new Error("claim_server_payment_chain_conflict");
+  }
+  if (
+    text(intent.verification_binding?.usdc_contract).toLowerCase() !==
+      text(verification.usdc_contract_by_chain[chain]).toLowerCase()
+  ) {
+    throw new Error("claim_server_usdc_contract_conflict");
+  }
+  if (
+    text(intent.verification_binding?.receive_address).toLowerCase() !==
+      text(verification.receive_address_by_chain[chain]).toLowerCase()
+  ) {
+    throw new Error("claim_server_receive_address_conflict");
+  }
+  const observedConfirmations = parsePositive(
+    intent.verification_binding?.confirmation_count_at_claim,
+  );
+  const requiredConfirmations = BigInt(
+    fulfillment.min_confirmations_by_chain[chain] || 0,
+  );
+  if (
+    observedConfirmations === null ||
+    observedConfirmations < requiredConfirmations
+  ) {
+    throw new Error("claim_server_confirmation_policy_conflict");
+  }
+  const paidUnits = parsePositive(
+    intent.verification_binding?.payment_usdc_units,
+  );
+  const voidUnits = parsePositive(
+    intent.claim?.unsigned_instruction?.void_amount_units,
+  );
+  const rateNumerator = parsePositive(
+    fulfillment.rate_void_units_numerator,
+  );
+  const rateDenominator = parsePositive(
+    fulfillment.rate_void_units_denominator,
+  );
+  if (
+    paidUnits === null ||
+    voidUnits === null ||
+    rateNumerator === null ||
+    rateDenominator === null ||
+    paidUnits * rateNumerator !== voidUnits * rateDenominator
+  ) {
+    throw new Error("claim_server_rate_policy_conflict");
+  }
+  const poolCapacity = parsePositive(
+    serverPolicy.inventory_policy.pool_capacity_void_units,
+  );
+  if (poolCapacity === null || voidUnits > poolCapacity) {
+    throw new Error("claim_server_inventory_policy_conflict");
+  }
+}
+
 async function deriveBinding(input: {
   deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>;
   root_dir: string;
   request: Record<string, any>;
   request_id: string;
-  stage_command: Record<string, unknown> | null;
+  receipt: unknown | null;
+  server_policy: BuyVoidCrashConsistentSagaServerPolicyV1;
 }): Promise<BuyVoidCrashConsistentSagaBindingV1> {
   const intent = exactlyOneOrNull(
     intentsFor(input.deps, input.root_dir, input.request_id),
     "claim",
   );
-  if (intent) return bindingFromIntent(intent);
-  if (!input.stage_command) throw new Error("claim_stage_command_required");
+  if (intent) {
+    assertIntentServerPolicy(intent, input.server_policy);
+    return bindingFromIntent(intent);
+  }
+  if (!input.receipt) throw new Error("claim_receipt_required");
   const preview = objectValue(await input.deps.run_pipeline_command({
-    ...input.stage_command,
     action: "verify_and_claim",
     root_dir: input.root_dir,
     request: input.request,
+    receipt: input.receipt,
+    verification_policy: input.server_policy.verification_policy,
+    fulfillment_policy: input.server_policy.fulfillment_policy,
     apply: false,
   }));
   const claim = objectValue(preview?.preview?.decision?.claim);
@@ -366,16 +506,21 @@ async function deriveBinding(input: {
   }
   return bindingFromClaim(claim);
 }
+
 function assertProjection(input: {
   binding: BuyVoidCrashConsistentSagaBindingV1;
   record: any | null;
   intent: BuyVoidFulfillmentJournalIntentV1 | null;
   reservation: BuyVoidInventoryReservationV1 | null;
   attempt: BuyVoidExecutionAttemptStateV1 | null;
+  server_policy: BuyVoidCrashConsistentSagaServerPolicyV1;
 }): void {
-  const { binding, record, intent, reservation, attempt } = input;
-  if (intent && !same(bindingFromIntent(intent), binding)) {
-    throw new Error("claim_binding_conflict");
+  const { binding, record, intent, reservation, attempt, server_policy } = input;
+  if (intent) {
+    assertIntentServerPolicy(intent, server_policy);
+    if (!same(bindingFromIntent(intent), binding)) {
+      throw new Error("claim_binding_conflict");
+    }
   }
   if (!intent && (reservation || attempt)) throw new Error("projection_without_claim");
   if (reservation) {
@@ -390,6 +535,14 @@ function assertProjection(input: {
       pool_id: reservation.pool_id,
     };
     if (!same(projected, binding)) throw new Error("inventory_binding_conflict");
+    if (
+      reservation.inventory_policy_version !==
+        server_policy.inventory_policy.inventory_policy_version ||
+      reservation.pool_capacity_void_units !==
+        text(server_policy.inventory_policy.pool_capacity_void_units)
+    ) {
+      throw new Error("inventory_server_policy_conflict");
+    }
   }
   if (attempt) {
     if (!reservation) throw new Error("attempt_without_inventory_reservation");
@@ -401,11 +554,19 @@ function assertProjection(input: {
       r.payment_key_sha256 !== binding.payment_key_sha256 ||
       r.unsigned_instruction?.delivery_address !== binding.delivery_address ||
       r.unsigned_instruction?.void_amount_units !== binding.void_amount_units ||
-      r.attempt_number !== 1
+      r.attempt_number !== 1 ||
+      r.max_attempts_per_payment !== 1
     ) throw new Error("attempt_binding_conflict");
   }
   if (!record) return;
   if (!same(record.binding, binding)) throw new Error("saga_binding_conflict");
+  const initialization = record.events?.[0];
+  if (
+    initialization?.event_type !== "saga_initialized" ||
+    initialization?.payload?.policy_id !== server_policy.saga_policy_id
+  ) {
+    throw new Error("saga_server_policy_fingerprint_conflict");
+  }
   const state = text(record.state?.state);
   if (["claimed", "inventory_reserved", "attempt_reserved"].includes(state) && !intent) {
     throw new Error("saga_claim_projection_missing");
@@ -426,6 +587,7 @@ function assertProjection(input: {
     throw new Error("saga_attempt_id_conflict");
   }
 }
+
 function recoverWithoutCreate(
   saga: SagaModuleV1,
   rootDir: string,
@@ -443,6 +605,7 @@ function recoverWithoutCreate(
   const store = saga.createFilesystemSagaStoreV1(root);
   return { store, record: store.recover(sagaId) };
 }
+
 function delegatedConfirmation(action: string): string | null {
   if (action === "claim_payment") {
     return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim;
@@ -452,27 +615,24 @@ function delegatedConfirmation(action: string): string | null {
   }
   return null;
 }
+
 function responseStatus(reason: string): number {
   if (reason.includes("confirmation_required")) return 428;
   if (reason.includes("conflict") || reason.includes("multiple_")) return 409;
-  if (reason.includes("disabled") || reason.includes("required")) return 503;
+  if (reason.includes("disabled") || reason.includes("not_configured")) return 503;
   return 422;
 }
 
 export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unknown> {
-  let policy: Record<string, unknown> | null = null;
-  let policyError: string | null = null;
-  try {
-    policy = inventoryPolicy() as unknown as Record<string, unknown>;
-  } catch (error) {
-    policyError = text((error as Error)?.message || error);
-  }
+  const serverPolicy = readBuyVoidCrashConsistentSagaServerPolicyV1();
   return {
     marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
     version: 1,
     enabled: enabled(),
     enable_env: ENABLE_ENV,
     request_dir_env: REQUEST_DIR_ENV,
+    server_policy_envs:
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
     action: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
     required_confirmation:
       VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONFIRMATION_V1,
@@ -481,8 +641,15 @@ export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unkn
       "reserve_inventory",
       "reserve_execution_attempt",
     ],
-    server_inventory_policy: policy,
-    server_inventory_policy_error: policyError,
+    server_policy_configured: serverPolicy.ok,
+    server_policy_missing_envs:
+      serverPolicy.ok ? [] : serverPolicy.missing_envs,
+    server_policy_fingerprints:
+      serverPolicy.ok ? serverPolicy.policy.fingerprints : null,
+    server_policy_public_summary:
+      serverPolicy.ok ? serverPolicy.policy.public_summary : null,
+    server_policy_authority:
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
     authority: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
   };
 }
@@ -515,13 +682,19 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       error: "invalid_saga_runtime_command",
     });
   }
-  const forbidden = forbiddenKey(body);
-  if (forbidden) {
+  const forbidden = forbiddenDecision(body);
+  if (forbidden.kind !== "none") {
+    const error = forbidden.kind === "policy"
+      ? "caller_supplied_policy_forbidden"
+      : forbidden.kind === "depth"
+        ? "input_nesting_depth_exceeded"
+        : "caller_supplied_execution_material_forbidden";
     return res.status(400).json({
       marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
       ok: false,
-      error: "caller_supplied_execution_material_forbidden",
-      forbidden_key: forbidden,
+      error,
+      forbidden_key: forbidden.key,
+      max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
     });
   }
   const requestId = text(body.request_id);
@@ -536,6 +709,11 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
   const deps = dependencies(options.dependencies);
 
   try {
+    const policyDecision = readBuyVoidCrashConsistentSagaServerPolicyV1();
+    if (!policyDecision.ok) {
+      throw new Error(`server_policy_not_configured:${policyDecision.reason}`);
+    }
+    const serverPolicy = policyDecision.policy;
     const rootDir = absolute(options.root_dir, "server_controlled_root_dir");
     const requests = requestDirectory(options);
     const derived = deps.derive_snapshot({
@@ -548,21 +726,33 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       throw new Error(`snapshot_held:${derived.reason}`);
     }
     const request = readRequest(requests, requestId);
-    const policy = inventoryPolicy();
     const saga = await deps.load_saga_module();
+    const existingIntent = exactlyOneOrNull(
+      intentsFor(deps, rootDir, requestId),
+      "claim",
+    );
+    const receipt = existingIntent ? null : claimReceipt(stageCommand);
     const binding = saga.validateSagaBindingV1(await deriveBinding({
       deps,
       root_dir: rootDir,
       request,
       request_id: requestId,
-      stage_command: stageCommand,
+      receipt,
+      server_policy: serverPolicy,
     }));
     const sagaId = saga.computeSagaIdV1(binding);
     const recovered = recoverWithoutCreate(saga, rootDir, sagaId);
     const intent = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
     const reservation = exactlyOneOrNull(inventoryFor(deps, rootDir, requestId), "inventory");
     const attempt = exactlyOneOrNull(attemptsFor(deps, rootDir, requestId), "attempt");
-    assertProjection({ binding, record: recovered.record, intent, reservation, attempt });
+    assertProjection({
+      binding,
+      record: recovered.record,
+      intent,
+      reservation,
+      attempt,
+      server_policy: serverPolicy,
+    });
     const next = recovered.record
       ? saga.deriveSagaNextActionV1(recovered.record.state)
       : {
@@ -573,6 +763,9 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     if (next.terminal || !next.action) throw new Error("saga_terminal");
     if (!["claim_payment", "reserve_inventory", "reserve_execution_attempt"].includes(next.action)) {
       throw new Error("next_stage_outside_non_money_runtime_boundary");
+    }
+    if (next.action !== "claim_payment" && stageCommand) {
+      throw new Error("stage_command_not_allowed_for_server_policy_stage");
     }
     const delegated = delegatedConfirmation(next.action);
 
@@ -592,9 +785,12 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         required_saga_confirmation: saga.ADVANCE_CONFIRMATION,
         required_action_confirmation: next.required_confirmation,
         required_delegated_confirmation: delegated,
+        required_policy_fingerprint_sha256:
+          serverPolicy.fingerprints.combined_policy_sha256,
+        server_policy_fingerprints: serverPolicy.fingerprints,
+        server_policy_public_summary: serverPolicy.public_summary,
         derived_snapshot: derived.snapshot,
         snapshot_evidence: derived.evidence,
-        server_inventory_policy: policy,
         authority: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
       });
     }
@@ -610,21 +806,28 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     if (delegated && text(body.delegated_confirmation) !== delegated) {
       throw new Error("exact_delegated_confirmation_required");
     }
-    if (["claim_payment", "reserve_execution_attempt"].includes(next.action) && !stageCommand) {
-      throw new Error("stage_command_required");
+    if (
+      text(body.policy_fingerprint_sha256) !==
+        serverPolicy.fingerprints.combined_policy_sha256
+    ) {
+      throw new Error("exact_server_policy_fingerprint_required");
     }
 
     const nowMs = deps.now_ms();
-    if (!Number.isSafeInteger(nowMs) || nowMs <= 0) throw new Error("server_clock_invalid");
+    if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
+      throw new Error("server_clock_invalid");
+    }
     const adapters: Record<string, () => Promise<Record<string, unknown>>> = {
       claim_payment: async () => {
         let selected = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
         if (!selected) {
           const applied = objectValue(await deps.run_pipeline_command({
-            ...(stageCommand || {}),
             action: "verify_and_claim",
             root_dir: rootDir,
             request,
+            receipt,
+            verification_policy: serverPolicy.verification_policy,
+            fulfillment_policy: serverPolicy.fulfillment_policy,
             apply: true,
             confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
             now_ms: nowMs,
@@ -634,7 +837,9 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           }
           selected = exactlyOneOrNull(intentsFor(deps, rootDir, requestId), "claim");
         }
-        if (!selected || !same(bindingFromIntent(selected), binding)) {
+        if (!selected) throw new Error("claim_projection_missing_after_apply");
+        assertIntentServerPolicy(selected, serverPolicy);
+        if (!same(bindingFromIntent(selected), binding)) {
           throw new Error("claim_projection_missing_or_changed");
         }
         return {
@@ -652,7 +857,7 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           const applied = objectValue(await deps.reserve_inventory({
             root_dir: rootDir,
             intent: selectedIntent,
-            policy,
+            policy: serverPolicy.inventory_policy,
             apply: true,
             now_ms: nowMs,
           }));
@@ -673,10 +878,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         let selected = exactlyOneOrNull(attemptsFor(deps, rootDir, requestId), "attempt");
         if (!selected) {
           const applied = objectValue(await deps.run_pipeline_command({
-            ...(stageCommand || {}),
             action: "reserve_execution",
             root_dir: rootDir,
             intent: selectedIntent,
+            execution_policy: serverPolicy.execution_policy,
             apply: true,
             confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.reserve_execution,
             now_ms: nowMs,
@@ -705,7 +910,7 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       lease_ttl_ms: LEASE_TTL_MS,
       recorded_at_utc: new Date(nowMs).toISOString(),
       source_floor_main: SOURCE_FLOOR_MAIN,
-      policy_id: POLICY_ID,
+      policy_id: serverPolicy.saga_policy_id,
       apply: true,
       confirmation: body.saga_confirmation,
       action_confirmation: body.action_confirmation,
@@ -720,6 +925,8 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       request_id: requestId,
       saga_id: sagaId,
       result,
+      server_policy_fingerprint_sha256:
+        serverPolicy.fingerprints.combined_policy_sha256,
       restart_reconciliation_before_retry: true,
       automatic_retry: false,
       inventory_decrement_performed: false,
