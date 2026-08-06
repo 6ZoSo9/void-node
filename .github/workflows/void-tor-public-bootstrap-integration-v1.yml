@@ -1,0 +1,92 @@
+name: VOID Tor public bootstrap integration v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-tor-public-bootstrap-integration-v1.yml'
+      - 'docs/public/void-tor-public-bootstrap-resolver-integration-v1.md'
+      - 'scripts/lib/void_tor_native_bootstrap_transport_v1.mjs'
+      - 'scripts/resolve_void_tor_public_bootstrap_v1.mjs'
+      - 'scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/prove_void_tor_native_bootstrap_transport_v1.mjs'
+      - 'scripts/prove_void_tor_public_bootstrap_integration_v1.mjs'
+      - 'tools/void-tor-public-seed-client-adapter-v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-tor-public-bootstrap-integration-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check Tor bootstrap source
+        run: |
+          node --check scripts/lib/void_tor_native_bootstrap_transport_v1.mjs
+          node --check scripts/resolve_void_tor_public_bootstrap_v1.mjs
+          node --check scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
+          node --check scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
+          node --check tools/void-tor-public-seed-client-adapter-v1.mjs
+
+      - name: Prove Tor transport boundary
+        run: node scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
+
+      - name: Prove resolver and adapter composition
+        run: node scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
+
+  repository-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
+
+      - name: Reject raw empty catches
+        run: |
+          ! grep -REn 'catch[[:space:]]*\{[[:space:]]*\}' -- \
+            scripts/lib/void_tor_native_bootstrap_transport_v1.mjs \
+            scripts/resolve_void_tor_public_bootstrap_v1.mjs \
+            scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs \
+            scripts/prove_void_tor_native_bootstrap_transport_v1.mjs \
+            scripts/prove_void_tor_public_bootstrap_integration_v1.mjs \
+            tools/void-tor-public-seed-client-adapter-v1.mjs
