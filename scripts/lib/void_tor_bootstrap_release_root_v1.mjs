@@ -1,0 +1,301 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  canonicalJson,
+  contentId,
+} from "./void_tor_native_bootstrap_transport_v1.mjs";
+
+export const TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA = "void_tor_bootstrap_release_root_v1";
+export const TOR_BOOTSTRAP_SIGNED_MANIFEST_SCHEMA = "void_tor_bootstrap_signed_manifest_v1";
+export const TOR_BOOTSTRAP_SIGNATURE_DOMAIN = "void:mainnet-0:tor-bootstrap-manifest-v1";
+export const TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME = "void-tor-bootstrap-release-root-v1.json";
+export const TOR_BOOTSTRAP_NETWORK = "VOID Network";
+export const TOR_BOOTSTRAP_CHAIN_ID = 2050;
+
+const ROOT_KEYS = Object.freeze([
+  "schema",
+  "network",
+  "chain_id",
+  "status",
+  "signature_domain",
+  "threshold",
+  "keys",
+  "authority",
+  "root_id",
+]);
+const ROOT_KEY_KEYS = Object.freeze([
+  "key_id",
+  "algorithm",
+  "public_key_spki_base64",
+]);
+const ENVELOPE_KEYS = Object.freeze([
+  "schema",
+  "root_id",
+  "manifest",
+  "signatures",
+]);
+const SIGNATURE_KEYS = Object.freeze([
+  "key_id",
+  "signature_base64",
+]);
+const AUTHORITY_KEYS = Object.freeze([
+  "private_routes_exposed",
+  "wallet_authority",
+  "signer_authority",
+  "validator_authority",
+  "treasury_authority",
+  "work_credit_authority",
+  "money_movement_authority",
+]);
+
+function plainObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value;
+}
+
+function exactKeys(value, expected, label) {
+  const object = plainObject(value, label);
+  const actual = Object.keys(object).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${label} keys mismatch`);
+  }
+  return object;
+}
+
+function canonicalBase64(raw, label, expectedBytes = null) {
+  const value = String(raw || "");
+  if (!value || value.length > 4096 || /\s/.test(value)) {
+    throw new Error(`${label} is not canonical base64`);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.length === 0 || bytes.toString("base64") !== value) {
+    throw new Error(`${label} is not canonical base64`);
+  }
+  if (expectedBytes !== null && bytes.length !== expectedBytes) {
+    throw new Error(`${label} has an invalid byte length`);
+  }
+  return bytes;
+}
+
+function validateAuthority(raw) {
+  const authority = exactKeys(raw, AUTHORITY_KEYS, "Tor bootstrap release-root authority");
+  for (const key of AUTHORITY_KEYS) {
+    if (authority[key] !== false) {
+      throw new Error(`Tor bootstrap release-root authority ${key} must be false`);
+    }
+  }
+  return Object.freeze({ ...authority });
+}
+
+export function torBootstrapReleaseKeyId(publicKeyDer) {
+  const bytes = Buffer.from(publicKeyDer);
+  return `voidtpk1_${crypto.createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+export function torBootstrapReleaseRootId(root) {
+  return contentId("voidptr1_", root, "root_id");
+}
+
+export function torBootstrapManifestSigningPayload(root, manifest) {
+  return Buffer.from([
+    root.signature_domain,
+    root.root_id,
+    canonicalJson(manifest),
+    "",
+  ].join("\n"), "utf8");
+}
+
+export function validateTorBootstrapReleaseRoot(rawRoot, { allowHold = true } = {}) {
+  const root = exactKeys(structuredClone(rawRoot), ROOT_KEYS, "Tor bootstrap release root");
+  if (
+    root.schema !== TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA ||
+    root.network !== TOR_BOOTSTRAP_NETWORK ||
+    Number(root.chain_id) !== TOR_BOOTSTRAP_CHAIN_ID
+  ) {
+    throw new Error("Tor bootstrap release root network contract mismatch");
+  }
+  if (root.signature_domain !== TOR_BOOTSTRAP_SIGNATURE_DOMAIN) {
+    throw new Error("Tor bootstrap release root signature domain mismatch");
+  }
+  validateAuthority(root.authority);
+  const computedRootId = torBootstrapReleaseRootId(root);
+  if (root.root_id !== computedRootId) {
+    throw new Error("Tor bootstrap release root ID does not match its content");
+  }
+  if (!Array.isArray(root.keys) || root.keys.length > 8) {
+    throw new Error("Tor bootstrap release root key set is invalid");
+  }
+
+  const keys = [];
+  const seen = new Set();
+  for (const [index, rawKey] of root.keys.entries()) {
+    const key = exactKeys(rawKey, ROOT_KEY_KEYS, `Tor bootstrap release key ${index + 1}`);
+    if (key.algorithm !== "ed25519") {
+      throw new Error("Tor bootstrap release key algorithm must be ed25519");
+    }
+    if (!/^voidtpk1_[0-9a-f]{64}$/.test(String(key.key_id || ""))) {
+      throw new Error("Tor bootstrap release key ID is malformed");
+    }
+    if (seen.has(key.key_id)) {
+      throw new Error("Tor bootstrap release root contains a duplicate key ID");
+    }
+    const der = canonicalBase64(
+      key.public_key_spki_base64,
+      "Tor bootstrap release public key",
+    );
+    let publicKey;
+    try {
+      publicKey = crypto.createPublicKey({ key: der, format: "der", type: "spki" });
+    } catch (error) {
+      throw new Error(`Tor bootstrap release public key is invalid: ${error.message}`);
+    }
+    if (publicKey.asymmetricKeyType !== "ed25519") {
+      throw new Error("Tor bootstrap release public key is not Ed25519");
+    }
+    if (torBootstrapReleaseKeyId(der) !== key.key_id) {
+      throw new Error("Tor bootstrap release key ID does not match its public key");
+    }
+    seen.add(key.key_id);
+    keys.push(Object.freeze({ ...key, publicKey }));
+  }
+
+  if (root.status === "hold_no_signing_keys") {
+    if (!allowHold) throw new Error("Tor bootstrap release root is in hold state");
+    if (root.threshold !== 0 || keys.length !== 0) {
+      throw new Error("Tor bootstrap hold root must have threshold zero and no keys");
+    }
+  } else if (root.status === "active") {
+    if (
+      !Number.isSafeInteger(root.threshold) ||
+      root.threshold < 1 ||
+      root.threshold > keys.length
+    ) {
+      throw new Error("Tor bootstrap active release-root threshold is invalid");
+    }
+  } else {
+    throw new Error("Tor bootstrap release-root status is invalid");
+  }
+
+  return Object.freeze({
+    root: Object.freeze({ ...root }),
+    keys: Object.freeze(keys),
+  });
+}
+
+export function validateTorBootstrapSignedManifest(rawEnvelope, validatedRoot) {
+  const rootValidation = validatedRoot?.root
+    ? validatedRoot
+    : validateTorBootstrapReleaseRoot(validatedRoot, { allowHold: false });
+  const root = rootValidation.root;
+  if (root.status !== "active") {
+    throw new Error("Tor bootstrap release root is in hold state");
+  }
+
+  const envelope = exactKeys(
+    structuredClone(rawEnvelope),
+    ENVELOPE_KEYS,
+    "Tor bootstrap signed manifest envelope",
+  );
+  if (envelope.schema !== TOR_BOOTSTRAP_SIGNED_MANIFEST_SCHEMA) {
+    throw new Error("Tor bootstrap signed manifest schema mismatch");
+  }
+  if (envelope.root_id !== root.root_id) {
+    throw new Error("Tor bootstrap signed manifest root ID mismatch");
+  }
+  const manifest = plainObject(envelope.manifest, "Tor bootstrap signed manifest");
+  const manifestId = contentId("voidpbm1_", manifest, "manifest_id");
+  if (manifest.manifest_id !== manifestId) {
+    throw new Error("Tor bootstrap signed manifest ID does not match its content");
+  }
+  if (!Array.isArray(envelope.signatures) || envelope.signatures.length < 1 || envelope.signatures.length > 8) {
+    throw new Error("Tor bootstrap signed manifest signature set is invalid");
+  }
+
+  const keyById = new Map(rootValidation.keys.map((entry) => [entry.key_id, entry]));
+  const payload = torBootstrapManifestSigningPayload(root, manifest);
+  const seen = new Set();
+  let valid = 0;
+  for (const [index, rawSignature] of envelope.signatures.entries()) {
+    const signature = exactKeys(
+      rawSignature,
+      SIGNATURE_KEYS,
+      `Tor bootstrap manifest signature ${index + 1}`,
+    );
+    if (!/^voidtpk1_[0-9a-f]{64}$/.test(String(signature.key_id || ""))) {
+      throw new Error("Tor bootstrap manifest signature key ID is malformed");
+    }
+    if (seen.has(signature.key_id)) {
+      throw new Error("Tor bootstrap manifest contains a duplicate signature key ID");
+    }
+    const key = keyById.get(signature.key_id);
+    if (!key) throw new Error("Tor bootstrap manifest signature uses an unknown key");
+    const signatureBytes = canonicalBase64(
+      signature.signature_base64,
+      "Tor bootstrap manifest signature",
+      64,
+    );
+    if (!crypto.verify(null, payload, key.publicKey, signatureBytes)) {
+      throw new Error("Tor bootstrap manifest signature verification failed");
+    }
+    seen.add(signature.key_id);
+    valid += 1;
+  }
+  if (valid < root.threshold) {
+    throw new Error("Tor bootstrap manifest signature threshold was not met");
+  }
+
+  return Object.freeze({
+    root,
+    manifest: Object.freeze(structuredClone(manifest)),
+    manifestId,
+    validSignatureCount: valid,
+  });
+}
+
+function readCanonicalRegularJson(rawPath, label, maxBytes) {
+  const target = path.resolve(String(rawPath || ""));
+  const status = fs.lstatSync(target);
+  if (status.isSymbolicLink() || !status.isFile()) {
+    throw new Error(`${label} must be one regular non-symlink file`);
+  }
+  if (fs.realpathSync(target) !== target) {
+    throw new Error(`${label} path must already be canonical`);
+  }
+  if (status.size < 2 || status.size > maxBytes) {
+    throw new Error(`${label} size is invalid`);
+  }
+  try {
+    return { target, value: JSON.parse(fs.readFileSync(target, "utf8")) };
+  } catch (error) {
+    throw new Error(`${label} JSON is invalid: ${error.message}`);
+  }
+}
+
+export function loadTorBootstrapReleaseRootFile(rawPath, options = {}) {
+  const loaded = readCanonicalRegularJson(
+    rawPath,
+    "Tor bootstrap release root",
+    256 * 1024,
+  );
+  return Object.freeze({
+    target: loaded.target,
+    ...validateTorBootstrapReleaseRoot(loaded.value, options),
+  });
+}
+
+export function loadTorBootstrapSignedManifestFile(rawPath, validatedRoot) {
+  const loaded = readCanonicalRegularJson(
+    rawPath,
+    "Tor bootstrap signed manifest envelope",
+    2 * 1024 * 1024,
+  );
+  return Object.freeze({
+    target: loaded.target,
+    ...validateTorBootstrapSignedManifest(loaded.value, validatedRoot),
+  });
+}
