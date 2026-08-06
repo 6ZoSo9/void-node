@@ -24,6 +24,7 @@ const DEFAULT_MANIFEST =
   "https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json";
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
+const MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
 const ALLOW_LOOPBACK_FIXTURE =
   process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE === "1";
 const ALLOW_HOLD =
@@ -64,7 +65,8 @@ function normalizeManifestUrl(raw) {
   let url;
   try {
     url = new URL(String(raw));
-  } catch {
+  } catch (error) {
+    void error;
     throw new Error("manifest URL is invalid");
   }
   if (String(raw).length > 2048) throw new Error("manifest URL is too long");
@@ -154,6 +156,12 @@ async function requestManifestOne(normalized, address) {
         if (status !== 200) {
           response.destroy();
           failOnce(new Error(`manifest request returned HTTP ${status}`));
+          return;
+        }
+        const contentType = String(response.headers["content-type"] || "").toLowerCase();
+        if (!contentType.startsWith("application/json")) {
+          response.destroy();
+          failOnce(new Error("manifest response is not application/json"));
           return;
         }
 
@@ -308,6 +316,9 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     }
     const qualifiedAt = parseTime(endpoint.qualified_at, "seed qualified_at");
     if (qualifiedAt > nowMs + 5 * 60 * 1000) throw new Error("seed qualification is from the future");
+    if (nowMs - qualifiedAt > MAX_QUALIFICATION_AGE_MS) {
+      throw new Error("seed qualification is stale");
+    }
     const qualifiedHead = assertSafeInteger(endpoint.qualified_head, "seed qualified_head", { min: 1 });
     const priority = assertSafeInteger(endpoint.priority ?? 100, "seed priority", {
       min: 0,
@@ -325,57 +336,63 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
   return Object.freeze({ manifest, hold: false, endpoints });
 }
 
-const errors = [];
-for (const manifestUrl of manifestUrls()) {
-  try {
-    const validated = validateManifest(await fetchManifest(manifestUrl));
-    if (validated.hold) {
+async function main() {
+  const errors = [];
+  for (const manifestUrl of manifestUrls()) {
+    try {
+      const validated = validateManifest(await fetchManifest(manifestUrl));
+      if (validated.hold) {
+        console.error(`marker=${MARKER}`);
+        console.error(`manifest=${manifestUrl}`);
+        console.error(`manifest_id=${validated.manifest.manifest_id}`);
+        console.error("status=hold_no_stable_seed");
+        console.error("tailnet_required=false");
+        console.error(`${MARKER}_HOLD`);
+        if (ALLOW_HOLD) process.exit(0);
+        throw new Error("manifest is in hold_no_stable_seed state");
+      }
+
+      const live = [];
+      for (const endpoint of validated.endpoints) {
+        if (live.length >= MAX_LIVE_SEEDS) break;
+        try {
+          const sample = await probePublicSeedSample(endpoint.base, {
+            allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+            timeoutMs: TIMEOUT_MS,
+          });
+          const liveHead = Math.max(Number(sample.ready_head), Number(sample.head));
+          if (!Number.isSafeInteger(liveHead) || liveHead < endpoint.qualifiedHead) {
+            throw new Error(
+              `live head ${liveHead} is below qualified head ${endpoint.qualifiedHead}`,
+            );
+          }
+          live.push(endpoint.base);
+          console.error(
+            `seed_live=${endpoint.base} head=${liveHead} qualification_id=${endpoint.qualificationId}`,
+          );
+        } catch (error) {
+          errors.push(`${endpoint.base}: ${error?.message || String(error)}`);
+        }
+      }
+      if (live.length === 0) throw new Error("no qualified manifest endpoint is currently exact-green");
+
       console.error(`marker=${MARKER}`);
       console.error(`manifest=${manifestUrl}`);
       console.error(`manifest_id=${validated.manifest.manifest_id}`);
-      console.error("status=hold_no_stable_seed");
+      console.error(`live_seed_count=${live.length}`);
       console.error("tailnet_required=false");
-      console.error(`${MARKER}_HOLD`);
-      if (ALLOW_HOLD) process.exit(0);
-      throw new Error("manifest is in hold_no_stable_seed state");
+      console.error("private_mutation_routes_exposed=false");
+      console.error(`${MARKER}_GREEN`);
+      process.stdout.write(`${live.join(",")}\n`);
+      process.exit(0);
+    } catch (error) {
+      errors.push(`${manifestUrl}: ${error?.message || String(error)}`);
     }
-
-    const live = [];
-    for (const endpoint of validated.endpoints) {
-      if (live.length >= MAX_LIVE_SEEDS) break;
-      try {
-        const sample = await probePublicSeedSample(endpoint.base, {
-          allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
-          timeoutMs: TIMEOUT_MS,
-        });
-        const liveHead = Math.max(Number(sample.ready_head), Number(sample.head));
-        if (!Number.isSafeInteger(liveHead) || liveHead < endpoint.qualifiedHead) {
-          throw new Error(
-            `live head ${liveHead} is below qualified head ${endpoint.qualifiedHead}`,
-          );
-        }
-        live.push(endpoint.base);
-        console.error(
-          `seed_live=${endpoint.base} head=${liveHead} qualification_id=${endpoint.qualificationId}`,
-        );
-      } catch (error) {
-        errors.push(`${endpoint.base}: ${error?.message || String(error)}`);
-      }
-    }
-    if (live.length === 0) throw new Error("no qualified manifest endpoint is currently exact-green");
-
-    console.error(`marker=${MARKER}`);
-    console.error(`manifest=${manifestUrl}`);
-    console.error(`manifest_id=${validated.manifest.manifest_id}`);
-    console.error(`live_seed_count=${live.length}`);
-    console.error("tailnet_required=false");
-    console.error("private_mutation_routes_exposed=false");
-    console.error(`${MARKER}_GREEN`);
-    process.stdout.write(`${live.join(",")}\n`);
-    process.exit(0);
-  } catch (error) {
-    errors.push(`${manifestUrl}: ${error?.message || String(error)}`);
   }
+
+  fail(errors.join(" | "));
 }
 
-fail(errors.join(" | "));
+main().catch((error) => {
+  fail(error?.stack || String(error));
+});
