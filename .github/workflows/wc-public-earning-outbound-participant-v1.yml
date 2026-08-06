@@ -3,15 +3,33 @@ name: wc-public-earning-outbound-participant-v1
 on:
   push:
     paths:
+      - "src/index.ts"
+      - "src/chain/block.ts"
+      - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "tools/check_index_size.sh"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - "scripts/prove_wc_public_earning_participant_cli_v1.ts"
       - "scripts/prove_wc_public_earning_outbound_participant_v1.ts"
+      - ".github/workflows/wc-public-earning-participant-cli-v1.yml"
       - ".github/workflows/wc-public-earning-outbound-participant-v1.yml"
   pull_request:
     paths:
+      - "src/index.ts"
+      - "src/chain/block.ts"
+      - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "tools/check_index_size.sh"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - "scripts/prove_wc_public_earning_participant_cli_v1.ts"
       - "scripts/prove_wc_public_earning_outbound_participant_v1.ts"
+      - ".github/workflows/wc-public-earning-participant-cli-v1.yml"
       - ".github/workflows/wc-public-earning-outbound-participant-v1.yml"
 
 permissions:
