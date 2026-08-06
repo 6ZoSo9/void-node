@@ -9,7 +9,7 @@ The earlier Tor-native transport lane proves that a canonical Tor v3 onion addre
 ```text
 content-addressed local Tor manifest
   -> Tor resolver with exact manifest-ID pin
-  -> qualified onion endpoint selection
+  -> qualified checksum-valid onion endpoint selection
   -> local SOCKS5 Tor transport
   -> numeric-loopback seed adapter
   -> existing follower HTTP contract
@@ -39,17 +39,21 @@ The manifest contract is closed and requires:
 
 This lane deliberately uses an explicit manifest-ID pin rather than pretending that a local pathname is a sovereign root. A later release-root lane can embed or sign this pin for reproducible distribution through multiple independent channels.
 
-## Tor transport boundary
+## Tor identity and transport boundary
+
+Every onion identity must pass the repository's Tor v3 decoder, version check, and SHA3 checksum validation. A hostname that merely has 56 base32 characters and an `.onion` suffix is rejected if its version or checksum is invalid.
 
 Every onion request:
 
-- accepts only a canonical 56-character Tor v3 hostname;
+- accepts only a checksum- and version-valid canonical Tor v3 hostname;
 - uses virtual port `80` through Tor;
 - sends the onion hostname to SOCKS5 using address type `DOMAINNAME`;
 - requires the SOCKS proxy to bind to numeric loopback;
 - performs no clearnet DNS resolution;
 - permits only `GET` and `HEAD`;
-- rejects redirects, non-200 responses, transfer encoding, malformed headers, oversized bodies, invalid content length, non-JSON responses, and missing gateway identity; and
+- validates the exact public route before opening the SOCKS connection;
+- rejects private, unknown, query-polluted, duplicate-bound, and overlarge range requests without transmitting them;
+- rejects redirects, non-200 responses, transfer encoding, malformed or duplicate headers, oversized bodies, invalid content length, non-JSON responses, and missing gateway identity; and
 - validates route-specific response semantics before returning bytes to the node.
 
 The supported remote routes remain the restricted read-only seed-gateway contract:
@@ -65,6 +69,8 @@ The supported remote routes remain the restricted read-only seed-gateway contrac
 
 Block ranges remain capped at 999 blocks and must contain exactly the requested contiguous block numbers.
 
+The SOCKS handshake uses one persistent buffered reader so correctness does not depend on how TCP divides or coalesces greeting and connect-reply bytes.
+
 ## Loopback adapter
 
 The Tor adapter binds only to `127.0.0.1` or `::1`. The node follows this local origin and never receives the onion address or SOCKS proxy as a direct remote peer.
@@ -76,10 +82,16 @@ The adapter preserves:
 - private-route rejection;
 - qualified-peer failover;
 - active-peer binding;
-- two-second validated range retry caching; and
+- two-second validated range retry caching;
+- bounded integer listen, SOCKS, timeout, and response-size parameters;
+- query rejection on its local diagnostic route; and
 - bounded response sizes.
 
 Its status endpoint explicitly reports that DNS, a domain registrar, a certificate authority, and a cloud provider are not required.
+
+## Supervisor shutdown
+
+The Tor bootstrap supervisor forwards termination signals to the node child and closes the loopback adapter through one idempotent promise shared by signal, child-error, and child-exit paths. The shutdown proof requires a clean child exit, a closed adapter listener, and no double-close error.
 
 ## Proof
 
@@ -88,17 +100,25 @@ Run:
 ```bash
 node scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
 node scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
+node scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs
 ```
 
-The integration proof builds a fresh content-addressed Tor manifest, starts an in-process SOCKS5 fixture, runs the resolver as a separate process, composes its output into the loopback adapter, and verifies:
+The proofs build a fresh content-addressed Tor manifest, start in-process SOCKS5 fixtures, run the resolver as a separate process, compose its output into the loopback adapter, and verify:
 
+- checksum- and version-valid Tor v3 identity requirements;
+- checksum-invalid lookalike rejection;
 - exact manifest-ID pinning;
 - substituted trust-root rejection;
+- fragmented SOCKS handshake framing;
+- private and polluted routes rejected before connection;
 - SOCKS domain-name routing to the onion address on virtual port 80;
 - exact-green readiness;
 - a contiguous three-block range;
 - private-route rejection;
-- mutation-method rejection; and
+- mutation-method rejection;
+- local diagnostic query rejection with zero additional SOCKS requests;
+- bounded direct adapter parameters;
+- idempotent supervisor shutdown and adapter listener closure; and
 - zero clearnet DNS, registrar, certificate-authority, or cloud dependency.
 
 Expected markers:
@@ -106,10 +126,19 @@ Expected markers:
 ```text
 VOID_TOR_NATIVE_BOOTSTRAP_TRANSPORT_V1_PROOF_GREEN
 VOID_TOR_PUBLIC_BOOTSTRAP_INTEGRATION_V1_PROOF_GREEN
+VOID_TOR_PUBLIC_BOOTSTRAP_SUPERVISOR_SHUTDOWN_V1_PROOF_GREEN
+checksum_valid_onion_identity_required=true
+socks_handshake_fragmentation_proven=true
+remote_private_route_requested=false
 local_manifest_id_pinned=true
 manifest_substitution_rejected=true
+adapter_numeric_parameters_bounded=true
+local_status_query_rejected=true
 resolver_adapter_composed=true
 block_range_contiguous=true
+adapter_close_idempotent=true
+adapter_listener_closed=true
+double_close_error=false
 dns_resolution_required=false
 domain_registrar_required=false
 certificate_authority_required=false
