@@ -37,6 +37,27 @@ function configuredEnv(): NodeJS.ProcessEnv {
   };
 }
 
+function changedStableValue(name: string): string {
+  const names = VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1;
+  if (name === names.payment_chain) return "base";
+  if (name === names.payment_usdc_contract) {
+    return "0x7777777777777777777777777777777777777777";
+  }
+  if (name === names.payment_receive_address) {
+    return "0x9999999999999999999999999999999999999999";
+  }
+  if (name === names.payment_min_confirmations) return "13";
+  if (name === names.rate_void_units_numerator) return "3";
+  if (name === names.rate_void_units_denominator) return "2";
+  if (name === names.inventory_policy_version) return "proof-policy-v2";
+  if (name === names.pool_capacity_void_units) return "11000000";
+  if (name === names.max_reservation_void_units) return "4000000";
+  if (name === names.fulfillment_wallet_address) {
+    return "0x5555555555555555555555555555555555555555";
+  }
+  throw new Error(`unmapped_stable_policy_env:${name}`);
+}
+
 function main(): void {
   const missing = readBuyVoidCrashConsistentSagaServerPolicyV1({});
   assert.equal(missing.ok, false);
@@ -127,15 +148,7 @@ function main(): void {
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.fulfillment_wallet_address,
   ];
   for (const name of stablePolicyFields) {
-    const changedEnv = { ...env, [name]: `${env[name]}1` };
-    if (name.includes("ADDRESS") || name.includes("CONTRACT")) {
-      changedEnv[name] = name.includes("WALLET")
-        ? "0x5555555555555555555555555555555555555555"
-        : name.includes("RECEIVE")
-          ? "0x9999999999999999999999999999999999999999"
-          : "0x7777777777777777777777777777777777777777";
-    }
-    if (name.endsWith("PAYMENT_CHAIN")) changedEnv[name] = "base";
+    const changedEnv = { ...env, [name]: changedStableValue(name) };
     const changed = readBuyVoidCrashConsistentSagaServerPolicyV1(changedEnv);
     if (!changed.ok) throw new Error(`${name}:${changed.reason}`);
     assert.equal(changed.ok, true, name);
