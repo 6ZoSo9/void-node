@@ -52,7 +52,11 @@ for (const marker of [
   'remote === "::1"',
   'remote === "::ffff:127.0.0.1"',
   'error: "root_dir_is_server_controlled"',
-  'error: "forbidden_execution_material"',
+  'const MAX_INPUT_NESTING_DEPTH = 12',
+  'const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__"',
+  "return INPUT_NESTING_DEPTH_SENTINEL",
+  '"input_nesting_depth_exceeded"',
+  '"forbidden_execution_material"',
   "runBuyVoidPipelineCommandV1(command)",
   "setTimeout(mount, 250).unref?.()",
 ]) {
