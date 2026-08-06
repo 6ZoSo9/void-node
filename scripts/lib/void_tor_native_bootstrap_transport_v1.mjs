@@ -124,33 +124,106 @@ export function validateTorNativeEndpoints(
   return Object.freeze(endpoints.sort((a, b) => a.priority - b.priority || a.base.localeCompare(b.base)));
 }
 
-function readExact(socket, bytes, timeoutMs) {
-  return new Promise((resolve, reject) => {
+function createBufferedSocketReader(socket) {
+  let buffer = Buffer.alloc(0);
+  let terminalError = null;
+  let pending = null;
+
+  function consume(bytes) {
+    const value = buffer.subarray(0, bytes);
+    buffer = buffer.subarray(bytes);
+    return value;
+  }
+
+  function settlePending() {
+    if (!pending || buffer.length < pending.bytes) return;
+    const current = pending;
+    pending = null;
+    clearTimeout(current.timer);
+    current.resolve(consume(current.bytes));
+  }
+
+  function fail(error) {
+    if (!terminalError) {
+      terminalError = error instanceof Error ? error : new Error(String(error));
+    }
+    if (!pending) return;
+    const current = pending;
+    pending = null;
+    clearTimeout(current.timer);
+    current.reject(terminalError);
+  }
+
+  function onData(chunk) {
+    buffer = buffer.length === 0
+      ? Buffer.from(chunk)
+      : Buffer.concat([buffer, chunk], buffer.length + chunk.length);
+    settlePending();
+  }
+
+  function onError(error) { fail(error); }
+  function onEnd() { fail(new Error("SOCKS connection ended early")); }
+  function onClose() { fail(new Error("SOCKS connection closed early")); }
+
+  socket.on("data", onData);
+  socket.on("error", onError);
+  socket.on("end", onEnd);
+  socket.on("close", onClose);
+
+  function readExact(bytes, timeoutMs) {
+    if (!Number.isInteger(bytes) || bytes < 1) {
+      return Promise.reject(new Error("SOCKS read size is invalid"));
+    }
+    if (buffer.length >= bytes) return Promise.resolve(consume(bytes));
+    if (terminalError) return Promise.reject(terminalError);
+    if (pending) return Promise.reject(new Error("concurrent SOCKS reads are not allowed"));
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (!pending) return;
+        pending = null;
+        reject(new Error("SOCKS response timed out"));
+      }, timeoutMs);
+      pending = { bytes, resolve, reject, timer };
+      settlePending();
+    });
+  }
+
+  function detach() {
+    if (pending) throw new Error("cannot detach a pending SOCKS reader");
+    socket.off("data", onData);
+    socket.off("error", onError);
+    socket.off("end", onEnd);
+    socket.off("close", onClose);
+    if (buffer.length !== 0) {
+      throw new Error("SOCKS proxy returned unexpected surplus handshake bytes");
+    }
+    if (terminalError) throw terminalError;
+  }
+
+  return Object.freeze({ readExact, detach });
+}
+
+async function connectSocket(socket, timeoutMs) {
+  await new Promise((resolve, reject) => {
     let settled = false;
-    let buffer = Buffer.alloc(0);
-    const timer = setTimeout(() => finish(new Error("SOCKS response timed out")), timeoutMs);
+    const timer = setTimeout(() => finish(new Error("Tor SOCKS connection timed out")), timeoutMs);
     function cleanup() {
       clearTimeout(timer);
-      socket.off("data", onData);
-      socket.off("error", finish);
-      socket.off("close", onClose);
+      socket.off("connect", onConnect);
+      socket.off("error", onError);
     }
-    function finish(error, value) {
+    function finish(error) {
       if (settled) return;
       settled = true;
       cleanup();
-      if (buffer.length > bytes) socket.unshift(buffer.subarray(bytes));
       if (error) reject(error);
-      else resolve(value ?? buffer.subarray(0, bytes));
+      else resolve();
     }
-    function onData(chunk) {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length >= bytes) finish(null, buffer.subarray(0, bytes));
-    }
-    function onClose() { finish(new Error("SOCKS connection closed early")); }
-    socket.on("data", onData);
-    socket.on("error", finish);
-    socket.on("close", onClose);
+    function onConnect() { finish(); }
+    function onError(error) { finish(error); }
+    socket.once("connect", onConnect);
+    socket.once("error", onError);
   });
 }
 
@@ -160,32 +233,44 @@ async function socks5Connect({ socksHost, socksPort, hostname, port, timeoutMs }
   const hostBytes = Buffer.from(normalizeOnionV3Hostname(hostname), "ascii");
   const socket = net.createConnection({ host: socksHost, port: socksPort });
   socket.setNoDelay(true);
+
   try {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Tor SOCKS connection timed out")), timeoutMs);
-      socket.once("connect", () => { clearTimeout(timer); resolve(); });
-      socket.once("error", (error) => { clearTimeout(timer); reject(error); });
-    });
-    socket.write(Buffer.from([0x05, 0x01, 0x00]));
-    const greeting = await readExact(socket, 2, timeoutMs);
-    if (greeting[0] !== 0x05 || greeting[1] !== 0x00) throw new Error("Tor SOCKS proxy rejected no-auth mode");
-    const request = Buffer.alloc(7 + hostBytes.length);
-    request.set([0x05, 0x01, 0x00, 0x03, hostBytes.length], 0);
-    hostBytes.copy(request, 5);
-    request.writeUInt16BE(port, 5 + hostBytes.length);
-    socket.write(request);
-    const prefix = await readExact(socket, 4, timeoutMs);
-    if (prefix[0] !== 0x05 || prefix[1] !== 0x00) throw new Error(`Tor SOCKS connect failed with code ${prefix[1]}`);
-    const atyp = prefix[3];
-    let remainder;
-    if (atyp === 0x01) remainder = 6;
-    else if (atyp === 0x04) remainder = 18;
-    else if (atyp === 0x03) {
-      const length = await readExact(socket, 1, timeoutMs);
-      remainder = length[0] + 2;
-    } else throw new Error("Tor SOCKS proxy returned an invalid address type");
-    await readExact(socket, remainder, timeoutMs);
-    return socket;
+    await connectSocket(socket, timeoutMs);
+    const reader = createBufferedSocketReader(socket);
+    try {
+      socket.write(Buffer.from([0x05, 0x01, 0x00]));
+      const greeting = await reader.readExact(2, timeoutMs);
+      if (greeting[0] !== 0x05 || greeting[1] !== 0x00) {
+        throw new Error("Tor SOCKS proxy rejected no-auth mode");
+      }
+
+      const request = Buffer.alloc(7 + hostBytes.length);
+      request.set([0x05, 0x01, 0x00, 0x03, hostBytes.length], 0);
+      hostBytes.copy(request, 5);
+      request.writeUInt16BE(port, 5 + hostBytes.length);
+      socket.write(request);
+
+      const prefix = await reader.readExact(4, timeoutMs);
+      if (prefix[0] !== 0x05 || prefix[1] !== 0x00) {
+        throw new Error(`Tor SOCKS connect failed with code ${prefix[1]}`);
+      }
+      const atyp = prefix[3];
+      if (atyp === 0x01) {
+        await reader.readExact(6, timeoutMs);
+      } else if (atyp === 0x04) {
+        await reader.readExact(18, timeoutMs);
+      } else if (atyp === 0x03) {
+        const length = await reader.readExact(1, timeoutMs);
+        await reader.readExact(length[0] + 2, timeoutMs);
+      } else {
+        throw new Error("Tor SOCKS proxy returned an invalid address type");
+      }
+      reader.detach();
+      return socket;
+    } catch (error) {
+      socket.destroy();
+      throw error;
+    }
   } catch (error) {
     socket.destroy();
     throw error;
