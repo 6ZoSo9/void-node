@@ -108,6 +108,8 @@ export type BuyVoidPreparedTransactionPlanReservationDecisionV1 =
       transaction_broadcast_performed: false;
       raw_signed_transaction_persisted: false;
       money_movement_performed: false;
+      reason?: never;
+      detail?: never;
     }
   | {
       ok: false;
@@ -119,7 +121,13 @@ export type BuyVoidPreparedTransactionPlanReservationDecisionV1 =
       transaction_broadcast_performed: false;
       raw_signed_transaction_persisted: false;
       money_movement_performed: false;
+      reservation?: never;
     };
+
+export type BuyVoidPreparedTransactionPlanReservationHeldV1 = Extract<
+  BuyVoidPreparedTransactionPlanReservationDecisionV1,
+  { ok: false }
+>;
 
 type NormalizedInputV1 = {
   root_dir: string;
@@ -151,7 +159,7 @@ type PathsV1 = {
 function held(
   reason: string,
   detail?: Record<string, unknown>,
-): BuyVoidPreparedTransactionPlanReservationDecisionV1 {
+): BuyVoidPreparedTransactionPlanReservationHeldV1 {
   return {
     ok: false,
     status: "held",
@@ -221,7 +229,7 @@ function safeNow(value: unknown): number {
 
 function normalizeInput(
   input: BuyVoidPreparedTransactionPlanReservationInputV1,
-): NormalizedInputV1 | BuyVoidPreparedTransactionPlanReservationDecisionV1 {
+): NormalizedInputV1 | BuyVoidPreparedTransactionPlanReservationHeldV1 {
   const root = String(input?.root_dir || "").trim();
   if (!root || !path.isAbsolute(root) || root.includes("\0")) {
     return held("prepared_plan_root_must_be_absolute");
