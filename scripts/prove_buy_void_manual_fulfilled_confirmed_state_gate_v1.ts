@@ -4,6 +4,33 @@ import path from "node:path";
 import vm from "node:vm";
 import * as ts from "typescript";
 
+function assertNoSyntacticDiagnostics(
+  fileName: string,
+  sourceText: string,
+): void {
+  const result = ts.transpileModule(sourceText, {
+    fileName,
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    },
+    reportDiagnostics: true,
+  });
+  const errors = (result.diagnostics || []).filter(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+  );
+  assert.equal(
+    errors.length,
+    0,
+    errors
+      .map((diagnostic) =>
+        ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
+      )
+      .join("\n"),
+  );
+}
+
 async function main(): Promise<void> {
   const root = process.cwd();
   const indexFile = path.join(root, "src", "index.ts");
@@ -12,17 +39,31 @@ async function main(): Promise<void> {
   const gateMarker =
     "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1";
 
+  const helperFile = path.join(
+    root,
+    "src",
+    "economic",
+    "buy_void_manual_fulfilled_confirmed_state_gate_v1.ts",
+  );
+  const helperSource = fs.readFileSync(helperFile, "utf8");
+
   assert.ok(
     source.includes(
-      'import {\n  buyVoidConfirmedCloseoutRuntimeRootDirV1,\n} from "./economic/buy_void_confirmed_closeout_runtime_v1.js";',
+      'import g from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";',
     ),
-    "missing canonical confirmed-closeout runtime-root import",
+    "missing extracted manual-fulfilled confirmed-state gate import",
   );
   assert.ok(
-    source.includes(
-      'import {\n  listBuyVoidConfirmedStatesV1,\n} from "./economic/buy_void_confirmed_state_journal_v1.js";',
+    helperSource.includes(
+      'from "./buy_void_confirmed_closeout_runtime_v1.js";',
     ),
-    "missing canonical confirmed-state journal reader import",
+    "helper missing canonical confirmed-closeout runtime-root import",
+  );
+  assert.ok(
+    helperSource.includes(
+      'from "./buy_void_confirmed_state_journal_v1.js";',
+    ),
+    "helper missing canonical confirmed-state journal reader import",
   );
 
   const sf = ts.createSourceFile(
@@ -32,7 +73,7 @@ async function main(): Promise<void> {
     true,
     ts.ScriptKind.TS,
   );
-  assert.equal(sf.parseDiagnostics.length, 0, "src/index.ts parse diagnostics");
+  assertNoSyntacticDiagnostics(indexFile, source);
 
   const candidates: ts.CallExpression[] = [];
   function visit(node: ts.Node): void {
@@ -59,6 +100,38 @@ async function main(): Promise<void> {
   );
   assert.ok(callback, "manual mark route callback missing");
   const routeText = routeCall.getText(sf);
+
+  assert.ok(
+    routeText.includes("const r = await g("),
+    "manual mark route does not invoke the extracted confirmed-state gate",
+  );
+
+  assertNoSyntacticDiagnostics(helperFile, helperSource);
+  const helperSf = ts.createSourceFile(
+    helperFile,
+    helperSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let gateFunction: ts.FunctionDeclaration | undefined;
+  function visitHelper(node: ts.Node): void {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name?.text ===
+        "evaluateBuyVoidManualFulfilledConfirmedStateGateV1"
+    ) {
+      assert.equal(gateFunction, undefined, "duplicate gate function");
+      gateFunction = node;
+    }
+    ts.forEachChild(node, visitHelper);
+  }
+  visitHelper(helperSf);
+  assert.ok(gateFunction?.body, "extracted gate function missing");
+  const gateFunctionText = gateFunction
+    .getText(helperSf)
+    .replace(/^export\s+(?:default\s+)?/, "");
+  const gateImplementationText = `${routeText}\n${helperSource}`;
 
   for (const token of [
     gateMarker,
@@ -96,12 +169,20 @@ async function main(): Promise<void> {
     "canonical_confirmed_state_fingerprint:",
     "await __voidWriteBuyVoidOperatorEventV1(event);",
   ]) {
-    assert.ok(routeText.includes(token), `missing route gate token: ${token}`);
+    const normalizedToken = token.replace(/\s+/g, " ");
+    const normalizedImplementation = gateImplementationText.replace(
+      /\s+/g,
+      " ",
+    );
+    assert.ok(
+      normalizedImplementation.includes(normalizedToken),
+      `missing route/helper gate token: ${token}`,
+    );
   }
 
-  const markerIndex = routeText.indexOf(gateMarker);
-  const eventIndex = routeText.indexOf("const event = {");
-  const writerIndex = routeText.indexOf(
+  const markerIndex = helperSource.indexOf(gateMarker);
+  const eventIndex = helperSource.indexOf("const event = {");
+  const writerIndex = helperSource.indexOf(
     "await __voidWriteBuyVoidOperatorEventV1(event);",
   );
   assert.ok(markerIndex >= 0, "gate marker absent");
@@ -180,6 +261,9 @@ function listBuyVoidConfirmedStatesV1(rootDir) {
   if (__confirmedError) throw new Error(__confirmedError);
   return __confirmedStates;
 }
+
+${gateFunctionText}
+const g = evaluateBuyVoidManualFulfilledConfirmedStateGateV1;
 
 ${routeText};
 
