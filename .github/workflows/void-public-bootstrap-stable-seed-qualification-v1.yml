@@ -12,6 +12,7 @@ on:
       - "scripts/qualify_void_public_seed_v1.mjs"
       - "scripts/build_void_public_bootstrap_manifest_v1.mjs"
       - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs"
       - "tools/void-public-seed-gateway-v1.mjs"
   push:
     branches: [main]
@@ -25,6 +26,7 @@ on:
       - "scripts/qualify_void_public_seed_v1.mjs"
       - "scripts/build_void_public_bootstrap_manifest_v1.mjs"
       - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs"
       - "tools/void-public-seed-gateway-v1.mjs"
   workflow_dispatch:
 
@@ -36,6 +38,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  pinned-lookup-node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove pinned hostname lookup compatibility
+        run: |
+          node --check scripts/lib/void_public_seed_qualification_v1.mjs
+          node --check scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs
+          node scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs
+
   prove:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -59,6 +85,7 @@ jobs:
           node --check scripts/qualify_void_public_seed_v1.mjs
           node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
           node --check scripts/prove_void_public_seed_qualification_v1.mjs
+          node --check scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs
           node --check tools/void-public-seed-gateway-v1.mjs
 
       - name: Prove stable-seed qualification and publication boundary
