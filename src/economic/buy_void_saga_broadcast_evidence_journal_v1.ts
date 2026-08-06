@@ -110,8 +110,6 @@ export type BuyVoidSagaBroadcastEvidenceDecisionV1 =
       duplicate: boolean;
       mutation_performed: boolean;
       state: BuyVoidSagaBroadcastEvidenceStateV1;
-      reason?: never;
-      detail?: never;
     }
   | {
       ok: false;
