@@ -308,6 +308,9 @@ Prerequisites:
 - a verified non-wallet VOID node identity generated on the VPS
 - an exact validated chain snapshot imported to ${input.data_dir}
 
+Source-bound packet verification before any installation:
+node ${input.target_repo_root}/scripts/verify_void_public_seed_ip_vps_packet_v1.mjs PACKET_DIR --repo-root ${input.target_repo_root} --expected-head ${input.source_head}
+
 Required source and data preparation:
 1. Create service user ${input.service_user}.
 2. Install exact source ${input.source_head} at ${input.target_repo_root}.
@@ -499,7 +502,7 @@ export function buildPacket({
   }
 }
 
-export function verifyPacket(packetDir) {
+export function verifyPacket(packetDir, { repoRoot, expectedHead } = {}) {
   const root = fs.realpathSync(requireAbsolutePath(packetDir, "packet directory"));
   if (!fs.statSync(root).isDirectory()) throw new Error("packet path is not a directory");
   const packetPath = path.join(root, "packet.json");
@@ -559,6 +562,16 @@ export function verifyPacket(packetDir) {
     new Date(packet.generated_at).toISOString() !== packet.generated_at
   ) {
     throw new Error("packet generated_at is invalid");
+  }
+
+  if (!repoRoot) throw new Error("source repository root is required");
+  if (!expectedHead) throw new Error("expected source head is required");
+  const source = inspectExactSource(repoRoot, String(expectedHead));
+  if (packet.source_head !== source.source_head) {
+    throw new Error("packet source head does not match verified source checkout");
+  }
+  if (packet.gateway_source_sha256 !== source.gateway_sha256) {
+    throw new Error("packet gateway source SHA-256 does not match verified source checkout");
   }
 
   const metadataInput = {
