@@ -1,0 +1,71 @@
+name: VOID public seed raw-IP TLS packet v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-raw-ip-tls-packet-v1.yml"
+      - "docs/public/public-seed-raw-ip-tls-packet-v1.md"
+      - "ops/public/install_void_public_seed_raw_ip_tls_packet_v1.sh"
+      - "scripts/build_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "scripts/prove_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "scripts/verify_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "tools/void-public-seed-ip-tls-proxy-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-raw-ip-tls-packet-v1.yml"
+      - "docs/public/public-seed-raw-ip-tls-packet-v1.md"
+      - "ops/public/install_void_public_seed_raw_ip_tls_packet_v1.sh"
+      - "scripts/build_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "scripts/prove_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "scripts/verify_void_public_seed_raw_ip_tls_packet_v1.mjs"
+      - "tools/void-public-seed-ip-tls-proxy-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-raw-ip-tls-packet-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove raw-IP TLS ingress packet
+        run: |
+          node --check tools/void-public-seed-ip-tls-proxy-v1.mjs
+          node --check scripts/build_void_public_seed_raw_ip_tls_packet_v1.mjs
+          node --check scripts/verify_void_public_seed_raw_ip_tls_packet_v1.mjs
+          node --check scripts/prove_void_public_seed_raw_ip_tls_packet_v1.mjs
+          node scripts/prove_void_public_seed_raw_ip_tls_packet_v1.mjs
+          bash -n ops/public/install_void_public_seed_raw_ip_tls_packet_v1.sh
+
+  repository-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
