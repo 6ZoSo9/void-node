@@ -24,19 +24,31 @@ VOID restricted public seed gateway v1
 http://127.0.0.1:4100
 ```
 
-The final tunnel ingress rule is always `service: http_status:404`.
+The final tunnel ingress rule is always:
+
+```text
+service: http_status:404
+```
 
 The hostname is an operator input. This lane does not assume `voidchain.io`, `seed.voidchain.io`, a temporary tunnel provider, a public IP address, a Tailnet address, or a plaintext HTTP endpoint.
 
 ## Credential boundary
 
-The tunnel credentials JSON is created and stored outside the repository. Packet generation and verification require it to be one regular non-symlink file, addressed by a canonical absolute path, with mode `0600`.
+The tunnel credentials JSON is created and stored outside the repository. Packet generation rejects credentials anywhere inside the repository, including ignored files, and requires the filename to match `<tunnel-id>.json`. The packet output directory must also remain outside the repository. Packet generation and verification require the credentials file to be:
+
+- one regular non-symlink file;
+- addressed by a canonical absolute path; and
+- mode `0600`.
 
 The packet builder and verifier inspect only file metadata. They do not parse, print, copy, hash, upload, or commit the credentials contents. The generated service runs the tunnel from `cloudflared-config.yml` and a credentials-file reference. It never places a tunnel token on the command line.
 
 ## Exact-source packet generation
 
-On the intended seed host, start from one clean exact checkout containing the merged server, client, and activation source. The local VOID node must already serve exact-green readiness on `127.0.0.1:4100`. Provide an installed `cloudflared` executable and an existing locally managed tunnel credentials file.
+On the intended seed host, start from one clean exact checkout containing the merged server, client, and activation source.
+
+The local VOID node must already serve exact-green readiness on `127.0.0.1:4100`. Provide an installed `cloudflared` executable and an existing locally managed tunnel credentials file.
+
+Example:
 
 ```bash
 EXPECTED_HEAD="$(git rev-parse HEAD)"
@@ -55,11 +67,20 @@ node scripts/build_void_public_seed_named_tunnel_packet_v1.mjs \
   --output "$PACKET"
 ```
 
-The builder requires the exact 40-character repository head, a completely clean checkout including untracked files, exact regular non-symlink inputs, a stable fully qualified hostname outside local/onion/IP-literal/temporary namespaces, a canonical tunnel UUID, gateway syntax success, and successful `cloudflared tunnel ingress validate`.
+The builder requires:
+
+- the exact 40-character repository head;
+- a completely clean checkout, including untracked files;
+- one real repository directory;
+- exact regular non-symlink Node.js, cloudflared, gateway-source, and credentials files;
+- a stable fully qualified hostname outside local, onion, IP-literal, and temporary-provider namespaces;
+- an exact canonical tunnel UUID;
+- successful gateway syntax validation; and
+- successful `cloudflared tunnel ingress validate` for the generated configuration.
 
 The content-addressed packet records SHA-256 hashes for the executable inputs and every generated non-secret file. Packet generation does not start services or alter DNS.
 
-## Review and installation
+## Packet review and installation
 
 Review:
 
@@ -71,12 +92,14 @@ void-public-seed-named-tunnel-v1.service
 INSTALL.txt
 ```
 
-Install the units without starting them:
+Verify and install the units without starting them:
 
 ```bash
 VOID_PUBLIC_SEED_START_SERVICES=0 \
   bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
 ```
+
+The installer reruns packet verification against current source, executable hashes, credential metadata, the local exact-green node, the generated ingress rules, and the gateway syntax. It installs only the two user service units and enables them.
 
 Activation remains explicit:
 
@@ -99,31 +122,44 @@ POST /follower/start -> 405 method_not_allowed
 
 No public bootstrap claim exists merely because the local services started. Public DNS, TLS, hostname routing, multi-sample qualification, and outside-machine synchronization must still pass.
 
-## Manual live qualification
+## Live qualification workflow
 
-The workflow `VOID public seed live qualification v1` accepts:
+The workflow `VOID public seed live qualification v1` is manual-only. It accepts:
 
 ```text
 endpoint=https://<stable-hostname>
 expected_source_sha=<exact reviewed source SHA>
 ```
 
-It performs three public observations over at least 60 seconds, using the DNS-pinned qualification contract from PR #1011. It produces an artifact containing `qualification.json`, `public-bootstrap-v1.json`, `source.txt`, and `SHA256SUMS`.
+It performs three public observations over at least 60 seconds, using the DNS-pinned qualification contract from PR #1011. It produces an artifact containing:
 
-The candidate manifest remains an artifact. The workflow cannot commit, deploy, modify DNS, access tunnel credentials, or publish the manifest. A separate exact-scope review must replace the checked-in hold manifest with the builder's unmodified candidate output.
+```text
+qualification.json
+public-bootstrap-v1.json
+source.txt
+SHA256SUMS
+```
 
-## Manual outside-machine acceptance
+The candidate manifest remains an artifact. The workflow cannot commit, deploy, modify DNS, access tunnel credentials, or publish the manifest.
 
-After the stable manifest is merged and publicly reachable, run `VOID public bootstrap outside-machine acceptance v1` with:
+A separate exact-scope review must replace the checked-in hold manifest with the builder's unmodified candidate output.
+
+## Outside-machine acceptance workflow
+
+After the stable manifest is merged and publicly reachable, manually run `VOID public bootstrap outside-machine acceptance v1` with:
 
 ```text
 manifest_url=<published canonical HTTPS manifest URL>
 expected_source_sha=<exact merged source SHA>
 ```
 
-A fresh GitHub-hosted Ubuntu machine executes the normal root launcher with `VOID_PUBLIC_BOOTSTRAP_REQUIRE=1`. It starts without `.runtime`, `node_modules`, build output, `.env`, node identity, or chain data.
+A fresh GitHub-hosted Ubuntu machine then executes the normal root launcher with:
 
-Acceptance requires sustained evidence of:
+```text
+VOID_PUBLIC_BOOTSTRAP_REQUIRE=1
+```
+
+It starts from no `.runtime`, `node_modules`, build, `.env`, node identity, or data directory. Acceptance requires sustained evidence of:
 
 ```text
 public_bootstrap=resolved_stable_https_seed
