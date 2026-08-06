@@ -205,7 +205,8 @@ export function validateTorBootstrapReleaseRoot(rawRoot, { allowHold = true } = 
   if (
     root.schema !== TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA ||
     root.network !== TOR_BOOTSTRAP_NETWORK ||
-    Number(root.chain_id) !== TOR_BOOTSTRAP_CHAIN_ID
+    !Number.isSafeInteger(root.chain_id) ||
+    root.chain_id !== TOR_BOOTSTRAP_CHAIN_ID
   ) {
     throw new Error("Tor bootstrap release root network contract mismatch");
   }
