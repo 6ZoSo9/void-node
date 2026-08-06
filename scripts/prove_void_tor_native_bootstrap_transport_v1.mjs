@@ -10,7 +10,8 @@ import {
 } from "./lib/void_tor_native_bootstrap_transport_v1.mjs";
 
 const MARKER = "VOID_TOR_NATIVE_BOOTSTRAP_TRANSPORT_V1_PROOF";
-const ONION = `${"a".repeat(56)}.onion`;
+const ONION = "ceirceirceirceirceirceirceirceirceirceirceirceircei7l4yd.onion";
+const INVALID_ONION = `${"a".repeat(56)}.onion`;
 const QUALIFICATION = `voidpsq1_${"b".repeat(64)}`;
 
 function listen(server) {
@@ -115,10 +116,14 @@ const malformedJson = net.createServer((socket) => {
 try {
   assert.equal(normalizeOnionV3Hostname(ONION.toUpperCase()), ONION);
   assert.equal(normalizeOnionBase(`http://${ONION}`).base, `http://${ONION}`);
+  assert.throws(
+    () => normalizeOnionV3Hostname(INVALID_ONION),
+    /checksum-valid Tor v3|checksum|version/,
+  );
   assert.throws(() => normalizeOnionV3Hostname("seed.example.org"), /Tor v3/);
   assert.throws(() => normalizeOnionBase(`https://${ONION}`), /http over Tor/);
   assert.throws(() => normalizeOnionBase(`http://${ONION}:8080`), /virtual port 80/);
-  console.log("[PASS] canonical Tor v3 endpoint boundary");
+  console.log("[PASS] checksum-valid canonical Tor v3 endpoint boundary");
 
   const now = Date.now();
   const rawEndpoint = {
@@ -146,10 +151,18 @@ try {
     () => validateTorNativeEndpoints([{ ...rawEndpoint, temporary: true }], now),
     /temporary=false/,
   );
+  assert.throws(
+    () => validateTorNativeEndpoints([{ ...rawEndpoint, base: `http://${INVALID_ONION}` }], now),
+    /checksum-valid Tor v3|checksum|version/,
+  );
   console.log("[PASS] closed onion manifest endpoint contract");
 
   const port = await listen(fixture);
-  const response = await requestOnionJson({ base: `http://${ONION}`, socksPort: port, timeoutMs: 3000 });
+  const response = await requestOnionJson({
+    base: `http://${ONION}`,
+    socksPort: port,
+    timeoutMs: 3000,
+  });
   assert.deepEqual(response, { ready: true, head: 1856587, gap: 0, txroot_live: 1 });
   assert.deepEqual(requestedHosts, [{ hostname: ONION, port: 80 }]);
   await close(fixture);
@@ -165,18 +178,30 @@ try {
 
   const malformedPort = await listen(malformedJson);
   await expectReject(
-    () => requestOnionJson({ base: `http://${ONION}`, socksPort: malformedPort, timeoutMs: 3000 }),
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      socksPort: malformedPort,
+      timeoutMs: 3000,
+    }),
     /JSON is invalid/,
   );
   await close(malformedJson);
   console.log("[PASS] malformed onion response rejection");
 
   await expectReject(
-    () => requestOnionJson({ base: `http://${ONION}`, socksHost: "192.0.2.10", socksPort: 9050 }),
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      socksHost: "192.0.2.10",
+      socksPort: 9050,
+    }),
     /numeric loopback/,
   );
   await expectReject(
-    () => requestOnionJson({ base: `http://${ONION}`, path: "/__void/ready.json?leak=1", socksPort: 9050 }),
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      path: "/__void/ready.json?leak=1",
+      socksPort: 9050,
+    }),
     /path is invalid/,
   );
   console.log("[PASS] local-only Tor proxy and query-pollution boundary");
@@ -186,16 +211,25 @@ try {
     /route is not public/,
   );
   await expectReject(
-    () => requestOnionRouteV1(`http://${ONION}`, "/__void/ready.json?leak=1", { socksPort: 9050 }),
+    () => requestOnionRouteV1(
+      `http://${ONION}`,
+      "/__void/ready.json?leak=1",
+      { socksPort: 9050 },
+    ),
     /does not accept query parameters/,
   );
   await expectReject(
-    () => requestOnionRouteV1(`http://${ONION}`, "/blocks/range?from=0&to=999", { socksPort: 9050 }),
+    () => requestOnionRouteV1(
+      `http://${ONION}`,
+      "/blocks/range?from=0&to=999",
+      { socksPort: 9050 },
+    ),
     /exceeds 999/,
   );
   console.log("[PASS] remote private and query-polluted routes rejected before SOCKS connect");
 
   console.log(`${MARKER}_GREEN`);
+  console.log("checksum_valid_onion_identity_required=true");
   console.log("socks_handshake_fragmentation_proven=true");
   console.log("remote_private_route_requested=false");
   console.log("dns_resolution_required=false");
