@@ -341,7 +341,9 @@ try {
     gateway.kill("SIGTERM");
     await new Promise((resolve) => gateway.once("exit", resolve));
   }
-  await close(upstream).catch(() => {});
+  await close(upstream).catch((error) => {
+    void error;
+  });
 }
 
 console.log(`${MARKER}_GREEN`);
