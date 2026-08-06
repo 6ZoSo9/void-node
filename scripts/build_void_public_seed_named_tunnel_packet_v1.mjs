@@ -137,6 +137,11 @@ function realDirectory(raw, label) {
   return input;
 }
 
+function isPathInside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
+}
+
 function run(command, args, options = {}) {
   const result = childProcess.spawnSync(command, args, {
     encoding: "utf8",
@@ -173,6 +178,12 @@ function main() {
   const tunnelId = normalizeUuid(args["tunnel-id"]);
   const credentialsFile = regularPath(args["credentials-file"], "credentials file", { mode600: true });
   const repoRoot = realDirectory(args["repo-root"], "repository root");
+  if (isPathInside(repoRoot, credentialsFile)) {
+    throw new Error("credentials file must remain outside the repository");
+  }
+  if (path.basename(credentialsFile) !== `${tunnelId}.json`) {
+    throw new Error("credentials filename must match the tunnel ID");
+  }
   const expectedHead = String(args["expected-head"]).trim().toLowerCase();
   gitState(repoRoot, expectedHead);
 
@@ -187,6 +198,9 @@ function main() {
   if (!/cloudflared/i.test(cloudflaredVersion)) throw new Error("cloudflared --version did not identify cloudflared");
 
   const output = path.resolve(rejectControl(args.output, "output directory"));
+  if (isPathInside(repoRoot, output)) {
+    throw new Error("output directory must remain outside the repository");
+  }
   if (fs.existsSync(output)) throw new Error("output directory already exists");
   fs.mkdirSync(output, { recursive: false, mode: 0o700 });
 
