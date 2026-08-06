@@ -182,31 +182,32 @@ function atomicLinkJson(
   }
 }
 
-function atomicReplaceJsonLines(
+function appendTerminalPublicJsonLineDurable(
   file: string,
-  rows: Array<Record<string, unknown>>,
+  row: Record<string, unknown>,
 ): void {
   const parent = path.dirname(file);
   const metadata = fs.lstatSync(parent);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("terminal_closeout_request_dir_must_be_direct");
   }
-  const temporary = path.join(
-    parent,
-    `.${path.basename(file)}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`,
-  );
-  const descriptor = fs.openSync(temporary, "wx", 0o600);
+  const payload = Buffer.from(`${JSON.stringify(row)}\n`, "utf8");
+  const descriptor = fs.openSync(file, "a", 0o600);
   try {
-    fs.writeFileSync(
+    const written = fs.writeSync(
       descriptor,
-      rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
-      "utf8",
+      payload,
+      0,
+      payload.length,
+      null,
     );
+    if (written !== payload.length) {
+      throw new Error("terminal_closeout_public_append_short_write");
+    }
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
   }
-  fs.renameSync(temporary, file);
   fs.chmodSync(file, 0o600);
   fsyncDirectory(parent);
 }
@@ -351,7 +352,7 @@ function writeTerminalPublicCloseoutV1(
   let mutation = false;
   let recovered = false;
   if (!exact) {
-    atomicReplaceJsonLines(journal, [...rows, event]);
+    appendTerminalPublicJsonLineDurable(journal, event);
     mutation = true;
   }
   const sidecarState = atomicCreatePublicJson(sidecar, event);

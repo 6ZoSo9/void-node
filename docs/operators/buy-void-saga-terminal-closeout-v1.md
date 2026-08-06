@@ -13,10 +13,10 @@ receipt_confirmed
 
 It closes the remaining split-brain window between durable Chain-2050 confirmation, inventory-consumption evidence, the public fulfilled projection, and the terminal saga event.
 
-The lane is stacked on exact PR #1017 head:
+The lane is reconciled without history rewrite onto exact PR #1017 head:
 
 ```text
-2a768edd618653c07e37bb0cf6f500dff41d8457
+cfd47940fdcc911b37072d8863a7d738c99f3e9f
 ```
 
 It is not mounted into a runtime and is disabled by server policy unless explicitly configured.
@@ -91,11 +91,23 @@ The durable order is:
 ```text
 1. deterministic terminal-closeout plan
 2. inventory-consumption record
-3. public fulfilled event and deterministic sidecar
+3. append-only public fulfilled event and deterministic sidecar
 4. saga closeout_committed event
 ```
 
 The first three steps are idempotent. If the process stops before step 4, the next explicitly confirmed invocation recovers the same plan and writes only missing projections before the saga append.
+
+## Cross-request journal safety
+
+`operator-events.jsonl` is shared by every Buy VOID request. Replacing the
+whole file under a request-scoped lock is unsafe because two different
+requests use different locks: both can read the same journal head and the
+later rename can erase the other request's fulfilled event.
+
+Terminal closeout therefore publishes exactly one bounded JSON line through
+one durable `O_APPEND` write syscall and never rebuilds or renames the shared
+journal. Same-request duplicate and conflict checks remain inside the request
+lock. Different requests can close concurrently without losing either event.
 
 ## Stable closeout plan
 
@@ -132,7 +144,10 @@ The public operator event includes:
 - final delivery transaction hash; and
 - existing buyer-fulfilled truth flags.
 
-The operator journal is projected through a validated atomic replacement under the request lock. Every existing row must be valid JSON object data. Symlinked, oversized, or malformed request and event files fail closed.
+The operator journal is read through the existing closed validation boundary
+and extended through durable append-only publication under the request lock.
+Every existing row must be valid JSON object data. Symlinked, oversized, or
+malformed request and event files fail closed.
 
 The public base request file remains immutable.
 
@@ -161,7 +176,11 @@ The final retry proves:
 - one saga `closeout_committed` event; and
 - terminal saga state `closed`.
 
-A separate two-process run proves that concurrent explicit closeout attempts leave the same unique terminal projections.
+A separate two-process run proves that concurrent explicit closeout attempts
+for the same request leave the same unique terminal projections. An additional
+two-process run closes two different requests against one shared operator
+journal and proves that both fulfilled events, both inventory-consumption
+records, and both saga closeout events survive.
 
 Expected marker:
 

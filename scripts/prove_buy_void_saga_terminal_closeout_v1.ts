@@ -253,12 +253,17 @@ async function initializeSaga(input: {
   return { saga, saga_id: sagaId };
 }
 
-async function createFixture(label: string): Promise<Fixture> {
+async function createFixture(
+  label: string,
+  sharedRequestDir?: string,
+): Promise<Fixture> {
   const base = fs.mkdtempSync(
     path.join(os.tmpdir(), `void-terminal-closeout-${label}-`),
   );
   const root = path.join(base, "root");
-  const requestDir = path.join(base, "requests");
+  const requestDir = sharedRequestDir
+    ? path.resolve(sharedRequestDir)
+    : path.join(base, "requests");
   fs.mkdirSync(root, { recursive: true, mode: 0o700 });
   fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
 
@@ -406,15 +411,24 @@ async function createFixture(label: string): Promise<Fixture> {
     ...request,
     status: "payment_submitted_pending_manual_review",
   });
-  writeJsonLines(path.join(requestDir, "operator-events.jsonl"), [
-    {
-      schema: "void_buy_void_operator_mark_v1",
-      request_id: requestId,
-      operator_status: "payment_verified",
-      marked_at_ms: Date.parse("2026-08-06T12:10:07.000Z"),
-      tx_hash: normalizedPaymentTx,
-    },
-  ]);
+  const operatorJournal = path.join(
+    requestDir,
+    "operator-events.jsonl",
+  );
+  const initialOperatorEvent = {
+    schema: "void_buy_void_operator_mark_v1",
+    request_id: requestId,
+    operator_status: "payment_verified",
+    marked_at_ms: Date.parse("2026-08-06T12:10:07.000Z"),
+    tx_hash: normalizedPaymentTx,
+  };
+  writeJsonLines(
+    operatorJournal,
+    [
+      ...(sharedRequestDir ? readJsonLines(operatorJournal) : []),
+      initialOperatorEvent,
+    ],
+  );
 
   const initialized = await initializeSaga({
     root,
@@ -512,6 +526,25 @@ async function main(): Promise<void> {
     await runChild(process.argv[3]);
     return;
   }
+
+
+  const artifactSource = fs.readFileSync(
+    new URL(
+      "../src/economic/buy_void_saga_terminal_closeout_artifacts_v1.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.equal(
+    artifactSource.includes("function atomicReplaceJsonLines("),
+    false,
+  );
+  assert.equal(
+    artifactSource.includes(
+      "function appendTerminalPublicJsonLineDurable(",
+    ),
+    true,
+  );
 
   const fixture = await createFixture("crash");
   for (const [name, value] of Object.entries(configuredEnv(fixture.request_dir))) {
@@ -700,9 +733,94 @@ async function main(): Promise<void> {
     1,
   );
 
+
+  const crossBase = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-terminal-closeout-cross-request-"),
+  );
+  const sharedRequestDir = path.join(crossBase, "requests");
+  fs.mkdirSync(sharedRequestDir, {
+    recursive: true,
+    mode: 0o700,
+  });
+  const crossA = await createFixture("cross_a", sharedRequestDir);
+  const crossB = await createFixture("cross_b", sharedRequestDir);
+  for (const [name, value] of Object.entries(
+    configuredEnv(sharedRequestDir),
+  )) {
+    process.env[name] = value;
+  }
+  const crossDryA = await runBuyVoidSagaTerminalCloseoutV1({
+    root_dir: crossA.root,
+    saga_id: crossA.saga_id,
+  });
+  const crossDryB = await runBuyVoidSagaTerminalCloseoutV1({
+    root_dir: crossB.root,
+    saga_id: crossB.saga_id,
+  });
+  assert.equal(crossDryA.ok, true);
+  assert.equal(crossDryB.ok, true);
+  if (
+    crossDryA.ok !== true ||
+    crossDryA.status !== "dry_run" ||
+    crossDryB.ok !== true ||
+    crossDryB.status !== "dry_run"
+  ) {
+    throw new Error("cross-request terminal closeout dry run failed");
+  }
+  const crossInputA = path.join(crossBase, "apply-a.json");
+  const crossInputB = path.join(crossBase, "apply-b.json");
+  writeJson(crossInputA, applyInput(crossDryA, crossA));
+  writeJson(crossInputB, applyInput(crossDryB, crossB));
+  const crossResults = await Promise.all([
+    spawnChild(crossInputA),
+    spawnChild(crossInputB),
+  ]);
+  assert.equal(
+    crossResults.every((result) => result.ok === true),
+    true,
+  );
+  const crossFulfilled = readJsonLines(
+    path.join(sharedRequestDir, "operator-events.jsonl"),
+  ).filter((row) => row.operator_status === "fulfilled");
+  assert.equal(crossFulfilled.length, 2);
+  assert.deepEqual(
+    crossFulfilled
+      .map((row) => String(row.request_id))
+      .sort(),
+    [crossA.request_id, crossB.request_id].sort(),
+  );
+  assert.equal(
+    listBuyVoidInventoryConsumptionsV1(crossA.root).length,
+    1,
+  );
+  assert.equal(
+    listBuyVoidInventoryConsumptionsV1(crossB.root).length,
+    1,
+  );
+  for (const value of [crossA, crossB]) {
+    const closed = value.saga
+      .createFilesystemSagaStoreV1(
+        path.join(
+          value.root,
+          "buy-void-crash-consistent-saga-runtime-v1",
+        ),
+      )
+      .recover(value.saga_id);
+    assert.equal(closed.state.state, "closed");
+    assert.equal(
+      closed.events.filter(
+        (event: any) => event.event_type === "closeout_committed",
+      ).length,
+      1,
+    );
+  }
+
   assert.equal(listBuyVoidExecutionAttemptsV1(fixture.root).length, 1);
   fs.rmSync(fixture.base, { recursive: true, force: true });
   fs.rmSync(concurrent.base, { recursive: true, force: true });
+  fs.rmSync(crossA.base, { recursive: true, force: true });
+  fs.rmSync(crossB.base, { recursive: true, force: true });
+  fs.rmSync(crossBase, { recursive: true, force: true });
 
   process.stdout.write(`${MARKER}\n`);
   process.stdout.write("canonical_confirmed_state_required=true\n");
@@ -715,6 +833,9 @@ async function main(): Promise<void> {
   process.stdout.write("public_fulfilled_event_count=1\n");
   process.stdout.write("saga_closeout_event_count=1\n");
   process.stdout.write("concurrent_process_closeout_unique=true\n");
+  process.stdout.write("public_operator_event_append_only=true\n");
+  process.stdout.write("shared_operator_journal_atomic_replace=false\n");
+  process.stdout.write("cross_request_concurrent_closeout_preserved=2\n");
   process.stdout.write("public_request_base_record_mutation=false\n");
   process.stdout.write("reservation_base_record_mutation=false\n");
   process.stdout.write("wallet_access=false\n");
