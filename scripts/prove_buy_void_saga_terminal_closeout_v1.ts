@@ -46,6 +46,7 @@ import {
   VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
   runBuyVoidSagaTerminalCloseoutV1,
   type BuyVoidSagaTerminalCloseoutFaultStageV1,
+  type RunBuyVoidSagaTerminalCloseoutInputV1,
 } from "../src/economic/buy_void_saga_terminal_closeout_v1.js";
 
 const MARKER = "VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1_PROOF_GREEN";
@@ -450,7 +451,10 @@ async function createFixture(label: string): Promise<Fixture> {
   };
 }
 
-function applyInput(dry: any, fixture: Fixture): Record<string, unknown> {
+function applyInput(
+  dry: any,
+  fixture: Fixture,
+): RunBuyVoidSagaTerminalCloseoutInputV1 {
   return {
     root_dir: fixture.root,
     saga_id: fixture.saga_id,
@@ -618,7 +622,9 @@ async function main(): Promise<void> {
     dependencies,
   });
   assert.equal(completed.ok, true);
-  if (completed.ok !== true) throw new Error(completed.reason);
+  if (completed.ok !== true) {
+    throw new Error("terminal closeout completion held");
+  }
   assert.equal(completed.status, "recovered_partial");
   assert.equal(completed.saga_state.state, "closed");
   assert.equal(completed.saga_state.closeout_id, dry.closeout_id);
