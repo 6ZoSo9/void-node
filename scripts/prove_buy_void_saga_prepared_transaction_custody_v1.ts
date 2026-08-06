@@ -42,7 +42,6 @@ const PAYMENT_TX = `0x${"5".repeat(64)}`;
 const PAYMENT_ID = `voidpay1:ethereum:${PAYMENT_TX}:0`;
 const VOID_UNITS = "2500000";
 const INVENTORY_ID = "a".repeat(64);
-const PLAN_POLICY_FINGERPRINT = "b".repeat(64);
 const SOURCE_FLOOR = "eea521d298ffb299ca8839d9171a1151f206d7c9";
 
 function digest(value: string): string {
@@ -379,7 +378,7 @@ async function main(): Promise<void> {
   const claimed = intent();
   const reservedInventory = inventory(claimed);
   const economic = readBuyVoidCrashConsistentSagaServerPolicyV1();
-  if (!economic.ok) throw new Error(economic.reason);
+  if ("reason" in economic) throw new Error(economic.reason);
   const executionPolicy = economic.policy.execution_policy as
     BuyVoidExecutionAttemptPolicyV1;
   const attemptDecision = reserveBuyVoidExecutionAttemptV1({
@@ -389,7 +388,7 @@ async function main(): Promise<void> {
     now_ms: Date.parse("2026-08-06T10:10:01.000Z"),
   });
   assert.equal(attemptDecision.ok, true);
-  if (!attemptDecision.ok) throw new Error(attemptDecision.reason);
+  if ("reason" in attemptDecision) throw new Error(attemptDecision.reason);
   const attemptId = attemptDecision.attempt.reservation.attempt_id;
   const initialized = await initializeSaga({
     root,
@@ -449,7 +448,7 @@ async function main(): Promise<void> {
     dependencies,
   });
   assert.equal(dry.ok, true);
-  if (!dry.ok || dry.status !== "dry_run") {
+  if ("reason" in dry || dry.status !== "dry_run") {
     throw new Error("dry run failed");
   }
   const dryInput = { ...dry, root_dir: root };
@@ -464,7 +463,7 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(afterPlan.ok, false);
-  if (afterPlan.ok) throw new Error("plan fault did not hold");
+  if (!("reason" in afterPlan)) throw new Error("plan fault did not hold");
   assert.equal(afterPlan.reason, "injected_after_plan_reservation");
   assert.equal(custodian.prepareCalls, 0);
   let plans = listBuyVoidPreparedTransactionPlanReservationsV1({
@@ -491,12 +490,14 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(afterExternalCustody.ok, false);
-  if (afterExternalCustody.ok) throw new Error("external custody fault did not hold");
+  if (!("reason" in afterExternalCustody)) {
+    throw new Error("external custody fault did not hold");
+  }
   assert.equal(afterExternalCustody.stage, "custody");
   assert.equal(custodian.prepareCalls, 1);
   assert.equal(custodian.prepared.size, 1);
   assert.equal(fs.existsSync(attemptIndex), true);
-  assert.equal(plannerCalls, 4);
+  assert.equal(plannerCalls, 8);
 
   fault = "after_custody_record";
   const afterCustodyRecord = await runBuyVoidSagaPreparedTransactionCoordinatorV1({
@@ -504,7 +505,9 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(afterCustodyRecord.ok, false);
-  if (afterCustodyRecord.ok) throw new Error("custody record fault did not hold");
+  if (!("reason" in afterCustodyRecord)) {
+    throw new Error("custody record fault did not hold");
+  }
   assert.equal(afterCustodyRecord.reason, "injected_after_custody_record");
   assert.equal(custodian.prepareCalls, 2);
   assert.equal(custodian.prepared.size, 1);
@@ -516,7 +519,9 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(afterExecutionPrepare.ok, false);
-  if (afterExecutionPrepare.ok) throw new Error("execution prepare fault did not hold");
+  if (!("reason" in afterExecutionPrepare)) {
+    throw new Error("execution prepare fault did not hold");
+  }
   assert.equal(
     afterExecutionPrepare.reason,
     "injected_after_execution_attempt_preparation",
@@ -538,7 +543,7 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(completed.ok, true);
-  if (!completed.ok) throw new Error(completed.reason);
+  if ("reason" in completed) throw new Error(completed.reason);
   assert.equal(completed.status, "prepared");
   assert.equal(completed.plan.nonce, 7);
   assert.equal(completed.execution_attempt.status, "prepared");
@@ -549,7 +554,7 @@ async function main(): Promise<void> {
   assert.equal(completed.money_movement_performed, false);
   assert.equal(pipelinePrepareCalls, 1);
   assert.equal(custodian.prepared.size, 1);
-  assert.equal(plannerCalls, 4);
+  assert.equal(plannerCalls, 8);
   assert.equal(
     JSON.stringify(completed).includes('"custody_handle":"'),
     false,
@@ -581,10 +586,11 @@ async function main(): Promise<void> {
     dependencies,
   } as any);
   assert.equal(duplicate.ok, true);
-  if (!duplicate.ok) throw new Error(duplicate.reason);
+  if ("reason" in duplicate) throw new Error(duplicate.reason);
   assert.equal(duplicate.status, "duplicate");
   assert.equal(pipelinePrepareCalls, 1);
   assert.equal(custodian.prepared.size, 1);
+  assert.equal(plannerCalls, 8);
 
   const secondAttempt = "d".repeat(64);
   const secondPlan = reserveBuyVoidPreparedTransactionPlanV1({
@@ -606,7 +612,7 @@ async function main(): Promise<void> {
     now_ms: clock + 1000,
   });
   assert.equal(secondPlan.ok, true);
-  if (!secondPlan.ok) throw new Error(secondPlan.reason);
+  if ("reason" in secondPlan) throw new Error(secondPlan.reason);
   assert.equal(secondPlan.reservation.nonce, 8);
 
   const changedSameAttempt = reserveBuyVoidPreparedTransactionPlanV1({
@@ -627,6 +633,7 @@ async function main(): Promise<void> {
       completed.plan.preparation_policy_fingerprint_sha256,
   });
   assert.equal(changedSameAttempt.ok, false);
+  assert.equal("reason" in changedSameAttempt, true);
   plans = listBuyVoidPreparedTransactionPlanReservationsV1({
     root_dir: root,
     wallet_address: WALLET,
@@ -641,10 +648,20 @@ async function main(): Promise<void> {
   assert.equal(custodyFiles.length, 1);
   const custodyStat = fs.lstatSync(custodyFiles[0]);
   assert.equal(custodyStat.mode & 0o077, 0);
-  const custodyText = fs.readFileSync(custodyFiles[0], "utf8");
-  assert.equal(custodyText.includes("raw_signed_transaction\":"), false);
-  assert.equal(custodyText.includes("private_key"), false);
-  assert.equal(custodyText.includes("mnemonic"), false);
+  const custodyRecord = JSON.parse(
+    fs.readFileSync(custodyFiles[0], "utf8"),
+  ) as Record<string, unknown>;
+  assert.equal(custodyRecord.raw_signed_transaction_persisted, false);
+  assert.equal(custodyRecord.raw_signed_transaction_returned, false);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      custodyRecord,
+      "raw_signed_transaction",
+    ),
+    false,
+  );
+  assert.equal(JSON.stringify(custodyRecord).includes("private_key"), false);
+  assert.equal(JSON.stringify(custodyRecord).includes("mnemonic"), false);
 
   for (const [name, value] of saved) {
     if (value === undefined) delete process.env[name];
