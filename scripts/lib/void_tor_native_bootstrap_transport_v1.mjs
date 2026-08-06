@@ -213,6 +213,7 @@ export async function requestOnionJson({ base, path = "/__void/ready.json", sock
       try { return finish(null, JSON.parse(body.toString("utf8"))); }
       catch (error) { return finish(new Error(`onion JSON is invalid: ${error.message}`)); }
     });
+    socket.resume();
     socket.write([`GET ${path} HTTP/1.1`, `Host: ${endpoint.hostname}`, "Accept: application/json", "Connection: close", "User-Agent: void-node/tor-native-bootstrap-v1", "", ""].join("\r\n"));
   });
 }
