@@ -8,6 +8,7 @@ on:
       - 'scripts/install_void_public_seed_tor_v1.mjs'
       - 'scripts/qualify_void_public_seed_tor_v1.mjs'
       - 'scripts/prove_void_public_seed_tor_v1.mjs'
+      - 'scripts/lib/void_public_seed_tor_*.mjs'
       - 'tools/void-public-seed-gateway-v1.mjs'
       - 'tools/void-tor-agent-access-client-v1.mjs'
   workflow_dispatch:
@@ -36,9 +37,15 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Syntax-check Tor-native source
         run: |
-          node --check scripts/install_void_public_seed_tor_v1.mjs
-          node --check scripts/qualify_void_public_seed_tor_v1.mjs
-          node --check scripts/prove_void_public_seed_tor_v1.mjs
+          set -euo pipefail
+          for file in \
+            scripts/install_void_public_seed_tor_v1.mjs \
+            scripts/qualify_void_public_seed_tor_v1.mjs \
+            scripts/prove_void_public_seed_tor_v1.mjs \
+            scripts/lib/void_public_seed_tor_*.mjs
+          do
+            node --check "$file"
+          done
 
   prove:
     runs-on: ubuntu-24.04
