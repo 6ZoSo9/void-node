@@ -10,6 +10,7 @@ on:
       - 'scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs'
       - 'scripts/prove_void_tor_native_bootstrap_transport_v1.mjs'
       - 'scripts/prove_void_tor_public_bootstrap_integration_v1.mjs'
+      - 'scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs'
       - 'tools/void-tor-public-seed-client-adapter-v1.mjs'
   workflow_dispatch:
 
@@ -18,7 +19,7 @@ permissions:
 
 concurrency:
   group: void-tor-public-bootstrap-integration-v1-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   node-compatibility:
@@ -46,6 +47,7 @@ jobs:
           node --check scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs
           node --check scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
           node --check scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
+          node --check scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs
           node --check tools/void-tor-public-seed-client-adapter-v1.mjs
 
       - name: Prove Tor transport boundary
@@ -53,6 +55,9 @@ jobs:
 
       - name: Prove resolver and adapter composition
         run: node scripts/prove_void_tor_public_bootstrap_integration_v1.mjs
+
+      - name: Prove supervisor shutdown
+        run: node scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs
 
   repository-contract:
     runs-on: ubuntu-24.04
@@ -89,4 +94,5 @@ jobs:
             scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs \
             scripts/prove_void_tor_native_bootstrap_transport_v1.mjs \
             scripts/prove_void_tor_public_bootstrap_integration_v1.mjs \
+            scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs \
             tools/void-tor-public-seed-client-adapter-v1.mjs
