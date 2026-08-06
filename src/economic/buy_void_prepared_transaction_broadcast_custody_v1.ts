@@ -520,24 +520,25 @@ function ready(
   outcome: BuyVoidPreparedTransactionBroadcasterReadyV1,
   applied: boolean,
 ): Extract<BuyVoidPreparedTransactionBroadcastCustodyDecisionV1, { ok: true; outcome: BuyVoidPreparedTransactionBroadcasterReadyV1 }> {
-  const submissionPerformed = outcome.submission_call_performed === true;
+  const currentSubmissionPerformed =
+    applied && outcome.submission_call_performed === true;
   return {
     ok: true,
     status: outcome.status,
     applied,
-    mutation_performed: applied && submissionPerformed,
+    mutation_performed: currentSubmissionPerformed,
     submission_idempotency_key_sha256:
       normalized.request.submission_idempotency_key_sha256,
     outcome,
     broadcaster_called: true,
-    submission_call_performed: submissionPerformed,
-    transaction_broadcast_performed: submissionPerformed,
+    submission_call_performed: currentSubmissionPerformed,
+    transaction_broadcast_performed: currentSubmissionPerformed,
     reconciliation_required:
       ["unknown", "accepted"].includes(outcome.status),
     automatic_retry_allowed: false,
     signed_payload_bytes_persisted: false,
     signed_payload_bytes_returned: false,
-    money_movement_performed: submissionPerformed,
+    money_movement_performed: currentSubmissionPerformed,
   };
 }
 

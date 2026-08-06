@@ -26,6 +26,7 @@ import {
   runBuyVoidSagaPreparedTransactionCoordinatorV1,
 } from "../src/economic/buy_void_saga_prepared_transaction_coordinator_v1.js";
 import {
+  inspectBuyVoidPreparedTransactionSubmissionV1,
   type BuyVoidPreparedTransactionBroadcastRequestV1,
   type BuyVoidPreparedTransactionBroadcasterDecisionV1,
   type BuyVoidPreparedTransactionBroadcasterReadyV1,
@@ -34,6 +35,7 @@ import {
 } from "../src/economic/buy_void_prepared_transaction_broadcast_custody_v1.js";
 import {
   readBuyVoidSagaBroadcastEvidenceStateV1,
+  recordBuyVoidSagaBroadcastEvidenceV1,
 } from "../src/economic/buy_void_saga_broadcast_evidence_journal_v1.js";
 import {
   VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_SERVER_POLICY_ENVS_V1,
@@ -431,6 +433,7 @@ type Setup = {
   intent: Record<string, any>;
   inventory: Record<string, any>;
   attempt_id: string;
+  custody: any;
   saga: any;
   saga_id: string;
   broadcaster: FakeBroadcaster;
@@ -555,6 +558,7 @@ async function setup(label: string): Promise<Setup> {
     intent,
     inventory,
     attempt_id: attemptId,
+    custody: prepared.custody,
     saga: initialized.saga,
     saga_id: initialized.saga_id,
     broadcaster,
@@ -791,6 +795,119 @@ async function scenarioUnknownAndReverted(): Promise<void> {
   fs.rmSync(path.dirname(reverted.root), { recursive: true, force: true });
 }
 
+
+async function scenarioInspectionAuthorityAndTerminalEvidence(): Promise<void> {
+  const value = await setup("terminal-evidence-immutable");
+  value.broadcaster.nextSubmitStatus = "confirmed";
+  const preview = await dry(value);
+  value.fault.value = "after_projection_before_saga";
+  const crashed = await runBuyVoidSagaBroadcastReconciliationV1(
+    applyInput(value, preview) as any,
+  );
+  assert.equal(crashed.ok, false);
+  assert.equal(sagaState(value).state.state, "broadcast_intent_committed");
+
+  const before = readBuyVoidSagaBroadcastEvidenceStateV1({
+    root_dir: value.root,
+    attempt_id: value.attempt_id,
+  });
+  assert.ok(before);
+  assert.equal(before.latest.outcome, "confirmed");
+  const terminalReceipt = before.latest.receipt;
+  assert.ok(terminalReceipt);
+  const eventCount = before.events.length;
+  const terminalEventId = before.latest.event_id;
+
+  const exactOutcome = {
+    ok: true as const,
+    status: "confirmed" as const,
+    transaction_hash: before.transaction_hash,
+    provider_submission_id: before.latest.provider_submission_id,
+    definitive_not_submitted: false as const,
+    submission_call_performed: true as const,
+    submission_may_have_occurred: true as const,
+    receipt: structuredClone(terminalReceipt),
+  };
+  const duplicate = recordBuyVoidSagaBroadcastEvidenceV1({
+    root_dir: value.root,
+    saga_id: value.saga_id,
+    attempt_id: value.attempt_id,
+    broadcast_intent_id: before.broadcast_intent_id,
+    transaction_hash: before.transaction_hash,
+    outcome: exactOutcome,
+    now_ms: (value.clock.value += 1000),
+  });
+  if (duplicate.status === "held") {
+    throw new Error(duplicate.reason);
+  }
+  assert.equal(duplicate.status, "duplicate");
+  assert.equal(duplicate.mutation_performed, false);
+
+  const conflict = recordBuyVoidSagaBroadcastEvidenceV1({
+    root_dir: value.root,
+    saga_id: value.saga_id,
+    attempt_id: value.attempt_id,
+    broadcast_intent_id: before.broadcast_intent_id,
+    transaction_hash: before.transaction_hash,
+    outcome: {
+      ...exactOutcome,
+      receipt: {
+        ...exactOutcome.receipt,
+        block_number: "201",
+        block_hash: `0x${digest("conflicting-terminal-block")}`,
+        current_block_number: "212",
+        confirmation_count: "12",
+      },
+    },
+    now_ms: (value.clock.value += 1000),
+  });
+  if (conflict.status !== "held") {
+    throw new Error("conflicting_terminal_receipt_must_hold");
+  }
+  assert.equal(
+    conflict.reason,
+    "broadcast_evidence_terminal_evidence_conflict",
+  );
+
+  const afterConflict = readBuyVoidSagaBroadcastEvidenceStateV1({
+    root_dir: value.root,
+    attempt_id: value.attempt_id,
+  });
+  assert.ok(afterConflict);
+  assert.equal(afterConflict.events.length, eventCount);
+  assert.equal(afterConflict.latest.event_id, terminalEventId);
+
+  const currentSaga = sagaState(value);
+  const inspected = await inspectBuyVoidPreparedTransactionSubmissionV1({
+    saga_id: value.saga_id,
+    broadcast_intent_id: currentSaga.state.broadcast_intent_id,
+    custody: value.custody,
+    broadcaster: value.broadcaster,
+  });
+  if (inspected.status === "held") {
+    throw new Error(inspected.reason);
+  }
+  assert.equal(inspected.status, "confirmed");
+  assert.equal(inspected.broadcaster_called, true);
+  assert.equal(inspected.mutation_performed, false);
+  assert.equal(inspected.submission_call_performed, false);
+  assert.equal(inspected.transaction_broadcast_performed, false);
+  assert.equal(inspected.money_movement_performed, false);
+
+  const reconcile = await dry(value);
+  const recovered = await runBuyVoidSagaBroadcastReconciliationV1({
+    ...(applyInput(value, reconcile) as any),
+    dependencies: {
+      ...value.dependencies,
+      broadcaster: undefined,
+    },
+  });
+  if (!recovered.ok) throw new Error(recovered.reason);
+  assert.equal(recovered.status, "confirmed");
+  assert.equal(sagaState(value).state.state, "receipt_confirmed");
+  fs.rmSync(path.dirname(value.root), { recursive: true, force: true });
+}
+
 async function main(): Promise<void> {
   const saved = new Map<string, string | undefined>();
   for (const [name, value] of Object.entries(configuredEnv())) {
@@ -802,6 +919,7 @@ async function main(): Promise<void> {
     await scenarioSubmitBeforeEvidence();
     await scenarioEvidenceBeforeProjection();
     await scenarioProjectionBeforeSaga();
+    await scenarioInspectionAuthorityAndTerminalEvidence();
     await scenarioUnknownAndReverted();
   } finally {
     for (const [name, value] of saved) {
@@ -817,6 +935,11 @@ async function main(): Promise<void> {
     "evidence_before_projection_recovered=true",
     "projection_before_saga_recovered=true",
     "terminal_receipt_block_hash_recoverable=true",
+    "terminal_evidence_duplicate_idempotent=true",
+    "semantic_duplicate_projection_runtime_exact=true",
+    "adversarial_proof_closed_status_discriminants=true",
+    "terminal_receipt_conflict_rejected=true",
+    "inspection_current_call_broadcast=false",
     "unknown_requires_inspection=true",
     "reverted_terminal=true",
     "custody_handle_application_visibility=false",

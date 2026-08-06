@@ -577,6 +577,9 @@ function assertProjection(input: {
   server_policy: BuyVoidCrashConsistentSagaServerPolicyV1;
 }): void {
   const { binding, record, intent, reservation, attempt, server_policy } = input;
+  if (attempt && !record) {
+    throw new Error("execution_attempt_without_saga_policy_anchor");
+  }
   if (intent) {
     assertIntentServerPolicy(intent, server_policy);
     if (!same(bindingFromIntent(intent), binding)) {
@@ -596,6 +599,17 @@ function assertProjection(input: {
       pool_id: reservation.pool_id,
     };
     if (!same(projected, binding)) throw new Error("inventory_binding_conflict");
+    const reservedVoidUnits = parsePositive(reservation.reserved_void_units);
+    const maximumReservation = parsePositive(
+      server_policy.inventory_policy.max_reservation_void_units,
+    );
+    if (
+      reservedVoidUnits === null ||
+      maximumReservation === null ||
+      reservedVoidUnits > maximumReservation
+    ) {
+      throw new Error("inventory_server_max_reservation_conflict");
+    }
     if (
       reservation.inventory_policy_version !==
         server_policy.inventory_policy.inventory_policy_version ||
@@ -681,6 +695,7 @@ function responseStatus(reason: string): number {
   if (reason.includes("confirmation_required")) return 428;
   if (
     reason.includes("conflict") ||
+    reason.includes("policy_anchor") ||
     reason.includes("multiple_") ||
     reason.includes("lease_held")
   ) return 409;

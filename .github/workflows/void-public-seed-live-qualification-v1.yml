@@ -1,0 +1,106 @@
+name: VOID public seed live qualification v1
+
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: Stable credential-free HTTPS seed origin, with no path
+        required: true
+        type: string
+      expected_source_sha:
+        description: Exact 40-character source commit to qualify against
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-live-qualification-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Bind workflow to exact reviewed source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          git diff --quiet --ignore-submodules --
+          git diff --cached --quiet --ignore-submodules --
+
+      - name: Qualify stable HTTPS seed across three observations
+        shell: bash
+        env:
+          PUBLIC_SEED_ENDPOINT: ${{ inputs.endpoint }}
+        run: |
+          set -euo pipefail
+          test "${#PUBLIC_SEED_ENDPOINT}" -le 2048
+          mkdir -p qualification-output
+          node --check scripts/qualify_void_public_seed_v1.mjs
+          node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
+          node scripts/qualify_void_public_seed_v1.mjs \
+            --endpoint "$PUBLIC_SEED_ENDPOINT" \
+            --samples 3 \
+            --interval-ms 30000 \
+            --output qualification-output/qualification.json
+          node scripts/build_void_public_bootstrap_manifest_v1.mjs \
+            --receipt qualification-output/qualification.json \
+            --validity-hours 72 \
+            --output qualification-output/public-bootstrap-v1.json
+
+      - name: Verify qualification artifact boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const receipt = JSON.parse(fs.readFileSync('qualification-output/qualification.json', 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync('qualification-output/public-bootstrap-v1.json', 'utf8'));
+          if (receipt.schema !== 'void_public_seed_qualification_v1') throw new Error('receipt schema mismatch');
+          if (!/^voidpsq1_[0-9a-f]{64}$/.test(receipt.qualification_id || '')) throw new Error('receipt ID mismatch');
+          if (receipt.sample_count !== 3) throw new Error('receipt sample count mismatch');
+          if (receipt.loopback_fixture !== false || receipt.temporary_provider !== false) throw new Error('receipt is not stable-public evidence');
+          if (manifest.schema !== 'void_public_bootstrap_v1') throw new Error('manifest schema mismatch');
+          if (!/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id || '')) throw new Error('manifest ID mismatch');
+          if (manifest.status !== 'stable_https_seed') throw new Error('manifest status mismatch');
+          if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 1) throw new Error('manifest endpoint count mismatch');
+          if (manifest.sync_endpoints[0].temporary !== false) throw new Error('manifest accepted a temporary endpoint');
+          for (const value of Object.values(manifest.authority || {})) {
+            if (value !== false) throw new Error('manifest authority boundary mismatch');
+          }
+          NODE
+          printf 'source_sha=%s\n' "$(git rev-parse HEAD)" > qualification-output/source.txt
+          sha256sum qualification-output/qualification.json \
+            qualification-output/public-bootstrap-v1.json \
+            qualification-output/source.txt \
+            > qualification-output/SHA256SUMS
+          echo 'VOID_PUBLIC_SEED_LIVE_QUALIFICATION_V1_GREEN'
+          echo 'manifest_published=false'
+          echo 'services_deployed=false'
+          echo 'credentials_accessed=false'
+          echo 'money_movement_authority=false'
+
+      - name: Upload qualification and candidate manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-public-seed-live-qualification-v1-${{ github.sha }}
+          path: qualification-output/
+          if-no-files-found: error
+          retention-days: 14
