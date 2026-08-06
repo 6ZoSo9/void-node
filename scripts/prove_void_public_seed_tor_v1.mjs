@@ -121,6 +121,53 @@ await assert.rejects(
 assert.equal(remoteRequestCount, 0);
 console.log("[PASS] remote SOCKS proxy rejected before network access");
 
+async function rejectTypeConfusedQualificationV1({
+  readyBody = { ready: true, head: 7, gap: 0, txroot_live: 1 },
+  latestBody = { number: 7 },
+  rangeBody = [{ number: 7 }],
+  expectedRequests,
+}) {
+  let requestCount = 0;
+  await assert.rejects(
+    () => qualifyTorSeedV1({
+      onionHostname: onion,
+      sourceSha: "a".repeat(40),
+      socksHost: "127.0.0.1",
+      socksPort: 19051,
+      virtualPort: 80,
+      samples: 3,
+      intervalMs: 30_000,
+      timeoutMs: 5_000,
+      maxBytes: 1_000_000,
+      request: async (_profile, route) => {
+        requestCount += 1;
+        if (route === "/__void/ready.json") return response(onion, readyBody);
+        if (route === "/blocks/latest/number2.json") return response(onion, latestBody);
+        if (route === "/blocks/range?from=7&to=7") return response(onion, rangeBody);
+        throw new Error(`unexpected type-confusion route ${route}`);
+      },
+      sleep: async () => {},
+      clock: () => "2026-08-06T12:00:00.000Z",
+    }),
+    /exact-green|must be an integer|exact qualified head/,
+  );
+  assert.equal(requestCount, expectedRequests);
+}
+
+await rejectTypeConfusedQualificationV1({
+  readyBody: { ready: true, head: "7", gap: "0", txroot_live: "1" },
+  expectedRequests: 1,
+});
+await rejectTypeConfusedQualificationV1({
+  latestBody: { number: "7" },
+  expectedRequests: 3,
+});
+await rejectTypeConfusedQualificationV1({
+  rangeBody: [{ number: "7" }],
+  expectedRequests: 3,
+});
+console.log("[PASS] type-confused live Tor responses cannot produce a qualification receipt");
+
 const good = response(onion, { ready: true, head: 7, gap: 0, txroot_live: 1 });
 const latest = response(onion, { number: 7 });
 const range = response(onion, [{ number: 7 }]);
@@ -315,6 +362,8 @@ console.log("install_services_stopped=true");
 console.log("managed_path_symlink_escape_rejected=true");
 console.log("managed_file_symlink_target_rejected=true");
 console.log("strict_positive_local_head_required=true");
+console.log("remote_numeric_response_types_strict=true");
+console.log("type_confused_qualification_receipt_emitted=false");
 console.log("qualification_observations_fresh=true");
 console.log("socks_remote_dns=true");
 console.log("dns_required=false");

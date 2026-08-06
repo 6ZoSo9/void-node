@@ -93,8 +93,7 @@ function parseJsonResponse(response, label) {
 
 function blockNumber(block) {
   const candidate = block?.number ?? block?.header?.number;
-  const number = Number(candidate);
-  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+  return Number.isSafeInteger(candidate) && candidate >= 0 ? candidate : null;
 }
 
 export function validateObservationV1({
@@ -106,12 +105,12 @@ export function validateObservationV1({
   observedAt,
 }) {
   const ready = exactObject(parseJsonResponse(readyResponse, "Tor seed readiness"), "Tor seed readiness");
-  if (ready.ready !== true || Number(ready.gap) !== 0 || Number(ready.txroot_live) !== 1) {
+  if (ready.ready !== true || ready.gap !== 0 || ready.txroot_live !== 1) {
     fail("Tor seed readiness is not exact-green");
   }
-  const readyHead = positiveInteger(ready.head, "Tor seed readiness head");
+  const readyHead = strictPositiveInteger(ready.head, "Tor seed readiness head");
   const latest = exactObject(parseJsonResponse(headResponse, "Tor seed latest head"), "Tor seed latest head");
-  const latestHead = positiveInteger(latest.number ?? latest.head, "Tor seed latest head");
+  const latestHead = strictPositiveInteger(latest.number ?? latest.head, "Tor seed latest head");
   if (readyHead !== latestHead) fail("Tor seed readiness and latest head disagree");
   const range = parseJsonResponse(rangeResponse, "Tor seed range");
   const blocks = Array.isArray(range) ? range : Array.isArray(range.blocks) ? range.blocks : null;
@@ -255,8 +254,14 @@ export async function qualifyTorSeedV1(options) {
   const observations = [];
   for (let index = 0; index < samples; index += 1) {
     const readyResponse = await request(configured, "/__void/ready.json");
-    const ready = JSON.parse(readyResponse.body.toString("utf8"));
-    const head = positiveInteger(ready.head, "Tor seed readiness head");
+    const ready = exactObject(
+      parseJsonResponse(readyResponse, "Tor seed readiness"),
+      "Tor seed readiness",
+    );
+    if (ready.ready !== true || ready.gap !== 0 || ready.txroot_live !== 1) {
+      fail("Tor seed readiness is not exact-green");
+    }
+    const head = strictPositiveInteger(ready.head, "Tor seed readiness head");
     const headResponse = await request(configured, "/blocks/latest/number2.json");
     const rangeResponse = await request(configured, `/blocks/range?from=${head}&to=${head}`);
     observations.push(validateObservationV1({
