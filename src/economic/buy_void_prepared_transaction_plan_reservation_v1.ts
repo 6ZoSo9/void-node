@@ -17,7 +17,9 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_AUTHORITY_V1 = 
   atomic_nonce_publication: true,
   crash_recoverable_attempt_index: true,
   concurrent_attempt_collision_safe: true,
+  wallet_allocation_lock_required: true,
   observed_pending_nonce_is_floor_only: true,
+  reserved_nonce_below_observed_pending_fails_closed: true,
   server_controlled_plan_required: true,
   nonce_release: false,
   rpc_call: false,
@@ -38,6 +40,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const SAGA_ID = /^voidbvfsg1_[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
+const NONCE_FILE = /^[0-9]{16}\.json$/;
 const MAX_JSON_BYTES = 256 * 1024;
 const MAX_NONCE_PROBES = 4096;
 
@@ -159,6 +162,7 @@ type PathsV1 = {
   wallet: string;
   nonces: string;
   attempts: string;
+  allocation_lock: string;
 };
 
 function held(
@@ -196,6 +200,18 @@ function fingerprint(value: unknown): string {
   return sha256(canonical(value));
 }
 
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${label}_keys_invalid`);
+  }
+}
+
 function normalizeAddress(value: unknown): string {
   const address = String(value || "").trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
@@ -204,15 +220,13 @@ function normalizeAddress(value: unknown): string {
 function parseNonNegativeInteger(value: unknown): bigint | null {
   if (typeof value === "bigint") return value >= 0n ? value : null;
   if (typeof value === "number") {
-    if (!Number.isSafeInteger(value) || value < 0) return null;
-    return BigInt(value);
+    return Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null;
   }
   const raw = String(value ?? "").trim();
   if (!DECIMAL.test(raw)) return null;
   try {
     return BigInt(raw);
-  } catch (error) {
-    void error;
+  } catch {
     return null;
   }
 }
@@ -259,9 +273,8 @@ function normalizeInput(
   const priorityFee = parseNonNegativeInteger(
     input?.max_priority_fee_per_gas_wei,
   );
-  const observedNonceNumber = observedNonce === null
-    ? null
-    : safeNumber(observedNonce);
+  const observedNonceNumber =
+    observedNonce === null ? null : safeNumber(observedNonce);
   if (observedNonceNumber === null) {
     return held("prepared_plan_pending_nonce_invalid");
   }
@@ -326,7 +339,10 @@ function ensurePrivateDirectory(directory: string): void {
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("prepared_plan_directory_must_be_direct_directory");
   }
-  if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+  if (
+    typeof process.getuid === "function" &&
+    metadata.uid !== process.getuid()
+  ) {
     throw new Error("prepared_plan_directory_owner_mismatch");
   }
   if ((metadata.mode & 0o077) !== 0) {
@@ -347,6 +363,7 @@ function pathsFor(input: NormalizedInputV1): PathsV1 {
     wallet,
     nonces: path.join(wallet, "nonces"),
     attempts: path.join(wallet, "attempts"),
+    allocation_lock: path.join(wallet, "nonce-allocation"),
   };
 }
 
@@ -357,11 +374,9 @@ function initializePaths(paths: PathsV1): void {
     paths.wallet,
     paths.nonces,
     paths.attempts,
-  ]) ensurePrivateDirectory(directory);
-}
-
-function nonceAllocationLockPath(paths: PathsV1): string {
-  return path.join(paths.wallet, "nonce-allocation");
+  ]) {
+    ensurePrivateDirectory(directory);
+  }
 }
 
 function fsyncDirectory(directory: string): void {
@@ -378,7 +393,9 @@ function atomicCreateJson(file: string, value: unknown): "created" | "exists" {
   ensurePrivateDirectory(parent);
   const temporary = path.join(
     parent,
-    `.${path.basename(file)}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`,
+    `.${path.basename(file)}.tmp-${process.pid}-${crypto
+      .randomBytes(8)
+      .toString("hex")}`,
   );
   const descriptor = fs.openSync(temporary, "wx", 0o600);
   try {
@@ -405,11 +422,14 @@ function atomicCreateJson(file: string, value: unknown): "created" | "exists" {
   }
 }
 
-function readJsonObject(file: string): Record<string, any> | null {
+function readJsonObject(file: string): Record<string, unknown> | null {
   try {
     const metadata = fs.lstatSync(file);
     if (!metadata.isFile() || metadata.isSymbolicLink()) {
       throw new Error("prepared_plan_record_must_be_direct_file");
+    }
+    if ((metadata.mode & 0o077) !== 0) {
+      throw new Error("prepared_plan_record_must_be_private");
     }
     if (metadata.size < 2 || metadata.size > MAX_JSON_BYTES) {
       throw new Error("prepared_plan_record_size_out_of_range");
@@ -418,7 +438,7 @@ function readJsonObject(file: string): Record<string, any> | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("prepared_plan_record_object_required");
     }
-    return value as Record<string, any>;
+    return value as Record<string, unknown>;
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
     throw error;
@@ -441,19 +461,20 @@ function buildRecord(
   input: NormalizedInputV1,
   nonce: number,
 ): BuyVoidPreparedTransactionPlanReservationV1 {
-  const plan = {
+  const planFingerprint = fingerprint({
     transaction_template_fingerprint_sha256:
       input.transaction_template_fingerprint_sha256,
     nonce,
-  };
-  const planFingerprint = fingerprint(plan);
-  const reservationId = sha256([
-    "void-buy-prepared-transaction-plan-reservation-v1",
-    input.wallet_key_sha256,
-    String(nonce),
-    input.attempt_id,
-    planFingerprint,
-  ].join("\n"));
+  });
+  const reservationId = sha256(
+    [
+      "void-buy-prepared-transaction-plan-reservation-v1",
+      input.wallet_key_sha256,
+      String(nonce),
+      input.attempt_id,
+      planFingerprint,
+    ].join("\n"),
+  );
   return {
     schema: RECORD_SCHEMA,
     marker: VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1,
@@ -489,19 +510,55 @@ function buildRecord(
   };
 }
 
-function parseRecord(value: Record<string, any>): BuyVoidPreparedTransactionPlanReservationV1 {
+const RECORD_KEYS = [
+  "schema",
+  "marker",
+  "version",
+  "reservation_id",
+  "reserved_at_ms",
+  "saga_id",
+  "attempt_id",
+  "chain_id",
+  "wallet_address",
+  "wallet_key_sha256",
+  "nonce",
+  "delivery_address",
+  "native_value_wei",
+  "gas_limit",
+  "max_fee_per_gas_wei",
+  "max_priority_fee_per_gas_wei",
+  "economic_policy_fingerprint_sha256",
+  "preparation_policy_fingerprint_sha256",
+  "transaction_template_fingerprint_sha256",
+  "transaction_plan_fingerprint_sha256",
+  "reservation_status",
+  "nonce_release_authorized",
+  "credential_access_authorized",
+  "wallet_access_authorized",
+  "signing_authorized",
+  "transaction_broadcast_authorized",
+  "raw_signed_transaction_persisted",
+  "money_movement_authorized",
+] as const;
+
+function parseRecord(
+  value: Record<string, unknown>,
+): BuyVoidPreparedTransactionPlanReservationV1 {
+  exactKeys(value, RECORD_KEYS, "prepared_plan_record");
   if (
     value.schema !== RECORD_SCHEMA ||
     value.marker !== VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 ||
     value.version !== 1 ||
     !SHA256.test(String(value.reservation_id || "")) ||
+    !Number.isSafeInteger(value.reserved_at_ms) ||
+    Number(value.reserved_at_ms) <= 0 ||
     !SAGA_ID.test(String(value.saga_id || "")) ||
     !SHA256.test(String(value.attempt_id || "")) ||
     value.chain_id !== "2050" ||
     !ADDRESS.test(String(value.wallet_address || "")) ||
     !SHA256.test(String(value.wallet_key_sha256 || "")) ||
     !Number.isSafeInteger(value.nonce) ||
-    value.nonce < 0 ||
+    Number(value.nonce) < 0 ||
     !ADDRESS.test(String(value.delivery_address || "")) ||
     parsePositiveInteger(value.native_value_wei) === null ||
     parsePositiveInteger(value.gas_limit) === null ||
@@ -522,36 +579,52 @@ function parseRecord(value: Record<string, any>): BuyVoidPreparedTransactionPlan
   ) {
     throw new Error("prepared_plan_record_invalid");
   }
-  const expected = buildRecord({
-    root_dir: "unused",
-    saga_id: value.saga_id,
-    attempt_id: value.attempt_id,
-    chain_id: "2050",
-    wallet_address: value.wallet_address,
-    wallet_key_sha256: value.wallet_key_sha256,
-    observed_pending_nonce: value.nonce,
-    delivery_address: value.delivery_address,
-    native_value_wei: String(value.native_value_wei),
-    gas_limit: String(value.gas_limit),
-    max_fee_per_gas_wei: String(value.max_fee_per_gas_wei),
-    max_priority_fee_per_gas_wei: String(value.max_priority_fee_per_gas_wei),
-    economic_policy_fingerprint_sha256:
-      value.economic_policy_fingerprint_sha256,
-    preparation_policy_fingerprint_sha256:
-      value.preparation_policy_fingerprint_sha256,
-    transaction_template_fingerprint_sha256:
-      value.transaction_template_fingerprint_sha256,
-    now_ms: value.reserved_at_ms,
-  }, value.nonce);
+  const record = value as unknown as BuyVoidPreparedTransactionPlanReservationV1;
+  const rebuilt = buildRecord(
+    {
+      root_dir: "unused",
+      saga_id: record.saga_id,
+      attempt_id: record.attempt_id,
+      chain_id: "2050",
+      wallet_address: record.wallet_address,
+      wallet_key_sha256: record.wallet_key_sha256,
+      observed_pending_nonce: record.nonce,
+      delivery_address: record.delivery_address,
+      native_value_wei: record.native_value_wei,
+      gas_limit: record.gas_limit,
+      max_fee_per_gas_wei: record.max_fee_per_gas_wei,
+      max_priority_fee_per_gas_wei: record.max_priority_fee_per_gas_wei,
+      economic_policy_fingerprint_sha256:
+        record.economic_policy_fingerprint_sha256,
+      preparation_policy_fingerprint_sha256:
+        record.preparation_policy_fingerprint_sha256,
+      transaction_template_fingerprint_sha256:
+        record.transaction_template_fingerprint_sha256,
+      now_ms: record.reserved_at_ms,
+    },
+    record.nonce,
+  );
   if (
-    expected.reservation_id !== value.reservation_id ||
-    expected.transaction_plan_fingerprint_sha256 !==
-      value.transaction_plan_fingerprint_sha256
+    rebuilt.reservation_id !== record.reservation_id ||
+    rebuilt.transaction_plan_fingerprint_sha256 !==
+      record.transaction_plan_fingerprint_sha256
   ) {
     throw new Error("prepared_plan_record_fingerprint_mismatch");
   }
-  return value as BuyVoidPreparedTransactionPlanReservationV1;
+  return record;
 }
+
+const INDEX_KEYS = [
+  "schema",
+  "marker",
+  "version",
+  "attempt_id",
+  "reservation_id",
+  "wallet_key_sha256",
+  "nonce",
+  "transaction_template_fingerprint_sha256",
+  "transaction_plan_fingerprint_sha256",
+] as const;
 
 function indexFor(
   record: BuyVoidPreparedTransactionPlanReservationV1,
@@ -571,7 +644,10 @@ function indexFor(
   };
 }
 
-function parseIndex(value: Record<string, any>): BuyVoidPreparedTransactionAttemptIndexV1 {
+function parseIndex(
+  value: Record<string, unknown>,
+): BuyVoidPreparedTransactionAttemptIndexV1 {
+  exactKeys(value, INDEX_KEYS, "prepared_plan_attempt_index");
   if (
     value.schema !== INDEX_SCHEMA ||
     value.marker !== VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 ||
@@ -580,22 +656,19 @@ function parseIndex(value: Record<string, any>): BuyVoidPreparedTransactionAttem
     !SHA256.test(String(value.reservation_id || "")) ||
     !SHA256.test(String(value.wallet_key_sha256 || "")) ||
     !Number.isSafeInteger(value.nonce) ||
-    value.nonce < 0 ||
+    Number(value.nonce) < 0 ||
     !SHA256.test(String(value.transaction_template_fingerprint_sha256 || "")) ||
     !SHA256.test(String(value.transaction_plan_fingerprint_sha256 || ""))
   ) {
     throw new Error("prepared_plan_attempt_index_invalid");
   }
-  return value as BuyVoidPreparedTransactionAttemptIndexV1;
+  return value as unknown as BuyVoidPreparedTransactionAttemptIndexV1;
 }
 
 function assertCompatible(
   record: BuyVoidPreparedTransactionPlanReservationV1,
   input: NormalizedInputV1,
 ): void {
-  if (record.nonce < input.observed_pending_nonce) {
-    throw new Error("prepared_plan_reserved_nonce_below_observed_pending");
-  }
   if (
     record.saga_id !== input.saga_id ||
     record.attempt_id !== input.attempt_id ||
@@ -618,19 +691,58 @@ function assertCompatible(
   }
 }
 
-function listRecords(paths: PathsV1): BuyVoidPreparedTransactionPlanReservationV1[] {
+function listRecords(
+  paths: PathsV1,
+): BuyVoidPreparedTransactionPlanReservationV1[] {
   const output: BuyVoidPreparedTransactionPlanReservationV1[] = [];
-  for (const name of fs.readdirSync(paths.nonces).sort()) {
-    if (!/^[0-9]{16}\.json$/.test(name)) continue;
-    const raw = readJsonObject(path.join(paths.nonces, name));
-    if (!raw) continue;
+  for (const entry of fs.readdirSync(paths.nonces, { withFileTypes: true })) {
+    if (!NONCE_FILE.test(entry.name)) {
+      throw new Error("prepared_plan_nonce_directory_entry_invalid");
+    }
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      throw new Error("prepared_plan_nonce_record_invalid");
+    }
+    const raw = readJsonObject(path.join(paths.nonces, entry.name));
+    if (!raw) throw new Error("prepared_plan_nonce_record_missing");
     const record = parseRecord(raw);
-    if (nonceFilename(record.nonce) !== name) {
+    if (nonceFilename(record.nonce) !== entry.name) {
       throw new Error("prepared_plan_nonce_filename_mismatch");
     }
     output.push(record);
   }
-  return output;
+  return output.sort((left, right) => left.nonce - right.nonce);
+}
+
+function validateIndexBinding(
+  index: BuyVoidPreparedTransactionAttemptIndexV1,
+  record: BuyVoidPreparedTransactionPlanReservationV1,
+): void {
+  if (
+    index.attempt_id !== record.attempt_id ||
+    index.reservation_id !== record.reservation_id ||
+    index.wallet_key_sha256 !== record.wallet_key_sha256 ||
+    index.nonce !== record.nonce ||
+    index.transaction_template_fingerprint_sha256 !==
+      record.transaction_template_fingerprint_sha256 ||
+    index.transaction_plan_fingerprint_sha256 !==
+      record.transaction_plan_fingerprint_sha256
+  ) {
+    throw new Error("prepared_plan_attempt_index_binding_mismatch");
+  }
+}
+
+function publishAttemptIndex(
+  paths: PathsV1,
+  record: BuyVoidPreparedTransactionPlanReservationV1,
+): boolean {
+  const file = attemptFile(paths, record.attempt_id);
+  const created = atomicCreateJson(file, indexFor(record));
+  if (created === "created") return true;
+  const raced = readJsonObject(file);
+  if (!raced) throw new Error("prepared_plan_attempt_index_unreadable");
+  const parsed = parseIndex(raced);
+  validateIndexBinding(parsed, record);
+  return false;
 }
 
 function recoverAttempt(
@@ -646,41 +758,59 @@ function recoverAttempt(
     const recordRaw = readJsonObject(nonceFile(paths, index.nonce));
     if (!recordRaw) throw new Error("prepared_plan_index_target_missing");
     const record = parseRecord(recordRaw);
-    if (
-      index.attempt_id !== record.attempt_id ||
-      index.reservation_id !== record.reservation_id ||
-      index.wallet_key_sha256 !== record.wallet_key_sha256 ||
-      index.transaction_template_fingerprint_sha256 !==
-        record.transaction_template_fingerprint_sha256 ||
-      index.transaction_plan_fingerprint_sha256 !==
-        record.transaction_plan_fingerprint_sha256
-    ) {
-      throw new Error("prepared_plan_attempt_index_binding_mismatch");
-    }
+    validateIndexBinding(index, record);
     assertCompatible(record, input);
+    if (record.nonce < input.observed_pending_nonce) {
+      throw new Error("prepared_plan_reserved_nonce_below_observed_pending");
+    }
+    const duplicateRecords = listRecords(paths).filter(
+      (candidate) => candidate.attempt_id === input.attempt_id,
+    );
+    if (
+      duplicateRecords.length !== 1 ||
+      duplicateRecords[0].reservation_id !== record.reservation_id
+    ) {
+      throw new Error("prepared_plan_attempt_has_multiple_nonces");
+    }
     return { record, recovered_index: false };
   }
 
   const matches = listRecords(paths).filter(
     (record) => record.attempt_id === input.attempt_id,
   );
-  if (matches.length > 1) throw new Error("prepared_plan_attempt_has_multiple_nonces");
-  if (matches.length === 0) return { record: null, recovered_index: false };
+  if (matches.length > 1) {
+    throw new Error("prepared_plan_attempt_has_multiple_nonces");
+  }
+  if (matches.length === 0) {
+    return { record: null, recovered_index: false };
+  }
   const record = matches[0];
   assertCompatible(record, input);
-  const created = atomicCreateJson(
-    attemptFile(paths, input.attempt_id),
-    indexFor(record),
-  );
-  if (created === "exists") {
-    const raced = readJsonObject(attemptFile(paths, input.attempt_id));
-    if (!raced) throw new Error("prepared_plan_attempt_index_race_unreadable");
-    const parsed = parseIndex(raced);
-    if (parsed.reservation_id !== record.reservation_id) {
-      throw new Error("prepared_plan_attempt_index_race_conflict");
-    }
+  if (record.nonce < input.observed_pending_nonce) {
+    throw new Error("prepared_plan_reserved_nonce_below_observed_pending");
   }
-  return { record, recovered_index: true };
+  const created = publishAttemptIndex(paths, record);
+  return { record, recovered_index: created };
+}
+
+function success(
+  status: "reserved" | "duplicate",
+  reservation: BuyVoidPreparedTransactionPlanReservationV1,
+  mutationPerformed: boolean,
+  recoveredAttemptIndex: boolean,
+): Extract<BuyVoidPreparedTransactionPlanReservationDecisionV1, { ok: true }> {
+  return {
+    ok: true,
+    status,
+    duplicate: status === "duplicate",
+    recovered_attempt_index: recoveredAttemptIndex,
+    reservation,
+    mutation_performed: mutationPerformed,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    raw_signed_transaction_persisted: false,
+    money_movement_performed: false,
+  };
 }
 
 export function reserveBuyVoidPreparedTransactionPlanV1(
@@ -693,110 +823,65 @@ export function reserveBuyVoidPreparedTransactionPlanV1(
     const paths = pathsFor(normalized);
     initializePaths(paths);
     return withBuyVoidFilesystemBakeryLockV1(
-      nonceAllocationLockPath(paths),
+      paths.allocation_lock,
       () => {
         const recovered = recoverAttempt(paths, normalized);
-    if (recovered.record) {
-      return {
-        ok: true,
-        status: "duplicate",
-        duplicate: true,
-        recovered_attempt_index: recovered.recovered_index,
-        reservation: recovered.record,
-        mutation_performed: recovered.recovered_index,
-        signing_performed: false,
-        transaction_broadcast_performed: false,
-        raw_signed_transaction_persisted: false,
-        money_movement_performed: false,
-      };
-    }
+        if (recovered.record) {
+          return success(
+            "duplicate",
+            recovered.record,
+            recovered.recovered_index,
+            recovered.recovered_index,
+          );
+        }
 
-    const existing = listRecords(paths);
-    const highest = existing.reduce(
-      (maximum, record) => Math.max(maximum, record.nonce),
-      -1,
-    );
-    let candidate = Math.max(
-      normalized.observed_pending_nonce,
-      highest + 1,
-    );
-
-    for (let probe = 0; probe < MAX_NONCE_PROBES; probe += 1) {
-      if (!Number.isSafeInteger(candidate) || candidate < 0) {
-        return held("prepared_plan_nonce_space_exhausted");
-      }
-      const record = buildRecord(normalized, candidate);
-      const created = atomicCreateJson(nonceFile(paths, candidate), record);
-      if (created === "created") {
-        const indexCreated = atomicCreateJson(
-          attemptFile(paths, normalized.attempt_id),
-          indexFor(record),
+        const existing = listRecords(paths);
+        const highest = existing.reduce(
+          (maximum, record) => Math.max(maximum, record.nonce),
+          -1,
         );
-        if (indexCreated === "exists") {
-          const raced = readJsonObject(attemptFile(paths, normalized.attempt_id));
-          if (!raced) throw new Error("prepared_plan_attempt_index_unreadable");
-          const parsed = parseIndex(raced);
-          if (parsed.reservation_id !== record.reservation_id) {
-            throw new Error("prepared_plan_attempt_index_conflict_after_nonce_claim");
+        let candidate = Math.max(
+          normalized.observed_pending_nonce,
+          highest + 1,
+        );
+
+        for (let probe = 0; probe < MAX_NONCE_PROBES; probe += 1) {
+          if (!Number.isSafeInteger(candidate) || candidate < 0) {
+            throw new Error("prepared_plan_nonce_space_exhausted");
           }
-        }
-        return {
-          ok: true,
-          status: "reserved",
-          duplicate: false,
-          recovered_attempt_index: false,
-          reservation: record,
-          mutation_performed: true,
-          signing_performed: false,
-          transaction_broadcast_performed: false,
-          raw_signed_transaction_persisted: false,
-          money_movement_performed: false,
-        };
-      }
+          const record = buildRecord(normalized, candidate);
+          const created = atomicCreateJson(nonceFile(paths, candidate), record);
+          if (created === "created") {
+            publishAttemptIndex(paths, record);
+            return success("reserved", record, true, false);
+          }
 
-      const occupiedRaw = readJsonObject(nonceFile(paths, candidate));
-      if (!occupiedRaw) throw new Error("prepared_plan_occupied_nonce_unreadable");
-      const occupied = parseRecord(occupiedRaw);
-      if (occupied.attempt_id === normalized.attempt_id) {
-        assertCompatible(occupied, normalized);
-        const recoveredIndex = recoverAttempt(paths, normalized);
-        if (!recoveredIndex.record) {
-          throw new Error("prepared_plan_same_attempt_recovery_failed");
+          const occupiedRaw = readJsonObject(nonceFile(paths, candidate));
+          if (!occupiedRaw) {
+            throw new Error("prepared_plan_occupied_nonce_unreadable");
+          }
+          const occupied = parseRecord(occupiedRaw);
+          if (occupied.attempt_id === normalized.attempt_id) {
+            assertCompatible(occupied, normalized);
+            if (occupied.nonce < normalized.observed_pending_nonce) {
+              throw new Error(
+                "prepared_plan_reserved_nonce_below_observed_pending",
+              );
+            }
+            const recoveredSame = recoverAttempt(paths, normalized);
+            if (!recoveredSame.record) {
+              throw new Error("prepared_plan_same_attempt_recovery_failed");
+            }
+            return success(
+              "duplicate",
+              recoveredSame.record,
+              recoveredSame.recovered_index,
+              recoveredSame.recovered_index,
+            );
+          }
+          candidate += 1;
         }
-        return {
-          ok: true,
-          status: "duplicate",
-          duplicate: true,
-          recovered_attempt_index: recoveredIndex.recovered_index,
-          reservation: recoveredIndex.record,
-          mutation_performed: recoveredIndex.recovered_index,
-          signing_performed: false,
-          transaction_broadcast_performed: false,
-          raw_signed_transaction_persisted: false,
-          money_movement_performed: false,
-        };
-      }
-
-      const sameAttemptElsewhere = recoverAttempt(paths, normalized);
-      if (sameAttemptElsewhere.record) {
-        return {
-          ok: true,
-          status: "duplicate",
-          duplicate: true,
-          recovered_attempt_index: sameAttemptElsewhere.recovered_index,
-          reservation: sameAttemptElsewhere.record,
-          mutation_performed: sameAttemptElsewhere.recovered_index,
-          signing_performed: false,
-          transaction_broadcast_performed: false,
-          raw_signed_transaction_persisted: false,
-          money_movement_performed: false,
-        };
-      }
-      candidate += 1;
-    }
-        return held("prepared_plan_nonce_probe_cap_reached", {
-          max_nonce_probes: MAX_NONCE_PROBES,
-        });
+        throw new Error("prepared_plan_nonce_probe_cap_reached");
       },
     );
   } catch (error) {
@@ -813,7 +898,7 @@ export function listBuyVoidPreparedTransactionPlanReservationsV1(input: {
   const wallet = normalizeAddress(input?.wallet_address);
   if (!wallet) throw new Error("prepared_plan_wallet_address_invalid");
   const root = String(input?.root_dir || "").trim();
-  if (!root || !path.isAbsolute(root)) {
+  if (!root || !path.isAbsolute(root) || root.includes("\0")) {
     throw new Error("prepared_plan_root_must_be_absolute");
   }
   const normalized = normalizeInput({
@@ -831,8 +916,9 @@ export function listBuyVoidPreparedTransactionPlanReservationsV1(input: {
     economic_policy_fingerprint_sha256: "0".repeat(64),
     preparation_policy_fingerprint_sha256: "0".repeat(64),
   });
-  if ("reason" in normalized) throw new Error(normalized.reason);
+  if ("reason" in normalized) throw new Error(String(normalized.reason));
   const paths = pathsFor(normalized);
   if (!fs.existsSync(paths.nonces)) return [];
+  initializePaths(paths);
   return listRecords(paths);
 }
