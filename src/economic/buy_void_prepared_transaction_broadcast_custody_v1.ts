@@ -93,7 +93,6 @@ export type BuyVoidPreparedTransactionBroadcasterReadyV1 =
       submission_call_performed: false;
       submission_may_have_occurred: false;
       receipt: null;
-      reason?: never;
     }
   | {
       ok: true;
@@ -104,7 +103,6 @@ export type BuyVoidPreparedTransactionBroadcasterReadyV1 =
       submission_call_performed: true;
       submission_may_have_occurred: true;
       receipt: null;
-      reason?: never;
     }
   | {
       ok: true;
@@ -115,7 +113,6 @@ export type BuyVoidPreparedTransactionBroadcasterReadyV1 =
       submission_call_performed: true;
       submission_may_have_occurred: true;
       receipt: null;
-      reason?: never;
     }
   | {
       ok: true;
@@ -126,7 +123,6 @@ export type BuyVoidPreparedTransactionBroadcasterReadyV1 =
       submission_call_performed: true;
       submission_may_have_occurred: true;
       receipt: BuyVoidPreparedTransactionBroadcastReceiptV1;
-      reason?: never;
     };
 
 export type BuyVoidPreparedTransactionBroadcasterHeldV1 = {
@@ -172,8 +168,6 @@ export type BuyVoidPreparedTransactionBroadcastCustodyDecisionV1 =
       signed_payload_bytes_persisted: false;
       signed_payload_bytes_returned: false;
       money_movement_performed: false;
-      reason?: never;
-      detail?: never;
     }
   | {
       ok: true;
@@ -195,8 +189,6 @@ export type BuyVoidPreparedTransactionBroadcastCustodyDecisionV1 =
       signed_payload_bytes_persisted: false;
       signed_payload_bytes_returned: false;
       money_movement_performed: boolean;
-      reason?: never;
-      detail?: never;
     }
   | {
       ok: false;
@@ -464,7 +456,11 @@ function validateBroadcasterDecision(
     ) {
       throw new Error("broadcast_not_submitted_contract_invalid");
     }
-    return { ...decision, transaction_hash: transactionHash, provider_submission_id: providerSubmissionId };
+    return {
+      ...decision,
+      transaction_hash: transactionHash,
+      provider_submission_id: providerSubmissionId,
+    };
   }
   if (decision.status === "unknown") {
     if (
@@ -475,7 +471,11 @@ function validateBroadcasterDecision(
     ) {
       throw new Error("broadcast_unknown_contract_invalid");
     }
-    return { ...decision, transaction_hash: transactionHash, provider_submission_id: providerSubmissionId };
+    return {
+      ...decision,
+      transaction_hash: transactionHash,
+      provider_submission_id: providerSubmissionId,
+    };
   }
   if (decision.status === "accepted") {
     if (
@@ -486,7 +486,11 @@ function validateBroadcasterDecision(
     ) {
       throw new Error("broadcast_accepted_contract_invalid");
     }
-    return { ...decision, transaction_hash: transactionHash, provider_submission_id: providerSubmissionId };
+    return {
+      ...decision,
+      transaction_hash: transactionHash,
+      provider_submission_id: providerSubmissionId,
+    };
   }
   if (decision.status === "confirmed" || decision.status === "reverted") {
     if (
@@ -533,8 +537,7 @@ function ready(
     automatic_retry_allowed: false,
     signed_payload_bytes_persisted: false,
     signed_payload_bytes_returned: false,
-    money_movement_performed:
-      submissionPerformed && outcome.status !== "not_submitted",
+    money_movement_performed: submissionPerformed,
   };
 }
 
@@ -542,7 +545,9 @@ export async function submitBuyVoidPreparedTransactionFromCustodyV1(
   input: SubmitBuyVoidPreparedTransactionFromCustodyInputV1,
 ): Promise<BuyVoidPreparedTransactionBroadcastCustodyDecisionV1> {
   const normalized = normalize(input);
-  if ("reason" in normalized) return { ...normalized, applied: input?.apply === true };
+  if ("reason" in normalized) {
+    return { ...normalized, applied: input?.apply === true };
+  }
   const submissionKey =
     normalized.request.submission_idempotency_key_sha256;
   if (input?.apply !== true) {
