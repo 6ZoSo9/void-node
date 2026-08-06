@@ -359,10 +359,12 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
     });
   }
 
+  const artifactResult =
+    artifacts as TerminalCloseoutArtifactResultV1 | null;
   const recoveredPartial =
-    artifacts?.plan_state === "duplicate" ||
-    artifacts?.inventory_duplicate === true ||
-    artifacts?.public_recovered_partial === true;
+    artifactResult?.plan_state === "duplicate" ||
+    artifactResult?.inventory_duplicate === true ||
+    artifactResult?.public_recovered_partial === true;
   return {
     ok: true,
     status: recoveredPartial ? "recovered_partial" : "closed",
