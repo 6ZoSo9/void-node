@@ -23,15 +23,128 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Math.floor(value)));
 }
 
+function terminalSeedResponse(message) {
+  const error = new Error(message);
+  error.terminalSeedResponse = true;
+  return error;
+}
+
+function plainObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw terminalSeedResponse(`${label} must be an object`);
+  }
+  return value;
+}
+
+function positiveInteger(value, label) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    throw terminalSeedResponse(`${label} must be a positive integer`);
+  }
+  return number;
+}
+
+function parseJson(bytes, label) {
+  let value;
+  try {
+    value = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw terminalSeedResponse(`${label} is malformed JSON`);
+  }
+  return value;
+}
+
+function blockNumber(block) {
+  if (!block || typeof block !== "object" || Array.isArray(block)) return null;
+  const candidate = block.number ?? block.header?.number;
+  const number = Number(candidate);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function validateSeedResponse(route, bytes) {
+  const parsedRoute = new URL(route, "http://seed.invalid");
+  const value = parseJson(bytes, `seed ${parsedRoute.pathname} response`);
+
+  if (parsedRoute.pathname === "/__void/ready.json") {
+    const ready = plainObject(value, "seed readiness response");
+    if (
+      ready.ready !== true ||
+      Number(ready.gap) !== 0 ||
+      Number(ready.txroot_live) !== 1
+    ) {
+      throw terminalSeedResponse("seed readiness response is not exact-green");
+    }
+    positiveInteger(ready.head, "seed readiness head");
+    return;
+  }
+
+  if (parsedRoute.pathname === "/blocks/latest/number2.json") {
+    const head = plainObject(value, "seed latest-head response");
+    positiveInteger(head.number, "seed latest-head number");
+    return;
+  }
+
+  if (parsedRoute.pathname === "/head") {
+    const head = plainObject(value, "seed head response");
+    positiveInteger(head.head ?? head.number, "seed head");
+    return;
+  }
+
+  if (parsedRoute.pathname === "/__void/demo/summary.json") {
+    const summary = plainObject(value, "seed summary response");
+    const chain = plainObject(summary.chain, "seed summary chain");
+    positiveInteger(chain.head, "seed summary head");
+    return;
+  }
+
+  if (parsedRoute.pathname === "/api/health") {
+    const health = plainObject(value, "seed health response");
+    if (health.ok !== true) {
+      throw terminalSeedResponse("seed health response is not ok");
+    }
+    if (health.head !== undefined) positiveInteger(health.head, "seed health head");
+    return;
+  }
+
+  if (parsedRoute.pathname === "/blocks/range") {
+    const from = Number(parsedRoute.searchParams.get("from"));
+    const to = Number(parsedRoute.searchParams.get("to"));
+    if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < 0 || to < from) {
+      throw terminalSeedResponse("seed range request bounds are invalid");
+    }
+    const blocks = Array.isArray(value)
+      ? value
+      : Array.isArray(value?.blocks)
+        ? value.blocks
+        : null;
+    if (!blocks) {
+      throw terminalSeedResponse("seed block-range response must contain a blocks array");
+    }
+    const expectedLength = to - from + 1;
+    if (blocks.length !== expectedLength) {
+      throw terminalSeedResponse(
+        `seed block-range response length ${blocks.length} does not match ${expectedLength}`,
+      );
+    }
+    for (let index = 0; index < blocks.length; index += 1) {
+      const actual = blockNumber(blocks[index]);
+      const expected = from + index;
+      if (actual !== expected) {
+        throw terminalSeedResponse(
+          `seed block-range response is not contiguous at index ${index}: expected ${expected}, got ${String(actual)}`,
+        );
+      }
+    }
+    return;
+  }
+
+  throw terminalSeedResponse(`seed response route is unsupported: ${parsedRoute.pathname}`);
+}
+
 function requestPinnedAddress(
   target,
   address,
-  {
-    method,
-    timeoutMs,
-    maxBytes,
-    allowLoopbackFixture,
-  },
+  { method, timeoutMs, maxBytes, allowLoopbackFixture },
 ) {
   const family = net.isIP(address);
   if (!family) throw new Error(`seed address is invalid: ${address}`);
@@ -86,32 +199,32 @@ function requestPinnedAddress(
         const status = Number(response.statusCode || 0);
         if (status >= 300 && status < 400) {
           response.destroy();
-          fail(new Error(`seed request redirected with HTTP ${status}`));
+          fail(terminalSeedResponse(`seed request redirected with HTTP ${status}`));
           return;
         }
         if (status !== 200) {
           response.destroy();
-          fail(new Error(`seed request returned HTTP ${status}`));
+          fail(terminalSeedResponse(`seed request returned HTTP ${status}`));
           return;
         }
 
         const gateway = String(response.headers["x-void-public-seed-gateway"] || "").trim();
         if (gateway !== "v1") {
           response.destroy();
-          fail(new Error("seed response is missing x-void-public-seed-gateway: v1"));
+          fail(terminalSeedResponse("seed response is missing x-void-public-seed-gateway: v1"));
           return;
         }
         const contentType = String(response.headers["content-type"] || "").toLowerCase();
         if (!contentType.startsWith("application/json")) {
           response.destroy();
-          fail(new Error("seed response is not application/json"));
+          fail(terminalSeedResponse("seed response is not application/json"));
           return;
         }
 
         const advertised = Number(response.headers["content-length"] || 0);
         if (Number.isFinite(advertised) && advertised > maxBytes) {
           response.destroy();
-          fail(new Error("seed response advertised an oversized body"));
+          fail(terminalSeedResponse("seed response advertised an oversized body"));
           return;
         }
 
@@ -134,7 +247,7 @@ function requestPinnedAddress(
           total += chunk.length;
           if (total > maxBytes) {
             response.destroy();
-            fail(new Error("seed response exceeded the body limit"));
+            fail(terminalSeedResponse("seed response exceeded the body limit"));
             return;
           }
           chunks.push(chunk);
@@ -143,13 +256,15 @@ function requestPinnedAddress(
         response.on("error", fail);
         response.on("end", () => {
           if (settled) return;
+          const bytes = Buffer.concat(chunks, total);
+          try {
+            validateSeedResponse(`${target.pathname}${target.search}`, bytes);
+          } catch (error) {
+            fail(error);
+            return;
+          }
           settled = true;
-          resolve({
-            status,
-            contentType,
-            bytes: Buffer.concat(chunks, total),
-            remoteAddress: connected,
-          });
+          resolve({ status, contentType, bytes, remoteAddress: connected });
         });
       },
     );
@@ -198,6 +313,7 @@ export async function requestPublicSeedRouteV1(
       });
     } catch (error) {
       failures.push(`${address}: ${error?.message || String(error)}`);
+      if (error?.terminalSeedResponse === true) throw error;
     }
   }
   throw new Error(`seed request failed on every pinned address: ${failures.join(" | ")}`);

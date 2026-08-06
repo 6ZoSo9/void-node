@@ -9,6 +9,7 @@ on:
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
@@ -26,6 +27,7 @@ on:
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
@@ -68,6 +70,7 @@ jobs:
           node --check scripts/resolve_void_public_bootstrap_v1.mjs
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
           node --check scripts/lib/void_public_seed_client_transport_v1.mjs
           node --check tools/void-public-seed-client-adapter-v1.mjs
           node -e 'const m=require("./public/bootstrap/v1.json"); if(m.status!=="hold_no_stable_seed"||m.sync_endpoints.length!==0) process.exit(1)'
@@ -96,7 +99,9 @@ jobs:
         run: npm run build
 
       - name: Prove public bootstrap client resilience
-        run: npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+        run: |
+          npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+          npx --no-install tsx scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
 
       - name: Confirm compiled catch-up boundary
         run: |
