@@ -1,0 +1,65 @@
+name: VOID public seed stable ingress activation v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-public-seed-stable-ingress-activation-v1.yml'
+      - '.github/workflows/void-public-seed-live-qualification-v1.yml'
+      - '.github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml'
+      - 'docs/public/public-seed-stable-ingress-activation-v1.md'
+      - 'ops/public/install_void_public_seed_named_tunnel_packet_v1.sh'
+      - 'scripts/build_void_public_seed_named_tunnel_packet_v1.mjs'
+      - 'scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs'
+      - 'scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-stable-ingress-activation-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax-check activation packet source
+        run: |
+          node --check scripts/build_void_public_seed_named_tunnel_packet_v1.mjs
+          node --check scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs
+          node --check scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
+
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Syntax-check installer
+        run: bash -n ops/public/install_void_public_seed_named_tunnel_packet_v1.sh
+      - name: Prove stable-ingress activation packet boundary
+        run: node scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck repository
+        run: npm run typecheck
