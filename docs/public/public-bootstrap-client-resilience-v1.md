@@ -17,10 +17,21 @@ stable_seed_published=false
 
 The repository does not claim that an expired temporary tunnel, plaintext HTTP adapter, Tailnet address, or operator-only endpoint is a current public seed.
 
-A normal run may start the local node while the manifest is in hold state, but it prints:
+A normal run may start the local node while the manifest is in hold state, but it prints one of these truthful states:
 
 ```text
 public_bootstrap=hold_no_stable_seed
+canonical_manifest_published=true
+public_sync_active=false
+tailnet_required=false
+```
+
+or, before the canonical artifact first reaches `main`:
+
+```text
+public_bootstrap=local_hold_no_stable_seed
+canonical_manifest_published=false
+local_hold_manifest_verified=true
 public_sync_active=false
 tailnet_required=false
 ```
@@ -31,7 +42,27 @@ An acceptance or production-readiness run can require public synchronization:
 VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 ./run-void-node.sh
 ```
 
-That command fails closed while the canonical manifest remains in hold state.
+That command fails closed while the canonical manifest is missing or remains in hold state.
+
+## Prepublication hold fallback
+
+A stacked pull request can contain `public/bootstrap/v1.json` before the default raw-`main` URL exists. The launcher handles that narrow staging condition without turning general network failures into optional behavior.
+
+The local fallback is allowed only when all of these statements are true:
+
+- no custom manifest URL or mirror list was supplied;
+- the default canonical request returned an explicit HTTP `404`;
+- `VOID_PUBLIC_BOOTSTRAP_REQUIRE` is not `1`;
+- the checked-in local file exists as a regular non-symlink file;
+- its size is within the one-MiB manifest ceiling;
+- its `voidpbm1_<sha256>` content address is exact;
+- its network, chain, private-Tailnet, and authority boundaries are valid;
+- its status is exactly `hold_no_stable_seed`; and
+- its synchronization endpoint list is empty.
+
+The local mode rejects stable manifests even when they are otherwise well formed. It therefore cannot publish or activate a seed, bypass canonical HTTPS, or satisfy a required public-sync run. A custom URL failure, timeout, redirect, invalid response, tamper, or any non-404 canonical failure does not enter this path.
+
+Once the hold artifact exists on `main`, normal runs consume the canonical remote copy and the local prepublication path is no longer used.
 
 ## Client architecture
 
@@ -64,7 +95,7 @@ The node process does not receive a remote seed URL in the default public path. 
 - rejects credentials, query strings, fragments, local names, IP literals, and temporary tunnel hosts;
 - resolves DNS before connecting and pins each request to a prevalidated address;
 - verifies the actual connected address;
-- rejects redirects, non-JSON responses, non-200 responses, and manifests larger than one MiB;
+- treats redirects, non-200 statuses, non-JSON responses, and oversized responses as terminal origin failures instead of retrying the same invalid artifact across every address;
 - verifies the `voidpbm1_<sha256>` content address;
 - requires chain ID `2050`, network `VOID Network`, the private-Tailnet boundary, and every authority flag to be exactly false;
 - recognizes only `hold_no_stable_seed` and `stable_https_seed` states;
@@ -73,6 +104,8 @@ The node process does not receive a remote seed URL in the default public path. 
 - rejects qualification timestamps older than two hours;
 - live-probes each candidate through PR #1011's DNS-pinned gateway proof; and
 - returns only candidates that remain exact-green and have not fallen below their qualified head.
+
+The explicit `--local-hold-file` resolver mode exists for the constrained launcher fallback and tests. It accepts only a verified hold manifest and never returns a seed.
 
 A hold manifest returns no seed. A tampered, expired, stale, authority-bearing, private, temporary, redirected, or currently unhealthy manifest fails closed.
 
@@ -134,7 +167,7 @@ VOID_PUBLIC_BOOTSTRAP_MAX_LIVE_SEEDS=<1..8>
 VOID_PUBLIC_SEED_CLIENT_PORT=<0..65535>
 ```
 
-`VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` conflicts with explicit disable mode. Loopback fixture mode exists only for bounded tests and is not a stable-public-seed claim.
+`VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` conflicts with explicit disable mode and blocks local hold fallback. Supplying either manifest URL variable also blocks local fallback. `VOID_PUBLIC_BOOTSTRAP_OPTIONAL=1` remains an explicit operator choice for general manifest unavailability; it is not enabled by default. Loopback fixture mode exists only for bounded tests and is not a stable-public-seed claim.
 
 ## Ordinary-machine acceptance after stable publication
 
