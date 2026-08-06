@@ -137,7 +137,13 @@ try {
     () => validateTorNativeEndpoints([{ ...rawEndpoint, temporary: true }], now),
     /temporary=false/,
   );
-  console.log("[PASS] closed onion manifest endpoint contract");
+  assert.throws(
+    () => validateTorNativeEndpoints([
+      { ...rawEndpoint, qualified_at: new Date(now - 2 * 60 * 60 * 1000 - 1).toISOString() },
+    ], now),
+    /qualification is stale/,
+  );
+  console.log("[PASS] closed and freshness-bounded onion manifest endpoint contract");
 
   const port = await listen(fixture);
   const response = await requestOnionJson({ base: `http://${ONION}`, socksPort: port, timeoutMs: 3000 });
@@ -170,7 +176,15 @@ try {
     () => requestOnionJson({ base: `http://${ONION}`, path: "/__void/ready.json?leak=1", socksPort: 9050 }),
     /path is invalid/,
   );
-  console.log("[PASS] local-only Tor proxy and query-pollution boundary");
+  await expectReject(
+    () => requestOnionJson({
+      base: `http://${ONION}`,
+      path: "/__void/ready.json\r\nX-Injected: true",
+      socksPort: 9050,
+    }),
+    /path is invalid/,
+  );
+  console.log("[PASS] local-only Tor proxy and unsafe request-target boundary");
 
   console.log(`${MARKER}_GREEN`);
   console.log("dns_resolution_required=false");
@@ -179,6 +193,8 @@ try {
   console.log("cloud_provider_required=false");
   console.log("socks_proxy_loopback_only=true");
   console.log("gateway_identity_required=true");
+  console.log("qualification_freshness_required=true");
+  console.log("unsafe_request_target_rejected=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
   for (const server of [fixture, badIdentity, malformedJson]) {
