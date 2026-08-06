@@ -61,8 +61,6 @@ export type BuyVoidSagaBroadcastReconciliationServerPolicyDecisionV1 =
       ok: true;
       status: "configured";
       policy: BuyVoidSagaBroadcastReconciliationServerPolicyV1;
-      reason?: never;
-      missing_envs?: never;
     }
   | {
       ok: false;
@@ -143,7 +141,7 @@ export function readBuyVoidSagaBroadcastReconciliationServerPolicyV1(
 ): BuyVoidSagaBroadcastReconciliationServerPolicyDecisionV1 {
   const economicDecision =
     readBuyVoidCrashConsistentSagaServerPolicyV1(env);
-  if ("reason" in economicDecision) {
+  if (economicDecision.ok !== true) {
     return held(
       `parent_economic_policy_held:${economicDecision.reason}`,
       economicDecision.missing_envs,
