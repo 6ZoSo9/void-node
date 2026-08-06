@@ -134,7 +134,7 @@ requireAll(
     "testAdministrativeUnbondReleasesKeyBeforeWithdrawalAndOldWithdrawalCannotDeleteNewClaim",
     "testCandidateExitFinalizationReleasesKeyWithoutWithdrawal",
     "testActiveExitFinalizationReleasesKeyAfterRemovalConfirmation",
-    "testFailedOldWithdrawalPreservesNewOwnerClaimAndOldStake",
+    "testRevertedOldWithdrawalPreservesNewOwnerClaimAndOldStake",
     "reg.consensusKeyOwner(sharedKey), bob",
     "StakeTransferFailed.selector",
   ],
