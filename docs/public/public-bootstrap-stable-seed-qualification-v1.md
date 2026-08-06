@@ -12,7 +12,7 @@ The public seed architecture has three separate layers:
 2. `tools/void-public-seed-gateway-v1.mjs` binds only to loopback and proxies an exact read-only route allowlist to the loopback node.
 3. A separately configured stable HTTPS reverse proxy publishes only the loopback gateway.
 
-The gateway never supplies TLS, DNS, a tunnel, or public ingress itself. It refuses a non-loopback bind and a non-loopback upstream. Temporary tunnel hostnames are not stable-seed candidates.
+The gateway never supplies TLS, DNS, a tunnel, or public ingress itself. It requires numeric loopback literals for both bind and upstream, avoiding hostname-resolution ambiguity. Temporary tunnel hostnames are not stable-seed candidates.
 
 The gateway permits only `GET` and `HEAD` for:
 
@@ -25,7 +25,7 @@ The gateway permits only `GET` and `HEAD` for:
 /blocks/range?from=N&to=M
 ```
 
-The range is limited to at most 999 blocks. Query pollution, duplicate parameters, undocumented routes, mutation methods, non-JSON upstream responses, oversized responses, and unavailable upstreams fail closed.
+The range is limited to at most 999 blocks. Query pollution, duplicate parameters, undocumented routes, mutation methods, upstream redirects, non-JSON upstream responses, oversized responses, and unavailable upstreams fail closed.
 
 Private JSON-RPC, admin, wallet, signer, validator, treasury, Work Credit, Buy VOID, operator mutation, filesystem, and secret-bearing routes are not exposed.
 
@@ -90,7 +90,7 @@ A successful receipt is content-addressed as `voidpsq1_<sha256>` and explicitly 
 
 ## Build a candidate manifest
 
-The builder accepts only untampered receipts with at least three samples, at least a 60-second observation span, no head regression, and a latest sample no older than two hours. It rejects loopback fixtures, temporary providers, private or mixed DNS, connected addresses not bound to DNS evidence, stale receipts, duplicate endpoints, and any authority flag that is not exactly false.
+The builder accepts only untampered receipts with at least three samples, at least a 60-second observation span, no head regression, and a latest sample no older than two hours. It rejects loopback fixtures, temporary providers, private or mixed DNS, connected addresses not bound to DNS evidence, future-generated or stale receipts, duplicate endpoints, and any authority flag that is not exactly false.
 
 ```bash
 node scripts/build_void_public_bootstrap_manifest_v1.mjs \
