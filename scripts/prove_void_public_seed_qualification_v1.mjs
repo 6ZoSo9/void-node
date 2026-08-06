@@ -75,7 +75,11 @@ async function jsonResponse(url, options) {
   const response = await fetch(url, options);
   const text = await response.text();
   let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch {}
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (error) {
+    json = null;
+  }
   return { response, text, json };
 }
 
