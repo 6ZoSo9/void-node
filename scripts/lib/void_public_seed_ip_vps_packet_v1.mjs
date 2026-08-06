@@ -561,6 +561,15 @@ export function verifyPacket(packetDir) {
     throw new Error("packet file set mismatch");
   }
 
+  const expectedDirectoryNames = ["packet.json", ...requiredNames].sort();
+  const actualDirectoryNames = fs.readdirSync(root).sort();
+  if (
+    canonicalJson(actualDirectoryNames) !==
+    canonicalJson(expectedDirectoryNames)
+  ) {
+    throw new Error("packet directory file set mismatch");
+  }
+
   const combined = [...contents.values()].join("\n");
   for (const forbidden of [
     "voidchain.io",

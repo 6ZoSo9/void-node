@@ -68,6 +68,22 @@ assert.deepEqual(verified.forbidden_public_tcp_ports, [4100, 4111]);
 run(process.execPath, [verifier, output]);
 console.log("[PASS] exact public-IP VPS packet builds and verifies");
 
+const extraFile = path.join(output, "unrecorded-extra.txt");
+fs.writeFileSync(extraFile, "unrecorded packet material\n", { mode: 0o600 });
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.unlinkSync(extraFile);
+
+const extraDirectory = path.join(output, "unrecorded-extra-directory");
+fs.mkdirSync(extraDirectory, { mode: 0o700 });
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.rmdirSync(extraDirectory);
+
+const extraSymlink = path.join(output, "unrecorded-extra-symlink");
+fs.symlinkSync("packet.json", extraSymlink);
+assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+fs.unlinkSync(extraSymlink);
+console.log("[PASS] unrecorded file, directory, and symlink are rejected");
+
 for (const privateIp of [
   "0.0.0.1",
   "10.0.0.1",
@@ -144,6 +160,8 @@ console.log("[PASS] tampered packet file is rejected");
 
 console.log(`${MARKER}_GREEN`);
 console.log("new_source_files=6");
+console.log("packet_directory_exact_set_enforced=true");
+console.log("unrecorded_packet_entries_accepted=false");
 console.log("domain_required=false");
 console.log("tailscale_required=false");
 console.log("public_https_port=443");
