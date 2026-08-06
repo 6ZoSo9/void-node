@@ -120,6 +120,37 @@ export function inspectExactSource(repoRoot, expectedHead) {
   });
 }
 
+export function normalizeContinuityOrigin(value) {
+  const raw = String(value || "").trim();
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("continuity origin must be one valid numeric-loopback HTTP origin");
+  }
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const port = Number(parsed.port);
+  if (
+    parsed.protocol !== "http:" ||
+    !["127.0.0.1", "::1"].includes(hostname) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.pathname !== "/" && parsed.pathname !== "") ||
+    !parsed.port ||
+    !Number.isSafeInteger(port) ||
+    port < 1024 ||
+    port > 65535 ||
+    [4100, 4111, 4700].includes(port)
+  ) {
+    throw new Error(
+      "continuity origin must be credential-free numeric-loopback HTTP on a dedicated high port",
+    );
+  }
+  return parsed.origin;
+}
+
 function renderNodeEnv(input) {
   return [
     `DATA_DIR=${input.data_dir}`,
@@ -133,6 +164,12 @@ function renderNodeEnv(input) {
     `P2P_ADVERTISE_HOST=${input.public_ip}`,
     `VOID_P2P_ADVERTISE_HOST=${input.public_ip}`,
     "BOOTSTRAP_ADDRS=",
+    `VOID_FOLLOWER_AUTOSTART_PEERS=${input.continuity_origin}`,
+    "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE=1",
+    "VOID_FOLLOWER_AUTOSTART_INTERVAL_MS=1000",
+    "VOID_FOLLOWER_CATCHUP_INTERVAL_MS=250",
+    "VOID_FOLLOWER_CATCHUP_PULL_LIMIT=999",
+    "VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS=30000",
     `NODE_PRIVKEY_PATH=${input.node_identity_path}`,
     "VOID_PUBLIC_BOOTSTRAP_DISABLE=1",
     "",
@@ -307,6 +344,13 @@ Prerequisites:
 - Certbot 5.4 or newer
 - a verified non-wallet VOID node identity generated on the VPS
 - an exact validated chain snapshot imported to ${input.data_dir}
+- an operator-provided canonical continuity service bound only to ${input.continuity_origin}
+
+The continuity service must expose one reviewed canonical restricted-gateway
+origin through numeric loopback HTTP. It may be implemented by a separately
+reviewed reverse transport or local adapter. This packet does not create,
+install, authenticate, or start that transport and contains no transport
+credential.
 
 Required source and data preparation:
 1. Create service user ${input.service_user}.
@@ -315,6 +359,9 @@ Required source and data preparation:
 4. Import a validated chain snapshot to ${input.data_dir}.
 5. Do not import wallet, signer, validator, treasury, Work Credit, Buy VOID,
    payment, or operator authority material.
+6. Establish and prove ${input.continuity_origin} before starting the node.
+7. Hold qualification and manifest publication unless repeated bounded pulls
+   prove a non-regressing live head after snapshot import.
 
 Generated installation targets:
 - void-public-seed-node-v1.env -> /etc/void/public-seed-node-v1.env (0600)
@@ -396,6 +443,15 @@ function createPacketBody(input, records) {
       wallet_material_allowed: false,
       authority_material_allowed: false,
     },
+    continuity: {
+      mode: "loopback_http_pull",
+      origin: input.continuity_origin,
+      public_listener: false,
+      follower_autostart_required: true,
+      upstream_service_in_packet: false,
+      credentials_embedded: false,
+      publication_requires_live_progress: true,
+    },
     files: records,
     authority: {
       private_mutation_routes_exposed: false,
@@ -447,6 +503,7 @@ export function buildPacket({
   nodeIdentityPath = "/var/lib/void-node/.nodekey",
   acmeWebroot = "/var/lib/void-public-seed/acme",
   nodePath = "/usr/bin/node",
+  continuityOrigin = "http://127.0.0.1:4199",
 }) {
   const source = inspectExactSource(repoRoot, expectedHead);
   const public_ip = normalizePublicIpv4(publicIp);
@@ -467,6 +524,7 @@ export function buildPacket({
     node_identity_path: requireAbsolutePath(nodeIdentityPath, "node identity path"),
     acme_webroot: requireAbsolutePath(acmeWebroot, "ACME webroot"),
     node_path: requireAbsolutePath(nodePath, "Node.js path"),
+    continuity_origin: normalizeContinuityOrigin(continuityOrigin),
   };
   input.data_parent = path.dirname(input.data_dir);
 
@@ -532,6 +590,7 @@ export function verifyPacket(packetDir) {
     "forbidden_public_tcp_ports",
     "certbot",
     "snapshot",
+    "continuity",
     "files",
     "authority",
     "activation",
@@ -570,6 +629,7 @@ export function verifyPacket(packetDir) {
     node_identity_path: requireAbsolutePath(packet.node_identity_path, "node identity path"),
     acme_webroot: requireAbsolutePath(packet.acme_webroot, "ACME webroot"),
     node_path: requireAbsolutePath(packet.node_path, "Node.js path"),
+    continuity_origin: normalizeContinuityOrigin(packet.continuity?.origin),
   };
   metadataInput.data_parent = path.dirname(metadataInput.data_dir);
 
@@ -600,6 +660,19 @@ export function verifyPacket(packetDir) {
   };
   if (canonicalJson(packet.snapshot) !== canonicalJson(expectedSnapshot)) {
     throw new Error("packet snapshot contract mismatch");
+  }
+
+  const expectedContinuity = {
+    mode: "loopback_http_pull",
+    origin: metadataInput.continuity_origin,
+    public_listener: false,
+    follower_autostart_required: true,
+    upstream_service_in_packet: false,
+    credentials_embedded: false,
+    publication_requires_live_progress: true,
+  };
+  if (canonicalJson(packet.continuity) !== canonicalJson(expectedContinuity)) {
+    throw new Error("packet continuity contract mismatch");
   }
 
   const expectedAuthority = {
@@ -731,6 +804,12 @@ export function verifyPacket(packetDir) {
     "P2P_BIND_HOST=0.0.0.0",
     `P2P_ADVERTISE_HOST=${packet.public_ip}`,
     `PUBLIC_HTTP_BASE=https://${packet.public_ip}`,
+    `VOID_FOLLOWER_AUTOSTART_PEERS=${packet.continuity.origin}`,
+    "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE=1",
+    "VOID_FOLLOWER_AUTOSTART_INTERVAL_MS=1000",
+    "VOID_FOLLOWER_CATCHUP_INTERVAL_MS=250",
+    "VOID_FOLLOWER_CATCHUP_PULL_LIMIT=999",
+    "VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS=30000",
     "VOID_PUBLIC_BOOTSTRAP_DISABLE=1",
   ]) {
     if (!env.includes(marker)) throw new Error(`node environment marker missing: ${marker}`);
@@ -750,6 +829,8 @@ export function verifyPacket(packetDir) {
     "--preferred-profile shortlived",
     `--ip-address ${packet.public_ip}`,
     "Certbot 5.4 or newer",
+    `Establish and prove ${packet.continuity.origin} before starting the node`,
+    "Hold qualification and manifest publication unless repeated bounded pulls",
     "Never expose node HTTP 4100 or gateway HTTP 4111 publicly",
   ]) {
     if (!install.includes(marker)) throw new Error(`installation marker missing: ${marker}`);

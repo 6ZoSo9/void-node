@@ -68,8 +68,25 @@ assert.equal(verified.public_https, "https://1.1.1.1");
 assert.equal(verified.public_p2p, "1.1.1.1:4700");
 assert.deepEqual(verified.required_inbound_tcp_ports, [80, 443, 4700]);
 assert.deepEqual(verified.forbidden_public_tcp_ports, [4100, 4111]);
+assert.equal(verified.continuity.mode, "loopback_http_pull");
+assert.equal(verified.continuity.origin, "http://127.0.0.1:4199");
+assert.equal(verified.continuity.public_listener, false);
+assert.equal(verified.continuity.credentials_embedded, false);
+assert.equal(verified.continuity.publication_requires_live_progress, true);
+const generatedEnv = fs.readFileSync(
+  path.join(output, "void-public-seed-node-v1.env"),
+  "utf8",
+);
+for (const marker of [
+  "VOID_FOLLOWER_AUTOSTART_PEERS=http://127.0.0.1:4199",
+  "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE=1",
+  "VOID_FOLLOWER_CATCHUP_PULL_LIMIT=999",
+  "VOID_PUBLIC_BOOTSTRAP_DISABLE=1",
+]) {
+  assert.ok(generatedEnv.includes(marker), `continuity environment marker missing: ${marker}`);
+}
 run(process.execPath, [verifier, output]);
-console.log("[PASS] exact public-IP VPS packet builds and verifies");
+console.log("[PASS] exact public-IP VPS packet builds and verifies with live continuity");
 
 const extraFile = path.join(output, "unrecorded-extra.txt");
 fs.writeFileSync(extraFile, "unrecorded packet material\n", { mode: 0o600 });
@@ -156,7 +173,53 @@ expectPacketMutationRejected(
   },
   /top-level field set mismatch/,
 );
-console.log("[PASS] packet metadata schema and generated-content bindings fail closed");
+expectPacketMutationRejected(
+  (packet) => {
+    delete packet.continuity;
+  },
+  /top-level field set mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.continuity.follower_autostart_required = false;
+    packet.continuity.publication_requires_live_progress = false;
+  },
+  /continuity contract mismatch/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.continuity.origin = "http://127.0.0.1:4201";
+  },
+  /generated content mismatch/,
+);
+console.log("[PASS] packet metadata schema, continuity, and generated-content bindings fail closed");
+
+for (const continuityOrigin of [
+  "https://127.0.0.1:4199",
+  "http://localhost:4199",
+  "http://1.1.1.1:4199",
+  "http://user@127.0.0.1:4199",
+  "http://127.0.0.1:4100",
+  "http://127.0.0.1:4199/path",
+  "http://127.0.0.1:4199?query=1",
+]) {
+  expectFailure(
+    process.execPath,
+    [
+      builder,
+      "--public-ip", "1.1.1.1",
+      "--repo-root", repo,
+      "--expected-head", head,
+      "--continuity-origin", continuityOrigin,
+      "--output", path.join(
+        root,
+        `reject-continuity-${Buffer.from(continuityOrigin).toString("hex").slice(0, 32)}`,
+      ),
+    ],
+    /continuity origin/,
+  );
+}
+console.log("[PASS] non-loopback and ambiguous continuity origins fail closed");
 
 for (const privateIp of [
   "0.0.0.1",
@@ -246,6 +309,13 @@ console.log("public_https_port=443");
 console.log("public_p2p_port=4700");
 console.log("node_http_loopback_only=true");
 console.log("gateway_http_loopback_only=true");
+console.log("continuity_top_level_schema_exact=true");
+console.log("continuity_metadata_generated_content_bound=true");
+console.log("continuity_mode=loopback_http_pull");
+console.log("continuity_public_listener=false");
+console.log("continuity_credentials_embedded=false");
+console.log("snapshot_only_publication_allowed=false");
+console.log("bounded_follower_autostart_required=true");
 console.log("certbot_shortlived_profile_required=true");
 console.log("certificate_issued=false");
 console.log("manifest_published=false");

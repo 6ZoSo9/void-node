@@ -58,6 +58,23 @@ The snapshot may contain public chain and node synchronization state only. It
 must not contain wallet, signer, validator, treasury, Work Credit, Buy VOID,
 payment, credential, or operator-authority material.
 
+## Live continuity boundary
+
+A snapshot is only an initial state transfer. It does not make the VPS a durable
+seed. P2P block messages are announcements; canonical full blocks advance
+through validated HTTP pulls.
+
+The packet therefore requires one credential-free numeric-loopback HTTP
+continuity origin, defaulting to `http://127.0.0.1:4199`. A separately reviewed
+reverse transport or local adapter must map that loopback origin to one
+canonical restricted gateway. The generated node enables the existing bounded
+follower loop against only that numeric-loopback origin.
+
+The packet does not create the reverse transport, access its credentials, or
+open another public port. Qualification and manifest publication remain held
+until repeated pulls prove a non-regressing live head after the snapshot import.
+Proposer or validator placement on the VPS remains a separate authority review.
+
 ## Build
 
 Run only from a completely clean exact checkout:
@@ -67,6 +84,7 @@ node scripts/build_void_public_seed_ip_vps_packet_v1.mjs \
   --public-ip PUBLIC_VPS_IPV4 \
   --repo-root "$PWD" \
   --expected-head "$(git rev-parse HEAD)" \
+  --continuity-origin http://127.0.0.1:4199 \
   --output "$HOME/void-public-seed-ip-vps-packet"
 ```
 
@@ -90,6 +108,9 @@ Verification checks:
 - public P2P advertisement on TCP 4700;
 - nginx TLS proxying only to the restricted gateway;
 - short-lived IP-certificate issuance and renewal instructions;
+- exact numeric-loopback continuity origin and bounded follower-autostart settings;
+- snapshot-only publication rejection and live-progress requirement;
+- no public continuity port and no embedded transport credential;
 - no domain, Cloudflare Tunnel, Tailscale, or private address dependency;
 - no embedded private keys, mnemonic material, transaction methods, or
   economic authority; and
@@ -107,9 +128,11 @@ for each of these actions:
 5. opening firewall ports;
 6. issuing staging or production certificates;
 7. installing or starting services;
-8. running live qualification;
-9. publishing the canonical manifest; and
-10. asking an outside machine to complete the normal clone/run proof.
+8. establishing the separately reviewed loopback continuity transport;
+9. proving repeated non-regressing follower pulls;
+10. running live qualification;
+11. publishing the canonical manifest; and
+12. asking an outside machine to complete the normal clone/run proof.
 
 Issue #1005 remains open until the stable endpoint and outside-machine proof are
 exact-green.
