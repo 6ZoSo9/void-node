@@ -153,7 +153,10 @@ function buildPlan(input: {
     ...publicBase,
     public_event_fingerprint_sha256: terminalFingerprint(publicBase),
   };
-  const withoutFingerprint = {
+  const withoutFingerprint: Omit<
+    BuyVoidSagaTerminalCloseoutPlanV1,
+    "plan_fingerprint_sha256"
+  > = {
     schema: "void_buy_void_saga_terminal_closeout_plan_v1" as const,
     marker: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
     version: 1 as const,
