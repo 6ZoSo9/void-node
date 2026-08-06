@@ -24,21 +24,30 @@ function run(command, args, { cwd, expect = 0 } = {}) {
   }
   return { stdout: String(result.stdout || ""), stderr: String(result.stderr || "") };
 }
+
 function write(file, content, mode = 0o600) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, content, { encoding: "utf8", mode });
   fs.chmodSync(file, mode);
 }
+
 function buildArgs({ repo, head, credentials, cloudflared, output, hostname = "seed.example.org" }) {
   return [
     BUILDER,
-    "--hostname", hostname,
-    "--tunnel-id", "6ff42ae2-765d-4adf-8112-31c55c1551ef",
-    "--credentials-file", credentials,
-    "--repo-root", repo,
-    "--expected-head", head,
-    "--cloudflared", cloudflared,
-    "--output", output,
+    "--hostname",
+    hostname,
+    "--tunnel-id",
+    "6ff42ae2-765d-4adf-8112-31c55c1551ef",
+    "--credentials-file",
+    credentials,
+    "--repo-root",
+    repo,
+    "--expected-head",
+    head,
+    "--cloudflared",
+    cloudflared,
+    "--output",
+    output,
   ];
 }
 
@@ -52,7 +61,11 @@ const packet = path.join(temporary, "packet");
 try {
   fs.mkdirSync(repo, { recursive: true, mode: 0o700 });
   fs.mkdirSync(secrets, { recursive: true, mode: 0o700 });
-  write(path.join(repo, "tools", "void-public-seed-gateway-v1.mjs"), '#!/usr/bin/env node\nconsole.log("fixture gateway");\n', 0o700);
+  write(
+    path.join(repo, "tools", "void-public-seed-gateway-v1.mjs"),
+    '#!/usr/bin/env node\nconsole.log("fixture gateway");\n',
+    0o700,
+  );
   write(
     cloudflared,
     [
@@ -72,6 +85,7 @@ try {
     0o700,
   );
   write(credentials, '{"AccountTag":"fixture","TunnelSecret":"not-a-real-secret","TunnelID":"fixture"}\n', 0o600);
+
   run("git", ["init", "-q", repo]);
   run("git", ["-C", repo, "config", "user.email", "proof@example.invalid"]);
   run("git", ["-C", repo, "config", "user.name", "VOID Proof"]);
@@ -83,6 +97,7 @@ try {
   assert.match(built.stdout, /VOID_PUBLIC_SEED_NAMED_TUNNEL_PACKET_BUILDER_V1_GREEN/);
   assert.match(built.stdout, /credentials_read=false/);
   assert.match(built.stdout, /services_started=false/);
+
   const verified = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"]);
   assert.match(verified.stdout, /VOID_PUBLIC_SEED_NAMED_TUNNEL_PACKET_VERIFIER_V1_GREEN/);
   assert.match(verified.stdout, /token_in_process_arguments=false/);
@@ -103,14 +118,20 @@ try {
   const configPath = path.join(packet, "cloudflared-config.yml");
   const originalConfig = fs.readFileSync(configPath);
   fs.appendFileSync(configPath, "# tampered\n");
-  const tampered = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"], { expect: 1 });
+  const tampered = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"], {
+    expect: 1,
+  });
   assert.match(tampered.stderr, /(byte count|SHA-256) mismatch/);
   fs.writeFileSync(configPath, originalConfig);
   fs.chmodSync(configPath, 0o600);
   console.log("[PASS] tampered packet rejection");
 
   fs.chmodSync(credentials, 0o644);
-  const broadCredentials = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"], { expect: 1 });
+  const broadCredentials = run(
+    process.execPath,
+    [VERIFIER, "--packet", packet, "--skip-runtime-probe"],
+    { expect: 1 },
+  );
   assert.match(broadCredentials.stderr, /mode 0600/);
   fs.chmodSync(credentials, 0o600);
   console.log("[PASS] credential metadata boundary");
@@ -118,31 +139,110 @@ try {
   const originalCloudflared = fs.readFileSync(cloudflared);
   fs.appendFileSync(cloudflared, "# changed\n");
   fs.chmodSync(cloudflared, 0o700);
-  const changedBinary = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"], { expect: 1 });
+  const changedBinary = run(
+    process.execPath,
+    [VERIFIER, "--packet", packet, "--skip-runtime-probe"],
+    { expect: 1 },
+  );
   assert.match(changedBinary.stderr, /cloudflared executable SHA-256 mismatch/);
   fs.writeFileSync(cloudflared, originalCloudflared);
   fs.chmodSync(cloudflared, 0o700);
   console.log("[PASS] executable drift rejection");
 
   write(path.join(repo, "dirty.txt"), "dirty\n");
-  const dirtyRepo = run(process.execPath, [VERIFIER, "--packet", packet, "--skip-runtime-probe"], { expect: 1 });
+  const dirtyRepo = run(
+    process.execPath,
+    [VERIFIER, "--packet", packet, "--skip-runtime-probe"],
+    { expect: 1 },
+  );
   assert.match(dirtyRepo.stderr, /repository is not clean/);
   fs.rmSync(path.join(repo, "dirty.txt"));
   console.log("[PASS] exact clean source requirement");
 
+  const tempHostPacket = path.join(temporary, "temporary-host-packet");
   const temporaryHost = run(
     process.execPath,
-    buildArgs({ repo, head, credentials, cloudflared, output: path.join(temporary, "temporary-host-packet"), hostname: "bad.trycloudflare.com" }),
+    buildArgs({
+      repo,
+      head,
+      credentials,
+      cloudflared,
+      output: tempHostPacket,
+      hostname: "bad.trycloudflare.com",
+    }),
     { expect: 1 },
   );
   assert.match(temporaryHost.stderr, /temporary/);
   console.log("[PASS] temporary provider hostname rejection");
 
-  const qualificationWorkflow = fs.readFileSync(path.join(ROOT, ".github/workflows/void-public-seed-live-qualification-v1.yml"), "utf8");
-  const acceptanceWorkflow = fs.readFileSync(path.join(ROOT, ".github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml"), "utf8");
-  const ciWorkflow = fs.readFileSync(path.join(ROOT, ".github/workflows/void-public-seed-stable-ingress-activation-v1.yml"), "utf8");
-  const documentation = fs.readFileSync(path.join(ROOT, "docs/public/public-seed-stable-ingress-activation-v1.md"), "utf8");
-  for (const [name, workflow] of [["qualification", qualificationWorkflow], ["acceptance", acceptanceWorkflow]]) {
+  const repositoryCredentials = path.join(repo, "ignored-credentials.json");
+  write(repositoryCredentials, '{"fixture":true}\n', 0o600);
+  write(path.join(repo, ".gitignore"), "ignored-credentials.json\npacket-inside\n", 0o600);
+  run("git", ["-C", repo, "add", ".gitignore"]);
+  run("git", ["-C", repo, "commit", "-qm", "ignore fixture paths"]);
+  const containmentHead = run("git", ["-C", repo, "rev-parse", "HEAD"]).stdout.trim();
+  const insideCredentials = run(
+    process.execPath,
+    buildArgs({
+      repo,
+      head: containmentHead,
+      credentials: repositoryCredentials,
+      cloudflared,
+      output: path.join(temporary, "inside-credentials-packet"),
+    }),
+    { expect: 1 },
+  );
+  assert.match(insideCredentials.stderr, /credentials file must remain outside the repository/);
+  const insideOutput = run(
+    process.execPath,
+    buildArgs({
+      repo,
+      head: containmentHead,
+      credentials,
+      cloudflared,
+      output: path.join(repo, "packet-inside"),
+    }),
+    { expect: 1 },
+  );
+  assert.match(insideOutput.stderr, /output directory must remain outside the repository/);
+  console.log("[PASS] repository credential and packet containment");
+
+  const wrongCredentialsName = path.join(secrets, "wrong-name.json");
+  write(wrongCredentialsName, '{"fixture":true}\n', 0o600);
+  const wrongName = run(
+    process.execPath,
+    buildArgs({
+      repo,
+      head: containmentHead,
+      credentials: wrongCredentialsName,
+      cloudflared,
+      output: path.join(temporary, "wrong-name-packet"),
+    }),
+    { expect: 1 },
+  );
+  assert.match(wrongName.stderr, /credentials filename must match the tunnel ID/);
+  console.log("[PASS] tunnel credentials filename binding");
+
+  const qualificationWorkflow = fs.readFileSync(
+    path.join(ROOT, ".github/workflows/void-public-seed-live-qualification-v1.yml"),
+    "utf8",
+  );
+  const acceptanceWorkflow = fs.readFileSync(
+    path.join(ROOT, ".github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml"),
+    "utf8",
+  );
+  const ciWorkflow = fs.readFileSync(
+    path.join(ROOT, ".github/workflows/void-public-seed-stable-ingress-activation-v1.yml"),
+    "utf8",
+  );
+  const documentation = fs.readFileSync(
+    path.join(ROOT, "docs/public/public-seed-stable-ingress-activation-v1.md"),
+    "utf8",
+  );
+  for (const [name, workflow] of [
+    ["qualification", qualificationWorkflow],
+    ["acceptance", acceptanceWorkflow],
+  ]) {
     assert.match(workflow, /workflow_dispatch:/, `${name} workflow is not manual-only`);
     assert.doesNotMatch(workflow, /\n\s*pull_request:/, `${name} workflow runs automatically`);
     assert.doesNotMatch(workflow, /secrets\./, `${name} workflow accesses repository secrets`);
@@ -173,6 +273,7 @@ try {
     assert.doesNotMatch(source, /\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/);
   }
   console.log("[PASS] terminal empty-catch boundary");
+
   console.log(`${MARKER}_GREEN`);
   console.log("stable_seed_published=false");
   console.log("credentials_read=false");
