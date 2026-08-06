@@ -139,7 +139,7 @@ contract VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1Test is
         assertEq(reg.getCandidate(alice).stakeAmount, MIN_STAKE);
     }
 
-    function testFailedOldWithdrawalPreservesNewOwnerClaimAndOldStake()
+    function testRevertedOldWithdrawalPreservesNewOwnerClaimAndOldStake()
         public
     {
         bytes32 sharedKey = keccak256("failed-withdrawal-shared-key");
