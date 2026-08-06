@@ -224,6 +224,14 @@ try {
 
   const range999 = await fetch(`${adapter.base}/blocks/range?from=1&to=999`);
   assert(range999.status === 200, "adapter rejected a 999-block range");
+  await range999.arrayBuffer();
+  const range999Retry = await fetch(`${adapter.base}/blocks/range?from=1&to=999`);
+  assert(range999Retry.status === 200, "adapter rejected an immediate range retry");
+  await range999Retry.arrayBuffer();
+  const statusAfterRange = await (
+    await fetch(`${adapter.base}/__void/public-seed-client-v1.json`)
+  ).json();
+  assert(statusAfterRange.range_cache_hits === 1, "adapter did not absorb the duplicate range retry");
   const range1000 = await fetch(`${adapter.base}/blocks/range?from=1&to=1000`);
   assert(range1000.status === 400, "adapter accepted a 1000-block range");
   const mutation = await fetch(`${adapter.base}/follower/start`, { method: "POST" });
