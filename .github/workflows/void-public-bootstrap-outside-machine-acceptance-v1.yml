@@ -1,0 +1,147 @@
+name: VOID public bootstrap outside-machine acceptance v1
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_url:
+        description: Published canonical HTTPS bootstrap manifest URL
+        required: true
+        type: string
+      expected_source_sha:
+        description: Exact 40-character merged source commit to execute
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-outside-machine-acceptance-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  outside-machine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.expected_source_sha }}
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Bind workflow to exact merged source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          git diff --quiet --ignore-submodules --
+          git diff --cached --quiet --ignore-submodules --
+
+      - name: Clone-run and synchronize through public bootstrap only
+        shell: bash
+        env:
+          VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: ${{ inputs.manifest_url }}
+          VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'
+          DATA_DIR: ${{ runner.temp }}/void-public-bootstrap-data
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test "${#VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL}" -le 2048
+          rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
+          mkdir -p outside-machine-evidence "$DATA_DIR"
+
+          LOG=outside-machine-evidence/node.log
+          READY=outside-machine-evidence/ready.json
+          READY_AFTER_GRACE=outside-machine-evidence/ready-after-grace.json
+          SOURCE=outside-machine-evidence/source.txt
+
+          ./run-void-node.sh run >"$LOG" 2>&1 &
+          PID=$!
+          cleanup() {
+            kill -TERM "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT INT TERM
+
+          GREEN=0
+          for _ in $(seq 1 2400); do
+            if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY"; then
+              if node - "$READY" <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (body.ready !== true) process.exit(1);
+          if (!Number.isSafeInteger(Number(body.head)) || Number(body.head) <= 0) process.exit(1);
+          if (Number(body.gap) !== 0 || Number(body.txroot_live) !== 1) process.exit(1);
+          NODE
+              then
+                GREEN=1
+                break
+              fi
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              cat "$LOG" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if test "$GREEN" != 1; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+
+          grep -F 'public_bootstrap=resolved_stable_https_seed' "$LOG"
+          grep -F 'public_sync_via_loopback_adapter=true' "$LOG"
+          grep -F 'tailnet_required=false' "$LOG"
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1_ACTIVE' "$LOG"
+          grep -F 'direct_remote_fetch_from_node=false' "$LOG"
+
+          sleep 30
+          kill -0 "$PID"
+          curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY_AFTER_GRACE"
+          node - "$READY_AFTER_GRACE" <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (body.ready !== true) throw new Error('readiness did not sustain');
+          if (!Number.isSafeInteger(Number(body.head)) || Number(body.head) <= 0) throw new Error('head is not positive');
+          if (Number(body.gap) !== 0 || Number(body.txroot_live) !== 1) throw new Error('exact-green synchronization did not sustain');
+          NODE
+
+          {
+            printf 'source_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'runner_os=%s\n' "$RUNNER_OS"
+            printf 'tailnet_required=false\n'
+            printf 'private_configuration_required=false\n'
+            printf 'wallet_authority=false\n'
+            printf 'signer_authority=false\n'
+            printf 'validator_authority=false\n'
+            printf 'treasury_authority=false\n'
+            printf 'work_credit_authority=false\n'
+            printf 'money_movement_authority=false\n'
+          } >"$SOURCE"
+          sha256sum "$LOG" "$READY" "$READY_AFTER_GRACE" "$SOURCE" \
+            > outside-machine-evidence/SHA256SUMS
+
+          echo 'VOID_PUBLIC_BOOTSTRAP_OUTSIDE_MACHINE_ACCEPTANCE_V1_GREEN'
+          echo 'tailnet_required=false'
+          echo 'private_configuration_required=false'
+          echo 'private_mutation_routes_exposed=false'
+          echo 'money_movement_authority=false'
+
+      - name: Upload sanitized outside-machine evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-public-bootstrap-outside-machine-acceptance-v1-${{ github.sha }}
+          path: outside-machine-evidence/
+          if-no-files-found: warn
+          retention-days: 14

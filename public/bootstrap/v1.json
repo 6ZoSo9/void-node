@@ -1,0 +1,21 @@
+{
+  "schema": "void_public_bootstrap_v1",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "status": "hold_no_stable_seed",
+  "generated_at": "2026-08-06T09:23:00.000Z",
+  "sync_endpoints": [],
+  "onion_endpoints": [],
+  "private_tailnet_endpoints_published": false,
+  "authority": {
+    "private_routes_exposed": false,
+    "wallet_authority": false,
+    "signer_authority": false,
+    "validator_authority": false,
+    "treasury_authority": false,
+    "work_credit_authority": false,
+    "money_movement_authority": false
+  },
+  "notes": "No stable public HTTPS seed is published. The launcher may start in explicit hold mode but must not claim public synchronization until a fresh qualified manifest replaces this file.",
+  "manifest_id": "voidpbm1_8f87e269d297ba3082a7abe79414a13eaf899a9797298cc37a90e08ccfb26034"
+}
