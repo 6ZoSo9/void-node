@@ -11,6 +11,7 @@ import { requestPublicSeedRouteV1 } from "../scripts/lib/void_public_seed_client
 const MARKER = "VOID_PUBLIC_SEED_CLIENT_ADAPTER_V1";
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+const RANGE_CACHE_TTL_MS = 2000;
 const FIXED_ROUTES = new Set([
   "/__void/ready.json",
   "/blocks/latest/number2.json",
@@ -35,6 +36,18 @@ function json(res, status, body, method = "GET") {
   res.setHeader("x-void-public-seed-client", "v1");
   if (method === "HEAD") res.end();
   else res.end(bytes);
+}
+
+function writeRemote(res, remote, method) {
+  res.statusCode = remote.status;
+  res.setHeader("content-type", remote.contentType);
+  res.setHeader("content-length", String(remote.bytes.length));
+  res.setHeader("cache-control", "no-store");
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("x-void-public-seed-client", "v1");
+  res.setHeader("x-void-public-seed-gateway", "v1");
+  if (method === "HEAD") res.end();
+  else res.end(remote.bytes);
 }
 
 function normalizePeers(raw, { allowLoopbackFixture = false } = {}) {
@@ -119,6 +132,8 @@ export async function createPublicSeedClientAdapterV1({
   let failoverCount = 0;
   let lastSuccessAt = null;
   let lastError = null;
+  let rangeCache = null;
+  let rangeCacheHits = 0;
 
   const server = http.createServer(async (req, res) => {
     const method = String(req.method || "GET").toUpperCase();
@@ -139,6 +154,8 @@ export async function createPublicSeedClientAdapterV1({
           active_peer_index: activeIndex,
           request_count: requestCount,
           failover_count: failoverCount,
+          range_cache_hits: rangeCacheHits,
+          range_cache_ttl_ms: RANGE_CACHE_TTL_MS,
           last_success_at: lastSuccessAt,
           last_error: lastError,
           loopback_only: true,
@@ -172,6 +189,19 @@ export async function createPublicSeedClientAdapterV1({
       return;
     }
 
+    const cacheableRange = method === "GET" && route.startsWith("/blocks/range?");
+    if (
+      cacheableRange &&
+      rangeCache &&
+      rangeCache.route === route &&
+      rangeCache.peerBase === peers[activeIndex].base &&
+      Date.now() - rangeCache.storedAt <= RANGE_CACHE_TTL_MS
+    ) {
+      rangeCacheHits += 1;
+      writeRemote(res, rangeCache.remote, method);
+      return;
+    }
+
     requestCount += 1;
     const failures = [];
     for (let offset = 0; offset < peers.length; offset += 1) {
@@ -188,15 +218,19 @@ export async function createPublicSeedClientAdapterV1({
         activeIndex = index;
         lastSuccessAt = new Date().toISOString();
         lastError = null;
-        res.statusCode = remote.status;
-        res.setHeader("content-type", remote.contentType);
-        res.setHeader("content-length", String(remote.bytes.length));
-        res.setHeader("cache-control", "no-store");
-        res.setHeader("x-content-type-options", "nosniff");
-        res.setHeader("x-void-public-seed-client", "v1");
-        res.setHeader("x-void-public-seed-gateway", "v1");
-        if (method === "HEAD") res.end();
-        else res.end(remote.bytes);
+        if (cacheableRange) {
+          rangeCache = {
+            route,
+            peerBase: peer.base,
+            storedAt: Date.now(),
+            remote: {
+              status: remote.status,
+              contentType: remote.contentType,
+              bytes: Buffer.from(remote.bytes),
+            },
+          };
+        }
+        writeRemote(res, remote, method);
         return;
       } catch (error) {
         const detail = `${peer.base}: ${error?.message || String(error)}`;
