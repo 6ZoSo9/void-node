@@ -8,6 +8,8 @@ on:
       - 'scripts/copy_void_runtime_js_v1.mjs'
       - 'scripts/prove_void_node_clone_and_run_v1.mjs'
       - 'scripts/prove_public_earn_validator_onboarding_v1.mjs'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
       - 'docs/public/clone-and-run-v1.md'
       - 'docs/public/run-a-node.md'
       - 'README.md'
