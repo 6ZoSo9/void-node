@@ -25,6 +25,13 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Math.floor(value)));
 }
 
+function requireInteger(value, label, minimum, maximum) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} must be an integer from ${minimum} through ${maximum}`);
+  }
+  return value;
+}
+
 function json(res, status, body, method = "GET") {
   const bytes = Buffer.from(`${JSON.stringify(body)}\n`);
   res.statusCode = status;
@@ -55,7 +62,9 @@ function normalizePeers(raw) {
     .map((value) => value.trim())
     .filter(Boolean);
   if (candidates.length === 0) throw new Error("no Tor public seed peers configured");
-  if (candidates.length > 8) throw new Error("at most eight Tor public seed peers are supported");
+  if (candidates.length > 8) {
+    throw new Error("at most eight Tor public seed peers are supported");
+  }
   const peers = [];
   for (const candidate of candidates) {
     const normalized = normalizeOnionBase(candidate);
@@ -68,7 +77,7 @@ function normalizePeers(raw) {
 function validatePublicRoute(requestUrl) {
   const parsed = new URL(requestUrl || "/", "http://127.0.0.1");
   if (FIXED_ROUTES.has(parsed.pathname)) {
-    if ([...parsed.searchParams.keys()].length !== 0) {
+    if (parsed.search !== "") {
       throw new Error("fixed route does not accept query parameters");
     }
     return parsed.pathname;
@@ -91,7 +100,12 @@ function validatePublicRoute(requestUrl) {
   }
   const from = Number(fromRaw);
   const to = Number(toRaw);
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) {
+  if (
+    !Number.isSafeInteger(from) ||
+    !Number.isSafeInteger(to) ||
+    from < 0 ||
+    to < from
+  ) {
     throw new Error("block range bounds are invalid");
   }
   if (to - from + 1 > COMPILED_MAX_RANGE) {
@@ -125,6 +139,16 @@ export async function createTorPublicSeedClientAdapterV1({
   if (!["127.0.0.1", "::1"].includes(String(socksHost))) {
     throw new Error("Tor SOCKS proxy must be numeric loopback");
   }
+  requireInteger(port, "Tor public seed client adapter port", 0, 65535);
+  requireInteger(socksPort, "Tor SOCKS port", 1024, 65535);
+  requireInteger(timeoutMs, "Tor public seed client timeout", 1_000, 60_000);
+  requireInteger(
+    maxBytes,
+    "Tor public seed client maximum response bytes",
+    64 * 1024,
+    COMPILED_MAX_RESPONSE_BYTES,
+  );
+
   const peers = normalizePeers(rawPeers);
   let activeIndex = 0;
   let requestCount = 0;
@@ -141,8 +165,29 @@ export async function createTorPublicSeedClientAdapterV1({
       return;
     }
 
-    const pathname = new URL(req.url || "/", "http://127.0.0.1").pathname;
-    if (pathname === "/__void/tor-public-seed-client-v1.json") {
+    let parsedRequest;
+    try {
+      parsedRequest = new URL(req.url || "/", "http://127.0.0.1");
+    } catch (error) {
+      void error;
+      json(res, 400, { ok: false, error: "invalid_request" }, method);
+      return;
+    }
+
+    if (parsedRequest.pathname === "/__void/tor-public-seed-client-v1.json") {
+      if (parsedRequest.search !== "") {
+        json(
+          res,
+          400,
+          {
+            ok: false,
+            error: "invalid_request",
+            detail: "adapter status route does not accept query parameters",
+          },
+          method,
+        );
+        return;
+      }
       json(res, 200, {
         schema: "void_tor_public_seed_client_adapter_v1",
         ok: true,
