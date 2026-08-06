@@ -45,7 +45,7 @@ The root has a closed exact schema:
 - content-derived `voidptr1_...` root ID; and
 - every private and economic authority flag set to `false`.
 
-Each key ID is derived from the SHA-256 digest of its canonical DER SPKI bytes. Duplicate IDs, malformed DER, non-Ed25519 keys, unknown fields, and mismatched IDs fail closed.
+Each key ID is derived from the SHA-256 digest of its canonical DER SPKI bytes. Parsed keys are exported again and must match the supplied DER byte-for-byte. Duplicate IDs, malformed or noncanonical DER, non-Ed25519 keys, unknown fields, and mismatched IDs fail closed.
 
 ## Signed manifest envelope
 
@@ -56,7 +56,11 @@ The envelope contains:
 - one raw `void_public_bootstrap_v1` manifest; and
 - one through eight unique signatures.
 
-The signature payload is domain separated and binds both the release-root ID and canonical manifest bytes. Every supplied signature must verify, and the configured unique-key threshold must be met. Root substitution, manifest substitution, duplicate signatures, unknown keys, malformed base64, and cross-root replay fail closed before Tor network access.
+The signature payload is domain separated and binds both the release-root ID and canonical manifest bytes. Every supplied signature must verify, and the configured unique-key threshold must be met.
+
+Signature acceptance also runs the complete Tor bootstrap manifest contract before network access: exact keys, network and chain binding, `stable_tor_seed`, zero clearnet endpoints, no Tailnet publication, all authority flags false, bounded timestamps, content-derived manifest ID, checksum-valid onion identities, and fresh qualifications. A correctly signed but malformed, expired, authority-bearing, or resealed unknown-field manifest is rejected.
+
+Root substitution, manifest substitution, duplicate signatures, unknown keys, malformed base64, forged prevalidated-root objects, and cross-root replay fail closed.
 
 ## Resolver
 
@@ -67,16 +71,18 @@ node scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs \
   --signed-manifest-file /absolute/path/to/signed-bootstrap-envelope.json
 ```
 
-Installed releases discover the embedded root under `bootstrap/` when present and otherwise use the source-tree `config/` location. An explicit `--release-root-file` remains available for deterministic review and testing.
+Installed releases discover the embedded root under `bootstrap/` when present and otherwise use the source-tree `config/` location. Runtime root replacement is rejected by default. An explicit `--release-root-file` is accepted only when both `--test-only-allow-release-root-override` and `VOID_TOR_BOOTSTRAP_TEST_ONLY=1` are present, so fixture roots cannot silently replace the embedded production root.
 
 The wrapper:
 
 1. rejects a manually supplied expected manifest ID;
-2. validates the embedded root and signed envelope before network access;
-3. derives the manifest ID from verified content;
-4. writes a private temporary manifest file;
-5. invokes the existing strict Tor resolver with the derived ID; and
-6. removes the temporary file.
+2. rejects release-root overrides unless the explicit double test-only gate is present;
+3. revalidates root content even when a caller supplies a previously validated-looking object;
+4. validates the embedded root, complete manifest contract, and signed envelope before network access;
+5. derives the manifest ID from verified content;
+6. writes a private temporary manifest file;
+7. invokes the existing strict Tor resolver with the derived ID; and
+8. removes the temporary file.
 
 ## Proof
 
@@ -90,7 +96,11 @@ The proof generates fixture-only Ed25519 keys in a temporary directory. Those ke
 - content-addressed root validation;
 - Ed25519 key-ID derivation;
 - threshold signature verification;
+- complete signed-manifest contract validation;
 - manual manifest-ID removal;
+- embedded-root override rejection outside the test-only gate;
+- forged prevalidated-root rejection;
+- canonical public-key DER enforcement;
 - root and manifest substitution rejection;
 - duplicate, unknown, and invalid signature rejection;
 - hold-root rejection;
@@ -111,6 +121,10 @@ production_release_root_status=hold_no_signing_keys
 manifest_substitution_rejected=true
 root_substitution_rejected=true
 signature_replay_across_roots_rejected=true
+strict_manifest_contract_verified=true
+embedded_release_root_override_rejected=true
+forged_prevalidated_root_rejected=true
+canonical_public_key_der_required=true
 dns_resolution_required=false
 domain_registrar_required=false
 certificate_authority_required=false

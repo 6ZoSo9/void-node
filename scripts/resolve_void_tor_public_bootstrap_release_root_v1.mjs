@@ -25,6 +25,7 @@ function parseArgs(argv) {
     releaseRootFile: process.env.VOID_TOR_BOOTSTRAP_RELEASE_ROOT_FILE || "",
     signedManifestFile: process.env.VOID_TOR_BOOTSTRAP_SIGNED_MANIFEST_FILE || "",
     verifyOnly: false,
+    testOnlyAllowReleaseRootOverride: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -36,10 +37,24 @@ function parseArgs(argv) {
     if (argument === "--release-root-file") values.releaseRootFile = next();
     else if (argument === "--signed-manifest-file") values.signedManifestFile = next();
     else if (argument === "--verify-only") values.verifyOnly = true;
-    else throw new Error(`unexpected argument ${argument}`);
+    else if (argument === "--test-only-allow-release-root-override") {
+      values.testOnlyAllowReleaseRootOverride = true;
+    } else throw new Error(`unexpected argument ${argument}`);
   }
   if (String(process.env.VOID_TOR_BOOTSTRAP_EXPECTED_MANIFEST_ID || "").trim()) {
     throw new Error("manual expected manifest ID must not be supplied in release-root mode");
+  }
+  if (values.releaseRootFile) {
+    if (
+      !values.testOnlyAllowReleaseRootOverride ||
+      process.env.VOID_TOR_BOOTSTRAP_TEST_ONLY !== "1"
+    ) {
+      throw new Error(
+        "release-root override is test-only and requires both the explicit flag and VOID_TOR_BOOTSTRAP_TEST_ONLY=1",
+      );
+    }
+  } else if (values.testOnlyAllowReleaseRootOverride) {
+    throw new Error("test-only release-root override flag requires an explicit root file");
   }
   if (!values.signedManifestFile) {
     throw new Error("signed Tor bootstrap manifest envelope is required");
@@ -74,6 +89,9 @@ async function main() {
   console.error(`signed_manifest=${signed.target}`);
   console.error(`manifest_id=${signed.manifestId}`);
   console.error(`valid_signature_count=${signed.validSignatureCount}`);
+  console.error(
+    `test_only_release_root_override=${args.testOnlyAllowReleaseRootOverride ? "true" : "false"}`,
+  );
   console.error("manual_manifest_id_required=false");
   console.error("dns_resolution_required=false");
   console.error("domain_registrar_required=false");

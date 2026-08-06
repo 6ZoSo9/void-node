@@ -221,12 +221,26 @@ try {
   assert.equal(validatedEnvelope.validSignatureCount, 1);
   console.log("[PASS] active embedded Ed25519 release-root contract");
 
-  const verifyOnly = await runAsync(process.execPath, [
+  const overrideRejected = await runAsync(process.execPath, [
     WRAPPER,
     "--release-root-file", rootFile,
     "--signed-manifest-file", envelopeFile,
     "--verify-only",
   ]);
+  assert.equal(overrideRejected.code, 1);
+  assert.match(overrideRejected.stderr, /release-root override is test-only/);
+  assert.equal(requested.length, 0);
+  console.log("[PASS] embedded release root cannot be replaced without the explicit test-only gate");
+
+  const verifyOnly = await runAsync(process.execPath, [
+    WRAPPER,
+    "--release-root-file", rootFile,
+    "--signed-manifest-file", envelopeFile,
+    "--test-only-allow-release-root-override",
+    "--verify-only",
+  ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
+  });
   assert.equal(verifyOnly.code, 0, verifyOnly.stderr);
   assert.equal(verifyOnly.signal, null);
   assert.equal(verifyOnly.stdout.trim(), manifest.manifest_id);
@@ -239,7 +253,9 @@ try {
     WRAPPER,
     "--release-root-file", rootFile,
     "--signed-manifest-file", envelopeFile,
+    "--test-only-allow-release-root-override",
   ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
     VOID_TOR_SOCKS_PORT: String(socksPort),
     VOID_TOR_BOOTSTRAP_TIMEOUT_MS: "3000",
   });
@@ -301,6 +317,91 @@ try {
     /keys mismatch/,
   );
 
+  const resealedUnknownManifest = structuredClone(manifest);
+  resealedUnknownManifest.unknown = true;
+  resealedUnknownManifest.manifest_id = contentId(
+    "voidpbm1_",
+    resealedUnknownManifest,
+    "manifest_id",
+  );
+  const resealedUnknownEnvelope = createEnvelope(
+    root,
+    resealedUnknownManifest,
+    [keyPair],
+  );
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(resealedUnknownEnvelope, validatedRoot),
+    /signed manifest keys mismatch/,
+  );
+
+  const expiredManifest = structuredClone(manifest);
+  expiredManifest.generated_at = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  expiredManifest.expires_at = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  expiredManifest.manifest_id = contentId(
+    "voidpbm1_",
+    expiredManifest,
+    "manifest_id",
+  );
+  const expiredEnvelope = createEnvelope(root, expiredManifest, [keyPair]);
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(expiredEnvelope, validatedRoot),
+    /signed manifest is expired/,
+  );
+
+  const authorityManifest = structuredClone(manifest);
+  authorityManifest.authority.wallet_authority = true;
+  authorityManifest.manifest_id = contentId(
+    "voidpbm1_",
+    authorityManifest,
+    "manifest_id",
+  );
+  const authorityEnvelope = createEnvelope(root, authorityManifest, [keyPair]);
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(authorityEnvelope, validatedRoot),
+    /wallet_authority must be false/,
+  );
+  console.log("[PASS] signature verification also enforces the complete Tor manifest contract");
+
+  const forgedEnvelope = createEnvelope(root, manifest, [secondPair]);
+  const secondDer = secondPair.publicKey.export({ type: "spki", format: "der" });
+  const forgedValidatedRoot = {
+    root,
+    keys: [{
+      key_id: torBootstrapReleaseKeyId(secondDer),
+      publicKey: secondPair.publicKey,
+    }],
+  };
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(forgedEnvelope, forgedValidatedRoot),
+    /unknown key/,
+  );
+
+  const originalDer = keyPair.publicKey.export({ type: "spki", format: "der" });
+  const nonCanonicalDer = Buffer.concat([originalDer, Buffer.from([0])]);
+  const nonCanonicalBody = {
+    schema: TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA,
+    network: TOR_BOOTSTRAP_NETWORK,
+    chain_id: TOR_BOOTSTRAP_CHAIN_ID,
+    status: "active",
+    signature_domain: TOR_BOOTSTRAP_SIGNATURE_DOMAIN,
+    threshold: 1,
+    keys: [{
+      key_id: torBootstrapReleaseKeyId(nonCanonicalDer),
+      algorithm: "ed25519",
+      public_key_spki_base64: nonCanonicalDer.toString("base64"),
+    }],
+    authority: { ...AUTHORITY },
+  };
+  const nonCanonicalRoot = {
+    ...nonCanonicalBody,
+    root_id: torBootstrapReleaseRootId(nonCanonicalBody),
+  };
+  assert.throws(
+    () => validateTorBootstrapReleaseRoot(nonCanonicalRoot, { allowHold: false }),
+    /invalid|canonical DER/,
+  );
+  console.log("[PASS] prevalidated-root forgery and noncanonical public-key encodings rejected");
+
   const substitutedRoot = createActiveRoot([secondPair], 1);
   assert.throws(
     () => validateTorBootstrapSignedManifest(
@@ -317,8 +418,11 @@ try {
     WRAPPER,
     "--release-root-file", symlinkRoot,
     "--signed-manifest-file", envelopeFile,
+    "--test-only-allow-release-root-override",
     "--verify-only",
-  ]);
+  ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
+  });
   assert.equal(symlinkResult.code, 1);
   assert.match(symlinkResult.stderr, /regular non-symlink/);
 
@@ -326,8 +430,10 @@ try {
     WRAPPER,
     "--release-root-file", rootFile,
     "--signed-manifest-file", envelopeFile,
+    "--test-only-allow-release-root-override",
     "--verify-only",
   ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
     VOID_TOR_BOOTSTRAP_EXPECTED_MANIFEST_ID: manifest.manifest_id,
   });
   assert.equal(manualResult.code, 1);
@@ -376,6 +482,10 @@ try {
   console.log("manifest_substitution_rejected=true");
   console.log("root_substitution_rejected=true");
   console.log("signature_replay_across_roots_rejected=true");
+  console.log("strict_manifest_contract_verified=true");
+  console.log("embedded_release_root_override_rejected=true");
+  console.log("forged_prevalidated_root_rejected=true");
+  console.log("canonical_public_key_der_required=true");
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
   console.log("certificate_authority_required=false");

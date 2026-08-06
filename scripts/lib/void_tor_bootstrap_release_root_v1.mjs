@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   canonicalJson,
   contentId,
+  validateTorNativeEndpoints,
 } from "./void_tor_native_bootstrap_transport_v1.mjs";
 
 export const TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA = "void_tor_bootstrap_release_root_v1";
@@ -49,6 +50,23 @@ const AUTHORITY_KEYS = Object.freeze([
   "work_credit_authority",
   "money_movement_authority",
 ]);
+const MANIFEST_KEYS = Object.freeze([
+  "schema",
+  "network",
+  "chain_id",
+  "status",
+  "generated_at",
+  "expires_at",
+  "sync_endpoints",
+  "onion_endpoints",
+  "private_tailnet_endpoints_published",
+  "authority",
+  "notes",
+  "manifest_id",
+]);
+const TOR_BOOTSTRAP_MANIFEST_SCHEMA = "void_public_bootstrap_v1";
+const MIN_MANIFEST_VALIDITY_MS = 60 * 60 * 1000;
+const MAX_MANIFEST_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -82,14 +100,86 @@ function canonicalBase64(raw, label, expectedBytes = null) {
   return bytes;
 }
 
-function validateAuthority(raw) {
-  const authority = exactKeys(raw, AUTHORITY_KEYS, "Tor bootstrap release-root authority");
+function validateFalseAuthority(raw, label) {
+  const authority = exactKeys(raw, AUTHORITY_KEYS, label);
   for (const key of AUTHORITY_KEYS) {
     if (authority[key] !== false) {
-      throw new Error(`Tor bootstrap release-root authority ${key} must be false`);
+      throw new Error(`${label} ${key} must be false`);
     }
   }
   return Object.freeze({ ...authority });
+}
+
+function validateAuthority(raw) {
+  return validateFalseAuthority(raw, "Tor bootstrap release-root authority");
+}
+
+export function validateTorBootstrapManifestContract(rawManifest, nowMs = Date.now()) {
+  if (!Number.isFinite(nowMs)) {
+    throw new Error("Tor bootstrap signed-manifest validation time is invalid");
+  }
+  const manifest = exactKeys(
+    structuredClone(rawManifest),
+    MANIFEST_KEYS,
+    "Tor bootstrap signed manifest",
+  );
+  if (
+    manifest.schema !== TOR_BOOTSTRAP_MANIFEST_SCHEMA ||
+    manifest.network !== TOR_BOOTSTRAP_NETWORK ||
+    manifest.chain_id !== TOR_BOOTSTRAP_CHAIN_ID
+  ) {
+    throw new Error("Tor bootstrap signed manifest network contract mismatch");
+  }
+  if (manifest.status !== "stable_tor_seed") {
+    throw new Error("Tor bootstrap signed manifest status must be stable_tor_seed");
+  }
+  if (manifest.private_tailnet_endpoints_published !== false) {
+    throw new Error("Tor bootstrap signed manifest violates the private-Tailnet boundary");
+  }
+  validateFalseAuthority(
+    manifest.authority,
+    "Tor bootstrap signed-manifest authority",
+  );
+  if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 0) {
+    throw new Error(
+      "Tor bootstrap signed manifest must not require clearnet synchronization endpoints",
+    );
+  }
+  if (typeof manifest.notes !== "string" || manifest.notes.length > 4096) {
+    throw new Error("Tor bootstrap signed manifest notes are invalid");
+  }
+
+  const generatedAt = Date.parse(String(manifest.generated_at));
+  const expiresAt = Date.parse(String(manifest.expires_at));
+  if (!Number.isFinite(generatedAt) || !Number.isFinite(expiresAt)) {
+    throw new Error("Tor bootstrap signed manifest timestamps are invalid");
+  }
+  if (generatedAt > nowMs + 5 * 60 * 1000) {
+    throw new Error("Tor bootstrap signed manifest is from the future");
+  }
+  if (expiresAt <= nowMs) {
+    throw new Error("Tor bootstrap signed manifest is expired");
+  }
+  const validity = expiresAt - generatedAt;
+  if (
+    validity < MIN_MANIFEST_VALIDITY_MS ||
+    validity > MAX_MANIFEST_VALIDITY_MS
+  ) {
+    throw new Error(
+      "Tor bootstrap signed manifest validity must be from one hour through seven days",
+    );
+  }
+
+  const manifestId = contentId("voidpbm1_", manifest, "manifest_id");
+  if (manifest.manifest_id !== manifestId) {
+    throw new Error("Tor bootstrap signed manifest ID does not match its content");
+  }
+  const endpoints = validateTorNativeEndpoints(manifest.onion_endpoints, nowMs);
+  return Object.freeze({
+    manifest: Object.freeze(structuredClone(manifest)),
+    manifestId,
+    endpoints,
+  });
 }
 
 export function torBootstrapReleaseKeyId(publicKeyDer) {
@@ -157,6 +247,10 @@ export function validateTorBootstrapReleaseRoot(rawRoot, { allowHold = true } = 
     if (publicKey.asymmetricKeyType !== "ed25519") {
       throw new Error("Tor bootstrap release public key is not Ed25519");
     }
+    const canonicalDer = publicKey.export({ type: "spki", format: "der" });
+    if (!Buffer.from(canonicalDer).equals(der)) {
+      throw new Error("Tor bootstrap release public key SPKI is not canonical DER");
+    }
     if (torBootstrapReleaseKeyId(der) !== key.key_id) {
       throw new Error("Tor bootstrap release key ID does not match its public key");
     }
@@ -187,14 +281,14 @@ export function validateTorBootstrapReleaseRoot(rawRoot, { allowHold = true } = 
   });
 }
 
-export function validateTorBootstrapSignedManifest(rawEnvelope, validatedRoot) {
-  const rootValidation = validatedRoot?.root
-    ? validatedRoot
-    : validateTorBootstrapReleaseRoot(validatedRoot, { allowHold: false });
+export function validateTorBootstrapSignedManifest(
+  rawEnvelope,
+  validatedRoot,
+  { nowMs = Date.now() } = {},
+) {
+  const rawRoot = validatedRoot?.root ? validatedRoot.root : validatedRoot;
+  const rootValidation = validateTorBootstrapReleaseRoot(rawRoot, { allowHold: false });
   const root = rootValidation.root;
-  if (root.status !== "active") {
-    throw new Error("Tor bootstrap release root is in hold state");
-  }
 
   const envelope = exactKeys(
     structuredClone(rawEnvelope),
@@ -207,11 +301,12 @@ export function validateTorBootstrapSignedManifest(rawEnvelope, validatedRoot) {
   if (envelope.root_id !== root.root_id) {
     throw new Error("Tor bootstrap signed manifest root ID mismatch");
   }
-  const manifest = plainObject(envelope.manifest, "Tor bootstrap signed manifest");
-  const manifestId = contentId("voidpbm1_", manifest, "manifest_id");
-  if (manifest.manifest_id !== manifestId) {
-    throw new Error("Tor bootstrap signed manifest ID does not match its content");
-  }
+  const manifestValidation = validateTorBootstrapManifestContract(
+    envelope.manifest,
+    nowMs,
+  );
+  const manifest = manifestValidation.manifest;
+  const manifestId = manifestValidation.manifestId;
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length < 1 || envelope.signatures.length > 8) {
     throw new Error("Tor bootstrap signed manifest signature set is invalid");
   }
