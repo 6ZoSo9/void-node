@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
-  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -53,6 +55,8 @@ const RESERVATION_ID = "7".repeat(64);
 const CLOSEOUT_ID = "8".repeat(64);
 const PROVIDER_SUBMISSION = "9".repeat(64);
 const ATTEMPT_ID = "buyvoid-hard-lane-attempt-v1";
+const LOCK_CLAIM_SCHEMA =
+  "void_buy_void_crash_consistent_fulfillment_saga_store_lock_claim_v2";
 
 function clone(value) {
   return structuredClone(value);
@@ -67,6 +71,91 @@ async function expectReject(action, pattern, label) {
   }
   assert.ok(caught, `${label}: expected rejection`);
   assert.match(String(caught?.message || caught), pattern, `${label}: wrong error`);
+}
+
+function waitForFiles(paths, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve, reject) => {
+    const poll = () => {
+      if (paths.every((path) => existsSync(path))) {
+        resolve();
+        return;
+      }
+      if (Date.now() >= deadline) {
+        reject(new Error("competing_reclaimer_ready_timeout"));
+        return;
+      }
+      setTimeout(poll, 5);
+    };
+    poll();
+  });
+}
+
+function spawnLeaseContender({
+  module_url,
+  store_root,
+  saga_id,
+  owner_id,
+  ready_path,
+  barrier_path,
+  result_path,
+}) {
+  let stderr = "";
+  const child = spawn(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `
+import { existsSync, writeFileSync } from "node:fs";
+const [moduleUrl, storeRoot, sagaId, ownerId, readyPath, barrierPath, resultPath] = process.argv.slice(1);
+const sleeper = new Int32Array(new SharedArrayBuffer(4));
+const { createFilesystemSagaStoreV1 } = await import(moduleUrl);
+writeFileSync(readyPath, "ready", { flag: "wx", mode: 0o600 });
+while (!existsSync(barrierPath)) Atomics.wait(sleeper, 0, 0, 5);
+let result;
+try {
+  result = createFilesystemSagaStoreV1(storeRoot).acquireLease({
+    saga_id: sagaId,
+    owner_id: ownerId,
+    now_ms: 10_200,
+    ttl_ms: 100,
+  });
+} catch (error) {
+  result = { threw: true, message: String(error?.message || error) };
+}
+writeFileSync(resultPath, JSON.stringify(result), { flag: "wx", mode: 0o600 });
+`,
+      module_url,
+      store_root,
+      saga_id,
+      owner_id,
+      ready_path,
+      barrier_path,
+      result_path,
+    ],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString("utf8");
+  });
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (code) => resolve({ code, stderr }));
+  });
+}
+
+function findDefinitelyDeadPid() {
+  for (let pid = 2_000_000; pid < 2_001_000; pid += 1) {
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if (error?.code === "ESRCH") return pid;
+      if (error?.code === "EPERM") continue;
+      throw error;
+    }
+  }
+  throw new Error("dead_pid_not_found_for_proof");
 }
 
 function adaptersFor(outcomes) {
@@ -238,7 +327,6 @@ try {
   assert.equal(record.state.next_action, null);
   assert.equal(canonicalJsonV1(record.authority), canonicalJsonV1(AUTHORITY));
   validateSagaRecordV1(record);
-
 
   const crashRoot = join(ROOT, "crash-window-store");
   mkdirSync(crashRoot, { mode: 0o700 });
@@ -448,21 +536,93 @@ try {
     now_ms: 10_103,
   });
 
+  const lockQueue = join(leaseRoot, "sagas", SAGA_ID, "lease.lock.queue");
+  const deadPid = findDefinitelyDeadPid();
+  const deadNonce = "d".repeat(32);
+  const deadCreatedAt = "2026-08-05T19:20:00.000Z";
+  writeFileSync(
+    join(lockQueue, `choosing-${deadPid}-${deadNonce}.json`),
+    `${JSON.stringify({
+      schema: LOCK_CLAIM_SCHEMA,
+      pid: deadPid,
+      nonce: deadNonce,
+      phase: "choosing",
+      ticket: null,
+      created_at_utc: deadCreatedAt,
+    })}\n`,
+    { mode: 0o600 },
+  );
+  writeFileSync(
+    join(lockQueue, `ticket-0000000000000001-${deadPid}-${deadNonce}.json`),
+    `${JSON.stringify({
+      schema: LOCK_CLAIM_SCHEMA,
+      pid: deadPid,
+      nonce: deadNonce,
+      phase: "ticket",
+      ticket: 1,
+      created_at_utc: deadCreatedAt,
+    })}\n`,
+    { mode: 0o600 },
+  );
 
-  const staleLeaseLock = join(leaseRoot, "sagas", SAGA_ID, "lease.lock");
-  writeFileSync(staleLeaseLock, "", { mode: 0o600 });
-  utimesSync(staleLeaseLock, new Date(0), new Date(0));
-  const leaseAfterStaleLock = leaseStore.acquireLease({
+  const contenderRoot = join(ROOT, "competing-reclaimers");
+  mkdirSync(contenderRoot, { mode: 0o700 });
+  const barrierPath = join(contenderRoot, "go");
+  const contenderA = {
+    ready: join(contenderRoot, "a.ready"),
+    result: join(contenderRoot, "a.json"),
+  };
+  const contenderB = {
+    ready: join(contenderRoot, "b.ready"),
+    result: join(contenderRoot, "b.json"),
+  };
+  const moduleUrl = new URL(
+    "../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+    import.meta.url,
+  ).href;
+  const runA = spawnLeaseContender({
+    module_url: moduleUrl,
+    store_root: leaseRoot,
     saga_id: SAGA_ID,
-    owner_id: "worker-c",
-    now_ms: 10_200,
-    ttl_ms: 100,
+    owner_id: "worker-reclaimer-a",
+    ready_path: contenderA.ready,
+    barrier_path: barrierPath,
+    result_path: contenderA.result,
   });
-  assert.equal(leaseAfterStaleLock.ok, true);
-  assert.equal(leaseAfterStaleLock.lease.fencing_token, 3);
+  const runB = spawnLeaseContender({
+    module_url: moduleUrl,
+    store_root: leaseRoot,
+    saga_id: SAGA_ID,
+    owner_id: "worker-reclaimer-b",
+    ready_path: contenderB.ready,
+    barrier_path: barrierPath,
+    result_path: contenderB.result,
+  });
+  await waitForFiles([contenderA.ready, contenderB.ready]);
+  writeFileSync(barrierPath, "go", { flag: "wx", mode: 0o600 });
+  const [exitA, exitB] = await Promise.all([runA, runB]);
+  assert.equal(exitA.code, 0, exitA.stderr);
+  assert.equal(exitB.code, 0, exitB.stderr);
+  const contenderResults = [contenderA.result, contenderB.result].map((path) =>
+    JSON.parse(readFileSync(path, "utf8")),
+  );
+  const winners = contenderResults.filter((result) => result.ok === true);
+  const held = contenderResults.filter(
+    (result) => result.ok === false && result.reason === "lease_held_by_another_owner",
+  );
+  assert.equal(winners.length, 1, JSON.stringify(contenderResults));
+  assert.equal(held.length, 1, JSON.stringify(contenderResults));
+  assert.equal(winners[0].lease.fencing_token, 3);
+  const winningOwner = winners[0].lease.owner_id;
+  const persistedRaceLease = JSON.parse(
+    readFileSync(join(leaseRoot, "sagas", SAGA_ID, "lease.json"), "utf8"),
+  );
+  assert.equal(persistedRaceLease.owner_id, winningOwner);
+  assert.equal(persistedRaceLease.fencing_token, 3);
+  assert.equal(readdirSync(lockQueue).length, 0);
   leaseStore.releaseLease({
     saga_id: SAGA_ID,
-    owner_id: "worker-c",
+    owner_id: winningOwner,
     fencing_token: 3,
     now_ms: 10_201,
   });
@@ -585,8 +745,7 @@ try {
     "npm ci --ignore-scripts --no-audit --no-fund",
     "prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
     "npm run typecheck",
-    `permissions:
-  contents: read`,
+    `permissions:\n  contents: read`,
   ]) {
     assert.equal(workflow.includes(required), true, `workflow missing ${required}`);
   }
@@ -605,6 +764,8 @@ try {
     "eth_sendRawTransaction",
     "signTransaction(",
     "process.env",
+    "sameLockFile",
+    "store_lock_reclaim_race",
   ]) {
     assert.equal(source.includes(forbidden), false, `source contains forbidden ${forbidden}`);
   }
@@ -618,6 +779,10 @@ try {
     "reconcile_possible_broadcast",
     "event_temporary_entry_must_be_direct_file",
     "LOCK_STALE_MS",
+    "LOCK_CLAIM_SCHEMA",
+    "LOCK_CHOOSING_FILE",
+    "LOCK_TICKET_FILE",
+    "store_lock_wait_timeout",
     "no_automatic_rebroadcast_after_possible_broadcast",
     "append_lease_not_current",
   ]) {
@@ -636,6 +801,8 @@ try {
     write_ahead_broadcast_intent_verified: true,
     crash_after_external_effect_rebroadcast_forbidden: true,
     stale_lock_recovery_verified: true,
+    competing_stale_lock_reclaimers_serialized: true,
+    competing_reclaimers_single_lease_mutation: true,
     temporary_symlink_rejected: true,
     broadcast_unknown_rebroadcast_forbidden: true,
     receipt_required_before_closeout: true,
