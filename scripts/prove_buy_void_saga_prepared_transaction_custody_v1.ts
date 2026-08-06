@@ -388,7 +388,9 @@ async function main(): Promise<void> {
     now_ms: Date.parse("2026-08-06T10:10:01.000Z"),
   });
   assert.equal(attemptDecision.ok, true);
-  if ("reason" in attemptDecision) throw new Error(attemptDecision.reason);
+  if ("reason" in attemptDecision) {
+    throw new Error(String(attemptDecision.reason));
+  }
   const attemptId = attemptDecision.attempt.reservation.attempt_id;
   const initialized = await initializeSaga({
     root,
