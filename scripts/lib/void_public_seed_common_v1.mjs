@@ -109,34 +109,48 @@ export function normalizePublicSeedBase(
   }
 
   const hostname = normalizeHostname(url.hostname);
+  const ipFamily = net.isIP(hostname);
   const loopbackFixture =
     allowLoopbackFixture &&
     url.protocol === "http:" &&
     ["127.0.0.1", "localhost", "::1"].includes(hostname);
+  const addressSource = loopbackFixture
+    ? "loopback_fixture"
+    : ipFamily
+      ? "ip_literal"
+      : "dns";
 
   if (!loopbackFixture && url.protocol !== "https:") {
     throw new Error("stable public seed must use HTTPS");
   }
   if (!loopbackFixture) {
-    if (net.isIP(hostname)) throw new Error("stable public seed must use a DNS hostname");
-    if (!hostname.includes(".")) throw new Error("stable public seed hostname must be fully qualified");
-    if (
-      hostname === "localhost" ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal") ||
-      hostname.endsWith(".home") ||
-      hostname.endsWith(".lan")
-    ) {
-      throw new Error("stable public seed hostname is private or local");
-    }
-    if (!allowTemporaryFixture && isTemporarySeedHostname(hostname)) {
-      throw new Error("temporary tunnel provider hostnames cannot qualify as stable seeds");
+    if (ipFamily) {
+      if (!isPublicIpAddress(hostname)) {
+        throw new Error("stable public seed IP literal is not public");
+      }
+    } else {
+      if (!hostname.includes(".")) {
+        throw new Error("stable public seed hostname must be fully qualified");
+      }
+      if (
+        hostname === "localhost" ||
+        hostname.endsWith(".local") ||
+        hostname.endsWith(".internal") ||
+        hostname.endsWith(".home") ||
+        hostname.endsWith(".lan")
+      ) {
+        throw new Error("stable public seed hostname is private or local");
+      }
+      if (!allowTemporaryFixture && isTemporarySeedHostname(hostname)) {
+        throw new Error("temporary tunnel provider hostnames cannot qualify as stable seeds");
+      }
     }
   }
 
   return Object.freeze({
     base: url.origin,
     hostname,
+    address_source: addressSource,
     loopback_fixture: loopbackFixture,
   });
 }
@@ -149,7 +163,12 @@ export async function resolvePublicDns(
   if (allowLoopbackFixture && ["127.0.0.1", "localhost", "::1"].includes(host)) {
     return [host === "localhost" ? "127.0.0.1" : host];
   }
-  if (net.isIP(host)) throw new Error("public DNS resolution requires a hostname");
+  if (net.isIP(host)) {
+    if (!isPublicIpAddress(host)) {
+      throw new Error(`public seed IP literal is not public: ${host}`);
+    }
+    return [host];
+  }
 
   const records = await lookup(host, { all: true, verbatim: true });
   if (!Array.isArray(records) || records.length === 0) {

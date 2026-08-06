@@ -36,6 +36,7 @@ export function createQualificationReceipt(
     generated_at: generated,
     endpoint: normalized.base,
     hostname: normalized.hostname,
+    address_source: normalized.address_source,
     loopback_fixture: normalized.loopback_fixture,
     temporary_provider: isTemporarySeedHostname(normalized.hostname),
     sample_count: samples.length,
@@ -97,6 +98,10 @@ export function validateQualificationReceipt(
   if (receipt.loopback_fixture !== false) throw new Error("loopback fixture cannot qualify for publication");
   const normalized = normalizePublicSeedBase(receipt.endpoint);
   if (receipt.hostname !== normalized.hostname) throw new Error("qualification hostname mismatch");
+  const receiptAddressSource = receipt.address_source || "dns";
+  if (receiptAddressSource !== normalized.address_source) {
+    throw new Error("qualification address source mismatch");
+  }
   if (receipt.temporary_provider !== false || isTemporarySeedHostname(receipt.hostname)) {
     throw new Error("temporary provider cannot qualify for publication");
   }
@@ -144,24 +149,67 @@ export function validateQualificationReceipt(
     if (head < previousHead) throw new Error("qualification head regressed across samples");
     previousHead = head;
 
-    if (!Array.isArray(sample.dns_addresses) || sample.dns_addresses.length === 0) {
-      throw new Error("qualification sample has no DNS evidence");
+    const sampleAddressSource = sample.address_source || receiptAddressSource;
+    if (sampleAddressSource !== receiptAddressSource) {
+      throw new Error("qualification sample address source mismatch");
     }
-    for (const address of sample.dns_addresses) {
-      if (!isPublicIpAddress(String(address))) {
-        throw new Error(`qualification sample contains non-public DNS address ${address}`);
-      }
-    }
+
+    const dnsAddresses = Array.isArray(sample.dns_addresses)
+      ? sample.dns_addresses.map(String)
+      : [];
+    const endpointAddresses = Array.isArray(sample.endpoint_addresses)
+      ? sample.endpoint_addresses.map(String)
+      : [];
     if (!Array.isArray(sample.connected_addresses) || sample.connected_addresses.length === 0) {
       throw new Error("qualification sample has no connected-address evidence");
     }
-    for (const address of sample.connected_addresses) {
-      if (!isPublicIpAddress(String(address))) {
-        throw new Error(`qualification sample contains non-public connected address ${address}`);
+    const connectedAddresses = sample.connected_addresses.map(String);
+
+    if (sampleAddressSource === "dns") {
+      if (dnsAddresses.length === 0) {
+        throw new Error("qualification sample has no DNS evidence");
       }
-      if (!sample.dns_addresses.includes(address)) {
-        throw new Error(`qualification sample connected address ${address} is not DNS-bound`);
+      if (endpointAddresses.length !== 0) {
+        throw new Error("DNS qualification sample must not contain IP-literal endpoint evidence");
       }
+      for (const address of dnsAddresses) {
+        if (!isPublicIpAddress(address)) {
+          throw new Error(`qualification sample contains non-public DNS address ${address}`);
+        }
+      }
+      for (const address of connectedAddresses) {
+        if (!isPublicIpAddress(address)) {
+          throw new Error(`qualification sample contains non-public connected address ${address}`);
+        }
+        if (!dnsAddresses.includes(address)) {
+          throw new Error(`qualification sample connected address ${address} is not DNS-bound`);
+        }
+      }
+    } else if (sampleAddressSource === "ip_literal") {
+      if (dnsAddresses.length !== 0) {
+        throw new Error("IP-literal qualification sample must not contain DNS evidence");
+      }
+      if (
+        endpointAddresses.length !== 1 ||
+        endpointAddresses[0] !== normalized.hostname
+      ) {
+        throw new Error("qualification sample IP-literal endpoint evidence mismatch");
+      }
+      if (!isPublicIpAddress(endpointAddresses[0])) {
+        throw new Error("qualification sample IP-literal endpoint is not public");
+      }
+      for (const address of connectedAddresses) {
+        if (!isPublicIpAddress(address)) {
+          throw new Error(`qualification sample contains non-public connected address ${address}`);
+        }
+        if (address !== normalized.hostname) {
+          throw new Error(
+            `qualification sample connected address ${address} does not match IP literal ${normalized.hostname}`,
+          );
+        }
+      }
+    } else {
+      throw new Error(`qualification sample address source is invalid: ${sampleAddressSource}`);
     }
   }
 
