@@ -1,0 +1,71 @@
+name: VOID public bootstrap stable-seed qualification v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-stable-seed-qualification-v1.yml"
+      - "docs/public/public-bootstrap-stable-seed-qualification-v1.md"
+      - "scripts/lib/void_public_seed_qualification_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/qualify_void_public_seed_v1.mjs"
+      - "scripts/build_void_public_bootstrap_manifest_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-bootstrap-stable-seed-qualification-v1.yml"
+      - "docs/public/public-bootstrap-stable-seed-qualification-v1.md"
+      - "scripts/lib/void_public_seed_qualification_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/qualify_void_public_seed_v1.mjs"
+      - "scripts/build_void_public_bootstrap_manifest_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-stable-seed-qualification-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Syntax-check qualification tools
+        run: |
+          node --check scripts/lib/void_public_seed_qualification_v1.mjs
+          node --check scripts/lib/void_public_seed_common_v1.mjs
+          node --check scripts/lib/void_public_seed_probe_v1.mjs
+          node --check scripts/lib/void_public_seed_receipt_v1.mjs
+          node --check scripts/qualify_void_public_seed_v1.mjs
+          node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
+          node --check scripts/prove_void_public_seed_qualification_v1.mjs
+          node --check tools/void-public-seed-gateway-v1.mjs
+
+      - name: Prove stable-seed qualification and publication boundary
+        run: node scripts/prove_void_public_seed_qualification_v1.mjs
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck repository
+        run: npm run typecheck
