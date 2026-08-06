@@ -104,8 +104,10 @@ Keep behavior deterministic where practical. Use explicit types and closed data
 contracts. Preserve backward compatibility unless the task documents and proves
 a deliberate migration.
 
-Repository Node.js work must respect `package.json` engine requirements:
-Node.js 22.x (`>=22 <23`).
+Repository Node.js work must respect the canonical `package.json` and
+`package-lock.json` engine contract. Supported majors are Node.js 22, 24, and 26
+(`^22.0.0 || ^24.0.0 || ^26.0.0`), with Node.js 24 LTS as the repository
+default. Do not silently narrow this contract to Node.js 22-only.
 
 ## Validation
 
