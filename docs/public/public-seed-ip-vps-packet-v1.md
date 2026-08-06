@@ -94,13 +94,20 @@ The output must remain outside the repository.
 
 ```bash
 node scripts/verify_void_public_seed_ip_vps_packet_v1.mjs \
-  "$HOME/void-public-seed-ip-vps-packet"
+  "$HOME/void-public-seed-ip-vps-packet" \
+  --repo-root "$PWD" \
+  --expected-head "$(git rev-parse HEAD)"
 ```
+
+The verifier requires a completely clean checkout at the explicit expected
+commit. It independently hashes `tools/void-public-seed-gateway-v1.mjs`; packet
+self-claims are not sufficient.
 
 Verification checks:
 
 - content-addressed packet identity;
-- exact source commit and restricted-gateway hash;
+- exact clean source checkout and explicit expected commit;
+- restricted-gateway source hash bound to that checkout;
 - globally routable IPv4 only;
 - exact generated file set, sizes, hashes, and modes;
 - node HTTP loopback-only binding;

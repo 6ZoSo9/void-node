@@ -62,7 +62,11 @@ run(process.execPath, [
   "--output", output,
 ]);
 
-const verified = verifyPacket(output);
+const verifyOptions = Object.freeze({
+  repoRoot: repo,
+  expectedHead: head,
+});
+const verified = verifyPacket(output, verifyOptions);
 assert.equal(verified.public_ip, "1.1.1.1");
 assert.equal(verified.public_https, "https://1.1.1.1");
 assert.equal(verified.public_p2p, "1.1.1.1:4700");
@@ -85,22 +89,57 @@ for (const marker of [
 ]) {
   assert.ok(generatedEnv.includes(marker), `continuity environment marker missing: ${marker}`);
 }
-run(process.execPath, [verifier, output]);
-console.log("[PASS] exact public-IP VPS packet builds and verifies with live continuity");
+const verifierSuccess = run(process.execPath, [
+  verifier,
+  output,
+  "--repo-root",
+  repo,
+  "--expected-head",
+  head,
+]);
+assert.match(verifierSuccess.stdout, /source_checkout_required=true/);
+assert.match(verifierSuccess.stdout, /source_head_bound_to_checkout=true/);
+assert.match(verifierSuccess.stdout, /gateway_source_hash_bound_to_checkout=true/);
+console.log("[PASS] exact public-IP VPS packet builds and verifies against clean exact source with live continuity");
+
+assert.throws(
+  () => verifyPacket(output),
+  /source repository root is required/,
+);
+expectFailure(
+  process.execPath,
+  [verifier, output],
+  /source repository root is required/,
+);
+assert.throws(
+  () =>
+    verifyPacket(output, {
+      repoRoot: repo,
+      expectedHead: "0".repeat(40),
+    }),
+  /repository head mismatch/,
+);
+fs.writeFileSync(path.join(repo, "verification-dirty.txt"), "dirty\n");
+assert.throws(
+  () => verifyPacket(output, verifyOptions),
+  /completely clean/,
+);
+fs.unlinkSync(path.join(repo, "verification-dirty.txt"));
+console.log("[PASS] missing, wrong-head, and dirty source verification fail closed");
 
 const extraFile = path.join(output, "unrecorded-extra.txt");
 fs.writeFileSync(extraFile, "unrecorded packet material\n", { mode: 0o600 });
-assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+assert.throws(() => verifyPacket(output, verifyOptions), /packet directory file set mismatch/);
 fs.unlinkSync(extraFile);
 
 const extraDirectory = path.join(output, "unrecorded-extra-directory");
 fs.mkdirSync(extraDirectory, { mode: 0o700 });
-assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+assert.throws(() => verifyPacket(output, verifyOptions), /packet directory file set mismatch/);
 fs.rmdirSync(extraDirectory);
 
 const extraSymlink = path.join(output, "unrecorded-extra-symlink");
 fs.symlinkSync("packet.json", extraSymlink);
-assert.throws(() => verifyPacket(output), /packet directory file set mismatch/);
+assert.throws(() => verifyPacket(output, verifyOptions), /packet directory file set mismatch/);
 fs.unlinkSync(extraSymlink);
 console.log("[PASS] unrecorded file, directory, and symlink are rejected");
 
@@ -113,7 +152,7 @@ function expectPacketMutationRejected(mutator, pattern) {
   packet.packet_id = packetId(packet);
   fs.writeFileSync(packetPath, `${JSON.stringify(packet, null, 2)}\n`, { mode: 0o600 });
   try {
-    assert.throws(() => verifyPacket(output), pattern);
+    assert.throws(() => verifyPacket(output, verifyOptions), pattern);
   } finally {
     fs.writeFileSync(packetPath, originalPacketText, { mode: 0o600 });
   }
@@ -160,6 +199,18 @@ expectPacketMutationRejected(
     packet.gateway_source_sha256 = "0".repeat(63);
   },
   /gateway source SHA-256 is invalid/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.gateway_source_sha256 = "0".repeat(64);
+  },
+  /gateway source SHA-256 does not match verified source checkout/,
+);
+expectPacketMutationRejected(
+  (packet) => {
+    packet.source_head = "0".repeat(40);
+  },
+  /packet source head does not match verified source checkout/,
 );
 expectPacketMutationRejected(
   (packet) => {
@@ -233,6 +284,7 @@ for (const privateIp of [
   "198.18.0.1",
   "198.51.100.1",
   "203.0.113.1",
+  "192.88.99.1",
   "224.0.0.1",
 ]) {
   expectFailure(
@@ -292,7 +344,7 @@ console.log("[PASS] packet output inside source repository is rejected");
 
 const tls = path.join(output, "nginx-void-public-seed-tls-v1.conf");
 fs.appendFileSync(tls, "\n# tamper\n");
-assert.throws(() => verifyPacket(output), /hash or size mismatch/);
+assert.throws(() => verifyPacket(output, verifyOptions), /hash or size mismatch/);
 console.log("[PASS] tampered packet file is rejected");
 
 console.log(`${MARKER}_GREEN`);
@@ -303,6 +355,11 @@ console.log("packet_top_level_schema_exact=true");
 console.log("packet_nested_contracts_exact=true");
 console.log("packet_metadata_generated_content_bound=true");
 console.log("self_recomputed_weakened_packet_accepted=false");
+console.log("source_checkout_required=true");
+console.log("source_checkout_clean_required=true");
+console.log("source_head_bound_to_checkout=true");
+console.log("gateway_source_hash_bound_to_checkout=true");
+console.log("self_recomputed_forged_source_accepted=false");
 console.log("domain_required=false");
 console.log("tailscale_required=false");
 console.log("public_https_port=443");

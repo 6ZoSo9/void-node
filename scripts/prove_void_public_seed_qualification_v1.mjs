@@ -4,8 +4,11 @@ import fs from "node:fs";
 import http from "node:http";
 import process from "node:process";
 import {
+  assertSafeInteger,
   buildBootstrapManifest,
   createQualificationReceipt,
+  objectWithId,
+  probePublicSeedSample,
   qualifyPublicSeed,
   normalizePublicSeedBase,
   resolvePublicDns,
@@ -66,7 +69,12 @@ async function waitForGateway(child, timeoutMs = 10_000) {
   child.stderr.on("data", (chunk) => { output += chunk; });
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    if (output.includes("VOID_PUBLIC_SEED_GATEWAY_V1_READY")) return output;
+    if (
+      output.includes("VOID_PUBLIC_SEED_GATEWAY_V1_READY") &&
+      output.includes("money_movement_authority=false")
+    ) {
+      return output;
+    }
     if (child.exitCode !== null) fail(`gateway exited early: ${output}`);
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -124,9 +132,17 @@ for (const endpoint of [
   "https://198.18.0.1",
   "https://198.51.100.1",
   "https://203.0.113.1",
+  "https://192.88.99.1",
   "https://224.0.0.1",
   "https://[::1]",
+  "https://[64:ff9b:1::1]",
+  "https://[100:0:0:1::1]",
+  "https://[2001:2::1]",
+  "https://[2001:10::1]",
   "https://[2001:db8::1]",
+  "https://[3fff::1]",
+  "https://[5f00::1]",
+  "https://[4000::1]",
   "https://[fc00::1]",
   "https://[fe80::1]",
 ]) {
@@ -137,6 +153,19 @@ for (const endpoint of [
   );
 }
 pass("public IP literals qualify structurally while non-public ranges fail closed");
+
+const orchidV2Seed = normalizePublicSeedBase("https://[2001:20::1]");
+assert(
+  orchidV2Seed.address_source === "ip_literal",
+  "IANA-globally-reachable ORCHIDv2 literal was overblocked",
+);
+pass("globally reachable ORCHIDv2 is not denied by non-global special-use policy");
+
+expectThrow(
+  () => assertSafeInteger("1", "strict numeric fixture", { min: 1 }),
+  /must be an integer/,
+  "numeric-string integer input is rejected",
+);
 
 await expectReject(
   resolvePublicDns("mixed-dns.example", {
@@ -169,6 +198,8 @@ assert(
 pass("gateway rejects hostname-based loopback ambiguity");
 
 const largeBody = JSON.stringify({ payload: "x".repeat(2 * 1024 * 1024) });
+let readinessFixture = { ready: true, head: 2000, gap: 0, txroot_live: 1 };
+let rangeNumbersAsStrings = false;
 const upstream = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${UPSTREAM_PORT}`);
   res.setHeader("content-type", "application/json; charset=utf-8");
@@ -178,7 +209,7 @@ const upstream = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/__void/ready.json") {
-    res.end(JSON.stringify({ ready: true, head: 2000, gap: 0, txroot_live: 1 }));
+    res.end(JSON.stringify(readinessFixture));
     return;
   }
   if (url.pathname === "/blocks/latest/number2.json") {
@@ -188,7 +219,8 @@ const upstream = http.createServer((req, res) => {
   if (url.pathname === "/blocks/range") {
     const from = Number(url.searchParams.get("from"));
     const to = Number(url.searchParams.get("to"));
-    res.end(JSON.stringify({ blocks: [{ number: from }, { number: to }] }));
+    const encode = (value) => (rangeNumbersAsStrings ? String(value) : value);
+    res.end(JSON.stringify({ blocks: [{ number: encode(from) }, { number: encode(to) }] }));
     return;
   }
   if (url.pathname === "/__void/demo/summary.json") {
@@ -262,6 +294,31 @@ try {
     "non-JSON upstream response was not rejected",
   );
   pass("restricted gateway runtime boundary");
+
+  readinessFixture = { ready: true, head: "2000", gap: "0", txroot_live: "1" };
+  await expectReject(
+    probePublicSeedSample(base, {
+      allowLoopbackFixture: true,
+      timeoutMs: 5000,
+      maxBytes: 1024 * 1024,
+    }),
+    /integer|exact-green/,
+    "remote numeric-string readiness is rejected",
+  );
+  readinessFixture = { ready: true, head: 2000, gap: 0, txroot_live: 1 };
+
+  rangeNumbersAsStrings = true;
+  await expectReject(
+    probePublicSeedSample(base, {
+      allowLoopbackFixture: true,
+      timeoutMs: 5000,
+      maxBytes: 1024 * 1024,
+    }),
+    /does not contain the requested head block/,
+    "remote string block numbers are rejected",
+  );
+  rangeNumbersAsStrings = false;
+  pass("remote JSON numeric types fail closed");
 
   const fixtureReceipt = await qualifyPublicSeed(base, {
     sampleCount: 2,
@@ -340,6 +397,58 @@ try {
     "IP-literal manifest transport mismatch",
   );
   pass("fresh public IP-literal qualification builds bounded HTTPS manifest");
+
+  const resealReceipt = (receipt, mutate) => {
+    const copy = structuredClone(receipt);
+    mutate(copy);
+    return objectWithId("voidpsq1_", copy, "qualification_id");
+  };
+
+  for (const [label, mutate, pattern] of [
+    [
+      "string chain ID",
+      (receipt) => { receipt.chain_id = String(receipt.chain_id); },
+      /network or chain ID mismatch/,
+    ],
+    [
+      "string sample count",
+      (receipt) => { receipt.sample_count = String(receipt.sample_count); },
+      /qualification sample_count must be an integer/,
+    ],
+    [
+      "string ready head",
+      (receipt) => { receipt.samples[0].ready_head = String(receipt.samples[0].ready_head); },
+      /sample ready_head must be an integer/,
+    ],
+    [
+      "string gap",
+      (receipt) => { receipt.samples[0].gap = "0"; },
+      /qualification sample is not exact-green/,
+    ],
+    [
+      "string txroot_live",
+      (receipt) => { receipt.samples[0].txroot_live = "1"; },
+      /qualification sample is not exact-green/,
+    ],
+    [
+      "string private-route status",
+      (receipt) => { receipt.samples[0].private_route_status = "404"; },
+      /private-route boundary mismatch/,
+    ],
+    [
+      "string mutation status",
+      (receipt) => { receipt.samples[0].mutation_status = "405"; },
+      /mutation boundary mismatch/,
+    ],
+  ]) {
+    const confused = resealReceipt(ipLiteralReceipt, mutate);
+    expectThrow(
+      () => validateQualificationReceipt(confused, { nowMs }),
+      pattern,
+      `resealed ${label} receipt is rejected`,
+    );
+  }
+  pass("content-addressed qualification receipts require numeric JSON types");
 
   const mismatchedIpLiteralReceipt = createQualificationReceipt({
     endpoint: "https://1.1.1.1",
