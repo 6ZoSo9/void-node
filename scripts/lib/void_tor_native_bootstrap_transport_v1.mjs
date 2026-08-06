@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import net from "node:net";
+import { validateV3OnionHostname } from "../../tools/lib/void-tor-onion-descriptor-v1.mjs";
 
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
@@ -71,10 +72,13 @@ export function contentId(prefix, value, idKey) {
 
 export function normalizeOnionV3Hostname(raw) {
   const hostname = String(raw || "").trim().toLowerCase().replace(/\.$/, "");
-  if (!/^[a-z2-7]{56}\.onion$/.test(hostname)) {
-    throw new Error("onion hostname must be one canonical Tor v3 address");
+  try {
+    return validateV3OnionHostname(hostname);
+  } catch (error) {
+    throw new Error(
+      `onion hostname must be one checksum-valid Tor v3 address: ${error?.message || error}`,
+    );
   }
-  return hostname;
 }
 
 export function normalizeOnionBase(raw) {
