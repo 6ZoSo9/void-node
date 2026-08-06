@@ -62,7 +62,10 @@ const requiredSnippets = [
   "Do not force-push, rewrite shared history",
   "Open at most one pull request for the lane and create it as a draft by default.",
   "GitHub API commits are real remote commits.",
-  "Node.js 22.x (`>=22 <23`).",
+  "Supported majors are Node.js 22, 24, and 26",
+  "^22.0.0 || ^24.0.0 || ^26.0.0",
+  "Node.js 24 LTS as the repository default",
+  "Do not silently narrow this contract to Node.js 22-only.",
   "Do not hide repository-baseline failures.",
   "customer revenue, automatic fulfillment readiness, or verifiable receipts",
   "outside AI-agent discovery, authentication, capability negotiation",
@@ -104,7 +107,10 @@ for (let index = 0; index < lines.length; index += 1) {
 }
 
 const nodeMajor = Number.parseInt(process.versions.node.split(".")[0], 10);
-assert(nodeMajor === 22, `proof requires Node.js 22.x, observed ${process.versions.node}`);
+assert(
+  [22, 24, 26].includes(nodeMajor),
+  `proof requires a supported Node.js major (22, 24, or 26), observed ${process.versions.node}`,
+);
 
 console.log(`marker=${MARKER}`);
 console.log(`agreement_path=${path.relative(repo, agreementPath)}`);
@@ -112,6 +118,9 @@ console.log(`agreement_bytes=${Buffer.byteLength(source, "utf8")}`);
 console.log(`ordered_sections=${orderedHeadings.length}`);
 console.log(`required_contracts=${requiredSnippets.length}`);
 console.log(`explicit_denied_authorities=${explicitDeniedAuthorities.length}`);
+console.log(`observed_node_major=${nodeMajor}`);
+console.log("supported_node_majors=22,24,26");
+console.log("default_node_major=24");
 console.log("source_only_default=true");
 console.log("zo_sovereignty_preserved=true");
 console.log("path_collision_guard_required=true");
