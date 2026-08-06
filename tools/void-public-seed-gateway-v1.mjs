@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import http from "node:http";
-import net from "node:net";
 import process from "node:process";
 
 const MARKER = "VOID_PUBLIC_SEED_GATEWAY_V1";
@@ -29,13 +28,13 @@ function fail(message) {
   process.exit(1);
 }
 
-function isLoopbackHost(hostname) {
-  return ["127.0.0.1", "localhost", "::1", "[::1]"].includes(String(hostname).toLowerCase());
+function isLoopbackLiteral(hostname) {
+  return ["127.0.0.1", "::1", "[::1]"].includes(String(hostname).toLowerCase());
 }
 
 if (
   UPSTREAM.protocol !== "http:" ||
-  !isLoopbackHost(UPSTREAM.hostname) ||
+  !isLoopbackLiteral(UPSTREAM.hostname) ||
   UPSTREAM.username ||
   UPSTREAM.password ||
   UPSTREAM.search ||
@@ -44,9 +43,10 @@ if (
 ) {
   fail("upstream must be one credential-free loopback HTTP origin");
 }
-if (!isLoopbackHost(BIND_HOST)) fail("gateway must bind to loopback; publish it through a separate HTTPS proxy");
+if (!isLoopbackLiteral(BIND_HOST)) {
+  fail("gateway must bind to a numeric loopback literal; publish it through a separate HTTPS proxy");
+}
 if (!Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) fail("invalid gateway port");
-if (net.isIP(BIND_HOST) === 0 && BIND_HOST !== "localhost") fail("invalid loopback bind host");
 
 function exactSearchKeys(url, expected) {
   const keys = [...url.searchParams.keys()];
@@ -146,6 +146,11 @@ const server = http.createServer((req, res) => {
     },
     (upstreamResponse) => {
       const status = Number(upstreamResponse.statusCode || 502);
+      if (status >= 300 && status < 400) {
+        upstreamResponse.destroy();
+        writeJson(res, 502, { ok: false, error: "upstream_redirect_not_allowed" }, method);
+        return;
+      }
       let contentType;
       try {
         contentType = upstreamContentType(upstreamResponse.headers);
