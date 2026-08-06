@@ -110,23 +110,31 @@ try {
   console.log("[PASS] canonical Tor v3 endpoint boundary");
 
   const now = Date.now();
-  const endpoints = validateTorNativeEndpoints([
-    {
-      transport: "tor_v3_http",
-      base: `http://${ONION}`,
-      priority: 10,
-      enabled: true,
-      temporary: false,
-      qualification_id: QUALIFICATION,
-      qualified_at: new Date(now - 60_000).toISOString(),
-      qualified_head: 1856587,
-    },
-  ], now);
+  const rawEndpoint = {
+    transport: "tor_v3_http",
+    base: `http://${ONION}`,
+    priority: 10,
+    enabled: true,
+    temporary: false,
+    qualification_id: QUALIFICATION,
+    qualified_at: new Date(now - 60_000).toISOString(),
+    qualified_head: 1856587,
+  };
+  const endpoints = validateTorNativeEndpoints([rawEndpoint], now);
   assert.equal(endpoints.length, 1);
   assert.equal(endpoints[0].hostname, ONION);
-  assert.throws(() => validateTorNativeEndpoints([{ ...endpoints[0], unknown: true }], now), /keys mismatch/);
-  assert.throws(() => validateTorNativeEndpoints([{ ...endpoints[0], transport: "https" }], now), /tor_v3_http/);
-  assert.throws(() => validateTorNativeEndpoints([{ ...endpoints[0], temporary: true }], now), /temporary=false/);
+  assert.throws(
+    () => validateTorNativeEndpoints([{ ...rawEndpoint, unknown: true }], now),
+    /keys mismatch/,
+  );
+  assert.throws(
+    () => validateTorNativeEndpoints([{ ...rawEndpoint, transport: "https" }], now),
+    /tor_v3_http/,
+  );
+  assert.throws(
+    () => validateTorNativeEndpoints([{ ...rawEndpoint, temporary: true }], now),
+    /temporary=false/,
+  );
   console.log("[PASS] closed onion manifest endpoint contract");
 
   const port = await listen(fixture);
