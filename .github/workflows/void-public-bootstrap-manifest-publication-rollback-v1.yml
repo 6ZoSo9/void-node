@@ -1,0 +1,95 @@
+name: VOID public bootstrap manifest publication and rollback v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-manifest-publication-rollback-v1.yml"
+      - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
+      - "public/bootstrap/v1.json"
+      - "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_build_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_verify_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-bootstrap-manifest-publication-rollback-v1.yml"
+      - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
+      - "public/bootstrap/v1.json"
+      - "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_build_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_verify_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-bootstrap-manifest-publication-rollback-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check publication packet source
+        run: |
+          node --check scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs
+          node --check scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs
+          node --check scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs
+          node --check scripts/lib/void_public_bootstrap_manifest_publication_build_v1.mjs
+          node --check scripts/lib/void_public_bootstrap_manifest_publication_verify_v1.mjs
+          node --check scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs
+          node --check scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs
+
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Prove publication and rollback packet boundary
+        run: node scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs
