@@ -332,9 +332,7 @@ function normalizeInput(
   };
 }
 
-function ensurePrivateDirectory(directory: string): void {
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  fs.chmodSync(directory, 0o700);
+function assertPrivateDirectory(directory: string): void {
   const metadata = fs.lstatSync(directory);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("prepared_plan_directory_must_be_direct_directory");
@@ -347,6 +345,22 @@ function ensurePrivateDirectory(directory: string): void {
   }
   if ((metadata.mode & 0o077) !== 0) {
     throw new Error("prepared_plan_directory_must_be_private");
+  }
+}
+
+function ensurePrivateDirectory(directory: string): void {
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.chmodSync(directory, 0o700);
+  assertPrivateDirectory(directory);
+}
+
+function privateDirectoryExistsReadOnly(directory: string): boolean {
+  try {
+    assertPrivateDirectory(directory);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+    throw error;
   }
 }
 
@@ -918,7 +932,14 @@ export function listBuyVoidPreparedTransactionPlanReservationsV1(input: {
   });
   if ("reason" in normalized) throw new Error(String(normalized.reason));
   const paths = pathsFor(normalized);
-  if (!fs.existsSync(paths.nonces)) return [];
-  initializePaths(paths);
+  for (const directory of [
+    paths.root,
+    paths.wallets,
+    paths.wallet,
+    paths.nonces,
+  ]) {
+    if (!privateDirectoryExistsReadOnly(directory)) return [];
+  }
+  privateDirectoryExistsReadOnly(paths.attempts);
   return listRecords(paths);
 }

@@ -1,0 +1,61 @@
+name: VOID P2P multipath address v1
+
+on:
+  pull_request:
+    paths:
+      - "src/types/p2p.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_p2p_multipath_address_v1.ts"
+      - "docs/public/void-p2p-multipath-address-v1.md"
+      - ".github/workflows/void-p2p-multipath-address-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/types/p2p.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_p2p_multipath_address_v1.ts"
+      - "docs/public/void-p2p-multipath-address-v1.md"
+      - ".github/workflows/void-p2p-multipath-address-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-multipath-address-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prove multipath peer addresses
+        run: npx --no-install tsx scripts/prove_void_p2p_multipath_address_v1.ts
+
+      - name: Diff hygiene
+        run: git diff --check

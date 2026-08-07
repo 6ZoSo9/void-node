@@ -14,6 +14,24 @@ import { SegStore } from "./chain/seg_store.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
+import {
+  canonicalPeerAddress,
+  canonicalizePeerAddressList,
+  formatPeerAddress,
+  httpBaseFromP2P,
+  parseBootstrap,
+  parsePeerAddress,
+} from "./types/p2p.js";
+import {
+  VOID_P2P_AUTH_PROTOCOL_VERSION_V1,
+  VOID_P2P_AUTH_TIMEOUT_MS_V1,
+  VoidPeerAuthV1,
+  VoidPeerHelloV1,
+  buildVoidPeerAuthV1,
+  newVoidPeerChallengeV1,
+  normalizeVoidPeerHelloV1,
+  verifyVoidPeerAuthV1,
+} from "./p2p/auth_v1.js";
 
 function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -93,10 +111,11 @@ function bytesToSign(topic: string, data: string, nonce: string): Uint8Array {
 
 /** ---------- wire / pubsub ---------- */
 const MAX_MSG_BYTES = 64 * 1024;
-const PROTO_VER = 1;
+const PROTO_VER = VOID_P2P_AUTH_PROTOCOL_VERSION_V1;
 
 type Msg =
-  | { type: "HELLO"; id: string; listen: string[]; proto: number; pubkey: string }
+  | { type: "HELLO"; id: string; listen: string[]; proto: number; pubkey: string; challenge: string }
+  | { type: "AUTH"; id: string; listen: string[]; proto: number; pubkey: string; challenge: string; self_challenge: string; sig: string }
   | { type: "SUB"; topic: string }
   | { type: "PUB"; topic: string; data: string; from: string; nonce: string; sig: string; pubkey: string }
   | { type: "PEERS"; addrs: string[] };
@@ -151,6 +170,9 @@ type Peer = {
   listens: string[];
   outbound: boolean;
   handshakeDone: boolean;
+  localChallenge: string;
+  remoteHello?: VoidPeerHelloV1;
+  authTimer: NodeJS.Timeout | null;
 };
 
 /** ================================================================= */
@@ -279,19 +301,25 @@ export class Node {
       })();
 
     await new Promise<void>((resolve) => this.server.listen(this.tcpPort, bindHost, resolve));
-    const addr = `${advertHost}:${(this.server.address() as net.AddressInfo).port}`;
+    const listenPort = (this.server.address() as net.AddressInfo).port;
+    const addr = formatPeerAddress(advertHost, listenPort);
+    if (!addr) {
+      this.server.close();
+      throw new Error(`invalid P2P advertise host: ${advertHost}`);
+    }
     this.listenAddrs.push(addr);
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
 
     const bootstrapRaw = String(process.env.BOOTSTRAP_ADDRS || "").trim();
-    const bootstrapAddrs = bootstrapRaw
-      ? bootstrapRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+    const bootstrapAddrs = parseBootstrap(bootstrapRaw);
+    if (bootstrapRaw && bootstrapAddrs.length === 0) {
+      console.warn("[void-node] bootstrap list contained no valid peer addresses");
+    }
     if (bootstrapAddrs.length) {
       console.log(`[void-node] bootstrap dial targets: ${bootstrapAddrs.join(", ")}`);
       for (const a of bootstrapAddrs) {
-        if (a && a !== addr && this.shouldDial(a)) {
+        if (a !== addr && this.shouldDial(a)) {
           setTimeout(() => this.connect(a), 250).unref?.();
         }
       }
@@ -325,96 +353,177 @@ export class Node {
 
   /** sockets */
   private onIncoming(socket: net.Socket) {
-    const peerAddr = `${socket.remoteAddress}:${socket.remotePort}`;
+    const remoteHost = String(socket.remoteAddress || "");
+    const remotePort = Number(socket.remotePort || 0);
+    const peerAddr =
+      formatPeerAddress(remoteHost, remotePort) ||
+      `${remoteHost}:${remotePort}`;
     this.attachSocket(socket, peerAddr, false);
   }
+  private rejectUnauthenticatedPeer(peer: Peer, reason: string) {
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+    console.warn("VOID_P2P_AUTHENTICATED_PEER_IDENTITY_V1_REJECT", {
+      peer: peer.addr,
+      reason,
+    });
+    peer.socket.destroy();
+  }
+
+  private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
+    const temporaryId = peer.id;
+    const existing = this.peers.get(auth.id);
+
+    if (existing && existing !== peer) {
+      if (existing.outbound && !peer.outbound) {
+        this.rejectUnauthenticatedPeer(peer, "duplicate inbound connection");
+        return false;
+      }
+      if (existing.authTimer) {
+        clearTimeout(existing.authTimer);
+        existing.authTimer = null;
+      }
+      existing.socket.destroy();
+      this.peers.delete(auth.id);
+    }
+
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    this.peers.delete(temporaryId);
+    peer.id = auth.id;
+    peer.handshakeDone = true;
+    peer.listens = [...auth.listen];
+    peer.remoteHello = undefined;
+    this.peers.set(peer.id, peer);
+
+    const firstListen = peer.listens[0];
+    const inferredHttp = httpBaseFromP2P(firstListen);
+    if (inferredHttp) {
+      this.peerHttp.set(peer.id, inferredHttp);
+      if (peer.id !== this.id) {
+        this.onHttpAnnounce?.({ id: peer.id, http: inferredHttp, p2p: firstListen });
+      }
+    }
+
+    for (const address of peer.listens) this.knownAddrs.add(address);
+    const addrs = new Set<string>();
+    for (const connectedPeer of this.peers.values()) {
+      if (!connectedPeer.handshakeDone) continue;
+      for (const address of connectedPeer.listens) addrs.add(address);
+    }
+    for (const address of this.listenAddrs) addrs.add(address);
+
+    this.sendRaw(peer, { type: "PEERS", addrs: [...addrs] });
+    for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
+    return true;
+  }
+
   private attachSocket(socket: net.Socket, peerAddr: string, outgoing: boolean) {
-    let peerId = `?-${crypto.randomBytes(4).toString("hex")}`;
-    const framer = new Framer((msg) => this.onMsg(peerId, msg), (e) => {
-      console.warn(`[wire] bad message from ${peerId} (${peerAddr}):`, e.message);
-    });
-    socket.on("data", (chunk) => framer.feed(chunk));
-    socket.on("close", () => {
-      this.peers.delete(peerId);
-    });
-    socket.on("error", (e) => {
-      console.warn(`[peer] error ${peerId} (${peerAddr}):`, e.message);
-    });
     const peer: Peer = {
-      id: peerId,
+      id: `?-${crypto.randomBytes(4).toString("hex")}`,
       socket,
-      framer,
+      framer: undefined as unknown as Framer,
       addr: peerAddr,
       listens: [],
       outbound: outgoing,
       handshakeDone: false,
+      localChallenge: newVoidPeerChallengeV1(),
+      authTimer: null,
     };
-    this.peers.set(peerId, peer);
-    this.sendRaw(peer, { type: "HELLO", id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM });
+
+    peer.framer = new Framer(
+      (msg) => this.onMsg(peer, msg),
+      (error) => console.warn(`[wire] bad message from ${peer.id} (${peerAddr}):`, error.message),
+    );
+    socket.on("data", (chunk) => peer.framer.feed(chunk));
+    socket.on("close", () => {
+      if (peer.authTimer) {
+        clearTimeout(peer.authTimer);
+        peer.authTimer = null;
+      }
+      if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+    });
+    socket.on("error", (error) => {
+      console.warn(`[peer] error ${peer.id} (${peerAddr}):`, error.message);
+    });
+
+    this.peers.set(peer.id, peer);
+    peer.authTimer = setTimeout(() => {
+      if (!peer.handshakeDone) this.rejectUnauthenticatedPeer(peer, "authentication timeout");
+    }, VOID_P2P_AUTH_TIMEOUT_MS_V1);
+    peer.authTimer.unref?.();
+
+    this.sendRaw(peer, {
+      type: "HELLO",
+      id: this.id,
+      listen: this.listenAddrs,
+      proto: PROTO_VER,
+      pubkey: this.pubPEM,
+      challenge: peer.localChallenge,
+    });
   }
 
-  private onMsg(tempOrRealId: string, msg: Msg) {
+  private onMsg(peer: Peer, msg: Msg) {
     if (msg.type === "HELLO") {
-      const ent = [...this.peers.entries()].find(([k]) => k === tempOrRealId || k.startsWith("?-"));
-      if (!ent) return;
-      const [tmpKey, p] = ent;
-
-      const existing = this.peers.get(msg.id);
-      if (existing) {
-        if (existing.outbound && !p.outbound) {
-          p.socket.destroy();
-          this.peers.delete(tmpKey);
-          return;
-        } else {
-          existing.socket.destroy();
-          this.peers.delete(msg.id);
-        }
+      if (peer.handshakeDone || peer.remoteHello) {
+        this.rejectUnauthenticatedPeer(peer, "duplicate HELLO");
+        return;
       }
-
-      this.peers.delete(tmpKey);
-      p.id = msg.id;
-      p.handshakeDone = true;
-      p.listens = Array.isArray(msg.listen) ? msg.listen : [];
-      this.peers.set(p.id, p);
-
-      console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
-
-      // Heuristic: infer their HTTP base from first p2p listen like 127.0.0.1:4701 -> http://127.0.0.1:4101
-      const firstListen: string | undefined = p.listens[0];
-      const httpFromP2P = (addr?: string): string | undefined => {
-        if (!addr) return undefined;
-        const m = addr.match(/^([^:]+):(\d+)$/);
-        if (!m) return undefined;
-        const host = m[1], port = Number(m[2]);
-        if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-        return undefined;
-      };
-      const inferredHttp = httpFromP2P(firstListen);
-      if (inferredHttp) {
-        this.peerHttp.set(p.id, inferredHttp);
-        if (p.id !== this.id) this.onHttpAnnounce?.({ id: p.id, http: inferredHttp, p2p: firstListen });
+      const hello = normalizeVoidPeerHelloV1(msg);
+      if (!hello || hello.id === this.id) {
+        this.rejectUnauthenticatedPeer(peer, hello ? "self identity on remote socket" : "invalid HELLO");
+        return;
       }
-
-      // Merge peerset and send back PEERS + our current topic subs
-      for (const a of p.listens) this.knownAddrs.add(a);
-      const addrs = new Set<string>();
-      for (const pp of this.peers.values()) for (const a of pp.listens) addrs.add(a);
-      for (const a of this.listenAddrs) addrs.add(a);
-
-      this.sendRaw(p, { type: "PEERS", addrs: [...addrs] });
-      for (const t of this.myTopics) this.sendRaw(p, { type: "SUB", topic: t });
+      peer.remoteHello = hello;
+      let auth: VoidPeerAuthV1;
+      try {
+        auth = buildVoidPeerAuthV1(
+          { id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM },
+          hello.challenge,
+          peer.localChallenge,
+          this.priv,
+        );
+      } catch (error) {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          `local AUTH construction failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
+      this.sendRaw(peer, auth);
       return;
     }
 
+    if (msg.type === "AUTH") {
+      if (peer.handshakeDone || !peer.remoteHello) {
+        this.rejectUnauthenticatedPeer(peer, peer.handshakeDone ? "duplicate AUTH" : "AUTH before HELLO");
+        return;
+      }
+      const auth = verifyVoidPeerAuthV1(msg, peer.localChallenge, peer.remoteHello);
+      if (!auth) {
+        this.rejectUnauthenticatedPeer(peer, "invalid AUTH");
+        return;
+      }
+      this.finishAuthenticatedPeer(peer, auth);
+      return;
+    }
+
+    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
     if (msg.type === "PEERS") {
-      for (const a of msg.addrs) if (!this.isSelfAddress(a)) this.knownAddrs.add(a);
-      for (const a of msg.addrs) if (this.shouldDial(a)) this.connect(a);
+      const learned = canonicalizePeerAddressList(msg.addrs, 64);
+      for (const address of learned) if (!this.isSelfAddress(address)) this.knownAddrs.add(address);
+      for (const address of learned) if (this.shouldDial(address)) this.connect(address);
       return;
     }
 
     if (msg.type === "SUB") {
-      if (!this.isKnownPeer(tempOrRealId)) return;
-      this.pubsub.subscribe(tempOrRealId, msg.topic);
+      this.pubsub.subscribe(peer.id, msg.topic);
       return;
     }
 
@@ -425,15 +534,13 @@ export class Node {
       if (!pub) return;
       const bytes = bytesToSign(msg.topic, msg.data, msg.nonce);
       if (!verifyBytes(pub, bytes, msg.sig)) return;
-
       this.seen.add(key);
       this.seenTimestamps.set(key, Date.now());
 
       if (this.pubsub.subscribers(msg.topic).has(this.id)) {
         try {
           if (msg.topic === "void/tx") {
-            const tx = JSON.parse(msg.data);
-            this.acceptTx(tx);
+            this.acceptTx(JSON.parse(msg.data));
           } else if (msg.topic === "void/http") {
             const info = JSON.parse(msg.data);
             const pid = String(info?.id || "").trim();
@@ -450,27 +557,18 @@ export class Node {
               const providers = [...this.peerHttp.values()];
               if (providers.length) this.enqueueBlobFetch(cid, providers);
             }
-          } else if (msg.topic === "void/block") {
-            const hdr = JSON.parse(msg.data);
-            const num = Number(hdr?.number);
-            if (Number.isFinite(num)) {
-              // Announcement only. Do not persist header-shaped peer data.
-              // Full block persistence must pass validateBlockForAppend() in pullOnce()/SegStore.
-            }
-          } else {
-            // other topics: ignore for now
           }
-        } catch {
-          /* ignore bad payloads */
+        } catch (error) {
+          void error;
         }
       }
 
-      // fan-out to other subscribers
-      for (const p of this.peers.values()) {
-        if (p.id === tempOrRealId) continue;
-        if (this.pubsub.subscribers(msg.topic).has(p.id)) this.sendRaw(p, msg);
+      for (const connectedPeer of this.peers.values()) {
+        if (!connectedPeer.handshakeDone || connectedPeer.id === peer.id) continue;
+        if (this.pubsub.subscribers(msg.topic).has(connectedPeer.id)) {
+          this.sendRaw(connectedPeer, msg);
+        }
       }
-      return;
     }
   }
 
@@ -497,37 +595,41 @@ export class Node {
     return this.peers.has(id) && !id.startsWith("?-");
   }
   private isSelfAddress(addr: string): boolean {
-    return this.listenAddrs.includes(addr);
+    const canonical = canonicalPeerAddress(addr);
+    return !!canonical && this.listenAddrs.includes(canonical);
   }
   private shouldDial(addr: string): boolean {
-    if (this.isSelfAddress(addr)) return false;
-    if (this.dialing.has(addr)) return false;
-    for (const p of this.peers.values()) if (p.listens.includes(addr)) return false;
+    const canonical = canonicalPeerAddress(addr);
+    if (!canonical) return false;
+    if (this.isSelfAddress(canonical)) return false;
+    if (this.dialing.has(canonical)) return false;
+    for (const p of this.peers.values()) if (p.listens.includes(canonical)) return false;
     return true;
   }
   connect(addr: string) {
-    if (!this.shouldDial(addr)) return;
-    this.dialing.add(addr);
-    const [host, portStr] = addr.split(":");
-    const port = Number(portStr);
-    if (!host || !port) {
-      this.dialing.delete(addr);
-      return;
-    }
-    const socket = net.createConnection({ host, port }, () => {
-      console.log(`[dial] connected ${addr}`);
-      this.backoff.delete(addr);
-      this.attachSocket(socket, addr, true);
-      this.dialing.delete(addr);
-    });
+    const parsed = parsePeerAddress(addr);
+    if (!parsed) return;
+    const canonical = parsed.canonical;
+    if (!this.shouldDial(canonical)) return;
+    this.dialing.add(canonical);
+
+    const socket = net.createConnection(
+      { host: parsed.host, port: parsed.port },
+      () => {
+        console.log(`[dial] connected ${canonical}`);
+        this.backoff.delete(canonical);
+        this.attachSocket(socket, canonical, true);
+        this.dialing.delete(canonical);
+      },
+    );
     socket.on("error", (e) => {
-      console.warn(`[dial] failed ${addr}:`, e.message);
-      this.dialing.delete(addr);
+      console.warn(`[dial] failed ${canonical}:`, e.message);
+      this.dialing.delete(canonical);
       socket.destroy();
-      const cur = this.backoff.get(addr) ?? this.MIN_BACKOFF;
+      const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
-      this.backoff.set(addr, nxt);
-      setTimeout(() => this.connect(addr), cur);
+      this.backoff.set(canonical, nxt);
+      setTimeout(() => this.connect(canonical), cur).unref?.();
     });
   }
 

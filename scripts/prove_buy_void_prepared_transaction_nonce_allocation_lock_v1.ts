@@ -220,6 +220,48 @@ async function main(): Promise<void> {
   assert.equal(finalRecords.length, 2);
   assert.equal(new Set(finalRecords.map((value) => value.nonce)).size, 2);
 
+  const walletKey = digest(`void-buy-wallet-v1\n2050\n${WALLET}`);
+  const walletDir = path.join(
+    root,
+    "buy-void-prepared-transaction-plan-reservation-v1",
+    "wallets",
+    walletKey,
+  );
+  const attemptsDir = path.join(walletDir, "attempts");
+  const noncesDir = path.join(walletDir, "nonces");
+
+  fs.rmSync(attemptsDir, { recursive: true, force: true });
+  const readOnlyAfterAttemptsRemoval =
+    listBuyVoidPreparedTransactionPlanReservationsV1({
+      root_dir: root,
+      wallet_address: WALLET,
+    });
+  assert.equal(readOnlyAfterAttemptsRemoval.length, 2);
+  assert.equal(fs.existsSync(attemptsDir), false);
+
+  fs.chmodSync(noncesDir, 0o755);
+  assert.equal(fs.lstatSync(noncesDir).mode & 0o777, 0o755);
+  assert.throws(
+    () => listBuyVoidPreparedTransactionPlanReservationsV1({
+      root_dir: root,
+      wallet_address: WALLET,
+    }),
+    /prepared_plan_directory_must_be_private/,
+  );
+  assert.equal(
+    fs.lstatSync(noncesDir).mode & 0o777,
+    0o755,
+    "read-only listing repaired unsafe directory permissions",
+  );
+  fs.chmodSync(noncesDir, 0o700);
+
+  const restoredRecords = listBuyVoidPreparedTransactionPlanReservationsV1({
+    root_dir: root,
+    wallet_address: WALLET,
+  });
+  assert.equal(restoredRecords.length, 2);
+  assert.equal(fs.existsSync(attemptsDir), false);
+
   fs.rmSync(root, { recursive: true, force: true });
   process.stdout.write(
     "VOID_BUY_VOID_PREPARED_TRANSACTION_NONCE_ALLOCATION_LOCK_V1_PROOF_GREEN\n",
@@ -227,6 +269,8 @@ async function main(): Promise<void> {
   process.stdout.write("simultaneous_same_attempt_unique_nonce=true\n");
   process.stdout.write("higher_pending_floor_fail_closed=true\n");
   process.stdout.write("dead_ticket_reclaimed=true\n");
+  process.stdout.write("read_only_listing_recreates_attempts=false\n");
+  process.stdout.write("read_only_listing_repairs_permissions=false\n");
   process.stdout.write("canonical_nonce_release=false\n");
 }
 
