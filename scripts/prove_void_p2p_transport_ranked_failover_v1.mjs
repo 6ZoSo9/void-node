@@ -14,6 +14,7 @@ import {
 
 const MARKER = "VOID_P2P_TRANSPORT_RANKED_FAILOVER_V1_PROOF_GREEN";
 const NOW = Date.parse("2026-08-07T13:00:00.000Z");
+const RELAY_EXPIRES_AT_MS = NOW + 2 * 60 * 1000;
 
 const SUBJECT = "a".repeat(32);
 const OBSERVER_A = "b".repeat(32);
@@ -41,7 +42,7 @@ function observation({
   });
 }
 
-function classify(address, entries) {
+function classify(entries) {
   return classifyReachability(entries, {
     nowMs: NOW,
     maxAgeMs: 15 * 60 * 1000,
@@ -49,100 +50,76 @@ function classify(address, entries) {
   });
 }
 
-const ipv6Confirmed = classify(
-  "[2606:4700:4700::1111]:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "[2606:4700:4700::1111]:4700",
-      latency: 10,
-    }),
-    observation({
-      observer: OBSERVER_B,
-      domain: "observer-b",
-      address: "[2606:4700:4700::1111]:4700",
-      latency: 12,
-    }),
-  ],
-);
+const ipv6Confirmed = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "[2606:4700:4700::1111]:4700",
+    latency: 10,
+  }),
+  observation({
+    observer: OBSERVER_B,
+    domain: "observer-b",
+    address: "[2606:4700:4700::1111]:4700",
+    latency: 12,
+  }),
+]);
 assert.equal(ipv6Confirmed.classification, "direct_confirmed");
 
-const ipv4Confirmed = classify(
-  "8.8.8.8:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "8.8.8.8:4700",
-      latency: 14,
-    }),
-    observation({
-      observer: OBSERVER_C,
-      domain: "observer-c",
-      address: "8.8.8.8:4700",
-      latency: 18,
-    }),
-  ],
-);
+const ipv4Confirmed = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "8.8.8.8:4700",
+    latency: 14,
+  }),
+  observation({
+    observer: OBSERVER_C,
+    domain: "observer-c",
+    address: "8.8.8.8:4700",
+    latency: 18,
+  }),
+]);
 assert.equal(ipv4Confirmed.classification, "direct_confirmed");
 
-const ipv6Unconfirmed = classify(
-  "[2606:4700:4700::1001]:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "[2606:4700:4700::1001]:4700",
-    }),
-  ],
-);
-assert.equal(
-  ipv6Unconfirmed.classification,
-  "direct_observed_unconfirmed",
-);
+const ipv6Unconfirmed = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "[2606:4700:4700::1001]:4700",
+  }),
+]);
+assert.equal(ipv6Unconfirmed.classification, "direct_observed_unconfirmed");
 
-const ipv4Unconfirmed = classify(
-  "1.1.1.1:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "1.1.1.1:4700",
-    }),
-  ],
-);
-assert.equal(
-  ipv4Unconfirmed.classification,
-  "direct_observed_unconfirmed",
-);
+const ipv4Unconfirmed = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "1.1.1.1:4700",
+  }),
+]);
+assert.equal(ipv4Unconfirmed.classification, "direct_observed_unconfirmed");
 
-const outboundOnly = classify(
-  "9.9.9.9:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "9.9.9.9:4700",
-      kind: "authenticated_outbound_seen",
-      outcome: "success",
-    }),
-  ],
-);
+const outboundOnly = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "9.9.9.9:4700",
+    kind: "authenticated_outbound_seen",
+    outcome: "success",
+  }),
+]);
 assert.equal(outboundOnly.classification, "outbound_observed");
 
-const unknown = classify(
-  "208.67.222.222:4700",
-  [
-    observation({
-      observer: OBSERVER_A,
-      domain: "observer-a",
-      address: "208.67.222.222:4700",
-      kind: "authenticated_dialback",
-      outcome: "failure",
-    }),
-  ],
-);
+const unknown = classify([
+  observation({
+    observer: OBSERVER_A,
+    domain: "observer-a",
+    address: "208.67.222.222:4700",
+    kind: "authenticated_dialback",
+    outcome: "failure",
+  }),
+]);
 assert.equal(unknown.classification, "unknown");
 assert.equal(unknown.invariants.nat_type_inferred, false);
 assert.equal(unknown.invariants.relay_required_inferred, false);
@@ -152,18 +129,24 @@ const relayA = {
   relay_node_id: "e".repeat(32),
   relay_peer_state: "authenticated_direct_peer_v1",
   failure_domain: "relay-a",
+  reservation_id: "1".repeat(32),
+  reservation_expires_at_ms: RELAY_EXPIRES_AT_MS,
 };
 const relayB = {
   subject_node_id: SUBJECT,
   relay_node_id: "f".repeat(32),
   relay_peer_state: "authenticated_direct_peer_v1",
   failure_domain: "relay-b",
+  reservation_id: "2".repeat(32),
+  reservation_expires_at_ms: RELAY_EXPIRES_AT_MS,
 };
 const unauthenticatedRelay = {
   subject_node_id: SUBJECT,
   relay_node_id: "0".repeat(32),
   relay_peer_state: "unverified_peer",
   failure_domain: "relay-unverified",
+  reservation_id: "3".repeat(32),
+  reservation_expires_at_ms: RELAY_EXPIRES_AT_MS,
 };
 
 const plan = buildVoidP2PTransportFailoverPlanV1({
@@ -215,6 +198,7 @@ assert.equal(
   ),
   false,
 );
+
 assert.throws(
   () =>
     buildVoidP2PTransportFailoverPlanV1({
@@ -224,6 +208,21 @@ assert.throws(
       nowMs: NOW,
     }),
   /authenticated direct relay peer/,
+);
+assert.throws(
+  () =>
+    buildVoidP2PTransportFailoverPlanV1({
+      subjectNodeId: SUBJECT,
+      reachabilityRecords: [ipv6Confirmed],
+      relayReservations: [
+        {
+          ...relayA,
+          reservation_expires_at_ms: NOW,
+        },
+      ],
+      nowMs: NOW,
+    }),
+  /reservation must be active/,
 );
 
 assert.equal(plan.invariants.direct_transport_preferred, true);
@@ -285,11 +284,20 @@ for (let removed = 0; removed < plan.candidates.length; removed += 1) {
   if (plan.candidates.length > 1) assert(next);
 }
 
+const failedDirect = plan.candidates
+  .filter((candidate) => candidate.transport === "direct_tcp_v1")
+  .map((candidate) => candidate.candidate_id);
+assert.equal(
+  nextVoidP2PTransportCandidateV1(plan, failedDirect, {
+    nowMs: RELAY_EXPIRES_AT_MS + 1,
+  }),
+  null,
+);
+
 const originalUnknown = structuredClone(unknown);
-const failedDirectCandidate = plan.candidates[0].candidate_id;
 void nextVoidP2PTransportCandidateV1(
   plan,
-  [failedDirectCandidate],
+  [plan.candidates[0].candidate_id],
   { nowMs: NOW },
 );
 assert.deepEqual(unknown, originalUnknown);
@@ -377,6 +385,7 @@ assert.equal(
   relayCandidate.relay_peer_state,
   "authenticated_direct_peer_v1",
 );
+assert.equal(relayCandidate.reservation_expires_at_ms, RELAY_EXPIRES_AT_MS);
 
 console.log(MARKER);
 console.log("direct_confirmed_ipv6_rank=10");
@@ -387,6 +396,8 @@ console.log("relay_active_rank=100");
 console.log("outbound_observed_direct_dial_eligible=false");
 console.log("unknown_direct_dial_eligible=false");
 console.log("unauthenticated_relay_eligible=false");
+console.log("relay_reservation_live_required=true");
+console.log("expired_relay_candidate_selected=false");
 console.log("relay_failure_domains_distinct=true");
 console.log("direct_transport_preferred=true");
 console.log("relay_transport_can_define_endpoint_identity=false");
