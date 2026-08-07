@@ -369,7 +369,7 @@ contract VoidValidatorCandidateRegistryLifecycleCompletenessV3Test is
             reg.getCandidate(alice);
         assertEq(afterFailure.stakeAmount, MIN_STAKE);
         assertEq(reg.totalStaked(), MIN_STAKE);
-        assertEq(reg.consensusKeyOwner(key), alice);
+        assertEq(reg.consensusKeyOwner(key), address(0));
         assertEq(address(reg).balance, MIN_STAKE);
         assertEq(address(rejectingRecipient).balance, 0);
 

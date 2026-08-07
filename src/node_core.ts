@@ -14,6 +14,61 @@ import { SegStore } from "./chain/seg_store.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
+import {
+  canonicalPeerAddress,
+  canonicalizePeerAddressList,
+  formatPeerAddress,
+  httpBaseFromP2P,
+  parseBootstrap,
+  parsePeerAddress,
+} from "./types/p2p.js";
+import {
+  VOID_P2P_AUTH_PROTOCOL_VERSION_V1,
+  VOID_P2P_AUTH_TIMEOUT_MS_V1,
+  VoidPeerAuthV1,
+  VoidPeerHelloV1,
+  buildVoidPeerAuthV1,
+  newVoidPeerChallengeV1,
+  normalizeVoidPeerHelloV1,
+  verifyVoidPeerAuthV1,
+} from "./p2p/auth_v1.js";
+import {
+  loadVoidVerifiedPeerCacheV1,
+  rememberVoidAuthenticatedPeerV1,
+  voidVerifiedPeerCachePathV1,
+  voidVerifiedPeerDialTargetsV1,
+  type VoidVerifiedPeerRecordV1,
+} from "./p2p/verified_peer_cache_v1.js";
+import {
+  classifyVoidP2PReachabilityRuntimeV1,
+  createVoidP2PReachabilityObservationV1,
+  isVoidPublicDirectCandidateV1,
+  isVoidReachabilityRequestIdV1,
+  newVoidReachabilityRequestIdV1,
+  normalizeVoidReachabilityFailureDomainV1,
+  parseVoidReachabilityCandidateAddressV1,
+  validateVoidP2PReachabilityObservationV1,
+  type VoidP2PReachabilityObservationV1,
+} from "./p2p/reachability_runtime_v1.js";
+import {
+  VOID_P2P_RELAY_DEFAULT_RESERVATION_TTL_MS_V1,
+  VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1,
+  VOID_P2P_RELAY_MAX_QUEUED_BYTES_V1,
+  VOID_P2P_RELAY_REQUEST_TIMEOUT_MS_V1,
+  VOID_P2P_RELAY_MAX_STREAMS_PER_PEER_V1,
+  VOID_P2P_RELAY_MAX_STREAMS_V1,
+  VoidRelayServerStateV1,
+  VoidRelayVirtualSocketV1,
+  decodeVoidRelayDataV1,
+  isVoidRelayControlTypeV1,
+  newVoidRelayIdV1,
+  normalizeVoidRelayControlMessageV1,
+  voidRelayClientExpiryV1,
+  voidRelayRequestTimedOutV1,
+  voidRelayWritableQueueWithinBoundV1,
+  type VoidRelayControlMessageV1,
+  type VoidRelayStreamRecordV1,
+} from "./p2p/relay_v1.js";
 
 function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -91,15 +146,33 @@ function bytesToSign(topic: string, data: string, nonce: string): Uint8Array {
   return Buffer.from(JSON.stringify({ topic, data, nonce }));
 }
 
+function hasExactWireKeys(
+  raw: unknown,
+  expected: readonly string[],
+): raw is Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const actual = Object.keys(raw as Record<string, unknown>).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length) return false;
+  return actual.every((key, index) => key === wanted[index]);
+}
+
 /** ---------- wire / pubsub ---------- */
 const MAX_MSG_BYTES = 64 * 1024;
-const PROTO_VER = 1;
+const PROTO_VER = VOID_P2P_AUTH_PROTOCOL_VERSION_V1;
 
 type Msg =
-  | { type: "HELLO"; id: string; listen: string[]; proto: number; pubkey: string }
+  | { type: "HELLO"; id: string; listen: string[]; proto: number; pubkey: string; challenge: string }
+  | { type: "AUTH"; id: string; listen: string[]; proto: number; pubkey: string; challenge: string; self_challenge: string; sig: string }
   | { type: "SUB"; topic: string }
   | { type: "PUB"; topic: string; data: string; from: string; nonce: string; sig: string; pubkey: string }
-  | { type: "PEERS"; addrs: string[] };
+  | { type: "PEERS"; addrs: string[] }
+  | { type: "REACHABILITY_OBSERVATION"; observation: VoidP2PReachabilityObservationV1 }
+  | { type: "REACHABILITY_DIALBACK_REQUEST"; request_id: string; candidate_address: string }
+  | { type: "REACHABILITY_PROBE_OPEN"; request_id: string }
+  | { type: "REACHABILITY_PROBE_COMPLETE"; request_id: string }
+  | { type: "REACHABILITY_DIALBACK_RESULT"; request_id: string; observation: VoidP2PReachabilityObservationV1 }
+  | VoidRelayControlMessageV1;
 
 function encode(m: Msg): Buffer {
   const body = Buffer.from(JSON.stringify(m));
@@ -143,20 +216,66 @@ class PubSub {
   }
 }
 
+type PeerTransportV1 = "direct" | "relay";
+
+type PeerSocketV1 = {
+  on(event: "data", listener: (chunk: Buffer) => void): unknown;
+  on(event: "close", listener: () => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  write(data: Uint8Array | string): boolean;
+  destroy(error?: Error): unknown;
+  readonly writableLength?: number;
+};
+
+type RelayLocalStreamV1 = {
+  relay_node_id: string;
+  remote_node_id: string;
+  stream_id: string;
+  outgoing: boolean;
+  started: boolean;
+  socket: VoidRelayVirtualSocketV1;
+};
+
+type ReachabilityProbeContext = {
+  role: "outgoing" | "incoming";
+  requestId: string;
+  controlPeerId: string;
+  candidateAddress: string;
+  subjectNodeId: string;
+  startedAtMs: number;
+  authenticatedRemoteId?: string;
+};
+
 type Peer = {
   id: string;
-  socket: net.Socket;
+  socket: PeerSocketV1;
   framer: Framer;
   addr: string;
   listens: string[];
   outbound: boolean;
   handshakeDone: boolean;
+  localChallenge: string;
+  remoteHello?: VoidPeerHelloV1;
+  authTimer: NodeJS.Timeout | null;
+  expectedNodeId?: string;
+  reconnectAddr?: string;
+  suppressReconnect: boolean;
+  attachedAtMs: number;
+  outboundSeenEmitted: boolean;
+  probe?: ReachabilityProbeContext;
+  transport: PeerTransportV1;
+  relayViaNodeId?: string;
+  relayStreamId?: string;
 };
 
 /** ================================================================= */
 /**                               Node                                 */
 /** ================================================================= */
-type NodeOpts = { allowEmptyBlocks?: boolean };
+type NodeOpts = {
+  allowEmptyBlocks?: boolean;
+  reachabilityTestAllowNonPublicProbe?: boolean;
+  relayServer?: boolean;
+};
 
 export class Node {
   readonly id: string;
@@ -169,6 +288,56 @@ export class Node {
   readonly pubsub = new PubSub();
 
   private readonly baseDir = process.env.DATA_DIR || "data";
+  private readonly verifiedPeerCachePath = voidVerifiedPeerCachePathV1(this.baseDir);
+  private verifiedPeerCacheRecords: VoidVerifiedPeerRecordV1[] = [];
+  private cachedExpectedNodeByAddress = new Map<string, string>();
+  private stopping = false;
+
+  private readonly reachabilityFailureDomain =
+    normalizeVoidReachabilityFailureDomainV1(
+      process.env.VOID_P2P_REACHABILITY_FAILURE_DOMAIN,
+    ) || "unclassified";
+  private readonly reachabilityTestAllowNonPublicProbe: boolean;
+  private readonly reachabilityObservations =
+    new Map<string, VoidP2PReachabilityObservationV1>();
+  private readonly pendingReachabilityDialbacks = new Map<
+    string,
+    {
+      observerNodeId: string;
+      candidateAddress: string;
+      startedAtMs: number;
+    }
+  >();
+  private readonly activeReachabilityProbes = new Set<string>();
+  private readonly lastReachabilityProbeAt = new Map<string, number>();
+  private readonly REACHABILITY_PROBE_COOLDOWN_MS = 30_000;
+  private readonly REACHABILITY_MAX_ACTIVE_PROBES = 8;
+
+  private readonly relayServerEnabled: boolean;
+  private readonly relayServerState = new VoidRelayServerStateV1();
+  private relaySweepTimer: NodeJS.Timeout | null = null;
+  private relayPendingReservations = new Map<
+    string,
+    {
+      relay_node_id: string;
+      requested_ttl_ms: number;
+      requested_at_ms: number;
+    }
+  >();
+  private relayPendingConnects = new Map<
+    string,
+    {
+      relay_node_id: string;
+      target_node_id: string;
+      requested_at_ms: number;
+    }
+  >();
+  private relayClientReservations = new Map<
+    string,
+    { relay_node_id: string; reservation_id: string; expires_at_ms: number }
+  >();
+  private relayStreams = new Map<string, RelayLocalStreamV1>();
+
   readonly txIndex = new TxIndex(path.join(this.baseDir, "index"));
   readonly receipts = new ReceiptsStore(path.join(this.baseDir, "receipts"), { shardSpan: 10_000 });
 
@@ -209,10 +378,21 @@ export class Node {
     this.pub = kp.publicKey;
     this.pubPEM = kp.pubPEM;
     this.allowEmptyBlocks = !!opts?.allowEmptyBlocks;
+    this.reachabilityTestAllowNonPublicProbe =
+      opts?.reachabilityTestAllowNonPublicProbe === true;
+    this.relayServerEnabled = !!opts?.relayServer;
     ensureDir(this.blobsDir);
   }
 
   onHttpAnnounce?: (p: { id: string; http?: string; p2p?: string }) => void;
+  onReachabilityObservation?: (event: {
+    source:
+      | "local_outbound_seen"
+      | "local_dialback"
+      | "remote_outbound_seen"
+      | "remote_dialback_result";
+    observation: VoidP2PReachabilityObservationV1;
+  }) => void;
   onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook
 
   server = net.createServer((sock) => this.onIncoming(sock));
@@ -249,6 +429,7 @@ export class Node {
 
   /** lifecycle */
   async start() {
+    this.stopping = false;
     // bind to loopback by default to avoid accidental multi-binding conflicts
     const bindHost =
       process.env.P2P_BIND_HOST ||
@@ -279,22 +460,44 @@ export class Node {
       })();
 
     await new Promise<void>((resolve) => this.server.listen(this.tcpPort, bindHost, resolve));
-    const addr = `${advertHost}:${(this.server.address() as net.AddressInfo).port}`;
+    const listenPort = (this.server.address() as net.AddressInfo).port;
+    const addr = formatPeerAddress(advertHost, listenPort);
+    if (!addr) {
+      this.server.close();
+      throw new Error(`invalid P2P advertise host: ${advertHost}`);
+    }
     this.listenAddrs.push(addr);
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
 
     const bootstrapRaw = String(process.env.BOOTSTRAP_ADDRS || "").trim();
-    const bootstrapAddrs = bootstrapRaw
-      ? bootstrapRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+    const bootstrapAddrs = parseBootstrap(bootstrapRaw);
+    if (bootstrapRaw && bootstrapAddrs.length === 0) {
+      console.warn("[void-node] bootstrap list contained no valid peer addresses");
+    }
     if (bootstrapAddrs.length) {
       console.log(`[void-node] bootstrap dial targets: ${bootstrapAddrs.join(", ")}`);
       for (const a of bootstrapAddrs) {
-        if (a && a !== addr && this.shouldDial(a)) {
-          setTimeout(() => this.connect(a), 250).unref?.();
+        if (a !== addr && this.shouldDial(a)) {
+          setTimeout(() => {
+            if (!this.stopping) this.connect(a);
+          }, 250).unref?.();
         }
       }
+    }
+
+    // Verified cached peers are an independent introduction path. Cached
+    // identity pins also apply when the same address appears in BOOTSTRAP_ADDRS.
+    this.loadVerifiedPeerReconnects();
+
+    if (!this.relaySweepTimer) {
+      this.relaySweepTimer = setInterval(() => {
+        if (!this.stopping) {
+          this.sweepRelayClientState();
+          this.sweepRelayServerState();
+        }
+      }, 1_000);
+      this.relaySweepTimer.unref?.();
     }
 
     // Default topic subscriptions used across the stack
@@ -319,102 +522,1016 @@ export class Node {
   }
 
   stop() {
-    for (const p of this.peers.values()) p.socket.destroy();
+    this.stopping = true;
+    this.pendingReachabilityDialbacks.clear();
+    this.activeReachabilityProbes.clear();
+    if (this.relaySweepTimer) {
+      clearInterval(this.relaySweepTimer);
+      this.relaySweepTimer = null;
+    }
+    for (const stream of this.relayStreams.values()) {
+      stream.socket.remoteClose("node stopping");
+    }
+    this.relayStreams.clear();
+    for (const p of this.peers.values()) {
+      p.suppressReconnect = true;
+      p.socket.destroy();
+    }
     this.server.close();
+  }
+
+  private rebuildVerifiedPeerIdentityIndex() {
+    this.cachedExpectedNodeByAddress.clear();
+    for (const record of this.verifiedPeerCacheRecords) {
+      if (record.node_id === this.id) continue;
+      for (const address of record.addresses) {
+        this.cachedExpectedNodeByAddress.set(address, record.node_id);
+      }
+    }
+  }
+
+  private loadVerifiedPeerReconnects() {
+    const loaded = loadVoidVerifiedPeerCacheV1(this.verifiedPeerCachePath);
+    if (!loaded.valid) {
+      this.verifiedPeerCacheRecords = [];
+      this.rebuildVerifiedPeerIdentityIndex();
+      console.warn("VOID_P2P_VERIFIED_PEER_CACHE_V1_REJECT", {
+        path: this.verifiedPeerCachePath,
+        reason: loaded.reason || "invalid verified peer cache",
+      });
+      return;
+    }
+
+    this.verifiedPeerCacheRecords = [...loaded.records];
+    this.rebuildVerifiedPeerIdentityIndex();
+
+    const targets = voidVerifiedPeerDialTargetsV1(loaded.records, this.id);
+    let delayMs = 325;
+    for (const target of targets) {
+      this.knownAddrs.add(target.address);
+      setTimeout(() => {
+        if (!this.stopping) this.connect(target.address, target.node_id);
+      }, delayMs).unref?.();
+      delayMs = Math.min(delayMs + 25, 750);
+    }
+  }
+
+  private rememberAuthenticatedPeer(peer: Peer) {
+    if (!peer.handshakeDone || peer.id.startsWith("?-") || peer.listens.length === 0) return;
+    try {
+      const loaded = rememberVoidAuthenticatedPeerV1(
+        this.verifiedPeerCachePath,
+        this.id,
+        peer.id,
+        peer.listens,
+      );
+      if (!loaded.valid) {
+        throw new Error(loaded.reason || "verified peer cache post-write validation failed");
+      }
+      this.verifiedPeerCacheRecords = [...loaded.records];
+      this.rebuildVerifiedPeerIdentityIndex();
+    } catch (error) {
+      console.warn("VOID_P2P_VERIFIED_PEER_CACHE_V1_WRITE_FAILURE_VISIBLE", {
+        peer_id: peer.id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private scheduleVerifiedPeerReconnect(peer: Peer) {
+    if (
+      this.stopping ||
+      peer.suppressReconnect ||
+      peer.transport !== "direct" ||
+      !peer.handshakeDone ||
+      peer.id.startsWith("?-")
+    ) {
+      return;
+    }
+
+    const address =
+      peer.reconnectAddr && peer.listens.includes(peer.reconnectAddr)
+        ? peer.reconnectAddr
+        : peer.listens[0];
+    if (!address) return;
+
+    const current = this.backoff.get(address) ?? this.MIN_BACKOFF;
+    const delayMs = Math.min(Math.max(current, this.MIN_BACKOFF), this.MAX_BACKOFF);
+    const next = Math.min(delayMs * 2, this.MAX_BACKOFF);
+    this.backoff.set(address, next);
+
+    setTimeout(() => {
+      if (!this.stopping) this.connect(address, peer.id);
+    }, delayMs).unref?.();
+  }
+
+
+  private recordReachabilityObservation(
+    raw: unknown,
+    source:
+      | "local_outbound_seen"
+      | "local_dialback"
+      | "remote_outbound_seen"
+      | "remote_dialback_result",
+  ): boolean {
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(raw);
+      if (
+        (source === "remote_outbound_seen" ||
+          source === "remote_dialback_result") &&
+        validated.stale
+      ) {
+        return false;
+      }
+      const observation = validated.observation;
+      if (this.reachabilityObservations.has(observation.observation_id)) {
+        return true;
+      }
+      this.reachabilityObservations.set(
+        observation.observation_id,
+        observation,
+      );
+      while (this.reachabilityObservations.size > 64) {
+        const first = this.reachabilityObservations.keys().next().value;
+        if (typeof first !== "string") break;
+        this.reachabilityObservations.delete(first);
+      }
+      this.onReachabilityObservation?.({ source, observation });
+      return true;
+    } catch (error) {
+      console.warn("VOID_P2P_REACHABILITY_RUNTIME_V1_OBSERVATION_REJECT", {
+        source,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
+  private emitAuthenticatedOutboundSeen(peer: Peer) {
+    if (
+      peer.probe ||
+      peer.transport !== "direct" ||
+      peer.outbound ||
+      peer.outboundSeenEmitted ||
+      !peer.handshakeDone ||
+      peer.id.startsWith("?-")
+    ) {
+      return;
+    }
+    peer.outboundSeenEmitted = true;
+    const latencyMs = Math.min(
+      60_000,
+      Math.max(0, Date.now() - peer.attachedAtMs),
+    );
+    for (const candidate of peer.listens.slice(0, 8)) {
+      if (!parseVoidReachabilityCandidateAddressV1(candidate)) continue;
+      try {
+        const observation = createVoidP2PReachabilityObservationV1({
+          subjectNodeId: peer.id,
+          observerNodeId: this.id,
+          observerFailureDomain: this.reachabilityFailureDomain,
+          observedAt: new Date().toISOString(),
+          kind: "authenticated_outbound_seen",
+          candidateAddress: candidate,
+          outcome: "success",
+          authenticatedSubjectId: peer.id,
+          latencyMs,
+        });
+        this.recordReachabilityObservation(
+          observation,
+          "local_outbound_seen",
+        );
+        this.sendRaw(peer, {
+          type: "REACHABILITY_OBSERVATION",
+          observation,
+        });
+      } catch (error) {
+        console.warn(
+          "VOID_P2P_REACHABILITY_RUNTIME_V1_OUTBOUND_OBSERVATION_REJECT",
+          {
+            peer_id: peer.id,
+            candidate,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
+    }
+  }
+
+  private reachabilityCandidateAllowed(candidate: string): boolean {
+    if (!parseVoidReachabilityCandidateAddressV1(candidate)) return false;
+    return (
+      isVoidPublicDirectCandidateV1(candidate) ||
+      this.reachabilityTestAllowNonPublicProbe
+    );
+  }
+
+  requestReachabilityDialback(
+    observerNodeId: string,
+    candidateInput?: string,
+  ):
+    | {
+        ok: true;
+        request_id: string;
+        candidate_address: string;
+      }
+    | { ok: false; error: string } {
+    const observer = this.peers.get(observerNodeId);
+    if (
+      !observer ||
+      observer.probe ||
+      !observer.handshakeDone ||
+      observer.id.startsWith("?-")
+    ) {
+      return { ok: false, error: "observer_not_authenticated" };
+    }
+
+    const candidate =
+      candidateInput ||
+      this.listenAddrs.find((address) =>
+        this.reachabilityCandidateAllowed(address),
+      );
+    if (!candidate) return { ok: false, error: "no_eligible_candidate" };
+
+    const parsed = parseVoidReachabilityCandidateAddressV1(candidate);
+    if (!parsed) return { ok: false, error: "candidate_not_ip_literal" };
+    if (!this.listenAddrs.includes(parsed.canonical)) {
+      return { ok: false, error: "candidate_not_authenticated_listen" };
+    }
+    if (
+      !this.reachabilityTestAllowNonPublicProbe &&
+      !isVoidPublicDirectCandidateV1(parsed.canonical)
+    ) {
+      return { ok: false, error: "candidate_not_public" };
+    }
+    if (this.pendingReachabilityDialbacks.size >= 8) {
+      return { ok: false, error: "too_many_pending_dialbacks" };
+    }
+    for (const pending of this.pendingReachabilityDialbacks.values()) {
+      if (
+        pending.observerNodeId === observerNodeId &&
+        pending.candidateAddress === parsed.canonical
+      ) {
+        return { ok: false, error: "dialback_already_pending" };
+      }
+    }
+
+    const requestId = newVoidReachabilityRequestIdV1();
+    const startedAtMs = Date.now();
+    this.pendingReachabilityDialbacks.set(requestId, {
+      observerNodeId,
+      candidateAddress: parsed.canonical,
+      startedAtMs,
+    });
+    this.sendRaw(observer, {
+      type: "REACHABILITY_DIALBACK_REQUEST",
+      request_id: requestId,
+      candidate_address: parsed.canonical,
+    });
+    setTimeout(() => {
+      const current = this.pendingReachabilityDialbacks.get(requestId);
+      if (
+        current &&
+        current.observerNodeId === observerNodeId &&
+        current.candidateAddress === parsed.canonical
+      ) {
+        this.pendingReachabilityDialbacks.delete(requestId);
+      }
+    }, 15_000).unref?.();
+
+    return {
+      ok: true,
+      request_id: requestId,
+      candidate_address: parsed.canonical,
+    };
+  }
+
+  private handleReachabilityDialbackRequest(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, [
+        "type",
+        "request_id",
+        "candidate_address",
+      ])
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_DIALBACK_REQUEST") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const requestId = object.request_id;
+    const candidate = parseVoidReachabilityCandidateAddressV1(
+      object.candidate_address,
+    );
+    if (!candidate) return;
+    if (!peer.listens.includes(candidate.canonical)) return;
+    if (!this.reachabilityCandidateAllowed(candidate.canonical)) return;
+    if (this.activeReachabilityProbes.size >= this.REACHABILITY_MAX_ACTIVE_PROBES) {
+      return;
+    }
+
+    const now = Date.now();
+    const last = this.lastReachabilityProbeAt.get(peer.id) || 0;
+    if (now - last < this.REACHABILITY_PROBE_COOLDOWN_MS) return;
+    const activeKey = `${peer.id}:${requestId}`;
+    if (this.activeReachabilityProbes.has(activeKey)) return;
+
+    this.lastReachabilityProbeAt.set(peer.id, now);
+    this.activeReachabilityProbes.add(activeKey);
+    this.startReachabilityDialbackProbe(
+      peer.id,
+      requestId,
+      candidate.canonical,
+      now,
+    );
+  }
+
+  private startReachabilityDialbackProbe(
+    subjectNodeId: string,
+    requestId: string,
+    candidateAddress: string,
+    startedAtMs: number,
+  ) {
+    const parsed = parseVoidReachabilityCandidateAddressV1(candidateAddress);
+    if (!parsed) {
+      this.completeReachabilityDialbackAttempt(
+        subjectNodeId,
+        requestId,
+        candidateAddress,
+        startedAtMs,
+        false,
+      );
+      return;
+    }
+
+    let attached = false;
+    const socket = net.createConnection(
+      { host: parsed.host, port: parsed.port },
+      () => {
+        attached = true;
+        this.attachSocket(
+          socket,
+          parsed.canonical,
+          true,
+          subjectNodeId,
+          parsed.canonical,
+          "direct",
+          undefined,
+          undefined,
+          {
+            role: "outgoing",
+            requestId,
+            controlPeerId: subjectNodeId,
+            candidateAddress: parsed.canonical,
+            subjectNodeId,
+            startedAtMs,
+          },
+        );
+      },
+    );
+    socket.once("error", (error) => {
+      if (attached) return;
+      console.warn("VOID_P2P_REACHABILITY_RUNTIME_V1_DIALBACK_FAILURE", {
+        subject_node_id: subjectNodeId,
+        candidate_address: parsed.canonical,
+        reason: error.message,
+      });
+      this.completeReachabilityDialbackAttempt(
+        subjectNodeId,
+        requestId,
+        parsed.canonical,
+        startedAtMs,
+        false,
+      );
+      socket.destroy();
+    });
+  }
+
+  private completeReachabilityDialbackAttempt(
+    subjectNodeId: string,
+    requestId: string,
+    candidateAddress: string,
+    startedAtMs: number,
+    success: boolean,
+    authenticatedSubjectId?: string,
+    probePeer?: Peer,
+  ) {
+    const activeKey = `${subjectNodeId}:${requestId}`;
+    if (!this.activeReachabilityProbes.delete(activeKey)) return;
+
+    try {
+      const observation = createVoidP2PReachabilityObservationV1({
+        subjectNodeId,
+        observerNodeId: this.id,
+        observerFailureDomain: this.reachabilityFailureDomain,
+        observedAt: new Date().toISOString(),
+        kind: "authenticated_dialback",
+        candidateAddress,
+        outcome: success ? "success" : "failure",
+        authenticatedSubjectId: success
+          ? authenticatedSubjectId || null
+          : null,
+        latencyMs: success
+          ? Math.min(60_000, Math.max(0, Date.now() - startedAtMs))
+          : null,
+      });
+      this.recordReachabilityObservation(observation, "local_dialback");
+      const controlPeer = this.peers.get(subjectNodeId);
+      if (
+        controlPeer &&
+        !controlPeer.probe &&
+        controlPeer.handshakeDone &&
+        !controlPeer.id.startsWith("?-")
+      ) {
+        this.sendRaw(controlPeer, {
+          type: "REACHABILITY_DIALBACK_RESULT",
+          request_id: requestId,
+          observation,
+        });
+      }
+    } catch (error) {
+      console.warn(
+        "VOID_P2P_REACHABILITY_RUNTIME_V1_DIALBACK_OBSERVATION_FAILURE",
+        {
+          subject_node_id: subjectNodeId,
+          candidate_address: candidateAddress,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+
+    if (probePeer) {
+      probePeer.suppressReconnect = true;
+      setTimeout(() => probePeer.socket.destroy(), success ? 25 : 0).unref?.();
+    }
+  }
+
+  private handleReachabilityProbeOpen(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, ["type", "request_id"]) ||
+      peer.outbound ||
+      peer.transport !== "direct" ||
+      peer.handshakeDone ||
+      peer.remoteHello ||
+      peer.probe
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_PROBE_OPEN") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (!pending) return;
+
+    peer.probe = {
+      role: "incoming",
+      requestId: object.request_id,
+      controlPeerId: pending.observerNodeId,
+      candidateAddress: pending.candidateAddress,
+      subjectNodeId: this.id,
+      startedAtMs: pending.startedAtMs,
+    };
+    peer.expectedNodeId = pending.observerNodeId;
+    peer.suppressReconnect = true;
+  }
+
+  private finishReachabilityProbeAuthentication(
+    peer: Peer,
+    auth: VoidPeerAuthV1,
+  ): boolean {
+    const probe = peer.probe;
+    if (!probe) return false;
+
+    const expectedIdentity =
+      probe.role === "outgoing"
+        ? probe.subjectNodeId
+        : probe.controlPeerId;
+    if (auth.id !== expectedIdentity) {
+      if (probe.role === "outgoing") {
+        this.completeReachabilityDialbackAttempt(
+          probe.subjectNodeId,
+          probe.requestId,
+          probe.candidateAddress,
+          probe.startedAtMs,
+          false,
+          undefined,
+          peer,
+        );
+      }
+      peer.socket.destroy();
+      return false;
+    }
+
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    peer.handshakeDone = true;
+    peer.listens = [...auth.listen];
+    peer.remoteHello = undefined;
+    probe.authenticatedRemoteId = auth.id;
+
+    if (probe.role === "incoming") {
+      return true;
+    }
+
+    if (!auth.listen.includes(probe.candidateAddress)) {
+      this.completeReachabilityDialbackAttempt(
+        probe.subjectNodeId,
+        probe.requestId,
+        probe.candidateAddress,
+        probe.startedAtMs,
+        false,
+        undefined,
+        peer,
+      );
+      return false;
+    }
+
+    this.sendRaw(peer, {
+      type: "REACHABILITY_PROBE_COMPLETE",
+      request_id: probe.requestId,
+    });
+    this.completeReachabilityDialbackAttempt(
+      probe.subjectNodeId,
+      probe.requestId,
+      probe.candidateAddress,
+      probe.startedAtMs,
+      true,
+      auth.id,
+      peer,
+    );
+    return true;
+  }
+
+  private handleReachabilityProbeComplete(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, ["type", "request_id"]) ||
+      !peer.probe ||
+      peer.probe.role !== "incoming" ||
+      !peer.handshakeDone ||
+      !peer.probe.authenticatedRemoteId
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_PROBE_COMPLETE") return;
+    if (
+      !isVoidReachabilityRequestIdV1(object.request_id) ||
+      object.request_id !== peer.probe.requestId
+    ) {
+      return;
+    }
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (
+      !pending ||
+      pending.observerNodeId !== peer.probe.authenticatedRemoteId
+    ) {
+      peer.socket.destroy();
+      return;
+    }
+    peer.suppressReconnect = true;
+    peer.socket.destroy();
+  }
+
+  private handleReachabilityObservationMessage(peer: Peer, raw: unknown) {
+    if (!hasExactWireKeys(raw, ["type", "observation"])) return;
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_OBSERVATION") return;
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(
+        object.observation,
+      );
+      const observation = validated.observation;
+      if (
+        validated.stale ||
+        observation.kind !== "authenticated_outbound_seen" ||
+        observation.outcome !== "success" ||
+        observation.subject_node_id !== this.id ||
+        observation.observer_node_id !== peer.id ||
+        !this.listenAddrs.includes(observation.candidate_address)
+      ) {
+        return;
+      }
+      this.recordReachabilityObservation(
+        observation,
+        "remote_outbound_seen",
+      );
+    } catch {
+      return;
+    }
+  }
+
+  private handleReachabilityDialbackResult(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, [
+        "type",
+        "request_id",
+        "observation",
+      ])
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_DIALBACK_RESULT") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (!pending || pending.observerNodeId !== peer.id) return;
+
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(
+        object.observation,
+      );
+      const observation = validated.observation;
+      if (
+        validated.stale ||
+        validated.observedMs + 1_000 < pending.startedAtMs ||
+        observation.kind !== "authenticated_dialback" ||
+        observation.subject_node_id !== this.id ||
+        observation.observer_node_id !== peer.id ||
+        observation.candidate_address !== pending.candidateAddress
+      ) {
+        return;
+      }
+      if (
+        this.recordReachabilityObservation(
+          observation,
+          "remote_dialback_result",
+        )
+      ) {
+        this.pendingReachabilityDialbacks.delete(object.request_id);
+      }
+    } catch {
+      return;
+    }
+  }
+
+  reachabilitySnapshot() {
+    const observations = [...this.reachabilityObservations.values()];
+    const groups = new Map<string, VoidP2PReachabilityObservationV1[]>();
+    for (const observation of observations) {
+      const key =
+        `${observation.subject_node_id}\u0000${observation.candidate_address}`;
+      const group = groups.get(key) || [];
+      group.push(observation);
+      groups.set(key, group);
+    }
+    const classifications = [...groups.values()].map((group) =>
+      classifyVoidP2PReachabilityRuntimeV1(group),
+    );
+    return {
+      observer_failure_domain: this.reachabilityFailureDomain,
+      observations: observations.map((entry) => structuredClone(entry)),
+      classifications: classifications.map((entry) => structuredClone(entry)),
+      pending_dialbacks: this.pendingReachabilityDialbacks.size,
+      active_probes: this.activeReachabilityProbes.size,
+      runtime_integration_performed: true,
+    };
   }
 
   /** sockets */
   private onIncoming(socket: net.Socket) {
-    const peerAddr = `${socket.remoteAddress}:${socket.remotePort}`;
+    const remoteHost = String(socket.remoteAddress || "");
+    const remotePort = Number(socket.remotePort || 0);
+    const peerAddr =
+      formatPeerAddress(remoteHost, remotePort) ||
+      `${remoteHost}:${remotePort}`;
     this.attachSocket(socket, peerAddr, false);
   }
-  private attachSocket(socket: net.Socket, peerAddr: string, outgoing: boolean) {
-    let peerId = `?-${crypto.randomBytes(4).toString("hex")}`;
-    const framer = new Framer((msg) => this.onMsg(peerId, msg), (e) => {
-      console.warn(`[wire] bad message from ${peerId} (${peerAddr}):`, e.message);
+  private rejectUnauthenticatedPeer(peer: Peer, reason: string) {
+    if (peer.probe?.role === "outgoing") {
+      this.completeReachabilityDialbackAttempt(
+        peer.probe.subjectNodeId,
+        peer.probe.requestId,
+        peer.probe.candidateAddress,
+        peer.probe.startedAtMs,
+        false,
+        undefined,
+        peer,
+      );
+    }
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+    console.warn("VOID_P2P_AUTHENTICATED_PEER_IDENTITY_V1_REJECT", {
+      peer: peer.addr,
+      reason,
     });
-    socket.on("data", (chunk) => framer.feed(chunk));
-    socket.on("close", () => {
-      this.peers.delete(peerId);
-    });
-    socket.on("error", (e) => {
-      console.warn(`[peer] error ${peerId} (${peerAddr}):`, e.message);
-    });
+    peer.socket.destroy();
+  }
+
+  private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
+    if (peer.probe) {
+      return this.finishReachabilityProbeAuthentication(peer, auth);
+    }
+
+    if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
+      if (peer.transport === "relay") {
+        console.warn("VOID_P2P_RELAY_DESTINATION_IDENTITY_MISMATCH_V1", {
+          relay_node_id: peer.relayViaNodeId,
+          stream_id: peer.relayStreamId,
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");
+      } else {
+        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {
+          address: peer.reconnectAddr || peer.addr,
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "cached reconnect identity mismatch");
+      }
+      return false;
+    }
+
+    for (const address of auth.listen) {
+      const cachedOwner = this.cachedExpectedNodeByAddress.get(address);
+      if (cachedOwner && cachedOwner !== auth.id) {
+        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_ADDRESS_OWNERSHIP_MISMATCH_V1", {
+          address,
+          expected_node_id: cachedOwner,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "authenticated address ownership mismatch");
+        return false;
+      }
+    }
+
+    const temporaryId = peer.id;
+    const existing = this.peers.get(auth.id);
+
+    if (
+      existing &&
+      existing !== peer &&
+      existing.transport === "direct" &&
+      peer.transport === "relay"
+    ) {
+      this.rejectUnauthenticatedPeer(
+        peer,
+        "direct authenticated transport already preferred",
+      );
+      return false;
+    }
+
+    if (
+      existing &&
+      existing !== peer &&
+      existing.transport === "relay" &&
+      peer.transport === "direct"
+    ) {
+      existing.suppressReconnect = true;
+      existing.socket.destroy();
+      this.peers.delete(auth.id);
+    }
+
+    if (
+      existing &&
+      existing !== peer &&
+      this.peers.get(auth.id) === existing
+    ) {
+      if (existing.outbound && !peer.outbound) {
+        this.rejectUnauthenticatedPeer(peer, "duplicate inbound connection");
+        return false;
+      }
+      if (existing.authTimer) {
+        clearTimeout(existing.authTimer);
+        existing.authTimer = null;
+      }
+      existing.suppressReconnect = true;
+      existing.socket.destroy();
+      this.peers.delete(auth.id);
+    }
+
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    this.peers.delete(temporaryId);
+    peer.id = auth.id;
+    peer.handshakeDone = true;
+    peer.listens = [...auth.listen];
+    peer.remoteHello = undefined;
+    if (
+      peer.transport === "direct" &&
+      (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr))
+    ) {
+      peer.reconnectAddr = peer.listens[0];
+    }
+    this.peers.set(peer.id, peer);
+
+    if (peer.transport === "direct") {
+      if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
+      this.rememberAuthenticatedPeer(peer);
+
+      const firstListen = peer.listens[0];
+      const inferredHttp = httpBaseFromP2P(firstListen);
+      if (inferredHttp) {
+        this.peerHttp.set(peer.id, inferredHttp);
+        if (peer.id !== this.id) {
+          this.onHttpAnnounce?.({ id: peer.id, http: inferredHttp, p2p: firstListen });
+        }
+      }
+
+      for (const address of peer.listens) this.knownAddrs.add(address);
+    }
+    const addrs = new Set<string>();
+    for (const connectedPeer of this.peers.values()) {
+      if (!connectedPeer.handshakeDone || connectedPeer.transport !== "direct") continue;
+      for (const address of connectedPeer.listens) addrs.add(address);
+    }
+    for (const address of this.listenAddrs) addrs.add(address);
+
+    this.sendRaw(peer, { type: "PEERS", addrs: [...addrs] });
+    for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
+    return true;
+  }
+
+  private attachSocket(
+    socket: PeerSocketV1,
+    peerAddr: string,
+    outgoing: boolean,
+    expectedNodeId?: string,
+    reconnectAddr?: string,
+    transport: PeerTransportV1 = "direct",
+    relayViaNodeId?: string,
+    relayStreamId?: string,
+    reachabilityProbe?: ReachabilityProbeContext,
+  ) {
     const peer: Peer = {
-      id: peerId,
+      id: `?-${crypto.randomBytes(4).toString("hex")}`,
       socket,
-      framer,
+      framer: undefined as unknown as Framer,
       addr: peerAddr,
       listens: [],
       outbound: outgoing,
       handshakeDone: false,
+      localChallenge: newVoidPeerChallengeV1(),
+      authTimer: null,
+      expectedNodeId,
+      reconnectAddr,
+      suppressReconnect: !!reachabilityProbe,
+      attachedAtMs: Date.now(),
+      outboundSeenEmitted: false,
+      probe: reachabilityProbe,
+      transport,
+      relayViaNodeId,
+      relayStreamId,
     };
-    this.peers.set(peerId, peer);
-    this.sendRaw(peer, { type: "HELLO", id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM });
+
+    peer.framer = new Framer(
+      (msg) => this.onMsg(peer, msg),
+      (error) => console.warn(`[wire] bad message from ${peer.id} (${peerAddr}):`, error.message),
+    );
+    socket.on("data", (chunk) => peer.framer.feed(chunk));
+    socket.on("close", () => {
+      if (peer.authTimer) {
+        clearTimeout(peer.authTimer);
+        peer.authTimer = null;
+      }
+      if (
+        peer.probe?.role === "outgoing" &&
+        !peer.handshakeDone
+      ) {
+        this.completeReachabilityDialbackAttempt(
+          peer.probe.subjectNodeId,
+          peer.probe.requestId,
+          peer.probe.candidateAddress,
+          peer.probe.startedAtMs,
+          false,
+          undefined,
+          peer,
+        );
+      }
+      if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+      this.handlePeerTransportClose(peer);
+      this.scheduleVerifiedPeerReconnect(peer);
+    });
+    socket.on("error", (error) => {
+      console.warn(`[peer] error ${peer.id} (${peerAddr}):`, error.message);
+    });
+
+    this.peers.set(peer.id, peer);
+    peer.authTimer = setTimeout(() => {
+      if (!peer.handshakeDone) this.rejectUnauthenticatedPeer(peer, "authentication timeout");
+    }, VOID_P2P_AUTH_TIMEOUT_MS_V1);
+    peer.authTimer.unref?.();
+
+    if (peer.probe?.role === "outgoing") {
+      this.sendRaw(peer, {
+        type: "REACHABILITY_PROBE_OPEN",
+        request_id: peer.probe.requestId,
+      });
+    }
+
+    this.sendRaw(peer, {
+      type: "HELLO",
+      id: this.id,
+      listen: this.listenAddrs,
+      proto: PROTO_VER,
+      pubkey: this.pubPEM,
+      challenge: peer.localChallenge,
+    });
   }
 
-  private onMsg(tempOrRealId: string, msg: Msg) {
+  private onMsg(peer: Peer, msg: Msg) {
+    if ((msg as any)?.type === "REACHABILITY_PROBE_OPEN") {
+      this.handleReachabilityProbeOpen(peer, msg);
+      return;
+    }
+
     if (msg.type === "HELLO") {
-      const ent = [...this.peers.entries()].find(([k]) => k === tempOrRealId || k.startsWith("?-"));
-      if (!ent) return;
-      const [tmpKey, p] = ent;
-
-      const existing = this.peers.get(msg.id);
-      if (existing) {
-        if (existing.outbound && !p.outbound) {
-          p.socket.destroy();
-          this.peers.delete(tmpKey);
-          return;
-        } else {
-          existing.socket.destroy();
-          this.peers.delete(msg.id);
-        }
+      if (peer.handshakeDone || peer.remoteHello) {
+        this.rejectUnauthenticatedPeer(peer, "duplicate HELLO");
+        return;
       }
-
-      this.peers.delete(tmpKey);
-      p.id = msg.id;
-      p.handshakeDone = true;
-      p.listens = Array.isArray(msg.listen) ? msg.listen : [];
-      this.peers.set(p.id, p);
-
-      console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
-
-      // Heuristic: infer their HTTP base from first p2p listen like 127.0.0.1:4701 -> http://127.0.0.1:4101
-      const firstListen: string | undefined = p.listens[0];
-      const httpFromP2P = (addr?: string): string | undefined => {
-        if (!addr) return undefined;
-        const m = addr.match(/^([^:]+):(\d+)$/);
-        if (!m) return undefined;
-        const host = m[1], port = Number(m[2]);
-        if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-        return undefined;
-      };
-      const inferredHttp = httpFromP2P(firstListen);
-      if (inferredHttp) {
-        this.peerHttp.set(p.id, inferredHttp);
-        if (p.id !== this.id) this.onHttpAnnounce?.({ id: p.id, http: inferredHttp, p2p: firstListen });
+      const hello = normalizeVoidPeerHelloV1(msg);
+      if (!hello || hello.id === this.id) {
+        this.rejectUnauthenticatedPeer(peer, hello ? "self identity on remote socket" : "invalid HELLO");
+        return;
       }
+      peer.remoteHello = hello;
+      let auth: VoidPeerAuthV1;
+      try {
+        auth = buildVoidPeerAuthV1(
+          { id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM },
+          hello.challenge,
+          peer.localChallenge,
+          this.priv,
+        );
+      } catch (error) {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          `local AUTH construction failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
+      this.sendRaw(peer, auth);
+      return;
+    }
 
-      // Merge peerset and send back PEERS + our current topic subs
-      for (const a of p.listens) this.knownAddrs.add(a);
-      const addrs = new Set<string>();
-      for (const pp of this.peers.values()) for (const a of pp.listens) addrs.add(a);
-      for (const a of this.listenAddrs) addrs.add(a);
+    if (msg.type === "AUTH") {
+      if (peer.handshakeDone || !peer.remoteHello) {
+        this.rejectUnauthenticatedPeer(peer, peer.handshakeDone ? "duplicate AUTH" : "AUTH before HELLO");
+        return;
+      }
+      const auth = verifyVoidPeerAuthV1(msg, peer.localChallenge, peer.remoteHello);
+      if (!auth) {
+        this.rejectUnauthenticatedPeer(peer, "invalid AUTH");
+        return;
+      }
+      this.finishAuthenticatedPeer(peer, auth);
+      return;
+    }
 
-      this.sendRaw(p, { type: "PEERS", addrs: [...addrs] });
-      for (const t of this.myTopics) this.sendRaw(p, { type: "SUB", topic: t });
+    if ((msg as any)?.type === "REACHABILITY_PROBE_COMPLETE") {
+      this.handleReachabilityProbeComplete(peer, msg);
+      return;
+    }
+
+    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
+    this.emitAuthenticatedOutboundSeen(peer);
+
+    if ((msg as any)?.type === "REACHABILITY_OBSERVATION") {
+      this.handleReachabilityObservationMessage(peer, msg);
+      return;
+    }
+
+    if ((msg as any)?.type === "REACHABILITY_DIALBACK_REQUEST") {
+      this.handleReachabilityDialbackRequest(peer, msg);
+      return;
+    }
+
+    if ((msg as any)?.type === "REACHABILITY_DIALBACK_RESULT") {
+      this.handleReachabilityDialbackResult(peer, msg);
+      return;
+    }
+
+    if (isVoidRelayControlTypeV1((msg as any)?.type)) {
+      const relayMessage = normalizeVoidRelayControlMessageV1(msg);
+      if (!relayMessage) {
+        console.warn("VOID_P2P_RELAY_RESERVATION_V1_REJECT", {
+          peer_id: peer.id,
+          reason: "invalid relay control message",
+        });
+        return;
+      }
+      this.onRelayControlMessage(peer, relayMessage);
       return;
     }
 
     if (msg.type === "PEERS") {
-      for (const a of msg.addrs) if (!this.isSelfAddress(a)) this.knownAddrs.add(a);
-      for (const a of msg.addrs) if (this.shouldDial(a)) this.connect(a);
+      const learned = canonicalizePeerAddressList(msg.addrs, 64);
+      for (const address of learned) if (!this.isSelfAddress(address)) this.knownAddrs.add(address);
+      for (const address of learned) if (this.shouldDial(address)) this.connect(address);
       return;
     }
 
     if (msg.type === "SUB") {
-      if (!this.isKnownPeer(tempOrRealId)) return;
-      this.pubsub.subscribe(tempOrRealId, msg.topic);
+      this.pubsub.subscribe(peer.id, msg.topic);
       return;
     }
 
@@ -425,15 +1542,13 @@ export class Node {
       if (!pub) return;
       const bytes = bytesToSign(msg.topic, msg.data, msg.nonce);
       if (!verifyBytes(pub, bytes, msg.sig)) return;
-
       this.seen.add(key);
       this.seenTimestamps.set(key, Date.now());
 
       if (this.pubsub.subscribers(msg.topic).has(this.id)) {
         try {
           if (msg.topic === "void/tx") {
-            const tx = JSON.parse(msg.data);
-            this.acceptTx(tx);
+            this.acceptTx(JSON.parse(msg.data));
           } else if (msg.topic === "void/http") {
             const info = JSON.parse(msg.data);
             const pid = String(info?.id || "").trim();
@@ -450,27 +1565,545 @@ export class Node {
               const providers = [...this.peerHttp.values()];
               if (providers.length) this.enqueueBlobFetch(cid, providers);
             }
-          } else if (msg.topic === "void/block") {
-            const hdr = JSON.parse(msg.data);
-            const num = Number(hdr?.number);
-            if (Number.isFinite(num)) {
-              // Announcement only. Do not persist header-shaped peer data.
-              // Full block persistence must pass validateBlockForAppend() in pullOnce()/SegStore.
-            }
-          } else {
-            // other topics: ignore for now
           }
-        } catch {
-          /* ignore bad payloads */
+        } catch (error) {
+          void error;
         }
       }
 
-      // fan-out to other subscribers
-      for (const p of this.peers.values()) {
-        if (p.id === tempOrRealId) continue;
-        if (this.pubsub.subscribers(msg.topic).has(p.id)) this.sendRaw(p, msg);
+      for (const connectedPeer of this.peers.values()) {
+        if (!connectedPeer.handshakeDone || connectedPeer.id === peer.id) continue;
+        if (this.pubsub.subscribers(msg.topic).has(connectedPeer.id)) {
+          this.sendRaw(connectedPeer, msg);
+        }
+      }
+    }
+  }
+
+  private relayStreamKey(relayNodeId: string, streamId: string): string {
+    return `${relayNodeId}:${streamId}`;
+  }
+
+  private authenticatedDirectPeer(nodeId: string): Peer | undefined {
+    const peer = this.peers.get(nodeId);
+    if (!peer || !peer.handshakeDone || peer.id.startsWith("?-") || peer.transport !== "direct") return;
+    return peer;
+  }
+
+  private activeRelayClientReservation(relayNodeId: string) {
+    const reservation = this.relayClientReservations.get(relayNodeId);
+    if (!reservation) return;
+    if (reservation.expires_at_ms <= Date.now()) {
+      this.relayClientReservations.delete(relayNodeId);
+      return;
+    }
+    return reservation;
+  }
+
+  requestRelayReservation(
+    relayNodeId: string,
+    ttlMs = VOID_P2P_RELAY_DEFAULT_RESERVATION_TTL_MS_V1,
+  ): string | undefined {
+    const relayPeer = this.authenticatedDirectPeer(relayNodeId);
+    if (
+      !relayPeer ||
+      relayNodeId === this.id ||
+      this.relayPendingReservations.size >= VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1
+    ) return;
+    const requestId = newVoidRelayIdV1();
+    const normalized = normalizeVoidRelayControlMessageV1({
+      type: "RELAY_RESERVE",
+      request_id: requestId,
+      ttl_ms: ttlMs,
+    });
+    if (!normalized || normalized.type !== "RELAY_RESERVE") return;
+    this.relayPendingReservations.set(requestId, {
+      relay_node_id: relayNodeId,
+      requested_ttl_ms: normalized.ttl_ms,
+      requested_at_ms: Date.now(),
+    });
+    this.sendRaw(relayPeer, normalized);
+    return requestId;
+  }
+
+  connectViaRelay(relayNodeId: string, targetNodeId: string): string | undefined {
+    const relayPeer = this.authenticatedDirectPeer(relayNodeId);
+    if (
+      !relayPeer ||
+      relayNodeId === this.id ||
+      targetNodeId === this.id ||
+      targetNodeId === relayNodeId ||
+      !/^[0-9a-f]{32}$/.test(targetNodeId) ||
+      this.relayPendingConnects.size >= VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1
+    ) return;
+    const requestId = newVoidRelayIdV1();
+    this.relayPendingConnects.set(requestId, {
+      relay_node_id: relayNodeId,
+      target_node_id: targetNodeId,
+      requested_at_ms: Date.now(),
+    });
+    this.sendRaw(relayPeer, {
+      type: "RELAY_CONNECT",
+      request_id: requestId,
+      target_node_id: targetNodeId,
+    });
+    return requestId;
+  }
+
+  relaySnapshot() {
+    this.sweepRelayClientState();
+    const clientReservations = [...this.relayClientReservations.values()]
+      .map((entry) => ({ ...entry }))
+      .sort((a, b) => a.relay_node_id.localeCompare(b.relay_node_id));
+    const streams = [...this.relayStreams.values()]
+      .map((entry) => ({
+        relay_node_id: entry.relay_node_id,
+        remote_node_id: entry.remote_node_id,
+        stream_id: entry.stream_id,
+        outgoing: entry.outgoing,
+        started: entry.started,
+      }))
+      .sort((a, b) =>
+        a.relay_node_id.localeCompare(b.relay_node_id) ||
+        a.stream_id.localeCompare(b.stream_id)
+      );
+    return {
+      server_enabled: this.relayServerEnabled,
+      client_reservations: clientReservations,
+      streams,
+      server: this.relayServerState.snapshot(),
+    };
+  }
+
+  private stageRelayEndpoint(
+    relayPeer: Peer,
+    streamId: string,
+    remoteNodeId: string,
+    outgoing: boolean,
+  ): boolean {
+    if (relayPeer.transport !== "direct") return false;
+    const key = this.relayStreamKey(relayPeer.id, streamId);
+    const existing = this.relayStreams.get(key);
+    if (existing) {
+      return (
+        existing.remote_node_id === remoteNodeId &&
+        existing.outgoing === outgoing
+      );
+    }
+
+    const perRelay = [...this.relayStreams.values()].filter(
+      (entry) => entry.relay_node_id === relayPeer.id,
+    ).length;
+    if (
+      this.relayStreams.size >= VOID_P2P_RELAY_MAX_STREAMS_V1 ||
+      perRelay >= VOID_P2P_RELAY_MAX_STREAMS_PER_PEER_V1
+    ) {
+      return false;
+    }
+
+    const socket = new VoidRelayVirtualSocketV1(
+      streamId,
+      (dataB64) => this.sendRaw(relayPeer, {
+        type: "RELAY_DATA",
+        stream_id: streamId,
+        data_b64: dataB64,
+      }),
+      (reason) => this.sendRaw(relayPeer, {
+        type: "RELAY_CLOSE",
+        stream_id: streamId,
+        reason,
+      }),
+    );
+
+    this.relayStreams.set(key, {
+      relay_node_id: relayPeer.id,
+      remote_node_id: remoteNodeId,
+      stream_id: streamId,
+      outgoing,
+      started: false,
+      socket,
+    });
+    this.sendRaw(relayPeer, { type: "RELAY_READY", stream_id: streamId });
+    return true;
+  }
+
+  private startRelayEndpoint(relayPeer: Peer, streamId: string): void {
+    const key = this.relayStreamKey(relayPeer.id, streamId);
+    const entry = this.relayStreams.get(key);
+    if (!entry || entry.started) return;
+    entry.started = true;
+    this.attachSocket(
+      entry.socket,
+      `relay:${relayPeer.id}/${streamId}->${entry.remote_node_id}`,
+      entry.outgoing,
+      entry.remote_node_id,
+      undefined,
+      "relay",
+      relayPeer.id,
+      streamId,
+    );
+    entry.socket.activate();
+  }
+
+  private finishRelayLocalStream(relayNodeId: string, streamId: string, reason: string): void {
+    const key = this.relayStreamKey(relayNodeId, streamId);
+    const entry = this.relayStreams.get(key);
+    if (!entry) return;
+    this.relayStreams.delete(key);
+    entry.socket.remoteClose(reason);
+  }
+
+  private sendRelayCloseToNode(nodeId: string, streamId: string, reason: string): void {
+    const peer = this.authenticatedDirectPeer(nodeId);
+    if (!peer) return;
+    this.sendRaw(peer, { type: "RELAY_CLOSE", stream_id: streamId, reason });
+  }
+
+  private closeRelayServerStream(
+    stream: VoidRelayStreamRecordV1,
+    reason: string,
+    exceptNodeId?: string,
+  ): void {
+    for (const nodeId of [stream.source_node_id, stream.target_node_id]) {
+      if (nodeId === exceptNodeId) continue;
+      this.sendRelayCloseToNode(nodeId, stream.stream_id, reason);
+    }
+  }
+
+  private sweepRelayClientState(nowMs = Date.now()): void {
+    for (const [requestId, pending] of this.relayPendingReservations) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, nowMs)) {
+        this.relayPendingReservations.delete(requestId);
+      }
+    }
+    for (const [requestId, pending] of this.relayPendingConnects) {
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms, nowMs)) {
+        this.relayPendingConnects.delete(requestId);
+      }
+    }
+    for (const [relayNodeId, reservation] of this.relayClientReservations) {
+      if (reservation.expires_at_ms <= nowMs) {
+        this.relayClientReservations.delete(relayNodeId);
+      }
+    }
+  }
+
+  private sweepRelayServerState(): void {
+    if (!this.relayServerEnabled) return;
+    for (const stream of this.relayServerState.sweep()) {
+      this.closeRelayServerStream(stream, "relay_stream_expired");
+    }
+  }
+
+  private handlePeerTransportClose(peer: Peer): void {
+    if (peer.transport === "relay") {
+      if (peer.relayViaNodeId && peer.relayStreamId) {
+        const key = this.relayStreamKey(peer.relayViaNodeId, peer.relayStreamId);
+        const entry = this.relayStreams.get(key);
+        if (entry?.socket === peer.socket) this.relayStreams.delete(key);
       }
       return;
+    }
+
+    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
+    if (this.relayServerEnabled) {
+      for (const stream of this.relayServerState.removePeer(peer.id)) {
+        this.closeRelayServerStream(stream, "relay_endpoint_disconnected", peer.id);
+      }
+    }
+
+    this.relayClientReservations.delete(peer.id);
+    for (const [requestId, pending] of this.relayPendingReservations) {
+      if (pending.relay_node_id === peer.id) {
+        this.relayPendingReservations.delete(requestId);
+      }
+    }
+    for (const [requestId, pending] of this.relayPendingConnects) {
+      if (pending.relay_node_id === peer.id) this.relayPendingConnects.delete(requestId);
+    }
+    for (const entry of [...this.relayStreams.values()]) {
+      if (entry.relay_node_id === peer.id) {
+        this.finishRelayLocalStream(entry.relay_node_id, entry.stream_id, "relay_transport_disconnected");
+      }
+    }
+  }
+
+  private rejectRelayRequest(peer: Peer, requestId: string, reason: string): void {
+    this.sendRaw(peer, { type: "RELAY_REJECT", request_id: requestId, reason });
+  }
+
+  private onRelayControlMessage(peer: Peer, msg: VoidRelayControlMessageV1): void {
+    this.sweepRelayServerState();
+
+    if (msg.type === "RELAY_RESERVE") {
+      if (!this.relayServerEnabled || peer.transport !== "direct") {
+        this.rejectRelayRequest(peer, msg.request_id, "relay server disabled");
+        return;
+      }
+      try {
+        const reservation = this.relayServerState.reserve(peer.id, msg.ttl_ms);
+        this.sendRaw(peer, {
+          type: "RELAY_RESERVED",
+          request_id: msg.request_id,
+          reservation_id: reservation.reservation_id,
+          ttl_ms: reservation.ttl_ms,
+        });
+      } catch (error) {
+        this.rejectRelayRequest(peer, msg.request_id, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (msg.type === "RELAY_CONNECT") {
+      if (!this.relayServerEnabled || peer.transport !== "direct") {
+        this.rejectRelayRequest(peer, msg.request_id, "relay server disabled");
+        return;
+      }
+      if (msg.target_node_id === this.id || msg.target_node_id === peer.id) {
+        this.rejectRelayRequest(peer, msg.request_id, "relay loop rejected");
+        return;
+      }
+      const targetPeer = this.authenticatedDirectPeer(msg.target_node_id);
+      if (!targetPeer) {
+        this.rejectRelayRequest(peer, msg.request_id, "relay target is not directly authenticated");
+        return;
+      }
+      try {
+        const stream = this.relayServerState.openStream(peer.id, msg.target_node_id);
+        this.sendRaw(peer, {
+          type: "RELAY_CONNECTED",
+          request_id: msg.request_id,
+          stream_id: stream.stream_id,
+          target_node_id: msg.target_node_id,
+        });
+        this.sendRaw(targetPeer, {
+          type: "RELAY_INCOMING",
+          stream_id: stream.stream_id,
+          source_node_id: peer.id,
+          target_node_id: msg.target_node_id,
+          reservation_id: stream.target_reservation_id,
+        });
+      } catch (error) {
+        this.rejectRelayRequest(peer, msg.request_id, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (msg.type === "RELAY_READY") {
+      if (
+        !this.relayServerEnabled ||
+        peer.transport !== "direct" ||
+        !this.relayServerState.hasStream(msg.stream_id)
+      ) return;
+      try {
+        const ready = this.relayServerState.markReady(peer.id, msg.stream_id);
+        if (ready.started_now) {
+          const sourcePeer = this.authenticatedDirectPeer(ready.stream.source_node_id);
+          const targetPeer = this.authenticatedDirectPeer(ready.stream.target_node_id);
+          if (!sourcePeer || !targetPeer) {
+            const closed = this.relayServerState.closeStream(peer.id, msg.stream_id);
+            if (closed) this.closeRelayServerStream(closed, "relay_endpoint_disconnected");
+            return;
+          }
+          this.sendRaw(sourcePeer, { type: "RELAY_START", stream_id: msg.stream_id });
+          this.sendRaw(targetPeer, { type: "RELAY_START", stream_id: msg.stream_id });
+        }
+      } catch (error) {
+        console.warn("VOID_P2P_RELAY_RESERVATION_V1_READY_REJECT", {
+          peer_id: peer.id,
+          stream_id: msg.stream_id,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "RELAY_DATA") {
+      if (
+        this.relayServerEnabled &&
+        peer.transport === "direct" &&
+        this.relayServerState.hasStream(msg.stream_id)
+      ) {
+        const decoded = decodeVoidRelayDataV1(msg.data_b64);
+        if (!decoded) return;
+        try {
+          const routed = this.relayServerState.routeData(peer.id, msg.stream_id, decoded.length);
+          const counterpart = this.authenticatedDirectPeer(routed.counterpart_node_id);
+          if (!counterpart) {
+            const closed = this.relayServerState.closeStream(peer.id, msg.stream_id);
+            if (closed) this.closeRelayServerStream(closed, "relay_counterpart_disconnected", peer.id);
+            return;
+          }
+          const relayFrameBytes = encode(msg).length;
+          const queuedBytes = Number(counterpart.socket.writableLength ?? 0);
+          if (
+            !voidRelayWritableQueueWithinBoundV1(
+              queuedBytes,
+              relayFrameBytes,
+            )
+          ) {
+            const closed = this.relayServerState.closeStream(
+              peer.id,
+              msg.stream_id,
+            );
+            if (closed) {
+              this.closeRelayServerStream(
+                closed,
+                "relay_backpressure_limit",
+              );
+            }
+            console.warn("VOID_P2P_RELAY_RESERVATION_V1_BACKPRESSURE_CLOSE", {
+              stream_id: msg.stream_id,
+              queued_bytes: queuedBytes,
+              frame_bytes: relayFrameBytes,
+              limit_bytes: VOID_P2P_RELAY_MAX_QUEUED_BYTES_V1,
+            });
+            return;
+          }
+          this.sendRaw(counterpart, msg);
+        } catch (error) {
+          console.warn("VOID_P2P_RELAY_RESERVATION_V1_DATA_REJECT", {
+            peer_id: peer.id,
+            stream_id: msg.stream_id,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
+      const local = this.relayStreams.get(this.relayStreamKey(peer.id, msg.stream_id));
+      if (local) local.socket.feedBase64(msg.data_b64);
+      return;
+    }
+
+    if (msg.type === "RELAY_CLOSE") {
+      if (
+        this.relayServerEnabled &&
+        peer.transport === "direct" &&
+        this.relayServerState.hasStream(msg.stream_id)
+      ) {
+        try {
+          const closed = this.relayServerState.closeStream(peer.id, msg.stream_id);
+          if (closed) this.closeRelayServerStream(closed, msg.reason, peer.id);
+        } catch (error) {
+          console.warn("VOID_P2P_RELAY_RESERVATION_V1_CLOSE_REJECT", {
+            peer_id: peer.id,
+            stream_id: msg.stream_id,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return;
+      }
+      this.finishRelayLocalStream(peer.id, msg.stream_id, msg.reason);
+      return;
+    }
+
+    if (msg.type === "RELAY_RESERVED") {
+      const pending = this.relayPendingReservations.get(msg.request_id);
+      if (
+        !pending ||
+        pending.relay_node_id !== peer.id ||
+        peer.transport !== "direct"
+      ) return;
+      this.relayPendingReservations.delete(msg.request_id);
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms)) {
+        console.warn("VOID_P2P_RELAY_RESERVATION_V1_REQUEST_TIMEOUT", {
+          relay_node_id: peer.id,
+          request_id: msg.request_id,
+          kind: "reservation",
+        });
+        return;
+      }
+      const expiresAtMs = voidRelayClientExpiryV1(
+        pending.requested_at_ms,
+        pending.requested_ttl_ms,
+        msg.ttl_ms,
+      );
+      if (expiresAtMs === undefined) {
+        console.warn("VOID_P2P_RELAY_RESERVATION_V1_TTL_REJECT", {
+          relay_node_id: peer.id,
+          request_id: msg.request_id,
+          requested_ttl_ms: pending.requested_ttl_ms,
+          response_ttl_ms: msg.ttl_ms,
+        });
+        return;
+      }
+      this.relayClientReservations.set(peer.id, {
+        relay_node_id: peer.id,
+        reservation_id: msg.reservation_id,
+        expires_at_ms: expiresAtMs,
+      });
+      return;
+    }
+
+    if (msg.type === "RELAY_CONNECTED") {
+      const pending = this.relayPendingConnects.get(msg.request_id);
+      if (
+        !pending ||
+        pending.relay_node_id !== peer.id ||
+        pending.target_node_id !== msg.target_node_id ||
+        peer.transport !== "direct"
+      ) return;
+      this.relayPendingConnects.delete(msg.request_id);
+      if (voidRelayRequestTimedOutV1(pending.requested_at_ms)) {
+        console.warn("VOID_P2P_RELAY_RESERVATION_V1_REQUEST_TIMEOUT", {
+          relay_node_id: peer.id,
+          request_id: msg.request_id,
+          kind: "connect",
+        });
+        this.sendRaw(peer, {
+          type: "RELAY_CLOSE",
+          stream_id: msg.stream_id,
+          reason: "relay_request_timed_out",
+        });
+        return;
+      }
+      if (!this.stageRelayEndpoint(peer, msg.stream_id, msg.target_node_id, true)) {
+        this.sendRaw(peer, {
+          type: "RELAY_CLOSE",
+          stream_id: msg.stream_id,
+          reason: "relay_client_capacity_reached",
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "RELAY_INCOMING") {
+      const reservation = this.activeRelayClientReservation(peer.id);
+      if (
+        peer.transport !== "direct" ||
+        msg.target_node_id !== this.id ||
+        !reservation ||
+        msg.reservation_id !== reservation.reservation_id
+      ) return;
+      if (!this.stageRelayEndpoint(peer, msg.stream_id, msg.source_node_id, false)) {
+        this.sendRaw(peer, {
+          type: "RELAY_CLOSE",
+          stream_id: msg.stream_id,
+          reason: "relay_client_capacity_reached",
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "RELAY_START") {
+      this.startRelayEndpoint(peer, msg.stream_id);
+      return;
+    }
+
+    if (msg.type === "RELAY_REJECT") {
+      const pendingRelay = this.relayPendingReservations.get(msg.request_id);
+      const pendingConnect = this.relayPendingConnects.get(msg.request_id);
+      this.relayPendingReservations.delete(msg.request_id);
+      this.relayPendingConnects.delete(msg.request_id);
+      console.warn("VOID_P2P_RELAY_RESERVATION_V1_REQUEST_REJECT", {
+        relay_node_id:
+          pendingRelay?.relay_node_id ||
+          pendingConnect?.relay_node_id ||
+          peer.id,
+        request_id: msg.request_id,
+        reason: msg.reason,
+      });
     }
   }
 
@@ -497,37 +2130,47 @@ export class Node {
     return this.peers.has(id) && !id.startsWith("?-");
   }
   private isSelfAddress(addr: string): boolean {
-    return this.listenAddrs.includes(addr);
+    const canonical = canonicalPeerAddress(addr);
+    return !!canonical && this.listenAddrs.includes(canonical);
   }
   private shouldDial(addr: string): boolean {
-    if (this.isSelfAddress(addr)) return false;
-    if (this.dialing.has(addr)) return false;
-    for (const p of this.peers.values()) if (p.listens.includes(addr)) return false;
+    const canonical = canonicalPeerAddress(addr);
+    if (!canonical) return false;
+    if (this.isSelfAddress(canonical)) return false;
+    if (this.dialing.has(canonical)) return false;
+    for (const p of this.peers.values()) {
+      if (p.transport === "direct" && p.listens.includes(canonical)) return false;
+    }
     return true;
   }
-  connect(addr: string) {
-    if (!this.shouldDial(addr)) return;
-    this.dialing.add(addr);
-    const [host, portStr] = addr.split(":");
-    const port = Number(portStr);
-    if (!host || !port) {
-      this.dialing.delete(addr);
-      return;
-    }
-    const socket = net.createConnection({ host, port }, () => {
-      console.log(`[dial] connected ${addr}`);
-      this.backoff.delete(addr);
-      this.attachSocket(socket, addr, true);
-      this.dialing.delete(addr);
-    });
+  connect(addr: string, expectedNodeId?: string) {
+    const parsed = parsePeerAddress(addr);
+    if (!parsed) return;
+    const canonical = parsed.canonical;
+    if (!this.shouldDial(canonical)) return;
+
+    const pinnedNodeId =
+      expectedNodeId || this.cachedExpectedNodeByAddress.get(canonical);
+    this.dialing.add(canonical);
+
+    const socket = net.createConnection(
+      { host: parsed.host, port: parsed.port },
+      () => {
+        console.log(`[dial] connected ${canonical}`);
+        this.attachSocket(socket, canonical, true, pinnedNodeId, canonical);
+        this.dialing.delete(canonical);
+      },
+    );
     socket.on("error", (e) => {
-      console.warn(`[dial] failed ${addr}:`, e.message);
-      this.dialing.delete(addr);
+      console.warn(`[dial] failed ${canonical}:`, e.message);
+      this.dialing.delete(canonical);
       socket.destroy();
-      const cur = this.backoff.get(addr) ?? this.MIN_BACKOFF;
+      const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
-      this.backoff.set(addr, nxt);
-      setTimeout(() => this.connect(addr), cur);
+      this.backoff.set(canonical, nxt);
+      setTimeout(() => {
+        if (!this.stopping) this.connect(canonical, pinnedNodeId);
+      }, cur).unref?.();
     });
   }
 
@@ -1096,7 +2739,12 @@ export class Node {
     const connected = [...this.peers.values()]
       .filter((p) => !p.id.startsWith("?-"))
       .map((p) => ({ id: p.id, addr: p.addr, listens: p.listens, outbound: p.outbound }));
-    return { connected, knownAddrs: [...this.knownAddrs] };
+    const verifiedPeers = this.verifiedPeerCacheRecords.map((record) => ({
+      node_id: record.node_id,
+      addresses: [...record.addresses],
+      last_authenticated_at_ms: record.last_authenticated_at_ms,
+    }));
+    return { connected, knownAddrs: [...this.knownAddrs], verifiedPeers };
   }
 
   /** blobs */
