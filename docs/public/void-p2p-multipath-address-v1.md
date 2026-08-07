@@ -33,6 +33,8 @@ Rejected before dialing:
 
 - unbracketed IPv6 plus port;
 - IPv6 zone identifiers;
+- resolver-ambiguous legacy IPv4 spellings such as integer, shortened, octal,
+  and hexadecimal forms that WHATWG host parsing would reinterpret as IPv4;
 - whitespace or control characters;
 - userinfo, paths, queries, and fragments;
 - malformed brackets;
@@ -60,13 +62,19 @@ follow-on lanes.
 
 ## Resilience proof
 
-The focused proof starts two local VOID nodes while configuring the client with
+The focused proof starts three local VOID nodes. The client is configured with
 two bootstrap targets: one deliberately closed port and one healthy peer. The
 healthy peer must connect even while the failed peer is independently backing
 off.
 
-The same proof injects malformed learned PEERS addresses and requires that none
-enter known/dial/backoff state.
+After that first contact, the healthy peer advertises the third node through a
+valid `PEERS` message. The client must learn the canonical address and establish
+a connection to that third node, proving the positive learned-peer exchange and
+dial path rather than only asserting the marker.
+
+The same proof injects malformed learned PEERS addresses, including
+resolver-ambiguous legacy IPv4 forms, and requires that none enter
+known/dial/backoff state.
 
 Expected marker:
 
@@ -74,8 +82,11 @@ Expected marker:
 VOID_P2P_MULTIPATH_ADDRESS_V1_PROOF_GREEN
 ipv6_bracketed_peer_address_supported=true
 unbracketed_ipv6_with_port_accepted=false
+resolver_ambiguous_ipv4_accepted=false
 multiple_bootstrap_targets_independent=true
+healthy_target_connected_with_dead_sibling=true
 malformed_learned_peer_dialed=false
+peer_exchange_after_first_contact=true
 single_required_seed=false
 wallet_signer_validator_wc_money_authority=0
 ```

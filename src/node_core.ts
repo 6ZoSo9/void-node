@@ -707,7 +707,9 @@ export class Node {
               if (providers.length) this.enqueueBlobFetch(cid, providers);
             }
           }
-        } catch {}
+        } catch (error) {
+          void error;
+        }
       }
 
       for (const connectedPeer of this.peers.values()) {

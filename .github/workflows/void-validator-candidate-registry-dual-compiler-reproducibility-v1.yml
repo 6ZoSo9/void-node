@@ -219,8 +219,8 @@ jobs:
           assert value["comparison"]["runtime_bytecode_exact_match"] is True
           assert value["comparison"]["zero_compiler_errors"] is True
           assert value["comparison"]["zero_link_references"] is True
-          assert value["comparison"]["push0_absent_from_creation_opcodes"] is True
-          assert value["comparison"]["push0_absent_from_runtime_opcodes"] is True
+          assert value["comparison"]["push0_absent_from_creation_executable_bytecode"] is True
+          assert value["comparison"]["push0_absent_from_runtime_executable_bytecode"] is True
           assert value["decision"]["bytecode_reviewed_by_zoso"] is False
           assert value["decision"]["unsigned_transaction_constructed"] is False
           assert value["decision"]["deployment_authorized"] is False

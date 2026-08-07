@@ -106,7 +106,7 @@ function normalizeIdentityV1(
   object: Record<string, unknown>,
 ): VoidPeerIdentityV1 | undefined {
   const id = typeof object.id === "string" ? object.id : "";
-  const proto = Number(object.proto);
+  const proto = typeof object.proto === "number" ? object.proto : Number.NaN;
   const pubkey = canonicalEd25519PublicPemV1(object.pubkey);
   const listen = exactCanonicalListenV1(object.listen);
 

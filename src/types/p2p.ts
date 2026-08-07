@@ -32,6 +32,19 @@ function normalizeDnsHost(raw: string): string | undefined {
       return;
     }
   }
+
+  // WHATWG host parsing follows the legacy IPv4-number grammar used by the
+  // Node resolver path. Reject DNS-form strings that become IPv4 literals
+  // (for example 2130706433, 127.1, 0177.0.0.1, or 0x7f000001) so one network
+  // address cannot acquire multiple accepted peer-address identities.
+  try {
+    const parsedHostname = new URL(`http://${raw}/`).hostname;
+    if (net.isIP(parsedHostname) === 4) return;
+    if (parsedHostname.toLowerCase() !== raw.toLowerCase()) return;
+  } catch {
+    return;
+  }
+
   return raw.toLowerCase();
 }
 
