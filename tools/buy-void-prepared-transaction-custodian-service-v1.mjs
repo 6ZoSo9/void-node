@@ -290,6 +290,9 @@ function recordFile(storeDir, key) {
 
 function readPrivateJson(file, label) {
   try {
+    const parent = path.dirname(file);
+    assertNoSymlinkAncestors(parent, `${label}_directory`);
+    assertPrivateDirectory(parent);
     assertPrivateRecordFile(file);
     return directObject(JSON.parse(fs.readFileSync(file, "utf8")), label);
   } catch (error) {
