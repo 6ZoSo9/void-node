@@ -6,6 +6,7 @@ on:
       - ".github/workflows/buy-void-saga-terminal-closeout-v1.yml"
       - "docs/operators/buy-void-saga-terminal-closeout-v1.md"
       - "scripts/prove_buy_void_saga_terminal_closeout_v1.ts"
+      - "scripts/prove_buy_void_saga_terminal_closeout_path_safety_v1.ts"
       - "src/economic/buy_void_saga_terminal_closeout_server_policy_v1.ts"
       - "src/economic/buy_void_saga_terminal_closeout_model_v1.ts"
       - "src/economic/buy_void_saga_terminal_closeout_artifacts_v1.ts"
@@ -44,6 +45,9 @@ jobs:
 
       - name: Prove canonical terminal closeout and crash recovery
         run: npx tsx scripts/prove_buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Prove terminal closeout path safety
+        run: npx tsx scripts/prove_buy_void_saga_terminal_closeout_path_safety_v1.ts
 
       - name: Typecheck repository
         run: npm run typecheck
