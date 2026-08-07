@@ -482,6 +482,7 @@ contract VoidValidatorCandidateRegistry {
 
         c.state = ValidatorState.Unbonded;
         c.updatedAt = block.timestamp;
+        _releaseConsensusKey(msg.sender, c.consensusKeyHash);
 
         emit CandidateUnbonded(msg.sender);
     }
@@ -513,6 +514,7 @@ contract VoidValidatorCandidateRegistry {
         c.state = ValidatorState.Unbonded;
         c.updatedAt = block.timestamp;
         exitRequestedAt[candidateOwner] = 0;
+        _releaseConsensusKey(candidateOwner, c.consensusKeyHash);
 
         emit CandidateUnbonded(candidateOwner);
     }
@@ -529,18 +531,17 @@ contract VoidValidatorCandidateRegistry {
         uint256 amount = c.stakeAmount;
         if (amount == 0) revert NoStakeAvailable();
 
-        bytes32 releasedConsensusKeyHash = c.consensusKeyHash;
         c.stakeAmount = 0;
         c.updatedAt = block.timestamp;
         totalStaked -= amount;
-        if (consensusKeyOwner[releasedConsensusKeyHash] == msg.sender) {
-            delete consensusKeyOwner[releasedConsensusKeyHash];
-        }
+
+        // Defensive for any state imported from an older source shape. The
+        // owner check prevents an old withdrawal from deleting a newer claim.
+        _releaseConsensusKey(msg.sender, c.consensusKeyHash);
 
         (bool transferred, ) = recipient.call{value: amount}("");
         if (!transferred) revert StakeTransferFailed();
 
-        emit ConsensusKeyReleased(msg.sender, releasedConsensusKeyHash);
         emit StakeWithdrawn(msg.sender, recipient, amount);
     }
 
@@ -610,5 +611,14 @@ contract VoidValidatorCandidateRegistry {
                 registeredOwner
             );
         }
+    }
+
+    function _releaseConsensusKey(
+        address candidateOwner,
+        bytes32 consensusKeyHash
+    ) private {
+        if (consensusKeyOwner[consensusKeyHash] != candidateOwner) return;
+        delete consensusKeyOwner[consensusKeyHash];
+        emit ConsensusKeyReleased(candidateOwner, consensusKeyHash);
     }
 }
