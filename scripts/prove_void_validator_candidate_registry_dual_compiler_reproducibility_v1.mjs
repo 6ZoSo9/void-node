@@ -458,7 +458,7 @@ console.log(
       standard_json_input_canonical_sha256: sha256(canonicalJson(compilerInput)),
       creation_bytecode_sha256: review.artifacts.creation_bytecode_sha256,
       runtime_bytecode_sha256: review.artifacts.runtime_bytecode_sha256,
-      metadata_trailer_push0_ignored=true,
+      metadata_trailer_push0_ignored: true,
       executable_push0_rejected: true,
       push_immediate_5f_accepted: true,
       dual_environment_gate: true,
