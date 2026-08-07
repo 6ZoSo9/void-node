@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
       - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
       - "scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_store_read_confinement_v1.mjs"
       - "docs/operators/buy-void-prepared-transaction-custodian-ipc-v1.md"
       - ".github/workflows/buy-void-prepared-transaction-custodian-ipc-v1.yml"
       - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
@@ -21,6 +22,7 @@ on:
       - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
       - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
       - "scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_store_read_confinement_v1.mjs"
       - "docs/operators/buy-void-prepared-transaction-custodian-ipc-v1.md"
       - ".github/workflows/buy-void-prepared-transaction-custodian-ipc-v1.yml"
       - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
@@ -64,6 +66,9 @@ jobs:
 
       - name: Prove private IPC custody and crash recovery
         run: npx tsx scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts
+
+      - name: Prove custodian store reads remain confined
+        run: node scripts/prove_buy_void_prepared_transaction_custodian_store_read_confinement_v1.mjs
 
       - name: Preserve PR 1014 custody contract
         run: npx tsx scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts
