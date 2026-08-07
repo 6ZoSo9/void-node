@@ -159,6 +159,7 @@ async function main(): Promise<void> {
 
   let adapterA: VoidUdpPeerSocketAdapterV1 | undefined;
   let adapterB: VoidUdpPeerSocketAdapterV1 | undefined;
+  let pump: NodeJS.Timeout | undefined;
 
   try {
     const [boundA, boundB] = await Promise.all([
@@ -254,7 +255,7 @@ async function main(): Promise<void> {
     assert(adapterA.writableLength > 0);
 
     const started = Date.now();
-    const pump = setInterval(() => {
+    pump = setInterval(() => {
       adapterA?.tick(Date.now());
       adapterB?.tick(Date.now());
     }, 20);
@@ -272,6 +273,7 @@ async function main(): Promise<void> {
       "all secure UDP bytes acknowledged",
     );
     clearInterval(pump);
+    pump = undefined;
 
     assert(Date.now() - started >= VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1);
     assert(aDataTransmitCount >= 2);
@@ -346,6 +348,7 @@ async function main(): Promise<void> {
     console.log("wallet_signer_validator_wc_money_authority=0");
     console.log(MARKER);
   } finally {
+    if (pump) clearInterval(pump);
     adapterA?.destroy();
     adapterB?.destroy();
     socketA.close();
