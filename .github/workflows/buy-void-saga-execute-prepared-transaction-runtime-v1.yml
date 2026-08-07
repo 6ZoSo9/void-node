@@ -43,7 +43,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove explicitly gated execute runtime
-        run: npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_runtime_v1.ts
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_parent_dispatch_v1.ts
       - name: Preserve coordinator and reconciliation runtime
         run: |
           npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
