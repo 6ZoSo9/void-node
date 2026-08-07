@@ -161,9 +161,9 @@ async function main(): Promise<void> {
   assert(controllerA.socket);
   assert(controllerB.socket);
 
-  // Replayed bootstrap material cannot emit another ready callback.
-  assert.equal(controllerA.acceptRemoteKeyOffer(offerB), false);
-  assert.equal(controllerB.acceptRemoteKeyOffer(offerA), false);
+  // Duplicate UDP bootstrap packets are idempotent but cannot emit another ready transition.
+  assert.equal(controllerA.acceptRemoteKeyOffer(offerB), true);
+  assert.equal(controllerB.acceptRemoteKeyOffer(offerA), true);
   assert.equal(readyA, 1);
   assert.equal(readyB, 1);
 
@@ -260,6 +260,7 @@ async function main(): Promise<void> {
   console.log("ready_before_remote_path_proof=false");
   console.log("ready_before_local_path_proof=false");
   console.log("ready_before_reciprocal_key_offers=false");
+  console.log("duplicate_key_offer_idempotent=true");
   console.log("bidirectional_socket_bytes_after_ready=true");
   console.log("wrong_session_hello_accepted=false");
   console.log("wrong_endpoint_path_proof_accepted=false");
