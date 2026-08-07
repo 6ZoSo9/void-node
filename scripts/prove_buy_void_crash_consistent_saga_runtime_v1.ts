@@ -292,6 +292,7 @@ async function main(): Promise<void> {
   let preparationCoordinatorDryCalls = 0;
   let preparationCoordinatorApplyCalls = 0;
   let custodianConstructCalls = 0;
+  let injectPreparedHoldAfterSigning = false;
   let loadedSaga: any = null;
   let loadedSagaId = "";
   let loadedBinding: any = null;
@@ -396,6 +397,24 @@ async function main(): Promise<void> {
       }
 
       preparationCoordinatorApplyCalls += 1;
+      if (injectPreparedHoldAfterSigning) {
+        return {
+          ok: false,
+          status: "held",
+          applied: true,
+          stage: "saga_append",
+          reason: "injected_post_sign_hold",
+          mutation_performed: true,
+          wallet_access_performed: false,
+          external_signing_performed: true,
+          transaction_broadcast_performed: false,
+          raw_signed_transaction_persisted: false,
+          raw_signed_transaction_returned: false,
+          reconciliation_required: true,
+          automatic_retry_allowed: false,
+          money_movement_performed: false,
+        };
+      }
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_CONFIRMATION_V1,
@@ -927,6 +946,26 @@ async function main(): Promise<void> {
   assert.equal(preparationCoordinatorApplyCalls, 0);
   assert.equal(custodianConstructCalls, 0);
 
+  injectPreparedHoldAfterSigning = true;
+  const postSignHeld = await invoke({
+    root,
+    requestDir,
+    body: applyFrom(dryPreparation),
+    dependencies: deps,
+  });
+  injectPreparedHoldAfterSigning = false;
+  assert.equal(postSignHeld.code, 422);
+  assert.match(postSignHeld.body.reason, /injected_post_sign_hold/);
+  assert.equal(postSignHeld.body.mutation_performed, true);
+  assert.equal(
+    postSignHeld.body.external_custodian_signing_performed,
+    true,
+  );
+  assert.equal(postSignHeld.body.reconciliation_required, true);
+  assert.equal(postSignHeld.body.automatic_retry, false);
+  assert.equal(postSignHeld.body.transaction_broadcast_performed, false);
+  assert.equal(postSignHeld.body.money_movement_performed, false);
+
   const prepared = await invoke({
     root,
     requestDir,
@@ -945,9 +984,9 @@ async function main(): Promise<void> {
   assert.equal("custody_handle" in prepared.body, false);
   assert.equal("raw_signed_transaction" in prepared.body, false);
   assertNoMoney(prepared.body);
-  assert.equal(preparationCoordinatorDryCalls, 4);
-  assert.equal(preparationCoordinatorApplyCalls, 1);
-  assert.equal(custodianConstructCalls, 1);
+  assert.equal(preparationCoordinatorDryCalls, 5);
+  assert.equal(preparationCoordinatorApplyCalls, 2);
+  assert.equal(custodianConstructCalls, 2);
 
   const afterPrepared = await invoke({
     root,
@@ -964,9 +1003,9 @@ async function main(): Promise<void> {
     afterPrepared.body.reason,
     /next_stage_outside_prepared_transaction_runtime_boundary/,
   );
-  assert.equal(preparationCoordinatorDryCalls, 4);
-  assert.equal(preparationCoordinatorApplyCalls, 1);
-  assert.equal(custodianConstructCalls, 1);
+  assert.equal(preparationCoordinatorDryCalls, 5);
+  assert.equal(preparationCoordinatorApplyCalls, 2);
+  assert.equal(custodianConstructCalls, 2);
 
   const saga: any = await import(
     new URL("../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs", import.meta.url).href,
@@ -1300,10 +1339,11 @@ async function main(): Promise<void> {
   console.log("anchored_attempt_backfill_exactly_once=true");
   console.log("preparation_enable_gate_separate=true");
   console.log("preparation_dry_constructed_custodian=0");
-  console.log("preparation_coordinator_dry_calls=4");
-  console.log("preparation_coordinator_apply_calls=1");
-  console.log("custodian_ipc_construct_calls=1");
+  console.log("preparation_coordinator_dry_calls=5");
+  console.log("preparation_coordinator_apply_calls=2");
+  console.log("custodian_ipc_construct_calls=2");
   console.log("external_custodian_signing_truth_separate=true");
+  console.log("post_sign_hold_truth_preserved=true");
   console.log("execute_prepared_transaction_runtime_mount=0");
   console.log("wallet_signing_broadcast_money=0");
 }
