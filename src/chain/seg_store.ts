@@ -282,31 +282,52 @@ export class SegStore {
     const seg = this.segName(n);
     this.ensureSeg(seg);
 
-    // WAL intent (best-effort): append record BEFORE writing blocks.bin
-    this.walAppendBestEffort(seg, b);
+    // A durable WAL intent is a hard prerequisite for canonical segment append.
+    this.walAppendDurable(seg, b);
 
-    // Commit to segment store
+    // Commit to segment store only after the WAL intent is durably established.
     this.saveBlockCommit(b);
 
     // Head bump (atomic rename)
     this.persistHeadAtomic(n);
   }
 
-  private walAppendBestEffort(seg: string, b: any) {
+  private walAppendDurable(seg: string, b: any) {
     const walPath = this.walPath(seg);
-    assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
-    assertVoidSegStoreRegularFileV1(this.root, walPath, true);
     try {
+      assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
+      assertVoidSegStoreRegularFileV1(this.root, walPath, true);
+      const existedBefore = fs.existsSync(walPath);
       const body = Buffer.from(JSON.stringify(b));
       const rec: WalRecV1 = { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+
       fs.appendFileSync(walPath, JSON.stringify(rec) + "\n");
       assertVoidSegStoreRegularFileV1(this.root, walPath, false);
-      // Best-effort fsync for WAL (don’t die if it fails)
+
+      const fd = fs.openSync(walPath, "r");
       try {
-        const fd = fs.openSync(walPath, "r");
-        try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-12", err); } }
-      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-13", err); }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-14", err); }
+        fs.fsyncSync(fd);
+      } finally {
+        try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-intent-file-close", err); }
+      }
+
+      // fsync(file) does not make a newly-created directory entry durable.
+      // Persist the WAL directory when this append created the segment WAL.
+      if (!existedBefore) {
+        assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
+        const dfd = fs.openSync(this.walDir, "r");
+        try {
+          fs.fsyncSync(dfd);
+        } finally {
+          try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-intent-directory-close", err); }
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `VOID_SEGSTORE_WAL_INTENT_DURABILITY_V1: failed to durably persist WAL intent for block ${Number(b?.number)} in ${seg}: ${message}`,
+      );
+    }
   }
 
   private saveBlockCommit(b: Block) {
