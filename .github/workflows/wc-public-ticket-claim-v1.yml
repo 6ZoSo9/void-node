@@ -5,6 +5,8 @@ on:
     paths:
       - "src/index.ts"
       - "src/chain/block.ts"
+      - "src/crypto/keypair.ts"
+      - "src/util/merkle.ts"
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
@@ -31,6 +33,8 @@ on:
     paths:
       - "src/index.ts"
       - "src/chain/block.ts"
+      - "src/crypto/keypair.ts"
+      - "src/util/merkle.ts"
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
