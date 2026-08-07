@@ -209,6 +209,27 @@ assert.match(
   /bytes must be from 2 through/,
 );
 
+// The injected transport owns its return buffer. Verification must detach from
+// that mutable ownership boundary before parsing/validating/returning bytes.
+const transportOwnedBytes = Buffer.from(JSON.stringify(record), "utf8");
+const verifiedTransportSnapshot = Buffer.from(transportOwnedBytes);
+const detachedResolution = await resolveBootstrapRecordV2FromLocatorMirrors({
+  locatorMirrors,
+  expectedRecordId: record.record_id,
+  nowMs: NOW,
+  async fetchBytes() {
+    return transportOwnedBytes;
+  },
+});
+
+transportOwnedBytes.fill(0x78);
+assert.deepEqual(
+  detachedResolution.bytes,
+  verifiedTransportSnapshot,
+  "verified bootstrap record bytes must not alias the transport-owned Buffer",
+);
+assert.equal(detachedResolution.record.record_id, record.record_id);
+
 const alternatePlanResolution =
   await resolveBootstrapRecordV2FromLocatorMirrors({
     locatorMirrors: alternateLocatorMirrors,
@@ -318,6 +339,7 @@ console.log("n_minus_one_each_locator=true");
 console.log("all_locator_failure_fails_closed=true");
 console.log("oversized_locator_record_accepted=false");
 console.log("tampered_authority_record_accepted=false");
+console.log("transport_buffer_alias_mutation_changes_verified_bytes=false");
 console.log("network_calls_performed=false");
 console.log("runtime_integration_performed=false");
 console.log("manifest_publication_performed=false");

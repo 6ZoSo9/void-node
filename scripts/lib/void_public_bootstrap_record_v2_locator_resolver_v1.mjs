@@ -24,7 +24,7 @@ function requireExpectedRecordId(raw) {
 
 function boundedBytes(raw) {
   let bytes;
-  if (Buffer.isBuffer(raw)) bytes = raw;
+  if (Buffer.isBuffer(raw)) bytes = Buffer.from(raw);
   else if (raw instanceof Uint8Array) bytes = Buffer.from(raw);
   else if (typeof raw === "string") bytes = Buffer.from(raw, "utf8");
   else throw new Error("record locator fetch must return bytes or UTF-8 text");
