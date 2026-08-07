@@ -47,6 +47,11 @@ type Meta = { from: number; to: number; bytes: number; createdAt: number; update
 type SegOpts = { segmentMaxBytes?: number; sparseEvery?: number };
 
 const SEG_SPAN = 10_000;
+const SEGSTORE_CANONICAL_READ_CORRUPTION_V1 = "VOID_SEGSTORE_CANONICAL_READ_CORRUPTION_V1";
+
+function canonicalReadCorruptionV1(message: string): Error {
+  return new Error(`${SEGSTORE_CANONICAL_READ_CORRUPTION_V1}: ${message}`);
+}
 
 // Simple, dependency-free WAL v1:
 // - One WAL file per segment: <root>/wal/<seg>.wal (JSONL, base64 payloads)
@@ -337,7 +342,12 @@ export class SegStore {
   }
 
   loadBlock(n: number): Block | null {
+    if (!Number.isSafeInteger(n) || n < 0) {
+      throw new Error("SegStore.loadBlock: invalid block number");
+    }
+
     const seg = this.segName(n);
+    const segmentBase = this.segBase(n);
     const { dir, bin, idx } = this.segPaths(seg);
     assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: true });
     assertVoidSegStoreRegularFileV1(this.root, bin, true);
@@ -345,40 +355,123 @@ export class SegStore {
     if (!fs.existsSync(bin)) return null;
     assertVoidSegStoreRegularFileV1(this.root, bin, false);
 
-    // Find nearest index offset <= n
-    let nearestOff = 0;
-    try {
-      const lines = fs.readFileSync(idx, "utf8").split("\n");
-      for (const line of lines) {
-        if (!line) continue;
-        const ent = JSON.parse(line) as { n: number; off: number };
-        if (Number.isFinite(ent.n) && ent.n <= n && ent.off >= 0) nearestOff = Math.max(nearestOff, ent.off);
-      }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-17", err); }
-
     const fd = fs.openSync(bin, "r");
     try {
       const st = fs.fstatSync(fd);
-      if (!st.isFile()) throw new Error(`SegStore.loadBlock: non-regular block file: ${bin}`);
-      let off = nearestOff;
+      if (!st.isFile()) throw canonicalReadCorruptionV1(`non-regular block file: ${bin}`);
+      if (st.size === 0) return null;
+
+      let scanOff = 0;
+      let expectedN = segmentBase;
+
+      // Sparse index is an optimization only. A malformed, stale, out-of-range,
+      // or misaligned entry cannot establish absence or corruption; it merely
+      // loses the fast path and falls back to physical scanning from offset 0.
+      if (fs.existsSync(idx)) {
+        try {
+          assertVoidSegStoreRegularFileV1(this.root, idx, false);
+          let best: { n: number; off: number } | null = null;
+          for (const line of fs.readFileSync(idx, "utf8").split("\n")) {
+            if (!line) continue;
+            const ent = JSON.parse(line) as { n?: unknown; off?: unknown };
+            if (
+              !Number.isSafeInteger(ent?.n) ||
+              !Number.isSafeInteger(ent?.off) ||
+              Number(ent.n) < segmentBase ||
+              Number(ent.n) > n ||
+              Number(ent.off) < 0 ||
+              Number(ent.off) + 4 > st.size ||
+              this.segName(Number(ent.n)) !== seg
+            ) {
+              best = null;
+              throw new Error("invalid sparse index entry");
+            }
+            if (!best || Number(ent.n) > best.n) {
+              best = { n: Number(ent.n), off: Number(ent.off) };
+            }
+          }
+
+          if (best) {
+            const lenBuf = Buffer.alloc(4);
+            const gotLength = fs.readSync(fd, lenBuf, 0, 4, best.off);
+            if (gotLength !== 4) throw new Error("short sparse-anchor length read");
+            const len = lenBuf.readUInt32BE(0);
+            const start = best.off + 4;
+            const end = start + len;
+            if (end > st.size) throw new Error("sparse anchor points at torn frame");
+            const body = Buffer.alloc(len);
+            const gotBody = fs.readSync(fd, body, 0, len, start);
+            if (gotBody !== len) throw new Error("short sparse-anchor body read");
+            const parsed = JSON.parse(body.toString("utf8"));
+            if (parsed?.number !== best.n) throw new Error("sparse anchor block mismatch");
+            scanOff = best.off;
+            expectedN = best.n;
+          }
+        } catch (err) {
+          recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-read-sparse-index-fallback", err);
+          scanOff = 0;
+          expectedN = segmentBase;
+        }
+      }
+
       const lenBuf = Buffer.alloc(4);
-      while (off + 4 <= st.size) {
-        fs.readSync(fd, lenBuf, 0, 4, off);
+      let off = scanOff;
+      let previousN: number | null = expectedN - 1;
+
+      while (off < st.size) {
+        if (st.size - off < 4) {
+          throw canonicalReadCorruptionV1(`torn length prefix in ${seg} at offset ${off}`);
+        }
+
+        const gotLength = fs.readSync(fd, lenBuf, 0, 4, off);
+        if (gotLength !== 4) {
+          throw canonicalReadCorruptionV1(`short length-prefix read in ${seg} at offset ${off}: got ${gotLength}`);
+        }
+
         const len = lenBuf.readUInt32BE(0);
         const start = off + 4;
-        if (start + len > st.size) break;
-        const buf = Buffer.alloc(len);
-        fs.readSync(fd, buf, 0, len, start);
-        const blk = JSON.parse(buf.toString("utf8")) as Block & { number: number };
+        const end = start + len;
+        if (end > st.size) {
+          throw canonicalReadCorruptionV1(`torn frame in ${seg} at offset ${off}: end ${end}, file ${st.size}`);
+        }
+
+        const body = Buffer.alloc(len);
+        const gotBody = fs.readSync(fd, body, 0, len, start);
+        if (gotBody !== len) {
+          throw canonicalReadCorruptionV1(`short complete-frame read in ${seg} at offset ${off}: expected ${len}, got ${gotBody}`);
+        }
+
+        let blk: Block & { number: number };
+        try {
+          blk = JSON.parse(body.toString("utf8")) as Block & { number: number };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw canonicalReadCorruptionV1(`complete frame JSON invalid in ${seg} at offset ${off}: ${message}`);
+        }
+
+        if (!Number.isSafeInteger(blk?.number) || blk.number < 0) {
+          throw canonicalReadCorruptionV1(`complete frame block number invalid in ${seg} at offset ${off}`);
+        }
+        if (this.segName(blk.number) !== seg) {
+          throw canonicalReadCorruptionV1(`complete frame segment mismatch in ${seg}: block ${blk.number}`);
+        }
+        if (previousN !== null && blk.number !== previousN + 1) {
+          throw canonicalReadCorruptionV1(`complete frame order invalid in ${seg}: previous ${previousN}, block ${blk.number}`);
+        }
+
         if (blk.number === n) return blk as Block;
-        off = start + len;
+        if (blk.number > n) {
+          throw canonicalReadCorruptionV1(`canonical frame sequence skipped requested block ${n} in ${seg}`);
+        }
+
+        previousN = blk.number;
+        off = end;
       }
-    } catch {
-      /* ignore */
+
+      return null;
     } finally {
       try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-18", err); }
     }
-    return null;
   }
 
   // ---- WAL replay ----
