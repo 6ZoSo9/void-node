@@ -325,10 +325,8 @@ function rootPath(rootDir: string): string {
   );
 }
 
-function ensurePrivateDirectory(directory: string): string {
+function validatePrivateDirectory(directory: string): string {
   const resolved = path.resolve(directory);
-  fs.mkdirSync(resolved, { recursive: true, mode: 0o700 });
-  fs.chmodSync(resolved, 0o700);
   const metadata = fs.lstatSync(resolved);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("broadcast_evidence_directory_must_be_direct");
@@ -343,6 +341,22 @@ function ensurePrivateDirectory(directory: string): string {
     throw new Error("broadcast_evidence_directory_must_be_private");
   }
   return resolved;
+}
+
+function ensurePrivateDirectory(directory: string): string {
+  const resolved = path.resolve(directory);
+  fs.mkdirSync(resolved, { recursive: true, mode: 0o700 });
+  return validatePrivateDirectory(resolved);
+}
+
+function existingPrivateDirectory(directory: string): string | null {
+  const resolved = path.resolve(directory);
+  try {
+    return validatePrivateDirectory(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 function fsyncDirectory(directory: string): void {
@@ -365,6 +379,19 @@ function eventDirectory(rootDir: string, attemptId: string): string {
   return ensurePrivateDirectory(
     path.join(attemptDirectory(rootDir, attemptId), "events"),
   );
+}
+
+function existingEventDirectory(
+  rootDir: string,
+  attemptId: string,
+): string | null {
+  const root = existingPrivateDirectory(rootPath(rootDir));
+  if (!root) return null;
+  const attempts = existingPrivateDirectory(path.join(root, "attempts"));
+  if (!attempts) return null;
+  const attempt = existingPrivateDirectory(path.join(attempts, attemptId));
+  if (!attempt) return null;
+  return existingPrivateDirectory(path.join(attempt, "events"));
 }
 
 function lockPath(rootDir: string, attemptId: string): string {
@@ -512,7 +539,8 @@ function readEvents(
   rootDir: string,
   attemptId: string,
 ): BuyVoidSagaBroadcastEvidenceEventV1[] {
-  const directory = eventDirectory(rootDir, attemptId);
+  const directory = existingEventDirectory(rootDir, attemptId);
+  if (!directory) return [];
   const files: Array<{ name: string; sequence: number; id: string }> = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     if (entry.name.includes(".tmp-")) {
