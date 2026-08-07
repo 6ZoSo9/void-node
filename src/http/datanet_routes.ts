@@ -32,116 +32,113 @@ function readJsonSafe(p: string): any | null {
   }
 }
 
-// First hex64 found anywhere in object/array/string.
-function firstHex64Deep(x: any): string | null {
-  if (typeof x === "string") {
-    const s = x.startsWith("0x") ? x.slice(2) : x;
-    return isHex64(s) ? s.toLowerCase() : null;
-  }
-  if (Array.isArray(x)) {
-    for (const v of x) {
-      const h = firstHex64Deep(v);
-      if (h) return h;
-    }
-    return null;
-  }
-  if (x && typeof x === "object") {
-    for (const k of Object.keys(x)) {
-      const h = firstHex64Deep((x as any)[k]);
-      if (h) return h;
-    }
-  }
-  return null;
+function normalizeManifestHex64(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw !== raw.trim()) return;
+  const normalized = raw.toLowerCase().replace(/^0x/, "");
+  return isHex64(normalized) ? normalized : undefined;
 }
 
-function normalizeLeavesFromManifest(man: any): string[] {
-  // Accept common manifest shapes:
-  //  - { leaves: ["hex64", ...] }
-  //  - { leavesHex: ["hex64", ...] }
-  //  - { leaves_hex: ["hex64", ...] }
-  //  - { manifest: { leaves/leavesHex/leaves_hex: ... } }
-  //  - { chunks: [{leaf|hash|sha256|id: hex64}, ...] }  (your current shape)
-  //  - string lists: "hex64,hex64 ..." (comma/space separated)
-  function normHex64(x: any): string | null {
-    try {
-      if (typeof x === "string") {
-        const t = x.toLowerCase().replace(/^0x/, "").trim();
-        if (isHex64(t)) return t;
-      }
-      const d = (typeof firstHex64Deep === "function") ? firstHex64Deep(x) : null;
-      if (d && typeof d === "string") {
-        const t = d.toLowerCase().replace(/^0x/, "").trim();
-        if (isHex64(t)) return t;
-      }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-1", err); }
-    return null;
+const MANIFEST_LEAF_KEYS = Object.freeze([
+  "leafHashHex",
+  "leaf_hash_hex",
+  "leaf",
+  "hash",
+  "sha256",
+  "id",
+]);
+
+function orderedLeavesFromRepresentation(raw: unknown): string[] {
+  const parseOne = (value: unknown, index?: number): string => {
+    if (typeof value === "string") {
+      const normalized = normalizeManifestHex64(value);
+      if (!normalized) throw new Error("invalid_manifest_leaf");
+      return normalized;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("invalid_manifest_leaf");
+    }
+    const object = value as Record<string, unknown>;
+    if (
+      index !== undefined
+      && object.index !== undefined
+      && (
+        typeof object.index !== "number"
+        || !Number.isSafeInteger(object.index)
+        || object.index !== index
+      )
+    ) {
+      throw new Error("manifest_chunk_index_mismatch");
+    }
+    const candidates = new Set<string>();
+    let sawLeafKey = false;
+    for (const key of MANIFEST_LEAF_KEYS) {
+      if (object[key] === undefined) continue;
+      sawLeafKey = true;
+      const normalized = normalizeManifestHex64(object[key]);
+      if (!normalized) throw new Error("invalid_manifest_leaf");
+      candidates.add(normalized);
+    }
+    if (!sawLeafKey || candidates.size !== 1) {
+      throw new Error(
+        candidates.size > 1
+          ? "manifest_leaf_fields_conflict"
+          : "invalid_manifest_leaf",
+      );
+    }
+    const candidate = candidates.values().next().value;
+    if (!candidate) throw new Error("invalid_manifest_leaf");
+    return candidate;
+  };
+
+  if (typeof raw === "string") {
+    if (raw !== raw.trim()) throw new Error("invalid_manifest_leaf_list");
+    const parts = raw.split(/[,\s]+/).filter(Boolean);
+    if (!parts.length) throw new Error("empty_manifest_leaf_list");
+    return parts.map((value) => parseOne(value));
+  }
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error("invalid_manifest_leaf_list");
+  }
+  return raw.map((value, index) => parseOne(value, index));
+}
+
+function orderedLeavesFromManifest(man: any): string[] {
+  if (!man || typeof man !== "object" || Array.isArray(man)) {
+    throw new Error("invalid_manifest_document");
   }
 
-  function pushFrom(v: any, out: string[]) {
-    if (!v) return;
+  const representations: Array<readonly [string, unknown]> = [
+    ["leaves", man.leaves],
+    ["leavesHex", man.leavesHex],
+    ["leaves_hex", man.leaves_hex],
+    ["chunks", man.chunks],
+    ["manifest.leaves", man.manifest?.leaves],
+    ["manifest.leavesHex", man.manifest?.leavesHex],
+    ["manifest.leaves_hex", man.manifest?.leaves_hex],
+    ["manifest.chunks", man.manifest?.chunks],
+  ];
 
-    if (typeof v === "string") {
-      const parts = v.split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
-      for (const it of parts) {
-        const t = String(it).toLowerCase().replace(/^0x/, "").trim();
-        if (isHex64(t)) out.push(t);
-      }
-      return;
+  let selected: string[] | undefined;
+  let selectedName = "";
+  for (const [name, raw] of representations) {
+    if (raw === undefined || raw === null) continue;
+    const leaves = orderedLeavesFromRepresentation(raw);
+    if (!selected) {
+      selected = leaves;
+      selectedName = name;
+      continue;
     }
-
-    if (Array.isArray(v)) {
-      for (const it of v) {
-        const one = normHex64(it);
-        if (one) out.push(one);
-        else if (it && typeof it === "object") {
-          for (const k of ["leaf","hash","sha256","id"]) {
-            const vv = (it as any)[k];
-            if (typeof vv !== "string") continue;
-            const t = vv.toLowerCase().replace(/^0x/, "").trim();
-            if (isHex64(t)) out.push(t);
-          }
-        }
-      }
-      return;
-    }
-
-    if (typeof v === "object") {
-      try {
-        for (const vv of Object.values(v)) {
-          const one = normHex64(vv);
-          if (one) out.push(one);
-        }
-      } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-2", err); }
+    if (
+      selected.length !== leaves.length
+      || selected.some((value, index) => value !== leaves[index])
+    ) {
+      throw new Error(
+        `manifest_leaf_representations_conflict:${selectedName}:${name}`,
+      );
     }
   }
-
-  const out: string[] = [];
-
-  // direct keys
-  pushFrom(man?.leaves, out);
-  pushFrom(man?.leavesHex, out);
-  pushFrom(man?.leaves_hex, out);
-
-  // nested common wrapper
-  pushFrom(man?.manifest?.leaves, out);
-  pushFrom(man?.manifest?.leavesHex, out);
-  pushFrom(man?.manifest?.leaves_hex, out);
-
-  // keep supporting your existing current behavior
-  pushFrom(man?.chunks, out);
-  pushFrom(man?.manifest?.chunks, out);
-
-  // de-dupe preserving order
-  const seen = new Set<string>();
-  const uniq: string[] = [];
-  for (const x of out) {
-    const t = String(x || "").toLowerCase().replace(/^0x/, "").trim();
-    if (!t || !isHex64(t)) continue;
-    if (seen.has(t)) continue;
-    seen.add(t);
-    uniq.push(t);
-  }
-  return uniq;
+  if (!selected?.length) throw new Error("manifest_no_leaves");
+  return selected;
 }
 
 function leafHexToBuf(h: string): Buffer {
@@ -156,6 +153,56 @@ function computeRootHexFromLeaves(leavesHex: string[]): string {
   const r = merkleRoot(bufs);
   // merkleRoot returns Buffer
   return Buffer.isBuffer(r) ? r.toString("hex") : Buffer.from(r as any).toString("hex");
+}
+
+function validateManifestRoot(man: any, claimedRoot: string): Readonly<{
+  ok: boolean;
+  leaves: string[];
+  computed?: string;
+  reason?: string;
+}> {
+  const normalizedClaimedRoot = normalizeManifestHex64(claimedRoot);
+  if (!normalizedClaimedRoot) {
+    return Object.freeze({ ok: false, leaves: [], reason: "bad_root" });
+  }
+  try {
+    if (man?.merkleRootHex !== undefined && man?.merkleRootHex !== null) {
+      const bodyRoot = normalizeManifestHex64(man.merkleRootHex);
+      if (!bodyRoot) {
+        return Object.freeze({
+          ok: false,
+          leaves: [],
+          reason: "invalid_manifest_root",
+        });
+      }
+      if (bodyRoot !== normalizedClaimedRoot) {
+        return Object.freeze({
+          ok: false,
+          leaves: [],
+          reason: "root_mismatch_param_vs_body",
+          computed: bodyRoot,
+        });
+      }
+    }
+
+    const leaves = orderedLeavesFromManifest(man);
+    const computed = computeRootHexFromLeaves(leaves);
+    if (computed !== normalizedClaimedRoot) {
+      return Object.freeze({
+        ok: false,
+        leaves,
+        computed,
+        reason: "root_mismatch",
+      });
+    }
+    return Object.freeze({ ok: true, leaves, computed });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      leaves: [],
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function sha256Hex(buf: Buffer) {
@@ -198,8 +245,6 @@ function __datanetPromLine(name: string, value: number, labels?: Record<string,s
   return `${name}${ls} ${Number.isFinite(value) ? value : 0}\n`;
 }
 export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: string }) {
-  const strictManifest = (process.env.DATANET_STRICT_MANIFEST || "").trim() === "1";
-
   const baseDir = opts?.dataDir || process.env.DATA_DIR || "data";
   const dnDir = path.join(baseDir, "datanet");
   const chunksDir = path.join(dnDir, "chunks");
@@ -290,7 +335,7 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
             return res.status(200).send(body);
           } catch (error: unknown) {
             const code = (error as NodeJS.ErrnoException)?.code || "";
-            if (code === "ENOENT" || code === "ENOTDIR") {
+            if (code === "ENOENT" || code === "ENOTDR") {
               return res.status(404).json({
                 ok: false,
                 error: "public_datanet_file_not_found",
@@ -336,10 +381,10 @@ const router = express.Router();
   }
   router.use(express.json({ limit: "10mb", type: ["application/json", "text/json", "application/*+json"] }));
 
-  router.get("/status", (req, res) => {
+  router.get("status", (req, res) => {
     const chunks = fs.existsSync(chunksDir) ? fs.readdirSync(chunksDir).filter(f => f.endsWith(".bin")).length : 0;
     const manifests = fs.existsSync(manifestsDir) ? fs.readdirSync(manifestsDir).filter(f => f.endsWith(".json")).length : 0;
-    res.json({ ok: true, dataDir: baseDir, chunks, manifests });
+    res.json({ ok: true, dataDir, chunks, manifests });
   });
 
   router.get("/manifests/:root", (req, res) => {
@@ -348,7 +393,17 @@ const router = express.Router();
     const p = path.join(manifestsDir, `${root}.json`);
     const j = readJsonSafe(p);
     if (!j) return res.status(404).json({ ok: false, err: "not_found" });
-    res.json({ ok: true, manifest: j });
+    const validation = validateManifestRoot(j, root);
+    if (!validation.ok) {
+      return res.status(409).json({
+        ok: false,
+        err: "stored_manifest_invalid",
+        reason: validation.reason,
+        want: root,
+        got: validation.computed,
+      });
+    }
+    res.json( { ok: true, manifest: j });
   });
 
   router.put("/manifests/:root", (req, res) => {
@@ -356,36 +411,24 @@ const router = express.Router();
     if (!isHex64(root)) return res.status(400).json({ ok: false, err: "bad_root" });
 
     const man = req.body;
-    if (!man || typeof man !== "object") return res.status(400).json({ ok: false, err: "bad_json" });
-
-    const rootIn = firstHex64Deep(man?.merkleRootHex) || null;
-    if (rootIn && rootIn !== root) {
-      return res.status(400).json({ ok: false, err: "root_mismatch_param_vs_body", want: root, got: rootIn });
+    if (!man || typeof man !== "object" || Array.isArray(man)) {
+      return res.status(400).json({ ok: false, err: "bad_json" });
     }
 
-    const leaves = normalizeLeavesFromManifest(man);
-    if (!leaves.length) return res.status(400).json({ ok: false, err: "no_leaves" });
-
-    let computed = "";
-    try {
-      computed = computeRootHexFromLeaves(leaves);
-    } catch (e: any) {
-      return res.status(400).json({ ok: false, err: "compute_failed", msg: e?.message || String(e) });
-    }
-
-    if (computed !== root) {
-      if (strictManifest) {
-        return res.status(400).json({ ok: false, err: "root_mismatch", want: root, got: computed, leaves: leaves.length });
-      }
-      // non-strict: store anyway but warn
-      const p = path.join(manifestsDir, `${root}.json`);
-      fs.writeFileSync(p, JSON.stringify(man, null, 2) + "\n");
-      return res.json({ ok: true, root, leaves: leaves.length, warn: "root_mismatch_stored_anyway", want: root, got: computed });
+    const validation = validateManifestRoot(man, root);
+    if (!validation.ok) {
+      return res.status(400).json({
+        ok: false,
+        err: "invalid_manifest_root",
+        reason: validation.reason,
+        want: root,
+        got: validation.computed,
+      });
     }
 
     const p = path.join(manifestsDir, `${root}.json`);
     fs.writeFileSync(p, JSON.stringify(man, null, 2) + "\n");
-    return res.json({ ok: true, root, leaves: leaves.length });
+    return res.json({ ok: true, root, leaves: validation.leaves.length });
   });
 
   router.get("/chunks/:leaf", (req, res) => {
@@ -422,7 +465,17 @@ const router = express.Router();
     const man = readJsonSafe(mp);
     if (!man) return res.status(404).json({ ok: false, err: "manifest_not_found" });
 
-    const leavesHex = normalizeLeavesFromManifest(man);
+    const validation = validateManifestRoot(man, root);
+    if (!validation.ok) {
+      return res.status(409).json({
+        ok: false,
+        err: "stored_manifest_invalid",
+        reason: validation.reason,
+        want: root,
+        got: validation.computed,
+      });
+    }
+    const leavesHex = validation.leaves;
     if (idx >= leavesHex.length) return res.status(400).json({ ok: false, err: "index_oob", leaves: leavesHex.length });
 
     // build merkle levels using Buffer leaves (same domain as pack)
@@ -448,10 +501,13 @@ const router = express.Router();
 
     const computed = level[0].toString("hex");
     if (computed !== root) {
-      if (strictManifest) {
-        return res.status(400).json({ ok: false, err: "root_mismatch", want: root, got: computed, leaves: leavesHex.length });
-      }
-      return res.json({ ok: true, root, leaves: leavesHex.length, index: idx, leaf: leavesHex[idx], siblings, warn: "root_mismatch_non_strict", want: root, got: computed });
+      return res.status(409).json({
+        ok: false,
+        err: "stored_manifest_invalid",
+        reason: "root_mismatch",
+        want: root,
+        got: computed,
+      });
     }
 
     res.json({ ok: true, root, leaves: leavesHex.length, index: idx, leaf: leavesHex[idx], siblings });
@@ -500,8 +556,17 @@ const router = express.Router();
       const man2 = readJsonSafe(mp2);
       if (!man2) return res.status(400).json({ ok: false, err: "manifest_missing" });
 
-      const leaves2 = normalizeLeavesFromManifest(man2);
-      if (!leaves2.length) return res.status(400).json({ ok: false, err: "manifest_no_leaves" });
+      const manifestValidation = validateManifestRoot(man2, rootIn);
+      if (!manifestValidation.ok) {
+        return res.status(400).json({
+          ok: false,
+          err: "manifest_root_invalid",
+          reason: manifestValidation.reason,
+          want: rootIn,
+          got: manifestValidation.computed,
+        });
+      }
+      const leaves2 = manifestValidation.leaves;
       if (idxIn >= leaves2.length) return res.status(400).json({ ok: false, err: "index_oob", leaves: leaves2.length });
 
       const leafAtIdx = String(leaves2[idxIn] || "").toLowerCase().replace(/^0x/, "");
@@ -606,7 +671,7 @@ const router = express.Router();
   // GET /datanet/v1/receipts/status (ultralow)
   
   // GET /datanet/v1/metrics/receipts.prom
-  router.get("/metrics/receipts.prom", (_req, res) => {
+  router.get("metrics/receipts.prom", (_req, res) => {
     try {
       const m = __datanetReceiptsMetricsV1();
       res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
@@ -654,7 +719,7 @@ router.get("/receipts/status", (req, res) => {
           } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-11", err); }
         }
       }
-      res.json({ ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
+      res.json( { ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
     } catch (e: any) {
       res.status(500).json({ ok: false, err: "status_failed", msg: e?.message || String(e) });
     }
@@ -687,7 +752,7 @@ router.get("/receipts/status", (req, res) => {
 
       if (fs.existsSync(mvp2Dir) && fs.existsSync(mvp2ManPath)) {
         man = JSON.parse(fs.readFileSync(mvp2ManPath, "utf8"));
-        meta = fs.existsSync(mvp2MetaPath) ? JSON.parse(fs.readFileSync(mvp2MetaPath, "utf8")) : {};
+        meta = fs.existsSync(mvp2MetaPath) ? JSON.parse(fs.readFileSync(mv2MetaPath, "utf8")) : {};
 
         const cipherPath = path.join(mvp2Dir, "cipher.bin");
         if (fs.existsSync(cipherPath)) {
@@ -704,13 +769,26 @@ router.get("/receipts/status", (req, res) => {
         }
       } else {
         const manifestsDir2 = path.join(dnDir, "manifests");
-        const chunksDir2 = path.join(dnDir, "chunks");
+      const chunksDir2 = path.join(dnDir, "chunks");
         const manPath2 = path.join(manifestsDir2, `${id}.json`);
         if (!fs.existsSync(manPath2)) return res.status(404).json({ ok:false, error:"not_found" });
 
         source = "manifest_chunks";
         man = JSON.parse(fs.readFileSync(manPath2, "utf8"));
         meta = {};
+
+        const manifestValidation = validateManifestRoot(man, id.toLowerCase().replace(/^0x/, ""));
+        if (!manifestValidation.ok) {
+          return res.status(409).json({
+            ok: false,
+            error: "manifest_root_invalid",
+            id,
+            source,
+            reason: manifestValidation.reason,
+            want: id,
+            got: manifestValidation.computed,
+          });
+        }
 
         const chunks = Array.isArray(man.chunks) ? man.chunks : [];
         const parts: Buffer[] = [];
@@ -759,6 +837,16 @@ router.get("/receipts/status", (req, res) => {
         verify_ok = false;
       }
 
+      if (source === "manifest_chunks" && !verify_ok) {
+        return res.status(409).json({
+          ok: false,
+          error: "manifest_integrity_failed",
+          id,
+          source,
+          verify_ok: false,
+        });
+      }
+
       return res.status(200).json({
         ok: true,
         id,
@@ -766,7 +854,7 @@ router.get("/receipts/status", (req, res) => {
         verify_ok,
         cipher_sha256_server,
         cipher_b64: cipherAll.toString("base64"),
-        plain_sha256: plain_sha256_out,
+        plain_sha256_out,
       });
     } catch (e:any) {
       return res.status(500).json({ ok:false, error:"fetch2_throw", msg: e?.message || String(e) });
