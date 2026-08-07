@@ -28,6 +28,14 @@ import {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
   type BuyVoidCrashConsistentSagaServerPolicyV1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
+import {
+  runBuyVoidSagaPreparedTransactionCoordinatorV1,
+  type RunBuyVoidSagaPreparedTransactionInputV1,
+} from "./buy_void_saga_prepared_transaction_coordinator_v1.js";
+import {
+  createBuyVoidPreparedTransactionCustodianIpcV1,
+  type BuyVoidPreparedTransactionCustodianIpcOptionsV1,
+} from "./buy_void_prepared_transaction_custodian_ipc_v1.js";
 
 export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1 =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1";
@@ -46,6 +54,10 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
   server_controlled_fulfillment_policy: true,
   server_controlled_inventory_policy: true,
   server_controlled_execution_policy: true,
+  separate_transaction_preparation_enable_gate: true,
+  server_controlled_preparation_policy: true,
+  server_controlled_custodian_ipc_socket: true,
+  server_controlled_signer_fingerprint: true,
   caller_supplied_policy_forbidden: true,
   caller_supplied_binding_forbidden: true,
   caller_supplied_intent_forbidden: true,
@@ -56,16 +68,18 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
   per_request_lease_required: true,
   monotonically_increasing_fencing_token_required: true,
   restart_reconciliation_before_retry: true,
-  non_money_stage_count: 3,
+  non_money_stage_count: 4,
   claim_write_possible: true,
   inventory_reservation_possible: true,
   execution_attempt_reservation_possible: true,
-  transaction_preparation_mounted: false,
+  transaction_preparation_mounted: true,
+  read_only_rpc_planning_possible: true,
+  external_custodian_signing_possible: true,
   inventory_decrement: false,
   public_fulfilled_closeout: false,
   background_loop: false,
   startup_execution: false,
-  rpc_call: false,
+  rpc_call: true,
   credential_access: false,
   wallet_access: false,
   signing: false,
@@ -76,6 +90,12 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
 const ENABLE_ENV = "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
 const REQUEST_DIR_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_REQUEST_DIR";
+const PREPARATION_ENABLE_ENV =
+  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED";
+const CUSTODIAN_SOCKET_ENV =
+  "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_IPC_SOCKET_PATH";
+const CUSTODIAN_SIGNER_FINGERPRINT_ENV =
+  "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_SIGNER_FINGERPRINT_SHA256";
 const SOURCE_FLOOR_MAIN = "74f90863d738531a75eb3b4c886ad44543ae0419";
 const POOL_ID = "void-fixed-price-pool-v1";
 const LEASE_TTL_MS = 30_000;
@@ -83,6 +103,8 @@ const MAX_JSON_BYTES = 4 * 1024 * 1024;
 const MAX_INPUT_NESTING_DEPTH = 16;
 const INPUT_NESTING_DEPTH_SENTINEL = "__input_nesting_depth_exceeded__";
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{3,160}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const TRANSACTION_HASH = /^0x[0-9a-f]{64}$/;
 
 const CALLER_POLICY_KEYS = new Set([
   "policy",
@@ -90,6 +112,12 @@ const CALLER_POLICY_KEYS = new Set([
   "fulfillmentpolicy",
   "inventorypolicy",
   "executionpolicy",
+  "preparationpolicy",
+  "gaslimit",
+  "maxgaslimit",
+  "maxfeepergaswei",
+  "maxpriorityfeepergaswei",
+  "feemultiplierbps",
   "allowedchains",
   "minconfirmationsbychain",
   "usdccontractbychain",
@@ -119,6 +147,15 @@ const CALLER_EXECUTION_KEYS = new Set([
   "keystore",
   "rpcurl",
   "broadcasturl",
+  "socketpath",
+  "custodiansocketpath",
+  "signerfingerprint",
+  "signerfingerprintsha256",
+  "expectedsignerfingerprintsha256",
+  "custodian",
+  "signer",
+  "plannertransport",
+  "transactionplan",
 ]);
 
 export type BuyVoidCrashConsistentSagaBindingV1 = {
@@ -161,6 +198,10 @@ export type BuyVoidCrashConsistentSagaRuntimeDependenciesV1 = {
   run_pipeline_command?: (
     command: Record<string, unknown>,
   ) => unknown | Promise<unknown>;
+  run_prepared_transaction_coordinator?:
+    typeof runBuyVoidSagaPreparedTransactionCoordinatorV1;
+  create_prepared_transaction_custodian?:
+    typeof createBuyVoidPreparedTransactionCustodianIpcV1;
   load_saga_module?: () => Promise<SagaModuleV1>;
   now_ms?: () => number;
 };
@@ -184,6 +225,61 @@ function enabled(): boolean {
 
 function text(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function preparationEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(
+    String(process.env[PREPARATION_ENABLE_ENV] || "").trim(),
+  );
+}
+
+type PreparationCustodianConfigurationV1 =
+  | {
+      ok: true;
+      socket_path: string;
+      signer_fingerprint_sha256: string;
+      missing_envs: string[];
+    }
+  | {
+      ok: false;
+      reason: string;
+      missing_envs: string[];
+    };
+
+function preparationCustodianConfiguration():
+  PreparationCustodianConfigurationV1 {
+  const socketPath = text(process.env[CUSTODIAN_SOCKET_ENV]);
+  const signerFingerprint = text(
+    process.env[CUSTODIAN_SIGNER_FINGERPRINT_ENV],
+  ).toLowerCase();
+  const missing = [
+    ...(socketPath ? [] : [CUSTODIAN_SOCKET_ENV]),
+    ...(signerFingerprint ? [] : [CUSTODIAN_SIGNER_FINGERPRINT_ENV]),
+  ].sort();
+  if (missing.length) {
+    return {
+      ok: false,
+      reason: "prepared_transaction_custodian_not_configured",
+      missing_envs: missing,
+    };
+  }
+  if (
+    !path.isAbsolute(socketPath) ||
+    socketPath.includes("\0") ||
+    !SHA256.test(signerFingerprint)
+  ) {
+    return {
+      ok: false,
+      reason: "prepared_transaction_custodian_not_configured",
+      missing_envs: [],
+    };
+  }
+  return {
+    ok: true,
+    socket_path: path.resolve(socketPath),
+    signer_fingerprint_sha256: signerFingerprint,
+    missing_envs: [],
+  };
 }
 
 function objectValue(value: unknown): Record<string, any> | null {
@@ -315,6 +411,10 @@ function dependencies(
     list_attempts: listBuyVoidExecutionAttemptsV1,
     reserve_inventory: reserveBuyVoidInventoryV1 as any,
     run_pipeline_command: runBuyVoidPipelineCommandV1 as any,
+    run_prepared_transaction_coordinator:
+      runBuyVoidSagaPreparedTransactionCoordinatorV1,
+    create_prepared_transaction_custodian:
+      createBuyVoidPreparedTransactionCustodianIpcV1,
     load_saga_module: defaultSagaModule,
     now_ms: Date.now,
     ...(supplied || {}),
@@ -643,13 +743,24 @@ function assertProjection(input: {
     throw new Error("saga_server_policy_fingerprint_conflict");
   }
   const state = text(record.state?.state);
-  if (["claimed", "inventory_reserved", "attempt_reserved"].includes(state) && !intent) {
+  if (
+    ["claimed", "inventory_reserved", "attempt_reserved", "transaction_prepared"]
+      .includes(state) &&
+    !intent
+  ) {
     throw new Error("saga_claim_projection_missing");
   }
-  if (["inventory_reserved", "attempt_reserved"].includes(state) && !reservation) {
+  if (
+    ["inventory_reserved", "attempt_reserved", "transaction_prepared"]
+      .includes(state) &&
+    !reservation
+  ) {
     throw new Error("saga_inventory_projection_missing");
   }
-  if (state === "attempt_reserved" && !attempt) {
+  if (
+    ["attempt_reserved", "transaction_prepared"].includes(state) &&
+    !attempt
+  ) {
     throw new Error("saga_attempt_projection_missing");
   }
   if (record.state?.claim_id && record.state.claim_id !== intent?.claim?.decision_fingerprint) {
@@ -691,6 +802,75 @@ function delegatedConfirmation(action: string): string | null {
   return null;
 }
 
+type PreparedTransactionRequirementsV1 = {
+  prepared_transaction_confirmation: string;
+  economic_policy_fingerprint_sha256: string;
+  preparation_policy_fingerprint_sha256: string;
+  saga_confirmation: string;
+  saga_action_confirmation: string;
+  custody_confirmation: string;
+  execution_journal_preparation_confirmation: string;
+};
+
+function preparedTransactionDryRequirements(input: {
+  decision: Record<string, any>;
+  attempt_id: string;
+  saga_id: string;
+  economic_policy_fingerprint_sha256: string;
+  saga_confirmation: string;
+  saga_action_confirmation: string;
+}): PreparedTransactionRequirementsV1 {
+  const decision = input.decision;
+  const preparationFingerprint = text(
+    decision.required_preparation_policy_fingerprint_sha256,
+  ).toLowerCase();
+  const preparedConfirmation = text(decision.required_confirmation);
+  const sagaConfirmation = text(decision.required_saga_confirmation);
+  const sagaActionConfirmation = text(
+    decision.required_saga_action_confirmation,
+  );
+  const custodyConfirmation = text(
+    decision.required_custody_confirmation,
+  );
+  const pipelineConfirmation = text(
+    decision.required_pipeline_confirmation,
+  );
+  if (
+    decision.ok !== true ||
+    decision.status !== "dry_run" ||
+    decision.applied !== false ||
+    decision.mutation_performed !== false ||
+    text(decision.attempt_id).toLowerCase() !== input.attempt_id ||
+    text(decision.saga_id) !== input.saga_id ||
+    text(decision.required_economic_policy_fingerprint_sha256) !==
+      input.economic_policy_fingerprint_sha256 ||
+    !SHA256.test(preparationFingerprint) ||
+    !preparedConfirmation ||
+    sagaConfirmation !== input.saga_confirmation ||
+    sagaActionConfirmation !== input.saga_action_confirmation ||
+    !custodyConfirmation ||
+    !pipelineConfirmation ||
+    decision.wallet_access_performed !== false ||
+    decision.external_signing_performed !== false ||
+    decision.transaction_broadcast_performed !== false ||
+    decision.raw_signed_transaction_persisted !== false ||
+    decision.raw_signed_transaction_returned !== false ||
+    decision.money_movement_performed !== false
+  ) {
+    throw new Error("prepared_transaction_dry_binding_conflict");
+  }
+  return {
+    prepared_transaction_confirmation: preparedConfirmation,
+    economic_policy_fingerprint_sha256:
+      input.economic_policy_fingerprint_sha256,
+    preparation_policy_fingerprint_sha256: preparationFingerprint,
+    saga_confirmation: sagaConfirmation,
+    saga_action_confirmation: sagaActionConfirmation,
+    custody_confirmation: custodyConfirmation,
+    execution_journal_preparation_confirmation: pipelineConfirmation,
+  };
+}
+
 function responseStatus(reason: string): number {
   if (reason.includes("confirmation_required")) return 428;
   if (
@@ -705,12 +885,20 @@ function responseStatus(reason: string): number {
 
 export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unknown> {
   const serverPolicy = readBuyVoidCrashConsistentSagaServerPolicyV1();
+  const preparationCustodian = preparationCustodianConfiguration();
   return {
     marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
     version: 1,
     enabled: enabled(),
     enable_env: ENABLE_ENV,
     request_dir_env: REQUEST_DIR_ENV,
+    preparation_enabled: preparationEnabled(),
+    preparation_enable_env: PREPARATION_ENABLE_ENV,
+    custodian_ipc_configured: preparationCustodian.ok,
+    custodian_ipc_missing_envs: preparationCustodian.missing_envs,
+    custodian_ipc_socket_env: CUSTODIAN_SOCKET_ENV,
+    custodian_signer_fingerprint_env:
+      CUSTODIAN_SIGNER_FINGERPRINT_ENV,
     server_policy_envs:
       VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
     action: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
@@ -720,6 +908,7 @@ export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unkn
       "claim_payment",
       "reserve_inventory",
       "reserve_execution_attempt",
+      "prepare_transaction",
     ],
     server_policy_configured: serverPolicy.ok,
     server_policy_missing_envs:
@@ -850,12 +1039,273 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           required_confirmation: saga.ACTION_CONFIRMATIONS.claim_payment,
         };
     if (next.terminal || !next.action) throw new Error("saga_terminal");
-    if (!["claim_payment", "reserve_inventory", "reserve_execution_attempt"].includes(next.action)) {
-      throw new Error("next_stage_outside_non_money_runtime_boundary");
+    if (
+      ![
+        "claim_payment",
+        "reserve_inventory",
+        "reserve_execution_attempt",
+        "prepare_transaction",
+      ].includes(next.action)
+    ) {
+      throw new Error(
+        "next_stage_outside_prepared_transaction_runtime_boundary",
+      );
+    }
+    if (
+      next.action === "prepare_transaction" &&
+      !preparationEnabled()
+    ) {
+      throw new Error("transaction_preparation_disabled");
     }
     if (next.action !== "claim_payment" && stageCommand) {
       throw new Error("stage_command_not_allowed_for_server_policy_stage");
     }
+
+    if (next.action === "prepare_transaction") {
+      const attemptId = text(attempt?.reservation?.attempt_id).toLowerCase();
+      if (!SHA256.test(attemptId)) {
+        throw new Error("prepared_transaction_attempt_id_invalid");
+      }
+
+      const dryDecision = objectValue(
+        await deps.run_prepared_transaction_coordinator({
+          root_dir: rootDir,
+          attempt_id: attemptId,
+          apply: false,
+        } as RunBuyVoidSagaPreparedTransactionInputV1),
+      );
+      if (!dryDecision) {
+        throw new Error("prepared_transaction_dry_decision_missing");
+      }
+      const requirements = preparedTransactionDryRequirements({
+        decision: dryDecision,
+        attempt_id: attemptId,
+        saga_id: sagaId,
+        economic_policy_fingerprint_sha256:
+          serverPolicy.fingerprints.combined_policy_sha256,
+        saga_confirmation: saga.ADVANCE_CONFIRMATION,
+        saga_action_confirmation: text(next.required_confirmation),
+      });
+
+      if (body.apply !== true) {
+        const custodianConfiguration =
+          preparationCustodianConfiguration();
+        return res.status(200).json({
+          marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+          version: 1,
+          ok: true,
+          status: "dry_run",
+          applied: false,
+          request_id: requestId,
+          saga_id: sagaId,
+          saga_exists: Boolean(recovered.record),
+          next_action: next.action,
+          required_runtime_confirmation:
+            VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONFIRMATION_V1,
+          required_saga_confirmation:
+            requirements.saga_confirmation,
+          required_action_confirmation:
+            requirements.saga_action_confirmation,
+          required_prepared_transaction_confirmation:
+            requirements.prepared_transaction_confirmation,
+          required_policy_fingerprint_sha256:
+            requirements.economic_policy_fingerprint_sha256,
+          required_preparation_policy_fingerprint_sha256:
+            requirements.preparation_policy_fingerprint_sha256,
+          required_custody_confirmation:
+            requirements.custody_confirmation,
+          required_execution_journal_preparation_confirmation:
+            requirements.execution_journal_preparation_confirmation,
+          server_policy_fingerprints: serverPolicy.fingerprints,
+          server_policy_public_summary: serverPolicy.public_summary,
+          derived_snapshot: derived.snapshot,
+          snapshot_evidence: derived.evidence,
+          preparation_enabled: true,
+          custodian_ipc_configured:
+            custodianConfiguration.ok,
+          application_signing_performed: false,
+          external_custodian_signing_performed: false,
+          transaction_broadcast_performed: false,
+          money_movement_performed: false,
+          authority:
+            VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
+        });
+      }
+
+      if (
+        text(body.confirmation) !==
+          VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONFIRMATION_V1 ||
+        text(body.saga_confirmation) !==
+          requirements.saga_confirmation ||
+        text(body.action_confirmation) !==
+          requirements.saga_action_confirmation ||
+        text(body.policy_fingerprint_sha256) !==
+          requirements.economic_policy_fingerprint_sha256 ||
+        text(body.prepared_transaction_confirmation) !==
+          requirements.prepared_transaction_confirmation ||
+        text(body.preparation_policy_fingerprint_sha256) !==
+          requirements.preparation_policy_fingerprint_sha256 ||
+        text(body.custody_confirmation) !==
+          requirements.custody_confirmation ||
+        text(body.execution_journal_preparation_confirmation) !==
+          requirements.execution_journal_preparation_confirmation
+      ) {
+        throw new Error("prepared_transaction_confirmation_required");
+      }
+
+      const custodianConfiguration =
+        preparationCustodianConfiguration();
+      if ("reason" in custodianConfiguration) {
+        throw new Error(
+          `${custodianConfiguration.reason}:${
+            custodianConfiguration.missing_envs.join(",")
+          }`,
+        );
+      }
+
+      let custodian;
+      try {
+        const options:
+          BuyVoidPreparedTransactionCustodianIpcOptionsV1 = {
+            socket_path: custodianConfiguration.socket_path,
+            expected_signer_fingerprint_sha256:
+              custodianConfiguration.signer_fingerprint_sha256,
+          };
+        custodian =
+          deps.create_prepared_transaction_custodian(options);
+      } catch (error) {
+        throw new Error(
+          `prepared_transaction_custodian_not_configured:${
+            text((error as Error)?.message || error).slice(0, 160)
+          }`,
+        );
+      }
+
+      const appliedDecision = objectValue(
+        await deps.run_prepared_transaction_coordinator({
+          root_dir: rootDir,
+          attempt_id: attemptId,
+          apply: true,
+          confirmation:
+            body.prepared_transaction_confirmation,
+          economic_policy_fingerprint_sha256:
+            body.policy_fingerprint_sha256,
+          preparation_policy_fingerprint_sha256:
+            body.preparation_policy_fingerprint_sha256,
+          saga_confirmation: body.saga_confirmation,
+          saga_action_confirmation:
+            body.action_confirmation,
+          custody_confirmation: body.custody_confirmation,
+          pipeline_confirmation:
+            body.execution_journal_preparation_confirmation,
+          dependencies: { custodian },
+        } as RunBuyVoidSagaPreparedTransactionInputV1),
+      );
+      if (!appliedDecision) {
+        throw new Error("prepared_transaction_apply_decision_missing");
+      }
+      if (appliedDecision.ok !== true) {
+        const delegatedReason =
+          `delegated_prepared_transaction_held:${
+            text(appliedDecision.reason) || "unknown"
+          }`;
+        return res.status(responseStatus(delegatedReason)).json({
+          marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+          version: 1,
+          ok: false,
+          error: "crash_consistent_saga_runtime_held",
+          reason: delegatedReason,
+          request_id: requestId,
+          saga_id: sagaId,
+          attempt_id: attemptId,
+          mutation_performed:
+            appliedDecision.mutation_performed === true,
+          external_custodian_signing_performed:
+            appliedDecision.external_signing_performed === true,
+          reconciliation_required:
+            appliedDecision.reconciliation_required === true,
+          automatic_retry: false,
+          transaction_broadcast_performed: false,
+          money_movement_performed: false,
+          zero_money_authority: true,
+        });
+      }
+      if (
+        appliedDecision.applied !== true ||
+        !["prepared", "duplicate"].includes(
+          text(appliedDecision.status),
+        )
+      ) {
+        throw new Error("prepared_transaction_apply_binding_conflict");
+      }
+      if (
+        text(appliedDecision.attempt_id).toLowerCase() !==
+          attemptId ||
+        text(appliedDecision.saga_id) !== sagaId ||
+        appliedDecision.wallet_access_performed !== false ||
+        appliedDecision.transaction_broadcast_performed !==
+          false ||
+        appliedDecision.raw_signed_transaction_persisted !==
+          false ||
+        appliedDecision.raw_signed_transaction_returned !==
+          false ||
+        appliedDecision.money_movement_performed !== false
+      ) {
+        throw new Error(
+          "prepared_transaction_apply_binding_conflict",
+        );
+      }
+      const custody = objectValue(appliedDecision.custody);
+      const plan = objectValue(appliedDecision.plan);
+      const transactionHash = text(
+        custody?.signed_transaction_hash,
+      ).toLowerCase();
+      const reservedNonce = text(plan?.nonce);
+      if (
+        !custody ||
+        !plan ||
+        !TRANSACTION_HASH.test(transactionHash) ||
+        !/^(0|[1-9][0-9]*)$/.test(reservedNonce)
+      ) {
+        throw new Error(
+          "prepared_transaction_public_projection_invalid",
+        );
+      }
+
+      return res.status(200).json({
+        marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+        version: 1,
+        ok: true,
+        status: text(appliedDecision.status),
+        applied: true,
+        request_id: requestId,
+        saga_id: sagaId,
+        attempt_id: attemptId,
+        signed_transaction_hash: transactionHash,
+        reserved_nonce: reservedNonce,
+        server_policy_fingerprint_sha256:
+          serverPolicy.fingerprints.combined_policy_sha256,
+        preparation_policy_fingerprint_sha256:
+          requirements.preparation_policy_fingerprint_sha256,
+        restart_reconciliation_before_retry: true,
+        automatic_retry: false,
+        preparation_enabled: true,
+        application_private_key_access_performed: false,
+        application_wallet_access_performed: false,
+        application_signing_performed: false,
+        external_custodian_signing_performed:
+          appliedDecision.external_signing_performed === true,
+        inventory_decrement_performed: false,
+        wallet_access_performed: false,
+        signing_performed: false,
+        transaction_broadcast_performed: false,
+        public_fulfilled_closeout_performed: false,
+        money_movement_performed: false,
+        authority:
+          VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
+      });
+    }
+
     const delegated = delegatedConfirmation(next.action);
 
     if (body.apply !== true) {
