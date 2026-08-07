@@ -252,13 +252,19 @@ try {
 } finally {
   try {
     rawSocket?.destroy();
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   try {
     client?.stop();
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   try {
     target?.stop();
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   delete process.env.BOOTSTRAP_ADDRS;
   delete process.env.P2P_BIND_HOST;
   delete process.env.P2P_ADVERTISE_HOST;
