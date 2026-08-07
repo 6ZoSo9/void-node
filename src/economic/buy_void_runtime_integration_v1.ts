@@ -22,6 +22,11 @@ import {
   buyVoidCrashConsistentSagaRuntimeStatusV1,
   handleBuyVoidCrashConsistentSagaRuntimeCommandV1,
 } from "./buy_void_crash_consistent_saga_runtime_v1.js";
+import {
+  VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
+  buyVoidSagaBroadcastReconciliationRuntimeStatusV1,
+  handleBuyVoidSagaBroadcastReconciliationRuntimeCommandV1,
+} from "./buy_void_saga_broadcast_reconciliation_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -40,6 +45,7 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   public_route: false,
   background_loop: false,
   rpc_call: false,
+  private_broadcaster_inspection_ipc_possible: true,
   wallet_access: false,
   signing: false,
   raw_signed_transaction_input: false,
@@ -194,6 +200,7 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
       VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
     ],
     required_confirmations: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
     authority: VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1,
@@ -202,6 +209,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1(),
     crash_consistent_saga_runtime:
       buyVoidCrashConsistentSagaRuntimeStatusV1(),
+    saga_broadcast_reconciliation_runtime:
+      buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),
   };
 }
 
@@ -264,6 +273,19 @@ export function handleBuyVoidRuntimeCommandV1(
 
   if (
     String((body as any).action || "") ===
+    VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidSagaBroadcastReconciliationRuntimeCommandV1(
+      req,
+      res,
+      {
+        root_dir: buyVoidRuntimeRootDirV1(),
+      },
+    );
+  }
+
+  if (
+    String((body as any).action || "") ===
     VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1
   ) {
     return handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -284,6 +306,7 @@ export function handleBuyVoidRuntimeCommandV1(
         ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
         VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
         VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+        VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
       ],
     });
   }
