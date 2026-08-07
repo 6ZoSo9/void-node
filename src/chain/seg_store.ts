@@ -362,7 +362,6 @@ export class SegStore {
       if (st.size === 0) return null;
 
       let scanOff = 0;
-      let expectedN = segmentBase;
 
       // Sparse index is an optimization only. A malformed, stale, out-of-range,
       // or misaligned entry cannot establish absence or corruption; it merely
@@ -405,18 +404,16 @@ export class SegStore {
             const parsed = JSON.parse(body.toString("utf8"));
             if (parsed?.number !== best.n) throw new Error("sparse anchor block mismatch");
             scanOff = best.off;
-            expectedN = best.n;
           }
         } catch (err) {
           recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-read-sparse-index-fallback", err);
           scanOff = 0;
-          expectedN = segmentBase;
         }
       }
 
       const lenBuf = Buffer.alloc(4);
       let off = scanOff;
-      let previousN: number | null = expectedN - 1;
+      let previousN: number | null = null;
 
       while (off < st.size) {
         if (st.size - off < 4) {
@@ -460,6 +457,7 @@ export class SegStore {
         }
 
         if (blk.number === n) return blk as Block;
+        if (previousN === null && blk.number > n) return null;
         if (blk.number > n) {
           throw canonicalReadCorruptionV1(`canonical frame sequence skipped requested block ${n} in ${seg}`);
         }
