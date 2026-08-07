@@ -2,7 +2,11 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import * as crypto from "node:crypto";
-import * as net from "node:net";
+
+import {
+  isVoidPublicDirectCandidateV1,
+  parseVoidReachabilityCandidateAddressV1,
+} from "./reachability_runtime_v1.js";
 
 export const VOID_P2P_UDP_HOLE_PUNCH_PROTOCOL_VERSION_V1 = 1;
 export const VOID_P2P_UDP_HOLE_PUNCH_DEFAULT_LOCAL_BIND_PORT_V1 = 0;
@@ -21,40 +25,6 @@ export const VOID_P2P_UDP_HOLE_PUNCH_MAX_PACKET_BYTES_V1 = 512;
 const NODE_ID_RE = /^[0-9a-f]{32}$/;
 const ID_RE = /^[0-9a-f]{32}$/;
 const CONTROL_OR_SPACE = /[\u0000-\u001f\u007f\s]/;
-
-const NON_PUBLIC_V4 = new net.BlockList();
-for (const [network, prefix] of [
-  ["0.0.0.0", 8],
-  ["10.0.0.0", 8],
-  ["100.64.0.0", 10],
-  ["127.0.0.0", 8],
-  ["169.254.0.0", 16],
-  ["172.16.0.0", 12],
-  ["192.0.0.0", 24],
-  ["192.0.2.0", 24],
-  ["192.168.0.0", 16],
-  ["198.18.0.0", 15],
-  ["198.51.100.0", 24],
-  ["203.0.113.0", 24],
-  ["224.0.0.0", 4],
-  ["240.0.0.0", 4],
-] as const) {
-  NON_PUBLIC_V4.addSubnet(network, prefix, "ipv4");
-}
-
-const NON_PUBLIC_V6 = new net.BlockList();
-for (const [network, prefix] of [
-  ["::", 128],
-  ["::1", 128],
-  ["::ffff:0:0", 96],
-  ["100::", 64],
-  ["2001:db8::", 32],
-  ["fc00::", 7],
-  ["fe80::", 10],
-  ["ff00::", 8],
-] as const) {
-  NON_PUBLIC_V6.addSubnet(network, prefix, "ipv6");
-}
 
 export type VoidUdpHolePunchPacketV1 = Readonly<{
   type: "VOID_UDP_PUNCH";
@@ -114,30 +84,6 @@ function idValue(raw: unknown): string | undefined {
   return typeof raw === "string" && ID_RE.test(raw) ? raw : undefined;
 }
 
-function canonicalIPv6Host(address: string): string | undefined {
-  try {
-    const url = new URL(`http://[${address}]/`);
-    const hostname = url.hostname;
-    if (!hostname.startsWith("[") || !hostname.endsWith("]")) return;
-    return hostname.slice(1, -1).toLowerCase();
-  } catch {
-    return;
-  }
-}
-
-function publicIp(host: string): boolean {
-  const family = net.isIP(host);
-  if (family === 4) return !NON_PUBLIC_V4.check(host, "ipv4");
-  if (family === 6) {
-    if (NON_PUBLIC_V6.check(host, "ipv6")) return false;
-    const firstHextet = Number.parseInt(host.split(":", 1)[0] || "0", 16);
-    return Number.isInteger(firstHextet) &&
-      firstHextet >= 0x2000 &&
-      firstHextet <= 0x3fff;
-  }
-  return false;
-}
-
 export function newVoidUdpHolePunchIdV1(): string {
   return crypto.randomBytes(16).toString("hex");
 }
@@ -160,37 +106,10 @@ export function normalizeVoidUdpObservedEndpointV1(
     CONTROL_OR_SPACE.test(raw)
   ) return;
 
-  let host = "";
-  let portText = "";
-
-  if (raw.startsWith("[")) {
-    const close = raw.indexOf("]");
-    if (close <= 1 || raw[close + 1] !== ":") return;
-    if (raw.indexOf("]", close + 1) !== -1) return;
-    host = raw.slice(1, close);
-    portText = raw.slice(close + 2);
-    if (net.isIP(host) !== 6) return;
-    const normalized = canonicalIPv6Host(host);
-    if (!normalized) return;
-    host = normalized;
-  } else {
-    const colon = raw.lastIndexOf(":");
-    if (colon <= 0 || raw.indexOf(":") !== colon) return;
-    host = raw.slice(0, colon);
-    portText = raw.slice(colon + 1);
-    if (net.isIP(host) !== 4) return;
-  }
-
-  if (!/^[0-9]+$/.test(portText)) return;
-  const port = Number(portText);
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) return;
-
-  const family = net.isIP(host);
-  if (family !== 4 && family !== 6) return;
-  if (!allowNonPublic && !publicIp(host)) return;
-
-  const canonical = family === 6 ? `[${host}]:${port}` : `${host}:${port}`;
-  return canonical === raw ? canonical : undefined;
+  const parsed = parseVoidReachabilityCandidateAddressV1(raw);
+  if (!parsed || parsed.canonical !== raw) return;
+  if (!allowNonPublic && !isVoidPublicDirectCandidateV1(raw)) return;
+  return parsed.canonical;
 }
 
 export function createVoidUdpHolePunchPacketV1(input: {
