@@ -40,24 +40,78 @@ export type TerminalCloseoutArtifactResultV1 = {
   public_recovered_partial: boolean;
 };
 
-function ensurePrivateDirectory(directory: string): string {
-  const resolved = path.resolve(directory);
-  fs.mkdirSync(resolved, { recursive: true, mode: 0o700 });
-  fs.chmodSync(resolved, 0o700);
-  const metadata = fs.lstatSync(resolved);
+function assertNoSymlinkPathComponents(
+  target: string,
+  label: string,
+): string {
+  const resolved = path.resolve(target);
+  const filesystemRoot = path.parse(resolved).root;
+  const relative = path.relative(filesystemRoot, resolved);
+  let current = filesystemRoot;
+  for (const component of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, component);
+    let metadata: fs.Stats;
+    try {
+      metadata = fs.lstatSync(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return resolved;
+      throw error;
+    }
+    if (metadata.isSymbolicLink()) {
+      throw new Error(`${label}_symlink_component_forbidden`);
+    }
+  }
+  return resolved;
+}
+
+function assertPrivateDirectory(directory: string, label: string): string {
+  const metadata = fs.lstatSync(directory);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error("terminal_closeout_directory_must_be_direct");
+    throw new Error(`${label}_must_be_direct`);
   }
   if (
     typeof process.getuid === "function" &&
     metadata.uid !== process.getuid()
   ) {
-    throw new Error("terminal_closeout_directory_owner_mismatch");
+    throw new Error(`${label}_owner_mismatch`);
   }
   if ((metadata.mode & 0o077) !== 0) {
-    throw new Error("terminal_closeout_directory_must_be_private");
+    throw new Error(`${label}_must_be_private`);
   }
-  return resolved;
+  return directory;
+}
+
+function privateDirectoryExistsReadOnly(
+  directory: string,
+  label: string,
+): boolean {
+  const resolved = assertNoSymlinkPathComponents(directory, label);
+  try {
+    assertPrivateDirectory(resolved, label);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function ensurePrivateDirectory(directory: string): string {
+  const resolved = assertNoSymlinkPathComponents(
+    directory,
+    "terminal_closeout_directory",
+  );
+  let exists = true;
+  try {
+    fs.lstatSync(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+    exists = false;
+  }
+  if (!exists) {
+    fs.mkdirSync(resolved, { recursive: true, mode: 0o700 });
+  }
+  assertNoSymlinkPathComponents(resolved, "terminal_closeout_directory");
+  return assertPrivateDirectory(resolved, "terminal_closeout_directory");
 }
 
 function fsyncDirectory(directory: string): void {
@@ -141,6 +195,7 @@ function atomicCreatePublicJson(
   value: unknown,
 ): "created" | "exists" {
   const parent = path.dirname(file);
+  assertNoSymlinkPathComponents(parent, "terminal_closeout_public_parent");
   const metadata = fs.lstatSync(parent);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("terminal_closeout_public_parent_must_be_direct");
@@ -187,6 +242,7 @@ function appendTerminalPublicJsonLineDurable(
   row: Record<string, unknown>,
 ): void {
   const parent = path.dirname(file);
+  assertNoSymlinkPathComponents(parent, "terminal_closeout_request_dir");
   const metadata = fs.lstatSync(parent);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("terminal_closeout_request_dir_must_be_direct");
@@ -232,10 +288,19 @@ export function terminalCloseoutPlanPathV1(
   rootDir: string,
   attemptId: string,
 ): string {
-  const root = ensurePrivateDirectory(path.join(rootDir, TERMINAL_CLOSEOUT_ROOT));
-  const attempts = ensurePrivateDirectory(path.join(root, "attempts"));
+  const rawRoot = terminalText(rootDir);
+  const normalizedAttemptId = terminalText(attemptId).toLowerCase();
+  if (!rawRoot || !path.isAbsolute(rawRoot) || rawRoot.includes("\0")) {
+    throw new Error("terminal_closeout_plan_root_invalid");
+  }
+  if (!TERMINAL_CLOSEOUT_SHA256.test(normalizedAttemptId)) {
+    throw new Error("terminal_closeout_plan_attempt_id_invalid");
+  }
   return path.join(
-    ensurePrivateDirectory(path.join(attempts, attemptId)),
+    path.resolve(rawRoot),
+    TERMINAL_CLOSEOUT_ROOT,
+    "attempts",
+    normalizedAttemptId,
     "plan.json",
   );
 }
@@ -245,8 +310,19 @@ export function readTerminalCloseoutPlanV1(input: {
   attempt_id: string;
   expected?: Partial<BuyVoidSagaTerminalCloseoutPlanV1>;
 }): BuyVoidSagaTerminalCloseoutPlanV1 | null {
+  const file = terminalCloseoutPlanPathV1(input.root_dir, input.attempt_id);
+  const attemptDirectory = path.dirname(file);
+  const attemptsDirectory = path.dirname(attemptDirectory);
+  const managedRoot = path.dirname(attemptsDirectory);
+  for (const [directory, label] of [
+    [managedRoot, "terminal_closeout_root"],
+    [attemptsDirectory, "terminal_closeout_attempts"],
+    [attemptDirectory, "terminal_closeout_attempt"],
+  ] as const) {
+    if (!privateDirectoryExistsReadOnly(directory, label)) return null;
+  }
   const existing = readTerminalDirectJsonV1(
-    terminalCloseoutPlanPathV1(input.root_dir, input.attempt_id),
+    file,
     "terminal_closeout_plan",
   );
   if (!existing) return null;
@@ -319,6 +395,7 @@ function writeTerminalPublicCloseoutV1(
   requestDir: string,
   event: BuyVoidSagaTerminalCloseoutPublicEventV1,
 ): { mutation_performed: boolean; duplicate: boolean; recovered_partial: boolean } {
+  assertNoSymlinkPathComponents(requestDir, "terminal_closeout_request_dir");
   const directory = fs.lstatSync(requestDir);
   if (!directory.isDirectory() || directory.isSymbolicLink()) {
     throw new Error("terminal_closeout_request_dir_must_be_direct");
