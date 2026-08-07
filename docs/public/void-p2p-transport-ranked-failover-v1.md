@@ -44,29 +44,34 @@ evidence.
 
 ## Relay identity boundary
 
-Relay candidates use the relay-v1 client compatibility shape:
+Relay candidates use the merged relay-v1 reservation evidence shape:
 
 - target `subject_node_id`;
 - authenticated direct `relay_node_id`;
-- explicit `relay_peer_state=authenticated_direct_peer_v1`; and
-- declared failure domain.
+- explicit `relay_peer_state=authenticated_direct_peer_v1`;
+- declared failure domain;
+- `reservation_id`; and
+- bounded `reservation_expires_at_ms`.
 
-The initiating client does **not** require the target reservation ID. In relay
-v1, `connectViaRelay(relayNodeId, targetNodeId)` identifies the target by VOID
-node ID, while the relay server checks the target's active reservation
-internally.
+The reservation fields are eligibility evidence for this immutable planning
+snapshot: a relay candidate must have an active reservation when the plan is
+created, and an expired relay candidate is skipped at selection time. They do
+not make the relay reservation the target's identity. Runtime relay connection
+still identifies the target by VOID node ID, while the relay server validates
+its own active reservation state.
 
 The relay is transport only. End-to-end VOID authentication remains the
 endpoint identity source.
 
 Therefore:
 
-- a relay node cannot define the target node's identity;
+- a relay node or reservation cannot define the target node's identity;
 - a successful relay path does not become direct-reachability evidence; and
 - relay use does not alter the verified-direct peer-cache trust boundary.
 
-This source contract does not import or modify draft relay PR #1062. Runtime
-wiring must wait until the relay lane itself is settled.
+The relay-v1 reservation primitive is already merged. This planner consumes only
+bounded reservation evidence; it does not activate relay traffic or modify the
+relay runtime.
 
 ## Failover
 
@@ -81,15 +86,18 @@ Failure of one candidate is local attempt state only. It does not:
 - infer relay requirement; or
 - grant transport infrastructure any authority.
 
-When all candidates have failed, selection returns `null`; the caller must
-apply its own bounded retry/backoff policy rather than looping inside this
-contract.
+When all candidates have failed, or when every remaining relay reservation has
+expired, selection returns `null`; the caller must apply its own bounded
+retry/backoff policy rather than looping inside this contract.
 
 ## Bounds
 
 - at most 16 direct reachability records;
 - at most 8 relay candidates;
 - relay candidates must declare distinct failure domains;
+- relay reservations must be active at plan creation and expire within the
+  relay-v1 maximum TTL bound;
+- expired relay candidates are never selected;
 - at most 24 eligible candidates in one plan;
 - plan lifetime from one through fifteen minutes;
 - unauthenticated relay peers are rejected before entering the plan.
@@ -110,8 +118,8 @@ This lane adds no:
 
 ## Follow-on
 
-After relay #1062 settles, a separate integration lane can adapt live direct and
-relay state into this planner and apply the returned order to real connection
-attempts. That integration should preserve independent per-candidate backoff
-and prove direct-to-relay and relay-to-direct recovery without changing peer
-identity.
+A separate runtime-integration lane can adapt live direct and relay state into
+this planner and apply the returned order to real connection attempts. That
+integration should preserve independent per-candidate backoff, refresh expired
+reservation evidence before retry, and prove direct-to-relay and relay-to-direct
+recovery without changing peer identity.
