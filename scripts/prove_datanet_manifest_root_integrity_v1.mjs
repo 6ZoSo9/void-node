@@ -16,6 +16,7 @@ const rootDir = fs.mkdtempSync(
 const dataDir = path.join(rootDir, "data");
 const manifestsDir = path.join(dataDir, "datanet", "manifests");
 const receiptsFile = path.join(dataDir, "datanet", "receipts", "datanet.jsonl");
+const previousDataDir = process.env.DATA_DIR;
 
 function sha256(buffer) {
   return crypto.createHash("sha256").update(buffer).digest();
@@ -72,6 +73,7 @@ async function jsonRequest(base, pathname, init = {}) {
 let server;
 try {
   delete process.env.DATANET_STRICT_MANIFEST;
+  process.env.DATA_DIR = dataDir;
   fs.mkdirSync(dataDir, { recursive: true });
 
   const app = express();
@@ -302,5 +304,10 @@ try {
     await new Promise((resolve) => server.close(() => resolve()));
   }
   delete process.env.DATANET_STRICT_MANIFEST;
+  if (previousDataDir === undefined) {
+    delete process.env.DATA_DIR;
+  } else {
+    process.env.DATA_DIR = previousDataDir;
+  }
   fs.rmSync(rootDir, { recursive: true, force: true });
 }
