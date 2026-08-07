@@ -755,6 +755,15 @@ function selectMonotonicOutcome(existing, incoming) {
     return Object.freeze({ decision: previous, persist: false });
   }
 
+  if (
+    previous.status === "unknown" &&
+    incoming.status === "not_submitted"
+  ) {
+    throw new Error(
+      "prepared_broadcaster_service_unknown_not_submitted_conflict",
+    );
+  }
+
   if (previous.status === "accepted") {
     if (incoming.status === "not_submitted") {
       throw new Error(
