@@ -10,6 +10,7 @@
  * - Rebuilds sparse indexes and segment metadata from physical frame truth.
  * - Reconciles heads.json/head.txt to the highest complete canonical frame.
  * - Supports a truthful dry-run that reports the exact repair plan without writes.
+ * - Rejects symlinked or non-canonical filesystem paths before repair I/O.
  *
  * This function mutates only the supplied data directory when explicitly run
  * with dryRun disabled.
@@ -18,6 +19,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertVoidSegStorePathConfinedV1,
+  assertVoidSegStoreRegularFileV1,
+  assertVoidSegStoreRootV1,
+  ensureVoidSegStoreDirectoryV1,
+} from "./segstore_path_confinement_v1.js";
 
 function recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(
   scope: string,
@@ -94,10 +101,6 @@ export type AutoRepairPlan = {
 
 const SEG_SPAN = 10_000;
 
-function ensureDir(p: string): void {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-}
-
 function segNameFor(n: number): string {
   return String(Math.floor(n / SEG_SPAN) * SEG_SPAN).padStart(8, "0");
 }
@@ -119,20 +122,31 @@ function segPaths(root: string, seg: string) {
   };
 }
 
-function atomicWriteText(target: string, text: string): void {
+function atomicWriteText(root: string, target: string, text: string): void {
   const dir = path.dirname(target);
-  ensureDir(dir);
-  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+  ensureVoidSegStoreDirectoryV1(root, dir);
+  assertVoidSegStoreRegularFileV1(root, target, true);
+
+  const tmp = `${target}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  assertVoidSegStoreRegularFileV1(root, tmp, true);
   try {
-    fs.writeFileSync(tmp, text);
+    fs.writeFileSync(tmp, text, { flag: "wx" });
+    assertVoidSegStoreRegularFileV1(root, tmp, false);
     const fd = fs.openSync(tmp, "r");
     try {
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
     }
+
+    assertVoidSegStoreRegularFileV1(root, target, true);
     fs.renameSync(tmp, target);
+    assertVoidSegStoreRegularFileV1(root, target, false);
     try {
+      assertVoidSegStorePathConfinedV1(root, dir, {
+        kind: "directory",
+        allowMissing: false,
+      });
       const dfd = fs.openSync(dir, "r");
       try {
         fs.fsyncSync(dfd);
@@ -145,6 +159,7 @@ function atomicWriteText(target: string, text: string): void {
   } finally {
     if (fs.existsSync(tmp)) {
       try {
+        assertVoidSegStoreRegularFileV1(root, tmp, false);
         fs.unlinkSync(tmp);
       } catch (err) {
         recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("temporary-cleanup", err);
@@ -153,19 +168,24 @@ function atomicWriteText(target: string, text: string): void {
   }
 }
 
-function atomicWriteJson(target: string, value: unknown): void {
-  atomicWriteText(target, JSON.stringify(value, null, 2));
+function atomicWriteJson(root: string, target: string, value: unknown): void {
+  atomicWriteText(root, target, JSON.stringify(value, null, 2));
 }
 
-function readFrames(binPath: string, segmentName: string): FrameScan {
+function readFrames(root: string, binPath: string, segmentName: string): FrameScan {
   const frames: ScannedFrame[] = [];
+  assertVoidSegStoreRegularFileV1(root, binPath, true);
   if (!fs.existsSync(binPath)) {
     return { frames, completeBytes: 0, fileBytes: 0, tornTailBytes: 0, lastN: -1 };
   }
 
+  assertVoidSegStoreRegularFileV1(root, binPath, false);
   const fd = fs.openSync(binPath, "r");
   try {
     const st = fs.fstatSync(fd);
+    if (!st.isFile()) {
+      throw new Error(`canonical block path is not a regular file: ${binPath}`);
+    }
     const lenBuf = Buffer.alloc(4);
     let off = 0;
     let previousN: number | null = null;
@@ -245,8 +265,10 @@ function readFrames(binPath: string, segmentName: string): FrameScan {
   }
 }
 
-function truncateTornTail(binPath: string, completeBytes: number): void {
+function truncateTornTail(root: string, binPath: string, completeBytes: number): void {
+  assertVoidSegStoreRegularFileV1(root, binPath, false);
   fs.truncateSync(binPath, completeBytes);
+  assertVoidSegStoreRegularFileV1(root, binPath, false);
   const fd = fs.openSync(binPath, "r");
   try {
     fs.fsyncSync(fd);
@@ -254,7 +276,12 @@ function truncateTornTail(binPath: string, completeBytes: number): void {
     fs.closeSync(fd);
   }
   try {
-    const dfd = fs.openSync(path.dirname(binPath), "r");
+    const dir = path.dirname(binPath);
+    assertVoidSegStorePathConfinedV1(root, dir, {
+      kind: "directory",
+      allowMissing: false,
+    });
+    const dfd = fs.openSync(dir, "r");
     try {
       fs.fsyncSync(dfd);
     } finally {
@@ -276,14 +303,16 @@ function sparseIndexText(
 }
 
 function rebuildSparseIndex(
+  root: string,
   idxPath: string,
   frames: readonly ScannedFrame[],
   sparseEvery: number,
 ): void {
-  atomicWriteText(idxPath, sparseIndexText(frames, sparseEvery));
+  atomicWriteText(root, idxPath, sparseIndexText(frames, sparseEvery));
 }
 
-function existingCreatedAt(metaPath: string): number | null {
+function existingCreatedAt(root: string, metaPath: string): number | null {
+  assertVoidSegStoreRegularFileV1(root, metaPath, true);
   if (!fs.existsSync(metaPath)) return null;
   try {
     const value = JSON.parse(fs.readFileSync(metaPath, "utf8"));
@@ -296,20 +325,21 @@ function existingCreatedAt(metaPath: string): number | null {
   }
 }
 
-function rebuildMeta(metaPath: string, base: number, scan: FrameScan): void {
+function rebuildMeta(root: string, metaPath: string, base: number, scan: FrameScan): void {
   const now = Date.now();
   const meta: Meta = {
     from: base,
     to: scan.lastN,
     bytes: scan.completeBytes,
-    createdAt: existingCreatedAt(metaPath) ?? now,
+    createdAt: existingCreatedAt(root, metaPath) ?? now,
     updatedAt: now,
   };
-  atomicWriteJson(metaPath, meta);
+  atomicWriteJson(root, metaPath, meta);
 }
 
 function rebuildHeads(root: string, headsPath: string, globalHead: number): void {
   let prior: any = {};
+  assertVoidSegStoreRegularFileV1(root, headsPath, true);
   if (fs.existsSync(headsPath)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(headsPath, "utf8"));
@@ -319,13 +349,15 @@ function rebuildHeads(root: string, headsPath: string, globalHead: number): void
     }
   }
 
-  atomicWriteJson(headsPath, {
+  const headTxt = path.join(root, "head.txt");
+  assertVoidSegStoreRegularFileV1(root, headTxt, true);
+  atomicWriteJson(root, headsPath, {
     ...prior,
     head: globalHead,
     number: globalHead,
     hash: typeof prior.hash === "string" ? prior.hash : "0x0",
   });
-  atomicWriteText(path.join(root, "head.txt"), `${globalHead}\n`);
+  atomicWriteText(root, headTxt, `${globalHead}\n`);
 }
 
 export async function autoRepairDataDir(
@@ -338,8 +370,17 @@ export async function autoRepairDataDir(
   }
   const dryRun = opts.dryRun === true;
 
+  assertVoidSegStoreRootV1(root);
   const segRoot = path.join(root, "segments");
   const headsPath = path.join(root, "heads.json");
+  const headTxtPath = path.join(root, "head.txt");
+  assertVoidSegStorePathConfinedV1(root, segRoot, {
+    kind: "directory",
+    allowMissing: true,
+  });
+  assertVoidSegStoreRegularFileV1(root, headsPath, true);
+  assertVoidSegStoreRegularFileV1(root, headTxtPath, true);
+
   const createDirectories: string[] = [];
   if (!fs.existsSync(root)) createDirectories.push(root);
   if (!fs.existsSync(segRoot)) createDirectories.push(segRoot);
@@ -357,12 +398,16 @@ export async function autoRepairDataDir(
 
   for (const { name: seg, base } of segments) {
     const { dir, bin, idx, meta } = segPaths(root, seg);
-    if (!fs.statSync(dir).isDirectory()) {
-      throw new Error(`canonical segment path is not a directory: ${dir}`);
-    }
+    assertVoidSegStorePathConfinedV1(root, dir, {
+      kind: "directory",
+      allowMissing: false,
+    });
+    assertVoidSegStoreRegularFileV1(root, bin, true);
+    assertVoidSegStoreRegularFileV1(root, idx, true);
+    assertVoidSegStoreRegularFileV1(root, meta, true);
 
     const binMissing = !fs.existsSync(bin);
-    const scan = readFrames(bin, seg);
+    const scan = readFrames(root, bin, seg);
     prepared.push({ name: seg, base, bin, idx, meta, binMissing, scan });
     if (scan.lastN > globalHead) globalHead = scan.lastN;
   }
@@ -393,7 +438,7 @@ export async function autoRepairDataDir(
     })),
     reconcileHeads: {
       headsJson: headsPath,
-      headTxt: path.join(root, "head.txt"),
+      headTxt: headTxtPath,
       head: globalHead,
     },
   };
@@ -405,16 +450,20 @@ export async function autoRepairDataDir(
   );
 
   if (!dryRun) {
-    ensureDir(root);
-    ensureDir(segRoot);
+    ensureVoidSegStoreDirectoryV1(root, root);
+    ensureVoidSegStoreDirectoryV1(root, segRoot);
 
     for (const entry of prepared) {
-      if (entry.binMissing) fs.writeFileSync(entry.bin, Buffer.alloc(0));
-      if (entry.scan.tornTailBytes > 0) {
-        truncateTornTail(entry.bin, entry.scan.completeBytes);
+      if (entry.binMissing) {
+        assertVoidSegStoreRegularFileV1(root, entry.bin, true);
+        fs.writeFileSync(entry.bin, Buffer.alloc(0), { flag: "wx" });
+        assertVoidSegStoreRegularFileV1(root, entry.bin, false);
       }
-      rebuildSparseIndex(entry.idx, entry.scan.frames, sparseEvery);
-      rebuildMeta(entry.meta, entry.base, entry.scan);
+      if (entry.scan.tornTailBytes > 0) {
+        truncateTornTail(root, entry.bin, entry.scan.completeBytes);
+      }
+      rebuildSparseIndex(root, entry.idx, entry.scan.frames, sparseEvery);
+      rebuildMeta(root, entry.meta, entry.base, entry.scan);
     }
 
     rebuildHeads(root, headsPath, globalHead);
