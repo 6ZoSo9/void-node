@@ -4,12 +4,25 @@ on:
   pull_request:
     paths:
       - ".github/workflows/buy-void-saga-broadcast-reconciliation-runtime-v1.yml"
+      - ".github/workflows/buy-void-crash-consistent-saga-runtime-v1.yml"
       - "docs/operators/buy-void-saga-broadcast-reconciliation-runtime-v1.md"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_v1.ts"
@@ -18,12 +31,25 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/buy-void-saga-broadcast-reconciliation-runtime-v1.yml"
+      - ".github/workflows/buy-void-crash-consistent-saga-runtime-v1.yml"
       - "docs/operators/buy-void-saga-broadcast-reconciliation-runtime-v1.md"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_v1.ts"
@@ -60,8 +86,9 @@ jobs:
         run: |
           npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
           npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
-      - name: Preserve parent runtime integration guards
+      - name: Preserve parent saga and runtime integration guards
         run: |
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts
           npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
           npx --no-install tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
       - name: Typecheck repository
