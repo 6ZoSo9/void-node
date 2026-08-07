@@ -153,7 +153,7 @@ async function main(): Promise<void> {
       read_transport: readTransport,
     },
   );
-  if (!created.ok) throw new Error(created.reason);
+  if (!created.ok) throw new Error("chain2050_transport_should_be_ready");
   assert.equal(created.ok, true);
 
   assert.equal(submitChainCalls, 1);
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
   };
 
   const accepted = await created.transport.submit_once(privateSubmit);
-  if (!accepted.ok) throw new Error(accepted.reason);
+  if (!accepted.ok) throw new Error("accepted_submit_result_expected");
   assert.equal(accepted.ok, true);
   assert.equal(accepted.status, "accepted");
   assert.ok(accepted.provider_submission_id.startsWith(stableProviderPrefix));
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
   readMode = "pending";
   readCalls.length = 0;
   const pending = await created.transport.inspect_submission(publicInspect);
-  if (!pending.ok) throw new Error(pending.reason);
+  if (!pending.ok) throw new Error("pending_inspection_result_expected");
   assert.equal(pending.ok, true);
   assert.equal(pending.status, "accepted");
   assert.equal(pending.provider_submission_id, stableProvider);
@@ -205,7 +205,7 @@ async function main(): Promise<void> {
   readMode = "missing";
   readCalls.length = 0;
   const missing = await created.transport.inspect_submission(publicInspect);
-  if (!missing.ok) throw new Error(missing.reason);
+  if (!missing.ok) throw new Error("missing_inspection_result_expected");
   assert.equal(missing.ok, true);
   assert.equal(missing.status, "unknown");
   assert.equal(missing.provider_submission_id, stableProvider);
