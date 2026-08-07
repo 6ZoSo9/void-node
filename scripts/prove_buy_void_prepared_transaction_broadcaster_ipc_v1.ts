@@ -416,6 +416,13 @@ async function main(): Promise<void> {
   );
   assert.equal(preCrash.ok, false);
   assert.equal(submitCalls, 1);
+  fs.unlinkSync(
+    path.join(
+      custodyStore,
+      "records",
+      `${preSubmitCrash.request.custody_idempotency_key_sha256}.json`,
+    ),
+  );
   inspectMode = "not_submitted";
   const preRecovered = await broadcaster.inspect_submission(
     preSubmitCrash.request as any,
@@ -431,6 +438,13 @@ async function main(): Promise<void> {
   );
   assert.equal(postCrash.ok, false);
   assert.equal(submitCalls, 2);
+  fs.unlinkSync(
+    path.join(
+      custodyStore,
+      "records",
+      `${postSubmitCrash.request.custody_idempotency_key_sha256}.json`,
+    ),
+  );
   inspectMode = "confirmed";
   const postRecovered = await broadcaster.inspect_submission(
     postSubmitCrash.request as any,
@@ -516,7 +530,9 @@ async function main(): Promise<void> {
   console.log("duplicate_submit_transport_calls=0");
   console.log("inspect_before_service_submit=definitive_not_submitted");
   console.log("pre_submit_crash_recovery_submit_calls=0");
+  console.log("pre_submit_recovery_requires_custody_record=false");
   console.log("post_submit_crash_recovery_resubmission=false");
+  console.log("post_submit_recovery_requires_custody_record=false");
   console.log("terminal_inspection_reuses_durable_outcome=true");
   console.log("accepted_outcome_regression=false");
   console.log("accepted_to_not_submitted_conflict=held");
