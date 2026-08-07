@@ -264,7 +264,11 @@ export class VoidUdpPeerSocketAdapterV1 extends EventEmitter {
 
   tick(nowMs = Date.now()): void {
     if (this.closed) return;
-    const due = this.sender.retransmitDue(this.receiver.ackSeq(), nowMs);
+    // Peer acknowledgements are applied immediately by receivePacket().
+    // Passing the local receive ACK here would falsely acknowledge our own
+    // missing outbound sequence when traffic is bidirectional. Retransmission
+    // therefore performs no additional peer-ACK advancement.
+    const due = this.sender.retransmitDue(-1, nowMs);
     if (due.exhausted_data_seqs.length > 0) {
       this.destroy(
         new Error(
