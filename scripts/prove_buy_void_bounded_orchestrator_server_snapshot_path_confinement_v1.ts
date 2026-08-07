@@ -100,7 +100,6 @@ try {
     dependencyCalls: realCalls,
   });
   assert.equal(real.ok, true);
-  if (!real.ok) throw new Error(real.reason);
   assert.equal(real.status, "derived");
   assert.equal(real.snapshot.request_id, REQUEST_ID);
   assert.equal(real.snapshot.public_status, "payment_verified");
