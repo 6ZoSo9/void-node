@@ -32,6 +32,13 @@ import {
   normalizeVoidPeerHelloV1,
   verifyVoidPeerAuthV1,
 } from "./p2p/auth_v1.js";
+import {
+  loadVoidVerifiedPeerCacheV1,
+  rememberVoidAuthenticatedPeerV1,
+  voidVerifiedPeerCachePathV1,
+  voidVerifiedPeerDialTargetsV1,
+  type VoidVerifiedPeerRecordV1,
+} from "./p2p/verified_peer_cache_v1.js";
 
 function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -173,6 +180,9 @@ type Peer = {
   localChallenge: string;
   remoteHello?: VoidPeerHelloV1;
   authTimer: NodeJS.Timeout | null;
+  expectedNodeId?: string;
+  reconnectAddr?: string;
+  suppressReconnect: boolean;
 };
 
 /** ================================================================= */
@@ -191,6 +201,10 @@ export class Node {
   readonly pubsub = new PubSub();
 
   private readonly baseDir = process.env.DATA_DIR || "data";
+  private readonly verifiedPeerCachePath = voidVerifiedPeerCachePathV1(this.baseDir);
+  private verifiedPeerCacheRecords: VoidVerifiedPeerRecordV1[] = [];
+  private cachedExpectedNodeByAddress = new Map<string, string>();
+  private stopping = false;
   readonly txIndex = new TxIndex(path.join(this.baseDir, "index"));
   readonly receipts = new ReceiptsStore(path.join(this.baseDir, "receipts"), { shardSpan: 10_000 });
 
@@ -271,6 +285,7 @@ export class Node {
 
   /** lifecycle */
   async start() {
+    this.stopping = false;
     // bind to loopback by default to avoid accidental multi-binding conflicts
     const bindHost =
       process.env.P2P_BIND_HOST ||
@@ -320,10 +335,16 @@ export class Node {
       console.log(`[void-node] bootstrap dial targets: ${bootstrapAddrs.join(", ")}`);
       for (const a of bootstrapAddrs) {
         if (a !== addr && this.shouldDial(a)) {
-          setTimeout(() => this.connect(a), 250).unref?.();
+          setTimeout(() => {
+            if (!this.stopping) this.connect(a);
+          }, 250).unref?.();
         }
       }
     }
+
+    // Verified cached peers are an independent introduction path. Cached
+    // identity pins also apply when the same address appears in BOOTSTRAP_ADDRS.
+    this.loadVerifiedPeerReconnects();
 
     // Default topic subscriptions used across the stack
     this.subscribe("void/tx");
@@ -347,8 +368,96 @@ export class Node {
   }
 
   stop() {
-    for (const p of this.peers.values()) p.socket.destroy();
+    this.stopping = true;
+    for (const p of this.peers.values()) {
+      p.suppressReconnect = true;
+      p.socket.destroy();
+    }
     this.server.close();
+  }
+
+  private rebuildVerifiedPeerIdentityIndex() {
+    this.cachedExpectedNodeByAddress.clear();
+    for (const record of this.verifiedPeerCacheRecords) {
+      if (record.node_id === this.id) continue;
+      for (const address of record.addresses) {
+        this.cachedExpectedNodeByAddress.set(address, record.node_id);
+      }
+    }
+  }
+
+  private loadVerifiedPeerReconnects() {
+    const loaded = loadVoidVerifiedPeerCacheV1(this.verifiedPeerCachePath);
+    if (!loaded.valid) {
+      this.verifiedPeerCacheRecords = [];
+      this.rebuildVerifiedPeerIdentityIndex();
+      console.warn("VOID_P2P_VERIFIED_PEER_CACHE_V1_REJECT", {
+        path: this.verifiedPeerCachePath,
+        reason: loaded.reason || "invalid verified peer cache",
+      });
+      return;
+    }
+
+    this.verifiedPeerCacheRecords = [...loaded.records];
+    this.rebuildVerifiedPeerIdentityIndex();
+
+    const targets = voidVerifiedPeerDialTargetsV1(loaded.records, this.id);
+    let delayMs = 325;
+    for (const target of targets) {
+      this.knownAddrs.add(target.address);
+      setTimeout(() => {
+        if (!this.stopping) this.connect(target.address, target.node_id);
+      }, delayMs).unref?.();
+      delayMs = Math.min(delayMs + 25, 750);
+    }
+  }
+
+  private rememberAuthenticatedPeer(peer: Peer) {
+    if (!peer.handshakeDone || peer.id.startsWith("?-") || peer.listens.length === 0) return;
+    try {
+      const loaded = rememberVoidAuthenticatedPeerV1(
+        this.verifiedPeerCachePath,
+        this.id,
+        peer.id,
+        peer.listens,
+      );
+      if (!loaded.valid) {
+        throw new Error(loaded.reason || "verified peer cache post-write validation failed");
+      }
+      this.verifiedPeerCacheRecords = [...loaded.records];
+      this.rebuildVerifiedPeerIdentityIndex();
+    } catch (error) {
+      console.warn("VOID_P2P_VERIFIED_PEER_CACHE_V1_WRITE_FAILURE_VISIBLE", {
+        peer_id: peer.id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private scheduleVerifiedPeerReconnect(peer: Peer) {
+    if (
+      this.stopping ||
+      peer.suppressReconnect ||
+      !peer.handshakeDone ||
+      peer.id.startsWith("?-")
+    ) {
+      return;
+    }
+
+    const address =
+      peer.reconnectAddr && peer.listens.includes(peer.reconnectAddr)
+        ? peer.reconnectAddr
+        : peer.listens[0];
+    if (!address) return;
+
+    const current = this.backoff.get(address) ?? this.MIN_BACKOFF;
+    const delayMs = Math.min(Math.max(current, this.MIN_BACKOFF), this.MAX_BACKOFF);
+    const next = Math.min(delayMs * 2, this.MAX_BACKOFF);
+    this.backoff.set(address, next);
+
+    setTimeout(() => {
+      if (!this.stopping) this.connect(address, peer.id);
+    }, delayMs).unref?.();
   }
 
   /** sockets */
@@ -374,6 +483,29 @@ export class Node {
   }
 
   private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
+    if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
+      console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {
+        address: peer.reconnectAddr || peer.addr,
+        expected_node_id: peer.expectedNodeId,
+        authenticated_node_id: auth.id,
+      });
+      this.rejectUnauthenticatedPeer(peer, "cached reconnect identity mismatch");
+      return false;
+    }
+
+    for (const address of auth.listen) {
+      const cachedOwner = this.cachedExpectedNodeByAddress.get(address);
+      if (cachedOwner && cachedOwner !== auth.id) {
+        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_ADDRESS_OWNERSHIP_MISMATCH_V1", {
+          address,
+          expected_node_id: cachedOwner,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "authenticated address ownership mismatch");
+        return false;
+      }
+    }
+
     const temporaryId = peer.id;
     const existing = this.peers.get(auth.id);
 
@@ -386,6 +518,7 @@ export class Node {
         clearTimeout(existing.authTimer);
         existing.authTimer = null;
       }
+      existing.suppressReconnect = true;
       existing.socket.destroy();
       this.peers.delete(auth.id);
     }
@@ -399,7 +532,13 @@ export class Node {
     peer.handshakeDone = true;
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
+    if (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr)) {
+      peer.reconnectAddr = peer.listens[0];
+    }
     this.peers.set(peer.id, peer);
+
+    if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
+    this.rememberAuthenticatedPeer(peer);
 
     const firstListen = peer.listens[0];
     const inferredHttp = httpBaseFromP2P(firstListen);
@@ -423,7 +562,13 @@ export class Node {
     return true;
   }
 
-  private attachSocket(socket: net.Socket, peerAddr: string, outgoing: boolean) {
+  private attachSocket(
+    socket: net.Socket,
+    peerAddr: string,
+    outgoing: boolean,
+    expectedNodeId?: string,
+    reconnectAddr?: string,
+  ) {
     const peer: Peer = {
       id: `?-${crypto.randomBytes(4).toString("hex")}`,
       socket,
@@ -434,6 +579,9 @@ export class Node {
       handshakeDone: false,
       localChallenge: newVoidPeerChallengeV1(),
       authTimer: null,
+      expectedNodeId,
+      reconnectAddr,
+      suppressReconnect: false,
     };
 
     peer.framer = new Framer(
@@ -447,6 +595,7 @@ export class Node {
         peer.authTimer = null;
       }
       if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+      this.scheduleVerifiedPeerReconnect(peer);
     });
     socket.on("error", (error) => {
       console.warn(`[peer] error ${peer.id} (${peerAddr}):`, error.message);
@@ -604,19 +753,21 @@ export class Node {
     for (const p of this.peers.values()) if (p.listens.includes(canonical)) return false;
     return true;
   }
-  connect(addr: string) {
+  connect(addr: string, expectedNodeId?: string) {
     const parsed = parsePeerAddress(addr);
     if (!parsed) return;
     const canonical = parsed.canonical;
     if (!this.shouldDial(canonical)) return;
+
+    const pinnedNodeId =
+      expectedNodeId || this.cachedExpectedNodeByAddress.get(canonical);
     this.dialing.add(canonical);
 
     const socket = net.createConnection(
       { host: parsed.host, port: parsed.port },
       () => {
         console.log(`[dial] connected ${canonical}`);
-        this.backoff.delete(canonical);
-        this.attachSocket(socket, canonical, true);
+        this.attachSocket(socket, canonical, true, pinnedNodeId, canonical);
         this.dialing.delete(canonical);
       },
     );
@@ -627,7 +778,9 @@ export class Node {
       const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
       this.backoff.set(canonical, nxt);
-      setTimeout(() => this.connect(canonical), cur).unref?.();
+      setTimeout(() => {
+        if (!this.stopping) this.connect(canonical, pinnedNodeId);
+      }, cur).unref?.();
     });
   }
 
@@ -1196,7 +1349,12 @@ export class Node {
     const connected = [...this.peers.values()]
       .filter((p) => !p.id.startsWith("?-"))
       .map((p) => ({ id: p.id, addr: p.addr, listens: p.listens, outbound: p.outbound }));
-    return { connected, knownAddrs: [...this.knownAddrs] };
+    const verifiedPeers = this.verifiedPeerCacheRecords.map((record) => ({
+      node_id: record.node_id,
+      addresses: [...record.addresses],
+      last_authenticated_at_ms: record.last_authenticated_at_ms,
+    }));
+    return { connected, knownAddrs: [...this.knownAddrs], verifiedPeers };
   }
 
   /** blobs */
