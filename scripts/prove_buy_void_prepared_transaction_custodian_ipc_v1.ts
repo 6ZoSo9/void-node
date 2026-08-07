@@ -433,7 +433,9 @@ async function maliciousServer(
         requestId = String(
           JSON.parse(input.slice(0, newline))?.request_id_sha256 || requestId,
         );
-      } catch {}
+      } catch {
+        requestId = "0".repeat(64);
+      }
       socket.end(responseFactory(requestId));
     });
   });
