@@ -3,19 +3,24 @@
 
 // src/chain/auto_repair.ts
 /**
- * Best-effort store repair for SegStore layout.
- * - Verifies/creates segment dirs, meta.json, index.sparse
- * - Rebuilds sparse index by scanning blocks.bin length-prefixed frames
- * - Fixes heads.json "head" to highest discovered block
+ * Crash-safe best-effort repair for the canonical SegStore layout.
+ * - Scans length-prefixed blocks.bin frames without trusting metadata/indexes.
+ * - Truncates only an unambiguously incomplete trailing frame.
+ * - Fails closed on complete-but-malformed or non-canonical frames.
+ * - Rebuilds sparse indexes and segment metadata from physical frame truth.
+ * - Reconciles heads.json/head.txt to the highest complete canonical frame.
  *
- * Idempotent and safe to run at startup.
+ * This function mutates only the supplied data directory when explicitly run.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-function recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(scope: string, err: unknown): void {
+function recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(
+  scope: string,
+  err: unknown,
+): void {
   const message = err instanceof Error ? err.message : String(err);
   console.warn("VOID_SMALL_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE", {
     file: "src/chain/auto_repair.ts",
@@ -24,17 +29,38 @@ function recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(scope: 
   });
 }
 
+type Meta = {
+  from: number;
+  to: number;
+  bytes: number;
+  createdAt: number;
+  updatedAt: number;
+};
 
-type Meta = { from: number; to: number; bytes: number; createdAt: number; updatedAt: number };
+type ScannedFrame = { off: number; end: number; n: number };
+type FrameScan = {
+  frames: ScannedFrame[];
+  completeBytes: number;
+  fileBytes: number;
+  tornTailBytes: number;
+  lastN: number;
+};
 
 const SEG_SPAN = 10_000;
 
-function ensureDir(p: string) {
+function ensureDir(p: string): void {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-function segNameFor(n: number) {
+function segNameFor(n: number): string {
   return String(Math.floor(n / SEG_SPAN) * SEG_SPAN).padStart(8, "0");
+}
+
+function segmentBaseFromName(name: string): number | null {
+  if (!/^\d{8,}$/.test(name)) return null;
+  const base = Number(name);
+  if (!Number.isSafeInteger(base) || base < 0 || base % SEG_SPAN !== 0) return null;
+  return segNameFor(base) === name ? base : null;
 }
 
 function segPaths(root: string, seg: string) {
@@ -47,143 +73,272 @@ function segPaths(root: string, seg: string) {
   };
 }
 
-function readFrames(binPath: string): { offs: number[]; lastOff: number; totalBytes: number; lastN: number } {
-  const offs: number[] = [];
-  let lastOff = 0;
-  let totalBytes = 0;
-  let lastN = -1;
+function atomicWriteText(target: string, text: string): void {
+  const dir = path.dirname(target);
+  ensureDir(dir);
+  const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmp, text);
+    const fd = fs.openSync(tmp, "r");
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmp, target);
+    try {
+      const dfd = fs.openSync(dir, "r");
+      try {
+        fs.fsyncSync(dfd);
+      } finally {
+        fs.closeSync(dfd);
+      }
+    } catch (err) {
+      recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("directory-fsync", err);
+    }
+  } finally {
+    if (fs.existsSync(tmp)) {
+      try {
+        fs.unlinkSync(tmp);
+      } catch (err) {
+        recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("temporary-cleanup", err);
+      }
+    }
+  }
+}
 
-  if (!fs.existsSync(binPath)) return { offs, lastOff, totalBytes, lastN };
+function atomicWriteJson(target: string, value: unknown): void {
+  atomicWriteText(target, JSON.stringify(value, null, 2));
+}
+
+function readFrames(binPath: string, segmentName: string): FrameScan {
+  const frames: ScannedFrame[] = [];
+  if (!fs.existsSync(binPath)) {
+    return { frames, completeBytes: 0, fileBytes: 0, tornTailBytes: 0, lastN: -1 };
+  }
+
   const fd = fs.openSync(binPath, "r");
   try {
     const st = fs.fstatSync(fd);
     const lenBuf = Buffer.alloc(4);
     let off = 0;
-    while (off + 4 <= st.size) {
-      fs.readSync(fd, lenBuf, 0, 4, off);
+    let previousN: number | null = null;
+
+    while (off < st.size) {
+      if (st.size - off < 4) {
+        return {
+          frames,
+          completeBytes: off,
+          fileBytes: st.size,
+          tornTailBytes: st.size - off,
+          lastN: frames.length ? frames[frames.length - 1].n : -1,
+        };
+      }
+
+      const gotLength = fs.readSync(fd, lenBuf, 0, 4, off);
+      if (gotLength !== 4) {
+        throw new Error(`short length-prefix read in ${segmentName} at offset ${off}: got ${gotLength}`);
+      }
+
       const len = lenBuf.readUInt32BE(0);
       const start = off + 4;
-      if (start + len > st.size) break;
-      offs.push(off);
-      const buf = Buffer.alloc(len);
-      fs.readSync(fd, buf, 0, len, start);
-      let n = -1;
+      const end = start + len;
+      if (end > st.size) {
+        return {
+          frames,
+          completeBytes: off,
+          fileBytes: st.size,
+          tornTailBytes: st.size - off,
+          lastN: frames.length ? frames[frames.length - 1].n : -1,
+        };
+      }
+
+      const body = Buffer.alloc(len);
+      const gotBody = fs.readSync(fd, body, 0, len, start);
+      if (gotBody !== len) {
+        throw new Error(`short complete-frame read in ${segmentName} at offset ${off}: expected ${len}, got ${gotBody}`);
+      }
+
+      let parsed: any;
       try {
-        const j = JSON.parse(buf.toString("utf8"));
-        if (Number.isFinite(j?.number)) n = Number(j.number);
-      } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-1", err); }
-      if (n > lastN) lastN = n;
-      off = start + len;
-      totalBytes = off;
-      lastOff = off;
+        parsed = JSON.parse(body.toString("utf8"));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`complete frame JSON invalid in ${segmentName} at offset ${off}: ${message}`);
+      }
+
+      const n = parsed?.number;
+      if (!Number.isSafeInteger(n) || n < 0) {
+        throw new Error(`complete frame block number invalid in ${segmentName} at offset ${off}`);
+      }
+      if (segNameFor(n) !== segmentName) {
+        throw new Error(`complete frame segment mismatch in ${segmentName}: block ${n}`);
+      }
+      if (previousN !== null && n !== previousN + 1) {
+        throw new Error(`complete frame order invalid in ${segmentName}: previous ${previousN}, block ${n}`);
+      }
+
+      frames.push({ off, end, n });
+      previousN = n;
+      off = end;
     }
+
+    return {
+      frames,
+      completeBytes: off,
+      fileBytes: st.size,
+      tornTailBytes: 0,
+      lastN: frames.length ? frames[frames.length - 1].n : -1,
+    };
   } finally {
-    try { fs.closeSync(fd); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-2", err); }
+    try {
+      fs.closeSync(fd);
+    } catch (err) {
+      recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("frame-scan-close", err);
+    }
   }
-  return { offs, lastOff, totalBytes, lastN };
 }
 
-function writeMeta(metaPath: string, m: Meta) {
-  m.updatedAt = Date.now();
-  fs.writeFileSync(metaPath, JSON.stringify(m, null, 2));
+function truncateTornTail(binPath: string, completeBytes: number): void {
+  fs.truncateSync(binPath, completeBytes);
+  const fd = fs.openSync(binPath, "r");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    const dfd = fs.openSync(path.dirname(binPath), "r");
+    try {
+      fs.fsyncSync(dfd);
+    } finally {
+      fs.closeSync(dfd);
+    }
+  } catch (err) {
+    recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("torn-tail-directory-fsync", err);
+  }
 }
 
-export async function autoRepairDataDir(root: string, opts: { sparseEvery?: number } = {}) {
+function rebuildSparseIndex(
+  idxPath: string,
+  frames: readonly ScannedFrame[],
+  sparseEvery: number,
+): void {
+  const lines = frames
+    .filter((frame) => frame.n % sparseEvery === 0)
+    .map((frame) => JSON.stringify({ n: frame.n, off: frame.off }));
+  atomicWriteText(idxPath, lines.length ? `${lines.join("\n")}\n` : "");
+}
+
+function existingCreatedAt(metaPath: string): number | null {
+  if (!fs.existsSync(metaPath)) return null;
+  try {
+    const value = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+    return Number.isFinite(value?.createdAt) && value.createdAt > 0
+      ? Number(value.createdAt)
+      : null;
+  } catch (err) {
+    recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("existing-meta-created-at", err);
+    return null;
+  }
+}
+
+function rebuildMeta(metaPath: string, base: number, scan: FrameScan): void {
+  const now = Date.now();
+  const meta: Meta = {
+    from: base,
+    to: scan.lastN,
+    bytes: scan.completeBytes,
+    createdAt: existingCreatedAt(metaPath) ?? now,
+    updatedAt: now,
+  };
+  atomicWriteJson(metaPath, meta);
+}
+
+function rebuildHeads(root: string, headsPath: string, globalHead: number): void {
+  let prior: any = {};
+  if (fs.existsSync(headsPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(headsPath, "utf8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) prior = parsed;
+    } catch (err) {
+      recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("existing-heads-json", err);
+    }
+  }
+
+  atomicWriteJson(headsPath, {
+    ...prior,
+    head: globalHead,
+    number: globalHead,
+    hash: typeof prior.hash === "string" ? prior.hash : "0x0",
+  });
+  atomicWriteText(path.join(root, "head.txt"), `${globalHead}\n`);
+}
+
+export async function autoRepairDataDir(
+  root: string,
+  opts: { sparseEvery?: number } = {},
+) {
   const sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
+  if (!Number.isSafeInteger(sparseEvery)) {
+    throw new Error("autoRepairDataDir sparseEvery must be a positive safe integer");
+  }
+
   ensureDir(root);
   const segRoot = path.join(root, "segments");
   ensureDir(segRoot);
-
   const headsPath = path.join(root, "heads.json");
-  if (!fs.existsSync(headsPath)) {
-    fs.writeFileSync(headsPath, JSON.stringify({ head: -1, hash: "0x0" }, null, 2));
-  }
 
-  // Discover existing segments or infer from directory names
-  let segs = fs
+  const segments = fs
     .readdirSync(segRoot)
-    .filter((d) => /^\d{8}$/.test(d))
-    .sort((a, b) => Number(a) - Number(b));
+    .map((name) => ({ name, base: segmentBaseFromName(name) }))
+    .filter((entry): entry is { name: string; base: number } => entry.base !== null)
+    .sort((a, b) => a.base - b.base);
 
-  // If none exist but there are stray files, just continue (no-op)
   let globalHead = -1;
+  let tornTailBytesTruncated = 0;
+  let repairedTornSegments = 0;
 
-  for (const seg of segs) {
+  for (const { name: seg, base } of segments) {
     const { dir, bin, idx, meta } = segPaths(root, seg);
     ensureDir(dir);
     if (!fs.existsSync(bin)) fs.writeFileSync(bin, Buffer.alloc(0));
     if (!fs.existsSync(idx)) fs.writeFileSync(idx, "");
 
-    // Read frames and rebuild sparse index + meta
-    const scan = readFrames(bin);
-    const base = Number(seg);
-    const m: Meta = fs.existsSync(meta)
-      ? (JSON.parse(fs.readFileSync(meta, "utf8")) as Meta)
-      : { from: base, to: base - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
-
-    // Rebuild index.sparse if missing/empty
-    const needRebuildIdx = !fs.existsSync(idx) || fs.statSync(idx).size === 0;
-    if (needRebuildIdx && scan.offs.length) {
-      const lines: string[] = [];
-      const st = fs.statSync(bin);
-      for (const off of scan.offs) {
-        // Peek block number for that frame
-        const lenBuf = Buffer.alloc(4);
-        const fd = fs.openSync(bin, "r");
-        try {
-          fs.readSync(fd, lenBuf, 0, 4, off);
-          const len = lenBuf.readUInt32BE(0);
-          const start = off + 4;
-          if (start + len > st.size) break;
-          const buf = Buffer.alloc(len);
-          fs.readSync(fd, buf, 0, len, start);
-          const j = JSON.parse(buf.toString("utf8"));
-          const n = Number(j?.number);
-          if (Number.isFinite(n) && n % sparseEvery === 0) {
-            lines.push(JSON.stringify({ n, off }));
-          }
-        } catch {
-          /* ignore */
-        } finally {
-          try { fs.closeSync(fd); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("empty-catch-3", err); }
-        }
-      }
-      if (lines.length) fs.writeFileSync(idx, lines.join("\n") + "\n");
+    const scan = readFrames(bin, seg);
+    if (scan.tornTailBytes > 0) {
+      truncateTornTail(bin, scan.completeBytes);
+      tornTailBytesTruncated += scan.tornTailBytes;
+      repairedTornSegments++;
     }
 
-    // Update meta
-    m.to = Math.max(m.to, scan.lastN);
-    m.bytes = Math.max(m.bytes, scan.totalBytes);
-    writeMeta(meta, m);
-
+    rebuildSparseIndex(idx, scan.frames, sparseEvery);
+    rebuildMeta(meta, base, scan);
     if (scan.lastN > globalHead) globalHead = scan.lastN;
   }
 
-  // Fix heads.json
-  try {
-    const j = JSON.parse(fs.readFileSync(headsPath, "utf8"));
-    if (!Number.isFinite(j.head) || j.head < globalHead) {
-      j.head = globalHead;
-      fs.writeFileSync(headsPath, JSON.stringify(j, null, 2));
-    }
-  } catch {
-    fs.writeFileSync(headsPath, JSON.stringify({ head: globalHead, hash: "0x0" }, null, 2));
-  }
+  rebuildHeads(root, headsPath, globalHead);
 
   return {
     ok: true,
     root,
     sparseEvery,
-    segs: segs.length,
+    segs: segments.length,
     head: globalHead,
+    repairedTornSegments,
+    tornTailBytesTruncated,
   };
 }
 
 // Optional CLI usage: `tsx src/chain/auto_repair.ts <DATA_DIR>`
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const dir = process.argv[2] || process.env.DATA_DIR || "data";
-  autoRepairDataDir(dir).then((r) => {
-    console.log(JSON.stringify(r, null, 2));
-  });
+  autoRepairDataDir(dir)
+    .then((r) => {
+      console.log(JSON.stringify(r, null, 2));
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exitCode = 1;
+    });
 }
-

@@ -23,10 +23,16 @@ function keypair(label: string) {
   const pubPEM = publicKey
     .export({ type: "spki", format: "pem" })
     .toString();
+  const nodeId = crypto
+    .createHash("sha256")
+    .update(pubPEM)
+    .digest("hex")
+    .slice(0, 32);
+  assert(nodeId, `derived node ID missing for ${label}`);
   return {
     privateKey,
     publicKey,
-    nodeId: `void-proof-${label}-${crypto.randomBytes(6).toString("hex")}`,
+    nodeId,
     pubPEM,
   };
 }
