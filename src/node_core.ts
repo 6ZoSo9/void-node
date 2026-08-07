@@ -40,6 +40,17 @@ import {
   type VoidVerifiedPeerRecordV1,
 } from "./p2p/verified_peer_cache_v1.js";
 import {
+  classifyVoidP2PReachabilityRuntimeV1,
+  createVoidP2PReachabilityObservationV1,
+  isVoidPublicDirectCandidateV1,
+  isVoidReachabilityRequestIdV1,
+  newVoidReachabilityRequestIdV1,
+  normalizeVoidReachabilityFailureDomainV1,
+  parseVoidReachabilityCandidateAddressV1,
+  validateVoidP2PReachabilityObservationV1,
+  type VoidP2PReachabilityObservationV1,
+} from "./p2p/reachability_runtime_v1.js";
+import {
   VOID_P2P_RELAY_DEFAULT_RESERVATION_TTL_MS_V1,
   VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1,
   VOID_P2P_RELAY_MAX_QUEUED_BYTES_V1,
@@ -135,6 +146,17 @@ function bytesToSign(topic: string, data: string, nonce: string): Uint8Array {
   return Buffer.from(JSON.stringify({ topic, data, nonce }));
 }
 
+function hasExactWireKeys(
+  raw: unknown,
+  expected: readonly string[],
+): raw is Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const actual = Object.keys(raw as Record<string, unknown>).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length) return false;
+  return actual.every((key, index) => key === wanted[index]);
+}
+
 /** ---------- wire / pubsub ---------- */
 const MAX_MSG_BYTES = 64 * 1024;
 const PROTO_VER = VOID_P2P_AUTH_PROTOCOL_VERSION_V1;
@@ -145,6 +167,11 @@ type Msg =
   | { type: "SUB"; topic: string }
   | { type: "PUB"; topic: string; data: string; from: string; nonce: string; sig: string; pubkey: string }
   | { type: "PEERS"; addrs: string[] }
+  | { type: "REACHABILITY_OBSERVATION"; observation: VoidP2PReachabilityObservationV1 }
+  | { type: "REACHABILITY_DIALBACK_REQUEST"; request_id: string; candidate_address: string }
+  | { type: "REACHABILITY_PROBE_OPEN"; request_id: string }
+  | { type: "REACHABILITY_PROBE_COMPLETE"; request_id: string }
+  | { type: "REACHABILITY_DIALBACK_RESULT"; request_id: string; observation: VoidP2PReachabilityObservationV1 }
   | VoidRelayControlMessageV1;
 
 function encode(m: Msg): Buffer {
@@ -209,6 +236,16 @@ type RelayLocalStreamV1 = {
   socket: VoidRelayVirtualSocketV1;
 };
 
+type ReachabilityProbeContext = {
+  role: "outgoing" | "incoming";
+  requestId: string;
+  controlPeerId: string;
+  candidateAddress: string;
+  subjectNodeId: string;
+  startedAtMs: number;
+  authenticatedRemoteId?: string;
+};
+
 type Peer = {
   id: string;
   socket: PeerSocketV1;
@@ -223,6 +260,9 @@ type Peer = {
   expectedNodeId?: string;
   reconnectAddr?: string;
   suppressReconnect: boolean;
+  attachedAtMs: number;
+  outboundSeenEmitted: boolean;
+  probe?: ReachabilityProbeContext;
   transport: PeerTransportV1;
   relayViaNodeId?: string;
   relayStreamId?: string;
@@ -231,7 +271,11 @@ type Peer = {
 /** ================================================================= */
 /**                               Node                                 */
 /** ================================================================= */
-type NodeOpts = { allowEmptyBlocks?: boolean; relayServer?: boolean };
+type NodeOpts = {
+  allowEmptyBlocks?: boolean;
+  reachabilityTestAllowNonPublicProbe?: boolean;
+  relayServer?: boolean;
+};
 
 export class Node {
   readonly id: string;
@@ -248,6 +292,26 @@ export class Node {
   private verifiedPeerCacheRecords: VoidVerifiedPeerRecordV1[] = [];
   private cachedExpectedNodeByAddress = new Map<string, string>();
   private stopping = false;
+
+  private readonly reachabilityFailureDomain =
+    normalizeVoidReachabilityFailureDomainV1(
+      process.env.VOID_P2P_REACHABILITY_FAILURE_DOMAIN,
+    ) || "unclassified";
+  private readonly reachabilityTestAllowNonPublicProbe: boolean;
+  private readonly reachabilityObservations =
+    new Map<string, VoidP2PReachabilityObservationV1>();
+  private readonly pendingReachabilityDialbacks = new Map<
+    string,
+    {
+      observerNodeId: string;
+      candidateAddress: string;
+      startedAtMs: number;
+    }
+  >();
+  private readonly activeReachabilityProbes = new Set<string>();
+  private readonly lastReachabilityProbeAt = new Map<string, number>();
+  private readonly REACHABILITY_PROBE_COOLDOWN_MS = 30_000;
+  private readonly REACHABILITY_MAX_ACTIVE_PROBES = 8;
 
   private readonly relayServerEnabled: boolean;
   private readonly relayServerState = new VoidRelayServerStateV1();
@@ -314,11 +378,21 @@ export class Node {
     this.pub = kp.publicKey;
     this.pubPEM = kp.pubPEM;
     this.allowEmptyBlocks = !!opts?.allowEmptyBlocks;
+    this.reachabilityTestAllowNonPublicProbe =
+      opts?.reachabilityTestAllowNonPublicProbe === true;
     this.relayServerEnabled = !!opts?.relayServer;
     ensureDir(this.blobsDir);
   }
 
   onHttpAnnounce?: (p: { id: string; http?: string; p2p?: string }) => void;
+  onReachabilityObservation?: (event: {
+    source:
+      | "local_outbound_seen"
+      | "local_dialback"
+      | "remote_outbound_seen"
+      | "remote_dialback_result";
+    observation: VoidP2PReachabilityObservationV1;
+  }) => void;
   onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook
 
   server = net.createServer((sock) => this.onIncoming(sock));
@@ -449,6 +523,8 @@ export class Node {
 
   stop() {
     this.stopping = true;
+    this.pendingReachabilityDialbacks.clear();
+    this.activeReachabilityProbes.clear();
     if (this.relaySweepTimer) {
       clearInterval(this.relaySweepTimer);
       this.relaySweepTimer = null;
@@ -549,6 +625,570 @@ export class Node {
     }, delayMs).unref?.();
   }
 
+
+  private recordReachabilityObservation(
+    raw: unknown,
+    source:
+      | "local_outbound_seen"
+      | "local_dialback"
+      | "remote_outbound_seen"
+      | "remote_dialback_result",
+  ): boolean {
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(raw);
+      if (
+        (source === "remote_outbound_seen" ||
+          source === "remote_dialback_result") &&
+        validated.stale
+      ) {
+        return false;
+      }
+      const observation = validated.observation;
+      if (this.reachabilityObservations.has(observation.observation_id)) {
+        return true;
+      }
+      this.reachabilityObservations.set(
+        observation.observation_id,
+        observation,
+      );
+      while (this.reachabilityObservations.size > 64) {
+        const first = this.reachabilityObservations.keys().next().value;
+        if (typeof first !== "string") break;
+        this.reachabilityObservations.delete(first);
+      }
+      this.onReachabilityObservation?.({ source, observation });
+      return true;
+    } catch (error) {
+      console.warn("VOID_P2P_REACHABILITY_RUNTIME_V1_OBSERVATION_REJECT", {
+        source,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
+  private emitAuthenticatedOutboundSeen(peer: Peer) {
+    if (
+      peer.probe ||
+      peer.transport !== "direct" ||
+      peer.outbound ||
+      peer.outboundSeenEmitted ||
+      !peer.handshakeDone ||
+      peer.id.startsWith("?-")
+    ) {
+      return;
+    }
+    peer.outboundSeenEmitted = true;
+    const latencyMs = Math.min(
+      60_000,
+      Math.max(0, Date.now() - peer.attachedAtMs),
+    );
+    for (const candidate of peer.listens.slice(0, 8)) {
+      if (!parseVoidReachabilityCandidateAddressV1(candidate)) continue;
+      try {
+        const observation = createVoidP2PReachabilityObservationV1({
+          subjectNodeId: peer.id,
+          observerNodeId: this.id,
+          observerFailureDomain: this.reachabilityFailureDomain,
+          observedAt: new Date().toISOString(),
+          kind: "authenticated_outbound_seen",
+          candidateAddress: candidate,
+          outcome: "success",
+          authenticatedSubjectId: peer.id,
+          latencyMs,
+        });
+        this.recordReachabilityObservation(
+          observation,
+          "local_outbound_seen",
+        );
+        this.sendRaw(peer, {
+          type: "REACHABILITY_OBSERVATION",
+          observation,
+        });
+      } catch (error) {
+        console.warn(
+          "VOID_P2P_REACHABILITY_RUNTIME_V1_OUTBOUND_OBSERVATION_REJECT",
+          {
+            peer_id: peer.id,
+            candidate,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
+    }
+  }
+
+  private reachabilityCandidateAllowed(candidate: string): boolean {
+    if (!parseVoidReachabilityCandidateAddressV1(candidate)) return false;
+    return (
+      isVoidPublicDirectCandidateV1(candidate) ||
+      this.reachabilityTestAllowNonPublicProbe
+    );
+  }
+
+  requestReachabilityDialback(
+    observerNodeId: string,
+    candidateInput?: string,
+  ):
+    | {
+        ok: true;
+        request_id: string;
+        candidate_address: string;
+      }
+    | { ok: false; error: string } {
+    const observer = this.peers.get(observerNodeId);
+    if (
+      !observer ||
+      observer.probe ||
+      !observer.handshakeDone ||
+      observer.id.startsWith("?-")
+    ) {
+      return { ok: false, error: "observer_not_authenticated" };
+    }
+
+    const candidate =
+      candidateInput ||
+      this.listenAddrs.find((address) =>
+        this.reachabilityCandidateAllowed(address),
+      );
+    if (!candidate) return { ok: false, error: "no_eligible_candidate" };
+
+    const parsed = parseVoidReachabilityCandidateAddressV1(candidate);
+    if (!parsed) return { ok: false, error: "candidate_not_ip_literal" };
+    if (!this.listenAddrs.includes(parsed.canonical)) {
+      return { ok: false, error: "candidate_not_authenticated_listen" };
+    }
+    if (
+      !this.reachabilityTestAllowNonPublicProbe &&
+      !isVoidPublicDirectCandidateV1(parsed.canonical)
+    ) {
+      return { ok: false, error: "candidate_not_public" };
+    }
+    if (this.pendingReachabilityDialbacks.size >= 8) {
+      return { ok: false, error: "too_many_pending_dialbacks" };
+    }
+    for (const pending of this.pendingReachabilityDialbacks.values()) {
+      if (
+        pending.observerNodeId === observerNodeId &&
+        pending.candidateAddress === parsed.canonical
+      ) {
+        return { ok: false, error: "dialback_already_pending" };
+      }
+    }
+
+    const requestId = newVoidReachabilityRequestIdV1();
+    const startedAtMs = Date.now();
+    this.pendingReachabilityDialbacks.set(requestId, {
+      observerNodeId,
+      candidateAddress: parsed.canonical,
+      startedAtMs,
+    });
+    this.sendRaw(observer, {
+      type: "REACHABILITY_DIALBACK_REQUEST",
+      request_id: requestId,
+      candidate_address: parsed.canonical,
+    });
+    setTimeout(() => {
+      const current = this.pendingReachabilityDialbacks.get(requestId);
+      if (
+        current &&
+        current.observerNodeId === observerNodeId &&
+        current.candidateAddress === parsed.canonical
+      ) {
+        this.pendingReachabilityDialbacks.delete(requestId);
+      }
+    }, 15_000).unref?.();
+
+    return {
+      ok: true,
+      request_id: requestId,
+      candidate_address: parsed.canonical,
+    };
+  }
+
+  private handleReachabilityDialbackRequest(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, [
+        "type",
+        "request_id",
+        "candidate_address",
+      ])
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_DIALBACK_REQUEST") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const requestId = object.request_id;
+    const candidate = parseVoidReachabilityCandidateAddressV1(
+      object.candidate_address,
+    );
+    if (!candidate) return;
+    if (!peer.listens.includes(candidate.canonical)) return;
+    if (!this.reachabilityCandidateAllowed(candidate.canonical)) return;
+    if (this.activeReachabilityProbes.size >= this.REACHABILITY_MAX_ACTIVE_PROBES) {
+      return;
+    }
+
+    const now = Date.now();
+    const last = this.lastReachabilityProbeAt.get(peer.id) || 0;
+    if (now - last < this.REACHABILITY_PROBE_COOLDOWN_MS) return;
+    const activeKey = `${peer.id}:${requestId}`;
+    if (this.activeReachabilityProbes.has(activeKey)) return;
+
+    this.lastReachabilityProbeAt.set(peer.id, now);
+    this.activeReachabilityProbes.add(activeKey);
+    this.startReachabilityDialbackProbe(
+      peer.id,
+      requestId,
+      candidate.canonical,
+      now,
+    );
+  }
+
+  private startReachabilityDialbackProbe(
+    subjectNodeId: string,
+    requestId: string,
+    candidateAddress: string,
+    startedAtMs: number,
+  ) {
+    const parsed = parseVoidReachabilityCandidateAddressV1(candidateAddress);
+    if (!parsed) {
+      this.completeReachabilityDialbackAttempt(
+        subjectNodeId,
+        requestId,
+        candidateAddress,
+        startedAtMs,
+        false,
+      );
+      return;
+    }
+
+    let attached = false;
+    const socket = net.createConnection(
+      { host: parsed.host, port: parsed.port },
+      () => {
+        attached = true;
+        this.attachSocket(
+          socket,
+          parsed.canonical,
+          true,
+          subjectNodeId,
+          parsed.canonical,
+          "direct",
+          undefined,
+          undefined,
+          {
+            role: "outgoing",
+            requestId,
+            controlPeerId: subjectNodeId,
+            candidateAddress: parsed.canonical,
+            subjectNodeId,
+            startedAtMs,
+          },
+        );
+      },
+    );
+    socket.once("error", (error) => {
+      if (attached) return;
+      console.warn("VOID_P2P_REACHABILITY_RUNTIME_V1_DIALBACK_FAILURE", {
+        subject_node_id: subjectNodeId,
+        candidate_address: parsed.canonical,
+        reason: error.message,
+      });
+      this.completeReachabilityDialbackAttempt(
+        subjectNodeId,
+        requestId,
+        parsed.canonical,
+        startedAtMs,
+        false,
+      );
+      socket.destroy();
+    });
+  }
+
+  private completeReachabilityDialbackAttempt(
+    subjectNodeId: string,
+    requestId: string,
+    candidateAddress: string,
+    startedAtMs: number,
+    success: boolean,
+    authenticatedSubjectId?: string,
+    probePeer?: Peer,
+  ) {
+    const activeKey = `${subjectNodeId}:${requestId}`;
+    if (!this.activeReachabilityProbes.delete(activeKey)) return;
+
+    try {
+      const observation = createVoidP2PReachabilityObservationV1({
+        subjectNodeId,
+        observerNodeId: this.id,
+        observerFailureDomain: this.reachabilityFailureDomain,
+        observedAt: new Date().toISOString(),
+        kind: "authenticated_dialback",
+        candidateAddress,
+        outcome: success ? "success" : "failure",
+        authenticatedSubjectId: success
+          ? authenticatedSubjectId || null
+          : null,
+        latencyMs: success
+          ? Math.min(60_000, Math.max(0, Date.now() - startedAtMs))
+          : null,
+      });
+      this.recordReachabilityObservation(observation, "local_dialback");
+      const controlPeer = this.peers.get(subjectNodeId);
+      if (
+        controlPeer &&
+        !controlPeer.probe &&
+        controlPeer.handshakeDone &&
+        !controlPeer.id.startsWith("?-")
+      ) {
+        this.sendRaw(controlPeer, {
+          type: "REACHABILITY_DIALBACK_RESULT",
+          request_id: requestId,
+          observation,
+        });
+      }
+    } catch (error) {
+      console.warn(
+        "VOID_P2P_REACHABILITY_RUNTIME_V1_DIALBACK_OBSERVATION_FAILURE",
+        {
+          subject_node_id: subjectNodeId,
+          candidate_address: candidateAddress,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+
+    if (probePeer) {
+      probePeer.suppressReconnect = true;
+      setTimeout(() => probePeer.socket.destroy(), success ? 25 : 0).unref?.();
+    }
+  }
+
+  private handleReachabilityProbeOpen(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, ["type", "request_id"]) ||
+      peer.outbound ||
+      peer.transport !== "direct" ||
+      peer.handshakeDone ||
+      peer.remoteHello ||
+      peer.probe
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_PROBE_OPEN") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (!pending) return;
+
+    peer.probe = {
+      role: "incoming",
+      requestId: object.request_id,
+      controlPeerId: pending.observerNodeId,
+      candidateAddress: pending.candidateAddress,
+      subjectNodeId: this.id,
+      startedAtMs: pending.startedAtMs,
+    };
+    peer.expectedNodeId = pending.observerNodeId;
+    peer.suppressReconnect = true;
+  }
+
+  private finishReachabilityProbeAuthentication(
+    peer: Peer,
+    auth: VoidPeerAuthV1,
+  ): boolean {
+    const probe = peer.probe;
+    if (!probe) return false;
+
+    const expectedIdentity =
+      probe.role === "outgoing"
+        ? probe.subjectNodeId
+        : probe.controlPeerId;
+    if (auth.id !== expectedIdentity) {
+      if (probe.role === "outgoing") {
+        this.completeReachabilityDialbackAttempt(
+          probe.subjectNodeId,
+          probe.requestId,
+          probe.candidateAddress,
+          probe.startedAtMs,
+          false,
+          undefined,
+          peer,
+        );
+      }
+      peer.socket.destroy();
+      return false;
+    }
+
+    if (peer.authTimer) {
+      clearTimeout(peer.authTimer);
+      peer.authTimer = null;
+    }
+    peer.handshakeDone = true;
+    peer.listens = [...auth.listen];
+    peer.remoteHello = undefined;
+    probe.authenticatedRemoteId = auth.id;
+
+    if (probe.role === "incoming") {
+      return true;
+    }
+
+    if (!auth.listen.includes(probe.candidateAddress)) {
+      this.completeReachabilityDialbackAttempt(
+        probe.subjectNodeId,
+        probe.requestId,
+        probe.candidateAddress,
+        probe.startedAtMs,
+        false,
+        undefined,
+        peer,
+      );
+      return false;
+    }
+
+    this.sendRaw(peer, {
+      type: "REACHABILITY_PROBE_COMPLETE",
+      request_id: probe.requestId,
+    });
+    this.completeReachabilityDialbackAttempt(
+      probe.subjectNodeId,
+      probe.requestId,
+      probe.candidateAddress,
+      probe.startedAtMs,
+      true,
+      auth.id,
+      peer,
+    );
+    return true;
+  }
+
+  private handleReachabilityProbeComplete(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, ["type", "request_id"]) ||
+      !peer.probe ||
+      peer.probe.role !== "incoming" ||
+      !peer.handshakeDone ||
+      !peer.probe.authenticatedRemoteId
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_PROBE_COMPLETE") return;
+    if (
+      !isVoidReachabilityRequestIdV1(object.request_id) ||
+      object.request_id !== peer.probe.requestId
+    ) {
+      return;
+    }
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (
+      !pending ||
+      pending.observerNodeId !== peer.probe.authenticatedRemoteId
+    ) {
+      peer.socket.destroy();
+      return;
+    }
+    peer.suppressReconnect = true;
+    peer.socket.destroy();
+  }
+
+  private handleReachabilityObservationMessage(peer: Peer, raw: unknown) {
+    if (!hasExactWireKeys(raw, ["type", "observation"])) return;
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_OBSERVATION") return;
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(
+        object.observation,
+      );
+      const observation = validated.observation;
+      if (
+        validated.stale ||
+        observation.kind !== "authenticated_outbound_seen" ||
+        observation.outcome !== "success" ||
+        observation.subject_node_id !== this.id ||
+        observation.observer_node_id !== peer.id ||
+        !this.listenAddrs.includes(observation.candidate_address)
+      ) {
+        return;
+      }
+      this.recordReachabilityObservation(
+        observation,
+        "remote_outbound_seen",
+      );
+    } catch {
+      return;
+    }
+  }
+
+  private handleReachabilityDialbackResult(peer: Peer, raw: unknown) {
+    if (
+      !hasExactWireKeys(raw, [
+        "type",
+        "request_id",
+        "observation",
+      ])
+    ) {
+      return;
+    }
+    const object = raw as Record<string, unknown>;
+    if (object.type !== "REACHABILITY_DIALBACK_RESULT") return;
+    if (!isVoidReachabilityRequestIdV1(object.request_id)) return;
+    const pending = this.pendingReachabilityDialbacks.get(object.request_id);
+    if (!pending || pending.observerNodeId !== peer.id) return;
+
+    try {
+      const validated = validateVoidP2PReachabilityObservationV1(
+        object.observation,
+      );
+      const observation = validated.observation;
+      if (
+        validated.stale ||
+        validated.observedMs + 1_000 < pending.startedAtMs ||
+        observation.kind !== "authenticated_dialback" ||
+        observation.subject_node_id !== this.id ||
+        observation.observer_node_id !== peer.id ||
+        observation.candidate_address !== pending.candidateAddress
+      ) {
+        return;
+      }
+      if (
+        this.recordReachabilityObservation(
+          observation,
+          "remote_dialback_result",
+        )
+      ) {
+        this.pendingReachabilityDialbacks.delete(object.request_id);
+      }
+    } catch {
+      return;
+    }
+  }
+
+  reachabilitySnapshot() {
+    const observations = [...this.reachabilityObservations.values()];
+    const groups = new Map<string, VoidP2PReachabilityObservationV1[]>();
+    for (const observation of observations) {
+      const key =
+        `${observation.subject_node_id}\u0000${observation.candidate_address}`;
+      const group = groups.get(key) || [];
+      group.push(observation);
+      groups.set(key, group);
+    }
+    const classifications = [...groups.values()].map((group) =>
+      classifyVoidP2PReachabilityRuntimeV1(group),
+    );
+    return {
+      observer_failure_domain: this.reachabilityFailureDomain,
+      observations: observations.map((entry) => structuredClone(entry)),
+      classifications: classifications.map((entry) => structuredClone(entry)),
+      pending_dialbacks: this.pendingReachabilityDialbacks.size,
+      active_probes: this.activeReachabilityProbes.size,
+      runtime_integration_performed: true,
+    };
+  }
+
   /** sockets */
   private onIncoming(socket: net.Socket) {
     const remoteHost = String(socket.remoteAddress || "");
@@ -559,6 +1199,17 @@ export class Node {
     this.attachSocket(socket, peerAddr, false);
   }
   private rejectUnauthenticatedPeer(peer: Peer, reason: string) {
+    if (peer.probe?.role === "outgoing") {
+      this.completeReachabilityDialbackAttempt(
+        peer.probe.subjectNodeId,
+        peer.probe.requestId,
+        peer.probe.candidateAddress,
+        peer.probe.startedAtMs,
+        false,
+        undefined,
+        peer,
+      );
+    }
     if (peer.authTimer) {
       clearTimeout(peer.authTimer);
       peer.authTimer = null;
@@ -572,6 +1223,10 @@ export class Node {
   }
 
   private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
+    if (peer.probe) {
+      return this.finishReachabilityProbeAuthentication(peer, auth);
+    }
+
     if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
       if (peer.transport === "relay") {
         console.warn("VOID_P2P_RELAY_DESTINATION_IDENTITY_MISMATCH_V1", {
@@ -703,6 +1358,7 @@ export class Node {
     transport: PeerTransportV1 = "direct",
     relayViaNodeId?: string,
     relayStreamId?: string,
+    reachabilityProbe?: ReachabilityProbeContext,
   ) {
     const peer: Peer = {
       id: `?-${crypto.randomBytes(4).toString("hex")}`,
@@ -716,7 +1372,10 @@ export class Node {
       authTimer: null,
       expectedNodeId,
       reconnectAddr,
-      suppressReconnect: false,
+      suppressReconnect: !!reachabilityProbe,
+      attachedAtMs: Date.now(),
+      outboundSeenEmitted: false,
+      probe: reachabilityProbe,
       transport,
       relayViaNodeId,
       relayStreamId,
@@ -732,6 +1391,20 @@ export class Node {
         clearTimeout(peer.authTimer);
         peer.authTimer = null;
       }
+      if (
+        peer.probe?.role === "outgoing" &&
+        !peer.handshakeDone
+      ) {
+        this.completeReachabilityDialbackAttempt(
+          peer.probe.subjectNodeId,
+          peer.probe.requestId,
+          peer.probe.candidateAddress,
+          peer.probe.startedAtMs,
+          false,
+          undefined,
+          peer,
+        );
+      }
       if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
       this.handlePeerTransportClose(peer);
       this.scheduleVerifiedPeerReconnect(peer);
@@ -746,6 +1419,13 @@ export class Node {
     }, VOID_P2P_AUTH_TIMEOUT_MS_V1);
     peer.authTimer.unref?.();
 
+    if (peer.probe?.role === "outgoing") {
+      this.sendRaw(peer, {
+        type: "REACHABILITY_PROBE_OPEN",
+        request_id: peer.probe.requestId,
+      });
+    }
+
     this.sendRaw(peer, {
       type: "HELLO",
       id: this.id,
@@ -757,6 +1437,11 @@ export class Node {
   }
 
   private onMsg(peer: Peer, msg: Msg) {
+    if ((msg as any)?.type === "REACHABILITY_PROBE_OPEN") {
+      this.handleReachabilityProbeOpen(peer, msg);
+      return;
+    }
+
     if (msg.type === "HELLO") {
       if (peer.handshakeDone || peer.remoteHello) {
         this.rejectUnauthenticatedPeer(peer, "duplicate HELLO");
@@ -801,7 +1486,29 @@ export class Node {
       return;
     }
 
+    if ((msg as any)?.type === "REACHABILITY_PROBE_COMPLETE") {
+      this.handleReachabilityProbeComplete(peer, msg);
+      return;
+    }
+
     if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
+    this.emitAuthenticatedOutboundSeen(peer);
+
+    if ((msg as any)?.type === "REACHABILITY_OBSERVATION") {
+      this.handleReachabilityObservationMessage(peer, msg);
+      return;
+    }
+
+    if ((msg as any)?.type === "REACHABILITY_DIALBACK_REQUEST") {
+      this.handleReachabilityDialbackRequest(peer, msg);
+      return;
+    }
+
+    if ((msg as any)?.type === "REACHABILITY_DIALBACK_RESULT") {
+      this.handleReachabilityDialbackResult(peer, msg);
+      return;
+    }
 
     if (isVoidRelayControlTypeV1((msg as any)?.type)) {
       const relayMessage = normalizeVoidRelayControlMessageV1(msg);
