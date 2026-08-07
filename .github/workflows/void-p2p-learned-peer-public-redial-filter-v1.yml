@@ -1,0 +1,31 @@
+name: VOID P2P learned-peer public redial filter v1
+
+on:
+  pull_request:
+    paths:
+      - "src/types/p2p.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts"
+      - "docs/public/p2p-learned-peer-public-redial-filter-v1.md"
+      - ".github/workflows/void-p2p-learned-peer-public-redial-filter-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts
