@@ -80,7 +80,7 @@ async function waitFor(
 
 function stopQuietly(node: Node | undefined) {
   if (!node) return;
-  try { node.stop(); } catch {}
+  try { node.stop(); } catch (error) { void error; }
 }
 
 function loopback(port: number) {
