@@ -233,7 +233,9 @@ try {
 } finally {
   try {
     learned?.stop();
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   try {
     client?.stop();
   } catch {}
