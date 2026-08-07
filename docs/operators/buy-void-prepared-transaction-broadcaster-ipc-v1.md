@@ -72,6 +72,11 @@ transport.
 If a process terminates after the external transport call but before the local
 outcome is durable, restart uses inspection only.
 
+A durable `accepted` outcome is monotonic. A later weaker `unknown`
+inspection cannot overwrite it. A contradictory `not_submitted` observation
+or a changed provider submission identity holds instead of rewriting accepted
+truth.
+
 Terminal confirmed/reverted outcomes are reused from the private broadcaster
 state without another external inspection.
 
