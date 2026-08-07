@@ -32,6 +32,7 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SERVICE_AUTHORITY_V1
     submit_reentry_requires_inspection: true,
     reconciliation_never_calls_submit: true,
     terminal_outcome_reused_without_transport: true,
+    monotonic_submission_outcome: true,
     application_private_material_access: false,
     application_wallet_access: false,
     application_signing: false,
@@ -740,14 +741,59 @@ function readOutcome(options, request) {
   return Object.freeze({ ...value, request: stored, decision });
 }
 
+function selectMonotonicOutcome(existing, incoming) {
+  if (!existing) {
+    return Object.freeze({ decision: incoming, persist: true });
+  }
+
+  const previous = existing.decision;
+  if (
+    previous.status === "confirmed" ||
+    previous.status === "reverted" ||
+    previous.status === "not_submitted"
+  ) {
+    return Object.freeze({ decision: previous, persist: false });
+  }
+
+  if (previous.status === "accepted") {
+    if (incoming.status === "not_submitted") {
+      throw new Error(
+        "prepared_broadcaster_service_accepted_not_submitted_conflict",
+      );
+    }
+    if (
+      incoming.provider_submission_id !==
+      previous.provider_submission_id
+    ) {
+      throw new Error(
+        "prepared_broadcaster_service_provider_identity_conflict",
+      );
+    }
+    if (
+      incoming.status === "unknown" ||
+      incoming.status === "accepted"
+    ) {
+      return Object.freeze({ decision: previous, persist: false });
+    }
+  }
+
+  return Object.freeze({ decision: incoming, persist: true });
+}
+
 function persistOutcome(options, request, decision) {
+  const selected = selectMonotonicOutcome(
+    readOutcome(options, request),
+    decision,
+  );
+  if (!selected.persist) return selected.decision;
+
   const record = {
     schema: OUTCOME_SCHEMA,
     marker: VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SERVICE_V1,
     version: 1,
     recorded_at_ms: Date.now(),
     request,
-    decision,
+    decision: selected.decision,
   };
   atomicReplaceJson(outcomeFile(options, request), record);
   return readOutcome(options, request).decision;
