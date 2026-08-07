@@ -43,7 +43,14 @@ function stopQuietly(node: Node | undefined) {
     node.stop();
   } catch {
     for (const peer of node.peers.values()) {
-      try { peer.socket.destroy(); } catch {}
+      try {
+        peer.socket.destroy();
+      } catch (error) {
+        console.error(
+          "[WARN] reachability proof cleanup could not destroy peer socket",
+          error,
+        );
+      }
     }
   }
 }
