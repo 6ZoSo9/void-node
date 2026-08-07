@@ -335,7 +335,7 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
             return res.status(200).send(body);
           } catch (error: unknown) {
             const code = (error as NodeJS.ErrnoException)?.code || "";
-            if (code === "ENOENT" || code === "ENOTDR") {
+            if (code === "ENOENT" || code === "ENOTDIR") {
               return res.status(404).json({
                 ok: false,
                 error: "public_datanet_file_not_found",
@@ -381,10 +381,10 @@ const router = express.Router();
   }
   router.use(express.json({ limit: "10mb", type: ["application/json", "text/json", "application/*+json"] }));
 
-  router.get("status", (req, res) => {
+  router.get("/status", (req, res) => {
     const chunks = fs.existsSync(chunksDir) ? fs.readdirSync(chunksDir).filter(f => f.endsWith(".bin")).length : 0;
     const manifests = fs.existsSync(manifestsDir) ? fs.readdirSync(manifestsDir).filter(f => f.endsWith(".json")).length : 0;
-    res.json({ ok: true, dataDir, chunks, manifests });
+    res.json({ ok: true, dataDir: baseDir, chunks, manifests });
   });
 
   router.get("/manifests/:root", (req, res) => {
@@ -403,7 +403,7 @@ const router = express.Router();
         got: validation.computed,
       });
     }
-    res.json( { ok: true, manifest: j });
+    res.json({ ok: true, manifest: j });
   });
 
   router.put("/manifests/:root", (req, res) => {
@@ -671,7 +671,7 @@ const router = express.Router();
   // GET /datanet/v1/receipts/status (ultralow)
   
   // GET /datanet/v1/metrics/receipts.prom
-  router.get("metrics/receipts.prom", (_req, res) => {
+  router.get("/metrics/receipts.prom", (_req, res) => {
     try {
       const m = __datanetReceiptsMetricsV1();
       res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
@@ -719,7 +719,7 @@ router.get("/receipts/status", (req, res) => {
           } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts("empty-handler-11", err); }
         }
       }
-      res.json( { ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
+      res.json({ ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
     } catch (e: any) {
       res.status(500).json({ ok: false, err: "status_failed", msg: e?.message || String(e) });
     }
@@ -752,7 +752,7 @@ router.get("/receipts/status", (req, res) => {
 
       if (fs.existsSync(mvp2Dir) && fs.existsSync(mvp2ManPath)) {
         man = JSON.parse(fs.readFileSync(mvp2ManPath, "utf8"));
-        meta = fs.existsSync(mvp2MetaPath) ? JSON.parse(fs.readFileSync(mv2MetaPath, "utf8")) : {};
+        meta = fs.existsSync(mvp2MetaPath) ? JSON.parse(fs.readFileSync(mvp2MetaPath, "utf8")) : {};
 
         const cipherPath = path.join(mvp2Dir, "cipher.bin");
         if (fs.existsSync(cipherPath)) {
@@ -769,7 +769,7 @@ router.get("/receipts/status", (req, res) => {
         }
       } else {
         const manifestsDir2 = path.join(dnDir, "manifests");
-      const chunksDir2 = path.join(dnDir, "chunks");
+        const chunksDir2 = path.join(dnDir, "chunks");
         const manPath2 = path.join(manifestsDir2, `${id}.json`);
         if (!fs.existsSync(manPath2)) return res.status(404).json({ ok:false, error:"not_found" });
 
@@ -854,7 +854,7 @@ router.get("/receipts/status", (req, res) => {
         verify_ok,
         cipher_sha256_server,
         cipher_b64: cipherAll.toString("base64"),
-        plain_sha256_out,
+        plain_sha256: plain_sha256_out,
       });
     } catch (e:any) {
       return res.status(500).json({ ok:false, error:"fetch2_throw", msg: e?.message || String(e) });
