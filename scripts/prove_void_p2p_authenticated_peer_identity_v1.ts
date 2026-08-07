@@ -75,6 +75,14 @@ const aliceHello = normalizeVoidPeerHelloV1({
 });
 assert(aliceHello);
 
+assert.equal(
+  normalizeVoidPeerHelloV1({
+    ...aliceHello,
+    proto: String(VOID_P2P_AUTH_PROTOCOL_VERSION_V1),
+  }),
+  undefined,
+);
+
 const aliceAuth = buildVoidPeerAuthV1(
   {
     id: alice.nodeId,
@@ -87,6 +95,18 @@ const aliceAuth = buildVoidPeerAuthV1(
   alice.privateKey,
 );
 assert(verifyVoidPeerAuthV1(aliceAuth, challengeBob, aliceHello));
+
+assert.equal(
+  verifyVoidPeerAuthV1(
+    {
+      ...aliceAuth,
+      proto: String(VOID_P2P_AUTH_PROTOCOL_VERSION_V1),
+    },
+    challengeBob,
+    aliceHello,
+  ),
+  undefined,
+);
 
 const freshChallenge = newVoidPeerChallengeV1();
 assert.notEqual(freshChallenge, challengeBob);
