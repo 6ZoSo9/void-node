@@ -1,0 +1,89 @@
+name: TEMP storage readiness route stack patch v1
+
+on:
+  push:
+    branches:
+      - fix/storage-readiness-route-stack-bypass-v1
+    paths:
+      - ".github/workflows/_tmp-storage-readiness-route-stack-patch-v1.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-storage-readiness-route-stack-patch-v1
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.ref == 'refs/heads/fix/storage-readiness-route-stack-bypass-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v6
+        with:
+          ref: fix/storage-readiness-route-stack-bypass-v1
+          fetch-depth: 2
+
+      - name: Verify exact parent and patch only legacy number2 promotions
+        env:
+          EXPECTED_PARENT: 44c11effc442fd986f576938616c42805b6f32a1
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/index.ts")
+          text = path.read_text(encoding="utf-8")
+          lines = text.splitlines(keepends=True)
+
+          markers = [
+              "// steal: move our newest GET handler for PATH to the front",
+              "// steal: move newest handler for PATH to front",
+          ]
+
+          for marker in markers:
+              hits = [i for i, line in enumerate(lines) if marker in line]
+              if len(hits) != 1:
+                  raise SystemExit(f"expected exactly one marker {marker!r}, found {len(hits)}")
+              start = hits[0]
+              end = None
+              for i in range(start + 1, min(start + 80, len(lines))):
+                  if lines[i].startswith("      }catch (err) { voidIndexEmptyCatchVisibility"):
+                      end = i
+                      break
+              if end is None:
+                  raise SystemExit(f"could not find bounded outer catch for {marker!r}")
+              del lines[start:end + 1]
+
+          out = "".join(lines)
+          for marker in markers:
+              if marker in out:
+                  raise SystemExit(f"marker survived patch: {marker}")
+          if "[ADD] /blocks/latest/number2.json v5b" not in out:
+              raise SystemExit("v5b compatibility endpoint unexpectedly removed")
+          if "[ADD] /blocks/latest/number2.json v5c" not in out:
+              raise SystemExit("v5c compatibility endpoint unexpectedly removed")
+          path.write_text(out, encoding="utf-8")
+          PY
+
+      - name: Prove boundary and diff hygiene
+        run: |
+          set -Eeuo pipefail
+          node --check scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+          node scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+          git diff --check
+          git diff -- src/index.ts
+
+      - name: Commit exact source repair
+        run: |
+          set -Eeuo pipefail
+          test "$(git status --porcelain -- src/index.ts | wc -l)" -eq 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/index.ts
+          git diff --cached --check
+          git commit -m "fix: keep storage readiness gate ahead of number2 compatibility v1"
+          git push origin HEAD:fix/storage-readiness-route-stack-bypass-v1
