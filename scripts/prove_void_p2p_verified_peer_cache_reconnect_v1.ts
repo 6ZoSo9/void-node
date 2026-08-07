@@ -91,7 +91,11 @@ function stopQuietly(node: Node | undefined): void {
   if (!node) return;
   try {
     node.stop();
-  } catch {}
+  } catch (error) {
+    console.warn(
+      `[cleanup] node.stop() failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 const root = fs.mkdtempSync(
