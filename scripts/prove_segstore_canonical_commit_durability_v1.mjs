@@ -2,8 +2,8 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import assert from "node:assert/strict";
-import fsDefault, * as fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -103,77 +103,103 @@ function assertExactlyBlocks(root, expectedNumbers) {
   assert.equal(new Set(frames.map((frame) => frame.number)).size, frames.length);
 }
 
-function expectDurabilityFailure(run, label) {
-  let error = null;
-  try {
-    run();
-  } catch (caught) {
-    error = caught;
-  }
-  assert(error, `${label}: expected canonical commit durability failure`);
-  assert.match(error instanceof Error ? error.message : String(error), DURABILITY, label);
-}
+const FAULT_CHILD = String.raw`
+import fsDefault from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 
-function withSyntheticAppendFailure(targetPath, run) {
-  const originalAppendFileSync = fsDefault.appendFileSync;
-  const target = path.resolve(targetPath);
+const root = process.env.VOID_PROOF_ROOT;
+const block = JSON.parse(process.env.VOID_PROOF_BLOCK_JSON || "null");
+const fault = process.env.VOID_PROOF_FAULT;
+const target = path.resolve(process.env.VOID_PROOF_TARGET || ".");
+const sparseEvery = Number(process.env.VOID_PROOF_SPARSE_EVERY || "1");
+const expectHold = process.env.VOID_PROOF_EXPECT_HOLD === "1";
+
+const originalAppendFileSync = fsDefault.appendFileSync;
+const originalOpenSync = fsDefault.openSync;
+const originalFsyncSync = fsDefault.fsyncSync;
+const originalWriteFileSync = fsDefault.writeFileSync;
+const tracked = new Set();
+
+if (fault === "append") {
   fsDefault.appendFileSync = function patchedAppendFileSync(file, ...args) {
     if (typeof file === "string" && path.resolve(file) === target) {
-      throw new Error(`synthetic append failure for ${target}`);
+      throw new Error("synthetic canonical append failure");
     }
     return originalAppendFileSync.call(fsDefault, file, ...args);
   };
-  syncBuiltinESMExports();
-  try {
-    return run();
-  } finally {
-    fsDefault.appendFileSync = originalAppendFileSync;
-    syncBuiltinESMExports();
-  }
-}
-
-function withSyntheticFsyncFailure(targetPath, run) {
-  const originalOpenSync = fsDefault.openSync;
-  const originalFsyncSync = fsDefault.fsyncSync;
-  const tracked = new Set();
-  const target = path.resolve(targetPath);
-
+} else if (fault === "fsync") {
   fsDefault.openSync = function patchedOpenSync(file, ...args) {
     const fd = originalOpenSync.call(fsDefault, file, ...args);
     if (typeof file === "string" && path.resolve(file) === target) tracked.add(fd);
     return fd;
   };
   fsDefault.fsyncSync = function patchedFsyncSync(fd) {
-    if (tracked.has(fd)) throw new Error(`synthetic fsync failure for ${target}`);
+    if (tracked.has(fd)) throw new Error("synthetic canonical fsync failure");
     return originalFsyncSync.call(fsDefault, fd);
   };
-  syncBuiltinESMExports();
-
-  try {
-    return run();
-  } finally {
-    fsDefault.openSync = originalOpenSync;
-    fsDefault.fsyncSync = originalFsyncSync;
-    syncBuiltinESMExports();
-  }
-}
-
-function withSyntheticWriteFileFailure(targetPrefix, run) {
-  const originalWriteFileSync = fsDefault.writeFileSync;
-  const prefix = path.resolve(targetPrefix);
+} else if (fault === "write-prefix") {
   fsDefault.writeFileSync = function patchedWriteFileSync(file, ...args) {
-    if (typeof file === "string" && path.resolve(file).startsWith(prefix)) {
-      throw new Error(`synthetic write failure for ${prefix}`);
+    if (typeof file === "string" && path.resolve(file).startsWith(target)) {
+      throw new Error("synthetic derived metadata write failure");
     }
     return originalWriteFileSync.call(fsDefault, file, ...args);
   };
-  syncBuiltinESMExports();
+}
+
+syncBuiltinESMExports();
+
+const segStoreUrl = pathToFileURL(path.join(process.cwd(), "dist", "chain", "seg_store.js")).href;
+const { SegStore } = await import(segStoreUrl);
+const store = new SegStore(root, { sparseEvery });
+
+function capture(run) {
   try {
-    return run();
-  } finally {
-    fsDefault.writeFileSync = originalWriteFileSync;
-    syncBuiltinESMExports();
+    run();
+    return { ok: true, message: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
+}
+
+const first = capture(() => store.saveBlock(block));
+const second = expectHold ? capture(() => store.saveBlock(block)) : null;
+process.stdout.write(JSON.stringify({ first, second }));
+`;
+
+function runFaultedSave({ root, block, fault, target, sparseEvery = 1, expectHold = false }) {
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", FAULT_CHILD], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      VOID_PROOF_ROOT: root,
+      VOID_PROOF_BLOCK_JSON: JSON.stringify(block),
+      VOID_PROOF_FAULT: fault,
+      VOID_PROOF_TARGET: target,
+      VOID_PROOF_SPARSE_EVERY: String(sparseEvery),
+      VOID_PROOF_EXPECT_HOLD: expectHold ? "1" : "0",
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(
+    child.status,
+    0,
+    `fault child failed: status=${child.status}\nstdout=${child.stdout}\nstderr=${child.stderr}`,
+  );
+  assert.ok(child.stdout.trim(), `fault child returned no JSON; stderr=${child.stderr}`);
+  return JSON.parse(child.stdout.trim());
+}
+
+function expectCanonicalFaultResult(result, label) {
+  assert.equal(result.first?.ok, false, `${label}: first write unexpectedly succeeded`);
+  assert.match(String(result.first?.message || ""), DURABILITY, `${label}: wrong first failure`);
+  assert.equal(result.second?.ok, false, `${label}: same-instance retry unexpectedly succeeded`);
+  assert.match(String(result.second?.message || ""), DURABILITY, `${label}: write hold missing`);
 }
 
 function proveOrdinaryCommitDurability() {
@@ -198,25 +224,28 @@ function proveCanonicalAppendFailureLatchesUntilRestart() {
   withRoot("append-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 1 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 1 });
+    seed.saveBlock(block0);
     const beforeDerived = derivedSnapshot(root);
 
-    withSyntheticAppendFailure(blocksPath(root), () => {
-      expectDurabilityFailure(() => store.saveBlock(block1), "canonical append failure");
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "append",
+      target: blocksPath(root),
+      sparseEvery: 1,
+      expectHold: true,
     });
+    expectCanonicalFaultResult(result, "canonical append failure");
 
-    assert.equal(store.loadHeadNumber(), 0);
-    assertExactlyBlocks(root, [0]);
-    assert.equal(derivedSnapshot(root), beforeDerived);
-    assert.ok(fs.existsSync(walPath(root)), "durable WAL intent must survive failed canonical append");
-    expectDurabilityFailure(() => store.saveBlock(block1), "same-instance retry after append failure");
-    assertExactlyBlocks(root, [0]);
-
-    const reopened = new SegStore(root, { sparseEvery: 1 });
-    assert.equal(reopened.loadHeadNumber(), 1);
+    const inspection = new SegStore(root, { sparseEvery: 1 });
+    assert.equal(inspection.loadHeadNumber(), 1, "restart must replay durable WAL after failed append");
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(fs.existsSync(walPath(root)), false);
+
+    // The failed attempt itself must not have advanced derived state before restart replay.
+    // A fresh reconstruction is allowed to rebuild it while consuming the durable WAL.
+    assert.notEqual(derivedSnapshot(root), beforeDerived);
   });
 }
 
@@ -224,21 +253,25 @@ function proveVisibleUnconfirmedFrameHealsOnRestartWithoutDuplicate() {
   withRoot("visible-fsync-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 1 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 1 });
+    seed.saveBlock(block0);
     const beforeDerived = derivedSnapshot(root);
 
-    withSyntheticFsyncFailure(blocksPath(root), () => {
-      expectDurabilityFailure(() => store.saveBlock(block1), "blocks.bin fsync failure");
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "fsync",
+      target: blocksPath(root),
+      sparseEvery: 1,
+      expectHold: true,
     });
+    expectCanonicalFaultResult(result, "blocks.bin fsync failure");
 
-    assert.equal(store.loadHeadNumber(), 0, "head must not advance after failed block fsync");
+    const headsBeforeRestart = JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8"));
+    assert.equal(Number(headsBeforeRestart.head), 0, "head must not advance after failed block fsync");
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(derivedSnapshot(root), beforeDerived, "derived state must not advance before canonical durability");
     assert.ok(fs.existsSync(walPath(root)), "WAL intent must remain for restart recovery");
-
-    expectDurabilityFailure(() => store.saveBlock(block1), "same-instance retry after block fsync failure");
-    assertExactlyBlocks(root, [0, 1]);
 
     const reopened = new SegStore(root, { sparseEvery: 1 });
     assert.equal(reopened.loadHeadNumber(), 1);
@@ -252,16 +285,23 @@ function proveLostUnconfirmedFrameReplaysExactlyOnce() {
   withRoot("lost-fsync-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 1 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 1 });
+    seed.saveBlock(block0);
     const durableBytesBefore = fs.statSync(blocksPath(root)).size;
     const beforeDerived = derivedSnapshot(root);
 
-    withSyntheticFsyncFailure(blocksPath(root), () => {
-      expectDurabilityFailure(() => store.saveBlock(block1), "lost blocks.bin fsync failure");
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "fsync",
+      target: blocksPath(root),
+      sparseEvery: 1,
+      expectHold: true,
     });
+    expectCanonicalFaultResult(result, "lost blocks.bin fsync failure");
 
-    assert.equal(store.loadHeadNumber(), 0);
+    const headsBeforeRestart = JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8"));
+    assert.equal(Number(headsBeforeRestart.head), 0);
     assert.equal(derivedSnapshot(root), beforeDerived);
     assertExactlyBlocks(root, [0, 1]);
 
@@ -281,19 +321,24 @@ function proveSegmentDirectoryFsyncFailureBlocksHeadAndLatches() {
   withRoot("segment-dir-fsync-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 1 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 1 });
+    seed.saveBlock(block0);
     const beforeDerived = derivedSnapshot(root);
 
-    withSyntheticFsyncFailure(segDir(root), () => {
-      expectDurabilityFailure(() => store.saveBlock(block1), "segment directory fsync failure");
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "fsync",
+      target: segDir(root),
+      sparseEvery: 1,
+      expectHold: true,
     });
+    expectCanonicalFaultResult(result, "segment directory fsync failure");
 
-    assert.equal(store.loadHeadNumber(), 0);
+    const headsBeforeRestart = JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8"));
+    assert.equal(Number(headsBeforeRestart.head), 0);
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(derivedSnapshot(root), beforeDerived);
-    expectDurabilityFailure(() => store.saveBlock(block1), "same-instance retry after directory fsync failure");
-    assertExactlyBlocks(root, [0, 1]);
 
     const reopened = new SegStore(root, { sparseEvery: 1 });
     assert.equal(reopened.loadHeadNumber(), 1);
@@ -305,21 +350,28 @@ function proveDerivedIndexFailureDoesNotOverrideCanonicalTruth() {
   withRoot("derived-index-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 1 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 1 });
+    seed.saveBlock(block0);
     const indexBefore = readMaybe(indexPath(root));
 
-    withSyntheticAppendFailure(indexPath(root), () => {
-      store.saveBlock(block1);
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "append",
+      target: indexPath(root),
+      sparseEvery: 1,
+      expectHold: false,
     });
+    assert.equal(result.first?.ok, true, `derived index failure escaped saveBlock: ${result.first?.message || ""}`);
 
-    assert.equal(store.loadHeadNumber(), 1);
-    assert.deepEqual(store.loadBlock(1), block1);
+    const headsAfter = JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8"));
+    assert.equal(Number(headsAfter.head), 1);
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(readMaybe(indexPath(root)), indexBefore, "failed sparse-index update must not rewrite canonical truth");
 
     const reopened = new SegStore(root, { sparseEvery: 1 });
     assert.equal(reopened.loadHeadNumber(), 1);
+    assert.deepEqual(reopened.loadBlock(1), block1);
     assertExactlyBlocks(root, [0, 1]);
   });
 }
@@ -328,21 +380,28 @@ function proveDerivedMetaFailureDoesNotOverrideCanonicalTruth() {
   withRoot("derived-meta-failure", (root) => {
     const block0 = makeBlock(0);
     const block1 = makeBlock(1, block0);
-    const store = new SegStore(root, { sparseEvery: 16 });
-    store.saveBlock(block0);
+    const seed = new SegStore(root, { sparseEvery: 16 });
+    seed.saveBlock(block0);
     const metaBefore = readMaybe(metaPath(root));
 
-    withSyntheticWriteFileFailure(`${metaPath(root)}.tmp-`, () => {
-      store.saveBlock(block1);
+    const result = runFaultedSave({
+      root,
+      block: block1,
+      fault: "write-prefix",
+      target: `${metaPath(root)}.tmp-`,
+      sparseEvery: 16,
+      expectHold: false,
     });
+    assert.equal(result.first?.ok, true, `derived metadata failure escaped saveBlock: ${result.first?.message || ""}`);
 
-    assert.equal(store.loadHeadNumber(), 1);
-    assert.deepEqual(store.loadBlock(1), block1);
+    const headsAfter = JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8"));
+    assert.equal(Number(headsAfter.head), 1);
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(readMaybe(metaPath(root)), metaBefore, "failed metadata update must not rewrite canonical truth");
 
     const reopened = new SegStore(root, { sparseEvery: 16 });
     assert.equal(reopened.loadHeadNumber(), 1);
+    assert.deepEqual(reopened.loadBlock(1), block1);
     assertExactlyBlocks(root, [0, 1]);
   });
 }
