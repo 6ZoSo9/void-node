@@ -181,7 +181,7 @@ function validateAuthority(raw, label) {
 
 function validateNodeId(value, label) {
   const text = String(value || "");
-  if (!/^[0-9a-f]{64}$/.test(text)) throw new Error(`${label} must be 64 lowercase hex characters`);
+  if (!/^[0-9a-f]{32}$/.test(text)) throw new Error(`${label} must be 32 lowercase hex characters`);
   return text;
 }
 

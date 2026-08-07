@@ -10,10 +10,10 @@ import {
 } from "./lib/void_p2p_reachability_classification_contract_v1.mjs";
 
 const NOW = Date.parse("2026-08-07T05:00:00.000Z");
-const SUBJECT = "a".repeat(64);
-const OBSERVER_A = "b".repeat(64);
-const OBSERVER_B = "c".repeat(64);
-const OBSERVER_C = "d".repeat(64);
+const SUBJECT = "a".repeat(32);
+const OBSERVER_A = "b".repeat(32);
+const OBSERVER_B = "c".repeat(32);
+const OBSERVER_C = "d".repeat(32);
 const V4 = "1.1.1.1:4700";
 const V6 = "[2606:4700:4700::1111]:4700";
 const PRIVATE = "10.0.0.5:4700";
@@ -100,10 +100,19 @@ assert.equal(stale.counts.fresh_observations, 0);
 
 const identityMismatchBody = {
   ...obs({ observer: OBSERVER_A, domain: "isp-a" }),
-  authenticated_subject_id: "f".repeat(64),
+  authenticated_subject_id: "f".repeat(32),
 };
 identityMismatchBody.observation_id = contentId("voidpro1_", identityMismatchBody, "observation_id");
 mustThrow(() => validateReachabilityObservation(identityMismatchBody, { nowMs: NOW }), /exact subject node ID/);
+
+const legacyWidth = structuredClone(obs({ observer: OBSERVER_A, domain: "isp-a" }));
+legacyWidth.subject_node_id = "e".repeat(64);
+legacyWidth.authenticated_subject_id = legacyWidth.subject_node_id;
+legacyWidth.observation_id = contentId("voidpro1_", legacyWidth, "observation_id");
+mustThrow(
+  () => validateReachabilityObservation(legacyWidth, { nowMs: NOW }),
+  /32 lowercase hex characters/,
+);
 
 const future = obs({ observer: OBSERVER_A, domain: "isp-a", at: NOW + 10 * 60_000 });
 mustThrow(() => validateReachabilityObservation(future, { nowMs: NOW }), /future/);
@@ -142,6 +151,8 @@ console.log("failed_dialback_relay_requirement_inferred=false");
 console.log("outbound_only_classified_without_unreachable_claim=true");
 console.log("non_public_direct_confirmed=false");
 console.log("identity_mismatched_dialback_accepted=false");
+console.log("authenticated_p2p_node_id_width_compatible=true");
+console.log("legacy_64_hex_node_id_accepted=false");
 console.log("resealed_semantic_lie_accepted=false");
 console.log("noncanonical_ipv6_accepted=false");
 console.log("stale_observation_counted=false");

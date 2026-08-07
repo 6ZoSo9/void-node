@@ -23,7 +23,7 @@ No classification infers a NAT type or concludes that a relay is required.
 Every `void_p2p_reachability_observation_v1` is content-addressed as `voidpro1_<sha256>` and binds:
 
 - VOID Network / chain ID 2050;
-- exact 64-hex subject and observer node IDs;
+- exact 32-hex subject and observer node IDs, matching the authenticated P2P identity contract;
 - one declared observer failure domain;
 - one canonical IPv4 `host:port` or bracketed IPv6 `[host]:port` candidate;
 - one observation time;
@@ -43,7 +43,7 @@ The default evidence age is 15 minutes. Stale observations remain auditable inpu
 
 Two successful observations from two different node IDs but the **same declared failure domain** do not satisfy `direct_confirmed`. Likewise, one observer node ID cannot claim multiple failure domains and satisfy the threshold. Both observer identity and failure-domain independence are required.
 
-This is a source contract, not a Sybil-proof identity system. Runtime integration must later bind observer identity/failure-domain policy to the authenticated P2P layer under separate review.
+This is a source contract, not a Sybil-proof identity system. Its node-ID width is intentionally the same 32 lowercase hexadecimal characters produced and verified by `deriveVoidNodeIdFromPublicPemV1`, so authenticated peer IDs can be bound without a second identity namespace or lossy translation. Runtime integration must later bind observer identity/failure-domain policy to the authenticated P2P layer under separate review.
 
 ## Direct-address boundary
 
@@ -83,6 +83,7 @@ The focused proof demonstrates:
 - non-public addresses cannot become `direct_confirmed`;
 - stale success evidence does not count;
 - identity-mismatched successful evidence is rejected;
+- authenticated P2P 32-hex node IDs are accepted directly, while legacy 64-hex fixtures are rejected;
 - future, tampered, duplicate, and unknown-field observations fail closed;
 - content-addressed records reject semantic tamper, including correctly re-sealed classification lies;
 - non-canonical alternate IPv6 spellings are rejected; and
