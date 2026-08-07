@@ -1,0 +1,78 @@
+name: VOID P2P UDP secure session bootstrap v1
+
+on:
+  pull_request:
+    paths:
+      - "src/p2p/udp_secure_session_bootstrap_v1.ts"
+      - "scripts/prove_void_p2p_udp_secure_session_bootstrap_v1.ts"
+      - "docs/public/void-p2p-udp-secure-session-bootstrap-v1.md"
+      - ".github/workflows/void-p2p-udp-secure-session-bootstrap-v1.yml"
+      - "src/p2p/udp_peer_socket_adapter_v1.ts"
+      - "src/p2p/udp_secure_reliable_transport_v1.ts"
+      - "src/p2p/udp_authenticated_path_v1.ts"
+      - "src/p2p/udp_hole_punch_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/p2p/udp_secure_session_bootstrap_v1.ts"
+      - "scripts/prove_void_p2p_udp_secure_session_bootstrap_v1.ts"
+      - "docs/public/void-p2p-udp-secure-session-bootstrap-v1.md"
+      - ".github/workflows/void-p2p-udp-secure-session-bootstrap-v1.yml"
+      - "src/p2p/udp_peer_socket_adapter_v1.ts"
+      - "src/p2p/udp_secure_reliable_transport_v1.ts"
+      - "src/p2p/udp_authenticated_path_v1.ts"
+      - "src/p2p/udp_hole_punch_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-udp-secure-session-bootstrap-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove UDP secure session bootstrap
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_secure_session_bootstrap_v1.ts
+
+      - name: Preserve UDP peer-socket adapter
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_peer_socket_adapter_v1.ts
+
+      - name: Preserve secure reliable UDP transport
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_secure_reliable_transport_v1.ts
+
+      - name: Preserve authenticated UDP path
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_authenticated_path_v1.ts
+
+      - name: Preserve UDP hole-punch foundation
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_hole_punch_foundation_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
