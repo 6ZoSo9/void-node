@@ -1,0 +1,68 @@
+name: Buy VOID prepared-transaction broadcaster IPC v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "docs/operators/buy-void-prepared-transaction-broadcaster-ipc-v1.md"
+      - ".github/workflows/buy-void-prepared-transaction-broadcaster-ipc-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "docs/operators/buy-void-prepared-transaction-broadcaster-ipc-v1.md"
+      - ".github/workflows/buy-void-prepared-transaction-broadcaster-ipc-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-prepared-transaction-broadcaster-ipc-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove broadcaster IPC and reconciliation boundaries
+        run: |
+          npx tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
+          npx tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check

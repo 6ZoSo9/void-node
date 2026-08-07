@@ -6,10 +6,12 @@ import path from "node:path";
 import {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
+  buyVoidCrashConsistentSagaRuntimeStatusV1,
   handleBuyVoidCrashConsistentSagaRuntimeCommandV1,
 } from "../src/economic/buy_void_crash_consistent_saga_runtime_v1.js";
 import {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
+  readBuyVoidCrashConsistentSagaServerPolicyV1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
   reserveBuyVoidInventoryV1,
@@ -19,6 +21,16 @@ import {
   reserveBuyVoidExecutionAttemptV1,
   listBuyVoidExecutionAttemptsV1,
 } from "../src/economic/buy_void_execution_attempt_journal_v1.js";
+import {
+  VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
+  runBuyVoidPipelineCommandV1,
+} from "../src/economic/buy_void_pipeline_coordinator_v1.js";
+import {
+  VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_CONFIRMATION_V1,
+} from "../src/economic/buy_void_saga_prepared_transaction_coordinator_v1.js";
+import {
+  VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
+} from "../src/economic/buy_void_prepared_transaction_custody_v1.js";
 
 const MARKER = "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1";
 const REQUEST_ID = "buyvoid-saga-runtime-proof-v1";
@@ -33,6 +45,17 @@ const VOID_UNITS = "2500000";
 const POOL_ID = "void-fixed-price-pool-v1";
 const RUNTIME_ENABLE_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
+const PREPARATION_ENABLE_ENV =
+  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED";
+const CUSTODIAN_SOCKET_ENV =
+  "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_IPC_SOCKET_PATH";
+const CUSTODIAN_SIGNER_FINGERPRINT_ENV =
+  "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_SIGNER_FINGERPRINT_SHA256";
+const PREPARED_TX = `0x${"a".repeat(64)}`;
+const PREPARATION_POLICY_FINGERPRINT = crypto
+  .createHash("sha256")
+  .update("void-buy-saga-runtime-proof-preparation-policy-v1", "utf8")
+  .digest("hex");
 
 function digest(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -153,6 +176,18 @@ function applyFrom(dry: Captured, receipt?: Record<string, unknown>): Record<str
     ...(dry.body.required_delegated_confirmation
       ? { delegated_confirmation: dry.body.required_delegated_confirmation }
       : {}),
+    ...(dry.body.required_prepared_transaction_confirmation
+      ? {
+          prepared_transaction_confirmation:
+            dry.body.required_prepared_transaction_confirmation,
+          preparation_policy_fingerprint_sha256:
+            dry.body.required_preparation_policy_fingerprint_sha256,
+          custody_confirmation:
+            dry.body.required_custody_confirmation,
+          execution_journal_preparation_confirmation:
+            dry.body.required_execution_journal_preparation_confirmation,
+        }
+      : {}),
   };
 }
 function assertNoMoney(body: Record<string, any>): void {
@@ -209,17 +244,25 @@ async function main(): Promise<void> {
     "restart_reconciliation_before_retry",
     "caller_supplied_policy_forbidden",
     "stable_policy_fingerprint_bound_in_saga",
-    "next_stage_outside_non_money_runtime_boundary",
+    "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED",
+    "runBuyVoidSagaPreparedTransactionCoordinatorV1",
+    "createBuyVoidPreparedTransactionCustodianIpcV1",
+    "next_stage_outside_prepared_transaction_runtime_boundary",
   ]) assert.ok(source.includes(marker), marker);
   for (const forbidden of [
-    "prepare_transaction:",
     "execute_prepared_transaction:",
     "reconcile_possible_broadcast:",
     "closeout_confirmed_delivery:",
   ]) assert.equal(source.includes(forbidden), false, forbidden);
 
   const saved = new Map<string, string | undefined>();
-  const envNames = [RUNTIME_ENABLE_ENV, ...Object.keys(policyEnvValues())];
+  const envNames = [
+    RUNTIME_ENABLE_ENV,
+    PREPARATION_ENABLE_ENV,
+    CUSTODIAN_SOCKET_ENV,
+    CUSTODIAN_SIGNER_FINGERPRINT_ENV,
+    ...Object.keys(policyEnvValues()),
+  ];
   for (const name of envNames) {
     saved.set(name, process.env[name]);
     delete process.env[name];
@@ -246,6 +289,13 @@ async function main(): Promise<void> {
   let claimCalls = 0;
   let inventoryCalls = 0;
   let attemptCalls = 0;
+  let preparationCoordinatorDryCalls = 0;
+  let preparationCoordinatorApplyCalls = 0;
+  let custodianConstructCalls = 0;
+  let injectPreparedHoldAfterSigning = false;
+  let loadedSaga: any = null;
+  let loadedSagaId = "";
+  let loadedBinding: any = null;
   let failClaim = true;
   let failInventory = true;
   let failAttempt = true;
@@ -255,6 +305,228 @@ async function main(): Promise<void> {
   const receipt = { proof: "bounded" };
 
   const deps = {
+    load_saga_module: async () => {
+      const saga: any = await import(
+        new URL(
+          "../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+          import.meta.url,
+        ).href,
+      );
+      loadedSaga = saga;
+      loadedBinding = saga.validateSagaBindingV1({
+        request_id: REQUEST_ID,
+        canonical_payment_identity: PAYMENT_ID,
+        request_key_sha256: requestKey(),
+        payment_key_sha256: paymentKey(),
+        delivery_address: DELIVERY,
+        void_amount_units: VOID_UNITS,
+        chain_id: "2050",
+        pool_id: POOL_ID,
+      });
+      loadedSagaId = saga.computeSagaIdV1(loadedBinding);
+      return saga;
+    },
+    create_prepared_transaction_custodian: (options: any) => {
+      custodianConstructCalls += 1;
+      assert.equal(
+        options.socket_path,
+        process.env[CUSTODIAN_SOCKET_ENV],
+      );
+      assert.equal(
+        options.expected_signer_fingerprint_sha256,
+        process.env[CUSTODIAN_SIGNER_FINGERPRINT_ENV],
+      );
+      return {
+        prepare_once: async () => {
+          throw new Error(
+            "fixture_custodian_prepare_should_not_be_called",
+          );
+        },
+        inspect_prepared: async () => {
+          throw new Error(
+            "fixture_custodian_inspect_should_not_be_called",
+          );
+        },
+      };
+    },
+    run_prepared_transaction_coordinator: async (input: any) => {
+      assert.ok(loadedSaga);
+      assert.equal(input.root_dir, root);
+      assert.match(input.attempt_id, /^[0-9a-f]{64}$/);
+      const policyDecision =
+        readBuyVoidCrashConsistentSagaServerPolicyV1();
+      if (!policyDecision.ok) {
+        throw new Error(
+          `proof_server_policy_missing:${policyDecision.reason}`,
+        );
+      }
+      const sagaActionConfirmation =
+        loadedSaga.ACTION_CONFIRMATIONS.prepare_transaction;
+      assert.ok(sagaActionConfirmation);
+
+      if (input.apply !== true) {
+        preparationCoordinatorDryCalls += 1;
+        return {
+          ok: true,
+          status: "dry_run",
+          applied: false,
+          mutation_performed: false,
+          attempt_id: input.attempt_id,
+          saga_id: loadedSagaId,
+          required_confirmation:
+            VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_CONFIRMATION_V1,
+          required_economic_policy_fingerprint_sha256:
+            policyDecision.policy.fingerprints.combined_policy_sha256,
+          required_preparation_policy_fingerprint_sha256:
+            PREPARATION_POLICY_FINGERPRINT,
+          required_saga_confirmation:
+            loadedSaga.ADVANCE_CONFIRMATION,
+          required_saga_action_confirmation:
+            sagaActionConfirmation,
+          required_custody_confirmation:
+            VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
+          required_pipeline_confirmation:
+            VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
+          wallet_access_performed: false,
+          external_signing_performed: false,
+          transaction_broadcast_performed: false,
+          raw_signed_transaction_persisted: false,
+          raw_signed_transaction_returned: false,
+          money_movement_performed: false,
+        };
+      }
+
+      preparationCoordinatorApplyCalls += 1;
+      if (injectPreparedHoldAfterSigning) {
+        return {
+          ok: false,
+          status: "held",
+          applied: true,
+          stage: "saga_append",
+          reason: "injected_post_sign_hold",
+          mutation_performed: true,
+          wallet_access_performed: false,
+          external_signing_performed: true,
+          transaction_broadcast_performed: false,
+          raw_signed_transaction_persisted: false,
+          raw_signed_transaction_returned: false,
+          reconciliation_required: true,
+          automatic_retry_allowed: false,
+          money_movement_performed: false,
+        };
+      }
+      assert.equal(
+        input.confirmation,
+        VOID_BUY_VOID_SAGA_PREPARED_TRANSACTION_CONFIRMATION_V1,
+      );
+      assert.equal(
+        input.economic_policy_fingerprint_sha256,
+        policyDecision.policy.fingerprints.combined_policy_sha256,
+      );
+      assert.equal(
+        input.preparation_policy_fingerprint_sha256,
+        PREPARATION_POLICY_FINGERPRINT,
+      );
+      assert.equal(
+        input.saga_confirmation,
+        loadedSaga.ADVANCE_CONFIRMATION,
+      );
+      assert.equal(
+        input.saga_action_confirmation,
+        sagaActionConfirmation,
+      );
+      assert.equal(
+        input.custody_confirmation,
+        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODY_CONFIRMATION_V1,
+      );
+      assert.equal(
+        input.pipeline_confirmation,
+        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
+      );
+      assert.ok(input.dependencies?.custodian);
+
+      const currentIntent = readJson(claimFile);
+      assert.ok(currentIntent);
+      const pipeline = await runBuyVoidPipelineCommandV1({
+        action: "prepare_execution",
+        root_dir: root,
+        attempt_id: input.attempt_id,
+        intent: currentIntent,
+        execution_policy: policyDecision.policy.execution_policy,
+        transaction: {
+          chain_id: "2050",
+          transaction_hash: PREPARED_TX,
+          from_address: WALLET,
+          to_address: DELIVERY,
+          amount_units: VOID_UNITS,
+        },
+        apply: true,
+        confirmation:
+          VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
+        now_ms: (clock += 1000),
+      });
+      assert.equal(pipeline.ok, true);
+      assert.equal(pipeline.status, "applied");
+
+      const store = loadedSaga.createFilesystemSagaStoreV1(
+        path.join(
+          root,
+          "buy-void-crash-consistent-saga-runtime-v1",
+        ),
+      );
+      const sagaResult = await loadedSaga.runSagaSupervisorTickV1({
+        store,
+        binding: loadedBinding,
+        owner_id: `void-buy-prepare-proof-${process.pid}`,
+        now_ms: (clock += 1000),
+        lease_ttl_ms: 30_000,
+        recorded_at_utc: new Date(clock).toISOString(),
+        source_floor_main:
+          "bd688e7b4a4afc7e025c5535dc663573ead751ba",
+        policy_id: policyDecision.policy.saga_policy_id,
+        apply: true,
+        confirmation: loadedSaga.ADVANCE_CONFIRMATION,
+        action_confirmation: sagaActionConfirmation,
+        adapters: {
+          prepare_transaction: async () => ({
+            payload: {
+              attempt_id: input.attempt_id,
+              transaction_hash: PREPARED_TX,
+              nonce: 7,
+              fulfillment_wallet_fingerprint_sha256:
+                digest(WALLET),
+              gas_limit: "21000",
+              max_fee_per_gas_wei: "100",
+              max_priority_fee_per_gas_wei: "2",
+            },
+          }),
+        },
+      });
+      assert.equal(sagaResult.ok, true);
+      assert.equal(sagaResult.status, "applied");
+
+      return {
+        ok: true,
+        status: "prepared",
+        applied: true,
+        mutation_performed: true,
+        attempt_id: input.attempt_id,
+        saga_id: loadedSagaId,
+        plan: { nonce: 7 },
+        custody: {
+          signed_transaction_hash: PREPARED_TX,
+        },
+        execution_attempt: {},
+        saga_state: sagaResult.state,
+        wallet_access_performed: false,
+        external_signing_performed: true,
+        transaction_broadcast_performed: false,
+        raw_signed_transaction_persisted: false,
+        raw_signed_transaction_returned: false,
+        automatic_retry_allowed: false,
+        money_movement_performed: false,
+      };
+    },
     derive_snapshot: () => ({
       status: "ready",
       snapshot: { request_id: REQUEST_ID, status: "payment_verified" },
@@ -554,6 +826,187 @@ async function main(): Promise<void> {
   assert.equal(attemptCalls, 1);
   assertNoMoney(recoveredAttempt.body);
 
+  const preparationDisabled = await invoke({
+    root,
+    requestDir,
+    body: {
+      action:
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+    },
+    dependencies: deps,
+  });
+  assert.equal(preparationDisabled.code, 503);
+  assert.match(
+    preparationDisabled.body.reason,
+    /transaction_preparation_disabled/,
+  );
+  assert.equal(preparationCoordinatorDryCalls, 0);
+  assert.equal(preparationCoordinatorApplyCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+
+  process.env[PREPARATION_ENABLE_ENV] = "1";
+
+  const callerCustodian = await invoke({
+    root,
+    requestDir,
+    body: {
+      action:
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+      custodian_socket_path: "/tmp/caller-controlled.sock",
+      signer_fingerprint_sha256: "f".repeat(64),
+    },
+    dependencies: deps,
+  });
+  assert.equal(callerCustodian.code, 400);
+  assert.equal(
+    callerCustodian.body.error,
+    "caller_supplied_execution_material_forbidden",
+  );
+  assert.equal(preparationCoordinatorDryCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+
+  const dryPreparation = await invoke({
+    root,
+    requestDir,
+    body: {
+      action:
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+    },
+    dependencies: deps,
+  });
+  assert.equal(dryPreparation.code, 200);
+  assert.equal(
+    dryPreparation.body.next_action,
+    "prepare_transaction",
+  );
+  assert.equal(
+    dryPreparation.body.external_custodian_signing_performed,
+    false,
+  );
+  assert.equal(
+    dryPreparation.body.application_signing_performed,
+    false,
+  );
+  assert.equal(preparationCoordinatorDryCalls, 1);
+  assert.equal(preparationCoordinatorApplyCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+
+  const missingCustodian = await invoke({
+    root,
+    requestDir,
+    body: applyFrom(dryPreparation),
+    dependencies: deps,
+  });
+  assert.equal(missingCustodian.code, 503);
+  assert.match(
+    missingCustodian.body.reason,
+    /prepared_transaction_custodian_not_configured/,
+  );
+  assert.equal(preparationCoordinatorDryCalls, 2);
+  assert.equal(preparationCoordinatorApplyCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+
+  const configuredSocket = path.join(
+    base,
+    "private-custodian",
+    "custodian.sock",
+  );
+  const configuredFingerprint =
+    digest("void-buy-saga-runtime-proof-signer-v1");
+  process.env[CUSTODIAN_SOCKET_ENV] = configuredSocket;
+  process.env[CUSTODIAN_SIGNER_FINGERPRINT_ENV] =
+    configuredFingerprint;
+
+  const configuredStatus =
+    buyVoidCrashConsistentSagaRuntimeStatusV1();
+  assert.equal(configuredStatus.preparation_enabled, true);
+  assert.equal(configuredStatus.custodian_ipc_configured, true);
+  const statusText = JSON.stringify(configuredStatus);
+  assert.equal(statusText.includes(configuredSocket), false);
+  assert.equal(statusText.includes(configuredFingerprint), false);
+
+  const wrongPreparationFingerprint = await invoke({
+    root,
+    requestDir,
+    body: {
+      ...applyFrom(dryPreparation),
+      preparation_policy_fingerprint_sha256: "0".repeat(64),
+    },
+    dependencies: deps,
+  });
+  assert.equal(wrongPreparationFingerprint.code, 428);
+  assert.match(
+    wrongPreparationFingerprint.body.reason,
+    /prepared_transaction_confirmation_required/,
+  );
+  assert.equal(preparationCoordinatorDryCalls, 3);
+  assert.equal(preparationCoordinatorApplyCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+
+  injectPreparedHoldAfterSigning = true;
+  const postSignHeld = await invoke({
+    root,
+    requestDir,
+    body: applyFrom(dryPreparation),
+    dependencies: deps,
+  });
+  injectPreparedHoldAfterSigning = false;
+  assert.equal(postSignHeld.code, 422);
+  assert.match(postSignHeld.body.reason, /injected_post_sign_hold/);
+  assert.equal(postSignHeld.body.mutation_performed, true);
+  assert.equal(
+    postSignHeld.body.external_custodian_signing_performed,
+    true,
+  );
+  assert.equal(postSignHeld.body.reconciliation_required, true);
+  assert.equal(postSignHeld.body.automatic_retry, false);
+  assert.equal(postSignHeld.body.transaction_broadcast_performed, false);
+  assert.equal(postSignHeld.body.money_movement_performed, false);
+
+  const prepared = await invoke({
+    root,
+    requestDir,
+    body: applyFrom(dryPreparation),
+    dependencies: deps,
+  });
+  assert.equal(prepared.code, 200);
+  assert.equal(prepared.body.status, "prepared");
+  assert.equal(prepared.body.signed_transaction_hash, PREPARED_TX);
+  assert.equal(prepared.body.reserved_nonce, "7");
+  assert.equal(
+    prepared.body.external_custodian_signing_performed,
+    true,
+  );
+  assert.equal(prepared.body.application_signing_performed, false);
+  assert.equal("custody_handle" in prepared.body, false);
+  assert.equal("raw_signed_transaction" in prepared.body, false);
+  assertNoMoney(prepared.body);
+  assert.equal(preparationCoordinatorDryCalls, 5);
+  assert.equal(preparationCoordinatorApplyCalls, 2);
+  assert.equal(custodianConstructCalls, 2);
+
+  const afterPrepared = await invoke({
+    root,
+    requestDir,
+    body: {
+      action:
+        VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
+      request_id: REQUEST_ID,
+    },
+    dependencies: deps,
+  });
+  assert.equal(afterPrepared.code, 422);
+  assert.match(
+    afterPrepared.body.reason,
+    /next_stage_outside_prepared_transaction_runtime_boundary/,
+  );
+  assert.equal(preparationCoordinatorDryCalls, 5);
+  assert.equal(preparationCoordinatorApplyCalls, 2);
+  assert.equal(custodianConstructCalls, 2);
+
   const saga: any = await import(
     new URL("../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs", import.meta.url).href,
   );
@@ -574,7 +1027,13 @@ async function main(): Promise<void> {
   const record = store.recover(sagaId);
   assert.deepEqual(
     record.events.map((event: any) => event.event_type),
-    ["saga_initialized", "claim_committed", "inventory_reserved", "attempt_reserved"],
+    [
+      "saga_initialized",
+      "claim_committed",
+      "inventory_reserved",
+      "attempt_reserved",
+      "transaction_prepared",
+    ],
   );
   assert.equal(
     record.events[0].payload.policy_id,
@@ -829,6 +1288,10 @@ async function main(): Promise<void> {
     server_controlled_fulfillment_policy: true,
     server_controlled_inventory_policy: true,
     server_controlled_execution_policy: true,
+    separate_transaction_preparation_enable_gate: true,
+    server_controlled_preparation_policy: true,
+    server_controlled_custodian_ipc_socket: true,
+    server_controlled_signer_fingerprint: true,
     caller_supplied_policy_forbidden: true,
     caller_supplied_binding_forbidden: true,
     caller_supplied_intent_forbidden: true,
@@ -839,16 +1302,18 @@ async function main(): Promise<void> {
     per_request_lease_required: true,
     monotonically_increasing_fencing_token_required: true,
     restart_reconciliation_before_retry: true,
-    non_money_stage_count: 3,
+    non_money_stage_count: 4,
     claim_write_possible: true,
     inventory_reservation_possible: true,
     execution_attempt_reservation_possible: true,
-    transaction_preparation_mounted: false,
+    transaction_preparation_mounted: true,
+    read_only_rpc_planning_possible: true,
+    external_custodian_signing_possible: true,
     inventory_decrement: false,
     public_fulfilled_closeout: false,
     background_loop: false,
     startup_execution: false,
-    rpc_call: false,
+    rpc_call: true,
     credential_access: false,
     wallet_access: false,
     signing: false,
@@ -872,6 +1337,14 @@ async function main(): Promise<void> {
   console.log("unanchored_execution_chain_import=held");
   console.log("inventory_maximum_import_conflict=held");
   console.log("anchored_attempt_backfill_exactly_once=true");
+  console.log("preparation_enable_gate_separate=true");
+  console.log("preparation_dry_constructed_custodian=0");
+  console.log("preparation_coordinator_dry_calls=5");
+  console.log("preparation_coordinator_apply_calls=2");
+  console.log("custodian_ipc_construct_calls=2");
+  console.log("external_custodian_signing_truth_separate=true");
+  console.log("post_sign_hold_truth_preserved=true");
+  console.log("execute_prepared_transaction_runtime_mount=0");
   console.log("wallet_signing_broadcast_money=0");
 }
 
