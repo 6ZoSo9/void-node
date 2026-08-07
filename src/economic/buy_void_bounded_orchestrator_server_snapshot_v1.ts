@@ -24,6 +24,7 @@ export const VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_SERVER_SNAPSHOT_AUTHORITY_V1 = {
   client_supplied_snapshot_forbidden: true,
   server_controlled_root_dir: true,
   server_controlled_request_dir: true,
+  request_path_symlink_ancestors_forbidden: true,
   public_request_base_read: true,
   append_only_operator_event_read: true,
   fulfillment_claim_journal_read: true,
@@ -112,6 +113,29 @@ function exactRoot(value: unknown, reason: string): string {
   const raw = normalized(value);
   if (!raw || !path.isAbsolute(raw)) throw new Error(reason);
   return path.resolve(raw);
+}
+
+function assertExistingDirectoryChainIsReal(
+  directory: string,
+  reason: string,
+): void {
+  const resolved = path.resolve(directory);
+  const root = path.parse(resolved).root;
+  const relative = path.relative(root, resolved);
+  let current = root;
+
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(current);
+    } catch {
+      throw new Error(reason);
+    }
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(reason);
+    }
+  }
 }
 
 function readJsonObject(
@@ -318,6 +342,10 @@ export function deriveBuyVoidBoundedOrchestratorServerSnapshotV1(input: {
     requestDir = exactRoot(
       input?.request_dir,
       "server_controlled_request_dir_required",
+    );
+    assertExistingDirectoryChainIsReal(
+      requestDir,
+      "server_controlled_request_dir_symlink_ancestor_forbidden",
     );
   } catch (error) {
     return held(String((error as Error)?.message || error));
