@@ -14,6 +14,14 @@ import { SegStore } from "./chain/seg_store.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
+import {
+  canonicalPeerAddress,
+  canonicalizePeerAddressList,
+  formatPeerAddress,
+  httpBaseFromP2P,
+  parseBootstrap,
+  parsePeerAddress,
+} from "./types/p2p.js";
 
 function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -279,19 +287,25 @@ export class Node {
       })();
 
     await new Promise<void>((resolve) => this.server.listen(this.tcpPort, bindHost, resolve));
-    const addr = `${advertHost}:${(this.server.address() as net.AddressInfo).port}`;
+    const listenPort = (this.server.address() as net.AddressInfo).port;
+    const addr = formatPeerAddress(advertHost, listenPort);
+    if (!addr) {
+      this.server.close();
+      throw new Error(`invalid P2P advertise host: ${advertHost}`);
+    }
     this.listenAddrs.push(addr);
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
 
     const bootstrapRaw = String(process.env.BOOTSTRAP_ADDRS || "").trim();
-    const bootstrapAddrs = bootstrapRaw
-      ? bootstrapRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+    const bootstrapAddrs = parseBootstrap(bootstrapRaw);
+    if (bootstrapRaw && bootstrapAddrs.length === 0) {
+      console.warn("[void-node] bootstrap list contained no valid peer addresses");
+    }
     if (bootstrapAddrs.length) {
       console.log(`[void-node] bootstrap dial targets: ${bootstrapAddrs.join(", ")}`);
       for (const a of bootstrapAddrs) {
-        if (a && a !== addr && this.shouldDial(a)) {
+        if (a !== addr && this.shouldDial(a)) {
           setTimeout(() => this.connect(a), 250).unref?.();
         }
       }
@@ -325,7 +339,11 @@ export class Node {
 
   /** sockets */
   private onIncoming(socket: net.Socket) {
-    const peerAddr = `${socket.remoteAddress}:${socket.remotePort}`;
+    const remoteHost = String(socket.remoteAddress || "");
+    const remotePort = Number(socket.remotePort || 0);
+    const peerAddr =
+      formatPeerAddress(remoteHost, remotePort) ||
+      `${remoteHost}:${remotePort}`;
     this.attachSocket(socket, peerAddr, false);
   }
   private attachSocket(socket: net.Socket, peerAddr: string, outgoing: boolean) {
@@ -374,22 +392,14 @@ export class Node {
       this.peers.delete(tmpKey);
       p.id = msg.id;
       p.handshakeDone = true;
-      p.listens = Array.isArray(msg.listen) ? msg.listen : [];
+      p.listens = canonicalizePeerAddressList(msg.listen, 32);
       this.peers.set(p.id, p);
 
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
 
-      // Heuristic: infer their HTTP base from first p2p listen like 127.0.0.1:4701 -> http://127.0.0.1:4101
+      // Compatibility inference is shared with the canonical IPv4/DNS/IPv6 parser.
       const firstListen: string | undefined = p.listens[0];
-      const httpFromP2P = (addr?: string): string | undefined => {
-        if (!addr) return undefined;
-        const m = addr.match(/^([^:]+):(\d+)$/);
-        if (!m) return undefined;
-        const host = m[1], port = Number(m[2]);
-        if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-        return undefined;
-      };
-      const inferredHttp = httpFromP2P(firstListen);
+      const inferredHttp = httpBaseFromP2P(firstListen);
       if (inferredHttp) {
         this.peerHttp.set(p.id, inferredHttp);
         if (p.id !== this.id) this.onHttpAnnounce?.({ id: p.id, http: inferredHttp, p2p: firstListen });
@@ -407,8 +417,9 @@ export class Node {
     }
 
     if (msg.type === "PEERS") {
-      for (const a of msg.addrs) if (!this.isSelfAddress(a)) this.knownAddrs.add(a);
-      for (const a of msg.addrs) if (this.shouldDial(a)) this.connect(a);
+      const learned = canonicalizePeerAddressList(msg.addrs, 64);
+      for (const a of learned) if (!this.isSelfAddress(a)) this.knownAddrs.add(a);
+      for (const a of learned) if (this.shouldDial(a)) this.connect(a);
       return;
     }
 
@@ -497,37 +508,41 @@ export class Node {
     return this.peers.has(id) && !id.startsWith("?-");
   }
   private isSelfAddress(addr: string): boolean {
-    return this.listenAddrs.includes(addr);
+    const canonical = canonicalPeerAddress(addr);
+    return !!canonical && this.listenAddrs.includes(canonical);
   }
   private shouldDial(addr: string): boolean {
-    if (this.isSelfAddress(addr)) return false;
-    if (this.dialing.has(addr)) return false;
-    for (const p of this.peers.values()) if (p.listens.includes(addr)) return false;
+    const canonical = canonicalPeerAddress(addr);
+    if (!canonical) return false;
+    if (this.isSelfAddress(canonical)) return false;
+    if (this.dialing.has(canonical)) return false;
+    for (const p of this.peers.values()) if (p.listens.includes(canonical)) return false;
     return true;
   }
   connect(addr: string) {
-    if (!this.shouldDial(addr)) return;
-    this.dialing.add(addr);
-    const [host, portStr] = addr.split(":");
-    const port = Number(portStr);
-    if (!host || !port) {
-      this.dialing.delete(addr);
-      return;
-    }
-    const socket = net.createConnection({ host, port }, () => {
-      console.log(`[dial] connected ${addr}`);
-      this.backoff.delete(addr);
-      this.attachSocket(socket, addr, true);
-      this.dialing.delete(addr);
-    });
+    const parsed = parsePeerAddress(addr);
+    if (!parsed) return;
+    const canonical = parsed.canonical;
+    if (!this.shouldDial(canonical)) return;
+    this.dialing.add(canonical);
+
+    const socket = net.createConnection(
+      { host: parsed.host, port: parsed.port },
+      () => {
+        console.log(`[dial] connected ${canonical}`);
+        this.backoff.delete(canonical);
+        this.attachSocket(socket, canonical, true);
+        this.dialing.delete(canonical);
+      },
+    );
     socket.on("error", (e) => {
-      console.warn(`[dial] failed ${addr}:`, e.message);
-      this.dialing.delete(addr);
+      console.warn(`[dial] failed ${canonical}:`, e.message);
+      this.dialing.delete(canonical);
       socket.destroy();
-      const cur = this.backoff.get(addr) ?? this.MIN_BACKOFF;
+      const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
-      this.backoff.set(addr, nxt);
-      setTimeout(() => this.connect(addr), cur);
+      this.backoff.set(canonical, nxt);
+      setTimeout(() => this.connect(canonical), cur).unref?.();
     });
   }
 
