@@ -1,0 +1,72 @@
+name: VOID P2P authenticated UDP path v1
+
+on:
+  pull_request:
+    paths:
+      - "src/p2p/udp_authenticated_path_v1.ts"
+      - "src/p2p/udp_hole_punch_v1.ts"
+      - "src/p2p/auth_v1.ts"
+      - "scripts/prove_void_p2p_udp_authenticated_path_v1.ts"
+      - "scripts/prove_void_p2p_udp_hole_punch_foundation_v1.ts"
+      - "scripts/prove_void_p2p_authenticated_peer_identity_v1.ts"
+      - "docs/public/void-p2p-udp-authenticated-path-v1.md"
+      - ".github/workflows/void-p2p-udp-authenticated-path-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/p2p/udp_authenticated_path_v1.ts"
+      - "src/p2p/udp_hole_punch_v1.ts"
+      - "src/p2p/auth_v1.ts"
+      - "scripts/prove_void_p2p_udp_authenticated_path_v1.ts"
+      - "scripts/prove_void_p2p_udp_hole_punch_foundation_v1.ts"
+      - "scripts/prove_void_p2p_authenticated_peer_identity_v1.ts"
+      - "docs/public/void-p2p-udp-authenticated-path-v1.md"
+      - ".github/workflows/void-p2p-udp-authenticated-path-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-udp-authenticated-path-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove authenticated UDP path
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_authenticated_path_v1.ts
+
+      - name: Preserve UDP hole-punch foundation
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_hole_punch_foundation_v1.ts
+
+      - name: Preserve authenticated TCP peer identity
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_identity_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
