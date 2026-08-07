@@ -24,13 +24,16 @@ export type ManifestV1 = {
 };
 
 export function packFile(inFile: string, opts: PackOpts): ManifestV1 {
-  const st = fs.statSync(inFile);
-  if (!st.isFile()) throw new Error(`not a file: ${inFile}`);
-
-  fs.mkdirSync(opts.outDir, { recursive: true });
-
-  const fd = fs.openSync(inFile, "r");
+  const fd = fs.openSync(
+    inFile,
+    fs.constants.O_RDONLY | fs.constants.O_NONBLOCK,
+  );
   try {
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) throw new Error(`not a file: ${inFile}`);
+
+    fs.mkdirSync(opts.outDir, { recursive: true });
+
     const chunks: ManifestV1["chunks"] = [];
     const leaves: Buffer[] = [];
     let offset = 0;
@@ -40,7 +43,12 @@ export function packFile(inFile: string, opts: PackOpts): ManifestV1 {
       const want = Math.min(opts.chunkBytes, st.size - offset);
       const buf = Buffer.allocUnsafe(want);
       const got = fs.readSync(fd, buf, 0, want, offset);
-      const slice = got === want ? buf : buf.subarray(0, got);
+      if (got !== want) {
+        throw new Error(
+          `short read while packing ${inFile}: offset=${offset} expected=${want} got=${got}`,
+        );
+      }
+      const slice = buf;
 
       const leaf = sha256(slice);
       leaves.push(leaf);
