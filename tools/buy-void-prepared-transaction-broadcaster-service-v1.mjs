@@ -912,10 +912,10 @@ async function submitOnce(options, rawRequest) {
 
 async function inspectSubmission(options, rawRequest) {
   const request = validateRequest(rawRequest);
-  validateCustodyRecord(options, request);
 
   const intent = readIntent(options, request);
   if (!intent) {
+    validateCustodyRecord(options, request);
     return {
       ok: true,
       status: "not_submitted",
