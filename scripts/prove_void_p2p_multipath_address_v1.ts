@@ -94,6 +94,24 @@ for (const invalid of [
   );
 }
 
+const resolverAmbiguousIpv4 = [
+  ["2130706433", "127.0.0.1"],
+  ["127.1", "127.0.0.1"],
+  ["0177.0.0.1", "127.0.0.1"],
+  ["0x7f000001", "127.0.0.1"],
+  ["010.000.000.001", "8.0.0.1"],
+] as const;
+for (const [legacyHost, canonicalHost] of resolverAmbiguousIpv4) {
+  const parsedHostname = new URL(`http://${legacyHost}/`).hostname;
+  assert.equal(parsedHostname, canonicalHost);
+  assert.equal(net.isIP(parsedHostname), 4);
+  assert.equal(
+    parsePeerAddress(`${legacyHost}:4700`),
+    undefined,
+    `resolver-ambiguous IPv4 spelling accepted: ${legacyHost}`,
+  );
+}
+
 assert.deepEqual(
   parseBootstrap(
     "Seed.Example:4700, seed.example:4700, [2001:0db8::1]:4700, [2001:db8::1]:4700, 2001:db8::1:4700",
@@ -110,6 +128,7 @@ const root = fs.mkdtempSync(
 );
 let target: Node | undefined;
 let client: Node | undefined;
+let learned: Node | undefined;
 
 try {
   process.env.P2P_BIND_HOST = "127.0.0.1";
@@ -140,12 +159,38 @@ try {
   const knownAddrs = (client as any).knownAddrs as Set<string>;
   assert(knownAddrs.has(targetAddress));
 
+  process.env.DATA_DIR = path.join(root, "learned");
+  process.env.BOOTSTRAP_ADDRS = "";
+  learned = new Node(0, keypair("learned"));
+  await learned.start();
+  const learnedAddress = learned.listenAddrs[0];
+  assert(parsePeerAddress(learnedAddress));
+  assert(!client.peers.has(learned.id));
+
+  const targetPeerForClient = target.peers.get(client.id);
+  assert(targetPeerForClient?.handshakeDone);
+  (target as any).sendRaw(targetPeerForClient, {
+    type: "PEERS",
+    addrs: [learnedAddress],
+  });
+
+  await waitFor(
+    () =>
+      client!.peers.has(learned!.id) &&
+      learned!.peers.has(client!.id),
+  );
+  assert(knownAddrs.has(learnedAddress));
+
   const malformed = [
     "2001:db8::99:4700",
     "[2001:db8::99]:99999",
     "http://127.0.0.1:4700",
     "evil.example:4700/path",
     " user.example:4700",
+    "2130706433:4700",
+    "127.1:4700",
+    "0177.0.0.1:4700",
+    "0x7f000001:4700",
   ];
 
   const knownBefore = new Set(knownAddrs);
@@ -162,15 +207,17 @@ try {
   assert.deepEqual(new Set(knownAddrs), knownBefore);
 
   console.log("[PASS] IPv4, DNS, and bracketed IPv6 canonical peer addresses");
+  console.log("[PASS] resolver-ambiguous legacy IPv4 spellings fail closed");
   console.log("[PASS] ambiguous/malformed peer addresses fail closed");
   console.log("[PASS] bootstrap address canonicalization and dedupe");
   console.log("[PASS] one dead bootstrap target does not block a healthy target");
+  console.log("[PASS] valid learned PEERS address is exchanged and dialed");
   console.log("[PASS] malformed learned PEERS addresses never enter dial state");
-  console.log("[PASS] peer exchange remains active after successful first contact");
 
   console.log(MARKER);
   console.log("ipv6_bracketed_peer_address_supported=true");
   console.log("unbracketed_ipv6_with_port_accepted=false");
+  console.log("resolver_ambiguous_ipv4_accepted=false");
   console.log("ipv6_http_inference_bracket_safe=true");
   console.log("canonical_bootstrap_dedupe=true");
   console.log("multiple_bootstrap_targets_independent=true");
@@ -184,6 +231,9 @@ try {
   console.log("deployment_performed=false");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
+  try {
+    learned?.stop();
+  } catch {}
   try {
     client?.stop();
   } catch {}
