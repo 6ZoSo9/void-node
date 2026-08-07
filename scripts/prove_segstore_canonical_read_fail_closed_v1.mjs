@@ -108,6 +108,19 @@ function proveOrdinaryReadAndTrueAbsence() {
   });
 }
 
+function proveSegmentMayBeginAboveBase() {
+  withRoot("partial-leading-gap", (root) => {
+    const block0 = makeBlock(0);
+    const block1 = makeBlock(1, block0);
+    seedRoot(root, 1);
+    writeSegment(root, frameValue(block1));
+
+    const store = new SegStore(root);
+    assert.equal(store.loadBlock(0), null);
+    assert.deepEqual(store.loadBlock(1), block1);
+  });
+}
+
 function provePoisonedSparseIndexFallsBack() {
   withRoot("poison-index", (root) => {
     const block0 = makeBlock(0);
@@ -201,6 +214,7 @@ function proveEarlierSatisfiedReadDoesNotInspectLaterTornTail() {
 }
 
 proveOrdinaryReadAndTrueAbsence();
+proveSegmentMayBeginAboveBase();
 provePoisonedSparseIndexFallsBack();
 proveMalformedCompleteJsonFailsClosed();
 proveInvalidBlockNumberFailsClosed();
@@ -211,6 +225,7 @@ proveTornBodyFailsClosed();
 proveEarlierSatisfiedReadDoesNotInspectLaterTornTail();
 
 console.log("ordinary_missing_block_returns_null=true");
+console.log("non_base_first_frame_supported=true");
 console.log("poisoned_sparse_index_false_absence=false");
 console.log("malformed_complete_frame_returns_null=false");
 console.log("invalid_block_number_returns_null=false");
