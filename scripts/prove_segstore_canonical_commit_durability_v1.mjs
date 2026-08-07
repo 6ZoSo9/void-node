@@ -118,6 +118,7 @@ const expectHold = process.env.VOID_PROOF_EXPECT_HOLD === "1";
 
 const originalAppendFileSync = fsDefault.appendFileSync;
 const originalOpenSync = fsDefault.openSync;
+const originalCloseSync = fsDefault.closeSync;
 const originalFsyncSync = fsDefault.fsyncSync;
 const originalWriteFileSync = fsDefault.writeFileSync;
 const tracked = new Set();
@@ -134,6 +135,13 @@ if (fault === "append") {
     const fd = originalOpenSync.call(fsDefault, file, ...args);
     if (typeof file === "string" && path.resolve(file) === target) tracked.add(fd);
     return fd;
+  };
+  fsDefault.closeSync = function patchedCloseSync(fd) {
+    try {
+      return originalCloseSync.call(fsDefault, fd);
+    } finally {
+      tracked.delete(fd);
+    }
   };
   fsDefault.fsyncSync = function patchedFsyncSync(fd) {
     if (tracked.has(fd)) throw new Error("synthetic canonical fsync failure");
