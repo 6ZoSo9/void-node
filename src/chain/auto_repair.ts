@@ -9,8 +9,10 @@
  * - Fails closed on complete-but-malformed or non-canonical frames.
  * - Rebuilds sparse indexes and segment metadata from physical frame truth.
  * - Reconciles heads.json/head.txt to the highest complete canonical frame.
+ * - Supports a truthful dry-run that reports the exact repair plan without writes.
  *
- * This function mutates only the supplied data directory when explicitly run.
+ * This function mutates only the supplied data directory when explicitly run
+ * with dryRun disabled.
  */
 
 import * as fs from "node:fs";
@@ -44,6 +46,50 @@ type FrameScan = {
   fileBytes: number;
   tornTailBytes: number;
   lastN: number;
+};
+
+type PreparedSegment = {
+  name: string;
+  base: number;
+  bin: string;
+  idx: string;
+  meta: string;
+  binMissing: boolean;
+  scan: FrameScan;
+};
+
+export type AutoRepairOptions = {
+  sparseEvery?: number;
+  dryRun?: boolean;
+};
+
+export type AutoRepairPlan = {
+  createDirectories: string[];
+  createBlockFiles: string[];
+  truncateTornTails: Array<{
+    segment: string;
+    path: string;
+    fromBytes: number;
+    toBytes: number;
+    bytes: number;
+  }>;
+  rebuildSparseIndexes: Array<{
+    segment: string;
+    path: string;
+    entries: number;
+  }>;
+  rebuildSegmentMeta: Array<{
+    segment: string;
+    path: string;
+    from: number;
+    to: number;
+    bytes: number;
+  }>;
+  reconcileHeads: {
+    headsJson: string;
+    headTxt: string;
+    head: number;
+  };
 };
 
 const SEG_SPAN = 10_000;
@@ -219,15 +265,22 @@ function truncateTornTail(binPath: string, completeBytes: number): void {
   }
 }
 
+function sparseIndexText(
+  frames: readonly ScannedFrame[],
+  sparseEvery: number,
+): string {
+  const lines = frames
+    .filter((frame) => frame.n % sparseEvery === 0)
+    .map((frame) => JSON.stringify({ n: frame.n, off: frame.off }));
+  return lines.length ? `${lines.join("\n")}\n` : "";
+}
+
 function rebuildSparseIndex(
   idxPath: string,
   frames: readonly ScannedFrame[],
   sparseEvery: number,
 ): void {
-  const lines = frames
-    .filter((frame) => frame.n % sparseEvery === 0)
-    .map((frame) => JSON.stringify({ n: frame.n, off: frame.off }));
-  atomicWriteText(idxPath, lines.length ? `${lines.join("\n")}\n` : "");
+  atomicWriteText(idxPath, sparseIndexText(frames, sparseEvery));
 }
 
 function existingCreatedAt(metaPath: string): number | null {
@@ -277,56 +330,109 @@ function rebuildHeads(root: string, headsPath: string, globalHead: number): void
 
 export async function autoRepairDataDir(
   root: string,
-  opts: { sparseEvery?: number } = {},
+  opts: AutoRepairOptions = {},
 ) {
   const sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
   if (!Number.isSafeInteger(sparseEvery)) {
     throw new Error("autoRepairDataDir sparseEvery must be a positive safe integer");
   }
+  const dryRun = opts.dryRun === true;
 
-  ensureDir(root);
   const segRoot = path.join(root, "segments");
-  ensureDir(segRoot);
   const headsPath = path.join(root, "heads.json");
+  const createDirectories: string[] = [];
+  if (!fs.existsSync(root)) createDirectories.push(root);
+  if (!fs.existsSync(segRoot)) createDirectories.push(segRoot);
 
-  const segments = fs
-    .readdirSync(segRoot)
-    .map((name) => ({ name, base: segmentBaseFromName(name) }))
-    .filter((entry): entry is { name: string; base: number } => entry.base !== null)
-    .sort((a, b) => a.base - b.base);
+  const segments = fs.existsSync(segRoot)
+    ? fs
+        .readdirSync(segRoot)
+        .map((name) => ({ name, base: segmentBaseFromName(name) }))
+        .filter((entry): entry is { name: string; base: number } => entry.base !== null)
+        .sort((a, b) => a.base - b.base)
+    : [];
 
+  const prepared: PreparedSegment[] = [];
   let globalHead = -1;
-  let tornTailBytesTruncated = 0;
-  let repairedTornSegments = 0;
 
   for (const { name: seg, base } of segments) {
     const { dir, bin, idx, meta } = segPaths(root, seg);
-    ensureDir(dir);
-    if (!fs.existsSync(bin)) fs.writeFileSync(bin, Buffer.alloc(0));
-    if (!fs.existsSync(idx)) fs.writeFileSync(idx, "");
-
-    const scan = readFrames(bin, seg);
-    if (scan.tornTailBytes > 0) {
-      truncateTornTail(bin, scan.completeBytes);
-      tornTailBytesTruncated += scan.tornTailBytes;
-      repairedTornSegments++;
+    if (!fs.statSync(dir).isDirectory()) {
+      throw new Error(`canonical segment path is not a directory: ${dir}`);
     }
 
-    rebuildSparseIndex(idx, scan.frames, sparseEvery);
-    rebuildMeta(meta, base, scan);
+    const binMissing = !fs.existsSync(bin);
+    const scan = readFrames(bin, seg);
+    prepared.push({ name: seg, base, bin, idx, meta, binMissing, scan });
     if (scan.lastN > globalHead) globalHead = scan.lastN;
   }
 
-  rebuildHeads(root, headsPath, globalHead);
+  const plan: AutoRepairPlan = {
+    createDirectories,
+    createBlockFiles: prepared.filter((entry) => entry.binMissing).map((entry) => entry.bin),
+    truncateTornTails: prepared
+      .filter((entry) => entry.scan.tornTailBytes > 0)
+      .map((entry) => ({
+        segment: entry.name,
+        path: entry.bin,
+        fromBytes: entry.scan.fileBytes,
+        toBytes: entry.scan.completeBytes,
+        bytes: entry.scan.tornTailBytes,
+      })),
+    rebuildSparseIndexes: prepared.map((entry) => ({
+      segment: entry.name,
+      path: entry.idx,
+      entries: entry.scan.frames.filter((frame) => frame.n % sparseEvery === 0).length,
+    })),
+    rebuildSegmentMeta: prepared.map((entry) => ({
+      segment: entry.name,
+      path: entry.meta,
+      from: entry.base,
+      to: entry.scan.lastN,
+      bytes: entry.scan.completeBytes,
+    })),
+    reconcileHeads: {
+      headsJson: headsPath,
+      headTxt: path.join(root, "head.txt"),
+      head: globalHead,
+    },
+  };
+
+  const wouldRepairTornSegments = plan.truncateTornTails.length;
+  const wouldTruncateTornTailBytes = plan.truncateTornTails.reduce(
+    (total, entry) => total + entry.bytes,
+    0,
+  );
+
+  if (!dryRun) {
+    ensureDir(root);
+    ensureDir(segRoot);
+
+    for (const entry of prepared) {
+      if (entry.binMissing) fs.writeFileSync(entry.bin, Buffer.alloc(0));
+      if (entry.scan.tornTailBytes > 0) {
+        truncateTornTail(entry.bin, entry.scan.completeBytes);
+      }
+      rebuildSparseIndex(entry.idx, entry.scan.frames, sparseEvery);
+      rebuildMeta(entry.meta, entry.base, entry.scan);
+    }
+
+    rebuildHeads(root, headsPath, globalHead);
+  }
 
   return {
     ok: true,
     root,
     sparseEvery,
+    dryRun,
+    mutationsApplied: !dryRun,
     segs: segments.length,
     head: globalHead,
-    repairedTornSegments,
-    tornTailBytesTruncated,
+    repairedTornSegments: dryRun ? 0 : wouldRepairTornSegments,
+    tornTailBytesTruncated: dryRun ? 0 : wouldTruncateTornTailBytes,
+    wouldRepairTornSegments,
+    wouldTruncateTornTailBytes,
+    plan,
   };
 }
 
