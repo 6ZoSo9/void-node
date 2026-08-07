@@ -14,6 +14,8 @@ export const VOID_P2P_TRANSPORT_MAX_RELAY_CANDIDATES_V1 = 8;
 export const VOID_P2P_TRANSPORT_MAX_CANDIDATES_V1 =
   VOID_P2P_TRANSPORT_MAX_DIRECT_CANDIDATES_V1 +
   VOID_P2P_TRANSPORT_MAX_RELAY_CANDIDATES_V1;
+export const VOID_P2P_TRANSPORT_RELAY_MAX_RESERVATION_TTL_MS_V1 =
+  10 * 60 * 1000;
 
 const NODE_ID_RE = /^[0-9a-f]{32}$/;
 const RELAY_ID_RE = /^[0-9a-f]{32}$/;
@@ -54,6 +56,8 @@ const RELAY_KEYS = Object.freeze([
   ...CANDIDATE_COMMON_KEYS,
   "relay_node_id",
   "relay_peer_state",
+  "reservation_id",
+  "reservation_expires_at_ms",
 ]);
 
 const INVARIANT_KEYS = Object.freeze([
@@ -245,7 +249,6 @@ function buildDirectCandidate(rawRecord, subjectNodeId, nowMs) {
 }
 
 function buildRelayCandidate(rawRelay, subjectNodeId, nowMs) {
-  void nowMs;
   const relay = exactKeys(
     structuredClone(rawRelay),
     [
@@ -253,6 +256,8 @@ function buildRelayCandidate(rawRelay, subjectNodeId, nowMs) {
       "relay_node_id",
       "relay_peer_state",
       "failure_domain",
+      "reservation_id",
+      "reservation_expires_at_ms",
     ],
     "relay transport candidate",
   );
@@ -281,6 +286,21 @@ function buildRelayCandidate(rawRelay, subjectNodeId, nowMs) {
     relay.failure_domain,
     "relay failure domain",
   );
+  const reservationId = validateRelayId(
+    relay.reservation_id,
+    "relay reservation ID",
+  );
+  const reservationExpiresAtMs = relay.reservation_expires_at_ms;
+  if (
+    !Number.isSafeInteger(reservationExpiresAtMs) ||
+    reservationExpiresAtMs <= nowMs ||
+    reservationExpiresAtMs - nowMs >
+      VOID_P2P_TRANSPORT_RELAY_MAX_RESERVATION_TTL_MS_V1
+  ) {
+    throw new Error(
+      "relay reservation must be active at plan creation and within relay-v1 TTL bounds",
+    );
+  }
 
   const body = {
     subject_node_id: subjectNodeId,
@@ -291,6 +311,8 @@ function buildRelayCandidate(rawRelay, subjectNodeId, nowMs) {
     direct_identity_evidence: false,
     relay_node_id: relayNodeId,
     relay_peer_state: "authenticated_direct_peer_v1",
+    reservation_id: reservationId,
+    reservation_expires_at_ms: reservationExpiresAtMs,
   };
 
   return Object.freeze({
@@ -299,7 +321,7 @@ function buildRelayCandidate(rawRelay, subjectNodeId, nowMs) {
   });
 }
 
-function validateCandidate(raw, subjectNodeId, nowMs) {
+function validateCandidate(raw, subjectNodeId, planCreatedAtMs) {
   const transport = String(raw?.transport || "");
   const expected =
     transport === "direct_tcp_v1"
@@ -372,6 +394,17 @@ function validateCandidate(raw, subjectNodeId, nowMs) {
         "candidate relay peer state must be authenticated_direct_peer_v1",
       );
     }
+    validateRelayId(candidate.reservation_id, "candidate relay reservation ID");
+    if (
+      !Number.isSafeInteger(candidate.reservation_expires_at_ms) ||
+      candidate.reservation_expires_at_ms <= planCreatedAtMs ||
+      candidate.reservation_expires_at_ms - planCreatedAtMs >
+        VOID_P2P_TRANSPORT_RELAY_MAX_RESERVATION_TTL_MS_V1
+    ) {
+      throw new Error(
+        "candidate relay reservation expiry is outside relay-v1 TTL bounds",
+      );
+    }
     if (candidate.rank !== 100) {
       throw new Error("relay candidate rank must be 100");
     }
@@ -398,7 +431,7 @@ export function buildVoidP2PTransportFailoverPlanV1({
   validityMs = 5 * 60 * 1000,
 }) {
   const subject = validateNodeId(subjectNodeId, "transport plan subject node ID");
-  if (!Number.isFinite(nowMs)) {
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
     throw new Error("transport plan clock is invalid");
   }
   if (
@@ -524,7 +557,7 @@ export function validateVoidP2PTransportFailoverPlanV1(
   ) {
     throw new Error("transport failover plan exceeds candidate bound");
   }
-  if (!Number.isFinite(nowMs)) {
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
     throw new Error("transport failover plan validation clock is invalid");
   }
 
@@ -546,7 +579,7 @@ export function validateVoidP2PTransportFailoverPlanV1(
   }
 
   const candidates = plan.candidates.map((candidate) =>
-    validateCandidate(candidate, subject, nowMs),
+    validateCandidate(candidate, subject, createdAtMs),
   );
   const sorted = [...candidates].sort((left, right) =>
     candidateSortKey(left).localeCompare(candidateSortKey(right)),
@@ -622,7 +655,11 @@ export function nextVoidP2PTransportCandidateV1(
   }
 
   return (
-    plan.candidates.find((candidate) => !failed.has(candidate.candidate_id)) ||
-    null
+    plan.candidates.find(
+      (candidate) =>
+        !failed.has(candidate.candidate_id) &&
+        (candidate.transport !== "relay_v1" ||
+          candidate.reservation_expires_at_ms > nowMs),
+    ) || null
   );
 }
