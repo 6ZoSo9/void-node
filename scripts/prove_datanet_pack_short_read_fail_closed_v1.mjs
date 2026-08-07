@@ -13,17 +13,31 @@ const source = fs.readFileSync(sourcePath, "utf8");
 
 assert.match(
   source,
-  /const fd = fs\.openSync\(\s*inFile,\s*fs\.constants\.O_RDONLY \| fs\.constants\.O_NONBLOCK,\s*\);\s*try \{\s*const st = fs\.fstatSync\(fd\);/s,
+  /const fd = fs\.openSync\(\s*inFile,\s*fs\.constants\.O_RDONLY \| fs\.constants\.O_NONBLOCK,\s*\);/s,
 );
+assert.match(source, /const st = fs\.fstatSync\(fd\);/);
 assert.doesNotMatch(source, /fs\.statSync\(inFile\)/);
 assert.doesNotMatch(source, /fs\.openSync\(inFile, "r"\)/);
 assert.match(source, /if \(got !== want\) \{/);
 assert.match(source, /short read while packing/);
+assert.match(source, /stageDir = fs\.mkdtempSync/);
+assert.match(source, /PACK_CHUNK_FILE_RE/);
+assert.match(source, /The manifest is the final publication marker/);
 
 const { packFile } = await import("../dist/datanet/pack.js");
 
+function snapshotDirectory(dir) {
+  return fs.readdirSync(dir)
+    .sort()
+    .map((name) => [
+      name,
+      fs.readFileSync(path.join(dir, name)).toString("hex"),
+    ]);
+}
+
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-datanet-pack-short-read-v1-"));
 const input = path.join(root, "input.bin");
+const replacementInput = path.join(root, "replacement.bin");
 const fifo = path.join(root, "input.fifo");
 const normalOut = path.join(root, "normal");
 const fifoOut = path.join(root, "fifo");
@@ -31,6 +45,7 @@ const shortOut = path.join(root, "short");
 
 try {
   fs.writeFileSync(input, Buffer.from("abcdefgh", "utf8"));
+  fs.writeFileSync(replacementInput, Buffer.from("ABCDEFGH", "utf8"));
 
   const normal = packFile(input, { chunkBytes: 4, outDir: normalOut });
   assert.equal(normal.sizeBytes, 8);
@@ -94,12 +109,24 @@ try {
   assert.equal(fs.existsSync(path.join(fifoOut, "manifest.v1.json")), false);
   assert.equal(fs.existsSync(path.join(fifoOut, "root.txt")), false);
 
+  // Establish a valid pre-existing pack. The adversarial read then succeeds
+  // for chunk 0 and fails on chunk 1. A correct implementation must leave
+  // this previously published generation byte-for-byte untouched.
+  packFile(input, { chunkBytes: 4, outDir: shortOut });
+  const beforeLateShortRead = snapshotDirectory(shortOut);
+  assert.equal(
+    fs.readFileSync(path.join(shortOut, "chunk_000000.bin"), "utf8"),
+    "abcd",
+  );
+
   const originalReadSync = fs.readSync;
+  let readCount = 0;
   let injected = false;
 
   try {
     fs.readSync = function injectedReadSync(fd, buffer, offset, length, position) {
-      if (!injected) {
+      readCount += 1;
+      if (readCount === 2) {
         injected = true;
         return 0;
       }
@@ -108,8 +135,8 @@ try {
     syncBuiltinESMExports();
 
     assert.throws(
-      () => packFile(input, { chunkBytes: 4, outDir: shortOut }),
-      /short read while packing .* offset=0 expected=4 got=0/,
+      () => packFile(replacementInput, { chunkBytes: 4, outDir: shortOut }),
+      /short read while packing .* offset=4 expected=4 got=0/,
     );
   } finally {
     fs.readSync = originalReadSync;
@@ -117,14 +144,33 @@ try {
   }
 
   assert.equal(injected, true);
-  assert.equal(fs.existsSync(path.join(shortOut, "manifest.v1.json")), false);
-  assert.equal(fs.existsSync(path.join(shortOut, "root.txt")), false);
+  assert.equal(readCount, 2);
+  assert.deepEqual(snapshotDirectory(shortOut), beforeLateShortRead);
   assert.equal(
-    fs.existsSync(shortOut)
-      ? fs.readdirSync(shortOut).some((name) => name.startsWith("chunk_"))
-      : false,
+    fs.readFileSync(path.join(shortOut, "chunk_000000.bin"), "utf8"),
+    "abcd",
+  );
+  assert.equal(fs.existsSync(path.join(shortOut, "manifest.v1.json")), true);
+  assert.equal(fs.existsSync(path.join(shortOut, "root.txt")), true);
+
+  const stagePrefix = `.${path.basename(shortOut)}.pack-v1-`;
+  assert.equal(
+    fs.readdirSync(path.dirname(shortOut)).some((name) => name.startsWith(stagePrefix)),
     false,
   );
+
+  // Cleanup of the failed staged generation must leave a normal retry viable.
+  const replacement = packFile(replacementInput, {
+    chunkBytes: 4,
+    outDir: shortOut,
+  });
+  assert.equal(replacement.chunks.length, 2);
+  assert.equal(
+    fs.readFileSync(path.join(shortOut, "chunk_000000.bin"), "utf8"),
+    "ABCD",
+  );
+  assert.equal(fs.existsSync(path.join(shortOut, "manifest.v1.json")), true);
+  assert.equal(fs.existsSync(path.join(shortOut, "root.txt")), true);
 
   console.log("VOID_DATANET_PACK_SHORT_READ_FAIL_CLOSED_V1_GREEN");
   console.log("descriptor_stat_authority=true");
@@ -134,6 +180,9 @@ try {
   console.log("short_read_rejected=true");
   console.log("zero_progress_loop_possible=false");
   console.log("partial_chunk_emitted_on_short_read=false");
+  console.log("late_short_read_preserved_existing_pack=true");
+  console.log("staging_generation_leaked=false");
+  console.log("manifest_publication_marker_last=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
