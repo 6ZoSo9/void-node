@@ -445,14 +445,33 @@ async function main(): Promise<void> {
       `${postSubmitCrash.request.custody_idempotency_key_sha256}.json`,
     ),
   );
+
+  inspectMode = "unknown";
+  inspectProvider = "proof-provider-1";
+  const postUnknown = await broadcaster.inspect_submission(
+    postSubmitCrash.request as any,
+  );
+  assert.equal(postUnknown.ok, true);
+  assert.equal(postUnknown.status, "unknown");
+  assert.equal(submitCalls, 2);
+  assert.equal(inspectCalls, 6);
+
+  inspectMode = "not_submitted";
+  const unknownNotSubmittedConflict =
+    await broadcaster.inspect_submission(postSubmitCrash.request as any);
+  assert.equal(unknownNotSubmittedConflict.ok, false);
+  assert.equal(submitCalls, 2);
+  assert.equal(inspectCalls, 7);
+
   inspectMode = "confirmed";
+  inspectProvider = "proof-provider-1";
   const postRecovered = await broadcaster.inspect_submission(
     postSubmitCrash.request as any,
   );
   assert.equal(postRecovered.ok, true);
   assert.equal(postRecovered.status, "confirmed");
   assert.equal(submitCalls, 2);
-  assert.equal(inspectCalls, 6);
+  assert.equal(inspectCalls, 8);
 
   maliciousSubmit = true;
   const maliciousResult = await broadcaster.submit_once(
@@ -536,6 +555,7 @@ async function main(): Promise<void> {
   console.log("terminal_inspection_reuses_durable_outcome=true");
   console.log("accepted_outcome_regression=false");
   console.log("accepted_to_not_submitted_conflict=held");
+  console.log("unknown_to_not_submitted_conflict=held");
   console.log("accepted_provider_identity_change=held");
   console.log("monotonic_submission_outcome=true");
   console.log("secret_bearing_transport_result_returned=false");
