@@ -332,101 +332,230 @@ export class SegStore {
 
   // ---- WAL replay ----
 
+  private recordWalReplayFailure(reason: string): void {
+    const normalized = String(reason || "unknown")
+      .replace(/\s+/g, " ")
+      .slice(0, 256);
+    this._walReplayMetrics.replay_last_ok = 0;
+    const prior = this._walReplayMetrics.replay_last_error;
+    if (!prior) {
+      this._walReplayMetrics.replay_last_error = normalized;
+      return;
+    }
+    if (prior.split(";").includes(normalized)) return;
+    this._walReplayMetrics.replay_last_error = `${prior};${normalized}`.slice(0, 2048);
+  }
+
+  private replayBlockMatchesStoredBlock(existing: Block, replayed: Block): boolean {
+    try {
+      return (
+        blockHash(existing as any) === blockHash(replayed as any) &&
+        JSON.stringify(existing) === JSON.stringify(replayed)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private replayWalAllBestEffort() {
     const __wal_t0 = Date.now();
     this._walReplayMetrics.replay_runs_total++;
     this._walReplayMetrics.replay_last_ok = 1;
     this._walReplayMetrics.replay_last_error = "";
 
-    // Replay each existing wal/<seg>.wal
-    if (!fs.existsSync(this.walDir)) return;
-    const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal"));
-    if (!files.length) return;
+    try {
+      // Replay segment files by numeric segment base, not directory enumeration
+      // or lexical filename order. padStart(8) stops preserving lexical numeric
+      // order once the chain crosses eight decimal digits.
+      if (!fs.existsSync(this.walDir)) return;
+      const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal")).sort((a, b) => {
+        const aSeg = Number(a.replace(/\.wal$/, ""));
+        const bSeg = Number(b.replace(/\.wal$/, ""));
+        const aValid = Number.isSafeInteger(aSeg) && aSeg >= 0;
+        const bValid = Number.isSafeInteger(bSeg) && bSeg >= 0;
+        if (aValid && bValid && aSeg !== bSeg) return aSeg - bSeg;
+        if (aValid !== bValid) return aValid ? -1 : 1;
+        return a.localeCompare(b);
+      });
+      if (!files.length) return;
 
-    for (const f of files) {
-      const seg = f.replace(/\.wal$/, "");
-      try { this.replayWalSegBestEffort(seg); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-19", err); }
+      for (const f of files) {
+        const seg = f.replace(/\.wal$/, "");
+        try {
+          this.replayWalSegBestEffort(seg);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.recordWalReplayFailure(`segment_replay_failed:${seg}:${message}`);
+          recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-19", err);
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.recordWalReplayFailure(`wal_directory_replay_failed:${message}`);
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-directory", err);
+    } finally {
+      this._walReplayMetrics.replay_ms_last = Math.max(0, Date.now() - __wal_t0);
+      this._walReplayMetrics.replay_ms_max = Math.max(
+        this._walReplayMetrics.replay_ms_max,
+        this._walReplayMetrics.replay_ms_last,
+      );
     }
-  
-    this._walReplayMetrics.replay_ms_last = Math.max(0, Date.now() - __wal_t0);
-    this._walReplayMetrics.replay_ms_max = Math.max(this._walReplayMetrics.replay_ms_max, this._walReplayMetrics.replay_ms_last);
-}
+  }
 
   private replayWalSegBestEffort(seg: string) {
-    let __wal_applied = 0;
-
     const wp = this.walPath(seg);
     if (!fs.existsSync(wp)) return;
 
-    const head0 = this.loadHeadNumber();
     const lines = fs.readFileSync(wp, "utf8").split("\n").filter(Boolean);
+    const candidates = lines.map((line, index) => {
+      let rec: any = null;
+      try {
+        rec = JSON.parse(line);
+      } catch {
+        rec = null;
+      }
+      const n = rec && typeof rec === "object" ? Number(rec.n) : Number.NaN;
+      return { line, index, rec, n };
+    });
 
-    let maxApplied = head0;
-    const keep: string[] = [];
+    // WAL append order should already be monotonic, but crash recovery must not
+    // trust file line order. Canonical block number wins; malformed records stay
+    // at their original relative position and are retained below.
+    const ordered = [...candidates].sort((a, b) => {
+      const aValid = Number.isInteger(a.n) && a.n >= 0;
+      const bValid = Number.isInteger(b.n) && b.n >= 0;
+      if (aValid && bValid && a.n !== b.n) return a.n - b.n;
+      if (aValid !== bValid) return aValid ? -1 : 1;
+      return a.index - b.index;
+    });
 
-    for (const line of lines) {
-      __wal_applied++;
+    const keepIndexes = new Set<number>();
+    let applied = 0;
 
-      let rec: WalRecV1 | null = null;
-      try { rec = JSON.parse(line); } catch { rec = null; }
-      if (!rec || rec.v !== 1) continue;
+    const keep = (index: number, reason: string): void => {
+      keepIndexes.add(index);
+      this.recordWalReplayFailure(reason);
+    };
 
-      const n = Number(rec.n);
-      if (!Number.isFinite(n)) continue;
+    for (const candidate of ordered) {
+      const { index, rec } = candidate;
 
-      // Keep anything > current head AFTER replay attempt (we’ll decide later)
-      if (n <= this.loadHeadNumber()) continue;
+      if (!rec || typeof rec !== "object" || rec.v !== 1) {
+        keep(index, `malformed_record:${seg}:${index}`);
+        continue;
+      }
 
-      // Decode block
+      if (typeof rec.n !== "number" || !Number.isInteger(rec.n) || rec.n < 0) {
+        keep(index, `invalid_record_number:${seg}:${index}`);
+        continue;
+      }
+      const n = rec.n;
+
+      if (this.segName(n) !== seg) {
+        keep(index, `segment_mismatch:${seg}:${n}`);
+        continue;
+      }
+
+      if (typeof rec.b64 !== "string" || !rec.b64) {
+        keep(index, `invalid_record_payload:${seg}:${n}`);
+        continue;
+      }
+
       let blk: any = null;
       try {
-        const buf = Buffer.from(String(rec.b64 || ""), "base64");
+        const buf = Buffer.from(rec.b64, "base64");
         blk = JSON.parse(buf.toString("utf8"));
-      } catch { blk = null; }
+      } catch {
+        blk = null;
+      }
 
       if (!blk || Number(blk.number) !== n) {
-        // malformed; keep it so we don't accidentally destroy evidence
-        keep.push(line);
+        keep(index, `record_block_number_mismatch:${seg}:${n}`);
         continue;
       }
 
-      // If block already exists on disk, just bump head to n
+      const head = this.loadHeadNumber();
+      if (n > head + 1) {
+        keep(index, `canonical_gap:head=${head}:record=${n}`);
+        continue;
+      }
+
+      const parent = n === 0 ? null : this.loadBlock(n - 1);
+      const valid = validateBlockForAppend(blk, parent as any);
+      if (!valid.ok) {
+        keep(index, `invalid_block:${n}:${(valid as any).reason || "unknown"}`);
+        continue;
+      }
+
       const existing = this.loadBlock(n);
-      if (existing) {
-        this.persistHeadAtomic(n);
-        maxApplied = Math.max(maxApplied, n);
+
+      // A WAL record at or below head is only disposable if the corresponding
+      // canonical block still exists and exactly matches the replay payload.
+      if (n <= head) {
+        if (!existing) {
+          keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
+          continue;
+        }
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+          keep(index, `existing_block_conflict:${n}`);
+          continue;
+        }
         continue;
       }
 
-      // Commit missing block, bump head
+      // At this point n is exactly head + 1. A block may already be present if
+      // the process crashed after segment append but before the atomic head bump.
+      if (existing) {
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+          keep(index, `existing_block_conflict:${n}`);
+          continue;
+        }
+        try {
+          this.persistHeadAtomic(n);
+          applied++;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          keep(index, `head_heal_failed:${n}:${message}`);
+        }
+        continue;
+      }
+
       try {
         this.saveBlockCommit(blk as Block);
         this.persistHeadAtomic(n);
-        maxApplied = Math.max(maxApplied, n);
-      } catch {
-        // couldn't apply; keep for next boot
-        keep.push(line);
+        applied++;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        keep(index, `commit_failed:${n}:${message}`);
       }
     }
 
-    // Prune WAL best-effort:
-    // - If everything <= head got applied, WAL can be deleted.
-    // - Otherwise rewrite only the kept lines.
+    if (applied > 0) {
+      this._walReplayMetrics.replay_entries_applied_total += applied;
+    }
+
+    const keptLines = lines.filter((_line, index) => keepIndexes.has(index));
+
+    // Prune only records proven already durable or successfully replayed. Any
+    // malformed, gapped, invalid, or conflicting record remains as evidence.
     try {
-      if (keep.length === 0) {
+      if (keptLines.length === 0) {
         fs.unlinkSync(wp);
       } else {
-        atomicWriteText(wp, keep.join("\n") + "\n");
+        atomicWriteText(wp, keptLines.join("\n") + "\n");
         try {
           const fd = fs.openSync(wp, "r");
           try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-20", err); } }
-        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-21", err); }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.recordWalReplayFailure(`wal_fsync_failed:${seg}:${message}`);
+          recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-21", err);
+        }
       }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-22", err); }
-
-    // Noisy logging avoided; callers can inspect head themselves.
-    void maxApplied;
-  
-    if (__wal_applied > 0) this._walReplayMetrics.replay_entries_applied_total += __wal_applied;
-}
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.recordWalReplayFailure(`wal_prune_failed:${seg}:${message}`);
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-22", err);
+    }
+  }
 }
