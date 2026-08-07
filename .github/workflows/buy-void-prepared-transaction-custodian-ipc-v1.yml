@@ -1,0 +1,78 @@
+name: Buy VOID prepared transaction custodian IPC v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "docs/operators/buy-void-prepared-transaction-custodian-ipc-v1.md"
+      - ".github/workflows/buy-void-prepared-transaction-custodian-ipc-v1.yml"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "docs/operators/buy-void-prepared-transaction-custodian-ipc-v1.md"
+      - ".github/workflows/buy-void-prepared-transaction-custodian-ipc-v1.yml"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-prepared-transaction-custodian-ipc-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax-check source-only custodian service
+        run: node --check tools/buy-void-prepared-transaction-custodian-service-v1.mjs
+
+      - name: Prove private IPC custody and crash recovery
+        run: npx tsx scripts/prove_buy_void_prepared_transaction_custodian_ipc_v1.ts
+
+      - name: Preserve PR 1014 custody contract
+        run: npx tsx scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
