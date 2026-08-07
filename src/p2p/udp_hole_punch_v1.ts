@@ -5,7 +5,10 @@ import * as crypto from "node:crypto";
 import * as net from "node:net";
 
 export const VOID_P2P_UDP_HOLE_PUNCH_PROTOCOL_VERSION_V1 = 1;
-export const VOID_P2P_UDP_HOLE_PUNCH_RECOMMENDED_PORT_V1 = 4700;
+export const VOID_P2P_UDP_HOLE_PUNCH_DEFAULT_LOCAL_BIND_PORT_V1 = 0;
+export const VOID_P2P_UDP_HOLE_PUNCH_FIXED_PARTICIPANT_PORT_REQUIRED_V1 = false;
+export const VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MIN_V1 = 49_152;
+export const VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MAX_V1 = 65_535;
 export const VOID_P2P_UDP_HOLE_PUNCH_MIN_START_DELAY_MS_V1 = 25;
 export const VOID_P2P_UDP_HOLE_PUNCH_MAX_START_DELAY_MS_V1 = 2_000;
 export const VOID_P2P_UDP_HOLE_PUNCH_MIN_INTERVAL_MS_V1 = 25;
@@ -78,6 +81,8 @@ export type VoidUdpHolePunchPlanV1 = Readonly<{
 export const VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1 = Object.freeze({
   peer_identity_authenticated_by_punch_packet: false,
   observed_endpoint_defines_node_identity: false,
+  fixed_participant_port_required: false,
+  literal_video_game_port_required: false,
   router_configuration_required: false,
   port_forward_required: false,
   upnp_required: false,
@@ -135,6 +140,13 @@ function publicIp(host: string): boolean {
 
 export function newVoidUdpHolePunchIdV1(): string {
   return crypto.randomBytes(16).toString("hex");
+}
+
+export function isVoidUdpDynamicPrivatePortV1(raw: unknown): boolean {
+  return typeof raw === "number" &&
+    Number.isSafeInteger(raw) &&
+    raw >= VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MIN_V1 &&
+    raw <= VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MAX_V1;
 }
 
 export function normalizeVoidUdpObservedEndpointV1(
