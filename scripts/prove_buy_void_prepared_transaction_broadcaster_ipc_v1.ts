@@ -150,6 +150,19 @@ function accepted(hash: string, provider = "proof-provider-1") {
   };
 }
 
+function unknown(hash: string, provider = "proof-provider-1") {
+  return {
+    ok: true,
+    status: "unknown",
+    transaction_hash: hash,
+    provider_submission_id: provider,
+    definitive_not_submitted: false,
+    submission_call_performed: true,
+    submission_may_have_occurred: true,
+    receipt: null,
+  };
+}
+
 function notSubmitted(hash: string) {
   return {
     ok: true,
@@ -249,8 +262,12 @@ async function main(): Promise<void> {
 
   let submitCalls = 0;
   let inspectCalls = 0;
-  let inspectMode: "not_submitted" | "accepted" | "confirmed" =
-    "confirmed";
+  let inspectMode:
+    | "not_submitted"
+    | "unknown"
+    | "accepted"
+    | "confirmed" = "confirmed";
+  let inspectProvider = "proof-provider-1";
   let faultStage = "";
   let maliciousSubmit = false;
 
@@ -282,14 +299,15 @@ async function main(): Promise<void> {
       assert.equal("raw_signed_transaction" in request, false);
       const hash = String(request.signed_transaction_hash);
       if (inspectMode === "not_submitted") return notSubmitted(hash);
-      if (inspectMode === "accepted") return accepted(hash);
+      if (inspectMode === "unknown") return unknown(hash, inspectProvider);
+      if (inspectMode === "accepted") return accepted(hash, inspectProvider);
       const fixture =
         hash === normal.request.signed_transaction_hash
           ? normal
           : hash === postSubmitCrash.request.signed_transaction_hash
             ? postSubmitCrash
             : preSubmitCrash;
-      return confirmed(fixture);
+      return confirmed(fixture, inspectProvider);
     },
   };
 
@@ -342,13 +360,38 @@ async function main(): Promise<void> {
   );
   assert.equal(submitCalls, 1);
 
+  inspectMode = "unknown";
+  const acceptedDoesNotRegress = await broadcaster.inspect_submission(
+    normal.request as any,
+  );
+  assert.equal(acceptedDoesNotRegress.ok, true);
+  assert.equal(acceptedDoesNotRegress.status, "accepted");
+  assert.equal(inspectCalls, 1);
+  assert.equal(submitCalls, 1);
+
+  inspectMode = "not_submitted";
+  const acceptedNotSubmittedConflict =
+    await broadcaster.inspect_submission(normal.request as any);
+  assert.equal(acceptedNotSubmittedConflict.ok, false);
+  assert.equal(inspectCalls, 2);
+  assert.equal(submitCalls, 1);
+
+  inspectMode = "unknown";
+  inspectProvider = "proof-provider-2";
+  const acceptedProviderConflict =
+    await broadcaster.inspect_submission(normal.request as any);
+  assert.equal(acceptedProviderConflict.ok, false);
+  assert.equal(inspectCalls, 3);
+  assert.equal(submitCalls, 1);
+
   inspectMode = "confirmed";
+  inspectProvider = "proof-provider-1";
   const terminal = await broadcaster.inspect_submission(
     normal.request as any,
   );
   assert.equal(terminal.ok, true);
   assert.equal(terminal.status, "confirmed");
-  assert.equal(inspectCalls, 1);
+  assert.equal(inspectCalls, 4);
   assert.equal(submitCalls, 1);
   assert.equal(JSON.stringify(terminal).includes(normal.raw_signed_transaction), false);
 
@@ -357,7 +400,7 @@ async function main(): Promise<void> {
   );
   assert.equal(terminalDuplicate.ok, true);
   assert.equal(terminalDuplicate.status, "confirmed");
-  assert.equal(inspectCalls, 1);
+  assert.equal(inspectCalls, 4);
 
   const before = await broadcaster.inspect_submission(
     inspectBeforeSubmit.request as any,
@@ -365,7 +408,7 @@ async function main(): Promise<void> {
   assert.equal(before.ok, true);
   assert.equal(before.status, "not_submitted");
   assert.equal(submitCalls, 1);
-  assert.equal(inspectCalls, 1);
+  assert.equal(inspectCalls, 4);
 
   faultStage = "after_intent_before_submit";
   const preCrash = await broadcaster.submit_once(
@@ -380,7 +423,7 @@ async function main(): Promise<void> {
   assert.equal(preRecovered.ok, true);
   assert.equal(preRecovered.status, "not_submitted");
   assert.equal(submitCalls, 1);
-  assert.equal(inspectCalls, 2);
+  assert.equal(inspectCalls, 5);
 
   faultStage = "after_transport_before_outcome";
   const postCrash = await broadcaster.submit_once(
@@ -395,7 +438,7 @@ async function main(): Promise<void> {
   assert.equal(postRecovered.ok, true);
   assert.equal(postRecovered.status, "confirmed");
   assert.equal(submitCalls, 2);
-  assert.equal(inspectCalls, 3);
+  assert.equal(inspectCalls, 6);
 
   maliciousSubmit = true;
   const maliciousResult = await broadcaster.submit_once(
@@ -429,6 +472,7 @@ async function main(): Promise<void> {
     "durable_submission_intent_before_transport: true",
     "submit_reentry_requires_inspection: true",
     "reconciliation_never_calls_submit: true",
+    "monotonic_submission_outcome: true",
     "source-only library; direct CLI activation is intentionally disabled",
   ]) assert.ok(serviceSource.includes(marker), marker);
 
@@ -474,6 +518,10 @@ async function main(): Promise<void> {
   console.log("pre_submit_crash_recovery_submit_calls=0");
   console.log("post_submit_crash_recovery_resubmission=false");
   console.log("terminal_inspection_reuses_durable_outcome=true");
+  console.log("accepted_outcome_regression=false");
+  console.log("accepted_to_not_submitted_conflict=held");
+  console.log("accepted_provider_identity_change=held");
+  console.log("monotonic_submission_outcome=true");
   console.log("secret_bearing_transport_result_returned=false");
   console.log("runtime_route_mount=false");
   console.log("production_transport_use=false");
