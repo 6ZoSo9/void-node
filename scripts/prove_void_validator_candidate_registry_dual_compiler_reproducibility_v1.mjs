@@ -70,6 +70,12 @@ function metadataObject() {
   };
 }
 
+function fixtureMetadataTrailer() {
+  const digest = `5f${"11".repeat(31)}`;
+  const cbor = `a2646970667358221220${digest}64736f6c6343000814`;
+  return `${cbor}${(cbor.length / 2).toString(16).padStart(4, "0")}`;
+}
+
 function syntheticOutput() {
   const abi = [
     {
@@ -112,6 +118,7 @@ function syntheticOutput() {
     "minValidatorStake()": "fe3de339",
     "registerCandidate(address,bytes32,bytes32)": "792bc49b",
   };
+  const trailer = fixtureMetadataTrailer();
   return {
     contracts: {
       [CONTRACT_PATH]: {
@@ -122,14 +129,14 @@ function syntheticOutput() {
           evm: {
             methodIdentifiers,
             bytecode: {
-              object: "6080604052348015600f57600080fd5b506001600055",
+              object: `6080604052348015600f57600080fd5b506001600055${trailer}`,
               opcodes:
                 "PUSH1 0x80 PUSH1 0x40 MSTORE CALLVALUE DUP1 ISZERO PUSH1 0x0F JUMPI PUSH1 0x00 DUP1 REVERT JUMPDEST POP PUSH1 0x01 PUSH1 0x00 SSTORE",
               sourceMap: "0:1:0;1:2:0",
               linkReferences: {},
             },
             deployedBytecode: {
-              object: "60806040526001600055",
+              object: `60806040526001600055${trailer}`,
               opcodes: "PUSH1 0x80 PUSH1 0x40 MSTORE PUSH1 0x01 PUSH1 0x00 SSTORE",
               sourceMap: "0:1:0;1:2:0",
               linkReferences: {},
@@ -191,6 +198,8 @@ assert.equal(
 assert.equal(AUTHORITY_KEYS.length, 18);
 assert.equal(new Set(AUTHORITY_KEYS).size, 18);
 assert.equal(canonicalJson({ b: 2, a: 1 }), '{"a":1,"b":2}');
+assert.equal(fixtureMetadataTrailer().endsWith("0033"), true);
+assert.equal(fixtureMetadataTrailer().includes("5f"), true);
 
 const outputA = syntheticOutput();
 const outputB = clone(outputA);
@@ -207,6 +216,27 @@ assert.equal(parsedA.creation.bytes > 0, true);
 assert.equal(parsedA.runtime.bytes > 0, true);
 assert.equal(parsedA.creation.opcodes.includes("PUSH0"), false);
 assert.equal(parsedA.runtime.opcodes.includes("PUSH0"), false);
+
+const metadataOpcodeFixture = syntheticOutput();
+metadataOpcodeFixture.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.bytecode.opcodes +=
+  " PUSH0";
+metadataOpcodeFixture.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.opcodes +=
+  " PUSH0";
+const metadataOpcodeParsed = parseCompilerOutput(
+  bytes(metadataOpcodeFixture),
+  "metadata_opcode_fixture",
+);
+assert.equal(metadataOpcodeParsed.creation.opcodes.includes("PUSH0"), true);
+assert.equal(metadataOpcodeParsed.runtime.opcodes.includes("PUSH0"), true);
+
+const pushImmediateFixture = syntheticOutput();
+pushImmediateFixture.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object =
+  `605f${pushImmediateFixture.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object}`;
+const pushImmediateParsed = parseCompilerOutput(
+  bytes(pushImmediateFixture),
+  "push_immediate_fixture",
+);
+assert.equal(pushImmediateParsed.runtime.object.startsWith("605f"), true);
 
 const envA = validateCompilerEnvironment(environmentA, "fixture_a");
 const envB = validateCompilerEnvironment(environmentB, "fixture_b");
@@ -285,7 +315,8 @@ function expectHold(code, mutate) {
 
 expectHold("runtime_bytecode_mismatch", (fixture) => {
   const output = syntheticOutput();
-  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object += "00";
+  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object =
+    `00${output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object}`;
   fixture.outputBBytes = bytes(output);
 });
 expectHold("compiler_reported_errors", (fixture) => {
@@ -302,7 +333,21 @@ expectHold("link_references_present", (fixture) => {
 });
 expectHold("push0_opcode_forbidden_for_paris_profile", (fixture) => {
   const output = syntheticOutput();
-  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.bytecode.opcodes += " PUSH0";
+  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.bytecode.object =
+    `5f${output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.bytecode.object}`;
+  fixture.outputABytes = bytes(output);
+});
+expectHold("push0_opcode_forbidden_for_paris_profile", (fixture) => {
+  const output = syntheticOutput();
+  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object =
+    `5f${output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object}`;
+  fixture.outputABytes = bytes(output);
+});
+expectHold("compiler_a_runtime_cbor_metadata_trailer_invalid", (fixture) => {
+  const output = syntheticOutput();
+  const runtime = output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object;
+  output.contracts[CONTRACT_PATH][CONTRACT_NAME].evm.deployedBytecode.object =
+    `${runtime.slice(0, -4)}0032`;
   fixture.outputABytes = bytes(output);
 });
 expectHold("compiler_environments_not_independent", (fixture) => {
@@ -338,6 +383,7 @@ for (const required of [
   "runtime_bytecode_mismatch",
   "compiler_environments_not_independent",
   "push0_opcode_forbidden_for_paris_profile",
+  "cbor_metadata_trailer_invalid",
   "link_references_present",
   "compiler_distribution_trust_accepted: false",
   "creation_bytecode_reviewed_by_zoso: false",
@@ -412,6 +458,9 @@ console.log(
       standard_json_input_canonical_sha256: sha256(canonicalJson(compilerInput)),
       creation_bytecode_sha256: review.artifacts.creation_bytecode_sha256,
       runtime_bytecode_sha256: review.artifacts.runtime_bytecode_sha256,
+      metadata_trailer_push0_ignored=true,
+      executable_push0_rejected: true,
+      push_immediate_5f_accepted: true,
       dual_environment_gate: true,
       compiler_execution_in_tool: false,
       bytecode_accepted: false,
