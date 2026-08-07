@@ -179,6 +179,63 @@ const second = expectHold ? capture(() => store.saveBlock(block)) : null;
 process.stdout.write(JSON.stringify({ first, second }));
 `;
 
+const REPLAY_FAULT_CHILD = String.raw`
+import fsDefault from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import * as path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const root = process.env.VOID_PROOF_ROOT;
+const block = JSON.parse(process.env.VOID_PROOF_BLOCK_JSON || "null");
+const target = path.resolve(process.env.VOID_PROOF_TARGET || ".");
+const sparseEvery = Number(process.env.VOID_PROOF_SPARSE_EVERY || "1");
+
+const originalOpenSync = fsDefault.openSync;
+const originalCloseSync = fsDefault.closeSync;
+const originalFsyncSync = fsDefault.fsyncSync;
+const tracked = new Set();
+
+fsDefault.openSync = function patchedOpenSync(file, ...args) {
+  const fd = originalOpenSync.call(fsDefault, file, ...args);
+  if (typeof file === "string" && path.resolve(file) === target) tracked.add(fd);
+  return fd;
+};
+fsDefault.closeSync = function patchedCloseSync(fd) {
+  try {
+    return originalCloseSync.call(fsDefault, fd);
+  } finally {
+    tracked.delete(fd);
+  }
+};
+fsDefault.fsyncSync = function patchedFsyncSync(fd) {
+  if (tracked.has(fd)) throw new Error("synthetic replay canonical fsync failure");
+  return originalFsyncSync.call(fsDefault, fd);
+};
+
+syncBuiltinESMExports();
+
+const segStoreUrl = pathToFileURL(path.join(process.cwd(), "dist", "chain", "seg_store.js")).href;
+const { SegStore } = await import(segStoreUrl);
+const store = new SegStore(root, { sparseEvery });
+
+let writeAfterReplay;
+try {
+  store.saveBlock(block);
+  writeAfterReplay = { ok: true, message: "" };
+} catch (error) {
+  writeAfterReplay = {
+    ok: false,
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+process.stdout.write(JSON.stringify({
+  head: store.loadHeadNumber(),
+  metrics: store.getWalReplayMetrics(),
+  writeAfterReplay,
+}));
+`;
+
 function runFaultedSave({ root, block, fault, target, sparseEvery = 1, expectHold = false }) {
   const child = spawnSync(process.execPath, ["--input-type=module", "-e", FAULT_CHILD], {
     cwd: process.cwd(),
@@ -203,11 +260,45 @@ function runFaultedSave({ root, block, fault, target, sparseEvery = 1, expectHol
   return JSON.parse(child.stdout.trim());
 }
 
+function runFaultedReplay({ root, block, target, sparseEvery = 1 }) {
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", REPLAY_FAULT_CHILD], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      VOID_PROOF_ROOT: root,
+      VOID_PROOF_BLOCK_JSON: JSON.stringify(block),
+      VOID_PROOF_TARGET: target,
+      VOID_PROOF_SPARSE_EVERY: String(sparseEvery),
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(
+    child.status,
+    0,
+    `replay fault child failed: status=${child.status}\nstdout=${child.stdout}\nstderr=${child.stderr}`,
+  );
+  assert.ok(child.stdout.trim(), `replay fault child returned no JSON; stderr=${child.stderr}`);
+  return JSON.parse(child.stdout.trim());
+}
+
 function expectCanonicalFaultResult(result, label) {
   assert.equal(result.first?.ok, false, `${label}: first write unexpectedly succeeded`);
   assert.match(String(result.first?.message || ""), DURABILITY, `${label}: wrong first failure`);
   assert.equal(result.second?.ok, false, `${label}: same-instance retry unexpectedly succeeded`);
   assert.match(String(result.second?.message || ""), DURABILITY, `${label}: write hold missing`);
+}
+
+function expectReplayDurabilityFault(result, label) {
+  assert.equal(result.head, 0, `${label}: replay advanced head across failed canonical fsync`);
+  assert.equal(result.metrics?.replay_last_ok, 0, `${label}: replay metrics did not expose failure`);
+  assert.match(
+    String(result.metrics?.replay_last_error || ""),
+    /head_heal_durability_failed:1:VOID_SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1/,
+    `${label}: replay failure did not retain the canonical durability reason`,
+  );
+  assert.equal(result.writeAfterReplay?.ok, false, `${label}: writes remained enabled after uncertain replay durability`);
+  assert.match(String(result.writeAfterReplay?.message || ""), DURABILITY, `${label}: replay write hold missing`);
 }
 
 function proveOrdinaryCommitDurability() {
@@ -280,6 +371,27 @@ function proveVisibleUnconfirmedFrameHealsOnRestartWithoutDuplicate() {
     assertExactlyBlocks(root, [0, 1]);
     assert.equal(derivedSnapshot(root), beforeDerived, "derived state must not advance before canonical durability");
     assert.ok(fs.existsSync(walPath(root)), "WAL intent must remain for restart recovery");
+
+    const replayFileFault = runFaultedReplay({
+      root,
+      block: block1,
+      target: blocksPath(root),
+      sparseEvery: 1,
+    });
+    expectReplayDurabilityFault(replayFileFault, "restart blocks.bin fsync failure");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8")).head, 0);
+    assert.ok(fs.existsSync(walPath(root)), "WAL must survive replay blocks.bin fsync failure");
+
+    const replayDirFault = runFaultedReplay({
+      root,
+      block: block1,
+      target: segDir(root),
+      sparseEvery: 1,
+    });
+    expectReplayDurabilityFault(replayDirFault, "restart segment-directory fsync failure");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, "heads.json"), "utf8")).head, 0);
+    assert.ok(fs.existsSync(walPath(root)), "WAL must survive replay segment-directory fsync failure");
+    assertExactlyBlocks(root, [0, 1]);
 
     const reopened = new SegStore(root, { sparseEvery: 1 });
     assert.equal(reopened.loadHeadNumber(), 1);
@@ -425,6 +537,10 @@ proveDerivedMetaFailureDoesNotOverrideCanonicalTruth();
 console.log("canonical_append_failure_head_advanced=false");
 console.log("canonical_file_fsync_failure_head_advanced=false");
 console.log("canonical_segment_directory_fsync_failure_head_advanced=false");
+console.log("replay_visible_frame_requires_file_fsync=true");
+console.log("replay_visible_frame_requires_directory_fsync=true");
+console.log("replay_fsync_failure_head_advanced=false");
+console.log("replay_fsync_failure_write_hold=true");
 console.log("same_instance_retry_after_uncertain_commit_allowed=false");
 console.log("surviving_unconfirmed_frame_duplicated_on_restart=false");
 console.log("lost_unconfirmed_frame_replayed_exactly_once=true");
