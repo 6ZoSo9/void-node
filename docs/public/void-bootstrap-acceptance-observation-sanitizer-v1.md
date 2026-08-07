@@ -34,6 +34,12 @@ assume `txroot_live=1` during early startup before a real txroot3 success has
 been observed. That state must never satisfy the final bootstrap acceptance
 proof.
 
+The current ready-bridge producer emits `__ready_bridge_boot_grace = 1` only
+while that startup grace is being assumed. Canonical non-grace output omits the
+field entirely. Final acceptance therefore requires the boot-grace marker to be
+absent. Any present value is rejected, including type-confused or impossible
+forms such as `0`, `"1"`, booleans, or `null`.
+
 The sanitized output retains only readiness facts. Reasons, private notes, and
 other incidental fields are discarded before canonical hashing.
 

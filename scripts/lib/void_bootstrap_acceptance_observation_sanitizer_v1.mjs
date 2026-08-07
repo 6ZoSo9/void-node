@@ -103,9 +103,18 @@ export function sanitizeVoidBootstrapReadyObservationV1(raw) {
     throw new Error("ready flag must be true for bootstrap acceptance");
   }
 
-  if (ready.__ready_bridge_boot_grace === 1) {
+  // Current ready-bridge v12 emits this marker only while boot-grace is
+  // actively being assumed; canonical non-grace output omits the field.
+  // Final acceptance therefore rejects any present marker, including
+  // type-confused or impossible values, rather than treating non-1 as safe.
+  if (
+    Object.prototype.hasOwnProperty.call(
+      ready,
+      "__ready_bridge_boot_grace",
+    )
+  ) {
     throw new Error(
-      "boot-grace readiness cannot satisfy bootstrap acceptance",
+      "boot-grace marker must be absent for bootstrap acceptance",
     );
   }
 

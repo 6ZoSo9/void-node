@@ -113,8 +113,26 @@ const bootGrace = readyFixture();
 bootGrace.__ready_bridge_boot_grace = 1;
 assert.throws(
   () => sanitizeVoidBootstrapReadyObservationV1(bootGrace),
-  /boot-grace readiness cannot satisfy/,
+  /boot-grace marker must be absent/,
 );
+
+for (const malformedBootGraceMarker of [
+  0,
+  "1",
+  "0",
+  true,
+  false,
+  null,
+  2,
+]) {
+  const malformedBootGrace = readyFixture();
+  malformedBootGrace.__ready_bridge_boot_grace =
+    malformedBootGraceMarker;
+  assert.throws(
+    () => sanitizeVoidBootstrapReadyObservationV1(malformedBootGrace),
+    /boot-grace marker must be absent/,
+  );
+}
 
 const unseenTxroot = readyFixture();
 unseenTxroot.__ready_bridge.txroot3_seen_ok = 0;
@@ -335,6 +353,8 @@ console.log("ready_head_positive_required=true");
 console.log("ready_gap_zero_required=true");
 console.log("ready_txroot_live_required=true");
 console.log("boot_grace_ready_accepted=false");
+console.log("boot_grace_marker_must_be_absent=true");
+console.log("type_confused_boot_grace_marker_accepted=false");
 console.log("txroot3_seen_ok_required=true");
 console.log("txroot3_ok_required=true");
 console.log("txroot3_fresh_within_5000ms_required=true");
