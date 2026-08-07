@@ -602,7 +602,10 @@ function normalizeForBuild(raw) {
   return value;
 }
 
-export function buildVoidBootstrapExternalAcceptanceReceiptV1(rawBody) {
+export function buildVoidBootstrapExternalAcceptanceReceiptV1(
+  rawBody,
+  { verifyExternalEvidence = null } = {},
+) {
   const body = normalizeForBuild(rawBody);
   const receipt = Object.freeze({
     ...body,
@@ -612,12 +615,15 @@ export function buildVoidBootstrapExternalAcceptanceReceiptV1(rawBody) {
       "receipt_id",
     ),
   });
-  validateVoidBootstrapExternalAcceptanceReceiptV1(receipt);
+  validateVoidBootstrapExternalAcceptanceReceiptV1(receipt, {
+    verifyExternalEvidence,
+  });
   return receipt;
 }
 
 export function validateVoidBootstrapExternalAcceptanceReceiptV1(
   rawReceipt,
+  { verifyExternalEvidence = null } = {},
 ) {
   const receipt = exactKeys(
     structuredClone(rawReceipt),
@@ -697,6 +703,29 @@ export function validateVoidBootstrapExternalAcceptanceReceiptV1(
   );
   if (receipt.receipt_id !== expectedId) {
     throw new Error("acceptance receipt ID does not match content");
+  }
+
+  // The evidence_mode label is not evidence. External-machine acceptance must
+  // fail closed unless a caller injects a separately reviewed verifier for the
+  // bound source observations. Synthetic fixtures remain self-contained.
+  if (receipt.evidence_mode === "external_machine_observation") {
+    if (typeof verifyExternalEvidence !== "function") {
+      throw new Error(
+        "external machine observation requires an injected evidence verifier",
+      );
+    }
+    let verified = false;
+    try {
+      verified =
+        verifyExternalEvidence(Object.freeze(structuredClone(receipt))) === true;
+    } catch {
+      verified = false;
+    }
+    if (!verified) {
+      throw new Error(
+        "external machine observation evidence verifier did not verify receipt",
+      );
+    }
   }
 
   return Object.freeze(structuredClone(receipt));

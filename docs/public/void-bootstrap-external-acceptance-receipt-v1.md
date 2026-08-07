@@ -140,3 +140,17 @@ A real sanitized acceptance run must use:
 `external_machine_observation`
 
 Changing evidence mode changes the content-addressed receipt ID.
+
+### External observation verification boundary
+
+The `external_machine_observation` label is not itself evidence.
+
+The generic builder and validator therefore fail closed for that mode unless the
+caller injects a separately reviewed external-evidence verifier. That verifier
+is responsible for checking the source observations bound by the receipt's
+SHA-256 fields before returning `true`.
+
+This prevents a synthetic fixture from being relabeled as an external-machine
+acceptance receipt merely by changing `evidence_mode` and recomputing
+`receipt_id`. The source contract does not implement network collection or
+choose an external trust authority.

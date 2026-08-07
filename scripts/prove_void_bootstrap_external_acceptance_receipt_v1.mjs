@@ -162,6 +162,55 @@ const reordered = build((body) => {
 });
 assert.equal(reordered.receipt_id, receipt.receipt_id);
 
+// Evidence mode is a trust transition, not a self-asserted label. A synthetic
+// caller must not be able to relabel its fixture as external observation and
+// obtain a generally-valid acceptance receipt without an injected verifier.
+const externalBody = baseBody();
+externalBody.evidence_mode = "external_machine_observation";
+
+assert.throws(
+  () => buildVoidBootstrapExternalAcceptanceReceiptV1(externalBody),
+  /requires an injected evidence verifier/,
+);
+
+const externalReceipt = buildVoidBootstrapExternalAcceptanceReceiptV1(
+  externalBody,
+  {
+    verifyExternalEvidence(candidate) {
+      return (
+        candidate.evidence_mode === "external_machine_observation" &&
+        candidate.repository.owner_repo === "6ZoSo9/void-node"
+      );
+    },
+  },
+);
+
+assert.notEqual(externalReceipt.receipt_id, receipt.receipt_id);
+
+assert.throws(
+  () => validateVoidBootstrapExternalAcceptanceReceiptV1(externalReceipt),
+  /requires an injected evidence verifier/,
+);
+
+assert.throws(
+  () =>
+    validateVoidBootstrapExternalAcceptanceReceiptV1(externalReceipt, {
+      verifyExternalEvidence() {
+        return false;
+      },
+    }),
+  /evidence verifier did not verify receipt/,
+);
+
+assert.equal(
+  validateVoidBootstrapExternalAcceptanceReceiptV1(externalReceipt, {
+    verifyExternalEvidence(candidate) {
+      return candidate.receipt_id === externalReceipt.receipt_id;
+    },
+  }).evidence_mode,
+  "external_machine_observation",
+);
+
 expectReject(
   (body) => {
     body.first_node.head = 0;
@@ -322,6 +371,9 @@ console.log("dns_provider_required=false");
 console.log("tunnel_provider_required=false");
 console.log("certificate_authority_is_network_identity=false");
 console.log("evidence_sha256_bound=true");
+console.log("external_machine_observation_self_assertion_accepted=false");
+console.log("external_machine_observation_requires_injected_evidence_verifier=true");
+console.log("external_evidence_verifier_rejection_fails_closed=true");
 console.log("live_network_calls_performed=false");
 console.log("external_machine_acceptance_performed=false");
 console.log("issue_1005_closure_claimed=false");
