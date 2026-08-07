@@ -3,11 +3,15 @@ import * as dgram from "node:dgram";
 
 import {
   VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1,
-  VOID_P2P_UDP_HOLE_PUNCH_RECOMMENDED_PORT_V1,
+  VOID_P2P_UDP_HOLE_PUNCH_DEFAULT_LOCAL_BIND_PORT_V1,
+  VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MAX_V1,
+  VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MIN_V1,
+  VOID_P2P_UDP_HOLE_PUNCH_FIXED_PARTICIPANT_PORT_REQUIRED_V1,
   createVoidUdpHolePunchPacketV1,
   createVoidUdpHolePunchPlanV1,
   decodeVoidUdpHolePunchPacketV1,
   encodeVoidUdpHolePunchPacketV1,
+  isVoidUdpDynamicPrivatePortV1,
   newVoidUdpHolePunchIdV1,
   normalizeVoidUdpObservedEndpointV1,
   voidUdpHolePunchPacketMatchesPlanV1,
@@ -21,7 +25,7 @@ function bindUdp4(socket: dgram.Socket): Promise<dgram.AddressInfo> {
   return new Promise((resolve, reject) => {
     const onError = (error: Error) => reject(error);
     socket.once("error", onError);
-    socket.bind(0, "127.0.0.1", () => {
+    socket.bind(VOID_P2P_UDP_HOLE_PUNCH_DEFAULT_LOCAL_BIND_PORT_V1, "127.0.0.1", () => {
       socket.off("error", onError);
       const address = socket.address();
       assert.equal(typeof address, "object");
@@ -45,25 +49,33 @@ function send(
 }
 
 async function main(): Promise<void> {
-  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_RECOMMENDED_PORT_V1, 4700);
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_DEFAULT_LOCAL_BIND_PORT_V1, 0);
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_FIXED_PARTICIPANT_PORT_REQUIRED_V1, false);
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MIN_V1, 49_152);
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_DYNAMIC_PRIVATE_PORT_MAX_V1, 65_535);
+  assert.equal(isVoidUdpDynamicPrivatePortV1(49_152), true);
+  assert.equal(isVoidUdpDynamicPrivatePortV1(65_535), true);
+  assert.equal(isVoidUdpDynamicPrivatePortV1(47_00), false);
+  assert.equal(isVoidUdpDynamicPrivatePortV1(30_74), false);
+  assert.equal(isVoidUdpDynamicPrivatePortV1(0), false);
 
   assert.equal(
-    normalizeVoidUdpObservedEndpointV1("1.1.1.1:4700"),
-    "1.1.1.1:4700",
+    normalizeVoidUdpObservedEndpointV1("1.1.1.1:52341"),
+    "1.1.1.1:52341",
   );
   assert.equal(
-    normalizeVoidUdpObservedEndpointV1("[2606:4700:4700::1111]:4700"),
-    "[2606:4700:4700::1111]:4700",
+    normalizeVoidUdpObservedEndpointV1("[2606:4700:4700::1111]:61234"),
+    "[2606:4700:4700::1111]:61234",
   );
-  assert.equal(normalizeVoidUdpObservedEndpointV1("127.0.0.1:4700"), undefined);
-  assert.equal(normalizeVoidUdpObservedEndpointV1("10.0.0.1:4700"), undefined);
-  assert.equal(normalizeVoidUdpObservedEndpointV1("100.64.0.1:4700"), undefined);
-  assert.equal(normalizeVoidUdpObservedEndpointV1("example.com:4700"), undefined);
-  assert.equal(normalizeVoidUdpObservedEndpointV1("2606:4700:4700::1111:4700"), undefined);
-  assert.equal(normalizeVoidUdpObservedEndpointV1("[::1]:4700"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("127.0.0.1:52341"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("10.0.0.1:52341"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("100.64.0.1:52341"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("example.com:52341"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("2606:4700:4700::1111:61234"), undefined);
+  assert.equal(normalizeVoidUdpObservedEndpointV1("[::1]:52341"), undefined);
   assert.equal(
-    normalizeVoidUdpObservedEndpointV1("127.0.0.1:4700", true),
-    "127.0.0.1:4700",
+    normalizeVoidUdpObservedEndpointV1("127.0.0.1:52341", true),
+    "127.0.0.1:52341",
   );
 
   const sessionId = newVoidUdpHolePunchIdV1();
@@ -94,21 +106,21 @@ async function main(): Promise<void> {
     sessionId,
     localNodeId: NODE_A,
     peerNodeId: NODE_B,
-    peerObservedEndpoint: "1.1.1.1:4700",
+    peerObservedEndpoint: "1.1.1.1:52341",
     startDelayMs: 100,
     burstIntervalMs: 75,
     burstCount: 8,
     attemptTimeoutMs: 1_000,
   });
   assert.deepEqual(publicPlan.send_offsets_ms, [100, 175, 250, 325, 400, 475, 550, 625]);
-  assert.equal(publicPlan.peer_observed_endpoint, "1.1.1.1:4700");
+  assert.equal(publicPlan.peer_observed_endpoint, "1.1.1.1:52341");
 
   assert.throws(() =>
     createVoidUdpHolePunchPlanV1({
       sessionId,
       localNodeId: NODE_A,
       peerNodeId: NODE_B,
-      peerObservedEndpoint: "10.0.0.1:4700",
+      peerObservedEndpoint: "10.0.0.1:52341",
     }),
   );
   assert.throws(() =>
@@ -116,7 +128,7 @@ async function main(): Promise<void> {
       sessionId,
       localNodeId: NODE_A,
       peerNodeId: NODE_A,
-      peerObservedEndpoint: "1.1.1.1:4700",
+      peerObservedEndpoint: "1.1.1.1:52341",
     }),
   );
   assert.throws(() =>
@@ -124,7 +136,7 @@ async function main(): Promise<void> {
       sessionId,
       localNodeId: NODE_A,
       peerNodeId: NODE_B,
-      peerObservedEndpoint: "1.1.1.1:4700",
+      peerObservedEndpoint: "1.1.1.1:52341",
       startDelayMs: 500,
       burstIntervalMs: 500,
       burstCount: 16,
@@ -139,6 +151,10 @@ async function main(): Promise<void> {
       bindUdp4(socketA),
       bindUdp4(socketB),
     ]);
+
+    assert(boundA.port > 0);
+    assert(boundB.port > 0);
+    assert.notEqual(boundA.port, boundB.port);
 
     const endpointA = `127.0.0.1:${boundA.port}`;
     const endpointB = `127.0.0.1:${boundB.port}`;
@@ -235,6 +251,8 @@ async function main(): Promise<void> {
     VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.observed_endpoint_defines_node_identity,
     false,
   );
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.fixed_participant_port_required, false);
+  assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.literal_video_game_port_required, false);
   assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.router_configuration_required, false);
   assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.port_forward_required, false);
   assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.upnp_required, false);
@@ -244,8 +262,11 @@ async function main(): Promise<void> {
   assert.equal(VOID_P2P_UDP_HOLE_PUNCH_AUTHORITY_V1.wallet_signer_validator_wc_money_authority, 0);
 
   console.log("udp_transport_foundation=true");
-  console.log("recommended_udp_port=4700");
+  console.log("default_local_udp_bind_port=0");
+  console.log("fixed_participant_udp_port_required=false");
+  console.log("dynamic_private_udp_port_range=49152-65535");
   console.log("literal_video_game_port_required=false");
+  console.log("explicit_udp_port_override_allowed=true");
   console.log("outbound_udp_mapping_strategy=true");
   console.log("simultaneous_udp_send_receive_proven=true");
   console.log("same_bound_udp_socket_source_port_preserved=true");
