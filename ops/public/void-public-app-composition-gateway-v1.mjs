@@ -200,6 +200,73 @@ const PUBLIC_NODE_WELL_KNOWN_PATHS = new Set([
   "/.well-known/void-public-node.json",
   "/.well-known/void-public-node.schema.json",
 ]);
+
+// VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1
+const VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_ORIGIN =
+  "https://voidchain.org";
+const VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_PATHS = new Set([
+  "/__void/ready.json",
+  "/blocks/latest/number2.json",
+  "/.well-known/void-public-node.json",
+  "/public-node/route-index.json",
+  "/version",
+  "/public-node",
+  "/public-node/",
+]);
+
+function bindVoidchainOrgPublicReadCorsV1(req, res) {
+  const method = String(req.method || "").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return;
+  }
+
+  const origin = String(req.headers.origin || "");
+  if (origin !== VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_ORIGIN) {
+    return;
+  }
+
+  let pathname = "";
+  try {
+    pathname = new URL(
+      req.url || "/",
+      "http://voidchain-public-read-cors.local",
+    ).pathname;
+  } catch {
+    return;
+  }
+
+  if (!VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_PATHS.has(pathname)) {
+    return;
+  }
+
+  res.__voidchainOrgPublicReadCorsV1 = true;
+}
+
+function applyVoidchainOrgPublicReadCorsV1(res, headers) {
+  if (res.__voidchainOrgPublicReadCorsV1 !== true) {
+    return;
+  }
+
+  headers["access-control-allow-origin"] =
+    VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_ORIGIN;
+  headers["x-void-public-read-cors"] = "voidchain-org-v1";
+
+  const varyValues = String(headers.vary || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (
+    !varyValues.some(
+      (value) => value.toLowerCase() === "origin",
+    )
+  ) {
+    varyValues.push("Origin");
+  }
+
+  headers.vary = varyValues.join(", ");
+}
+
 const PUBLIC_DISCOVERY_PACK_MARKER = "VOID_PUBLIC_DISCOVERY_PACK_V1";
 const PUBLIC_DISCOVERY_ROOT = String(
   process.env.VOID_PUBLIC_DISCOVERY_ROOT || "",
@@ -1430,6 +1497,7 @@ function send(res, status, headers, body, method = "GET") {
     "x-void-public-app-composition": "v1",
     ...headers,
   };
+  applyVoidchainOrgPublicReadCorsV1(res, finalHeaders);
   if (method !== "HEAD") finalHeaders["content-length"] = String(value.length);
   res.writeHead(status, finalHeaders);
   if (method === "HEAD") return res.end();
@@ -1789,6 +1857,7 @@ async function proxy(
 }
 
 const server = http.createServer(async (req, res) => {
+  bindVoidchainOrgPublicReadCorsV1(req, res);
 
   // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_ROUTE
   try {
