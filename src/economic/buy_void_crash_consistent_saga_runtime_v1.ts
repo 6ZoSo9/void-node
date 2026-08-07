@@ -1201,21 +1201,42 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
           dependencies: { custodian },
         } as RunBuyVoidSagaPreparedTransactionInputV1),
       );
+      if (!appliedDecision) {
+        throw new Error("prepared_transaction_apply_decision_missing");
+      }
+      if (appliedDecision.ok !== true) {
+        const delegatedReason =
+          `delegated_prepared_transaction_held:${
+            text(appliedDecision.reason) || "unknown"
+          }`;
+        return res.status(responseStatus(delegatedReason)).json({
+          marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+          version: 1,
+          ok: false,
+          error: "crash_consistent_saga_runtime_held",
+          reason: delegatedReason,
+          request_id: requestId,
+          saga_id: sagaId,
+          attempt_id: attemptId,
+          mutation_performed:
+            appliedDecision.mutation_performed === true,
+          external_custodian_signing_performed:
+            appliedDecision.external_signing_performed === true,
+          reconciliation_required:
+            appliedDecision.reconciliation_required === true,
+          automatic_retry: false,
+          transaction_broadcast_performed: false,
+          money_movement_performed: false,
+          zero_money_authority: true,
+        });
+      }
       if (
-        !appliedDecision ||
-        appliedDecision.ok !== true ||
         appliedDecision.applied !== true ||
         !["prepared", "duplicate"].includes(
           text(appliedDecision.status),
         )
       ) {
-        throw new Error(
-          `delegated_prepared_transaction_held:${
-            text(appliedDecision?.reason) ||
-            text(appliedDecision?.status) ||
-            "unknown"
-          }`,
-        );
+        throw new Error("prepared_transaction_apply_binding_conflict");
       }
       if (
         text(appliedDecision.attempt_id).toLowerCase() !==
