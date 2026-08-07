@@ -105,6 +105,111 @@ function normalizeHex(raw, code, { allowEmpty = false } = {}) {
   return value;
 }
 
+function readCborLength(buffer, offset, expectedMajorType, code) {
+  if (!Buffer.isBuffer(buffer) || offset < 0 || offset >= buffer.length) fail(code);
+  const initial = buffer[offset];
+  if (initial >> 5 !== expectedMajorType) fail(code);
+  const additional = initial & 0x1f;
+  if (additional < 24) return { length: additional, offset: offset + 1 };
+  if (additional === 24) {
+    if (offset + 1 >= buffer.length) fail(code);
+    return { length: buffer[offset + 1], offset: offset + 2 };
+  }
+  if (additional === 25) {
+    if (offset + 2 >= buffer.length) fail(code);
+    return { length: buffer.readUInt16BE(offset + 1), offset: offset + 3 };
+  }
+  fail(code);
+}
+
+function parseExpectedSolidityMetadataCbor(buffer, code) {
+  let offset = 0;
+  const map = readCborLength(buffer, offset, 5, code);
+  offset = map.offset;
+  const entries = {};
+  for (let index = 0; index < map.length; index += 1) {
+    const keyLength = readCborLength(buffer, offset, 3, code);
+    offset = keyLength.offset;
+    if (offset + keyLength.length > buffer.length) fail(code);
+    const key = buffer.subarray(offset, offset + keyLength.length).toString("utf8");
+    offset += keyLength.length;
+    if (Object.hasOwn(entries, key) || !["ipfs", "solc"].includes(key)) fail(code);
+    const valueLength = readCborLength(buffer, offset, 2, code);
+    offset = valueLength.offset;
+    if (offset + valueLength.length > buffer.length) fail(code);
+    entries[key] = Buffer.from(buffer.subarray(offset, offset + valueLength.length));
+    offset += valueLength.length;
+  }
+  if (
+    offset !== buffer.length ||
+    !Buffer.isBuffer(entries.ipfs) ||
+    entries.ipfs.length !== 34 ||
+    entries.ipfs[0] !== 0x12 ||
+    entries.ipfs[1] !== 0x20 ||
+    !Buffer.isBuffer(entries.solc) ||
+    !entries.solc.equals(Buffer.from([0, 8, 20]))
+  ) {
+    fail(code);
+  }
+}
+
+function executableBytecodeWithoutSolidityMetadata(
+  bytecodeHex,
+  label,
+  { metadataRequired = false } = {},
+) {
+  const buffer = Buffer.from(bytecodeHex, "hex");
+  const code = `${label}_cbor_metadata_trailer_invalid`;
+  if (buffer.length < 3) {
+    if (metadataRequired) fail(code);
+    return bytecodeHex;
+  }
+  const metadataBytes = buffer.readUInt16BE(buffer.length - 2);
+  const metadataStart = buffer.length - 2 - metadataBytes;
+  if (metadataBytes <= 0 || metadataStart < 0) {
+    if (metadataRequired) fail(code);
+    return bytecodeHex;
+  }
+  const metadata = buffer.subarray(metadataStart, buffer.length - 2);
+  try {
+    parseExpectedSolidityMetadataCbor(metadata, code);
+  } catch (error) {
+    if (metadataRequired) throw error;
+    return bytecodeHex;
+  }
+  return buffer.subarray(0, metadataStart).toString("hex");
+}
+
+function assertParisExecutableHasNoPush0(
+  bytecodeHex,
+  label,
+  { metadataRequired = false } = {},
+) {
+  const executable = executableBytecodeWithoutSolidityMetadata(bytecodeHex, label, {
+    metadataRequired,
+  });
+  const byteLength = executable.length / 2;
+  for (let byteOffset = 0; byteOffset < byteLength; byteOffset += 1) {
+    const opcode = Number.parseInt(
+      executable.slice(byteOffset * 2, byteOffset * 2 + 2),
+      16,
+    );
+    if (opcode === 0x5f) {
+      fail("push0_opcode_forbidden_for_paris_profile", undefined, {
+        label,
+        byte_offset: byteOffset,
+      });
+    }
+    if (opcode >= 0x60 && opcode <= 0x7f) {
+      const immediateBytes = opcode - 0x5f;
+      if (byteOffset + immediateBytes >= byteLength) {
+        fail(`${label}_truncated_push_immediate`);
+      }
+      byteOffset += immediateBytes;
+    }
+  }
+}
+
 function regularFile(file, maximumBytes, code) {
   let stats;
   try {
@@ -258,19 +363,20 @@ export function parseCompilerOutput(bytes, label = "compiler_output") {
     8 * 1024 * 1024,
     `${label}_runtime_opcodes_invalid`,
   );
-  if (/\bPUSH0\b/.test(creationOpcodes) || /\bPUSH0\b/.test(runtimeOpcodes)) {
-    fail("push0_opcode_forbidden_for_paris_profile");
-  }
+  const { metadata, parsed: metadataObject } = parseMetadata(
+    contract.metadata,
+    `${label}_metadata_invalid`,
+  );
+  assertParisExecutableHasNoPush0(creationObject, `${label}_creation`);
+  assertParisExecutableHasNoPush0(runtimeObject, `${label}_runtime`, {
+    metadataRequired: metadataObject?.settings?.metadata?.appendCBOR === true,
+  });
   if (
     containsReferenceEntries(bytecode.linkReferences) ||
     containsReferenceEntries(deployedBytecode.linkReferences)
   ) {
     fail("link_references_present");
   }
-  const { metadata, parsed: metadataObject } = parseMetadata(
-    contract.metadata,
-    `${label}_metadata_invalid`,
-  );
 
   return {
     raw_sha256: sha256(bytes),
@@ -540,8 +646,8 @@ export function reviewDualCompilerOutputs({
       exact_compiler_release: true,
       zero_compiler_errors: true,
       zero_link_references: true,
-      push0_absent_from_creation_opcodes: true,
-      push0_absent_from_runtime_opcodes: true,
+      push0_absent_from_creation_executable_bytecode: true,
+      push0_absent_from_runtime_executable_bytecode: true,
       creation_bytecode_exact_match: true,
       runtime_bytecode_exact_match: true,
       creation_opcodes_exact_match: true,
