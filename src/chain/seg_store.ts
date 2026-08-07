@@ -729,6 +729,39 @@ export class SegStore {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
+
+        // A physically readable frame can still be only page-cache-visible after
+        // the previous process failed before confirming canonical fsync. Rebuild
+        // the same file + directory durability boundary before head truth moves.
+        try {
+          const { dir, bin } = this.segPaths(seg);
+          assertVoidSegStoreRegularFileV1(this.root, bin, false);
+          let phase = "replay_blocks_file_fsync";
+          try {
+            const fd = fs.openSync(bin, "r");
+            try {
+              fs.fsyncSync(fd);
+            } finally {
+              try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-file-close", err); }
+            }
+
+            phase = "replay_segment_directory_fsync";
+            assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: false });
+            const dfd = fs.openSync(dir, "r");
+            try {
+              fs.fsyncSync(dfd);
+            } finally {
+              try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-directory-close", err); }
+            }
+          } catch (err) {
+            throw this.canonicalCommitDurabilityFailure(blk as Block, seg, phase, err);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          keep(index, `head_heal_durability_failed:${n}:${message}`);
+          continue;
+        }
+
         try {
           this.persistHeadAtomic(n);
           applied++;
