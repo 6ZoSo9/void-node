@@ -6,6 +6,7 @@ on:
       - ".github/workflows/buy-void-saga-broadcast-reconciliation-v1.yml"
       - "docs/operators/buy-void-saga-broadcast-reconciliation-v1.md"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_evidence_read_only_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
       - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
@@ -22,6 +23,7 @@ on:
       - ".github/workflows/buy-void-saga-broadcast-reconciliation-v1.yml"
       - "docs/operators/buy-void-saga-broadcast-reconciliation-v1.md"
       - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_evidence_read_only_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
       - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
       - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
@@ -63,6 +65,9 @@ jobs:
 
       - name: Prove write-ahead broadcast and restart reconciliation
         run: npx tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
+
+      - name: Prove broadcast evidence reads are non-mutating
+        run: npx tsx scripts/prove_buy_void_saga_broadcast_evidence_read_only_v1.ts
 
       - name: Typecheck repository
         run: npm run typecheck
