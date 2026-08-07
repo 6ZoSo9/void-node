@@ -1,0 +1,78 @@
+name: Buy VOID saga prepared transaction custody v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-saga-prepared-transaction-custody-v1.yml"
+      - "docs/operators/buy-void-saga-prepared-transaction-custody-v1.md"
+      - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_saga_prepared_transaction_coordinator_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_native_execution_nonce_fee_planner_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-saga-prepared-transaction-custody-v1.yml"
+      - "docs/operators/buy-void-saga-prepared-transaction-custody-v1.md"
+      - "scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_saga_prepared_transaction_coordinator_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_native_execution_nonce_fee_planner_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-saga-prepared-transaction-custody-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove crash-consistent prepared transaction custody
+        run: |
+          npx tsx scripts/prove_buy_void_prepared_transaction_nonce_allocation_lock_v1.ts
+          npx tsx scripts/prove_buy_void_saga_prepared_transaction_custody_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
