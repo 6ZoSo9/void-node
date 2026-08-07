@@ -252,10 +252,14 @@ for (const required of [
   "if (msg.value < minValidatorStake) revert StakeTooLow();",
   "state: ValidatorState.Candidate",
   "function moveToWaiting(address candidateOwner) external onlyOwner",
-  "function markActiveBatch(address[] calldata owners) external onlyOwner",
 ]) {
   assert.ok(candidateContract.includes(required), `candidate contract missing ${required}`);
 }
+assert.match(
+  candidateContract,
+  /function\s+markActiveBatch\s*\(\s*address\[\]\s+calldata\s+owners\s*\)\s+external\s+onlyOwner/,
+  "candidate contract missing markActiveBatch(address[] calldata owners) external onlyOwner",
+);
 
 const workflow = read(".github/workflows/public-earn-validator-onboarding-v1.yml");
 for (const required of [
