@@ -34,7 +34,7 @@ jobs:
           set -Eeuo pipefail
 
           FEATURE='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
-          PREVIOUS='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'
+          PREVIOUS='5506e5f35a2c12abba907393349ba3a59418ae6e'
           PARENT='29b8da4f1d10dfd703eae4334d95506709f2b03b'
           TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
           CONTROLLER='.github/workflows/void-pr1096-current-parent-reconcile-controller-v1.yml'
@@ -57,11 +57,31 @@ jobs:
           start = text.index(run_marker, start) + len(run_marker)
           script = textwrap.dedent(text[start:])
 
+          base_scope_old = '''BASE_SCOPE="$(git diff --name-only "$EXPECTED_PREVIOUS_BASE" "$EXPECTED_BASE")"
+EXPECTED_BASE_SCOPE="$(printf '%s\\n' \\
+  '.github/workflows/void-p2p-udp-swarm-authenticated-control-adapter-v1.yml' \\
+  'docs/public/void-p2p-udp-swarm-authenticated-control-adapter-v1.md' \\
+  'scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts' \\
+  'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts')"
+test "$BASE_SCOPE" = "$EXPECTED_BASE_SCOPE"'''
+          base_scope_new = '''test "$(git rev-parse "$EXPECTED_PREVIOUS_BASE:src/node_core.ts")" = "$(git rev-parse "$EXPECTED_BASE:src/node_core.ts")"
+for p in \\
+  '.github/workflows/void-p2p-udp-swarm-authenticated-control-adapter-v1.yml' \\
+  'docs/public/void-p2p-udp-swarm-authenticated-control-adapter-v1.md' \\
+  'scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts' \\
+  'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+do
+  test "$(git rev-parse "$EXPECTED_PREVIOUS_BASE:$p")" = "$(git rev-parse "$EXPECTED_BASE:$p")"
+done'''
+
           replacements = {
               "EXPECTED_PREVIOUS_STAGING_HEAD='dcfa8abe5b9584e1eadbaec6c18473ddf2c87bf8'":
-                  "EXPECTED_PREVIOUS_STAGING_HEAD='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'",
+                  "EXPECTED_PREVIOUS_STAGING_HEAD='5506e5f35a2c12abba907393349ba3a59418ae6e'",
+              "EXPECTED_PREVIOUS_BASE='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'":
+                  "EXPECTED_PREVIOUS_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'",
               "EXPECTED_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'":
                   "EXPECTED_BASE='29b8da4f1d10dfd703eae4334d95506709f2b03b'",
+              base_scope_old: base_scope_new,
               'test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"':
                   ': # staging scope verified by controller',
               'git rm -- "$TEMP"':
