@@ -27,6 +27,14 @@ The existing environment-derived policy parser in
 The existing status/command route continues to use that same function. The new
 operator resolver imports it rather than duplicating its environment parsing.
 
+The native-execution library itself does not import the credential/RPC dependency
+initializer for side effects. Production parent runtime integration already loads
+`buy_void_native_delivery_runtime_integration_v1.ts` before native execution,
+and that native-delivery integration owns the dependency-initializer import.
+This keeps a direct preflight/operator library import from scheduling credential
+reads or RPC identity probes while preserving the existing production runtime
+mount order.
+
 The canonical native runtime policy therefore remains authoritative for:
 
 - runtime root;
@@ -138,6 +146,10 @@ npx tsx scripts/prove_buy_void_production_preflight_operator_v1.ts
 The focused proof verifies:
 
 - the native runtime route and operator resolver use one exported policy parser;
+- direct native-execution/preflight library imports do not own dependency
+  initialization;
+- parent runtime integration loads native-delivery integration before native
+  execution, and native-delivery integration owns the dependency initializer;
 - planning performs zero journal and RPC calls;
 - missing private path configuration fails closed;
 - no synthetic private path is a default;
@@ -154,8 +166,9 @@ The focused proof verifies:
 
 Hosted CI runs the focused proof on Node.js 22, 24, and 26 and preserves the
 merged #1109 preflight, #1106 private-services activation, native-execution
-runtime, synthetic end-to-end rehearsal, repository typecheck/build, and diff
-hygiene.
+runtime, native-execution import-isolation guard, parent Buy VOID runtime
+integration, synthetic end-to-end rehearsal, repository typecheck/build, and
+diff hygiene.
 
 ## Authority boundary
 
