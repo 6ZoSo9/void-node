@@ -156,8 +156,8 @@ try {
   assert.equal(canonicalRuntime.policy.planner_policy.rpc_url, "http://127.0.0.1:8545/");
 
   const resolved = resolveBuyVoidProductionPreflightOperatorPolicyV1();
-  assert.equal(resolved.ok, true);
   if (resolved.ok === false) throw new Error(resolved.reason);
+  assert.equal(resolved.ok, true);
   assert.deepEqual(resolved.execution_runtime_policy, canonicalRuntime.policy);
   assert.equal(resolved.execution_runtime_policy.enabled, false);
   assert.equal(
@@ -179,8 +179,8 @@ try {
   const planned = await runBuyVoidProductionPreflightOperatorV1({
     attempt_id: attemptId,
   });
-  assert.equal(planned.ok, true);
   if (planned.ok === false) throw new Error(planned.reason);
+  assert.equal(planned.ok, true);
   assert.equal(planned.status, "planned");
   assert.equal(planned.inspected, false);
   assert.equal(planned.preflight.native_execution_dry_run_invoked, false);
@@ -295,8 +295,8 @@ try {
     },
     { preflight_dependencies: { run_native_execution_runtime: fakeRuntime } },
   );
-  assert.equal(inspected.ok, true);
   if (inspected.ok === false) throw new Error(inspected.reason);
+  assert.equal(inspected.ok, true);
   assert.equal(inspected.status, "inspected");
   assert.equal(inspected.inspected, true);
   assert.equal(runtimeCalls, 1);
