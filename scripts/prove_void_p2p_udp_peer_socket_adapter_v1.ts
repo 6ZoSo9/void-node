@@ -4,12 +4,19 @@ import * as dgram from "node:dgram";
 
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
+  createVoidUdpAuthenticatedPathHelloV1,
+  createVoidUdpAuthenticatedPathProofV1,
+  verifyVoidUdpAuthenticatedPathProofV1,
+} from "../src/p2p/udp_authenticated_path_v1.js";
+import {
+  VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1,
   VoidUdpSecureReliableReceiverV1,
   VoidUdpSecureReliableSenderV1,
   createVoidUdpSecureKeyOfferV1,
   deriveVoidUdpSecureDirectionKeysV1,
+  verifyVoidUdpSecureKeyOfferV1,
   type VoidUdpSecureDirectionKeysV1,
   type VoidUdpSecurePacketV1,
 } from "../src/p2p/udp_secure_reliable_transport_v1.js";
@@ -115,6 +122,74 @@ function makeKeys(
   endpointB: string,
   sessionId: string,
 ): { keysA: VoidUdpSecureDirectionKeysV1; keysB: VoidUdpSecureDirectionKeysV1 } {
+  const helloA = createVoidUdpAuthenticatedPathHelloV1({
+    sessionId,
+    sourceNodeId: a.nodeId,
+    targetNodeId: b.nodeId,
+    pubkey: a.edPublicPem,
+    challenge: "1".repeat(64),
+  });
+  const helloB = createVoidUdpAuthenticatedPathHelloV1({
+    sessionId,
+    sourceNodeId: b.nodeId,
+    targetNodeId: a.nodeId,
+    pubkey: b.edPublicPem,
+    challenge: "2".repeat(64),
+  });
+
+  const pathProofA = createVoidUdpAuthenticatedPathProofV1({
+    localHello: helloA,
+    remoteHello: helloB,
+    localObservedEndpoint: endpointA,
+    remoteObservedEndpoint: endpointB,
+    privateKey: a.edPrivate,
+    allowNonPublicEndpoints: true,
+  });
+  const pathProofB = createVoidUdpAuthenticatedPathProofV1({
+    localHello: helloB,
+    remoteHello: helloA,
+    localObservedEndpoint: endpointB,
+    remoteObservedEndpoint: endpointA,
+    privateKey: b.edPrivate,
+    allowNonPublicEndpoints: true,
+  });
+
+  const verifiedPathA = verifyVoidUdpAuthenticatedPathProofV1({
+    rawProof: pathProofA,
+    expectedRemoteHello: helloA,
+    localHello: helloB,
+    expectedRemoteObservedEndpoint: endpointA,
+    localObservedEndpoint: endpointB,
+    allowNonPublicEndpoints: true,
+  });
+  const verifiedPathB = verifyVoidUdpAuthenticatedPathProofV1({
+    rawProof: pathProofB,
+    expectedRemoteHello: helloB,
+    localHello: helloA,
+    expectedRemoteObservedEndpoint: endpointB,
+    localObservedEndpoint: endpointA,
+    allowNonPublicEndpoints: true,
+  });
+  assert(verifiedPathA);
+  assert(verifiedPathB);
+
+  const evidenceForA = Object.freeze({
+    rawProof: verifiedPathA,
+    expectedRemoteHello: helloA,
+    localHello: helloB,
+    expectedRemoteObservedEndpoint: endpointA,
+    localObservedEndpoint: endpointB,
+    allowNonPublicEndpoints: true,
+  });
+  const evidenceForB = Object.freeze({
+    rawProof: verifiedPathB,
+    expectedRemoteHello: helloB,
+    localHello: helloA,
+    expectedRemoteObservedEndpoint: endpointB,
+    localObservedEndpoint: endpointA,
+    allowNonPublicEndpoints: true,
+  });
+
   const offerA = createVoidUdpSecureKeyOfferV1({
     sessionId,
     sourceNodeId: a.nodeId,
@@ -122,9 +197,10 @@ function makeKeys(
     ed25519PublicPem: a.edPublicPem,
     ed25519PrivateKey: a.edPrivate,
     x25519PublicKey: a.xPublic,
+    authenticatedPathProof: verifiedPathA,
     sourceObservedEndpoint: endpointA,
     targetObservedEndpoint: endpointB,
-    nonce: "a".repeat(32),
+    nonce: "3".repeat(32),
     allowNonPublicObservedEndpoint: true,
   });
   const offerB = createVoidUdpSecureKeyOfferV1({
@@ -134,23 +210,49 @@ function makeKeys(
     ed25519PublicPem: b.edPublicPem,
     ed25519PrivateKey: b.edPrivate,
     x25519PublicKey: b.xPublic,
+    authenticatedPathProof: verifiedPathB,
     sourceObservedEndpoint: endpointB,
     targetObservedEndpoint: endpointA,
-    nonce: "b".repeat(32),
+    nonce: "4".repeat(32),
     allowNonPublicObservedEndpoint: true,
   });
-  return {
-    keysA: deriveVoidUdpSecureDirectionKeysV1({
-      localX25519PrivateKey: a.xPrivate,
-      localOffer: offerA,
-      remoteOffer: offerB,
-    }),
-    keysB: deriveVoidUdpSecureDirectionKeysV1({
-      localX25519PrivateKey: b.xPrivate,
-      localOffer: offerB,
-      remoteOffer: offerA,
-    }),
-  };
+
+  const verifiedOfferA = verifyVoidUdpSecureKeyOfferV1(offerA, {
+    sessionId,
+    sourceNodeId: a.nodeId,
+    targetNodeId: b.nodeId,
+    sourceObservedEndpoint: endpointA,
+    targetObservedEndpoint: endpointB,
+    authenticatedPathEvidence: evidenceForA,
+    allowNonPublicObservedEndpoint: true,
+  });
+  const verifiedOfferB = verifyVoidUdpSecureKeyOfferV1(offerB, {
+    sessionId,
+    sourceNodeId: b.nodeId,
+    targetNodeId: a.nodeId,
+    sourceObservedEndpoint: endpointB,
+    targetObservedEndpoint: endpointA,
+    authenticatedPathEvidence: evidenceForB,
+    allowNonPublicObservedEndpoint: true,
+  });
+  assert(verifiedOfferA);
+  assert(verifiedOfferB);
+  assert.equal(verifiedOfferA.authenticated_path_proof_sig, verifiedPathA.sig);
+  assert.equal(verifiedOfferB.authenticated_path_proof_sig, verifiedPathB.sig);
+
+  const keysA = deriveVoidUdpSecureDirectionKeysV1({
+    localX25519PrivateKey: a.xPrivate,
+    localOffer: verifiedOfferA,
+    remoteOffer: verifiedOfferB,
+  });
+  const keysB = deriveVoidUdpSecureDirectionKeysV1({
+    localX25519PrivateKey: b.xPrivate,
+    localOffer: verifiedOfferB,
+    remoteOffer: verifiedOfferA,
+  });
+  assert(keysA.send_key.equals(keysB.recv_key));
+  assert(keysA.recv_key.equals(keysB.send_key));
+  return { keysA, keysB };
 }
 
 async function main(): Promise<void> {
@@ -172,6 +274,19 @@ async function main(): Promise<void> {
     const b = identity();
     const sessionId = crypto.randomBytes(16).toString("hex");
     const { keysA, keysB } = makeKeys(a, b, endpointA, endpointB, sessionId);
+
+    assert.equal(
+      VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.authenticated_path_evidence_required,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.algorithm_confusion_rejected,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.quantum_safe_claimed,
+      false,
+    );
 
     const senderA = new VoidUdpSecureReliableSenderV1(keysA);
     const receiverA = new VoidUdpSecureReliableReceiverV1(keysA);
@@ -319,15 +434,34 @@ async function main(): Promise<void> {
     }
     assert.equal(exhausted.destroyed, true);
 
-    assert.equal(VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.peer_socket_shape_exposed, true);
-    assert.equal(VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.plaintext_udp_payload_allowed, false);
-    assert.equal(VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.runtime_node_core_mount_performed, false);
-    assert.equal(VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.relay_fallback_preserved, true);
-    assert.equal(VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.wallet_signer_validator_wc_money_authority, 0);
+    assert.equal(
+      VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.peer_socket_shape_exposed,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.plaintext_udp_payload_allowed,
+      false,
+    );
+    assert.equal(
+      VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.runtime_node_core_mount_performed,
+      false,
+    );
+    assert.equal(
+      VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.relay_fallback_preserved,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1.wallet_signer_validator_wc_money_authority,
+      0,
+    );
 
     console.log("peer_socket_shape_exposed=true");
     console.log("real_udp_byte_stream_adapter_proven=true");
     console.log("secure_reliable_transport_required=true");
+    console.log("authenticated_path_evidence_required=true");
+    console.log("authenticated_path_evidence_verified_before_secure_keys=true");
+    console.log("secure_suite_binding_preserved=true");
+    console.log("quantum_safe_claimed=false");
     console.log("large_write_fragmented_and_reassembled=true");
     console.log("arbitrary_udp_chunk_boundaries_supported=true");
     console.log("intentional_first_packet_drop_recovered=true");
