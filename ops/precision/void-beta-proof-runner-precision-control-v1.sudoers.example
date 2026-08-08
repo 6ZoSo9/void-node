@@ -1,0 +1,14 @@
+# VOID Precision host-control v1 — example only.
+# Installation remains a separate operator-authorized gate.
+# Installer replaces __VOID_BETA_RUNNER_USER__ with the exact detected
+# repository-scoped beta-proof runner OS account.
+# Validate with visudo -cf before installation.
+
+Defaults:__VOID_BETA_RUNNER_USER__ env_reset
+Defaults:__VOID_BETA_RUNNER_USER__ !setenv
+
+Cmnd_Alias VOID_PRECISION_HOST_CONTROL_V1 = \
+  /usr/local/libexec/void/precision-host-control-v1.py inspect_custodian_binding *, \
+  /usr/local/libexec/void/precision-host-control-v1.py daemon_reload_custodian_binding *
+
+__VOID_BETA_RUNNER_USER__ ALL=(root) NOPASSWD: VOID_PRECISION_HOST_CONTROL_V1
