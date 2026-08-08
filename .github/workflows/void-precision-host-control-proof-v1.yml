@@ -1,0 +1,37 @@
+name: VOID Precision host control proof v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_precision_host_control_v1.py"
+      - "ops/precision/void-gh-runner-precision-control-v1.sudoers.example"
+      - "scripts/prove_void_precision_host_control_v1.py"
+      - "docs/operators/void-precision-host-control-v1.md"
+      - ".github/workflows/void-precision-host-control-v1.yml"
+      - ".github/workflows/void-precision-host-control-proof-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_precision_host_control_v1.py"
+      - "ops/precision/void-gh-runner-precision-control-v1.sudoers.example"
+      - "scripts/prove_void_precision_host_control_v1.py"
+      - "docs/operators/void-precision-host-control-v1.md"
+      - ".github/workflows/void-precision-host-control-v1.yml"
+      - ".github/workflows/void-precision-host-control-proof-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prove closed-schema Precision host control
+        run: python3 scripts/prove_void_precision_host_control_v1.py
+      - name: Diff hygiene
+        run: git diff --check
