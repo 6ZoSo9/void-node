@@ -1,0 +1,79 @@
+name: Buy VOID synthetic end-to-end fulfillment rehearsal v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-synthetic-end-to-end-fulfillment-rehearsal-v1.yml"
+      - "docs/operators/buy-void-synthetic-end-to-end-fulfillment-rehearsal-v1.md"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
+      - "src/economic/buy_void_*.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "tools/buy-void-prepared-transaction-*.mjs"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-synthetic-end-to-end-fulfillment-rehearsal-v1.yml"
+      - "docs/operators/buy-void-synthetic-end-to-end-fulfillment-rehearsal-v1.md"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
+      - "src/economic/buy_void_*.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "tools/buy-void-prepared-transaction-*.mjs"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-synthetic-e2e-fulfillment-rehearsal-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove one-saga synthetic end-to-end fulfillment rehearsal
+        run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+      - name: Preserve private credential and broadcaster boundaries
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_composition_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts
+      - name: Preserve execute reconciliation and closeout runtimes
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_parent_dispatch_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_parent_dispatch_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_confirmed_closeout_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_confirmed_closeout_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts
+      - name: Preserve parent Buy VOID runtime boundary
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check
