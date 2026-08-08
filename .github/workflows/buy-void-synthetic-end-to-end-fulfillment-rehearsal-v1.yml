@@ -53,6 +53,7 @@ jobs:
       - name: Preserve private credential and broadcaster boundaries
         run: |
           npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_composition_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_activation_v1.ts
           npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts
           npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts
           npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
