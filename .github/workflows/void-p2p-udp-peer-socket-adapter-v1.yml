@@ -7,6 +7,8 @@ on:
       - "scripts/prove_void_p2p_udp_peer_socket_adapter_v1.ts"
       - "docs/public/void-p2p-udp-peer-socket-adapter-v1.md"
       - ".github/workflows/void-p2p-udp-peer-socket-adapter-v1.yml"
+      - "src/p2p/udp_secure_reliable_transport_v1.ts"
+      - "src/p2p/udp_authenticated_path_v1.ts"
   push:
     branches: [main]
     paths:
@@ -14,6 +16,8 @@ on:
       - "scripts/prove_void_p2p_udp_peer_socket_adapter_v1.ts"
       - "docs/public/void-p2p-udp-peer-socket-adapter-v1.md"
       - ".github/workflows/void-p2p-udp-peer-socket-adapter-v1.yml"
+      - "src/p2p/udp_secure_reliable_transport_v1.ts"
+      - "src/p2p/udp_authenticated_path_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -26,7 +30,7 @@ concurrency:
 jobs:
   proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -36,6 +40,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -64,4 +69,17 @@ jobs:
         run: npm run build
 
       - name: Diff hygiene
-        run: git diff --check
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [ "${{ github.event_name }}" = "push" ] && [ -n "$PUSH_BEFORE_SHA" ] && [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

@@ -17,18 +17,14 @@ This lane adds the next boundary: cryptographically prove that the holder of the
 expected VOID Ed25519 node identity controls the exact punched datagram path for
 one fresh session.
 
-## Relationship to the UDP hole-punch foundation
+## Relationship to the UDP traversal foundation
 
-This PR is stacked on PR #1079 and does not modify `src/node_core.ts`.
+PR #1079 supplies the UDP hole-punch packet, OS-selected participant-port policy,
+observed endpoint validation, bounded punch scheduling, and relay fallback.
+PR #1080 adds authenticated rendezvous mapping. Both are merged before this lane
+is reconciled to current `main`.
 
-The hole-punch layer supplies:
-
-- OS-selected participant UDP ports by default;
-- rendezvous-observed public transport hints;
-- bounded punch scheduling; and
-- relay fallback when direct traversal fails.
-
-This layer adds identity proof after a candidate datagram path exists.
+This PR does not modify `src/node_core.ts`.
 
 An IP address, UDP port, NAT mapping, rendezvous server, relay, or punch packet
 never defines VOID identity.
@@ -48,6 +44,9 @@ VOID_UDP_AUTH_PROOF
 
 Each endpoint creates a fresh 256-bit challenge and sends a HELLO bound to:
 
+- protocol version;
+- `identity_algorithm=ed25519`;
+- `signature_algorithm=ed25519`;
 - one 128-bit path session ID;
 - exact source VOID node ID;
 - exact target VOID node ID;
@@ -61,6 +60,7 @@ After both HELLO packets are known, each endpoint signs a domain-separated
 proof transcript containing:
 
 - protocol version;
+- exact identity and signature algorithm tags;
 - exact session ID;
 - source and target VOID node IDs;
 - source public key;
@@ -68,7 +68,28 @@ proof transcript containing:
 - the exact rendezvous-observed source and target UDP endpoints.
 
 The receiving endpoint verifies the signature against the expected peer public
-key and requires the exact reciprocal session/challenge/endpoint bindings.
+key and requires the exact reciprocal algorithm/session/challenge/endpoint
+bindings.
+
+## Algorithm agility and quantum-safety boundary
+
+This v1 protocol is deliberately explicit about its classical cryptography.
+Only these exact values are accepted:
+
+```text
+identity_algorithm=ed25519
+signature_algorithm=ed25519
+```
+
+The tags are present in both HELLO and PROOF, and the PROOF signature binds them
+inside the signed transcript. Unknown, substituted, omitted, or additional
+algorithm fields fail closed.
+
+Those explicit fields are an extension point for a separately reviewed future
+protocol version. They are **not** runtime negotiation and they do not make this
+v1 protocol post-quantum or quantum-safe. Ed25519 remains the only accepted v1
+identity/signature algorithm, and `quantum_safe_claimed=false` is part of the
+proof boundary.
 
 ## Replay and substitution boundary
 
@@ -77,6 +98,8 @@ fresh local challenge changes the signed transcript.
 
 The verifier also rejects:
 
+- an unknown or substituted identity algorithm;
+- an unknown or substituted signature algorithm;
 - a signature from a different Ed25519 private key;
 - a different session ID;
 - a different source or target node ID;
@@ -95,7 +118,7 @@ real loopback UDP sockets can exercise the full exchange in CI.
 Successful verification means:
 
 > the expected VOID Ed25519 identity proved possession of its private key over
-> this exact fresh session and endpoint-binding transcript.
+> this exact fresh algorithm/session/challenge/endpoint-binding transcript.
 
 It does **not** yet mean:
 
@@ -103,10 +126,11 @@ It does **not** yet mean:
 - packets are ordered;
 - arbitrary post-authentication payloads are encrypted or integrity protected;
 - the runtime should replace a healthy relay path;
-- verified-direct peer cache should be mutated; or
-- the punched endpoint is durable reachability evidence.
+- verified-direct peer cache should be mutated;
+- the punched endpoint is durable reachability evidence; or
+- the protocol is quantum-safe.
 
-Those are later integration/transport decisions.
+Those are later integration/transport/cryptographic-version decisions.
 
 ## Real field evidence boundary
 
@@ -131,8 +155,8 @@ networks, not universal NAT compatibility.
 ## Relay relationship
 
 The relay remains the usable path before and during a direct-path attempt.
-Authentication failure, timeout, endpoint change, or later transport failure
-must leave relay fallback available.
+Authentication failure, timeout, endpoint change, algorithm mismatch, or later
+transport failure must leave relay fallback available.
 
 Direct UDP is an optimization, not an onboarding prerequisite.
 
@@ -142,6 +166,11 @@ Direct UDP is an optimization, not an onboarding prerequisite.
 VOID_P2P_UDP_AUTHENTICATED_PATH_V1_PROOF_GREEN
 real_udp_socket_exchange_proven=true
 void_ed25519_identity_required=true
+identity_algorithm_explicit=true
+signature_algorithm_explicit=true
+algorithm_confusion_accepted=false
+crypto_agility_extension_point_explicit=true
+quantum_safe_claimed=false
 node_id_public_key_binding_required=true
 mutual_fresh_challenges_required=true
 exact_session_binding_required=true
@@ -170,4 +199,4 @@ activation, peer promotion, verified-peer-cache mutation, relay activation,
 deployment, service restart, router/firewall/DNS/interface mutation, wallet,
 signer, validator, Work Credit, transaction, treasury, or fund authority.
 
-Refs #1005 and #1079.
+Refs #1005, #1079, and #1080.
