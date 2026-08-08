@@ -1,9 +1,8 @@
 name: VOID PR1115 runtime policy export repair v1
 
 on:
-  push:
-    branches:
-      - feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
+  pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml"
 
@@ -31,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "53b7776c4df8675910de0c875fb9e7185305a0c7"
+          test "$(git rev-parse HEAD^)" = "aba90a8978a7d09ba6adb9d25ae2c3b36ea6307f"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml"
       - name: Export canonical native runtime policy resolver
         shell: bash
