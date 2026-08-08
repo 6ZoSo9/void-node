@@ -194,6 +194,57 @@ async function main(): Promise<void> {
   }).direct_upgrade_offer;
   assert(directA && directB);
 
+  assert.equal(
+    directA.verifyAuthenticatedRendezvousObservation(
+      clone(directA.message.local_observation),
+      a.nodeId,
+    ),
+    true,
+  );
+  assert.equal(
+    directA.verifyAuthenticatedRendezvousObservation(
+      clone(directA.message.peer_observation),
+      b.nodeId,
+    ),
+    true,
+  );
+  assert.equal(
+    directA.verifyAuthenticatedRendezvousObservation(
+      directA.message.peer_observation,
+      a.nodeId,
+    ),
+    false,
+  );
+
+  const detachedStableSubstitute = clone(directA.message.local_observation);
+  detachedStableSubstitute.probe_count += 1;
+  assert.equal(detachedStableSubstitute.stable_same_rendezvous, true);
+  assert.equal(detachedStableSubstitute.mapping_conflicted, false);
+  assert.equal(
+    directA.verifyAuthenticatedRendezvousObservation(
+      detachedStableSubstitute,
+      a.nodeId,
+    ),
+    false,
+  );
+
+  assert.throws(
+    () => new VoidUdpSwarmUpgradeV1({
+      sessionId: directA.message.session_id,
+      localNodeId: a.nodeId,
+      remoteNodeId: b.nodeId,
+      localPublicPem: a.publicPem,
+      localPrivateKey: a.privateKey,
+      localObservation: detachedStableSubstitute,
+      remoteObservation: directA.message.peer_observation,
+      verifyAuthenticatedRendezvousObservation:
+        directA.verifyAuthenticatedRendezvousObservation,
+      transmitSecurePacket: () => {},
+      allowNonPublicEndpoints: true,
+    }),
+    /local authenticated UDP rendezvous observation provenance verification failed/,
+  );
+
   const upgradeA = new VoidUdpSwarmUpgradeV1({
     sessionId: directA.message.session_id,
     localNodeId: a.nodeId,
@@ -202,6 +253,8 @@ async function main(): Promise<void> {
     localPrivateKey: a.privateKey,
     localObservation: directA.message.local_observation,
     remoteObservation: directA.message.peer_observation,
+    verifyAuthenticatedRendezvousObservation:
+      directA.verifyAuthenticatedRendezvousObservation,
     transmitSecurePacket: () => {},
     allowNonPublicEndpoints: true,
   });
@@ -223,6 +276,8 @@ async function main(): Promise<void> {
     localPrivateKey: b.privateKey,
     localObservation: directB.message.local_observation,
     remoteObservation: directB.message.peer_observation,
+    verifyAuthenticatedRendezvousObservation:
+      directB.verifyAuthenticatedRendezvousObservation,
     transmitSecurePacket: () => {},
     allowNonPublicEndpoints: true,
   });
@@ -332,6 +387,9 @@ async function main(): Promise<void> {
   console.log("local_observation_exact_relay_record=true");
   console.log("peer_observation_exact_relay_record=true");
   console.log("local_ticket_evidence_binding_required=true");
+  console.log("authenticated_offer_provenance_verifier_emitted=true");
+  console.log("exact_cloned_observation_provenance_accepted=true");
+  console.log("detached_structural_observation_provenance_accepted=false");
   console.log("peer_node_evidence_binding_required=true");
   console.log("stable_nonconflicted_evidence_required=true");
   console.log("evidence_endpoint_consistency_required=true");

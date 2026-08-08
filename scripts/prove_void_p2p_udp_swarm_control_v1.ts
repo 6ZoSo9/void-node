@@ -5,6 +5,7 @@ import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
   VoidUdpRendezvousStateV1,
   createVoidUdpRendezvousProbeV1,
+  type VoidUdpRendezvousObservationV1,
 } from "../src/p2p/udp_rendezvous_v1.js";
 import {
   VOID_P2P_UDP_SWARM_CONTROL_AUTHORITY_V1,
@@ -33,6 +34,20 @@ function probe(ticketId: string, id: Identity) {
     nodeId: id.nodeId,
     privateKey: id.privateKey,
   });
+}
+
+function sameObservation(
+  left: VoidUdpRendezvousObservationV1,
+  right: VoidUdpRendezvousObservationV1,
+): boolean {
+  return left.ticket_id === right.ticket_id &&
+    left.node_id === right.node_id &&
+    left.observed_endpoint === right.observed_endpoint &&
+    left.first_seen_ms === right.first_seen_ms &&
+    left.last_seen_ms === right.last_seen_ms &&
+    left.probe_count === right.probe_count &&
+    left.stable_same_rendezvous === right.stable_same_rendezvous &&
+    left.mapping_conflicted === right.mapping_conflicted;
 }
 
 async function main(): Promise<void> {
@@ -156,7 +171,22 @@ async function main(): Promise<void> {
   assert(snapshot?.target_observation);
   assert.equal(snapshot.offers_emitted, true);
 
-  // The emitted observations feed the existing swarm-upgrade orchestrator exactly.
+  const verifyAuthenticatedRendezvousObservation = (
+    observation: VoidUdpRendezvousObservationV1,
+    expectedNodeId: string,
+  ): boolean => {
+    const current = coordinator.sessionFor(opened.session.session_id, 10_131);
+    if (!current) return false;
+    const recorded = expectedNodeId === current.source_node_id
+      ? current.source_observation
+      : expectedNodeId === current.target_node_id
+        ? current.target_observation
+        : undefined;
+    return !!recorded && sameObservation(recorded, observation);
+  };
+
+  // The emitted observations feed the current swarm-upgrade orchestrator through
+  // a verifier bound to this authenticated relay coordinator's exact live record.
   const upgrade = new VoidUdpSwarmUpgradeV1({
     sessionId: opened.session.session_id,
     localNodeId: a.nodeId,
@@ -165,6 +195,7 @@ async function main(): Promise<void> {
     localPrivateKey: a.privateKey,
     localObservation: snapshot.source_observation,
     remoteObservation: snapshot.target_observation,
+    verifyAuthenticatedRendezvousObservation,
     transmitSecurePacket: () => {},
     allowNonPublicEndpoints: true,
   });
@@ -174,6 +205,30 @@ async function main(): Promise<void> {
   assert.equal(punchPlan.peer_node_id, b.nodeId);
   assert.equal(upgrade.relayRetirementAuthorized, false);
   upgrade.destroy();
+
+  const fabricatedObservation = Object.freeze({
+    ...snapshot.source_observation,
+    last_seen_ms: snapshot.source_observation.last_seen_ms + 1,
+  });
+  assert.equal(
+    verifyAuthenticatedRendezvousObservation(fabricatedObservation, a.nodeId),
+    false,
+  );
+  assert.throws(
+    () => new VoidUdpSwarmUpgradeV1({
+      sessionId: opened.session.session_id,
+      localNodeId: a.nodeId,
+      remoteNodeId: b.nodeId,
+      localPublicPem: a.publicPem,
+      localPrivateKey: a.privateKey,
+      localObservation: fabricatedObservation,
+      remoteObservation: snapshot.target_observation,
+      verifyAuthenticatedRendezvousObservation,
+      transmitSecurePacket: () => {},
+      allowNonPublicEndpoints: true,
+    }),
+    /provenance verification failed/,
+  );
 
   // Wrong-key UDP proof cannot inherit authenticated relay identity.
   const wrongKeyProbe = createVoidUdpRendezvousProbeV1({
@@ -251,6 +306,8 @@ async function main(): Promise<void> {
   console.log("stable_mapping_both_endpoints_required_before_offer=true");
   console.log("mapping_conflict_offer_allowed=false");
   console.log("reciprocal_mapping_offers_proven=true");
+  console.log("authenticated_rendezvous_observation_provenance_bound=true");
+  console.log("fabricated_detached_observation_accepted=false");
   console.log("swarm_upgrade_orchestrator_compatibility_proven=true");
   console.log("offer_defines_peer_identity=false");
   console.log("normal_void_peer_auth_still_required=true");
