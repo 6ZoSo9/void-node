@@ -34,12 +34,13 @@ jobs:
 
           BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
+          EXPECTED_PREVIOUS_STAGING_HEAD='9b168c0902cc3721e69f1ffab60586d1d3f6b489'
           EXPECTED_FEATURE_HEAD='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
           OLD_PARENT='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'
           EXPECTED_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'
           TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
 
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_FEATURE_HEAD"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_STAGING_HEAD"
           test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
 
           git fetch --no-tags origin "$BASE_BRANCH"
@@ -60,8 +61,8 @@ jobs:
             test "$conflicts" = 'src/node_core.ts'
           fi
 
-          # Current parent owns node_core. Reapply only the exact old-parent ->
-          # PR1096 control-plane patch using Git's three-way patch machinery.
+          # Current parent owns node_core. Reapply only the exact reviewed
+          # old-parent -> PR1096 control-plane patch with three-way context.
           git checkout "$EXPECTED_BASE" -- src/node_core.ts
           git add src/node_core.ts
           git apply --3way --index /tmp/pr1096-node-core.patch
