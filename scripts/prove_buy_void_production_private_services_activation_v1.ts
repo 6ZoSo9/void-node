@@ -47,6 +47,18 @@ const policy = {
   },
 } as const;
 
+const EXPECTED = Object.freeze({
+  custodian_socket_path: policy.custodian.socket_path,
+  custody_store_dir: policy.custodian.custody_store_dir,
+  credentials_directory: policy.custodian.credentials_directory,
+  expected_wallet_address: wallet,
+  broadcaster_socket_path: policy.broadcaster.socket_path,
+  broadcaster_state_dir: policy.broadcaster.state_dir,
+  expected_signer_fingerprint_sha256: signerFingerprint,
+  rpc_url: policy.broadcaster.rpc.rpc_url,
+  expected_chain_id: 2050,
+});
+
 let readinessCalls = 0;
 let custodianStarts = 0;
 let broadcasterStarts = 0;
@@ -67,6 +79,42 @@ function assertNoSideEffects(): void {
   assert.equal(broadcasterStarts, 0);
   assert.equal(custodianStops, 0);
   assert.equal(broadcasterStops, 0);
+}
+
+function assertBoundPolicy(value: any): void {
+  assert.equal(value.custodian.socket_path, EXPECTED.custodian_socket_path);
+  assert.equal(value.custodian.custody_store_dir, EXPECTED.custody_store_dir);
+  assert.equal(
+    value.custodian.credentials_directory,
+    EXPECTED.credentials_directory,
+  );
+  assert.equal(
+    value.custodian.expected_wallet_address,
+    EXPECTED.expected_wallet_address,
+  );
+  assert.equal(
+    value.broadcaster.socket_path,
+    EXPECTED.broadcaster_socket_path,
+  );
+  assert.equal(
+    value.broadcaster.custody_store_dir,
+    EXPECTED.custody_store_dir,
+  );
+  assert.equal(
+    value.broadcaster.state_dir,
+    EXPECTED.broadcaster_state_dir,
+  );
+  assert.equal(
+    value.broadcaster.expected_signer_fingerprint_sha256,
+    EXPECTED.expected_signer_fingerprint_sha256,
+  );
+  assert.equal(value.broadcaster.rpc.rpc_url, EXPECTED.rpc_url);
+  assert.equal(
+    value.broadcaster.rpc.expected_chain_id,
+    EXPECTED.expected_chain_id,
+  );
+  assert.equal(value.broadcaster.rpc.request_timeout_ms, undefined);
+  assert.equal(value.broadcaster.rpc.max_response_bytes, undefined);
 }
 
 const dry = await runBuyVoidProductionPrivateServicesActivationV1({ policy });
@@ -122,6 +170,7 @@ function makeDependencies(
   return {
     run_rpc_readiness: (async (input: any) => {
       readinessCalls += 1;
+      assertBoundPolicy(input.policy);
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1,
@@ -154,7 +203,7 @@ function makeDependencies(
         version: 1,
         plan_id_sha256: dry.plan_id_sha256,
         chain_id: "2050",
-        rpc_url: policy.broadcaster.rpc.rpc_url,
+        rpc_url: EXPECTED.rpc_url,
         rpc_url_fingerprint_sha256: dry.rpc_url_fingerprint_sha256,
         provider_submission_id: "synthetic-production-readiness",
         rpc_probe_performed: true,
@@ -170,6 +219,17 @@ function makeDependencies(
     }) as any,
     run_custodian_activation: (async (input: any) => {
       custodianStarts += 1;
+      assert.notEqual(input.policy, policy.custodian);
+      assert.equal(input.policy.socket_path, EXPECTED.custodian_socket_path);
+      assert.equal(input.policy.custody_store_dir, EXPECTED.custody_store_dir);
+      assert.equal(
+        input.policy.credentials_directory,
+        EXPECTED.credentials_directory,
+      );
+      assert.equal(
+        input.policy.expected_wallet_address,
+        EXPECTED.expected_wallet_address,
+      );
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,
@@ -217,6 +277,21 @@ function makeDependencies(
     }) as any,
     run_broadcaster_activation: (async (input: any) => {
       broadcasterStarts += 1;
+      assert.notEqual(input.policy, policy.broadcaster);
+      assert.equal(input.policy.socket_path, EXPECTED.broadcaster_socket_path);
+      assert.equal(input.policy.custody_store_dir, EXPECTED.custody_store_dir);
+      assert.equal(input.policy.state_dir, EXPECTED.broadcaster_state_dir);
+      assert.equal(
+        input.policy.expected_signer_fingerprint_sha256,
+        EXPECTED.expected_signer_fingerprint_sha256,
+      );
+      assert.equal(input.policy.rpc.rpc_url, EXPECTED.rpc_url);
+      assert.equal(
+        input.policy.rpc.expected_chain_id,
+        EXPECTED.expected_chain_id,
+      );
+      assert.equal(input.policy.rpc.request_timeout_ms, undefined);
+      assert.equal(input.policy.rpc.max_response_bytes, undefined);
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,
@@ -367,6 +442,65 @@ assert.equal(paddedBroadcasterConfirmation.ok, false);
 assertNoSideEffects();
 
 resetCounters();
+const mutablePolicy: any = {
+  custodian: { ...policy.custodian },
+  broadcaster: {
+    ...policy.broadcaster,
+    rpc: { ...policy.broadcaster.rpc },
+  },
+};
+const mutableDry = await runBuyVoidProductionPrivateServicesActivationV1({
+  policy: mutablePolicy,
+});
+assert.equal(mutableDry.ok, true);
+assert.equal(mutableDry.status, "dry_run");
+if (mutableDry.ok === false || mutableDry.status !== "dry_run") {
+  throw new Error("mutable_policy_dry_run_expected");
+}
+assert.equal(mutableDry.plan_id_sha256, dry.plan_id_sha256);
+
+const mutationDependencies = makeDependencies();
+const baseMutationReadiness = mutationDependencies.run_rpc_readiness;
+mutationDependencies.run_rpc_readiness = (async (input: any, deps: any) => {
+  mutablePolicy.custodian.socket_path = "/tmp/attacker-custodian.sock";
+  mutablePolicy.custodian.custody_store_dir = "/tmp/attacker-custody";
+  mutablePolicy.custodian.credentials_directory = "/tmp/attacker-creds";
+  mutablePolicy.custodian.expected_wallet_address =
+    new Wallet(`0x${"3".repeat(64)}`).address.toLowerCase();
+  mutablePolicy.broadcaster.socket_path = "/tmp/attacker-broadcaster.sock";
+  mutablePolicy.broadcaster.custody_store_dir = "/tmp/attacker-custody";
+  mutablePolicy.broadcaster.state_dir = "/tmp/attacker-state";
+  mutablePolicy.broadcaster.expected_signer_fingerprint_sha256 = "f".repeat(64);
+  mutablePolicy.broadcaster.rpc.rpc_url = "http://127.0.0.1:9999/";
+  mutablePolicy.broadcaster.rpc.expected_chain_id = 1;
+  mutablePolicy.broadcaster.rpc.request_timeout_ms = 30_000;
+  mutablePolicy.broadcaster.rpc.max_response_bytes = 1_048_576;
+  return (baseMutationReadiness as any)(input, deps);
+}) as any;
+
+const mutationResult = await runBuyVoidProductionPrivateServicesActivationV1(
+  {
+    policy: mutablePolicy,
+    apply: true,
+    confirmation: mutableDry.required_confirmation,
+    expected_plan_id_sha256: mutableDry.plan_id_sha256,
+    rpc_readiness_confirmation: mutableDry.required_rpc_readiness_confirmation,
+    custodian_activation_confirmation:
+      mutableDry.required_custodian_activation_confirmation,
+    broadcaster_activation_confirmation:
+      mutableDry.required_broadcaster_activation_confirmation,
+  },
+  mutationDependencies,
+);
+assert.equal(mutationResult.ok, true);
+assert.equal(mutationResult.status, "started");
+assert.equal(readinessCalls, 1);
+assert.equal(custodianStarts, 1);
+assert.equal(broadcasterStarts, 1);
+assert.equal(custodianStops, 0);
+assert.equal(broadcasterStops, 0);
+
+resetCounters();
 const rpcHeld = await runBuyVoidProductionPrivateServicesActivationV1(
   authorizedInput,
   makeDependencies({ rpc: "held" }),
@@ -473,6 +607,26 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+    .plan_derived_policy_snapshot_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+    .plan_derived_policy_snapshot_revalidated,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+    .caller_policy_reused_after_plan_derivation,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+    .unbound_rpc_transport_overrides_applied,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
     .read_only_rpc_probe_before_service_start,
   true,
 );
@@ -513,6 +667,9 @@ console.log("separate_rpc_readiness_confirmation_required=true");
 console.log("separate_custodian_activation_confirmation_required=true");
 console.log("separate_broadcaster_activation_confirmation_required=true");
 console.log("component_confirmation_failures_before_side_effects=true");
+console.log("plan_derived_policy_snapshot_required=true");
+console.log("caller_policy_mutation_after_plan_derivation_escaped=false");
+console.log("unbound_rpc_transport_overrides_applied=false");
 console.log("rpc_readiness_required_before_service_start=true");
 console.log("custodian_started_before_broadcaster=true");
 console.log("broadcaster_failure_custodian_rollback_attempted=true");
