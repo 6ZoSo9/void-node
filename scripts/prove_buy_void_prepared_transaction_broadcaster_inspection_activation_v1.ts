@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { Wallet, keccak256 } from "ethers";
 
 import {
   VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_INSPECTION_ACTIVATION_AUTHORITY_V1,
@@ -18,6 +19,100 @@ function sha256(value: string): string {
 function mkdirPrivate(directory: string): void {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   fs.chmodSync(directory, 0o700);
+}
+
+function writePrivateJson(file: string, value: unknown): void {
+  mkdirPrivate(path.dirname(file));
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  fs.chmodSync(file, 0o600);
+}
+
+async function buildInspectionFixture(
+  custodyStore: string,
+  signerFingerprint: string,
+): Promise<Record<string, string>> {
+  const wallet = new Wallet(`0x${"1".repeat(64)}`);
+  const sagaId = `voidbvfsg1_${sha256("inspection:saga")}`;
+  const attemptId = sha256("inspection:attempt");
+  const broadcastIntentId =
+    `voidbvbci1_${sha256("inspection:broadcast-intent")}`;
+  const custodyKey = sha256("inspection:custody");
+  const planFingerprint = sha256("inspection:plan");
+  const custodyHandle = `custody:void-buy:inspection/${custodyKey}`;
+  const deliveryAddress = `0x${"2".repeat(40)}`;
+  const nativeValueWei = "1000000000000000";
+
+  const rawSignedTransaction = await wallet.signTransaction({
+    type: 2,
+    chainId: 2050,
+    nonce: 17,
+    to: deliveryAddress,
+    value: BigInt(nativeValueWei),
+    gasLimit: 21000n,
+    maxFeePerGas: 100n,
+    maxPriorityFeePerGas: 2n,
+    data: "0x",
+    accessList: [],
+  });
+  const signedHash = keccak256(rawSignedTransaction).toLowerCase();
+
+  const request = {
+    submission_idempotency_key_sha256: sha256(
+      [
+        "void-buy-prepared-transaction-broadcast-custody-v1",
+        sagaId,
+        attemptId,
+        broadcastIntentId,
+        custodyKey,
+        signedHash,
+      ].join("\n"),
+    ),
+    saga_id: sagaId,
+    attempt_id: attemptId,
+    broadcast_intent_id: broadcastIntentId,
+    custody_idempotency_key_sha256: custodyKey,
+    custody_handle_fingerprint_sha256: sha256(custodyHandle),
+    transaction_plan_fingerprint_sha256: planFingerprint,
+    signed_transaction_hash: signedHash,
+  };
+
+  writePrivateJson(
+    path.join(custodyStore, "records", `${custodyKey}.json`),
+    {
+      schema:
+        "void_buy_void_prepared_transaction_custodian_service_record_v1",
+      marker: "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_SERVICE_V1",
+      version: 1,
+      recorded_at_ms: Date.parse("2026-08-08T01:00:00.000Z"),
+      idempotency_key_sha256: custodyKey,
+      saga_id: sagaId,
+      attempt_id: attemptId,
+      plan_reservation_id: sha256("inspection:reservation"),
+      transaction_plan_fingerprint_sha256: planFingerprint,
+      chain_id: "2050",
+      wallet_address: wallet.address.toLowerCase(),
+      nonce: 17,
+      delivery_address: deliveryAddress,
+      native_value_wei: nativeValueWei,
+      gas_limit: "21000",
+      max_fee_per_gas_wei: "100",
+      max_priority_fee_per_gas_wei: "2",
+      custody_handle: custodyHandle,
+      signed_transaction_hash: signedHash,
+      signer_fingerprint_sha256: signerFingerprint,
+      raw_signed_transaction: rawSignedTransaction,
+      raw_signed_transaction_sha256: sha256(
+        rawSignedTransaction.toLowerCase(),
+      ),
+      transaction_broadcast_authorized: false,
+      money_movement_authorized: false,
+    },
+  );
+
+  return request;
 }
 
 function ipcRequest(): Record<string, string> {
@@ -251,12 +346,20 @@ const inspectionOnlyService =
         realServiceTransportSubmitCalls += 1;
         assert.fail("disabled service must not reach submit transport");
       },
-      inspect_submission: async () => {
+      inspect_submission: async (transportRequest: Record<string, unknown>) => {
         realServiceTransportInspectCalls += 1;
+        assert.equal("raw_signed_transaction" in transportRequest, false);
         return {
-          ok: false,
-          status: "held",
-          reason: "synthetic_inspection_only",
+          ok: true,
+          status: "not_submitted",
+          transaction_hash: String(
+            transportRequest.signed_transaction_hash,
+          ).toLowerCase(),
+          provider_submission_id: "",
+          definitive_not_submitted: true,
+          submission_call_performed: false,
+          submission_may_have_occurred: false,
+          receipt: null,
         };
       },
     },
@@ -284,6 +387,71 @@ const intentsDir = path.join(realServiceState, "intents");
 assert.equal(fs.existsSync(intentsDir), true);
 assert.deepEqual(fs.readdirSync(intentsDir), []);
 
+const inspectionRequest = await buildInspectionFixture(
+  custodyStore,
+  "2".repeat(64),
+);
+
+const inspectedBeforeIntent = await ipcCall(
+  realServiceSocket,
+  "inspect_submission",
+  inspectionRequest,
+);
+assert.equal(inspectedBeforeIntent.decision.ok, true);
+assert.equal(inspectedBeforeIntent.decision.status, "not_submitted");
+assert.equal(
+  inspectedBeforeIntent.decision.definitive_not_submitted,
+  true,
+);
+assert.equal(
+  inspectedBeforeIntent.decision.submission_call_performed,
+  false,
+);
+assert.equal(
+  inspectedBeforeIntent.decision.submission_may_have_occurred,
+  false,
+);
+assert.equal(realServiceTransportSubmitCalls, 0);
+assert.equal(realServiceTransportInspectCalls, 0);
+assert.deepEqual(fs.readdirSync(intentsDir), []);
+
+writePrivateJson(
+  path.join(
+    intentsDir,
+    `${inspectionRequest.submission_idempotency_key_sha256}.json`,
+  ),
+  {
+    schema:
+      "void_buy_void_prepared_transaction_broadcaster_service_intent_v1",
+    marker: "VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SERVICE_V1",
+    version: 1,
+    recorded_at_ms: Date.parse("2026-08-08T01:05:00.000Z"),
+    request: inspectionRequest,
+  },
+);
+
+const inspectedExistingIntent = await ipcCall(
+  realServiceSocket,
+  "inspect_submission",
+  inspectionRequest,
+);
+assert.equal(inspectedExistingIntent.decision.ok, true);
+assert.equal(inspectedExistingIntent.decision.status, "not_submitted");
+assert.equal(realServiceTransportSubmitCalls, 0);
+assert.equal(realServiceTransportInspectCalls, 1);
+
+const outcomesDir = path.join(realServiceState, "outcomes");
+assert.equal(fs.existsSync(outcomesDir), true);
+assert.equal(
+  fs.existsSync(
+    path.join(
+      outcomesDir,
+      `${inspectionRequest.submission_idempotency_key_sha256}.json`,
+    ),
+  ),
+  true,
+);
+
 await inspectionOnlyService.stop();
 
 assert.equal(
@@ -305,6 +473,11 @@ console.log("submit_rejected_before_custody_lookup=true");
 console.log("submit_rejected_before_durable_intent=true");
 console.log("disabled_submit_transport_calls=0");
 console.log("disabled_submit_intent_files=0");
+console.log("inspection_before_intent_definitive_not_submitted=true");
+console.log("inspection_before_intent_transport_calls=0");
+console.log("inspection_existing_intent_transport_calls=1");
+console.log("inspection_existing_intent_submit_calls=0");
+console.log("inspection_outcome_persisted=true");
 console.log("wrong_confirmation_chain_rpc_factory_calls=0");
 console.log("inspection_only_service_start_synthetic=true");
 console.log("real_production_service_start=false");
