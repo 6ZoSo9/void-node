@@ -411,6 +411,38 @@ assert.equal(exactInspect.transaction_broadcast_performed, false);
 assert.equal(exactInspect.money_movement_performed, false);
 assert.match(exactInspect.evidence_id_sha256, /^[0-9a-f]{64}$/);
 
+let thrownRuntimeCalls = 0;
+const thrownInspection = await runBuyVoidProductionLiveCanaryPreflightV1(
+  {
+    production_policy: productionPolicy(),
+    execution_runtime_policy: runtimePolicy(),
+    attempt_id: attemptId,
+    inspect: true,
+    confirmation: VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_CONFIRMATION_V1,
+    expected_production_activation_plan_id_sha256:
+      planned.production_activation_plan_id_sha256,
+    expected_preflight_plan_id_sha256: planned.preflight_plan_id_sha256,
+  },
+  {
+    run_native_execution_runtime: (async () => {
+      thrownRuntimeCalls += 1;
+      throw new Error("synthetic_native_execution_throw");
+    }) as any,
+  },
+);
+assert.equal(thrownRuntimeCalls, 1);
+assert.equal(thrownInspection.ok, false);
+if (thrownInspection.ok !== false) throw new Error("throw must hold");
+assert.equal(
+  thrownInspection.reason,
+  "production_live_canary_preflight_native_execution_dry_run_failed",
+);
+assert.equal(thrownInspection.native_execution_dry_run_invoked, true);
+assert.equal(thrownInspection.mutation_performed, false);
+assert.equal(thrownInspection.signing_performed, false);
+assert.equal(thrownInspection.transaction_broadcast_performed, false);
+assert.equal(thrownInspection.money_movement_performed, false);
+
 const repeatInspect = await runBuyVoidProductionLiveCanaryPreflightV1(
   {
     production_policy: productionPolicy(),
@@ -514,6 +546,46 @@ assert.equal(unsafeMutation.native_execution_dry_run_invoked, true);
 assert.equal(unsafeMutation.mutation_performed, true);
 assert.equal(unsafeMutation.money_movement_performed, true);
 
+for (const nestedFlag of [
+  "mutation_performed",
+  "signing_performed",
+  "transaction_broadcast_performed",
+] as const) {
+  const nestedUnsafe = await runBuyVoidProductionLiveCanaryPreflightV1(
+    {
+      production_policy: productionPolicy(),
+      execution_runtime_policy: runtimePolicy(),
+      attempt_id: attemptId,
+      inspect: true,
+      confirmation: VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_CONFIRMATION_V1,
+      expected_production_activation_plan_id_sha256:
+        planned.production_activation_plan_id_sha256,
+      expected_preflight_plan_id_sha256: planned.preflight_plan_id_sha256,
+    },
+    {
+      run_native_execution_runtime: (async (input: any) => {
+        const decision = dryRunDecision(input.command.attempt_id);
+        return {
+          ...decision,
+          worker: {
+            ...decision.worker,
+            [nestedFlag]: true,
+          },
+        };
+      }) as any,
+    },
+  );
+  assert.equal(nestedUnsafe.ok, false);
+  if (nestedUnsafe.ok !== false) throw new Error(`${nestedFlag} must hold`);
+  assert.equal(
+    nestedUnsafe.reason,
+    "production_live_canary_preflight_native_execution_dry_run_boundary_invalid",
+  );
+  assert.equal(nestedUnsafe.native_execution_dry_run_invoked, true);
+  assert.equal((nestedUnsafe as any)[nestedFlag], true);
+  assert.equal(nestedUnsafe.money_movement_performed, true);
+}
+
 console.log("VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_V1_PROOF_GREEN");
 console.log("default_plan_runtime_calls=0");
 console.log("exact_attempt_id_required=true");
@@ -528,6 +600,8 @@ console.log("native_execution_apply=false");
 console.log("native_execution_dependencies_supplied=false");
 console.log("runtime_policy_snapshot_frozen=true");
 console.log("caller_mutation_after_snapshot_cannot_retarget=true");
+console.log("native_execution_throw_held=true");
+console.log("nested_worker_side_effect_signals_held=true");
 console.log("successful_inspection_mutation=0");
 console.log("successful_inspection_signing=0");
 console.log("successful_inspection_broadcast=0");
