@@ -21,7 +21,14 @@ export const VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RESERVATION_AUTHORITY_V1 
   runtime_status_checked_before_command: true,
   transaction_preparation_gate_must_be_disabled: true,
   already_claimed_request_required: true,
-  allowed_apply_stages: ["reserve_inventory", "reserve_execution_attempt"],
+  claim_payment_projection_only: true,
+  claim_payment_requires_existing_claim_snapshot: true,
+  claim_journal_write: false,
+  allowed_apply_stages: [
+    "claim_payment",
+    "reserve_inventory",
+    "reserve_execution_attempt",
+  ],
   candidate_ready_from_attempt_reservation_receipt: true,
   one_business_stage_per_invocation: true,
   replan_before_apply: true,
@@ -38,7 +45,8 @@ export const VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RESERVATION_AUTHORITY_V1 
 
 const REQUEST_ID = /^[A-Za-z0-9._:-]{3,160}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const RESERVATION_STAGES = new Set([
+const CANDIDATE_STAGES = new Set([
+  "claim_payment",
   "reserve_inventory",
   "reserve_execution_attempt",
 ]);
@@ -83,7 +91,7 @@ export type BuyVoidProductionCanaryCandidateDecisionV1 = Record<string, any> & {
 type DryRun = {
   request_id: string;
   saga_id: string;
-  next_action: "reserve_inventory" | "reserve_execution_attempt";
+  next_action: "claim_payment" | "reserve_inventory" | "reserve_execution_attempt";
   required_runtime_confirmation: string;
   required_saga_confirmation: string;
   required_action_confirmation: string;
@@ -335,7 +343,9 @@ function parseDry(value: unknown, requestId: string): DryRun | null {
     return null;
   }
   const nextAction = text(response.next_action);
-  if (!RESERVATION_STAGES.has(nextAction)) return null;
+  if (!CANDIDATE_STAGES.has(nextAction)) return null;
+  const snapshot = object(response.derived_snapshot);
+  if (!snapshot || text(snapshot.claim_status) !== "claimed") return null;
   const delegatedRaw = response.required_delegated_confirmation;
   const delegated = delegatedRaw === undefined || delegatedRaw === null
     ? null
@@ -475,7 +485,7 @@ function parseAppliedRuntime(
   requestId: string,
   sagaId: string,
   policy: string,
-  stage: "reserve_inventory" | "reserve_execution_attempt",
+  stage: "claim_payment" | "reserve_inventory" | "reserve_execution_attempt",
 ): AppliedRuntime | null {
   const response = object(value);
   const result = object(response?.result);
@@ -501,8 +511,17 @@ function parseAppliedRuntime(
   ) {
     return null;
   }
+  if (stage === "claim_payment") {
+    return text(state.state) === "claimed" &&
+        text(state.next_action) === "reserve_inventory"
+      ? { state }
+      : null;
+  }
   if (stage === "reserve_inventory") {
-    return text(state.state) === "inventory_reserved" ? { state } : null;
+    return text(state.state) === "inventory_reserved" &&
+        text(state.next_action) === "reserve_execution_attempt"
+      ? { state }
+      : null;
   }
   const attemptId = text(state.attempt_id).toLowerCase();
   if (
@@ -536,12 +555,14 @@ export async function runBuyVoidProductionCanaryCandidateReservationV1(input: {
   if (!input.args.apply || !plan.ok) return plan;
   if (
     plan.status !== "planned" ||
-    (plan.next_action !== "reserve_inventory" &&
+    (plan.next_action !== "claim_payment" &&
+      plan.next_action !== "reserve_inventory" &&
       plan.next_action !== "reserve_execution_attempt")
   ) {
     return held(requestId, "candidate_apply_stage_not_authorized");
   }
   const stage = plan.next_action as
+    | "claim_payment"
     | "reserve_inventory"
     | "reserve_execution_attempt";
   if (
@@ -657,6 +678,9 @@ export async function runBuyVoidProductionCanaryCandidateReservationV1(input: {
     request_id: requestId,
     saga_id: plan.saga_id,
     applied_stage: stage,
+    ...(stage === "claim_payment"
+      ? { claim_projection_reconciled: true, claim_journal_write_performed: false }
+      : {}),
     plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
     stage_transition_count: 1,
     runtime_preparation_enabled: false,
