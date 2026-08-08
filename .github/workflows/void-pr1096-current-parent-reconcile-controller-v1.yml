@@ -1,0 +1,79 @@
+name: VOID PR1096 current-parent reconcile controller v1
+
+on:
+  push:
+    branches:
+      - 'feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+    paths:
+      - '.github/workflows/void-pr1096-current-parent-reconcile-controller-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact controller head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Execute retargeted exact-anchor reconciliation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          FEATURE='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
+          PREVIOUS='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'
+          PARENT='29b8da4f1d10dfd703eae4334d95506709f2b03b'
+          TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+          CONTROLLER='.github/workflows/void-pr1096-current-parent-reconcile-controller-v1.yml'
+
+          test "$(git rev-parse HEAD^)" = "$PREVIOUS"
+          actual_stage="$(git diff --name-only "$FEATURE" HEAD | sort)"
+          expected_stage="$(printf '%s\n' "$CONTROLLER" "$TEMP" | sort)"
+          test "$actual_stage" = "$expected_stage"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          temp = Path('.github/workflows/void-pr1096-current-parent-reconcile-v3.yml')
+          controller = '.github/workflows/void-pr1096-current-parent-reconcile-controller-v1.yml'
+          text = temp.read_text()
+          marker = '      - name: Reconcile current parent by exact anchors, prove, self-delete, and fast-forward\n'
+          start = text.index(marker) + len(marker)
+          run_marker = '        shell: bash\n        run: |\n'
+          start = text.index(run_marker, start) + len(run_marker)
+          script = textwrap.dedent(text[start:])
+
+          replacements = {
+              "EXPECTED_PREVIOUS_STAGING_HEAD='dcfa8abe5b9584e1eadbaec6c18473ddf2c87bf8'":
+                  "EXPECTED_PREVIOUS_STAGING_HEAD='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'",
+              "EXPECTED_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'":
+                  "EXPECTED_BASE='29b8da4f1d10dfd703eae4334d95506709f2b03b'",
+              'test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"':
+                  ': # staging scope verified by controller',
+              'git rm -- "$TEMP"':
+                  f'git rm -- "$TEMP" "{controller}"',
+          }
+          for old, new in replacements.items():
+              count = script.count(old)
+              if count != 1:
+                  raise SystemExit(f'HOLD: controller replacement count={count} for {old!r}')
+              script = script.replace(old, new, 1)
+
+          Path('/tmp/void-pr1096-reconcile.sh').write_text(script)
+          PY
+
+          bash /tmp/void-pr1096-reconcile.sh
