@@ -61,7 +61,7 @@ function resetCounters(): void {
 const dry = await runBuyVoidProductionPrivateServicesActivationV1({ policy });
 assert.equal(dry.ok, true);
 assert.equal(dry.status, "dry_run");
-if (!dry.ok || dry.status !== "dry_run") {
+if (dry.ok === false || dry.status !== "dry_run") {
   throw new Error("production_private_services_dry_run_expected");
 }
 assert.match(dry.plan_id_sha256, /^[0-9a-f]{64}$/);
@@ -390,7 +390,7 @@ const started = await runBuyVoidProductionPrivateServicesActivationV1(
 );
 assert.equal(started.ok, true);
 assert.equal(started.status, "started");
-if (!started.ok || started.status !== "started") {
+if (started.ok === false || started.status !== "started") {
   throw new Error("production_private_services_started_expected");
 }
 assert.equal(readinessCalls, 1);
