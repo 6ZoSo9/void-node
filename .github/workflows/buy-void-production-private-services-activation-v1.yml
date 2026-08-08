@@ -23,6 +23,7 @@ on:
       - "src/economic/buy_void_production_activation_plan_v1.ts"
       - "src/economic/buy_void_prepared_transaction_custodian_credential_activation_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
 
 permissions:
   contents: read
