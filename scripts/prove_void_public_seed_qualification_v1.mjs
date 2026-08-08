@@ -440,6 +440,11 @@ try {
       (receipt) => { receipt.samples[0].mutation_status = "405"; },
       /mutation boundary mismatch/,
     ],
+    [
+      "mismatched range head",
+      (receipt) => { receipt.samples[0].range_head -= 1; },
+      /head binding mismatch/,
+    ],
   ]) {
     const confused = resealReceipt(ipLiteralReceipt, mutate);
     expectThrow(
@@ -448,7 +453,7 @@ try {
       `resealed ${label} receipt is rejected`,
     );
   }
-  pass("content-addressed qualification receipts require numeric JSON types");
+  pass("content-addressed qualification receipts require exact numeric and range-head bindings");
 
   const mismatchedIpLiteralReceipt = createQualificationReceipt({
     endpoint: "https://1.1.1.1",
