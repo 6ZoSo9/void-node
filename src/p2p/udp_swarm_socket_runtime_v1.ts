@@ -459,6 +459,8 @@ export class VoidUdpSwarmSocketRuntimeV1 {
       remoteObservation: normalized.peer_observation,
       startDelayMs: normalized.start_delay_ms,
       attemptTimeoutMs: normalized.attempt_timeout_ms,
+      verifyAuthenticatedRendezvousObservation:
+        rawAction.verifyAuthenticatedRendezvousObservation,
       allowNonPublicEndpoints: this.allowNonPublicEndpoints,
       adapterOptions: {
         maxPayloadBytes: this.securePayloadBytes,
@@ -474,6 +476,8 @@ export class VoidUdpSwarmSocketRuntimeV1 {
       action: Object.freeze({
         relay_node_id: rawAction.relay_node_id,
         message: normalized,
+        verifyAuthenticatedRendezvousObservation:
+          rawAction.verifyAuthenticatedRendezvousObservation,
       }),
       offer: normalized,
       upgrade,
