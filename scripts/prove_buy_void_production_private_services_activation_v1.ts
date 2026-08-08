@@ -43,8 +43,6 @@ const policy = {
     rpc: {
       rpc_url: "http://127.0.0.1:8545/",
       expected_chain_id: 2050,
-      request_timeout_ms: undefined as number | undefined,
-      max_response_bytes: undefined as number | undefined,
     },
   },
 } as const;
@@ -119,8 +117,8 @@ function assertBoundPolicy(value: any): void {
     value.broadcaster.rpc.expected_chain_id,
     EXPECTED.expected_chain_id,
   );
-  assert.equal(value.broadcaster.rpc.request_timeout_ms, undefined);
-  assert.equal(value.broadcaster.rpc.max_response_bytes, undefined);
+  assert.equal(Object.hasOwn(value.broadcaster.rpc, "request_timeout_ms"), false);
+  assert.equal(Object.hasOwn(value.broadcaster.rpc, "max_response_bytes"), false);
 }
 
 const dry = await runBuyVoidProductionPrivateServicesActivationV1({ policy });
@@ -299,8 +297,8 @@ function makeDependencies(
         input.policy.rpc.expected_chain_id,
         EXPECTED.expected_chain_id,
       );
-      assert.equal(input.policy.rpc.request_timeout_ms, undefined);
-      assert.equal(input.policy.rpc.max_response_bytes, undefined);
+      assert.equal(Object.hasOwn(input.policy.rpc, "request_timeout_ms"), false);
+      assert.equal(Object.hasOwn(input.policy.rpc, "max_response_bytes"), false);
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,
