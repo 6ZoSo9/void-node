@@ -12,11 +12,13 @@ permissions:
 
 jobs:
   reconcile:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout exact staging head
         uses: actions/checkout@v6
         with:
+          persist-credentials: true
           fetch-depth: 0
 
       - name: Use Node.js 24
@@ -25,19 +27,20 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Reconcile current parent and prove
+      - name: Reconcile current parent, prove, self-delete, and fast-forward
         shell: bash
         run: |
           set -Eeuo pipefail
 
           BRANCH='feat/p2p-authenticated-peer-public-key-retention-v1-20260807'
           BASE_BRANCH='feat/p2p-ephemeral-direct-mount-v1-20260807'
-          EXPECTED_OLD_HEAD='b7016778c90caae0d5af0c12f161302569d0748f'
-          EXPECTED_BASE='0152b953593b72d3a9f3e7ddecea57ad5af9871a'
+          EXPECTED_FEATURE_HEAD='b7016778c90caae0d5af0c12f161302569d0748f'
+          EXPECTED_STAGING_PARENT='cfabd3bb50bf0d8d42e22bc8c4db9a54631e6453'
+          EXPECTED_BASE='a3553991c3ec02659f1d41649d254a5a19dd4f4e'
           TEMP='.github/workflows/void-pr1093-current-parent-reconcile-v1.yml'
 
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_OLD_HEAD"
-          test "$(git diff --name-only "$EXPECTED_OLD_HEAD" HEAD)" = "$TEMP"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_STAGING_PARENT"
+          test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
 
           git fetch --no-tags origin "$BASE_BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
@@ -54,7 +57,8 @@ jobs:
             test "$conflicts" = 'src/node_core.ts'
           fi
 
-          # Current parent owns node_core; retain only PR1093's two-line key-retention seam.
+          # Current parent owns node_core; retain only PR1093's two-line
+          # authenticated public-key retention seam.
           git checkout "$EXPECTED_BASE" -- src/node_core.ts
 
           python3 - <<'PY'
@@ -85,12 +89,12 @@ jobs:
           PY
 
           git add src/node_core.ts
+          git rm -- "$TEMP"
           test -z "$(git diff --name-only --diff-filter=U)"
 
           actual_scope="$(git diff --name-only "$EXPECTED_BASE" | sort)"
           expected_scope="$(printf '%s\n' \
             '.github/workflows/void-p2p-authenticated-peer-public-key-retention-v1.yml' \
-            '.github/workflows/void-pr1093-current-parent-reconcile-v1.yml' \
             'docs/public/void-p2p-authenticated-peer-public-key-retention-v1.md' \
             'scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts' \
             'src/node_core.ts' | sort)"
@@ -104,8 +108,7 @@ jobs:
           npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
           npm run typecheck
           npm run build
-          git diff --check
+          git diff --cached --check "$EXPECTED_BASE"
 
-          git add src/node_core.ts
           git commit -m 'chore: reconcile authenticated peer public-key retention with current parent'
           git push origin "HEAD:$BRANCH"
