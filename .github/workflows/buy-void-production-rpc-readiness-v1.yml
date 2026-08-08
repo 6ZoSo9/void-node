@@ -66,8 +66,10 @@ jobs:
         run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
       - name: Typecheck repository
         run: npm run typecheck
-      - name: Build repository
-        run: npm run build
+      - name: Build repository TypeScript
+        run: npx --no-install tsc -p tsconfig.build.json
+      - name: Copy repository runtime assets
+        run: node scripts/copy_void_runtime_js_v1.mjs
       - name: Diff hygiene across committed change range
         shell: bash
         env:
