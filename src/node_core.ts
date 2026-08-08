@@ -19,6 +19,7 @@ import {
   canonicalizePeerAddressList,
   formatPeerAddress,
   httpBaseFromP2P,
+  isPublicLearnedPeerAddressV1,
   parseBootstrap,
   parsePeerAddress,
 } from "./types/p2p.js";
@@ -408,6 +409,10 @@ export class Node {
   private dialing = new Set<string>();
   private knownAddrs = new Set<string>();
   private backoff = new Map<string, number>();
+  private learnedPeerDialAttemptsV1 = new Set<string>();
+  private readonly MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1 = 64;
+  private readonly MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1 = 8;
+  private readonly MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1 = 64;
   private readonly MIN_BACKOFF = 500;
   private readonly MAX_BACKOFF = 15_000;
 
@@ -1434,18 +1439,10 @@ export class Node {
       this.completeDirectUpgradeSession(peer.directUpgradeSessionId, peer.id);
     }
 
-    const addrs = new Set<string>();
-    for (const connectedPeer of this.peers.values()) {
-      if (
-        !connectedPeer.handshakeDone ||
-        connectedPeer.transport !== "direct" ||
-        !connectedPeer.persistDirectEvidence
-      ) continue;
-      for (const address of connectedPeer.listens) addrs.add(address);
-    }
-    for (const address of this.listenAddrs) addrs.add(address);
-
-    this.sendRaw(peer, { type: "PEERS", addrs: [...addrs] });
+    this.sendRaw(peer, {
+      type: "PEERS",
+      addrs: this.publicPeerExchangeAddrsV1(),
+    });
     for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
     return true;
   }
@@ -1650,9 +1647,18 @@ export class Node {
     }
 
     if (msg.type === "PEERS") {
-      const learned = canonicalizePeerAddressList(msg.addrs, 64);
-      for (const address of learned) if (!this.isSelfAddress(address)) this.knownAddrs.add(address);
-      for (const address of learned) if (this.shouldDial(address)) this.connect(address);
+      const learned = canonicalizePeerAddressList(
+        msg.addrs,
+        this.MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1,
+      )
+        .filter((address) => isPublicLearnedPeerAddressV1(address))
+        .slice(0, this.MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1);
+
+      for (const address of learned) {
+        if (!this.shouldDialLearnedPeerV1(address)) continue;
+        this.knownAddrs.add(address);
+        this.connect(address, undefined, false);
+      }
       return;
     }
 
@@ -1704,6 +1710,42 @@ export class Node {
         }
       }
     }
+  }
+
+  private publicPeerExchangeAddrsV1(): string[] {
+    const addrs = new Set<string>();
+    for (const connectedPeer of this.peers.values()) {
+      if (
+        !connectedPeer.handshakeDone ||
+        connectedPeer.transport !== "direct" ||
+        !connectedPeer.persistDirectEvidence
+      ) continue;
+      for (const address of connectedPeer.listens) {
+        if (isPublicLearnedPeerAddressV1(address)) addrs.add(address);
+      }
+    }
+    for (const address of this.listenAddrs) {
+      if (isPublicLearnedPeerAddressV1(address)) addrs.add(address);
+    }
+    return [...addrs];
+  }
+
+  private shouldDialLearnedPeerV1(addr: string): boolean {
+    const canonical = canonicalPeerAddress(addr);
+    if (!canonical || !isPublicLearnedPeerAddressV1(canonical)) return false;
+    if (this.learnedPeerDialAttemptsV1.has(canonical)) return false;
+    if (
+      this.learnedPeerDialAttemptsV1.size >=
+      this.MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1
+    ) {
+      return false;
+    }
+    if (!this.shouldDial(canonical)) return false;
+
+    // Reserve the one-shot attempt before dialing so repeated PEERS messages
+    // cannot race the same address into multiple pre-authentication attempts.
+    this.learnedPeerDialAttemptsV1.add(canonical);
+    return true;
   }
 
   private relayStreamKey(relayNodeId: string, streamId: string): string {
@@ -2905,7 +2947,11 @@ export class Node {
     }
     return true;
   }
-  connect(addr: string, expectedNodeId?: string) {
+  connect(
+    addr: string,
+    expectedNodeId?: string,
+    retryOnFailure = true,
+  ) {
     const parsed = parsePeerAddress(addr);
     if (!parsed) return;
     const canonical = parsed.canonical;
@@ -2927,11 +2973,17 @@ export class Node {
       console.warn(`[dial] failed ${canonical}:`, e.message);
       this.dialing.delete(canonical);
       socket.destroy();
+
+      // Third-party PEERS entries are unverified until authentication
+      // completes. Their initial discovery dial is one-shot: a sender cannot
+      // manufacture persistent retry loops toward arbitrary public targets.
+      if (!retryOnFailure) return;
+
       const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
       this.backoff.set(canonical, nxt);
       setTimeout(() => {
-        if (!this.stopping) this.connect(canonical, pinnedNodeId);
+        if (!this.stopping) this.connect(canonical, pinnedNodeId, true);
       }, cur).unref?.();
     });
   }
