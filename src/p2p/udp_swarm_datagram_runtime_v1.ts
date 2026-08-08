@@ -176,7 +176,7 @@ function endpointMatchesSource(
   }
 }
 
-function freezeBound(address: dgram.AddressInfo): VoidUdpSwarmDatagramRuntimeBoundV1 {
+function freezeBound(address: net.AddressInfo): VoidUdpSwarmDatagramRuntimeBoundV1 {
   if (address.family !== "IPv4") {
     throw new Error("UDP swarm datagram runtime v1 requires an IPv4 socket");
   }
