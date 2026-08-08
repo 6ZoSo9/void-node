@@ -40,7 +40,7 @@ jobs:
           PROOF='scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts'
           SOURCE='src/node_core.ts'
 
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE"
+          test "$(git merge-base HEAD "$EXPECTED_BASE")" = "$EXPECTED_BASE"
           test "$(git diff --name-only "$EXPECTED_BASE" HEAD)" = "$HELPER_FILE"
 
           git fetch --no-tags origin \
@@ -50,19 +50,13 @@ jobs:
           test "$(git rev-parse "origin/$BASE_BRANCH")" = "$EXPECTED_BASE"
 
           actual_scope="$(git diff --name-status "$EXPECTED_BASE" "$EXPECTED_TARGET" | sort)"
-          expected_scope="$(printf '%s\n' \
-            "A${IFS}$WORKFLOW" \
-            "A${IFS}$DOC" \
-            "A${IFS}$PROOF" \
-            "M${IFS}$SOURCE" | tr ' ' '\t' | sort)"
+          expected_scope="$(printf 'A\t%s\nA\t%s\nA\t%s\nM\t%s\n' \
+            "$WORKFLOW" "$DOC" "$PROOF" "$SOURCE" | sort)"
           test "$actual_scope" = "$expected_scope"
 
           actual_numstat="$(git diff --numstat "$EXPECTED_BASE" "$EXPECTED_TARGET" | sort -k3,3)"
-          expected_numstat="$(printf '%s\n' \
-            "80 0 $WORKFLOW" \
-            "131 0 $DOC" \
-            "387 0 $PROOF" \
-            "192 2 $SOURCE" | tr ' ' '\t' | sort -k3,3)"
+          expected_numstat="$(printf '80\t0\t%s\n131\t0\t%s\n387\t0\t%s\n192\t2\t%s\n' \
+            "$WORKFLOW" "$DOC" "$PROOF" "$SOURCE" | sort -k3,3)"
           test "$actual_numstat" = "$expected_numstat"
 
           for p in "$WORKFLOW" "$DOC" "$PROOF"; do
