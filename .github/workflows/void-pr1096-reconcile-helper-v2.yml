@@ -1,0 +1,113 @@
+name: VOID PR1096 reconciliation helper v2
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-pr1096-reconcile-helper-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.event.pull_request.base.ref == 'feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout helper head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Reconcile PR1096 and self-clean helper
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TARGET_BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+          BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
+          HELPER_BRANCH='ops/pr1096-current-parent-reconcile-helper-v2-20260808'
+          HELPER_FILE='.github/workflows/void-pr1096-reconcile-helper-v2.yml'
+          TARGET_TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+          EXPECTED_TARGET='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'
+          EXPECTED_BASE='29b8da4f1d10dfd703eae4334d95506709f2b03b'
+          EXPECTED_FEATURE='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
+          OLD_PARENT='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'
+
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE"
+          test "$(git diff --name-only "$EXPECTED_BASE" HEAD)" = "$HELPER_FILE"
+
+          git fetch --no-tags origin \
+            "$TARGET_BRANCH" \
+            "$BASE_BRANCH"
+          target_sha="$(git rev-parse "origin/$TARGET_BRANCH")"
+          base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          test "$target_sha" = "$EXPECTED_TARGET"
+          test "$base_sha" = "$EXPECTED_BASE"
+
+          git cat-file -e "$EXPECTED_FEATURE^{commit}"
+          git cat-file -e "$OLD_PARENT^{commit}"
+          git diff --binary "$OLD_PARENT" "$EXPECTED_FEATURE" -- src/node_core.ts > /tmp/pr1096-node-core.patch
+          test -s /tmp/pr1096-node-core.patch
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git checkout --detach "$EXPECTED_TARGET"
+          test -f "$TARGET_TEMP"
+
+          set +e
+          git merge --no-commit --no-ff "$EXPECTED_BASE"
+          merge_rc=$?
+          set -e
+          if [ "$merge_rc" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            test "$conflicts" = 'src/node_core.ts'
+          fi
+
+          git checkout "$EXPECTED_BASE" -- src/node_core.ts
+          git add src/node_core.ts
+          git apply --3way --index /tmp/pr1096-node-core.patch
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git rm -- "$TARGET_TEMP"
+
+          actual_scope="$(git diff --name-only "$EXPECTED_BASE" | sort)"
+          expected_scope="$(printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-control-mount-v1.yml' \
+            'docs/public/void-p2p-udp-swarm-node-control-mount-v1.md' \
+            'scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts' \
+            'src/node_core.ts' | sort)"
+          test "$actual_scope" = "$expected_scope"
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --cached --check "$EXPECTED_BASE"
+
+          git fetch --no-tags origin "$TARGET_BRANCH" "$BASE_BRANCH"
+          test "$(git rev-parse "origin/$TARGET_BRANCH")" = "$EXPECTED_TARGET"
+          test "$(git rev-parse "origin/$BASE_BRANCH")" = "$EXPECTED_BASE"
+
+          git commit -m 'chore: reconcile UDP swarm Node control mount with current parent'
+          git push origin "HEAD:$TARGET_BRANCH"
+
+          git fetch --no-tags origin "$HELPER_BRANCH"
+          git checkout -B helper-clean "origin/$HELPER_BRANCH"
+          test -f "$HELPER_FILE"
+          git rm -- "$HELPER_FILE"
+          git commit -m 'chore: remove PR1096 reconciliation helper v2'
+          git push origin "HEAD:$HELPER_BRANCH"
