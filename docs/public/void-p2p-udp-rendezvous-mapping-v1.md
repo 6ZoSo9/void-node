@@ -23,9 +23,13 @@ PR #1079 defines the UDP punch packet, endpoint syntax, and bounded punch schedu
 This child adds the missing observation boundary before such a punch plan can be
 created safely.
 
-The recommended participant-side UDP port remains 4700, but it is not identity and
-it need not survive NAT rewriting. A router may map local UDP 4700 to any public
-source port. The rendezvous observation records the public endpoint actually seen.
+The participant-side default local UDP bind request is port `0`, allowing the
+operating system to select an available local port. No fixed participant UDP port
+is required by the protocol. An explicit available port such as `4700` may still
+be used for compatibility or operator testing, but it is not identity and it is
+not a permanent VOID dependency. A router may preserve or rewrite whatever local
+source port was selected; the rendezvous observation records the public endpoint
+actually seen.
 
 ## Control-path boundary
 
