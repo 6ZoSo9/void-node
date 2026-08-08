@@ -289,6 +289,126 @@ function providerId(requestId: number, suffix: string): string {
   );
 }
 
+function hasOwn(
+  record: Record<string, unknown>,
+  key: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function invalidTransportResult(
+  input: Readonly<BuyVoidNativeChain2050JsonRpcCallV1>,
+): BuyVoidNativeChain2050JsonRpcCallHeldV1 {
+  return {
+    ok: false,
+    request_sent: input.method === "eth_sendRawTransaction",
+    response_received: false,
+    http_status: null,
+    request_id: input.request_id,
+    error_code: "transport_result_boundary_invalid",
+    json_rpc_error_code: "",
+    provider_submission_id: providerId(
+      input.request_id,
+      "boundary-invalid",
+    ),
+  };
+}
+
+function normalizeTransportResult(
+  input: Readonly<BuyVoidNativeChain2050JsonRpcCallV1>,
+  value: unknown,
+): BuyVoidNativeChain2050JsonRpcCallResultV1 {
+  const invalid = (): BuyVoidNativeChain2050JsonRpcCallHeldV1 =>
+    invalidTransportResult(input);
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return invalid();
+  }
+
+  const record = value as Record<string, unknown>;
+  const providerRaw = record.provider_submission_id;
+  if (
+    !hasOwn(record, "provider_submission_id") ||
+    typeof providerRaw !== "string" ||
+    providerRaw !== safeProviderSubmissionId(providerRaw)
+  ) {
+    return invalid();
+  }
+  const providerSubmissionId = providerRaw;
+
+  if (record.ok === true) {
+    if (
+      !hasOwn(record, "ok") ||
+      !hasOwn(record, "request_sent") ||
+      !hasOwn(record, "response_received") ||
+      !hasOwn(record, "http_status") ||
+      !hasOwn(record, "request_id") ||
+      record.request_sent !== true ||
+      record.response_received !== true ||
+      record.http_status !== 200 ||
+      record.request_id !== input.request_id ||
+      !hasOwn(record, "result") ||
+      hasOwn(record, "error_code") ||
+      hasOwn(record, "json_rpc_error_code")
+    ) {
+      return invalid();
+    }
+    return {
+      ok: true,
+      request_sent: true,
+      response_received: true,
+      http_status: 200,
+      request_id: input.request_id,
+      result: record.result,
+      provider_submission_id: providerSubmissionId,
+    };
+  }
+
+  if (record.ok === false) {
+    const requestSent = record.request_sent;
+    const responseReceived = record.response_received;
+    const httpStatus = record.http_status;
+    const errorCode = record.error_code;
+    const jsonRpcErrorCode = record.json_rpc_error_code;
+    if (
+      !hasOwn(record, "ok") ||
+      !hasOwn(record, "request_sent") ||
+      !hasOwn(record, "response_received") ||
+      !hasOwn(record, "http_status") ||
+      !hasOwn(record, "request_id") ||
+      !hasOwn(record, "error_code") ||
+      !hasOwn(record, "json_rpc_error_code") ||
+      typeof requestSent !== "boolean" ||
+      typeof responseReceived !== "boolean" ||
+      (httpStatus !== null &&
+        (typeof httpStatus !== "number" ||
+          !Number.isInteger(httpStatus) ||
+          httpStatus < 100 ||
+          httpStatus > 599)) ||
+      record.request_id !== input.request_id ||
+      typeof errorCode !== "string" ||
+      !/^[A-Za-z0-9._:-]{1,160}$/.test(errorCode) ||
+      typeof jsonRpcErrorCode !== "string" ||
+      !/^(?:|-?[0-9]{1,12})$/.test(jsonRpcErrorCode) ||
+      hasOwn(record, "result")
+    ) {
+      return invalid();
+    }
+    return {
+      ok: false,
+      request_sent: requestSent,
+      response_received: responseReceived,
+      http_status: httpStatus as number | null,
+      request_id: input.request_id,
+      error_code: errorCode,
+      json_rpc_error_code: jsonRpcErrorCode,
+      provider_submission_id: providerSubmissionId,
+    };
+  }
+
+  return invalid();
+}
+
 export function createBuyVoidNativeChain2050HttpTransportV1():
 BuyVoidNativeChain2050JsonRpcTransportV1 {
   return {
@@ -584,7 +704,8 @@ async function callTransport(
   input: BuyVoidNativeChain2050JsonRpcCallV1,
 ): Promise<BuyVoidNativeChain2050JsonRpcCallResultV1> {
   try {
-    return await transport.call(input);
+    const response: unknown = await transport.call(input);
+    return normalizeTransportResult(input, response);
   } catch (error) {
     return {
       ok: false,
