@@ -80,16 +80,18 @@ jobs:
 
           path = Path('scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts')
           text = path.read_text()
-          old = '''        const next = queue.shift();
-          assert.ok(next, `missing synthetic response for ${input.method}`);
-          if (next instanceof Error) throw next;
-          '''
-          new = '''        const next = queue.shift();
-          if (next === undefined) {
-            throw new Error(`missing synthetic response for ${input.method}`);
-          }
-          if (next instanceof Error) throw next;
-          '''
+          old = (
+              "        const next = queue.shift();\n"
+              "        assert.ok(next, `missing synthetic response for ${input.method}`);\n"
+              "        if (next instanceof Error) throw next;\n"
+          )
+          new = (
+              "        const next = queue.shift();\n"
+              "        if (next === undefined) {\n"
+              "          throw new Error(`missing synthetic response for ${input.method}`);\n"
+              "        }\n"
+              "        if (next instanceof Error) throw next;\n"
+          )
           if text.count(old) != 1:
               raise SystemExit('HOLD: queue missing-response anchor mismatch')
           path.write_text(text.replace(old, new, 1))
