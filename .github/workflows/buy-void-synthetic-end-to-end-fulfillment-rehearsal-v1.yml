@@ -40,6 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
@@ -75,5 +76,17 @@ jobs:
         run: npm run typecheck
       - name: Build repository
         run: npm run build
-      - name: Diff hygiene
-        run: git diff --check
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "$PR_BASE_SHA...HEAD"
+          else
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          fi
