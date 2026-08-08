@@ -19,6 +19,45 @@ export type ParsedPeerAddress = Readonly<{
 const MAX_PEER_ADDRESS_CHARS = 512;
 const CONTROL_OR_SPACE = /[\u0000-\u0020\u007f]/;
 
+const NON_PUBLIC_LEARNED_V4_RANGES: ReadonlyArray<readonly [string, number]> = [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
+];
+
+const NON_PUBLIC_LEARNED_V6_RANGES: ReadonlyArray<readonly [string, number]> = [
+  ["::", 128],
+  ["::1", 128],
+  ["::ffff:0:0", 96],
+  ["100::", 64],
+  ["2001:db8::", 32],
+  ["fc00::", 7],
+  ["fe80::", 10],
+  ["ff00::", 8],
+];
+
+const NON_PUBLIC_LEARNED_V4 = new net.BlockList();
+for (const [network, prefix] of NON_PUBLIC_LEARNED_V4_RANGES) {
+  NON_PUBLIC_LEARNED_V4.addSubnet(network, prefix, "ipv4");
+}
+
+const NON_PUBLIC_LEARNED_V6 = new net.BlockList();
+for (const [network, prefix] of NON_PUBLIC_LEARNED_V6_RANGES) {
+  NON_PUBLIC_LEARNED_V6.addSubnet(network, prefix, "ipv6");
+}
+
+
 function normalizeDnsHost(raw: string): string | undefined {
   if (!raw || raw.length > 253) return;
   if (raw.startsWith(".") || raw.endsWith(".") || raw.includes("..")) return;
@@ -172,6 +211,37 @@ export function canonicalizePeerAddressList(
     out.push(canonical);
   }
   return out;
+}
+
+
+/**
+ * Decide whether an address learned indirectly through a PEERS advertisement
+ * is eligible for bounded public discovery.
+ *
+ * Third-party PEERS entries are not identity-bound. V1 therefore accepts only
+ * canonical globally routable numeric IP literals. DNS names are intentionally
+ * excluded because resolving a third-party hostname before authentication
+ * would let an authenticated sender steer the node toward arbitrary resolver
+ * results. Explicit bootstrap entries and a peer's own authenticated,
+ * transcript-bound listen addresses keep their existing behavior.
+ */
+export function isPublicLearnedPeerAddressV1(
+  raw?: string | null,
+): boolean {
+  const parsed = parsePeerAddress(raw);
+  if (!parsed || parsed.family === 0) return false;
+
+  if (parsed.family === 4) {
+    return !NON_PUBLIC_LEARNED_V4.check(parsed.host, "ipv4");
+  }
+
+  if (NON_PUBLIC_LEARNED_V6.check(parsed.host, "ipv6")) return false;
+
+  // Keep indirect IPv6 admission narrow: globally routable 2000::/3 only.
+  const firstHextet = Number.parseInt(parsed.host.split(":", 1)[0] || "0", 16);
+  return Number.isInteger(firstHextet) &&
+    firstHextet >= 0x2000 &&
+    firstHextet <= 0x3fff;
 }
 
 /** Infer HTTP base from a P2P port in the 4700-4799 compatibility range. */
