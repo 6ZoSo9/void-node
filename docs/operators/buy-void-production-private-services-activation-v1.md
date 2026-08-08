@@ -10,7 +10,8 @@ Tracks blocker #1105 and is stacked after production RPC readiness PR #1104.
 
 Compose the existing production activation plan, read-only chain-2050 readiness
 probe, credential-backed custodian activation, and submission-capable broadcaster
-activation into one bounded private-service lifecycle.
+activation into one bounded private-service lifecycle without collapsing their
+independent operational authorities.
 
 This lane does not submit a transaction. It creates the private signing and
 submission capabilities required by a later separately authorized live canary.
@@ -27,33 +28,49 @@ Dry run is the default and performs:
 - zero transaction submission/broadcast; and
 - zero money movement.
 
-Dry run re-derives the merged production activation plan and returns the exact
-plan ID plus the exact coordinator confirmation required for apply.
+Dry run re-derives the production activation plan and returns the exact plan ID
+plus every exact confirmation string that a later apply must independently echo.
 
 ## Explicit apply boundary
 
-Apply requires byte-exact values:
+Apply requires all of these byte-exact values:
 
 ```text
 confirmation=buyVoidStartProductionPrivateServicesV1
 expected_plan_id_sha256=<exact dry-run plan ID>
+rpc_readiness_confirmation=buyVoidProbeProductionChain2050RpcReadinessV1
+custodian_activation_confirmation=buyVoidStartPreparedTransactionCustodianCredentialServiceV1
+broadcaster_activation_confirmation=buyVoidStartPreparedTransactionBroadcasterSubmissionV1
 ```
 
-Whitespace, case changes, stale plan IDs, or other substitutions are not
-normalized into authority.
+The coordinator confirmation is an additional orchestration gate. It does not
+mint, infer, or substitute authority for the RPC readiness probe, custodian
+activation, or broadcaster activation.
 
-After those echoes pass, the coordinator executes in this order:
+All four confirmation echoes and the exact plan ID are validated before any RPC
+probe or private-service start. Missing, wrong, padded, case-modified, or stale
+values fail closed; confirmation strings are not trimmed or normalized into
+authority.
 
-1. re-run the exact #1104 read-only production RPC readiness boundary;
-2. start the credential-backed custodian using its merged activation primitive;
+After every authority echo passes, the coordinator executes in this order:
+
+1. re-run the exact #1104 read-only production RPC readiness boundary using the
+   separately supplied RPC-readiness confirmation;
+2. start the credential-backed custodian using the separately supplied custodian
+   activation confirmation;
 3. validate the returned custodian capability against the production plan;
-4. start the submission-capable broadcaster using its merged activation primitive;
+4. start the submission-capable broadcaster using the separately supplied
+   broadcaster activation confirmation;
 5. validate the returned broadcaster capability against chain 2050, the exact
    RPC fingerprint, and the existing activation authority; and
 6. return both private service handles only after the full sequence succeeds.
 
 The broadcaster activation may perform its existing read-only chain transport
 preflight. No `submit_once` invocation occurs in this coordinator.
+
+The separate real-transaction confirmation
+`buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1` is not accepted or used by
+this coordinator. Real submission remains a later independent authority gate.
 
 ## Partial-start rollback
 
@@ -76,6 +93,10 @@ Rollback outcome is explicit in the decision:
 
 A cleanup failure is never reported as a clean rollback.
 
+The underlying private service implementations also close and unlink their Unix
+socket when their own post-listen start validation fails. The coordinator adds
+cross-service rollback on top of those service-local guarantees.
+
 There is no automatic retry, background restart, startup execution, or hidden
 second activation attempt.
 
@@ -83,9 +104,9 @@ second activation attempt.
 
 Successful apply establishes only:
 
-- chain-2050 RPC readiness was observed;
-- the private custodian service is started;
-- the private broadcaster service is started;
+- chain-2050 RPC readiness was observed under its independent confirmation;
+- the private custodian service is started under its independent confirmation;
+- the private broadcaster service is started under its independent confirmation;
 - later private prepare/sign capability exists; and
 - later private `submit_once` capability exists.
 
@@ -107,9 +128,13 @@ operational actions and are not authorized by source publication or merge.
 
 The synthetic proof covers:
 
-- dry-run zero RPC/start behavior;
+- dry-run zero RPC/start behavior and all returned confirmation requirements;
 - wrong and whitespace-modified coordinator confirmation;
 - wrong and whitespace-modified plan ID;
+- wrong and whitespace-modified RPC-readiness confirmation before side effects;
+- wrong and whitespace-modified custodian confirmation before side effects;
+- wrong and whitespace-modified broadcaster confirmation before side effects;
+- exact forwarding of each independent confirmation to its existing primitive;
 - RPC readiness failure before either service starts;
 - custodian failure before broadcaster start;
 - broadcaster failure after custodian start with exact rollback;
@@ -127,7 +152,9 @@ sign, submit, broadcast, or move funds.
 Source, proof, documentation, CI, branch publication, and draft PR only.
 
 A future invocation with `apply=true` is an operational private-service mutation
-and remains separately authorized from source review/merge.
+and remains separately authorized from source review/merge. The coordinator
+requires the component confirmations as explicit inputs; source publication does
+not satisfy them.
 
 No deployment/service-manager restart, production credential read, signing,
 `submit_once`, `eth_sendRawTransaction`, transaction broadcast, inventory
