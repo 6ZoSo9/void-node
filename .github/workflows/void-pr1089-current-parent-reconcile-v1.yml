@@ -33,10 +33,11 @@ jobs:
           BRANCH='feat/p2p-ephemeral-direct-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-relay-control-v1-20260807'
           EXPECTED_OLD_HEAD='4b0d8456d715c36636a779a421f4b54535cce58c'
-          EXPECTED_BASE='0d1f7fb11a8643949a640db694720e0f3cf29ee1'
+          EXPECTED_STAGING_PARENT='356af95ebcc496da9882ced98584ce6ff412a9f4'
+          EXPECTED_BASE='402ca2165094cc36b41ebf2182f0059df30d9f7c'
           TEMP='.github/workflows/void-pr1089-current-parent-reconcile-v1.yml'
 
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_OLD_HEAD"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_STAGING_PARENT"
           test "$(git diff --name-only "$EXPECTED_OLD_HEAD" HEAD)" = "$TEMP"
 
           git fetch --no-tags origin "$BASE_BRANCH"
