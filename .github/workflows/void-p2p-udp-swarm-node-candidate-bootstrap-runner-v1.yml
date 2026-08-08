@@ -1,0 +1,131 @@
+name: VOID P2P UDP swarm Node candidate bootstrap runner v1
+
+on:
+  pull_request:
+    branches:
+      - 'feat/p2p-udp-swarm-authenticated-direct-candidate-v1-20260808'
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml'
+      - '.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-prove:
+    if: github.event.pull_request.head.ref == 'feat/p2p-udp-swarm-node-candidate-integration-v1-20260808'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard exact source and parent ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 271535c0d2ef0c89480ab18b814488d36c9584a9 HEAD
+          test "$(git hash-object src/node_core.ts)" = 'bd47640e8e057cf98c0da7cd22d3da52066e5a8d'
+          test -f .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
+
+      - name: Reuse exact bootstrap generation steps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          workflow = Path('.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml').read_text().splitlines()
+          wanted = [
+              'Apply exact Node candidate integration patch',
+              'Write focused integration proof',
+              'Write operator note',
+          ]
+
+          for step_name in wanted:
+              marker = f'      - name: {step_name}'
+              try:
+                  start = workflow.index(marker)
+              except ValueError as exc:
+                  raise SystemExit(f'missing bootstrap step: {step_name}') from exc
+
+              run_index = None
+              for idx in range(start + 1, min(len(workflow), start + 8)):
+                  if workflow[idx] == '        run: |':
+                      run_index = idx
+                      break
+              if run_index is None:
+                  raise SystemExit(f'missing run block for bootstrap step: {step_name}')
+
+              body = []
+              for line in workflow[run_index + 1:]:
+                  if line.startswith('      - name: '):
+                      break
+                  if line.startswith('          '):
+                      body.append(line[10:])
+                  elif line == '':
+                      body.append('')
+                  else:
+                      break
+              script = '\n'.join(body).rstrip() + '\n'
+              if not script.strip():
+                  raise SystemExit(f'empty run block for bootstrap step: {step_name}')
+              subprocess.run(['bash', '-c', script], check=True)
+          PY
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove Node candidate integration
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+
+      - name: Re-prove authenticated direct candidate primitive
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts
+
+      - name: Re-prove single-socket UDP swarm runtime
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_single_socket_runtime_v1.ts
+
+      - name: Re-prove Node swarm control mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+
+      - name: Re-prove ephemeral direct mount
+        run: npx --no-install tsx scripts/prove_void_p2p_ephemeral_direct_mount_v1.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify intended generated delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(git diff --name-only | sort)" = "$(printf '%s\n' \
+            'docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md' \
+            'scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts' \
+            'src/node_core.ts' | sort)"
+
+      - name: Commit proven implementation delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/node_core.ts \
+            scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts \
+            docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md
+          git diff --cached --check
+          git commit -m 'feat: stage authenticated UDP candidates in Node v1'
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
