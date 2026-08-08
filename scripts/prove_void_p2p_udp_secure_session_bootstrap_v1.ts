@@ -143,6 +143,29 @@ async function main(): Promise<void> {
   assert.equal(controllerA.ready, false);
   assert.equal(controllerB.ready, false);
 
+  assert.equal(offerA.authenticated_path_proof_sig, proofA.sig);
+  assert.equal(offerB.authenticated_path_proof_sig, proofB.sig);
+  assert.equal(offerA.identity_algorithm, "ed25519");
+  assert.equal(offerA.signature_algorithm, "ed25519");
+  assert.equal(offerA.kex_algorithm, "x25519");
+  assert.equal(offerA.kdf_algorithm, "hkdf-sha256");
+  assert.equal(offerA.aead_algorithm, "aes-256-gcm");
+
+  const pathEvidenceSubstitutionB = {
+    ...offerB,
+    authenticated_path_proof_sig:
+      `${offerB.authenticated_path_proof_sig[0] === "0" ? "1" : "0"}${offerB.authenticated_path_proof_sig.slice(1)}`,
+  };
+  assert.equal(controllerA.acceptRemoteKeyOffer(pathEvidenceSubstitutionB), false);
+  assert.equal(controllerA.ready, false);
+
+  const suiteSubstitutionB = {
+    ...offerB,
+    aead_algorithm: "chacha20-poly1305",
+  };
+  assert.equal(controllerA.acceptRemoteKeyOffer(suiteSubstitutionB), false);
+  assert.equal(controllerA.ready, false);
+
   const tamperedOfferB = {
     ...offerB,
     sig: `${offerB.sig[0] === "0" ? "1" : "0"}${offerB.sig.slice(1)}`,
@@ -214,12 +237,28 @@ async function main(): Promise<void> {
     true,
   );
   assert.equal(
+    VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.authenticated_path_proof_binding_required,
+    true,
+  );
+  assert.equal(
     VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.signed_x25519_offer_required,
     true,
   );
   assert.equal(
     VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.x25519_offer_must_match_authenticated_identity,
     true,
+  );
+  assert.equal(
+    VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.secure_transport_algorithm_suite_bound,
+    true,
+  );
+  assert.equal(
+    VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.crypto_agility_extension_point_inherited,
+    true,
+  );
+  assert.equal(
+    VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.quantum_safe_claimed,
+    false,
   );
   assert.equal(
     VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1.ready_before_remote_path_proof,
@@ -253,8 +292,14 @@ async function main(): Promise<void> {
 
   console.log("mutual_ed25519_path_auth_required=true");
   console.log("exact_observed_endpoint_binding_required=true");
+  console.log("authenticated_path_proof_binding_required=true");
+  console.log("secure_offer_path_evidence_substitution_accepted=false");
   console.log("signed_x25519_offer_required=true");
   console.log("x25519_offer_must_match_authenticated_identity=true");
+  console.log("secure_transport_algorithm_suite_bound=true");
+  console.log("secure_transport_suite_substitution_accepted=false");
+  console.log("crypto_agility_extension_point_inherited=true");
+  console.log("quantum_safe_claimed=false");
   console.log("secure_reliable_transport_required=true");
   console.log("peer_socket_adapter_required=true");
   console.log("ready_before_remote_path_proof=false");

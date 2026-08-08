@@ -7,6 +7,15 @@ import {
   canonicalEd25519PublicPemV1,
   deriveVoidNodeIdFromPublicPemV1,
 } from "./auth_v1.js";
+import {
+  VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+  VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+  VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
+  normalizeVoidUdpAuthenticatedPathProofV1,
+  verifyVoidUdpAuthenticatedPathProofV1,
+  type VoidUdpAuthenticatedPathHelloV1,
+  type VoidUdpAuthenticatedPathProofV1,
+} from "./udp_authenticated_path_v1.js";
 import { normalizeVoidUdpObservedEndpointV1 } from "./udp_hole_punch_v1.js";
 
 export const VOID_P2P_UDP_SECURE_RELIABLE_PROTOCOL_VERSION_V1 = 1;
@@ -16,6 +25,15 @@ export const VOID_P2P_UDP_SECURE_RELIABLE_RECV_WINDOW_V1 = 64;
 export const VOID_P2P_UDP_SECURE_RELIABLE_PACKET_REPLAY_WINDOW_V1 = 256;
 export const VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1 = 250;
 export const VOID_P2P_UDP_SECURE_RELIABLE_MAX_RETRIES_V1 = 5;
+export const VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1 =
+  VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1;
+export const VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1 =
+  VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1;
+export const VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1 = "x25519" as const;
+export const VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1 =
+  "hkdf-sha256" as const;
+export const VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1 =
+  "aes-256-gcm" as const;
 
 const NODE_ID_RE = /^[0-9a-f]{32}$/;
 const ID_RE = /^[0-9a-f]{32}$/;
@@ -24,9 +42,25 @@ const KEY_DOMAIN = "VOID_P2P_UDP_SECURE_RELIABLE_KEY_V1";
 const KDF_DOMAIN = "VOID_P2P_UDP_SECURE_RELIABLE_KDF_V1";
 const PACKET_DOMAIN = "VOID_P2P_UDP_SECURE_RELIABLE_PACKET_V1";
 
+export type VoidUdpSecureAuthenticatedPathEvidenceV1 = Readonly<{
+  rawProof: unknown;
+  expectedRemoteHello: VoidUdpAuthenticatedPathHelloV1;
+  localHello: VoidUdpAuthenticatedPathHelloV1;
+  expectedRemoteObservedEndpoint: string;
+  localObservedEndpoint: string;
+  allowNonPublicEndpoints?: boolean;
+}>;
+
 export type VoidUdpSecureKeyOfferV1 = Readonly<{
   type: "VOID_UDP_SECURE_KEY";
   protocol: 1;
+  authenticated_path_protocol: 1;
+  authenticated_path_proof_sig: string;
+  identity_algorithm: "ed25519";
+  signature_algorithm: "ed25519";
+  kex_algorithm: "x25519";
+  kdf_algorithm: "hkdf-sha256";
+  aead_algorithm: "aes-256-gcm";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -41,6 +75,7 @@ export type VoidUdpSecureKeyOfferV1 = Readonly<{
 export type VoidUdpSecurePacketV1 = Readonly<{
   type: "VOID_UDP_SECURE_PACKET";
   protocol: 1;
+  aead_algorithm: "aes-256-gcm";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -56,6 +91,11 @@ export type VoidUdpSecureDirectionKeysV1 = Readonly<{
   session_id: string;
   local_node_id: string;
   peer_node_id: string;
+  identity_algorithm: "ed25519";
+  signature_algorithm: "ed25519";
+  kex_algorithm: "x25519";
+  kdf_algorithm: "hkdf-sha256";
+  aead_algorithm: "aes-256-gcm";
   send_key: Buffer;
   recv_key: Buffer;
   send_nonce_prefix: Buffer;
@@ -63,6 +103,15 @@ export type VoidUdpSecureDirectionKeysV1 = Readonly<{
 }>;
 
 export const VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1 = Object.freeze({
+  authenticated_path_evidence_required: true,
+  identity_algorithm_explicit: true,
+  signature_algorithm_explicit: true,
+  kex_algorithm_explicit: true,
+  kdf_algorithm_explicit: true,
+  aead_algorithm_explicit: true,
+  algorithm_confusion_rejected: true,
+  crypto_agility_extension_point_explicit: true,
+  quantum_safe_claimed: false,
   x25519_ephemeral_key_agreement_required: true,
   x25519_offer_ed25519_bound: true,
   aes_256_gcm_payload_protection: true,
@@ -109,6 +158,41 @@ function canonicalBase64(raw: unknown, minBytes: number, maxBytes: number): stri
   return decoded.toString("base64") === raw ? raw : undefined;
 }
 
+function normalizedAuthenticatedPathProof(
+  raw: unknown,
+  allowNonPublicEndpoints: boolean,
+): VoidUdpAuthenticatedPathProofV1 | undefined {
+  const proof = normalizeVoidUdpAuthenticatedPathProofV1(
+    raw,
+    allowNonPublicEndpoints,
+  );
+  if (!proof) return;
+  if (
+    proof.identity_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1 ||
+    proof.signature_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1
+  ) return;
+  return proof;
+}
+
+function verifiedAuthenticatedPathProof(
+  evidence: VoidUdpSecureAuthenticatedPathEvidenceV1,
+): VoidUdpAuthenticatedPathProofV1 | undefined {
+  const proof = verifyVoidUdpAuthenticatedPathProofV1({
+    rawProof: evidence.rawProof,
+    expectedRemoteHello: evidence.expectedRemoteHello,
+    localHello: evidence.localHello,
+    expectedRemoteObservedEndpoint: evidence.expectedRemoteObservedEndpoint,
+    localObservedEndpoint: evidence.localObservedEndpoint,
+    allowNonPublicEndpoints: evidence.allowNonPublicEndpoints === true,
+  });
+  if (!proof) return;
+  if (
+    proof.identity_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1 ||
+    proof.signature_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1
+  ) return;
+  return proof;
+}
+
 export function exportVoidUdpX25519PublicKeyB64V1(key: crypto.KeyObject): string {
   if (key.type !== "public" || key.asymmetricKeyType !== "x25519") {
     throw new Error("X25519 public key required");
@@ -132,7 +216,9 @@ function canonicalX25519PublicKeyB64V1(raw: unknown): string | undefined {
   }
 }
 
-function keyOfferTranscript(value: Omit<VoidUdpSecureKeyOfferV1, "type" | "protocol" | "sig">): Buffer {
+function keyOfferTranscript(
+  value: Omit<VoidUdpSecureKeyOfferV1, "type" | "protocol" | "sig">,
+): Buffer {
   return Buffer.from(JSON.stringify({
     domain: KEY_DOMAIN,
     protocol: VOID_P2P_UDP_SECURE_RELIABLE_PROTOCOL_VERSION_V1,
@@ -147,11 +233,17 @@ export function createVoidUdpSecureKeyOfferV1(input: {
   ed25519PublicPem: string;
   ed25519PrivateKey: crypto.KeyObject;
   x25519PublicKey: crypto.KeyObject;
+  authenticatedPathProof: VoidUdpAuthenticatedPathProofV1;
   sourceObservedEndpoint: string;
   targetObservedEndpoint: string;
   nonce?: string;
   allowNonPublicObservedEndpoint?: boolean;
 }): VoidUdpSecureKeyOfferV1 {
+  const allowNonPublic = input.allowNonPublicObservedEndpoint === true;
+  const pathProof = normalizedAuthenticatedPathProof(
+    input.authenticatedPathProof,
+    allowNonPublic,
+  );
   const session_id = id(input.sessionId);
   const source_node_id = nodeId(input.sourceNodeId);
   const target_node_id = nodeId(input.targetNodeId);
@@ -159,21 +251,36 @@ export function createVoidUdpSecureKeyOfferV1(input: {
   const x25519_pubkey_b64 = exportVoidUdpX25519PublicKeyB64V1(input.x25519PublicKey);
   const source_observed_endpoint = normalizeVoidUdpObservedEndpointV1(
     input.sourceObservedEndpoint,
-    input.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
   const target_observed_endpoint = normalizeVoidUdpObservedEndpointV1(
     input.targetObservedEndpoint,
-    input.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
   const nonce = id(input.nonce ?? crypto.randomBytes(16).toString("hex"));
   if (
+    !pathProof ||
     !session_id || !source_node_id || !target_node_id || source_node_id === target_node_id ||
     !ed25519_pubkey || deriveVoidNodeIdFromPublicPemV1(ed25519_pubkey) !== source_node_id ||
     !x25519_pubkey_b64 || !source_observed_endpoint || !target_observed_endpoint || !nonce ||
-    input.ed25519PrivateKey.asymmetricKeyType !== "ed25519"
+    input.ed25519PrivateKey.asymmetricKeyType !== "ed25519" ||
+    pathProof.protocol !== VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1 ||
+    pathProof.session_id !== session_id ||
+    pathProof.source_node_id !== source_node_id ||
+    pathProof.target_node_id !== target_node_id ||
+    pathProof.pubkey !== ed25519_pubkey ||
+    pathProof.source_observed_endpoint !== source_observed_endpoint ||
+    pathProof.target_observed_endpoint !== target_observed_endpoint
   ) throw new Error("secure UDP key offer input invalid");
 
   const unsigned = {
+    authenticated_path_protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+    authenticated_path_proof_sig: pathProof.sig,
+    identity_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1,
+    signature_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1,
+    kex_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1,
+    kdf_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1,
+    aead_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1,
     session_id,
     source_node_id,
     target_node_id,
@@ -182,7 +289,7 @@ export function createVoidUdpSecureKeyOfferV1(input: {
     source_observed_endpoint,
     target_observed_endpoint,
     nonce,
-  };
+  } as const;
   const sig = crypto.sign(null, keyOfferTranscript(unsigned), input.ed25519PrivateKey).toString("hex");
   if (!SIG_RE.test(sig)) throw new Error("secure UDP key offer signature invalid");
   return Object.freeze({
@@ -201,18 +308,32 @@ export function verifyVoidUdpSecureKeyOfferV1(
     targetNodeId: string;
     sourceObservedEndpoint: string;
     targetObservedEndpoint: string;
+    authenticatedPathEvidence: VoidUdpSecureAuthenticatedPathEvidenceV1;
     allowNonPublicObservedEndpoint?: boolean;
   }>,
 ): VoidUdpSecureKeyOfferV1 | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
   const value = raw as Record<string, unknown>;
   if (!exactKeys(value, [
-    "type", "protocol", "session_id", "source_node_id", "target_node_id",
+    "type", "protocol", "authenticated_path_protocol", "authenticated_path_proof_sig",
+    "identity_algorithm", "signature_algorithm", "kex_algorithm", "kdf_algorithm",
+    "aead_algorithm", "session_id", "source_node_id", "target_node_id",
     "ed25519_pubkey", "x25519_pubkey_b64", "source_observed_endpoint",
     "target_observed_endpoint", "nonce", "sig",
   ])) return;
-  if (value.type !== "VOID_UDP_SECURE_KEY" || value.protocol !== 1) return;
+  if (
+    value.type !== "VOID_UDP_SECURE_KEY" ||
+    value.protocol !== VOID_P2P_UDP_SECURE_RELIABLE_PROTOCOL_VERSION_V1 ||
+    value.authenticated_path_protocol !== VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1 ||
+    value.identity_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1 ||
+    value.signature_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1 ||
+    value.kex_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1 ||
+    value.kdf_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1 ||
+    value.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1
+  ) return;
 
+  const allowNonPublic = expected.allowNonPublicObservedEndpoint === true;
+  const pathProof = verifiedAuthenticatedPathProof(expected.authenticatedPathEvidence);
   const session_id = id(value.session_id);
   const source_node_id = nodeId(value.source_node_id);
   const target_node_id = nodeId(value.target_node_id);
@@ -220,37 +341,60 @@ export function verifyVoidUdpSecureKeyOfferV1(
   const x25519_pubkey_b64 = canonicalX25519PublicKeyB64V1(value.x25519_pubkey_b64);
   const source_observed_endpoint = normalizeVoidUdpObservedEndpointV1(
     value.source_observed_endpoint,
-    expected.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
   const target_observed_endpoint = normalizeVoidUdpObservedEndpointV1(
     value.target_observed_endpoint,
-    expected.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
+  const authenticated_path_proof_sig =
+    typeof value.authenticated_path_proof_sig === "string"
+      ? value.authenticated_path_proof_sig
+      : "";
   const nonce = id(value.nonce);
   const sig = typeof value.sig === "string" ? value.sig : "";
   if (
+    !pathProof ||
     !session_id || !source_node_id || !target_node_id || !ed25519_pubkey ||
     !x25519_pubkey_b64 || !source_observed_endpoint || !target_observed_endpoint ||
-    !nonce || !SIG_RE.test(sig) || deriveVoidNodeIdFromPublicPemV1(ed25519_pubkey) !== source_node_id
+    !SIG_RE.test(authenticated_path_proof_sig) || !nonce || !SIG_RE.test(sig) ||
+    deriveVoidNodeIdFromPublicPemV1(ed25519_pubkey) !== source_node_id
   ) return;
 
   const expectedSource = normalizeVoidUdpObservedEndpointV1(
     expected.sourceObservedEndpoint,
-    expected.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
   const expectedTarget = normalizeVoidUdpObservedEndpointV1(
     expected.targetObservedEndpoint,
-    expected.allowNonPublicObservedEndpoint === true,
+    allowNonPublic,
   );
   if (
+    !expectedSource || !expectedTarget ||
     session_id !== expected.sessionId || source_node_id !== expected.sourceNodeId ||
     target_node_id !== expected.targetNodeId || source_observed_endpoint !== expectedSource ||
-    target_observed_endpoint !== expectedTarget
+    target_observed_endpoint !== expectedTarget ||
+    pathProof.protocol !== VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1 ||
+    pathProof.session_id !== session_id ||
+    pathProof.source_node_id !== source_node_id ||
+    pathProof.target_node_id !== target_node_id ||
+    pathProof.pubkey !== ed25519_pubkey ||
+    pathProof.source_observed_endpoint !== source_observed_endpoint ||
+    pathProof.target_observed_endpoint !== target_observed_endpoint ||
+    pathProof.sig !== authenticated_path_proof_sig
   ) return;
 
   let pub: crypto.KeyObject;
   try { pub = crypto.createPublicKey(ed25519_pubkey); } catch { return; }
+  if (pub.asymmetricKeyType !== "ed25519") return;
   const unsigned = {
+    authenticated_path_protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+    authenticated_path_proof_sig,
+    identity_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1,
+    signature_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1,
+    kex_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1,
+    kdf_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1,
+    aead_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1,
     session_id,
     source_node_id,
     target_node_id,
@@ -259,11 +403,11 @@ export function verifyVoidUdpSecureKeyOfferV1(
     source_observed_endpoint,
     target_observed_endpoint,
     nonce,
-  };
+  } as const;
   if (!crypto.verify(null, keyOfferTranscript(unsigned), pub, Buffer.from(sig, "hex"))) return;
   return Object.freeze({
     type: "VOID_UDP_SECURE_KEY",
-    protocol: 1,
+    protocol: VOID_P2P_UDP_SECURE_RELIABLE_PROTOCOL_VERSION_V1,
     ...unsigned,
     sig,
   });
@@ -271,6 +415,13 @@ export function verifyVoidUdpSecureKeyOfferV1(
 
 function kdfSalt(local: VoidUdpSecureKeyOfferV1, remote: VoidUdpSecureKeyOfferV1): Buffer {
   const offers = [local, remote].map((offer) => ({
+    authenticated_path_protocol: offer.authenticated_path_protocol,
+    authenticated_path_proof_sig: offer.authenticated_path_proof_sig,
+    identity_algorithm: offer.identity_algorithm,
+    signature_algorithm: offer.signature_algorithm,
+    kex_algorithm: offer.kex_algorithm,
+    kdf_algorithm: offer.kdf_algorithm,
+    aead_algorithm: offer.aead_algorithm,
     source_node_id: offer.source_node_id,
     target_node_id: offer.target_node_id,
     x25519_pubkey_b64: offer.x25519_pubkey_b64,
@@ -280,6 +431,7 @@ function kdfSalt(local: VoidUdpSecureKeyOfferV1, remote: VoidUdpSecureKeyOfferV1
   })).sort((a, b) => a.source_node_id.localeCompare(b.source_node_id));
   return crypto.createHash("sha256").update(JSON.stringify({
     domain: KDF_DOMAIN,
+    kdf_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1,
     session_id: local.session_id,
     offers,
   })).digest();
@@ -297,6 +449,18 @@ export function deriveVoidUdpSecureDirectionKeysV1(input: {
   const { localOffer, remoteOffer } = input;
   if (
     input.localX25519PrivateKey.type !== "private" || input.localX25519PrivateKey.asymmetricKeyType !== "x25519" ||
+    localOffer.identity_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1 ||
+    remoteOffer.identity_algorithm !== localOffer.identity_algorithm ||
+    localOffer.signature_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1 ||
+    remoteOffer.signature_algorithm !== localOffer.signature_algorithm ||
+    localOffer.kex_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1 ||
+    remoteOffer.kex_algorithm !== localOffer.kex_algorithm ||
+    localOffer.kdf_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1 ||
+    remoteOffer.kdf_algorithm !== localOffer.kdf_algorithm ||
+    localOffer.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1 ||
+    remoteOffer.aead_algorithm !== localOffer.aead_algorithm ||
+    localOffer.authenticated_path_protocol !== VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1 ||
+    remoteOffer.authenticated_path_protocol !== localOffer.authenticated_path_protocol ||
     localOffer.session_id !== remoteOffer.session_id ||
     localOffer.source_node_id !== remoteOffer.target_node_id || localOffer.target_node_id !== remoteOffer.source_node_id ||
     localOffer.source_observed_endpoint !== remoteOffer.target_observed_endpoint ||
@@ -313,14 +477,22 @@ export function deriveVoidUdpSecureDirectionKeysV1(input: {
     format: "der",
     type: "spki",
   });
+  if (remotePub.asymmetricKeyType !== "x25519") {
+    throw new Error("remote secure UDP key offer KEX key is not X25519");
+  }
   const shared = crypto.diffieHellman({ privateKey: input.localX25519PrivateKey, publicKey: remotePub });
   const salt = kdfSalt(localOffer, remoteOffer);
   const dir = (source: string, target: string, purpose: string) =>
-    `${KDF_DOMAIN}|${purpose}|${localOffer.session_id}|${source}|${target}`;
+    `${KDF_DOMAIN}|${VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1}|${purpose}|${localOffer.session_id}|${source}|${target}`;
   return Object.freeze({
     session_id: localOffer.session_id,
     local_node_id: localOffer.source_node_id,
     peer_node_id: localOffer.target_node_id,
+    identity_algorithm: localOffer.identity_algorithm,
+    signature_algorithm: localOffer.signature_algorithm,
+    kex_algorithm: localOffer.kex_algorithm,
+    kdf_algorithm: localOffer.kdf_algorithm,
+    aead_algorithm: localOffer.aead_algorithm,
     send_key: derive(shared, salt, dir(localOffer.source_node_id, localOffer.target_node_id, "key"), 32),
     recv_key: derive(shared, salt, dir(remoteOffer.source_node_id, remoteOffer.target_node_id, "key"), 32),
     send_nonce_prefix: derive(shared, salt, dir(localOffer.source_node_id, localOffer.target_node_id, "nonce"), 4),
@@ -338,6 +510,7 @@ function nonce(prefix: Buffer, packetNo: number): Buffer {
 }
 
 function header(input: {
+  aead_algorithm: "aes-256-gcm";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -346,6 +519,9 @@ function header(input: {
   data_seq: number | null;
   ack_seq: number;
 }) {
+  if (input.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1) {
+    throw new Error("secure UDP packet AEAD algorithm unsupported");
+  }
   const session_id = id(input.session_id);
   const source_node_id = nodeId(input.source_node_id);
   const target_node_id = nodeId(input.target_node_id);
@@ -358,7 +534,16 @@ function header(input: {
     !session_id || !source_node_id || !target_node_id || source_node_id === target_node_id ||
     packet_no === undefined || ack_seq === undefined || data_seq === undefined
   ) throw new Error("secure UDP packet header invalid");
-  return { session_id, source_node_id, target_node_id, kind: input.kind, packet_no, data_seq, ack_seq } as const;
+  return {
+    aead_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1,
+    session_id,
+    source_node_id,
+    target_node_id,
+    kind: input.kind,
+    packet_no,
+    data_seq,
+    ack_seq,
+  } as const;
 }
 
 function aad(value: ReturnType<typeof header>): Buffer {
@@ -373,10 +558,14 @@ export function encodeVoidUdpSecurePacketV1(input: {
   ackSeq: number;
   plaintext?: Uint8Array;
 }): VoidUdpSecurePacketV1 {
+  if (input.keys.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1) {
+    throw new Error("secure UDP direction keys use unsupported AEAD algorithm");
+  }
   const plaintext = Buffer.from(input.plaintext ?? Buffer.alloc(0));
   if (input.kind === "ack" && plaintext.length !== 0) throw new Error("ACK cannot carry payload");
   if (plaintext.length > VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1) throw new Error("payload too large");
   const h = header({
+    aead_algorithm: input.keys.aead_algorithm,
     session_id: input.keys.session_id,
     source_node_id: input.keys.local_node_id,
     target_node_id: input.keys.peer_node_id,
@@ -401,17 +590,23 @@ export function decryptVoidUdpSecurePacketV1(
   raw: unknown,
   keys: VoidUdpSecureDirectionKeysV1,
 ): Readonly<{ packet: VoidUdpSecurePacketV1; plaintext: Buffer }> | undefined {
+  if (keys.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1) return;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
   const value = raw as Record<string, unknown>;
   if (!exactKeys(value, [
-    "type", "protocol", "session_id", "source_node_id", "target_node_id", "kind",
+    "type", "protocol", "aead_algorithm", "session_id", "source_node_id", "target_node_id", "kind",
     "packet_no", "data_seq", "ack_seq", "ciphertext_b64", "tag_b64",
   ])) return;
-  if (value.type !== "VOID_UDP_SECURE_PACKET" || value.protocol !== 1) return;
+  if (
+    value.type !== "VOID_UDP_SECURE_PACKET" ||
+    value.protocol !== 1 ||
+    value.aead_algorithm !== VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1
+  ) return;
   if (value.kind !== "data" && value.kind !== "ack") return;
   let h: ReturnType<typeof header>;
   try {
     h = header({
+      aead_algorithm: VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1,
       session_id: String(value.session_id ?? ""),
       source_node_id: String(value.source_node_id ?? ""),
       target_node_id: String(value.target_node_id ?? ""),

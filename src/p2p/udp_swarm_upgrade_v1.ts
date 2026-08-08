@@ -22,8 +22,15 @@ export const VOID_P2P_UDP_SWARM_UPGRADE_VERSION_V1 = 1;
 
 export const VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1 = Object.freeze({
   authenticated_control_path_required: true,
+  authenticated_rendezvous_observation_verifier_required: true,
+  unverified_detached_rendezvous_observation_allowed: false,
+  rendezvous_probe_signature_reverification_performed_here: false,
   stable_rendezvous_mapping_required: true,
   conflicted_rendezvous_mapping_allowed: false,
+  secure_session_path_evidence_binding_inherited: true,
+  secure_transport_suite_binding_inherited: true,
+  crypto_agility_extension_point_inherited: true,
+  quantum_safe_claimed: false,
   punch_success_defines_peer_identity: false,
   secure_socket_ready_defines_peer_promotion: false,
   normal_void_peer_auth_required_after_secure_socket: true,
@@ -45,6 +52,11 @@ export type VoidUdpSwarmUpgradePhaseV1 =
   | "direct_failed_relay_preserved"
   | "closed";
 
+export type VoidUdpAuthenticatedRendezvousObservationVerifierV1 = (
+  observation: VoidUdpRendezvousObservationV1,
+  expectedNodeId: string,
+) => boolean;
+
 export type VoidUdpSwarmUpgradeOptionsV1 = Readonly<{
   sessionId: string;
   localNodeId: string;
@@ -53,6 +65,7 @@ export type VoidUdpSwarmUpgradeOptionsV1 = Readonly<{
   localPrivateKey: VoidUdpSecureSessionBootstrapOptionsV1["localPrivateKey"];
   localObservation: VoidUdpRendezvousObservationV1;
   remoteObservation: VoidUdpRendezvousObservationV1;
+  verifyAuthenticatedRendezvousObservation: VoidUdpAuthenticatedRendezvousObservationVerifierV1;
   transmitSecurePacket: (packet: VoidUdpSecurePacketV1) => void | Promise<void>;
   allowNonPublicEndpoints?: boolean;
   adapterOptions?: VoidUdpSecureSessionBootstrapOptionsV1["adapterOptions"];
@@ -80,6 +93,18 @@ function observationEligible(
     observation.mapping_conflicted === false;
 }
 
+function observationProvenanceAccepted(
+  verifier: VoidUdpAuthenticatedRendezvousObservationVerifierV1,
+  observation: VoidUdpRendezvousObservationV1,
+  expectedNodeId: string,
+): boolean {
+  try {
+    return verifier(observation, expectedNodeId) === true;
+  } catch {
+    return false;
+  }
+}
+
 export class VoidUdpSwarmUpgradeV1 {
   private phaseValue: VoidUdpSwarmUpgradePhaseV1 = "relay_only";
   private punchPlanValue?: VoidUdpHolePunchPlanV1;
@@ -98,11 +123,28 @@ export class VoidUdpSwarmUpgradeV1 {
     if (options.localNodeId === options.remoteNodeId) {
       throw new Error("UDP swarm upgrade requires distinct node IDs");
     }
+    if (typeof options.verifyAuthenticatedRendezvousObservation !== "function") {
+      throw new Error("authenticated UDP rendezvous observation verifier is required");
+    }
     if (!observationEligible(options.localObservation, options.localNodeId)) {
       throw new Error("local UDP rendezvous observation is not stable and eligible");
     }
     if (!observationEligible(options.remoteObservation, options.remoteNodeId)) {
       throw new Error("remote UDP rendezvous observation is not stable and eligible");
+    }
+    if (!observationProvenanceAccepted(
+      options.verifyAuthenticatedRendezvousObservation,
+      options.localObservation,
+      options.localNodeId,
+    )) {
+      throw new Error("local authenticated UDP rendezvous observation provenance verification failed");
+    }
+    if (!observationProvenanceAccepted(
+      options.verifyAuthenticatedRendezvousObservation,
+      options.remoteObservation,
+      options.remoteNodeId,
+    )) {
+      throw new Error("remote authenticated UDP rendezvous observation provenance verification failed");
     }
   }
 
