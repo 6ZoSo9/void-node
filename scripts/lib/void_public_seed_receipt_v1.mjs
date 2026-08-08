@@ -148,7 +148,7 @@ export function validateQualificationReceipt(
     if (sample.mutation_status !== 405 || sample.mutation_error !== "method_not_allowed") {
       throw new Error("qualification sample mutation boundary mismatch");
     }
-    if (Math.abs(head - readyHead) > 64 || rangeHead > Math.max(head, readyHead)) {
+    if (Math.abs(head - readyHead) > 64 || rangeHead !== Math.min(head, readyHead)) {
       throw new Error("qualification sample head binding mismatch");
     }
     if (head < previousHead) throw new Error("qualification head regressed across samples");
