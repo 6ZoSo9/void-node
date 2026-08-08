@@ -320,6 +320,21 @@ try {
     (runtimeSource.match(/buyVoidNativeExecutionRuntimePolicyStateV1\(\)/g) || []).length,
     3,
   );
+  assert.doesNotMatch(
+    runtimeSource,
+    /buy_void_native_delivery_runtime_dependencies_v1\.js/,
+  );
+  const nativeDeliveryRuntimeSource = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "src/economic/buy_void_native_delivery_runtime_integration_v1.ts",
+    ),
+    "utf8",
+  );
+  assert.match(
+    nativeDeliveryRuntimeSource,
+    /import "\.\/buy_void_native_delivery_runtime_dependencies_v1\.js";/,
+  );
 
   const cliSource = fs.readFileSync(
     path.join(process.cwd(), "scripts/buy_void_production_preflight_operator_v1.ts"),
@@ -353,6 +368,8 @@ try {
   console.log("canonical_native_runtime_policy_parser_reused=true");
   console.log("planning_journal_reads=0");
   console.log("planning_rpc_calls=0");
+  console.log("native_execution_library_dependency_side_effect_import=0");
+  console.log("dependency_initializer_owned_by_native_delivery_runtime=true");
   console.log("private_service_path_defaults=false");
   console.log("synthetic_fixture_path_defaults=false");
   console.log("signer_fingerprint_caller_override=false");
