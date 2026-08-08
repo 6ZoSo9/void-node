@@ -266,6 +266,7 @@ type Peer = {
   transport: PeerTransportV1;
   relayViaNodeId?: string;
   relayStreamId?: string;
+  persistDirectEvidence: boolean;
 };
 
 /** ================================================================= */
@@ -603,6 +604,7 @@ export class Node {
       this.stopping ||
       peer.suppressReconnect ||
       peer.transport !== "direct" ||
+      !peer.persistDirectEvidence ||
       !peer.handshakeDone ||
       peer.id.startsWith("?-")
     ) {
@@ -671,6 +673,7 @@ export class Node {
     if (
       peer.probe ||
       peer.transport !== "direct" ||
+      !peer.persistDirectEvidence ||
       peer.outbound ||
       peer.outboundSeenEmitted ||
       !peer.handshakeDone ||
@@ -1236,6 +1239,13 @@ export class Node {
           authenticated_node_id: auth.id,
         });
         this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");
+      } else if (!peer.persistDirectEvidence) {
+        console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {
+          transport_hint: peer.addr,
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "ephemeral direct peer identity mismatch");
       } else {
         console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {
           address: peer.reconnectAddr || peer.addr,
@@ -1316,13 +1326,14 @@ export class Node {
     peer.remoteHello = undefined;
     if (
       peer.transport === "direct" &&
+      peer.persistDirectEvidence &&
       (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr))
     ) {
       peer.reconnectAddr = peer.listens[0];
     }
     this.peers.set(peer.id, peer);
 
-    if (peer.transport === "direct") {
+    if (peer.transport === "direct" && peer.persistDirectEvidence) {
       if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
       this.rememberAuthenticatedPeer(peer);
 
@@ -1339,13 +1350,47 @@ export class Node {
     }
     const addrs = new Set<string>();
     for (const connectedPeer of this.peers.values()) {
-      if (!connectedPeer.handshakeDone || connectedPeer.transport !== "direct") continue;
+      if (
+        !connectedPeer.handshakeDone ||
+        connectedPeer.transport !== "direct" ||
+        !connectedPeer.persistDirectEvidence
+      ) continue;
       for (const address of connectedPeer.listens) addrs.add(address);
     }
     for (const address of this.listenAddrs) addrs.add(address);
 
     this.sendRaw(peer, { type: "PEERS", addrs: [...addrs] });
     for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
+    return true;
+  }
+
+  attachEphemeralDirectTransportV1(
+    socket: PeerSocketV1,
+    expectedNodeId: string,
+    transportHint: string,
+  ): boolean {
+    if (
+      this.stopping ||
+      !/^[0-9a-f]{32}$/.test(expectedNodeId) ||
+      expectedNodeId === this.id ||
+      typeof transportHint !== "string" ||
+      transportHint.length < 1 ||
+      transportHint.length > 256 ||
+      /[\s\u0000-\u001f\u007f]/.test(transportHint)
+    ) return false;
+
+    this.attachSocket(
+      socket,
+      transportHint,
+      true,
+      expectedNodeId,
+      undefined,
+      "direct",
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
     return true;
   }
 
@@ -1359,6 +1404,7 @@ export class Node {
     relayViaNodeId?: string,
     relayStreamId?: string,
     reachabilityProbe?: ReachabilityProbeContext,
+    persistDirectEvidence = transport === "direct",
   ) {
     const peer: Peer = {
       id: `?-${crypto.randomBytes(4).toString("hex")}`,
@@ -1372,13 +1418,14 @@ export class Node {
       authTimer: null,
       expectedNodeId,
       reconnectAddr,
-      suppressReconnect: !!reachabilityProbe,
+      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,
       attachedAtMs: Date.now(),
       outboundSeenEmitted: false,
       probe: reachabilityProbe,
       transport,
       relayViaNodeId,
       relayStreamId,
+      persistDirectEvidence,
     };
 
     peer.framer = new Framer(
