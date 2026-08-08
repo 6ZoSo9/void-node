@@ -266,7 +266,6 @@ assert.equal(
 const reserved = runWith([candidate()]);
 assert.equal(reserved.listCalls, 1);
 assert.equal(reserved.decision.ok, true);
-if (!reserved.decision.ok) throw new Error(reserved.decision.reason);
 assert.equal(reserved.decision.marker, VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RECOVERY_V1);
 assert.equal(reserved.decision.status, "candidate_recovered");
 assert.equal(reserved.decision.request_id, REQUEST_ID);
@@ -289,7 +288,6 @@ assert.equal(reserved.decision.money_movement_performed, false);
 
 const prepared = runWith([candidate({ status: "prepared" })]);
 assert.equal(prepared.decision.ok, true);
-if (!prepared.decision.ok) throw new Error(prepared.decision.reason);
 assert.equal(prepared.decision.candidate_attempt_id, ATTEMPT_ID);
 assert.equal(prepared.decision.attempt_status, "prepared");
 
