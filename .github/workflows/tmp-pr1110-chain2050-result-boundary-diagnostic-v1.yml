@@ -75,6 +75,31 @@ jobs:
           test "$actual" = "$expected"
           git diff --check
 
+      - name: Let explicit null reach runtime boundary in proof harness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts')
+          text = path.read_text()
+          old = '''    const next = queue.shift();
+              assert.ok(next, `missing synthetic response for ${input.method}`);
+              if (next instanceof Error) throw next;
+          '''
+          new = '''    const next = queue.shift();
+              if (next === undefined) {
+                throw new Error(`missing synthetic response for ${input.method}`);
+              }
+              if (next instanceof Error) throw next;
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('HOLD: queue missing-response anchor mismatch')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
