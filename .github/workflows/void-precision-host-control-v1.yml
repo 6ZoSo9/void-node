@@ -1,0 +1,52 @@
+name: VOID Precision host control v1
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Closed allowlist operation
+        required: true
+        type: choice
+        options:
+          - inspect_custodian_binding
+          - daemon_reload_custodian_binding
+      confirmation:
+        description: Exact operation confirmation
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: void-precision-host-control-v1
+  cancel-in-progress: false
+
+jobs:
+  precision-host-control:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: [self-hosted, Linux, X64, void-precision-control-v1]
+    timeout-minutes: 5
+    steps:
+      - name: Invoke installed closed-schema host helper
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          EXPECTED_MAIN_SHA: ${{ github.sha }}
+          EXPECTED_BINDING_SHA256: b8b7d98c76a59dc6f78e7c421475206795074b91a15dd317f8fb582269493b8a
+          EXPECTED_HELPER_SHA256: 63b69bf29ac8ac1b82ee144c579fa5dfeb49555634e53f3b4d9ae67c6f21a4a2
+          HELPER: /usr/local/libexec/void/precision-host-control-v1.py
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(hostname)" = "zoso-Precision-Tower-7810"
+          test "$(id -un)" = "void-gh-runner"
+          test -f "$HELPER"
+          test ! -L "$HELPER"
+          test "$(stat -c '%U:%G:%a' "$HELPER")" = "root:root:755"
+          test "$(sha256sum "$HELPER" | awk '{print $1}')" = "$EXPECTED_HELPER_SHA256"
+          sudo -n "$HELPER" \
+            "$OPERATION" \
+            "$CONFIRMATION" \
+            "$EXPECTED_MAIN_SHA" \
+            "$EXPECTED_BINDING_SHA256"
