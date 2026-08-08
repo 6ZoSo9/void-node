@@ -1,0 +1,88 @@
+name: VOID P2P authenticated reachability runtime v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-p2p-authenticated-reachability-runtime-v1.yml"
+      - "docs/public/p2p-authenticated-reachability-runtime-v1.md"
+      - "src/node_core.ts"
+      - "src/p2p/reachability_runtime_v1.ts"
+      - "src/p2p/auth_v1.ts"
+      - "src/p2p/verified_peer_cache_v1.ts"
+      - "src/types/p2p.ts"
+      - "scripts/prove_void_p2p_authenticated_reachability_runtime_v1.ts"
+      - "scripts/lib/void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/prove_void_p2p_reachability_classification_contract_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-p2p-authenticated-reachability-runtime-v1.yml"
+      - "docs/public/p2p-authenticated-reachability-runtime-v1.md"
+      - "src/node_core.ts"
+      - "src/p2p/reachability_runtime_v1.ts"
+      - "src/p2p/auth_v1.ts"
+      - "src/p2p/verified_peer_cache_v1.ts"
+      - "src/types/p2p.ts"
+      - "scripts/prove_void_p2p_authenticated_reachability_runtime_v1.ts"
+      - "scripts/lib/void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/prove_void_p2p_reachability_classification_contract_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-authenticated-reachability-runtime-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run authenticated reachability runtime proof
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_reachability_runtime_v1.ts
+      - name: Preserve source reachability truth contract
+        run: node scripts/prove_void_p2p_reachability_classification_contract_v1.mjs
+
+  repository-gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Authenticated peer identity regression
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_identity_v1.ts
+      - name: Verified peer cache regression
+        run: npx --no-install tsx scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts
+      - name: Multipath address regression
+        run: npx --no-install tsx scripts/prove_void_p2p_multipath_address_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check HEAD^ HEAD

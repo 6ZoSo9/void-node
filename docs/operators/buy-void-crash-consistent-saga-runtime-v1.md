@@ -6,257 +6,196 @@ Marker:
 
 Decision:
 
-`SOURCE_ONLY_NON_MONEY_RUNTIME_COMPOSITION_WITH_SERVER_CONTROLLED_POLICY_READY_FOR_REVIEW`
+`SOURCE_ONLY_PREPARED_TRANSACTION_RUNTIME_DELEGATION_MOUNTED_BROADCAST_UNMOUNTED`
 
-## Problem
+## Purpose
 
-The crash-consistent fulfillment saga was merged as a standalone tool and proof contract. The mounted Buy VOID runtime still wrote the legacy claim, inventory-reservation, and execution-attempt journals without making the saga the durable restart coordinator.
+The crash-consistent Buy VOID runtime already mounts the first three durable saga stages: payment claim, inventory reservation, and one execution-attempt reservation. After those stages the saga reaches `attempt_reserved`, whose next action is `prepare_transaction`.
 
-A naive dual write would create a split-brain crash window. The process could commit a legacy projection and terminate before the saga append, or append the saga event before the legacy write. Retrying blindly could duplicate a payment claim, inventory reservation, or execution attempt.
+Transaction preparation already has a reviewed crash-consistent implementation in `buy_void_saga_prepared_transaction_coordinator_v1.ts`, and the application-side opaque Unix-socket custodian boundary is implemented by `buy_void_prepared_transaction_custodian_ipc_v1.ts`. This lane mounts that existing preparation coordinator into the saga runtime by delegation. It does not reimplement nonce allocation, fee planning, custody, execution-journal preparation, or the saga `transaction_prepared` append.
 
-The first runtime composition also accepted verification, fulfillment, and execution policies inside caller-supplied `stage_command`. Those policies determine accepted payment rails, confirmations, receive address, rate, inventory ceiling, execution chain, wallet allowlist, and attempt cap. Loopback transport is not policy authority, so durable state must never be created under caller-selected economic policy.
+Broadcast remains outside this runtime boundary.
 
 ## Runtime surface
 
-This lane adds the action:
+The existing loopback-only action remains:
 
 ```text
 run_crash_consistent_saga_stage
 ```
 
-through the existing loopback-only parent routes:
+through:
 
 ```text
 GET  /__void/operator/buy-void-runtime-v1/status
 POST /__void/operator/buy-void-runtime-v1/command
 ```
 
-Both the parent runtime and this child runtime remain disabled by default.
+The parent Buy VOID runtime and the crash-consistent saga runtime remain disabled by default.
 
-## Server-controlled policy
+## Separate transaction-preparation gate
 
-The runtime constructs all durable policy from bounded server configuration. It rejects caller-supplied verification, fulfillment, inventory, execution, rate, chain, confirmation, receive-address, wallet-allowlist, and attempt-cap fields before any journal or saga write.
+Enabling the existing saga runtime does **not** enable transaction preparation.
 
-Required configuration:
-
-```text
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED=1
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CHAIN=<payment chain>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_USDC_CONTRACT=<USDC contract>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_RECEIVE_ADDRESS=<payment receiver>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CURRENT_BLOCK_NUMBER=<current chain head>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_MIN_CONFIRMATIONS=<minimum confirmations>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_NUMERATOR=<VOID units numerator>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR=<payment units denominator>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION=<policy identifier>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS=<positive integer>
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS=<positive integer>
-VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS=<fulfillment wallet address>
-```
-
-Fixed policy:
-
-- execution chain ID: `2050`;
-- execution-attempt cap: `1`;
-- inventory pool ID: `void-fixed-price-pool-v1`; and
-- exact payment: required.
-
-The public runtime status exposes only policy fingerprints and address fingerprints. It does not reveal raw wallet, payment-receiver, or contract addresses through the policy summary.
-
-## Policy fingerprints
-
-The server-policy module produces separate fingerprints for:
-
-- stable payment-verification rules;
-- the changing chain-head observation;
-- fulfillment and rate policy;
-- inventory policy;
-- execution-attempt policy; and
-- the combined stable policy.
-
-The current block number is an observation, not a stable policy rule. Advancing the chain head changes the observation fingerprint but does not change the combined stable policy fingerprint or invalidate an in-progress saga.
-
-Every dry run returns the required stable policy fingerprint. Apply requires an exact echo of that fingerprint. The saga initialization event binds it through:
+Preparation requires the additional server-controlled gate:
 
 ```text
-policy_id=void-buy-void-saga-runtime-policy-v1-<combined-policy-sha256>
+VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED=1
 ```
 
-Existing claim, inventory, attempt, and saga projections are checked against the current stable server policy. A changed rate, payment contract, receive address, confirmation floor, inventory policy, wallet allowlist, execution chain, or attempt cap causes a fail-closed hold rather than silently continuing under mixed policy.
+When the saga reaches `prepare_transaction` while that gate is disabled, the runtime returns a fail-closed `503` hold and does not invoke the prepared-transaction coordinator or construct a custodian IPC client.
 
-## Caller input boundary
+This separate gate prevents a configuration that previously enabled only claim/inventory/attempt reservation from silently gaining signing-capable behavior after a software update.
 
-Before a claim exists, caller input is limited to:
+## Server-controlled custodian transport
 
-```json
-{
-  "stage_command": {
-    "receipt": {}
-  }
-}
+Preparation apply also requires:
+
+```text
+VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_IPC_SOCKET_PATH=<absolute private Unix socket path>
+VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_SIGNER_FINGERPRINT_SHA256=<64 lowercase hex>
 ```
 
-The request and all policy are reconstructed server-side. After the claim is durable, `stage_command` is forbidden for inventory and execution-attempt stages because those stages require no caller-selected policy or execution material.
+These values are read only from server configuration. The caller cannot supply or override the socket path, signer fingerprint, custodian, signer, RPC URL, transaction plan, raw transaction, signed transaction, wallet secret, private key, mnemonic, seed, or keystore.
 
-The caller cannot supply:
+Runtime status reports whether the preparation gate and custodian configuration are present, plus the relevant environment-variable names. It never returns the raw socket path or signer fingerprint.
 
-- a policy or policy fragment;
-- a saga binding, intent, request snapshot, root, or request directory;
-- a private key, mnemonic, seed, keystore, wallet secret, RPC URL, or broadcaster URL;
-- a raw or signed transaction; or
-- a transaction plan.
+The actual IPC adapter revalidates the private socket path and expected signer fingerprint before a request and returns only the opaque #1014 public custody projection. Raw signed transaction bytes never enter the application runtime.
 
-Input traversal is bounded and fails closed when nesting exceeds the documented maximum.
+## Preparation policy
 
-## First implementation boundary
+The delegated coordinator retains authority over its existing server-side preparation policy:
 
-Only three non-money saga actions are mounted:
+```text
+VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL
+VOID_BUY_VOID_NATIVE_EXECUTION_GAS_LIMIT
+VOID_BUY_VOID_NATIVE_DELIVERY_MAX_GAS_LIMIT
+VOID_BUY_VOID_NATIVE_DELIVERY_MAX_FEE_PER_GAS_WEI
+VOID_BUY_VOID_NATIVE_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI
+VOID_BUY_VOID_NATIVE_EXECUTION_FEE_MULTIPLIER_BPS
+```
+
+The RPC origin must remain numeric loopback HTTP. Preparation uses only the coordinator's read-only chain ID, pending nonce, gas-price, and balance planning before any external custody request. The application itself never receives a private key or signs.
+
+## Mounted saga stages
+
+The runtime now recognizes four stages:
 
 1. `claim_payment`
 2. `reserve_inventory`
 3. `reserve_execution_attempt`
+4. `prepare_transaction`
 
-Each invocation advances at most one business stage. The first successful invocation may also create the saga initialization event; initialization is not a business mutation.
+The first three retain their existing restart-reconciliation and fencing behavior. The fourth delegates to the existing prepared-transaction coordinator.
 
-The runtime does not mount:
+Each invocation advances at most one business stage. Automatic retry remains false.
 
-- transaction preparation;
-- wallet or signer access;
-- signing;
-- RPC submission;
-- broadcast or rebroadcast;
-- receipt acceptance;
-- inventory decrement;
-- public fulfilled closeout; or
-- money movement.
+## Preparation dry run
 
-Once the saga reaches `attempt_reserved`, its next action is `prepare_transaction`. This runtime returns a fail-closed hold because that stage remains outside this lane.
+When `prepare_transaction` is next and the preparation gate is enabled, a dry run delegates only to the coordinator's dry-run path. It does not construct the IPC client and cannot sign.
 
-## Canonical binding
+The runtime validates that the delegated result is bound to the same:
 
-The saga binding is derived from server evidence, never from caller input:
+- attempt ID;
+- saga ID;
+- economic/server-policy fingerprint;
+- saga confirmation; and
+- saga action confirmation.
+
+The dry response then exposes the exact confirmations required for an apply:
+
+- outer runtime confirmation;
+- saga confirmation;
+- `prepare_transaction` action confirmation;
+- prepared-transaction coordinator confirmation;
+- economic-policy fingerprint;
+- preparation-policy fingerprint;
+- custody confirmation; and
+- execution-journal preparation confirmation.
+
+The caller must echo every one exactly on apply.
+
+## Preparation apply
+
+After all confirmations and fingerprints match, the runtime constructs the #1053 IPC custodian only from the server-controlled socket/fingerprint configuration and delegates to `runBuyVoidSagaPreparedTransactionCoordinatorV1(...)`.
+
+That coordinator remains responsible for the established crash-consistent sequence:
+
+1. canonical claim/inventory/attempt/saga reconstruction;
+2. read-only live nonce/fee/balance planning;
+3. durable local transaction-plan/nonce reservation;
+4. live pre-sign revalidation;
+5. opaque idempotent external custody preparation;
+6. private local custody metadata persistence;
+7. canonical execution-attempt `prepare_execution` persistence; and
+8. exactly one saga `transaction_prepared` append.
+
+The runtime's public successful response exposes only the attempt ID, signed transaction hash, locally reserved nonce, and truthful external-custodian-signing flag. It does not return a custody handle or raw signed bytes.
+
+## Authority truth
+
+For this mounted preparation boundary:
+
+- application private-key access: false;
+- application wallet access: false;
+- application signing: false;
+- external custodian signing: possible only during separately enabled and exactly confirmed preparation apply;
+- read-only loopback RPC planning: possible during preparation;
+- transaction broadcast: false;
+- inventory decrement: false;
+- public fulfilled closeout: false;
+- background/startup execution: false; and
+- money movement by this runtime: false.
+
+A prepared transaction hash is evidence of externally held signed bytes, not evidence that the network has broadcast or delivered the transaction.
+
+## Hard stop before broadcast
+
+After successful preparation the saga reaches `transaction_prepared`. Its next action is `execute_prepared_transaction`.
+
+That action is deliberately not mounted here. A later invocation fails closed with:
 
 ```text
-request_id
-canonical_payment_identity
-request_key_sha256
-payment_key_sha256
-delivery_address
-void_amount_units
-chain_id=2050
-pool_id=void-fixed-price-pool-v1
+next_stage_outside_prepared_transaction_runtime_boundary
 ```
 
-Before the first claim exists, the runtime uses the existing pipeline dry run with the server verification and fulfillment policies to derive the candidate binding. The applied claim is reread from the canonical fulfillment journal and must produce the same binding and remain valid under the same stable server policy.
+The runtime does not construct a broadcaster, submit the signed payload, reconcile possible broadcast, accept a receipt, decrement inventory, or close fulfillment in this lane.
 
-## Restart reconciliation and concurrency
+Broadcast custody/reconciliation and terminal closeout remain separate components and separate activation/authority gates.
 
-The saga is the restart coordinator. Its existing filesystem store supplies:
+## Caller input and restart safety
 
-- a per-saga lease;
-- a monotonically increasing fencing token;
-- append-only hash-chained events;
-- atomic event persistence; and
-- exact current-head validation before append.
+The existing caller-policy and execution-material rejection remains in force. The caller cannot supply durable policy, binding, intent, request snapshot, filesystem roots, transport identity, RPC URL, wallet/signer material, or transaction material.
 
-Every mounted invocation receives a fresh cryptographically random lease owner ID. A process-global owner is forbidden because the saga lease treats the same active owner as a renewal. With a unique invocation owner, two overlapping HTTP commands in the same Node process cannot share one lease or fencing token. The second invocation holds before entering a delegated business adapter.
+The first three stages preserve their real-filesystem restart behavior: after an injected failure immediately following a durable claim, inventory reservation, or execution-attempt write, a fresh invocation reconstructs that projection and appends the missing saga event without duplicating the business mutation.
 
-For every stage, the adapter first reads the complete identity conflict domain, not only the selected request ID. A projection matches the saga when any canonical identity key matches:
+For preparation, restart and idempotency are delegated to the already-reviewed coordinator and custodian contracts rather than duplicated inside the HTTP runtime.
 
-- request ID;
-- canonical payment identity;
-- request-key SHA-256; or
-- payment-key SHA-256.
+## Focused proof
 
-An existing matching claim completes `claim_payment` without claiming again. An existing matching inventory reservation completes `reserve_inventory` without reserving again. An existing matching attempt completes `reserve_execution_attempt` without creating another attempt.
+The runtime proof advances the real saga through the three existing stages with injected failures and recovery, then verifies the new boundary:
 
-This handles termination after a legacy projection commits but before the corresponding saga event appends. A retry backfills the missing saga event from validated server evidence.
+- `prepare_transaction` is reached only after exactly one attempt reservation;
+- the second preparation enable gate holds with zero coordinator/IPC calls;
+- dry run cannot construct the custodian or report signing;
+- caller-supplied socket/fingerprint material is rejected;
+- missing server custodian configuration holds before IPC construction;
+- mismatched preparation-policy confirmation holds before IPC construction;
+- an injected coordinator fixture can complete the canonical execution-attempt and saga `transaction_prepared` projections without any broadcast action;
+- the public response contains no custody handle or raw signed transaction;
+- external-custodian signing truth is kept separate from application signing truth; and
+- the next runtime invocation after `transaction_prepared` holds before `execute_prepared_transaction`.
 
-The opposite ordering is prevented: the saga does not append a business event until the delegated legacy operation returns and the resulting canonical projection has been reread and validated.
+The focused Node.js 22/24/26 workflow also reruns the real prepared-transaction coordinator proof and the #1053 custodian IPC/store-read-confinement proofs so this composition cannot silently drift from those contracts.
 
-A supervisor response is successful only when it is exactly `ok=true` and `status=applied`. A returned lease hold or any other non-applied result is surfaced as a fail-closed runtime hold; it can never be wrapped in an outer applied response.
-
-## Conflict behavior
-
-The runtime holds with zero further writes when it sees:
-
-- caller-supplied policy or execution material;
-- a missing or mismatched stable policy fingerprint;
-- more than one claim matching the request or payment identity domain;
-- more than one inventory reservation matching the request or payment identity domain;
-- more than one execution attempt matching the request or payment identity domain;
-- an attempt without a canonical inventory reservation;
-- an inventory reservation without a canonical claim;
-- a saga, claim, reservation, attempt, or server-policy binding mismatch;
-- an active saga lease held by another invocation;
-- a supervisor result that is held, terminal, malformed, or otherwise not applied;
-- a malformed, symlinked, oversized, or non-object canonical request file; or
-- a stage beyond the three non-money actions.
-
-Automatic retry is false. The operator must make a new explicitly confirmed invocation after reviewing the returned state.
-
-## Proof
-
-The focused real-filesystem proof rejects caller attempts to substitute:
-
-- payment chain;
-- confirmation floor;
-- exchange rate;
-- payment receive address;
-- fulfillment-wallet allowlist; and
-- attempt cap.
-
-Every substitution produces zero claim, inventory, attempt, and saga writes.
-
-The restart proof injects failure immediately after each delegated durable projection write:
-
-- claim write;
-- inventory-reservation write; and
-- execution-attempt write.
-
-A fresh invocation then recovers from the persisted projection and appends the missing saga event without calling the delegated mutation a second time. The final chain is exactly:
+Expected runtime marker remains:
 
 ```text
-saga_initialized
-claim_committed
-inventory_reserved
-attempt_reserved
-```
-
-The concurrency and identity proof:
-
-- overlaps two apply commands inside one Node process against the real filesystem saga lease;
-- proves the second command holds before a second adapter entry;
-- proves exactly one delegated claim mutation occurs;
-- rejects a matching request plus a conflicting same-payment claim history;
-- rejects matching plus conflicting same-payment inventory histories;
-- rejects matching plus conflicting same-payment execution-attempt histories;
-- proves each conflict creates zero saga writes; and
-- proves a held supervisor response is not reported as applied.
-
-Additional verification covers:
-
-- stable and observation policy fingerprints;
-- exact policy-fingerprint echo before apply;
-- immutable saga policy binding;
-- increasing fencing tokens across independent invocations;
-- dry-run zero writes;
-- loopback enforcement and default-off behavior;
-- malformed and symlinked request rejection;
-- parent runtime dispatch; and
-- Node.js 22, 24, and 26 compatibility.
-
-Expected markers:
-
-```text
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_V1_PROOF_GREEN
 VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1_PROOF_GREEN
-VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONCURRENCY_IDENTITY_V1_PROOF_GREEN
-VOID_BUY_VOID_RUNTIME_INPUT_DEPTH_FAIL_CLOSED_V1_PROOF_GREEN
 ```
 
 ## Authority boundary
 
-This lane changes source, documentation, proof, and CI only. It does not deploy or restart a service, enable a runtime, inspect or mutate live requests, access credentials, wallets, private keys, or signers, construct or prepare a transaction, call an RPC, sign, broadcast, decrement inventory, mark a public request fulfilled, issue or settle Work Credits, mutate validators, or move funds.
+This lane changes source, proof, documentation, and CI only. It does not enable the runtime or preparation gate, start or connect to a production custodian socket, access a production signer/key/wallet/credential, perform live signing, submit to live RPC, broadcast or rebroadcast, decrement inventory, mark fulfillment, deploy or restart a service, mutate Work Credits or validators, or move funds.
 
-Runtime enablement, any live operator invocation, transaction preparation, wallet or signer access, signing, broadcast, receipt reconciliation, fulfillment closeout, deployment, and money movement remain separate explicit gates.
+Runtime enablement, production custodian/signer composition, any live operator apply, broadcast custody/reconciliation, receipt acceptance, terminal closeout, deployment, and money movement remain separate explicit gates.

@@ -123,6 +123,8 @@ try {
   const connectedPeer: any = {
     id: "c".repeat(32),
     handshakeDone: true,
+    transport: "direct",
+    persistDirectEvidence: true,
     listens: [
       "192.168.55.8:4700",
       PUBLIC_V4_B,
@@ -131,6 +133,19 @@ try {
     ],
   };
   node.peers.set(connectedPeer.id, connectedPeer);
+
+  // Direct-upgrade/punch sockets authenticate end-to-end but deliberately
+  // carry persistDirectEvidence=false. Their observed/listen addresses must
+  // never be republished as durable public discovery evidence.
+  const ephemeralDirectPeer: any = {
+    id: "d".repeat(32),
+    handshakeDone: true,
+    transport: "direct",
+    persistDirectEvidence: false,
+    listens: ["8.8.4.4:4700"],
+  };
+  node.peers.set(ephemeralDirectPeer.id, ephemeralDirectPeer);
+
   (node as any).knownAddrs.add(PUBLIC_V4_B);
 
   const advertised = (node as any).publicPeerExchangeAddrsV1();
@@ -366,6 +381,7 @@ try {
   console.log("unauthenticated_tcp_success_backoff_created=false");
   console.log("trusted_bootstrap_cache_retry_preserved=true");
   console.log("authenticated_direct_peer_state_preserved=true");
+  console.log("non_persistable_direct_peer_exchange_republished=false");
   console.log("explicit_bootstrap_policy_changed=false");
   console.log("verified_peer_cache_policy_changed=false");
   console.log("wallet_signer_validator_wc_money_authority=0");
