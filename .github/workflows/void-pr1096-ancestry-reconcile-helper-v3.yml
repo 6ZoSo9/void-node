@@ -40,52 +40,99 @@ jobs:
           PROOF='scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts'
           SOURCE='src/node_core.ts'
 
-          test "$(git merge-base HEAD "$EXPECTED_BASE")" = "$EXPECTED_BASE"
-          test "$(git diff --name-only "$EXPECTED_BASE" HEAD)" = "$HELPER_FILE"
+          fail() {
+            printf '::error title=PR1096 ancestry reconciliation guard::%s\n' "$*" >&2
+            exit 1
+          }
 
+          expect_eq() {
+            local label="$1"
+            local expected="$2"
+            local actual="$3"
+            if [[ "$actual" != "$expected" ]]; then
+              printf '::error title=PR1096 ancestry reconciliation guard::%s mismatch\n' "$label" >&2
+              printf 'actual<<EOF\n%s\nEOF\n' "$actual" >&2
+              printf 'expected<<EOF\n%s\nEOF\n' "$expected" >&2
+              exit 1
+            fi
+            printf 'PASS %s\n' "$label"
+          }
+
+          echo 'stage=helper_scope_guard'
+          helper_merge_base="$(git merge-base HEAD "$EXPECTED_BASE")"
+          expect_eq 'helper merge-base' "$EXPECTED_BASE" "$helper_merge_base"
+          helper_scope="$(git diff --name-only "$EXPECTED_BASE" HEAD)"
+          expect_eq 'helper changed path' "$HELPER_FILE" "$helper_scope"
+
+          echo 'stage=fetch_pinned_live_refs'
           git fetch --no-tags origin \
-            "$TARGET_BRANCH" \
-            "$BASE_BRANCH"
-          test "$(git rev-parse "origin/$TARGET_BRANCH")" = "$EXPECTED_TARGET"
-          test "$(git rev-parse "origin/$BASE_BRANCH")" = "$EXPECTED_BASE"
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" \
+            "+refs/heads/$BASE_BRANCH:refs/remotes/origin/$BASE_BRANCH"
+          live_target="$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          live_base="$(git rev-parse "refs/remotes/origin/$BASE_BRANCH")"
+          expect_eq 'live target head' "$EXPECTED_TARGET" "$live_target"
+          expect_eq 'live base head' "$EXPECTED_BASE" "$live_base"
 
+          echo 'stage=exact_feature_tree_guard'
           actual_scope="$(git diff --name-status "$EXPECTED_BASE" "$EXPECTED_TARGET" | sort)"
           expected_scope="$(printf 'A\t%s\nA\t%s\nA\t%s\nM\t%s\n' \
             "$WORKFLOW" "$DOC" "$PROOF" "$SOURCE" | sort)"
-          test "$actual_scope" = "$expected_scope"
+          expect_eq 'exact four-file scope' "$expected_scope" "$actual_scope"
 
           actual_numstat="$(git diff --numstat "$EXPECTED_BASE" "$EXPECTED_TARGET" | sort -k3,3)"
           expected_numstat="$(printf '80\t0\t%s\n131\t0\t%s\n387\t0\t%s\n192\t2\t%s\n' \
             "$WORKFLOW" "$DOC" "$PROOF" "$SOURCE" | sort -k3,3)"
-          test "$actual_numstat" = "$expected_numstat"
+          expect_eq 'exact +790/-2 stats' "$expected_numstat" "$actual_numstat"
 
+          echo 'stage=reviewed_additive_blob_guard'
+          git cat-file -e "$REVIEWED_FEATURE^{commit}" 2>/dev/null || \
+            fail "reviewed feature commit $REVIEWED_FEATURE is not reachable after target fetch"
           for p in "$WORKFLOW" "$DOC" "$PROOF"; do
-            test "$(git rev-parse "$EXPECTED_TARGET:$p")" = "$(git rev-parse "$REVIEWED_FEATURE:$p")"
+            target_blob="$(git rev-parse "$EXPECTED_TARGET:$p")"
+            reviewed_blob="$(git rev-parse "$REVIEWED_FEATURE:$p")"
+            expect_eq "reviewed blob $p" "$reviewed_blob" "$target_blob"
           done
 
           target_tree="$(git rev-parse "$EXPECTED_TARGET^{tree}")"
+          printf 'PASS pinned target tree %s\n' "$target_tree"
 
+          echo 'stage=create_tree_preserving_two_parent_merge'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -B target "$EXPECTED_TARGET"
           git merge -s ours --no-ff "$EXPECTED_BASE" \
             -m 'chore: reconcile UDP swarm Node control mount ancestry with current parent'
 
-          test "$(git rev-parse HEAD^1)" = "$EXPECTED_TARGET"
-          test "$(git rev-parse HEAD^2)" = "$EXPECTED_BASE"
-          test "$(git rev-parse 'HEAD^{tree}')" = "$target_tree"
-          test "$(git diff --name-status "$EXPECTED_BASE" HEAD | sort)" = "$expected_scope"
-          test "$(git diff --numstat "$EXPECTED_BASE" HEAD | sort -k3,3)" = "$expected_numstat"
+          parent_one="$(git rev-parse HEAD^1)"
+          parent_two="$(git rev-parse HEAD^2)"
+          merged_tree="$(git rev-parse 'HEAD^{tree}')"
+          expect_eq 'merge parent 1' "$EXPECTED_TARGET" "$parent_one"
+          expect_eq 'merge parent 2' "$EXPECTED_BASE" "$parent_two"
+          expect_eq 'tree unchanged by ancestry merge' "$target_tree" "$merged_tree"
+          merged_scope="$(git diff --name-status "$EXPECTED_BASE" HEAD | sort)"
+          merged_numstat="$(git diff --numstat "$EXPECTED_BASE" HEAD | sort -k3,3)"
+          expect_eq 'post-merge four-file scope' "$expected_scope" "$merged_scope"
+          expect_eq 'post-merge +790/-2 stats' "$expected_numstat" "$merged_numstat"
           git diff --check "$EXPECTED_BASE...HEAD"
+          echo 'PASS post-merge diff hygiene'
 
-          git fetch --no-tags origin "$TARGET_BRANCH" "$BASE_BRANCH"
-          test "$(git rev-parse "origin/$TARGET_BRANCH")" = "$EXPECTED_TARGET"
-          test "$(git rev-parse "origin/$BASE_BRANCH")" = "$EXPECTED_BASE"
-          git push origin "HEAD:$TARGET_BRANCH"
+          echo 'stage=final_compare_and_swap_guard'
+          remote_target="$(git ls-remote --heads origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          remote_base="$(git ls-remote --heads origin "refs/heads/$BASE_BRANCH" | awk '{print $1}')"
+          expect_eq 'final remote target head' "$EXPECTED_TARGET" "$remote_target"
+          expect_eq 'final remote base head' "$EXPECTED_BASE" "$remote_base"
+          git merge-base --is-ancestor "$EXPECTED_TARGET" HEAD || fail 'new commit is not a fast-forward descendant of target'
 
-          git fetch --no-tags origin "$HELPER_BRANCH"
-          git checkout -B helper-clean "origin/$HELPER_BRANCH"
-          test -f "$HELPER_FILE"
+          echo 'stage=publish_target_fast_forward'
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo 'PASS target fast-forward published'
+
+          echo 'stage=self_clean_helper'
+          git fetch --no-tags origin \
+            "+refs/heads/$HELPER_BRANCH:refs/remotes/origin/$HELPER_BRANCH"
+          git checkout -B helper-clean "refs/remotes/origin/$HELPER_BRANCH"
+          test -f "$HELPER_FILE" || fail 'helper workflow disappeared before self-clean'
           git rm -- "$HELPER_FILE"
           git commit -m 'chore: remove PR1096 ancestry reconciliation helper v3'
-          git push origin "HEAD:$HELPER_BRANCH"
+          git push origin "HEAD:refs/heads/$HELPER_BRANCH"
+          echo 'PASS helper self-cleaned'
