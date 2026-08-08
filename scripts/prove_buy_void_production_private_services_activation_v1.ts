@@ -122,11 +122,11 @@ function assertBoundPolicy(value: any): void {
 }
 
 const dry = await runBuyVoidProductionPrivateServicesActivationV1({ policy });
-assert.equal(dry.ok, true);
-assert.equal(dry.status, "dry_run");
 if (dry.ok === false || dry.status !== "dry_run") {
   throw new Error("production_private_services_dry_run_expected");
 }
+assert.equal(dry.ok, true);
+assert.equal(dry.status, "dry_run");
 assert.match(dry.plan_id_sha256, /^[0-9a-f]{64}$/);
 assert.equal(dry.required_plan_id_sha256, dry.plan_id_sha256);
 assert.equal(
@@ -459,11 +459,11 @@ const mutablePolicy: any = {
 const mutableDry = await runBuyVoidProductionPrivateServicesActivationV1({
   policy: mutablePolicy,
 });
-assert.equal(mutableDry.ok, true);
-assert.equal(mutableDry.status, "dry_run");
 if (mutableDry.ok === false || mutableDry.status !== "dry_run") {
   throw new Error("mutable_policy_dry_run_expected");
 }
+assert.equal(mutableDry.ok, true);
+assert.equal(mutableDry.status, "dry_run");
 assert.equal(mutableDry.plan_id_sha256, dry.plan_id_sha256);
 
 const mutationDependencies = makeDependencies();
@@ -580,11 +580,11 @@ const started = await runBuyVoidProductionPrivateServicesActivationV1(
   authorizedInput,
   makeDependencies(),
 );
-assert.equal(started.ok, true);
-assert.equal(started.status, "started");
 if (started.ok === false || started.status !== "started") {
   throw new Error("production_private_services_started_expected");
 }
+assert.equal(started.ok, true);
+assert.equal(started.status, "started");
 assert.equal(readinessCalls, 1);
 assert.equal(custodianStarts, 1);
 assert.equal(broadcasterStarts, 1);
