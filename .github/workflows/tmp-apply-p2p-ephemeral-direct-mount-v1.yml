@@ -1,0 +1,143 @@
+name: TEMP apply P2P ephemeral direct mount v1
+
+on:
+  push:
+    branches:
+      - feat/p2p-ephemeral-direct-mount-v1-20260807
+    paths:
+      - ".github/workflows/tmp-apply-p2p-ephemeral-direct-mount-v1.yml"
+  pull_request:
+    branches:
+      - feat/p2p-udp-swarm-relay-control-v1-20260807
+    paths:
+      - ".github/workflows/tmp-apply-p2p-ephemeral-direct-mount-v1.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'feat/p2p-ephemeral-direct-mount-v1-20260807'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: feat/p2p-ephemeral-direct-mount-v1-20260807
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Assert exact base and patch node core
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD:src/node_core.ts)" = "f6fe5a574314beee0d06cb07fc5067466daf664c"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/node_core.ts")
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"HOLD: {label}: expected 1 exact marker, found {count}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '''  relayViaNodeId?: string;\n  relayStreamId?: string;\n};''',
+              '''  relayViaNodeId?: string;\n  relayStreamId?: string;\n  persistDirectEvidence: boolean;\n};''',
+              "peer persist-direct field",
+          )
+
+          replace_once(
+              '''      peer.suppressReconnect ||\n      peer.transport !== "direct" ||\n      !peer.handshakeDone ||''',
+              '''      peer.suppressReconnect ||\n      peer.transport !== "direct" ||\n      !peer.persistDirectEvidence ||\n      !peer.handshakeDone ||''',
+              "reconnect persistence guard",
+          )
+
+          replace_once(
+              '''      peer.probe ||\n      peer.transport !== "direct" ||\n      peer.outbound ||''',
+              '''      peer.probe ||\n      peer.transport !== "direct" ||\n      !peer.persistDirectEvidence ||\n      peer.outbound ||''',
+              "reachability persistence guard",
+          )
+
+          replace_once(
+              '''      if (peer.transport === "relay") {\n        console.warn("VOID_P2P_RELAY_DESTINATION_IDENTITY_MISMATCH_V1", {\n          relay_node_id: peer.relayViaNodeId,\n          stream_id: peer.relayStreamId,\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n        });\n        this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");\n      } else {\n        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {\n          address: peer.reconnectAddr || peer.addr,\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n        });\n        this.rejectUnauthenticatedPeer(peer, "cached reconnect identity mismatch");\n      }''',
+              '''      if (peer.transport === "relay") {\n        console.warn("VOID_P2P_RELAY_DESTINATION_IDENTITY_MISMATCH_V1", {\n          relay_node_id: peer.relayViaNodeId,\n          stream_id: peer.relayStreamId,\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n        });\n        this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");\n      } else if (!peer.persistDirectEvidence) {\n        console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {\n          transport_hint: peer.addr,\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n        });\n        this.rejectUnauthenticatedPeer(peer, "ephemeral direct peer identity mismatch");\n      } else {\n        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {\n          address: peer.reconnectAddr || peer.addr,\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n        });\n        this.rejectUnauthenticatedPeer(peer, "cached reconnect identity mismatch");\n      }''',
+              "ephemeral identity mismatch branch",
+          )
+
+          replace_once(
+              '''    if (\n      peer.transport === "direct" &&\n      (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr))\n    ) {''',
+              '''    if (\n      peer.transport === "direct" &&\n      peer.persistDirectEvidence &&\n      (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr))\n    ) {''',
+              "reconnect address persistence guard",
+          )
+
+          replace_once(
+              '''    if (peer.transport === "direct") {\n      if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);''',
+              '''    if (peer.transport === "direct" && peer.persistDirectEvidence) {\n      if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);''',
+              "verified direct evidence guard",
+          )
+
+          replace_once(
+              '''    for (const connectedPeer of this.peers.values()) {\n      if (!connectedPeer.handshakeDone || connectedPeer.transport !== "direct") continue;\n      for (const address of connectedPeer.listens) addrs.add(address);\n    }''',
+              '''    for (const connectedPeer of this.peers.values()) {\n      if (\n        !connectedPeer.handshakeDone ||\n        connectedPeer.transport !== "direct" ||\n        !connectedPeer.persistDirectEvidence\n      ) continue;\n      for (const address of connectedPeer.listens) addrs.add(address);\n    }''',
+              "PEERS advertisement persistence guard",
+          )
+
+          replace_once(
+              '''  private attachSocket(\n    socket: PeerSocketV1,''',
+              '''  attachEphemeralDirectTransportV1(\n    socket: PeerSocketV1,\n    expectedNodeId: string,\n    transportHint: string,\n  ): boolean {\n    if (\n      this.stopping ||\n      !/^[0-9a-f]{32}$/.test(expectedNodeId) ||\n      expectedNodeId === this.id ||\n      typeof transportHint !== "string" ||\n      transportHint.length < 1 ||\n      transportHint.length > 256 ||\n      /[\\s\\u0000-\\u001f\\u007f]/.test(transportHint)\n    ) return false;\n\n    this.attachSocket(\n      socket,\n      transportHint,\n      true,\n      expectedNodeId,\n      undefined,\n      "direct",\n      undefined,\n      undefined,\n      undefined,\n      false,\n    );\n    return true;\n  }\n\n  private attachSocket(\n    socket: PeerSocketV1,''',
+              "public ephemeral mount seam",
+          )
+
+          replace_once(
+              '''    relayViaNodeId?: string,\n    relayStreamId?: string,\n    reachabilityProbe?: ReachabilityProbeContext,\n  ) {''',
+              '''    relayViaNodeId?: string,\n    relayStreamId?: string,\n    reachabilityProbe?: ReachabilityProbeContext,\n    persistDirectEvidence = transport === "direct",\n  ) {''',
+              "attach persistence parameter",
+          )
+
+          replace_once(
+              '''      reconnectAddr,\n      suppressReconnect: !!reachabilityProbe,\n      attachedAtMs: Date.now(),''',
+              '''      reconnectAddr,\n      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,\n      attachedAtMs: Date.now(),''',
+              "ephemeral reconnect suppression",
+          )
+
+          replace_once(
+              '''      relayViaNodeId,\n      relayStreamId,\n    };''',
+              '''      relayViaNodeId,\n      relayStreamId,\n      persistDirectEvidence,\n    };''',
+              "peer persistence assignment",
+          )
+
+          path.write_text(text)
+          PY
+
+          git diff --check
+          grep -F 'attachEphemeralDirectTransportV1(' src/node_core.ts
+          grep -F 'persistDirectEvidence: boolean' src/node_core.ts
+
+      - name: Verify repository
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+      - name: Commit bounded source mutation and remove temporary workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/tmp-apply-p2p-ephemeral-direct-mount-v1.yml
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 2
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/node_core.ts .github/workflows/tmp-apply-p2p-ephemeral-direct-mount-v1.yml
+          git commit -m "feat: add ephemeral direct transport mount v1"
+          git push origin HEAD:feat/p2p-ephemeral-direct-mount-v1-20260807
