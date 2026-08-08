@@ -43,6 +43,8 @@ const policy = {
     rpc: {
       rpc_url: "http://127.0.0.1:8545/",
       expected_chain_id: 2050,
+      request_timeout_ms: undefined as number | undefined,
+      max_response_bytes: undefined as number | undefined,
     },
   },
 } as const;
