@@ -1,0 +1,12 @@
+# VOID Precision host-control v1 — example only.
+# Installation remains a separate operator-authorized gate.
+# Validate with visudo -cf before installation.
+
+Defaults:void-gh-runner env_reset
+Defaults:void-gh-runner !setenv
+
+Cmnd_Alias VOID_PRECISION_HOST_CONTROL_V1 = \
+  /usr/local/libexec/void/precision-host-control-v1.py inspect_custodian_binding *, \
+  /usr/local/libexec/void/precision-host-control-v1.py daemon_reload_custodian_binding *
+
+void-gh-runner ALL=(root) NOPASSWD: VOID_PRECISION_HOST_CONTROL_V1
