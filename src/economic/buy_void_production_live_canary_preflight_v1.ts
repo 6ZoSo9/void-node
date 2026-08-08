@@ -178,6 +178,11 @@ type ReadyProductionPlanViewV1 = {
   rpc_url_fingerprint_sha256: string;
 };
 
+type NativeExecutionDryRunDecisionV1 = Extract<
+  BuyVoidNativeExecutionRuntimeDecisionV1,
+  { ok: true }
+> & { status: "dry_run" };
+
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
@@ -564,10 +569,12 @@ export async function runBuyVoidProductionLiveCanaryPreflightV1(
     });
   }
 
+  const validatedExecutionDryRun =
+    executionDryRun as NativeExecutionDryRunDecisionV1;
   const evidenceId = sha256Hex([
     "void-buy-production-live-canary-preflight-evidence-v1",
     `preflight_plan_id_sha256=${preflightPlanId}`,
-    `execution_dry_run=${canonicalJson(executionDryRun)}`,
+    `execution_dry_run=${canonicalJson(validatedExecutionDryRun)}`,
   ].join("\n"));
 
   return {
@@ -582,7 +589,7 @@ export async function runBuyVoidProductionLiveCanaryPreflightV1(
     preflight_plan_id_sha256: preflightPlanId,
     evidence_id_sha256: evidenceId,
     native_execution_dry_run_invoked: true,
-    execution_dry_run: executionDryRun,
+    execution_dry_run: validatedExecutionDryRun,
     required_private_services_activation_confirmation:
       VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1,
     required_native_execution_confirmation:
