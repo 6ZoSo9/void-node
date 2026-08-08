@@ -42,6 +42,8 @@ export const VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1 = {
   production_wallet_binding_required: true,
   production_chain_2050_binding_required: true,
   production_rpc_binding_required: true,
+  planner_rpc_request_timeout_bound: true,
+  planner_rpc_max_response_bytes_bound: true,
   one_attempt_execution_policy_required: true,
   plan_derived_runtime_policy_snapshot_required: true,
   plan_derived_runtime_policy_snapshot_frozen: true,
@@ -320,6 +322,8 @@ function runtimePolicyFingerprint(
     `planner_max_fee_per_gas_wei=${runtime.planner_policy.max_fee_per_gas_wei}`,
     `planner_max_priority_fee_per_gas_wei=${runtime.planner_policy.max_priority_fee_per_gas_wei}`,
     `planner_fee_multiplier_bps=${runtime.planner_policy.fee_multiplier_bps}`,
+    `planner_request_timeout_ms=${runtime.planner_policy.request_timeout_ms ?? ""}`,
+    `planner_max_response_bytes=${runtime.planner_policy.max_response_bytes ?? ""}`,
     `rpc_url_fingerprint_sha256=${plan.rpc_url_fingerprint_sha256}`,
   ].join("\n"));
 }
@@ -362,6 +366,12 @@ function snapshotRuntimePolicy(
       max_priority_fee_per_gas_wei:
         runtime.planner_policy.max_priority_fee_per_gas_wei,
       fee_multiplier_bps: runtime.planner_policy.fee_multiplier_bps,
+      ...(runtime.planner_policy.request_timeout_ms !== undefined
+        ? { request_timeout_ms: runtime.planner_policy.request_timeout_ms }
+        : {}),
+      ...(runtime.planner_policy.max_response_bytes !== undefined
+        ? { max_response_bytes: runtime.planner_policy.max_response_bytes }
+        : {}),
     },
   });
 }

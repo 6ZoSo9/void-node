@@ -85,6 +85,8 @@ function runtimePolicy(): BuyVoidNativeExecutionRuntimePolicyV1 {
       max_fee_per_gas_wei: "3000000000",
       max_priority_fee_per_gas_wei: "1000000000",
       fee_multiplier_bps: "12000",
+      request_timeout_ms: 1_500,
+      max_response_bytes: 32_768,
     },
   };
 }
@@ -160,6 +162,16 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1
+    .planner_rpc_request_timeout_bound,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1
+    .planner_rpc_max_response_bytes_bound,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1
     .live_canary_authorized_by_preflight,
   false,
 );
@@ -214,6 +226,38 @@ if (repeatedPlan.ok !== true || repeatedPlan.status !== "planned") {
   throw new Error("production_live_canary_preflight_repeat_plan_expected");
 }
 assert.equal(repeatedPlan.preflight_plan_id_sha256, planned.preflight_plan_id_sha256);
+
+const timeoutBoundPolicy = runtimePolicy();
+timeoutBoundPolicy.planner_policy.request_timeout_ms = 1_501;
+const timeoutBoundPlan = await runBuyVoidProductionLiveCanaryPreflightV1({
+  production_policy: productionPolicy(),
+  execution_runtime_policy: timeoutBoundPolicy,
+  attempt_id: attemptId,
+});
+assert.equal(timeoutBoundPlan.ok, true);
+if (timeoutBoundPlan.ok !== true || timeoutBoundPlan.status !== "planned") {
+  throw new Error("timeout-bound plan expected");
+}
+assert.notEqual(
+  timeoutBoundPlan.preflight_plan_id_sha256,
+  planned.preflight_plan_id_sha256,
+);
+
+const responseBoundPolicy = runtimePolicy();
+responseBoundPolicy.planner_policy.max_response_bytes = 32_769;
+const responseBoundPlan = await runBuyVoidProductionLiveCanaryPreflightV1({
+  production_policy: productionPolicy(),
+  execution_runtime_policy: responseBoundPolicy,
+  attempt_id: attemptId,
+});
+assert.equal(responseBoundPlan.ok, true);
+if (responseBoundPlan.ok !== true || responseBoundPlan.status !== "planned") {
+  throw new Error("response-bound plan expected");
+}
+assert.notEqual(
+  responseBoundPlan.preflight_plan_id_sha256,
+  planned.preflight_plan_id_sha256,
+);
 
 const invalidAttempt = await runBuyVoidProductionLiveCanaryPreflightV1(
   {
@@ -404,6 +448,8 @@ assert.equal(
   true,
 );
 assert.equal(Object.isFrozen(exactInput.runtime_policy.planner_policy), true);
+assert.equal(exactInput.runtime_policy.planner_policy.request_timeout_ms, 1_500);
+assert.equal(exactInput.runtime_policy.planner_policy.max_response_bytes, 32_768);
 assert.equal(exactInput.runtime_policy.enabled, false);
 assert.equal(exactInspect.mutation_performed, false);
 assert.equal(exactInspect.signing_performed, false);
@@ -509,6 +555,8 @@ mutableRuntime.worker_policy.fulfillment_wallet_address = otherWallet;
 mutableRuntime.execution_policy.fulfillment_wallet_allowlist[0] = otherWallet;
 mutableRuntime.planner_policy.fulfillment_wallet_address = otherWallet;
 mutableRuntime.planner_policy.rpc_url = "http://127.0.0.1:9999/";
+mutableRuntime.planner_policy.request_timeout_ms = 30_000;
+mutableRuntime.planner_policy.max_response_bytes = 1_048_576;
 releaseInspect();
 const mutationRace = await mutationRacePromise;
 assert.equal(mutationRace.ok, true);
@@ -516,6 +564,8 @@ assert.equal(capturedSnapshot.worker_policy.fulfillment_wallet_address, wallet);
 assert.equal(capturedSnapshot.execution_policy.fulfillment_wallet_allowlist[0], wallet);
 assert.equal(capturedSnapshot.planner_policy.fulfillment_wallet_address, wallet);
 assert.equal(capturedSnapshot.planner_policy.rpc_url, "http://127.0.0.1:8545/");
+assert.equal(capturedSnapshot.planner_policy.request_timeout_ms, 1_500);
+assert.equal(capturedSnapshot.planner_policy.max_response_bytes, 32_768);
 assert.equal(Object.isFrozen(capturedSnapshot), true);
 
 const unsafeMutation = await runBuyVoidProductionLiveCanaryPreflightV1(
@@ -596,6 +646,9 @@ console.log("native_execution_runtime_disabled_required=true");
 console.log("production_wallet_binding_required=true");
 console.log("production_chain_2050_binding_required=true");
 console.log("production_rpc_binding_required=true");
+console.log("planner_rpc_request_timeout_bound=true");
+console.log("planner_rpc_max_response_bytes_bound=true");
+console.log("planner_rpc_bounds_preserved_in_snapshot=true");
 console.log("native_execution_apply=false");
 console.log("native_execution_dependencies_supplied=false");
 console.log("runtime_policy_snapshot_frozen=true");

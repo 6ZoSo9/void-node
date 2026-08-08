@@ -40,12 +40,15 @@ with the production activation plan on the security-critical execution surface:
 - chain ID exactly `2050`;
 - exact production fulfillment wallet;
 - exact production loopback RPC URL;
+- planner RPC request-timeout bound;
+- planner RPC response-size bound;
 - one execution attempt per payment;
 - exactly one fulfillment-wallet allowlist entry; and
 - an absolute non-root server-owned runtime journal directory.
 
 The runtime policy fingerprint additionally binds the pool ID, native amount
-cap, gas/fee caps, fee multiplier, runtime root, and RPC URL fingerprint.
+cap, gas/fee caps, fee multiplier, planner RPC request timeout, planner RPC
+response-size cap, runtime root, and RPC URL fingerprint.
 
 Changing any of those values or the selected execution attempt changes the
 preflight plan ID or causes the plan to hold.
@@ -78,8 +81,8 @@ its existing read-only nonce/fee planner. The accepted result must still report
 broadcast. Any contradictory result is rejected.
 
 The frozen snapshot is built before asynchronous inspection so later caller
-mutation cannot retarget the wallet, RPC URL, journal root, limits, or execution
-policy after the plan IDs have been approved.
+mutation cannot retarget the wallet, RPC URL, RPC timeout/response-size bounds,
+journal root, limits, or execution policy after the plan IDs have been approved.
 
 ## Evidence
 
