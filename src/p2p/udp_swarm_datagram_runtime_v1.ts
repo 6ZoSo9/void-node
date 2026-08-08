@@ -342,7 +342,7 @@ export class VoidUdpSwarmDatagramRuntimeV1 {
       const delayMs = plan.send_offsets_ms[attempt];
       const timer = setTimeout(() => {
         active.timers.delete(timer);
-        if (this.closed || active.direct_path_observed || !this.activePunches.has(sessionId)) return;
+        if (this.closed || !this.activePunches.has(sessionId)) return;
         const packet = createVoidUdpHolePunchPacketV1({
           sessionId,
           sourceNodeId: this.localNodeId,
@@ -463,8 +463,6 @@ export class VoidUdpSwarmDatagramRuntimeV1 {
     }
 
     active.direct_path_observed = true;
-    for (const timer of active.timers) clearTimeout(timer);
-    active.timers.clear();
 
     const observation = Object.freeze({
       session_id: active.plan.session_id,
