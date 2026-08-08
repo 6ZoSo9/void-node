@@ -1,0 +1,130 @@
+name: VOID PR1096 learned-peer proof compatibility repair v1
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/void-pr1096-learned-peer-proof-compat-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.base.ref == 'feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact helper head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Repair proof identity fixture and fast-forward target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TARGET_BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+          HELPER_FILE='.github/workflows/void-pr1096-learned-peer-proof-compat-v1.yml'
+          PROOF='scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts'
+          EXPECTED_TARGET='dedff0a378b0b0d8b4026fe6f826c6b778bbdb5c'
+          EXPECTED_PROOF_BLOB='0c967d39dbaf7b4f4e1829b1657fd5786cb4f283'
+
+          fail() {
+            printf '::error title=PR1096 learned-peer proof repair::%s\n' "$*" >&2
+            exit 1
+          }
+
+          expect_eq() {
+            local label="$1"
+            local expected="$2"
+            local actual="$3"
+            if [[ "$actual" != "$expected" ]]; then
+              printf '::error title=PR1096 learned-peer proof repair::%s mismatch\n' "$label" >&2
+              printf 'actual=%s\nexpected=%s\n' "$actual" "$expected" >&2
+              exit 1
+            fi
+            printf 'PASS %s\n' "$label"
+          }
+
+          echo 'stage=guard_helper_scope'
+          helper_merge_base="$(git merge-base HEAD "$EXPECTED_TARGET")"
+          expect_eq 'helper merge-base' "$EXPECTED_TARGET" "$helper_merge_base"
+          helper_scope="$(git diff --name-only "$EXPECTED_TARGET" HEAD)"
+          expect_eq 'helper scope' "$HELPER_FILE" "$helper_scope"
+
+          echo 'stage=guard_live_target'
+          git fetch --no-tags origin \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          live_target="$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          expect_eq 'live target head' "$EXPECTED_TARGET" "$live_target"
+          current_proof_blob="$(git rev-parse "$EXPECTED_TARGET:$PROOF")"
+          expect_eq 'proof blob' "$EXPECTED_PROOF_BLOB" "$current_proof_blob"
+
+          echo 'stage=repair_fixture'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B target "$EXPECTED_TARGET"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts')
+          text = path.read_text()
+
+          old_import = 'import { VOID_P2P_AUTH_TIMEOUT_MS_V1 } from "../src/p2p/auth_v1.js";'
+          new_import = '''import {
+            deriveVoidNodeIdFromPublicPemV1,
+            VOID_P2P_AUTH_TIMEOUT_MS_V1,
+          } from "../src/p2p/auth_v1.js";'''
+          if text.count(old_import) != 1:
+              raise SystemExit('expected exactly one auth import fixture')
+          text = text.replace(old_import, new_import)
+
+          old_node_id = '    nodeId: crypto.randomBytes(16).toString("hex"),'
+          new_node_id = '    nodeId: deriveVoidNodeIdFromPublicPemV1(pubPEM),'
+          if text.count(old_node_id) != 1:
+              raise SystemExit('expected exactly one synthetic nodeId fixture')
+          text = text.replace(old_node_id, new_node_id)
+
+          path.write_text(text)
+          PY
+
+          changed="$(git diff --name-only "$EXPECTED_TARGET")"
+          expect_eq 'repair scope' "$PROOF" "$changed"
+          grep -F 'deriveVoidNodeIdFromPublicPemV1(pubPEM)' "$PROOF" >/dev/null || \
+            fail 'canonical node-id derivation is absent after repair'
+          git diff --check "$EXPECTED_TARGET"
+
+          echo 'stage=prove_repair'
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+          npm run typecheck
+          npm run build
+
+          echo 'stage=commit_candidate'
+          git add -- "$PROOF"
+          staged="$(git diff --cached --name-only)"
+          expect_eq 'staged scope' "$PROOF" "$staged"
+          git diff --cached --check
+          git commit -m 'test: bind learned-peer proof fixture to generated key'
+          candidate="$(git rev-parse HEAD)"
+          parent="$(git rev-parse HEAD^)"
+          expect_eq 'candidate parent' "$EXPECTED_TARGET" "$parent"
+
+          echo 'stage=final_compare_and_swap_guard'
+          git fetch --no-tags origin \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          live_target="$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          expect_eq 'final live target head' "$EXPECTED_TARGET" "$live_target"
+          git merge-base --is-ancestor "$EXPECTED_TARGET" "$candidate" || \
+            fail 'candidate is not a fast-forward descendant of target'
+
+          echo 'stage=publish_fast_forward'
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          printf 'PASS published=%s\n' "$candidate"
