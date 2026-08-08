@@ -32,27 +32,24 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Reconcile current parent, prove, self-delete, and fast-forward
+      - name: Reconcile current parent by exact anchors, prove, self-delete, and fast-forward
         shell: bash
         run: |
           set -Eeuo pipefail
 
           BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
-          EXPECTED_PREVIOUS_STAGING_HEAD='6998acff19b82739fff4d7f464742b76ee7ede55'
+          EXPECTED_PREVIOUS_STAGING_HEAD='dcfa8abe5b9584e1eadbaec6c18473ddf2c87bf8'
           EXPECTED_FEATURE_HEAD='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
-          OLD_PARENT='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'
           EXPECTED_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'
           TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+          PERMANENT='.github/workflows/void-p2p-udp-swarm-node-control-mount-v1.yml'
 
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_STAGING_HEAD"
           test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
 
           git fetch --no-tags origin "$BASE_BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
-
-          git diff --binary "$OLD_PARENT" "$EXPECTED_FEATURE_HEAD" -- src/node_core.ts > /tmp/pr1096-node-core.patch
-          test -s /tmp/pr1096-node-core.patch
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -66,10 +63,255 @@ jobs:
             test "$conflicts" = 'src/node_core.ts'
           fi
 
+          # Current parent owns node_core. Reapply only the reviewed #1096
+          # control-plane seam through exact anchors that exist once each in
+          # the current parent. This avoids the generic 3-way conflict that was
+          # reproduced on Precision.
           git checkout "$EXPECTED_BASE" -- src/node_core.ts
-          git add src/node_core.ts
-          git apply --3way --index /tmp/pr1096-node-core.patch
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/node_core.ts')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'HOLD: PR1096 {label} anchor count={count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              'import {\n  VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,',
+              'import {\n  normalizeVoidUdpSwarmControlMessageV1,\n  type VoidUdpSwarmControlMessageV1,\n} from "./p2p/udp_swarm_control_v1.js";\nimport { VoidUdpSwarmRelayBridgeV1 } from "./p2p/udp_swarm_relay_bridge_v1.js";\nimport {\n  VoidUdpSwarmAuthenticatedControlAdapterV1,\n  type VoidUdpSwarmControlDeliveryV1,\n  type VoidUdpSwarmProbeActionV1,\n  type VoidUdpSwarmDirectUpgradeOfferActionV1,\n} from "./p2p/udp_swarm_authenticated_control_adapter_v1.js";\nimport {\n  VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,',
+              'swarm imports',
+          )
+          replace_once(
+              '  | VoidRelayControlMessageV1\n  | VoidDirectUpgradeControlMessageV1;',
+              '  | VoidRelayControlMessageV1\n  | VoidUdpSwarmControlMessageV1\n  | VoidDirectUpgradeControlMessageV1;',
+              'wire union',
+          )
+          replace_once(
+              '  relayServer?: boolean;\n  directUpgradeEnabled?: boolean;',
+              '  relayServer?: boolean;\n  udpSwarmRelayEndpoint?: string;\n  udpSwarmAllowNonPublicEndpoint?: boolean;\n  directUpgradeEnabled?: boolean;',
+              'NodeOpts',
+          )
+          replace_once(
+              '  private relayStreams = new Map<string, RelayLocalStreamV1>();\n\n  private readonly directUpgradeEnabled: boolean;',
+              '  private relayStreams = new Map<string, RelayLocalStreamV1>();\n  private readonly udpSwarmAllowNonPublicEndpoint: boolean;\n  private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;\n\n  private readonly directUpgradeEnabled: boolean;',
+              'class fields',
+          )
+          replace_once(
+              '    this.relayServerEnabled = !!opts?.relayServer;\n    this.directUpgradeEnabled = !!opts?.directUpgradeEnabled;',
+              '    this.relayServerEnabled = !!opts?.relayServer;\n    this.udpSwarmAllowNonPublicEndpoint =\n      opts?.udpSwarmAllowNonPublicEndpoint === true;\n    const udpSwarmRelayEndpoint = String(\n      opts?.udpSwarmRelayEndpoint || "",\n    ).trim();\n    if (udpSwarmRelayEndpoint && !this.relayServerEnabled) {\n      throw new Error(\n        "UDP swarm relay endpoint requires relayServer=true",\n      );\n    }\n    const udpSwarmRelayBridge = udpSwarmRelayEndpoint\n      ? new VoidUdpSwarmRelayBridgeV1(\n          this.relayServerState,\n          udpSwarmRelayEndpoint,\n          (nodeId) =>\n            this.authenticatedDirectPeer(nodeId)?.authenticatedPublicPem,\n          this.udpSwarmAllowNonPublicEndpoint,\n        )\n      : undefined;\n    this.udpSwarmControl = new VoidUdpSwarmAuthenticatedControlAdapterV1({\n      localNodeId: this.id,\n      localPublicPem: this.pubPEM,\n      localPrivateKey: this.priv,\n      isStartedRelayClientStream: (relayNodeId, peerNodeId, streamId) => {\n        const entry = this.relayStreams.get(\n          this.relayStreamKey(relayNodeId, streamId),\n        );\n        return !!entry && entry.started && entry.remote_node_id === peerNodeId;\n      },\n      relayBridge: udpSwarmRelayBridge,\n      allowNonPublicEndpoint: this.udpSwarmAllowNonPublicEndpoint,\n    });\n    this.directUpgradeEnabled = !!opts?.directUpgradeEnabled;',
+              'constructor',
+          )
+          replace_once(
+              '    observation: VoidP2PReachabilityObservationV1;\n  }) => void;\n  onSealed?: (b: Block, sealMs: number) => void;',
+              '    observation: VoidP2PReachabilityObservationV1;\n  }) => void;\n  onUdpSwarmProbeAction?: (action: VoidUdpSwarmProbeActionV1) => void;\n  onUdpSwarmDirectUpgradeOffer?: (\n    action: VoidUdpSwarmDirectUpgradeOfferActionV1,\n  ) => void;\n  onSealed?: (b: Block, sealMs: number) => void;',
+              'callbacks',
+          )
+          replace_once(
+              '          this.sweepRelayClientState();\n          this.sweepRelayServerState();\n          this.sweepDirectUpgradeState();',
+              '          this.sweepRelayClientState();\n          this.sweepRelayServerState();\n          this.udpSwarmControl.sweep();\n          this.sweepDirectUpgradeState();',
+              'periodic sweep',
+          )
+          replace_once(
+              '    if (isVoidRelayControlTypeV1((msg as any)?.type)) {',
+              '    const udpSwarmMessage = normalizeVoidUdpSwarmControlMessageV1(\n      msg,\n      this.udpSwarmAllowNonPublicEndpoint,\n    );\n    if (udpSwarmMessage) {\n      this.handleUdpSwarmAuthenticatedControl(peer, udpSwarmMessage);\n      return;\n    }\n\n    if (isVoidRelayControlTypeV1((msg as any)?.type)) {',
+              'authenticated message routing',
+          )
+          replace_once(
+              '  private relayStreamKey(relayNodeId: string, streamId: string): string {',
+              '''  private sendUdpSwarmControlDeliveries(
+    deliveries: readonly VoidUdpSwarmControlDeliveryV1[],
+  ): number {
+    let sent = 0;
+    for (const delivery of deliveries) {
+      const recipient = this.authenticatedDirectPeer(delivery.recipient_node_id);
+      if (!recipient) {
+        console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_DELIVERY_HOLD", {
+          recipient_node_id: delivery.recipient_node_id,
+          reason: "authenticated direct control peer unavailable",
+        });
+        continue;
+      }
+      this.sendRaw(recipient, delivery.message);
+      sent += 1;
+    }
+    return sent;
+  }
+
+  private handleUdpSwarmAuthenticatedControl(
+    peer: Peer,
+    message: VoidUdpSwarmControlMessageV1,
+  ): void {
+    if (peer.transport !== "direct") {
+      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {
+        peer_id: peer.id,
+        reason: "UDP swarm control requires authenticated direct control peer",
+      });
+      return;
+    }
+    try {
+      const result = this.udpSwarmControl.handleAuthenticatedControl({
+        fromNodeId: peer.id,
+        message,
+      });
+      this.sendUdpSwarmControlDeliveries(result.control_deliveries);
+      for (const action of result.udp_probe_actions) {
+        this.onUdpSwarmProbeAction?.(action);
+      }
+      if (result.direct_upgrade_offer) {
+        this.onUdpSwarmDirectUpgradeOffer?.(result.direct_upgrade_offer);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {
+        peer_id: peer.id,
+        message_type: message.type,
+        reason,
+      });
+      if (message.type === "UDP_SWARM_UPGRADE_REQUEST") {
+        const rejection = normalizeVoidUdpSwarmControlMessageV1({
+          type: "UDP_SWARM_UPGRADE_REJECT",
+          protocol: 1,
+          request_id: message.request_id,
+          reason: "udp_swarm_upgrade_unavailable",
+        });
+        if (rejection?.type === "UDP_SWARM_UPGRADE_REJECT") {
+          this.sendRaw(peer, rejection);
+        }
+      }
+    }
+  }
+
+  requestUdpSwarmUpgradeV1(
+    relayNodeId: string,
+    targetNodeId: string,
+    streamId: string,
+  ): { ok: true; request_id: string } | { ok: false; error: string } {
+    const relayPeer = this.authenticatedDirectPeer(relayNodeId);
+    if (!relayPeer) return { ok: false, error: "relay_not_authenticated_direct" };
+    try {
+      const started = this.udpSwarmControl.beginUpgrade({
+        relayNodeId,
+        targetNodeId,
+        streamId,
+      });
+      if (started.control_delivery.recipient_node_id !== relayNodeId) {
+        throw new Error("UDP swarm request delivery relay mismatch");
+      }
+      this.sendRaw(relayPeer, started.control_delivery.message);
+      return { ok: true, request_id: started.request_id };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  ingestUdpSwarmRendezvousProbeV1(
+    packet: unknown,
+    remoteAddress: string,
+    remotePort: number,
+  ):
+    | { ok: true; control_deliveries_sent: number; observation: unknown }
+    | { ok: false; error: string } {
+    try {
+      const result = this.udpSwarmControl.handleRelayUdpProbe({
+        packet,
+        remoteAddress,
+        remotePort,
+      });
+      const sent = this.sendUdpSwarmControlDeliveries(
+        result.control_deliveries,
+      );
+      return {
+        ok: true,
+        control_deliveries_sent: sent,
+        observation: structuredClone(result.observation),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  udpSwarmControlSnapshot() {
+    return this.udpSwarmControl.snapshot();
+  }
+
+  private relayStreamKey(relayNodeId: string, streamId: string): string {''',
+              'swarm methods',
+          )
+          replace_once(
+              '    this.relayStreams.delete(key);\n    entry.socket.remoteClose(reason);\n  }\n\n  private sendRelayCloseToNode',
+              '    this.relayStreams.delete(key);\n    entry.socket.remoteClose(reason);\n    this.udpSwarmControl.sweep();\n  }\n\n  private sendRelayCloseToNode',
+              'relay local stream cleanup',
+          )
+          replace_once(
+              '        const entry = this.relayStreams.get(key);\n        if (entry?.socket === peer.socket) this.relayStreams.delete(key);',
+              '        const entry = this.relayStreams.get(key);\n        if (entry?.socket === peer.socket) {\n          this.relayStreams.delete(key);\n          this.udpSwarmControl.sweep();\n        }',
+              'relay peer transport cleanup',
+          )
+          replace_once(
+              '    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;\n\n    this.directUpgradeRelayState.removePeer(peer.id);',
+              '    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;\n\n    this.udpSwarmControl.removeAuthenticatedPeer(peer.id);\n\n    this.directUpgradeRelayState.removePeer(peer.id);',
+              'authenticated peer cleanup',
+          )
+
+          path.write_text(text)
+          PY
+
+          # Strengthen the permanent focused wall while this branch is already
+          # being reconciled. Source/proof/docs remain otherwise unchanged.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/void-p2p-udp-swarm-node-control-mount-v1.yml')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'HOLD: PR1096 workflow {label} anchor count={count}')
+              text = text.replace(old, new, 1)
+
+          replace_once('    runs-on: ubuntu-latest', '    runs-on: ubuntu-24.04', 'runner')
+          replace_once('        uses: actions/checkout@v4', '        uses: actions/checkout@v6', 'checkout')
+          replace_once('          fetch-depth: 0', '          fetch-depth: 0\n          persist-credentials: false', 'checkout credentials')
+          replace_once('        uses: actions/setup-node@v4', '        uses: actions/setup-node@v6', 'setup-node')
+          replace_once(
+              '      - name: Diff hygiene\n        run: git diff --check',
+              '''      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi''',
+              'committed-range diff hygiene',
+          )
+          path.write_text(text)
+          PY
+
+          git add src/node_core.ts "$PERMANENT"
           test -z "$(git diff --name-only --diff-filter=U)"
           git rm -- "$TEMP"
 
