@@ -1,0 +1,70 @@
+name: Buy VOID saga execute prepared transaction runtime v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-saga-execute-prepared-transaction-runtime-v1.yml"
+      - "docs/operators/buy-void-saga-execute-prepared-transaction-runtime-v1.md"
+      - "src/economic/buy_void_*.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-saga-execute-prepared-transaction-runtime-v1.yml"
+      - "docs/operators/buy-void-saga-execute-prepared-transaction-runtime-v1.md"
+      - "src/economic/buy_void_*.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-saga-execute-prepared-transaction-runtime-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove explicitly gated execute runtime
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_execute_prepared_transaction_parent_dispatch_v1.ts
+      - name: Preserve coordinator and reconciliation runtime
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts
+      - name: Preserve broadcaster and chain2050 boundaries
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts
+      - name: Preserve saga and parent runtime boundaries
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check
