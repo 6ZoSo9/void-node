@@ -282,6 +282,7 @@ export function recoverBuyVoidProductionCanaryCandidateV1(
   }
 
   const reservation = candidate.reservation;
+  const attemptStatus = candidate.status as "reserved" | "prepared";
   const runtimeRootFingerprint = sha256Hex(rootDir);
   const candidateBindingFingerprint = sha256Hex([
     "void-buy-production-canary-candidate-binding-v1",
@@ -297,7 +298,7 @@ export function recoverBuyVoidProductionCanaryCandidateV1(
     "void-buy-production-canary-candidate-recovery-v1",
     `request_id=${requestId}`,
     `candidate_attempt_id=${reservation.attempt_id}`,
-    `attempt_status=${candidate.status}`,
+    `attempt_status=${attemptStatus}`,
     `runtime_policy_fingerprint_sha256=${policyState.fingerprint_sha256}`,
     `runtime_root_fingerprint_sha256=${runtimeRootFingerprint}`,
     `candidate_binding_fingerprint_sha256=${candidateBindingFingerprint}`,
@@ -310,7 +311,7 @@ export function recoverBuyVoidProductionCanaryCandidateV1(
     version: 1,
     request_id: requestId,
     candidate_attempt_id: reservation.attempt_id,
-    attempt_status: candidate.status,
+    attempt_status: attemptStatus,
     candidate_handoff: "production_live_canary_preflight",
     runtime_policy_fingerprint_sha256: policyState.fingerprint_sha256,
     runtime_root_fingerprint_sha256: runtimeRootFingerprint,
