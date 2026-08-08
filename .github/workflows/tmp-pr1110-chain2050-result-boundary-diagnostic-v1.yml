@@ -1,0 +1,97 @@
+name: VOID PR1110 chain2050 result boundary diagnostic v1
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/tmp-pr1110-chain2050-result-boundary-apply-v1.yml
+      - .github/workflows/tmp-pr1110-chain2050-result-boundary-runner-v1.yml
+      - .github/workflows/tmp-pr1110-chain2050-result-boundary-diagnostic-v1.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/buy-void-chain2050-transport-result-boundary-v1-20260808'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Verify exact staging ancestry and untouched semantic blobs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE='7d2ea5a633b29d08432190543e2ff2d5a82ed082'
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          expected="$(printf '%s\n' \
+            '.github/workflows/tmp-pr1110-chain2050-result-boundary-apply-v1.yml' \
+            '.github/workflows/tmp-pr1110-chain2050-result-boundary-diagnostic-v1.yml' \
+            '.github/workflows/tmp-pr1110-chain2050-result-boundary-runner-v1.yml' | sort)"
+          actual="$(git diff --name-only "$BASE" HEAD | sort)"
+          test "$actual" = "$expected"
+          test "$(git rev-parse 'HEAD:src/economic/buy_void_native_chain2050_broadcaster_v1.ts')" = '6bb2912ee0e89839bf83ce6663234614a756518c'
+          test "$(git rev-parse 'HEAD:scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts')" = 'b2a83e37ece3550d6f351290eff0e938940b8c7c'
+          test "$(git rev-parse 'HEAD:scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts')" = 'fe9b7edea8c94be9df68cd85595ac9f0d242eda0'
+
+      - name: Construct semantic patch in workspace only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          helper = Path('.github/workflows/tmp-pr1110-chain2050-result-boundary-apply-v1.yml')
+          lines = helper.read_text().splitlines()
+          starts = [i for i, line in enumerate(lines) if line.strip() == "python3 - <<'PY'"]
+          if len(starts) != 1:
+              raise SystemExit('HOLD: semantic Python block start not unique')
+          start = starts[0] + 1
+          ends = [i for i in range(start, len(lines)) if lines[i].strip() == 'PY']
+          if not ends:
+              raise SystemExit('HOLD: semantic Python block end missing')
+          body = textwrap.dedent('\n'.join(lines[start:ends[0]])) + '\n'
+          Path('/tmp/pr1110-semantic-patch.py').write_text(body)
+          PY
+          python3 /tmp/pr1110-semantic-patch.py
+          expected="$(printf '%s\n' \
+            'scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts' \
+            'scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts' \
+            'src/economic/buy_void_native_chain2050_broadcaster_v1.ts' | sort)"
+          actual="$(git diff --name-only | sort)"
+          test "$actual" = "$expected"
+          git diff --check
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove broadcaster behavioral boundary
+        run: npx --no-install tsx scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts
+
+      - name: Prove broadcaster source guard
+        run: npx --no-install tsx scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts
+
+      - name: Preserve prepared-transaction chain2050 transport proof
+        run: npx --no-install tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+
+      - name: Preserve saga broadcast reconciliation proof
+        run: npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
