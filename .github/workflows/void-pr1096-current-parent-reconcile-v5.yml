@@ -1,7 +1,9 @@
 name: VOID PR1096 current-parent reconcile v5
 
 on:
-  pull_request:
+  push:
+    branches:
+      - 'feat/p2p-udp-swarm-node-control-mount-v1-20260807'
     paths:
       - '.github/workflows/void-pr1096-current-parent-reconcile-v5.yml'
 
@@ -10,14 +12,13 @@ permissions:
 
 jobs:
   reconcile:
-    if: github.event.pull_request.number == 1096
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - name: Checkout exact staging head
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: true
           fetch-depth: 0
 
@@ -34,7 +35,7 @@ jobs:
 
           BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
-          EXPECTED_PREVIOUS_HEAD='620afb6e28330f0635f5bcdaaa2fedd0b3f40a56'
+          EXPECTED_PREVIOUS_HEAD='d1d4a5cc371a47d9e0ae577ac107e0a96206e505'
           EXPECTED_BASE='29b8da4f1d10dfd703eae4334d95506709f2b03b'
           SELF='.github/workflows/void-pr1096-current-parent-reconcile-v5.yml'
 
