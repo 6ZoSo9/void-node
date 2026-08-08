@@ -534,6 +534,44 @@ assert.equal(broadcasterStarts, 0);
 assert.equal(custodianStops, 0);
 
 resetCounters();
+const custodianStatusMismatchDependencies = makeDependencies();
+const baseCustodianStatusMismatch =
+  custodianStatusMismatchDependencies.run_custodian_activation;
+custodianStatusMismatchDependencies.run_custodian_activation = (async (
+  input: any,
+  deps: any,
+) => {
+  const result = await (baseCustodianStatusMismatch as any)(input, deps);
+  return { ...result, status: "dry_run" };
+}) as any;
+const custodianStatusMismatchStarted =
+  await runBuyVoidProductionPrivateServicesActivationV1(
+    authorizedInput,
+    custodianStatusMismatchDependencies,
+  );
+if (custodianStatusMismatchStarted.ok !== false) {
+  throw new Error("custodian_status_mismatch_must_hold");
+}
+assert.equal(readinessCalls, 1);
+assert.equal(custodianStarts, 1);
+assert.equal(broadcasterStarts, 0);
+assert.equal(custodianStops, 1);
+assert.equal(
+  custodianStatusMismatchStarted.custodian_service_start_performed,
+  true,
+);
+assert.equal(custodianStatusMismatchStarted.custodian_rollback_attempted, true);
+assert.equal(custodianStatusMismatchStarted.custodian_rollback_succeeded, true);
+assert.equal(
+  custodianStatusMismatchStarted.custodian_service_active_after_return,
+  false,
+);
+assert.match(
+  custodianStatusMismatchStarted.reason,
+  /custodian_status_invalid_reported_start_rolled_back$/,
+);
+
+resetCounters();
 const broadcasterHeld = await runBuyVoidProductionPrivateServicesActivationV1(
   authorizedInput,
   makeDependencies({ broadcaster: "held" }),
@@ -550,6 +588,59 @@ assert.equal(broadcasterHeld.custodian_rollback_attempted, true);
 assert.equal(broadcasterHeld.custodian_rollback_succeeded, true);
 assert.equal(broadcasterHeld.custodian_service_active_after_return, false);
 assert.equal(broadcasterHeld.broadcaster_service_active_after_return, false);
+
+resetCounters();
+const broadcasterStatusMismatchDependencies = makeDependencies();
+const baseBroadcasterStatusMismatch =
+  broadcasterStatusMismatchDependencies.run_broadcaster_activation;
+broadcasterStatusMismatchDependencies.run_broadcaster_activation = (async (
+  input: any,
+  deps: any,
+) => {
+  const result = await (baseBroadcasterStatusMismatch as any)(input, deps);
+  return { ...result, status: "dry_run" };
+}) as any;
+const broadcasterStatusMismatchStarted =
+  await runBuyVoidProductionPrivateServicesActivationV1(
+    authorizedInput,
+    broadcasterStatusMismatchDependencies,
+  );
+if (broadcasterStatusMismatchStarted.ok !== false) {
+  throw new Error("broadcaster_status_mismatch_must_hold");
+}
+assert.equal(readinessCalls, 1);
+assert.equal(custodianStarts, 1);
+assert.equal(broadcasterStarts, 1);
+assert.equal(custodianStops, 1);
+assert.equal(broadcasterStops, 1);
+assert.equal(
+  broadcasterStatusMismatchStarted.custodian_service_start_performed,
+  true,
+);
+assert.equal(
+  broadcasterStatusMismatchStarted.broadcaster_service_start_performed,
+  true,
+);
+assert.equal(
+  broadcasterStatusMismatchStarted.custodian_rollback_succeeded,
+  true,
+);
+assert.equal(
+  broadcasterStatusMismatchStarted.broadcaster_rollback_succeeded,
+  true,
+);
+assert.equal(
+  broadcasterStatusMismatchStarted.custodian_service_active_after_return,
+  false,
+);
+assert.equal(
+  broadcasterStatusMismatchStarted.broadcaster_service_active_after_return,
+  false,
+);
+assert.match(
+  broadcasterStatusMismatchStarted.reason,
+  /broadcaster_status_invalid_reported_start_rolled_back$/,
+);
 
 resetCounters();
 const rollbackFailed = await runBuyVoidProductionPrivateServicesActivationV1(
@@ -687,6 +778,8 @@ console.log("custodian_started_before_broadcaster=true");
 console.log("broadcaster_failure_custodian_rollback_attempted=true");
 console.log("rollback_failure_reported_explicitly=true");
 console.log("broadcaster_boundary_invalid_rolls_back_both=true");
+console.log("custodian_nonstarted_status_reported_start_rolled_back=true");
+console.log("broadcaster_nonstarted_status_reported_start_rolled_back=true");
 console.log("success_readiness_calls=1");
 console.log("success_custodian_starts=1");
 console.log("success_broadcaster_starts=1");
