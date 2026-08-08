@@ -43,8 +43,9 @@ Normal VOID Ed25519 path authentication, secure X25519/AES transport establishme
 
 - maximum 32 active punch sessions per runtime;
 - bounded punch schedule inherited from `udp_hole_punch_v1`;
+- after local direct-path observation, the already-bounded scheduled burst continues so the peer can obtain reciprocal direct-path evidence;
 - bounded attempt timeout;
-- timers are reclaimed on direct observation, cancellation, expiry, or runtime close;
+- timers are reclaimed as the finite burst completes, on cancellation, on expiry without observation, or on runtime close;
 - malformed and unrelated UDP datagrams are ignored;
 - relay probe callback failures are visible and do not become peer identity;
 - IPv4 only in v1; dual-stack can be added separately without changing node identity.
