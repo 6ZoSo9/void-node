@@ -294,10 +294,10 @@ async function main(): Promise<void> {
     console.log("wallet_signer_validator_wc_money_authority=0");
     console.log("VOID_P2P_EPHEMERAL_DIRECT_MOUNT_V1_PROOF_GREEN");
   } finally {
-    try { pair?.a.destroy(); } catch {}
-    try { pair?.b.destroy(); } catch {}
-    try { mismatchPair?.a.destroy(); } catch {}
-    try { mismatchPair?.b.destroy(); } catch {}
+    try { pair?.a.destroy(); } catch (error) { void error; }
+    try { pair?.b.destroy(); } catch (error) { void error; }
+    try { mismatchPair?.a.destroy(); } catch (error) { void error; }
+    try { mismatchPair?.b.destroy(); } catch (error) { void error; }
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
