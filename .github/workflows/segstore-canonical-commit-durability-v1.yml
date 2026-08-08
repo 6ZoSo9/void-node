@@ -77,5 +77,35 @@ jobs:
       - name: Preserve truthful dry-run
         run: node scripts/prove_segstore_auto_repair_dry_run_truth_v1.mjs
 
-      - name: Diff hygiene
-        run: git diff --check
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$
+              git diff --check "$PR_BASE_SHA...HEAD"
+              ;;
+            push)
+              test "$PUSH_BEFORE_SHA" =~ ^[0-9a-f]{40}$
+              test "$CURRENT_SHA" =~ ^[0-9a-f]{40}$
+              git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+              ;;
+            workflow_dispatch)
+              test -n "$DEFAULT_BRANCH"
+              git fetch --no-tags origin "$DEFAULT_BRANCH"
+              BASE_SHA="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+              test "$BASE_SHA" =~ ^[0-9a-f]{40}$
+              git diff --check "$BASE_SHA...HEAD"
+              ;;
+            *)
+              echo "unsupported event: $EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
