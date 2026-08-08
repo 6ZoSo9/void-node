@@ -12,6 +12,10 @@ import { normalizeVoidUdpObservedEndpointV1 } from "./udp_hole_punch_v1.js";
 export const VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1 = 1;
 export const VOID_P2P_UDP_AUTHENTICATED_PATH_CHALLENGE_BYTES_V1 = 32;
 export const VOID_P2P_UDP_AUTHENTICATED_PATH_MAX_PACKET_BYTES_V1 = 4096;
+export const VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1 =
+  "ed25519" as const;
+export const VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1 =
+  "ed25519" as const;
 
 const NODE_ID_RE = /^[0-9a-f]{32}$/;
 const ID_RE = /^[0-9a-f]{32}$/;
@@ -22,6 +26,8 @@ const AUTH_DOMAIN = "VOID_P2P_UDP_AUTHENTICATED_PATH_V1";
 export type VoidUdpAuthenticatedPathHelloV1 = Readonly<{
   type: "VOID_UDP_AUTH_HELLO";
   protocol: 1;
+  identity_algorithm: "ed25519";
+  signature_algorithm: "ed25519";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -32,6 +38,8 @@ export type VoidUdpAuthenticatedPathHelloV1 = Readonly<{
 export type VoidUdpAuthenticatedPathProofV1 = Readonly<{
   type: "VOID_UDP_AUTH_PROOF";
   protocol: 1;
+  identity_algorithm: "ed25519";
+  signature_algorithm: "ed25519";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -49,6 +57,11 @@ export type VoidUdpAuthenticatedPathPacketV1 =
 
 export const VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1 = Object.freeze({
   void_ed25519_identity_required: true,
+  identity_algorithm_explicit: true,
+  signature_algorithm_explicit: true,
+  algorithm_confusion_rejected: true,
+  crypto_agility_extension_point_explicit: true,
+  quantum_safe_claimed: false,
   mutual_fresh_challenges_required: true,
   exact_session_binding_required: true,
   exact_peer_node_id_binding_required: true,
@@ -87,6 +100,22 @@ function nodeId(raw: unknown): string | undefined {
 
 function challenge(raw: unknown): string | undefined {
   return typeof raw === "string" && CHALLENGE_RE.test(raw) ? raw : undefined;
+}
+
+function identityAlgorithm(
+  raw: unknown,
+): typeof VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1 | undefined {
+  return raw === VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1
+    ? VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1
+    : undefined;
+}
+
+function signatureAlgorithm(
+  raw: unknown,
+): typeof VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1 | undefined {
+  return raw === VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1
+    ? VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1
+    : undefined;
 }
 
 function canonicalIdentity(input: {
@@ -143,6 +172,8 @@ export function createVoidUdpAuthenticatedPathHelloV1(input: {
   return Object.freeze({
     type: "VOID_UDP_AUTH_HELLO",
     protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+    identity_algorithm: VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+    signature_algorithm: VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
     session_id,
     source_node_id: source.node_id,
     target_node_id,
@@ -157,6 +188,8 @@ export function normalizeVoidUdpAuthenticatedPathHelloV1(
   const value = exactObjectKeys(raw, [
     "type",
     "protocol",
+    "identity_algorithm",
+    "signature_algorithm",
     "session_id",
     "source_node_id",
     "target_node_id",
@@ -168,6 +201,8 @@ export function normalizeVoidUdpAuthenticatedPathHelloV1(
     return;
   }
 
+  const identity_algorithm = identityAlgorithm(value.identity_algorithm);
+  const signature_algorithm = signatureAlgorithm(value.signature_algorithm);
   const session_id = sessionId(value.session_id);
   const source = canonicalIdentity({
     nodeId: value.source_node_id,
@@ -176,6 +211,8 @@ export function normalizeVoidUdpAuthenticatedPathHelloV1(
   const target_node_id = nodeId(value.target_node_id);
   const challengeValue = challenge(value.challenge);
   if (
+    !identity_algorithm ||
+    !signature_algorithm ||
     !session_id ||
     !source ||
     !target_node_id ||
@@ -186,6 +223,8 @@ export function normalizeVoidUdpAuthenticatedPathHelloV1(
   return Object.freeze({
     type: "VOID_UDP_AUTH_HELLO",
     protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+    identity_algorithm,
+    signature_algorithm,
     session_id,
     source_node_id: source.node_id,
     target_node_id,
@@ -195,6 +234,8 @@ export function normalizeVoidUdpAuthenticatedPathHelloV1(
 }
 
 function proofTranscriptBytesV1(value: Readonly<{
+  identity_algorithm: "ed25519";
+  signature_algorithm: "ed25519";
   session_id: string;
   source_node_id: string;
   target_node_id: string;
@@ -208,6 +249,8 @@ function proofTranscriptBytesV1(value: Readonly<{
     JSON.stringify({
       domain: AUTH_DOMAIN,
       protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+      identity_algorithm: value.identity_algorithm,
+      signature_algorithm: value.signature_algorithm,
       session_id: value.session_id,
       source_node_id: value.source_node_id,
       target_node_id: value.target_node_id,
@@ -246,6 +289,8 @@ export function createVoidUdpAuthenticatedPathProofV1(input: {
     !remote ||
     !source_observed_endpoint ||
     !target_observed_endpoint ||
+    local.identity_algorithm !== remote.identity_algorithm ||
+    local.signature_algorithm !== remote.signature_algorithm ||
     local.session_id !== remote.session_id ||
     local.source_node_id !== remote.target_node_id ||
     local.target_node_id !== remote.source_node_id
@@ -258,6 +303,8 @@ export function createVoidUdpAuthenticatedPathProofV1(input: {
   }
 
   const unsigned = Object.freeze({
+    identity_algorithm: local.identity_algorithm,
+    signature_algorithm: local.signature_algorithm,
     session_id: local.session_id,
     source_node_id: local.source_node_id,
     target_node_id: local.target_node_id,
@@ -290,6 +337,8 @@ export function normalizeVoidUdpAuthenticatedPathProofV1(
   const value = exactObjectKeys(raw, [
     "type",
     "protocol",
+    "identity_algorithm",
+    "signature_algorithm",
     "session_id",
     "source_node_id",
     "target_node_id",
@@ -305,6 +354,8 @@ export function normalizeVoidUdpAuthenticatedPathProofV1(
     return;
   }
 
+  const identity_algorithm = identityAlgorithm(value.identity_algorithm);
+  const signature_algorithm = signatureAlgorithm(value.signature_algorithm);
   const session_id = sessionId(value.session_id);
   const source = canonicalIdentity({
     nodeId: value.source_node_id,
@@ -324,6 +375,8 @@ export function normalizeVoidUdpAuthenticatedPathProofV1(
   const sig = typeof value.sig === "string" ? value.sig : "";
 
   if (
+    !identity_algorithm ||
+    !signature_algorithm ||
     !session_id ||
     !source ||
     !target_node_id ||
@@ -338,6 +391,8 @@ export function normalizeVoidUdpAuthenticatedPathProofV1(
   return Object.freeze({
     type: "VOID_UDP_AUTH_PROOF",
     protocol: VOID_P2P_UDP_AUTHENTICATED_PATH_PROTOCOL_VERSION_V1,
+    identity_algorithm,
+    signature_algorithm,
     session_id,
     source_node_id: source.node_id,
     target_node_id,
@@ -385,12 +440,16 @@ export function verifyVoidUdpAuthenticatedPathProofV1(input: {
   ) return;
 
   if (
+    remote.identity_algorithm !== local.identity_algorithm ||
+    remote.signature_algorithm !== local.signature_algorithm ||
     remote.session_id !== local.session_id ||
     remote.source_node_id !== local.target_node_id ||
     remote.target_node_id !== local.source_node_id
   ) return;
 
   if (
+    proof.identity_algorithm !== remote.identity_algorithm ||
+    proof.signature_algorithm !== remote.signature_algorithm ||
     proof.session_id !== local.session_id ||
     proof.source_node_id !== remote.source_node_id ||
     proof.target_node_id !== local.source_node_id ||
@@ -407,10 +466,13 @@ export function verifyVoidUdpAuthenticatedPathProofV1(input: {
   } catch {
     return;
   }
+  if (publicKey.asymmetricKeyType !== "ed25519") return;
 
   const ok = crypto.verify(
     null,
     proofTranscriptBytesV1({
+      identity_algorithm: proof.identity_algorithm,
+      signature_algorithm: proof.signature_algorithm,
       session_id: proof.session_id,
       source_node_id: proof.source_node_id,
       target_node_id: proof.target_node_id,

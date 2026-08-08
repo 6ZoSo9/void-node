@@ -5,6 +5,7 @@ import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
   VoidUdpRendezvousStateV1,
   createVoidUdpRendezvousProbeV1,
+  type VoidUdpRendezvousObservationV1,
 } from "../src/p2p/udp_rendezvous_v1.js";
 import {
   VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1,
@@ -76,6 +77,20 @@ function stableObservation(
   });
 }
 
+function sameObservation(
+  a: VoidUdpRendezvousObservationV1,
+  b: VoidUdpRendezvousObservationV1,
+): boolean {
+  return a.ticket_id === b.ticket_id &&
+    a.node_id === b.node_id &&
+    a.observed_endpoint === b.observed_endpoint &&
+    a.first_seen_ms === b.first_seen_ms &&
+    a.last_seen_ms === b.last_seen_ms &&
+    a.probe_count === b.probe_count &&
+    a.stable_same_rendezvous === b.stable_same_rendezvous &&
+    a.mapping_conflicted === b.mapping_conflicted;
+}
+
 async function main(): Promise<void> {
   const idA = identity();
   const idB = identity();
@@ -89,6 +104,43 @@ async function main(): Promise<void> {
   assert.equal(obsB.mapping_conflicted, false);
   assert.equal(obsA.probe_count, 2);
   assert.equal(obsB.probe_count, 2);
+
+  const verifyAuthenticatedRendezvousObservation = (
+    observation: VoidUdpRendezvousObservationV1,
+    expectedNodeId: string,
+  ): boolean => rendezvous
+    .snapshot(10_200)
+    .observations
+    .some((candidate) =>
+      candidate.node_id === expectedNodeId && sameObservation(candidate, observation));
+
+  const common = {
+    verifyAuthenticatedRendezvousObservation,
+    allowNonPublicEndpoints: true,
+    adapterOptions: { autoRetransmit: false },
+  } as const;
+
+  // A detached object can look structurally eligible but is not accepted unless
+  // the authenticated rendezvous/control integration proves its provenance.
+  const forgedObservation = {
+    ...obsB,
+    ticket_id: "f".repeat(32),
+  };
+  assert.throws(
+    () => new VoidUdpSwarmUpgradeV1({
+      sessionId: crypto.randomBytes(16).toString("hex"),
+      localNodeId: idA.nodeId,
+      remoteNodeId: idB.nodeId,
+      localPublicPem: idA.publicPem,
+      localPrivateKey: idA.privateKey,
+      localObservation: obsA,
+      remoteObservation: forgedObservation,
+      verifyAuthenticatedRendezvousObservation,
+      transmitSecurePacket: () => {},
+      allowNonPublicEndpoints: true,
+    }),
+    /provenance verification failed/,
+  );
 
   const sessionId = crypto.randomBytes(16).toString("hex");
   let upgradeA!: VoidUdpSwarmUpgradeV1;
@@ -112,8 +164,7 @@ async function main(): Promise<void> {
     localObservation: obsA,
     remoteObservation: obsB,
     transmitSecurePacket: transmitA,
-    allowNonPublicEndpoints: true,
-    adapterOptions: { autoRetransmit: false },
+    ...common,
     onDirectSocketReady: () => { socketReadyA += 1; },
   });
   upgradeB = new VoidUdpSwarmUpgradeV1({
@@ -125,8 +176,7 @@ async function main(): Promise<void> {
     localObservation: obsB,
     remoteObservation: obsA,
     transmitSecurePacket: transmitB,
-    allowNonPublicEndpoints: true,
-    adapterOptions: { autoRetransmit: false },
+    ...common,
     onDirectSocketReady: () => { socketReadyB += 1; },
   });
 
@@ -163,6 +213,13 @@ async function main(): Promise<void> {
 
   const offerA = upgradeA.createLocalKeyOffer();
   const offerB = upgradeB.createLocalKeyOffer();
+  assert.equal(offerA.authenticated_path_proof_sig, proofA.sig);
+  assert.equal(offerB.authenticated_path_proof_sig, proofB.sig);
+  assert.equal(offerA.identity_algorithm, "ed25519");
+  assert.equal(offerA.signature_algorithm, "ed25519");
+  assert.equal(offerA.kex_algorithm, "x25519");
+  assert.equal(offerA.kdf_algorithm, "hkdf-sha256");
+  assert.equal(offerA.aead_algorithm, "aes-256-gcm");
   assert.equal(upgradeA.acceptRemoteKeyOffer(offerB), true);
   assert.equal(upgradeB.acceptRemoteKeyOffer(offerA), true);
 
@@ -217,6 +274,7 @@ async function main(): Promise<void> {
     localPrivateKey: idA.privateKey,
     localObservation: obsA,
     remoteObservation: obsB,
+    verifyAuthenticatedRendezvousObservation,
     transmitSecurePacket: () => {},
     allowNonPublicEndpoints: true,
   });
@@ -240,6 +298,7 @@ async function main(): Promise<void> {
         stable_same_rendezvous: false,
       },
       remoteObservation: obsB,
+      verifyAuthenticatedRendezvousObservation,
       transmitSecurePacket: () => {},
       allowNonPublicEndpoints: true,
     }),
@@ -259,6 +318,7 @@ async function main(): Promise<void> {
         stable_same_rendezvous: false,
         mapping_conflicted: true,
       },
+      verifyAuthenticatedRendezvousObservation,
       transmitSecurePacket: () => {},
       allowNonPublicEndpoints: true,
     }),
@@ -266,8 +326,15 @@ async function main(): Promise<void> {
   );
 
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.authenticated_control_path_required, true);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.authenticated_rendezvous_observation_verifier_required, true);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.unverified_detached_rendezvous_observation_allowed, false);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.rendezvous_probe_signature_reverification_performed_here, false);
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.stable_rendezvous_mapping_required, true);
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.conflicted_rendezvous_mapping_allowed, false);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.secure_session_path_evidence_binding_inherited, true);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.secure_transport_suite_binding_inherited, true);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.crypto_agility_extension_point_inherited, true);
+  assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.quantum_safe_claimed, false);
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.punch_success_defines_peer_identity, false);
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.secure_socket_ready_defines_peer_promotion, false);
   assert.equal(VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1.normal_void_peer_auth_required_after_secure_socket, true);
@@ -281,10 +348,17 @@ async function main(): Promise<void> {
   failed.destroy();
 
   console.log("authenticated_rendezvous_observations_consumed=true");
+  console.log("authenticated_rendezvous_observation_verifier_required=true");
+  console.log("unverified_detached_rendezvous_observation_accepted=false");
+  console.log("rendezvous_probe_signature_reverification_performed_here=false");
   console.log("stable_same_rendezvous_mapping_required=true");
   console.log("mapping_conflict_accepted=false");
   console.log("bounded_hole_punch_plan_created=true");
   console.log("secure_session_bootstrap_after_path_observed=true");
+  console.log("secure_session_path_evidence_binding_inherited=true");
+  console.log("secure_transport_suite_binding_inherited=true");
+  console.log("crypto_agility_extension_point_inherited=true");
+  console.log("quantum_safe_claimed=false");
   console.log("secure_socket_ready_before_peer_promotion=true");
   console.log("normal_void_peer_auth_required_after_secure_socket=true");
   console.log("wrong_authenticated_node_promoted=false");
