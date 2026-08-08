@@ -1,0 +1,75 @@
+name: VOID peer public-key retention source v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-pr1090-peer-public-key-retention-source-v1.yml'
+  push:
+    branches:
+      - 'feat/p2p-authenticated-peer-public-key-retention-v1-20260807'
+    paths:
+      - '.github/workflows/void-pr1090-peer-public-key-retention-source-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/p2p-authenticated-peer-public-key-retention-v1-20260807
+          fetch-depth: 0
+
+      - name: Guard exact base source blob
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git hash-object src/node_core.ts)" = "e18673d7d987c6195b9120635805a5bddd611f3a"
+
+      - name: Add internal verified PEM retention only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/node_core.ts')
+          s = p.read_text()
+          old_type = '  remoteHello?: VoidPeerHelloV1;\n  authTimer: NodeJS.Timeout | null;'
+          new_type = '  remoteHello?: VoidPeerHelloV1;\n  authenticatedPublicPem?: string;\n  authTimer: NodeJS.Timeout | null;'
+          old_accept = '    peer.id = auth.id;\n    peer.handshakeDone = true;\n    peer.listens = [...auth.listen];'
+          new_accept = '    peer.id = auth.id;\n    peer.handshakeDone = true;\n    peer.authenticatedPublicPem = auth.pubkey;\n    peer.listens = [...auth.listen];'
+          if s.count(old_type) != 1:
+              raise SystemExit(f'HOLD: Peer type marker count={s.count(old_type)}')
+          if s.count(old_accept) != 1:
+              raise SystemExit(f'HOLD: accepted-auth marker count={s.count(old_accept)}')
+          s = s.replace(old_type, new_type, 1).replace(old_accept, new_accept, 1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- src/node_core.ts
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Preserve raw-empty-catch terminal zero
+        run: npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Commit source and remove mutator
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -- .github/workflows/void-pr1090-peer-public-key-retention-source-v1.yml
+          git add -- src/node_core.ts .github/workflows/void-pr1090-peer-public-key-retention-source-v1.yml
+          test "$(git diff --cached --name-only | sort)" = $'.github/workflows/void-pr1090-peer-public-key-retention-source-v1.yml\nsrc/node_core.ts'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: retain authenticated peer public PEM in memory'
+          git push origin HEAD:feat/p2p-authenticated-peer-public-key-retention-v1-20260807
