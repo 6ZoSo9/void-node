@@ -45,7 +45,7 @@ function status(preparationEnabled = false): Record<string, unknown> {
   };
 }
 function dryRun(
-  nextAction: "reserve_inventory" | "reserve_execution_attempt",
+  nextAction: "claim_payment" | "reserve_inventory" | "reserve_execution_attempt",
   options: {
     action_confirmation?: string;
     delegated_confirmation?: string | null;
@@ -78,7 +78,7 @@ function dryRun(
   };
 }
 function applied(
-  action: "reserve_inventory" | "reserve_execution_attempt",
+  action: "claim_payment" | "reserve_inventory" | "reserve_execution_attempt",
 ): Record<string, unknown> {
   return {
     marker: VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RUNTIME_MARKER_V1,
@@ -92,17 +92,22 @@ function applied(
       ok: true,
       status: "applied",
       action,
-      state: action === "reserve_inventory"
+      state: action === "claim_payment"
         ? {
-            state: "inventory_reserved",
-            next_action: "reserve_execution_attempt",
+            state: "claimed",
+            next_action: "reserve_inventory",
           }
-        : {
-            state: "attempt_reserved",
-            attempt_id: attemptId,
-            attempt_number: 1,
-            next_action: "prepare_transaction",
-          },
+        : action === "reserve_inventory"
+          ? {
+              state: "inventory_reserved",
+              next_action: "reserve_execution_attempt",
+            }
+          : {
+              state: "attempt_reserved",
+              attempt_id: attemptId,
+              attempt_number: 1,
+              next_action: "prepare_transaction",
+            },
     },
     server_policy_fingerprint_sha256: policyFingerprint,
     inventory_decrement_performed: false,
@@ -146,7 +151,7 @@ async function main(): Promise<void> {
   assert.deepEqual(
     VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RESERVATION_AUTHORITY_V1
       .allowed_apply_stages,
-    ["reserve_inventory", "reserve_execution_attempt"],
+    ["claim_payment", "reserve_inventory", "reserve_execution_attempt"],
   );
   assert.equal(
     buyVoidProductionCanaryCandidateCommandEndpointV1({}),
@@ -208,30 +213,80 @@ async function main(): Promise<void> {
   );
   assert.equal(unsafePreparationPosts, 0);
 
-  let claimPosts = 0;
-  const claimDecision = await runBuyVoidProductionCanaryCandidateReservationV1({
+  const claimDry = dryRun("claim_payment", {
+    action_confirmation: "buyVoidSagaClaimPaymentV1",
+    delegated_confirmation: "buyVoidVerifyAndClaim",
+  });
+  let claimPlanPosts = 0;
+  const claimPlan = await runBuyVoidProductionCanaryCandidateReservationV1({
     args: { request_id: requestId, apply: false },
     command_endpoint: commandEndpoint,
     status_endpoint: statusEndpoint,
     http_get: getOk(),
     http_post: async ({ body }) => {
-      claimPosts += 1;
+      claimPlanPosts += 1;
       assert.equal(body.apply, false);
-      return {
-        status: 422,
-        json: {
-          marker: VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RUNTIME_MARKER_V1,
-          ok: false,
-          error: "crash_consistent_saga_runtime_held",
-          reason: "claim_stage_command_required",
-        },
-      };
+      return { status: 200, json: claimDry };
     },
   });
-  assert.equal(claimDecision.ok, false);
-  if (claimDecision.ok) throw new Error("expected claim hold");
-  assert.equal(claimDecision.reason, "candidate_requires_existing_claim");
-  assert.equal(claimPosts, 1);
+  assert.equal(claimPlan.ok, true);
+  if (!claimPlan.ok || claimPlan.status !== "planned") {
+    throw new Error("expected existing-claim projection plan");
+  }
+  assert.equal(claimPlan.next_action, "claim_payment");
+  assert.equal(claimPlan.required_delegated_confirmation, "buyVoidVerifyAndClaim");
+  assert.equal(claimPlanPosts, 1);
+
+  let claimApplyPosts = 0;
+  const claimApply = await runBuyVoidProductionCanaryCandidateReservationV1({
+    args: {
+      request_id: requestId,
+      apply: true,
+      confirmation: runtimeConfirmation,
+      saga_confirmation: sagaConfirmation,
+      action_confirmation: "buyVoidSagaClaimPaymentV1",
+      delegated_confirmation: "buyVoidVerifyAndClaim",
+      policy_fingerprint_sha256: policyFingerprint,
+      expected_plan_fingerprint_sha256: claimPlan.plan_fingerprint_sha256,
+    },
+    command_endpoint: commandEndpoint,
+    status_endpoint: statusEndpoint,
+    http_get: getOk(),
+    http_post: async ({ body }) => {
+      claimApplyPosts += 1;
+      if (claimApplyPosts === 1) {
+        assert.equal(body.apply, false);
+        return { status: 200, json: claimDry };
+      }
+      assert.equal(body.apply, true);
+      assert.equal(body.action_confirmation, "buyVoidSagaClaimPaymentV1");
+      assert.equal(body.delegated_confirmation, "buyVoidVerifyAndClaim");
+      assert.equal(Object.prototype.hasOwnProperty.call(body, "receipt"), false);
+      return { status: 200, json: applied("claim_payment") };
+    },
+  });
+  assert.equal(claimApply.ok, true);
+  assert.equal(claimApply.status, "applied");
+  if (!claimApply.ok || claimApply.status !== "applied") {
+    throw new Error("expected existing-claim projection apply");
+  }
+  assert.equal(claimApply.applied_stage, "claim_payment");
+  assert.equal(claimApply.claim_projection_reconciled, true);
+  assert.equal(claimApply.claim_journal_write_performed, false);
+  assert.equal(claimApplyPosts, 2);
+
+  const invalidClaimSnapshot = structuredClone(claimDry) as Record<string, any>;
+  invalidClaimSnapshot.derived_snapshot.claim_status = "missing";
+  const invalidClaim = await runBuyVoidProductionCanaryCandidateReservationV1({
+    args: { request_id: requestId, apply: false },
+    command_endpoint: commandEndpoint,
+    status_endpoint: statusEndpoint,
+    http_get: getOk(),
+    http_post: async () => ({ status: 200, json: invalidClaimSnapshot }),
+  });
+  assert.equal(invalidClaim.ok, false);
+  if (invalidClaim.ok) throw new Error("expected unclaimed projection hold");
+  assert.equal(invalidClaim.reason, "operator_runtime_dry_run_invalid");
 
   let inventoryPlanPosts = 0;
   const inventoryPlanPost: BuyVoidProductionCanaryCandidateHttpPostV1 =
@@ -481,7 +536,8 @@ async function main(): Promise<void> {
   console.log("preparation_gate_required_disabled=1");
   console.log("rpc_call=0");
   console.log("one_business_stage_per_invocation=1");
-  console.log("claim_payment_apply=0");
+  console.log("claim_payment_projection_only=1");
+  console.log("claim_journal_write=0");
   console.log("reserve_inventory_apply_bounded=1");
   console.log("reserve_execution_attempt_apply_separate=1");
   console.log("candidate_attempt_id_from_apply_receipt=1");
