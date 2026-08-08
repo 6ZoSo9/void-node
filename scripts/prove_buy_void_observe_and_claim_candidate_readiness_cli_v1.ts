@@ -31,6 +31,11 @@ const schema = JSON.parse(
 
 for (const marker of [
   "--require-exact-one",
+  "--runtime-root",
+  "runtime_root_authority_required",
+  "runtime_root_ambiguous",
+  "runtime_root_source",
+  "unique_repo_runtime_root",
   "process.exitCode = 3",
   "process.exitCode = 4",
   "apply: false",
@@ -132,6 +137,16 @@ for (const property of [
   );
 }
 
+const configuredTsxPath = String(
+  process.env.VOID_REPO_TSX_PATH || "",
+).trim();
+const tsxPath = configuredTsxPath || path.join(
+  root,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "tsx.cmd" : "tsx",
+);
+
 const temporaryRoot = fs.mkdtempSync(
   path.join(
     os.tmpdir(),
@@ -169,15 +184,6 @@ try {
   const reportPath = path.join(
     temporaryRoot,
     "candidate-readiness-v1.json",
-  );
-  const configuredTsxPath = String(
-    process.env.VOID_REPO_TSX_PATH || "",
-  ).trim();
-  const tsxPath = configuredTsxPath || path.join(
-    root,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "tsx.cmd" : "tsx",
   );
   const result = spawnSync(
     tsxPath,
@@ -225,10 +231,169 @@ try {
     [orphanRequestId],
   );
   assert.deepEqual(report.records, []);
+  assert.equal(
+    report.runtime_root_source,
+    "not_required_no_canonical_requests",
+  );
+  assert.equal(report.runtime_root, null);
   assert.equal(report.activation_performed, false);
   assert.equal(report.runtime_mutation_performed, false);
 } finally {
   fs.rmSync(temporaryRoot, {
+    recursive: true,
+    force: true,
+  });
+}
+
+const authorityRoot = fs.mkdtempSync(
+  path.join(
+    os.tmpdir(),
+    "void-buy-void-candidate-readiness-root-authority-",
+  ),
+);
+try {
+  const requestDirectory = path.join(
+    authorityRoot,
+    ".runtime",
+    "public-buy-void-requests-v1",
+  );
+  fs.mkdirSync(requestDirectory, {
+    recursive: true,
+    mode: 0o700,
+  });
+
+  const requestId = "buyvoid_runtime_root_authority_v1";
+  fs.writeFileSync(
+    path.join(requestDirectory, `${requestId}.json`),
+    JSON.stringify({
+      schema: "void_public_buy_void_request_v1",
+      request_id: requestId,
+      status: "payment_verified",
+    }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const cleanEnv: NodeJS.ProcessEnv = { ...process.env };
+  delete cleanEnv.VOID_BUY_VOID_RUNTIME_DIR;
+  delete cleanEnv.DATA_DIR;
+  delete cleanEnv.VOID_DATA_DIR;
+
+  const missingRoot = spawnSync(
+    tsxPath,
+    [cliPath, "--repo-root", authorityRoot],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: cleanEnv,
+    },
+  );
+  assert.equal(missingRoot.status, 2);
+  assert.equal(
+    missingRoot.stderr.includes("runtime_root_authority_required"),
+    true,
+  );
+
+  const dataA = path.join(
+    authorityRoot,
+    "data_a",
+    "buy_void_v1",
+    "runtime-integration-v1",
+  );
+  const dataB = path.join(
+    authorityRoot,
+    "data_b",
+    "buy_void_v1",
+    "runtime-integration-v1",
+  );
+  fs.mkdirSync(dataA, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(dataB, { recursive: true, mode: 0o700 });
+
+  const ambiguousRoot = spawnSync(
+    tsxPath,
+    [cliPath, "--repo-root", authorityRoot],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: cleanEnv,
+    },
+  );
+  assert.equal(ambiguousRoot.status, 2);
+  assert.equal(
+    ambiguousRoot.stderr.includes("runtime_root_ambiguous:2"),
+    true,
+  );
+
+  fs.rmSync(path.join(authorityRoot, "data_b"), {
+    recursive: true,
+    force: true,
+  });
+
+  const discoveredReport = path.join(
+    authorityRoot,
+    "discovered-runtime-root-report.json",
+  );
+  const discoveredRoot = spawnSync(
+    tsxPath,
+    [
+      cliPath,
+      "--repo-root",
+      authorityRoot,
+      "--output",
+      discoveredReport,
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: cleanEnv,
+    },
+  );
+  assert.equal(
+    discoveredRoot.status,
+    0,
+    [
+      "unique runtime-root discovery failed",
+      `stdout=${discoveredRoot.stdout}`,
+      `stderr=${discoveredRoot.stderr}`,
+    ].join("\n"),
+  );
+  const discoveredPayload = JSON.parse(
+    fs.readFileSync(discoveredReport, "utf8"),
+  ) as Record<string, any>;
+  assert.equal(
+    discoveredPayload.runtime_root_source,
+    "unique_repo_runtime_root",
+  );
+  assert.equal(discoveredPayload.runtime_root, path.resolve(dataA));
+
+  const explicitReport = path.join(
+    authorityRoot,
+    "explicit-runtime-root-report.json",
+  );
+  const explicitRoot = spawnSync(
+    tsxPath,
+    [
+      cliPath,
+      "--repo-root",
+      authorityRoot,
+      "--runtime-root",
+      dataA,
+      "--output",
+      explicitReport,
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: cleanEnv,
+    },
+  );
+  assert.equal(explicitRoot.status, 0);
+  const explicitPayload = JSON.parse(
+    fs.readFileSync(explicitReport, "utf8"),
+  ) as Record<string, any>;
+  assert.equal(explicitPayload.runtime_root_source, "cli_runtime_root");
+  assert.equal(explicitPayload.runtime_root, path.resolve(dataA));
+} finally {
+  fs.rmSync(authorityRoot, {
     recursive: true,
     force: true,
   });
@@ -243,6 +408,10 @@ console.log("server_derived_snapshot=1");
 console.log("canonical_base_files_only=1");
 console.log("orphan_operator_event_reported=1");
 console.log("event_only_request_record_count=0");
+console.log("runtime_root_authority_fail_closed=1");
+console.log("runtime_root_ambiguity_fail_closed=1");
+console.log("unique_repo_runtime_root_discovery=1");
+console.log("explicit_runtime_root_override=1");
 console.log("dry_run_only=1");
 console.log("runtime_import_mounted=0");
 console.log("wallet_access=0");
