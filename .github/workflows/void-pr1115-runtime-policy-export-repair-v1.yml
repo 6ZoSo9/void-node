@@ -30,17 +30,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "aba90a8978a7d09ba6adb9d25ae2c3b36ea6307f"
+          test "$(git rev-parse HEAD^)" = "e9910efad6387c6ff70680d1c2053caaa554a3d1"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml"
-      - name: Export canonical native runtime policy resolver
+      - name: Export canonical native runtime policy resolver and repair proof equality
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("src/economic/buy_void_native_execution_runtime_v1.ts")
-          text = p.read_text(encoding="utf-8")
+          runtime = Path("src/economic/buy_void_native_execution_runtime_v1.ts")
+          text = runtime.read_text(encoding="utf-8")
 
           old_type = "type PolicyStateV1 ="
           new_type = "export type BuyVoidNativeExecutionRuntimePolicyStateV1 ="
@@ -59,9 +59,19 @@ jobs:
           text = text.replace(old_type, new_type)
           text = text.replace(old_fn, new_fn)
           text = text.replace(old_call, new_call)
-          p.write_text(text, encoding="utf-8")
+          runtime.write_text(text, encoding="utf-8")
+
+          proof = Path("scripts/prove_buy_void_production_preflight_operator_v1.ts")
+          proof_text = proof.read_text(encoding="utf-8")
+          old_assert = "assert.equal(resolved.execution_runtime_policy, canonicalRuntime.policy);"
+          new_assert = "assert.deepEqual(resolved.execution_runtime_policy, canonicalRuntime.policy);"
+          if proof_text.count(old_assert) != 1:
+              raise SystemExit(f"unexpected reference-equality assertion count: {proof_text.count(old_assert)}")
+          proof.write_text(proof_text.replace(old_assert, new_assert), encoding="utf-8")
           PY
-          git diff --check -- src/economic/buy_void_native_execution_runtime_v1.ts
+          git diff --check -- \
+            src/economic/buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_production_preflight_operator_v1.ts
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove PR1115 focused boundary
@@ -98,7 +108,9 @@ jobs:
           test "$(git rev-parse origin/feat/buy-void-production-preflight-operator-entrypoint-v1-20260808)" = "$(git rev-parse HEAD)"
           git config user.name "VOID guarded workflow"
           git config user.email "44710859+6ZoSo9@users.noreply.github.com"
-          git add -- src/economic/buy_void_native_execution_runtime_v1.ts
+          git add -- \
+            src/economic/buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_production_preflight_operator_v1.ts
           git status --short
           git commit -m "feat: expose canonical Buy VOID runtime policy resolver"
           git push origin HEAD:feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
