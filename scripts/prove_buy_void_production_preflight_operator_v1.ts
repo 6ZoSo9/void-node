@@ -158,7 +158,7 @@ try {
   const resolved = resolveBuyVoidProductionPreflightOperatorPolicyV1();
   assert.equal(resolved.ok, true);
   if (!resolved.ok) throw new Error(resolved.reason);
-  assert.equal(resolved.execution_runtime_policy, canonicalRuntime.policy);
+  assert.deepEqual(resolved.execution_runtime_policy, canonicalRuntime.policy);
   assert.equal(resolved.execution_runtime_policy.enabled, false);
   assert.equal(
     resolved.production_policy.custodian.expected_wallet_address,
