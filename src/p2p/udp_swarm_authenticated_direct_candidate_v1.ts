@@ -189,7 +189,8 @@ export class VoidUdpSwarmAuthenticatedDirectCandidateV1 {
 
     let derivedNodeId: string | null = null;
     try {
-      derivedNodeId = deriveVoidNodeIdFromPublicPemV1(authenticatedPublicPem);
+      derivedNodeId =
+        deriveVoidNodeIdFromPublicPemV1(authenticatedPublicPem) ?? null;
     } catch {
       derivedNodeId = null;
     }
