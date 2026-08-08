@@ -166,7 +166,7 @@ export async function runBuyVoidProductionRpcReadinessV1(
   }
 
   const plan = createBuyVoidProductionActivationPlanV1(input?.policy);
-  if (!plan.ok) {
+  if (plan.ok === false) {
     return held(
       apply,
       `production_rpc_readiness_plan_${plan.reason}`,
@@ -244,7 +244,7 @@ export async function runBuyVoidProductionRpcReadinessV1(
     );
   }
 
-  if (!decision.ok) {
+  if (decision.ok === false) {
     return held(
       true,
       `production_rpc_readiness_probe_${decision.reason}`,
