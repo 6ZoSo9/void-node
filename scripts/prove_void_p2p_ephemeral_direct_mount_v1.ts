@@ -258,8 +258,12 @@ async function main(): Promise<void> {
     );
 
     await waitFor(
-      () => !mismatchA.peers.has(kpB.nodeId),
-      "wrong expected identity rejection",
+      () => mismatchPair!.a.socket?.destroyed === true,
+      "wrong expected identity actively destroys mounted transport",
+    );
+    await waitFor(
+      () => mismatchA.peers.size === 0,
+      "wrong expected identity temporary peer cleanup",
     );
     assert.equal(mismatchA.peers.has(kpB.nodeId), false);
     assert.equal(mismatchPersistA, 0);
@@ -275,6 +279,7 @@ async function main(): Promise<void> {
     console.log("normal_void_hello_auth_over_ephemeral_transport=true");
     console.log("expected_remote_node_id_pinned=true");
     console.log("wrong_expected_identity_promoted=false");
+    console.log("wrong_expected_identity_transport_destroyed=true");
     console.log("persist_direct_evidence=false");
     console.log("verified_peer_cache_write_performed=false");
     console.log("known_addrs_promotion_performed=false");
