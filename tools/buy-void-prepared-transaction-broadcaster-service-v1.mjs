@@ -14,6 +14,9 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SERVICE_AUTHORITY_V1
   Object.freeze({
     source_only_service: true,
     cli_activation: false,
+    submission_gate_supported: true,
+    submission_gate_rejects_before_custody_lookup: true,
+    submission_gate_rejects_before_durable_intent: true,
     unix_socket_only: true,
     socket_mode_0600: true,
     state_store_mode_0700: true,
@@ -846,12 +849,22 @@ function normalizeOptions(raw) {
       "prepared_broadcaster_service_signer_fingerprint_required",
     );
   }
+  if (
+    options.submission_enabled !== undefined &&
+    typeof options.submission_enabled !== "boolean"
+  ) {
+    throw new Error(
+      "prepared_broadcaster_service_submission_enabled_boolean_required",
+    );
+  }
+  const submissionEnabled = options.submission_enabled !== false;
   return {
     socket_path: path.resolve(socketPath),
     custody_store_dir: path.resolve(custodyStoreDir),
     state_dir: path.resolve(stateDir),
     transport: options.transport,
     expected_signer_fingerprint_sha256: expectedSignerFingerprint,
+    submission_enabled: submissionEnabled,
     fault_inject: options.fault_inject,
   };
 }
@@ -987,6 +1000,12 @@ async function handleEnvelope(options, value) {
     throw new Error("prepared_broadcaster_ipc_request_envelope_invalid");
   }
   if (envelope.method === "submit_once") {
+    if (options.submission_enabled !== true) {
+      return responseEnvelope(
+        requestId,
+        held("prepared_broadcaster_service_submission_disabled"),
+      );
+    }
     return responseEnvelope(
       requestId,
       await submitOnce(options, envelope.request),

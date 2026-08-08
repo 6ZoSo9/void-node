@@ -4,11 +4,20 @@ import * as dgram from "node:dgram";
 
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
+  createVoidUdpAuthenticatedPathHelloV1,
+  createVoidUdpAuthenticatedPathProofV1,
+} from "../src/p2p/udp_authenticated_path_v1.js";
+import {
+  VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1,
+  VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1,
+  VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1,
+  VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_MAX_IN_FLIGHT_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_MAX_RETRIES_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_RECV_WINDOW_V1,
   VOID_P2P_UDP_SECURE_RELIABLE_RTO_MS_V1,
+  VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1,
   VoidUdpSecureReliableReceiverV1,
   VoidUdpSecureReliableSenderV1,
   createVoidUdpSecureKeyOfferV1,
@@ -57,6 +66,55 @@ async function main(): Promise<void> {
   const endpointA = "127.0.0.1:51001";
   const endpointB = "127.0.0.1:51002";
 
+  const helloA = createVoidUdpAuthenticatedPathHelloV1({
+    sessionId: SESSION,
+    sourceNodeId: idA.nodeId,
+    targetNodeId: idB.nodeId,
+    pubkey: idA.pubPEM,
+    challenge: "1".repeat(64),
+  });
+  const helloB = createVoidUdpAuthenticatedPathHelloV1({
+    sessionId: SESSION,
+    sourceNodeId: idB.nodeId,
+    targetNodeId: idA.nodeId,
+    pubkey: idB.pubPEM,
+    challenge: "2".repeat(64),
+  });
+
+  const pathProofA = createVoidUdpAuthenticatedPathProofV1({
+    localHello: helloA,
+    remoteHello: helloB,
+    localObservedEndpoint: endpointA,
+    remoteObservedEndpoint: endpointB,
+    privateKey: idA.privateKey,
+    allowNonPublicEndpoints: true,
+  });
+  const pathProofB = createVoidUdpAuthenticatedPathProofV1({
+    localHello: helloB,
+    remoteHello: helloA,
+    localObservedEndpoint: endpointB,
+    remoteObservedEndpoint: endpointA,
+    privateKey: idB.privateKey,
+    allowNonPublicEndpoints: true,
+  });
+
+  const evidenceForA = Object.freeze({
+    rawProof: pathProofA,
+    expectedRemoteHello: helloA,
+    localHello: helloB,
+    expectedRemoteObservedEndpoint: endpointA,
+    localObservedEndpoint: endpointB,
+    allowNonPublicEndpoints: true,
+  });
+  const evidenceForB = Object.freeze({
+    rawProof: pathProofB,
+    expectedRemoteHello: helloB,
+    localHello: helloA,
+    expectedRemoteObservedEndpoint: endpointB,
+    localObservedEndpoint: endpointA,
+    allowNonPublicEndpoints: true,
+  });
+
   const offerA = createVoidUdpSecureKeyOfferV1({
     sessionId: SESSION,
     sourceNodeId: idA.nodeId,
@@ -64,9 +122,10 @@ async function main(): Promise<void> {
     ed25519PublicPem: idA.pubPEM,
     ed25519PrivateKey: idA.privateKey,
     x25519PublicKey: xA.publicKey,
+    authenticatedPathProof: pathProofA,
     sourceObservedEndpoint: endpointA,
     targetObservedEndpoint: endpointB,
-    nonce: "1".repeat(32),
+    nonce: "3".repeat(32),
     allowNonPublicObservedEndpoint: true,
   });
   const offerB = createVoidUdpSecureKeyOfferV1({
@@ -76,49 +135,105 @@ async function main(): Promise<void> {
     ed25519PublicPem: idB.pubPEM,
     ed25519PrivateKey: idB.privateKey,
     x25519PublicKey: xB.publicKey,
+    authenticatedPathProof: pathProofB,
     sourceObservedEndpoint: endpointB,
     targetObservedEndpoint: endpointA,
-    nonce: "2".repeat(32),
+    nonce: "4".repeat(32),
     allowNonPublicObservedEndpoint: true,
   });
 
-  const verifiedA = verifyVoidUdpSecureKeyOfferV1(offerA, {
+  assert.equal(offerA.authenticated_path_proof_sig, pathProofA.sig);
+  assert.equal(offerB.authenticated_path_proof_sig, pathProofB.sig);
+  assert.equal(offerA.identity_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_IDENTITY_ALGORITHM_V1);
+  assert.equal(offerA.signature_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_SIGNATURE_ALGORITHM_V1);
+  assert.equal(offerA.kex_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_KEX_ALGORITHM_V1);
+  assert.equal(offerA.kdf_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_KDF_ALGORITHM_V1);
+  assert.equal(offerA.aead_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1);
+
+  const expectedA = {
     sessionId: SESSION,
     sourceNodeId: idA.nodeId,
     targetNodeId: idB.nodeId,
     sourceObservedEndpoint: endpointA,
     targetObservedEndpoint: endpointB,
+    authenticatedPathEvidence: evidenceForA,
     allowNonPublicObservedEndpoint: true,
-  });
-  const verifiedB = verifyVoidUdpSecureKeyOfferV1(offerB, {
+  } as const;
+  const expectedB = {
     sessionId: SESSION,
     sourceNodeId: idB.nodeId,
     targetNodeId: idA.nodeId,
     sourceObservedEndpoint: endpointB,
     targetObservedEndpoint: endpointA,
+    authenticatedPathEvidence: evidenceForB,
     allowNonPublicObservedEndpoint: true,
-  });
+  } as const;
+
+  const verifiedA = verifyVoidUdpSecureKeyOfferV1(offerA, expectedA);
+  const verifiedB = verifyVoidUdpSecureKeyOfferV1(offerB, expectedB);
   assert(verifiedA && verifiedB);
 
-  const tamperedOffer = { ...offerA, sig: `${offerA.sig[0] === "0" ? "1" : "0"}${offerA.sig.slice(1)}` };
-  assert.equal(verifyVoidUdpSecureKeyOfferV1(tamperedOffer, {
+  assert.throws(() => createVoidUdpSecureKeyOfferV1({
     sessionId: SESSION,
     sourceNodeId: idA.nodeId,
     targetNodeId: idB.nodeId,
+    ed25519PublicPem: idA.pubPEM,
+    ed25519PrivateKey: idA.privateKey,
+    x25519PublicKey: xA.publicKey,
+    authenticatedPathProof: pathProofB,
     sourceObservedEndpoint: endpointA,
     targetObservedEndpoint: endpointB,
+    nonce: "5".repeat(32),
     allowNonPublicObservedEndpoint: true,
+  }));
+
+  const wrongEvidence = {
+    ...expectedA,
+    authenticatedPathEvidence: evidenceForB,
+  };
+  assert.equal(verifyVoidUdpSecureKeyOfferV1(offerA, wrongEvidence), undefined);
+
+  const tamperedOffer = {
+    ...offerA,
+    sig: `${offerA.sig[0] === "0" ? "1" : "0"}${offerA.sig.slice(1)}`,
+  };
+  assert.equal(verifyVoidUdpSecureKeyOfferV1(tamperedOffer, expectedA), undefined);
+
+  const endpointSubstitution = {
+    ...offerA,
+    source_observed_endpoint: "127.0.0.1:51999",
+  };
+  assert.equal(verifyVoidUdpSecureKeyOfferV1(endpointSubstitution, {
+    ...expectedA,
+    sourceObservedEndpoint: "127.0.0.1:51999",
   }), undefined);
 
-  const endpointSubstitution = { ...offerA, source_observed_endpoint: "127.0.0.1:51999" };
-  assert.equal(verifyVoidUdpSecureKeyOfferV1(endpointSubstitution, {
-    sessionId: SESSION,
-    sourceNodeId: idA.nodeId,
-    targetNodeId: idB.nodeId,
-    sourceObservedEndpoint: "127.0.0.1:51999",
-    targetObservedEndpoint: endpointB,
-    allowNonPublicObservedEndpoint: true,
-  }), undefined);
+  const pathProofSigSubstitution = {
+    ...offerA,
+    authenticated_path_proof_sig: `${offerA.authenticated_path_proof_sig[0] === "0" ? "1" : "0"}${offerA.authenticated_path_proof_sig.slice(1)}`,
+  };
+  assert.equal(verifyVoidUdpSecureKeyOfferV1(pathProofSigSubstitution, expectedA), undefined);
+
+  assert.equal(verifyVoidUdpSecureKeyOfferV1({
+    ...offerA,
+    identity_algorithm: "ml-dsa-65",
+  }, expectedA), undefined);
+  assert.equal(verifyVoidUdpSecureKeyOfferV1({
+    ...offerA,
+    signature_algorithm: "ml-dsa-65",
+  }, expectedA), undefined);
+  assert.equal(verifyVoidUdpSecureKeyOfferV1({
+    ...offerA,
+    kex_algorithm: "x448",
+  }, expectedA), undefined);
+  assert.equal(verifyVoidUdpSecureKeyOfferV1({
+    ...offerA,
+    kdf_algorithm: "hkdf-sha512",
+  }, expectedA), undefined);
+  assert.equal(verifyVoidUdpSecureKeyOfferV1({
+    ...offerA,
+    aead_algorithm: "chacha20-poly1305",
+  }, expectedA), undefined);
 
   const keysA = deriveVoidUdpSecureDirectionKeysV1({
     localX25519PrivateKey: xA.privateKey,
@@ -135,6 +250,7 @@ async function main(): Promise<void> {
   assert(keysA.send_nonce_prefix.equals(keysB.recv_nonce_prefix));
   assert(keysA.recv_nonce_prefix.equals(keysB.send_nonce_prefix));
   assert(!keysA.send_key.equals(keysA.recv_key));
+  assert.equal(keysA.aead_algorithm, VOID_P2P_UDP_SECURE_RELIABLE_AEAD_ALGORITHM_V1);
 
   const wrongX = crypto.generateKeyPairSync("x25519");
   assert.throws(() => deriveVoidUdpSecureDirectionKeysV1({
@@ -149,6 +265,11 @@ async function main(): Promise<void> {
   const p0 = senderA.createData(Buffer.from("zero"), -1, 0);
   const p1 = senderA.createData(Buffer.from("one"), -1, 0);
   const p2 = senderA.createData(Buffer.from("two"), -1, 0);
+
+  assert.equal(decryptVoidUdpSecurePacketV1({
+    ...p2,
+    aead_algorithm: "chacha20-poly1305",
+  }, keysB), undefined);
 
   const outOfOrder = receiverB.receive(p1);
   assert.equal(outOfOrder.accepted, true);
@@ -255,6 +376,10 @@ async function main(): Promise<void> {
     socketB.close();
   }
 
+  assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.authenticated_path_evidence_required, true);
+  assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.algorithm_confusion_rejected, true);
+  assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.crypto_agility_extension_point_explicit, true);
+  assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.quantum_safe_claimed, false);
   assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.x25519_ephemeral_key_agreement_required, true);
   assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.x25519_offer_ed25519_bound, true);
   assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.aes_256_gcm_payload_protection, true);
@@ -270,6 +395,22 @@ async function main(): Promise<void> {
   assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.port_forward_required, false);
   assert.equal(VOID_P2P_UDP_SECURE_RELIABLE_AUTHORITY_V1.wallet_signer_validator_wc_money_authority, 0);
 
+  console.log("authenticated_path_evidence_required=true");
+  console.log("authenticated_path_proof_binding_required=true");
+  console.log("authenticated_path_evidence_mismatch_accepted=false");
+  console.log("identity_algorithm_explicit=true");
+  console.log("signature_algorithm_explicit=true");
+  console.log("kex_algorithm_explicit=true");
+  console.log("kdf_algorithm_explicit=true");
+  console.log("aead_algorithm_explicit=true");
+  console.log("identity_algorithm_substitution_accepted=false");
+  console.log("signature_algorithm_substitution_accepted=false");
+  console.log("kex_algorithm_substitution_accepted=false");
+  console.log("kdf_algorithm_substitution_accepted=false");
+  console.log("aead_algorithm_substitution_accepted=false");
+  console.log("algorithm_confusion_rejected=true");
+  console.log("crypto_agility_extension_point_explicit=true");
+  console.log("quantum_safe_claimed=false");
   console.log("real_udp_secure_payload_exchange_proven=true");
   console.log("x25519_ephemeral_key_agreement_required=true");
   console.log("x25519_offer_ed25519_bound=true");

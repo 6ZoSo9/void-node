@@ -19,6 +19,7 @@ import {
   canonicalizePeerAddressList,
   formatPeerAddress,
   httpBaseFromP2P,
+  isPublicLearnedPeerAddressV1,
   parseBootstrap,
   parsePeerAddress,
 } from "./types/p2p.js";
@@ -69,6 +70,21 @@ import {
   type VoidRelayControlMessageV1,
   type VoidRelayStreamRecordV1,
 } from "./p2p/relay_v1.js";
+import {
+  VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,
+  VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1,
+  VOID_P2P_DIRECT_UPGRADE_LOCAL_BIND_ATTEMPTS_V1,
+  VOID_P2P_DIRECT_UPGRADE_MAX_ATTEMPT_TIMEOUT_MS_V1,
+  VOID_P2P_DIRECT_UPGRADE_MAX_PENDING_REQUESTS_V1,
+  VOID_P2P_DIRECT_UPGRADE_REQUEST_TIMEOUT_MS_V1,
+  VoidDirectUpgradeRelayStateV1,
+  isVoidDirectUpgradeControlTypeV1,
+  newVoidDirectUpgradeIdV1,
+  normalizeVoidDirectUpgradeControlMessageV1,
+  normalizeVoidDirectUpgradeObservedAddressV1,
+  voidDirectUpgradeRequestTimedOutV1,
+  type VoidDirectUpgradeControlMessageV1,
+} from "./p2p/direct_upgrade_v1.js";
 
 function recordSideEffectWriteFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -172,7 +188,8 @@ type Msg =
   | { type: "REACHABILITY_PROBE_OPEN"; request_id: string }
   | { type: "REACHABILITY_PROBE_COMPLETE"; request_id: string }
   | { type: "REACHABILITY_DIALBACK_RESULT"; request_id: string; observation: VoidP2PReachabilityObservationV1 }
-  | VoidRelayControlMessageV1;
+  | VoidRelayControlMessageV1
+  | VoidDirectUpgradeControlMessageV1;
 
 function encode(m: Msg): Buffer {
   const body = Buffer.from(JSON.stringify(m));
@@ -225,6 +242,10 @@ type PeerSocketV1 = {
   write(data: Uint8Array | string): boolean;
   destroy(error?: Error): unknown;
   readonly writableLength?: number;
+  readonly localAddress?: string;
+  readonly localPort?: number;
+  readonly remoteAddress?: string;
+  readonly remotePort?: number;
 };
 
 type RelayLocalStreamV1 = {
@@ -234,6 +255,21 @@ type RelayLocalStreamV1 = {
   outgoing: boolean;
   started: boolean;
   socket: VoidRelayVirtualSocketV1;
+};
+
+type DirectUpgradeLocalSessionV1 = {
+  session_id: string;
+  relay_node_id: string;
+  stream_id: string;
+  remote_node_id: string;
+  peer_observed_address: string;
+  local_address: string;
+  local_port: number;
+  start_delay_ms: number;
+  attempt_timeout_ms: number;
+  created_at_ms: number;
+  expires_at_ms: number;
+  started: boolean;
 };
 
 type ReachabilityProbeContext = {
@@ -266,6 +302,9 @@ type Peer = {
   transport: PeerTransportV1;
   relayViaNodeId?: string;
   relayStreamId?: string;
+  persistDirectEvidence: boolean;
+  punchCapable: boolean;
+  directUpgradeSessionId?: string;
 };
 
 /** ================================================================= */
@@ -275,6 +314,8 @@ type NodeOpts = {
   allowEmptyBlocks?: boolean;
   reachabilityTestAllowNonPublicProbe?: boolean;
   relayServer?: boolean;
+  directUpgradeEnabled?: boolean;
+  directUpgradeAllowNonPublicCandidates?: boolean;
 };
 
 export class Node {
@@ -338,6 +379,23 @@ export class Node {
   >();
   private relayStreams = new Map<string, RelayLocalStreamV1>();
 
+  private readonly directUpgradeEnabled: boolean;
+  private readonly directUpgradeAllowNonPublicCandidates: boolean;
+  private readonly directUpgradeRelayState = new VoidDirectUpgradeRelayStateV1();
+  private directUpgradePendingRequests = new Map<
+    string,
+    {
+      relay_node_id: string;
+      target_node_id: string;
+      stream_id: string;
+      requested_at_ms: number;
+    }
+  >();
+  private directUpgradeLocalSessions = new Map<
+    string,
+    DirectUpgradeLocalSessionV1
+  >();
+
   readonly txIndex = new TxIndex(path.join(this.baseDir, "index"));
   readonly receipts = new ReceiptsStore(path.join(this.baseDir, "receipts"), { shardSpan: 10_000 });
 
@@ -351,6 +409,10 @@ export class Node {
   private dialing = new Set<string>();
   private knownAddrs = new Set<string>();
   private backoff = new Map<string, number>();
+  private learnedPeerDialAttemptsV1 = new Set<string>();
+  private readonly MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1 = 64;
+  private readonly MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1 = 8;
+  private readonly MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1 = 64;
   private readonly MIN_BACKOFF = 500;
   private readonly MAX_BACKOFF = 15_000;
 
@@ -381,6 +443,9 @@ export class Node {
     this.reachabilityTestAllowNonPublicProbe =
       opts?.reachabilityTestAllowNonPublicProbe === true;
     this.relayServerEnabled = !!opts?.relayServer;
+    this.directUpgradeEnabled = !!opts?.directUpgradeEnabled;
+    this.directUpgradeAllowNonPublicCandidates =
+      !!opts?.directUpgradeAllowNonPublicCandidates;
     ensureDir(this.blobsDir);
   }
 
@@ -495,6 +560,7 @@ export class Node {
         if (!this.stopping) {
           this.sweepRelayClientState();
           this.sweepRelayServerState();
+          this.sweepDirectUpgradeState();
         }
       }, 1_000);
       this.relaySweepTimer.unref?.();
@@ -533,6 +599,8 @@ export class Node {
       stream.socket.remoteClose("node stopping");
     }
     this.relayStreams.clear();
+    this.directUpgradePendingRequests.clear();
+    this.directUpgradeLocalSessions.clear();
     for (const p of this.peers.values()) {
       p.suppressReconnect = true;
       p.socket.destroy();
@@ -603,6 +671,7 @@ export class Node {
       this.stopping ||
       peer.suppressReconnect ||
       peer.transport !== "direct" ||
+      !peer.persistDirectEvidence ||
       !peer.handshakeDone ||
       peer.id.startsWith("?-")
     ) {
@@ -621,7 +690,12 @@ export class Node {
     this.backoff.set(address, next);
 
     setTimeout(() => {
-      if (!this.stopping) this.connect(address, peer.id);
+      if (this.stopping) return;
+      if (peer.punchCapable) {
+        void this.connectPunchCapableRelay(address, peer.id);
+      } else {
+        this.connect(address, peer.id);
+      }
     }, delayMs).unref?.();
   }
 
@@ -877,6 +951,9 @@ export class Node {
           parsed.canonical,
           "direct",
           undefined,
+          undefined,
+          false,
+          false,
           undefined,
           {
             role: "outgoing",
@@ -1196,7 +1273,20 @@ export class Node {
     const peerAddr =
       formatPeerAddress(remoteHost, remotePort) ||
       `${remoteHost}:${remotePort}`;
-    this.attachSocket(socket, peerAddr, false);
+    const directUpgrade = this.matchIncomingDirectUpgrade(peerAddr);
+    this.attachSocket(
+      socket,
+      peerAddr,
+      false,
+      directUpgrade?.remote_node_id,
+      undefined,
+      "direct",
+      undefined,
+      undefined,
+      directUpgrade ? false : true,
+      false,
+      directUpgrade?.session_id,
+    );
   }
   private rejectUnauthenticatedPeer(peer: Peer, reason: string) {
     if (peer.probe?.role === "outgoing") {
@@ -1228,7 +1318,14 @@ export class Node {
     }
 
     if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
-      if (peer.transport === "relay") {
+      if (peer.directUpgradeSessionId) {
+        console.warn("VOID_P2P_DIRECT_UPGRADE_IDENTITY_MISMATCH_V1", {
+          session_id: peer.directUpgradeSessionId,
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+        });
+        this.rejectUnauthenticatedPeer(peer, "direct-upgrade peer identity mismatch");
+      } else if (peer.transport === "relay") {
         console.warn("VOID_P2P_RELAY_DESTINATION_IDENTITY_MISMATCH_V1", {
           relay_node_id: peer.relayViaNodeId,
           stream_id: peer.relayStreamId,
@@ -1316,13 +1413,14 @@ export class Node {
     peer.remoteHello = undefined;
     if (
       peer.transport === "direct" &&
+      peer.persistDirectEvidence &&
       (!peer.reconnectAddr || !peer.listens.includes(peer.reconnectAddr))
     ) {
       peer.reconnectAddr = peer.listens[0];
     }
     this.peers.set(peer.id, peer);
 
-    if (peer.transport === "direct") {
+    if (peer.transport === "direct" && peer.persistDirectEvidence) {
       if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
       this.rememberAuthenticatedPeer(peer);
 
@@ -1337,14 +1435,14 @@ export class Node {
 
       for (const address of peer.listens) this.knownAddrs.add(address);
     }
-    const addrs = new Set<string>();
-    for (const connectedPeer of this.peers.values()) {
-      if (!connectedPeer.handshakeDone || connectedPeer.transport !== "direct") continue;
-      for (const address of connectedPeer.listens) addrs.add(address);
+    if (peer.directUpgradeSessionId) {
+      this.completeDirectUpgradeSession(peer.directUpgradeSessionId, peer.id);
     }
-    for (const address of this.listenAddrs) addrs.add(address);
 
-    this.sendRaw(peer, { type: "PEERS", addrs: [...addrs] });
+    this.sendRaw(peer, {
+      type: "PEERS",
+      addrs: this.publicPeerExchangeAddrsV1(),
+    });
     for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
     return true;
   }
@@ -1358,6 +1456,9 @@ export class Node {
     transport: PeerTransportV1 = "direct",
     relayViaNodeId?: string,
     relayStreamId?: string,
+    persistDirectEvidence = transport === "direct",
+    punchCapable = false,
+    directUpgradeSessionId?: string,
     reachabilityProbe?: ReachabilityProbeContext,
   ) {
     const peer: Peer = {
@@ -1379,6 +1480,9 @@ export class Node {
       transport,
       relayViaNodeId,
       relayStreamId,
+      persistDirectEvidence,
+      punchCapable,
+      directUpgradeSessionId,
     };
 
     peer.framer = new Framer(
@@ -1406,6 +1510,9 @@ export class Node {
         );
       }
       if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
+      if (peer.directUpgradeSessionId) {
+        this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
+      }
       this.handlePeerTransportClose(peer);
       this.scheduleVerifiedPeerReconnect(peer);
     });
@@ -1523,10 +1630,35 @@ export class Node {
       return;
     }
 
+    if (isVoidDirectUpgradeControlTypeV1((msg as any)?.type)) {
+      const directUpgradeMessage = normalizeVoidDirectUpgradeControlMessageV1(
+        msg,
+        this.directUpgradeAllowNonPublicCandidates,
+      );
+      if (!directUpgradeMessage) {
+        console.warn("VOID_P2P_DIRECT_UPGRADE_RUNTIME_V1_REJECT", {
+          peer_id: peer.id,
+          reason: "invalid direct-upgrade control message",
+        });
+        return;
+      }
+      this.onDirectUpgradeControlMessage(peer, directUpgradeMessage);
+      return;
+    }
+
     if (msg.type === "PEERS") {
-      const learned = canonicalizePeerAddressList(msg.addrs, 64);
-      for (const address of learned) if (!this.isSelfAddress(address)) this.knownAddrs.add(address);
-      for (const address of learned) if (this.shouldDial(address)) this.connect(address);
+      const learned = canonicalizePeerAddressList(
+        msg.addrs,
+        this.MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1,
+      )
+        .filter((address) => isPublicLearnedPeerAddressV1(address))
+        .slice(0, this.MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1);
+
+      for (const address of learned) {
+        if (!this.shouldDialLearnedPeerV1(address)) continue;
+        this.knownAddrs.add(address);
+        this.connect(address, undefined, false);
+      }
       return;
     }
 
@@ -1578,6 +1710,42 @@ export class Node {
         }
       }
     }
+  }
+
+  private publicPeerExchangeAddrsV1(): string[] {
+    const addrs = new Set<string>();
+    for (const connectedPeer of this.peers.values()) {
+      if (
+        !connectedPeer.handshakeDone ||
+        connectedPeer.transport !== "direct" ||
+        !connectedPeer.persistDirectEvidence
+      ) continue;
+      for (const address of connectedPeer.listens) {
+        if (isPublicLearnedPeerAddressV1(address)) addrs.add(address);
+      }
+    }
+    for (const address of this.listenAddrs) {
+      if (isPublicLearnedPeerAddressV1(address)) addrs.add(address);
+    }
+    return [...addrs];
+  }
+
+  private shouldDialLearnedPeerV1(addr: string): boolean {
+    const canonical = canonicalPeerAddress(addr);
+    if (!canonical || !isPublicLearnedPeerAddressV1(canonical)) return false;
+    if (this.learnedPeerDialAttemptsV1.has(canonical)) return false;
+    if (
+      this.learnedPeerDialAttemptsV1.size >=
+      this.MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1
+    ) {
+      return false;
+    }
+    if (!this.shouldDial(canonical)) return false;
+
+    // Reserve the one-shot attempt before dialing so repeated PEERS messages
+    // cannot race the same address into multiple pre-authentication attempts.
+    this.learnedPeerDialAttemptsV1.add(canonical);
+    return true;
   }
 
   private relayStreamKey(relayNodeId: string, streamId: string): string {
@@ -1806,6 +1974,18 @@ export class Node {
     }
 
     if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
+    this.directUpgradeRelayState.removePeer(peer.id);
+    for (const [requestId, pending] of this.directUpgradePendingRequests) {
+      if (pending.relay_node_id === peer.id) {
+        this.directUpgradePendingRequests.delete(requestId);
+      }
+    }
+    for (const [sessionId, session] of this.directUpgradeLocalSessions) {
+      if (session.relay_node_id === peer.id) {
+        this.directUpgradeLocalSessions.delete(sessionId);
+      }
+    }
 
     if (this.relayServerEnabled) {
       for (const stream of this.relayServerState.removePeer(peer.id)) {
@@ -2107,6 +2287,630 @@ export class Node {
     }
   }
 
+
+  private observedDirectUpgradeAddress(peer: Peer): string | undefined {
+    if (peer.transport !== "direct") return;
+    const remoteAddress = String(peer.socket.remoteAddress || "");
+    const remotePort = Number(peer.socket.remotePort || 0);
+    const formatted = formatPeerAddress(remoteAddress, remotePort);
+    if (!formatted) return;
+    return normalizeVoidDirectUpgradeObservedAddressV1(
+      formatted,
+      this.directUpgradeAllowNonPublicCandidates,
+    );
+  }
+
+  private directUpgradeLocalBind(peer: Peer) {
+    if (
+      peer.transport !== "direct" ||
+      !peer.punchCapable ||
+      typeof peer.socket.localAddress !== "string" ||
+      !Number.isSafeInteger(peer.socket.localPort) ||
+      Number(peer.socket.localPort) < 1 ||
+      Number(peer.socket.localPort) > 65535
+    ) return;
+    const localAddress = peer.socket.localAddress;
+    if (net.isIP(localAddress) === 0) return;
+    return {
+      local_address: localAddress,
+      local_port: Number(peer.socket.localPort),
+    };
+  }
+
+  private relayServerStreamForDirectUpgrade(
+    streamId: string,
+    requesterNodeId: string,
+    peerNodeId: string,
+  ) {
+    const stream = this.relayServerState
+      .snapshot()
+      .streams
+      .find((entry) => entry.stream_id === streamId);
+    if (!stream || !stream.started) return;
+    const forward =
+      stream.source_node_id === requesterNodeId &&
+      stream.target_node_id === peerNodeId;
+    const reverse =
+      stream.target_node_id === requesterNodeId &&
+      stream.source_node_id === peerNodeId;
+    if (!forward && !reverse) return;
+    return stream;
+  }
+
+  private async resolvePunchLocalAddress(
+    host: string,
+    port: number,
+  ): Promise<string | undefined> {
+    const configured = String(
+      process.env.P2P_PUNCH_BIND_HOST ||
+      process.env.P2P_BIND_HOST ||
+      "",
+    ).trim();
+    if (
+      configured &&
+      configured !== "0.0.0.0" &&
+      configured !== "::" &&
+      net.isIP(configured) !== 0
+    ) return configured;
+
+    return await new Promise<string | undefined>((resolve) => {
+      const socket = net.createConnection({ host, port });
+      const timer = setTimeout(() => {
+        socket.destroy();
+        resolve(undefined);
+      }, 2_000);
+      timer.unref?.();
+      socket.once("connect", () => {
+        clearTimeout(timer);
+        const localAddress = String(socket.localAddress || "");
+        socket.destroy();
+        resolve(net.isIP(localAddress) !== 0 ? localAddress : undefined);
+      });
+      socket.once("error", () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve(undefined);
+      });
+    });
+  }
+
+  async connectPunchCapableRelay(
+    addr: string,
+    expectedNodeId?: string,
+    requestedLocalPort?: number,
+  ): Promise<number | undefined> {
+    if (!this.directUpgradeEnabled || this.stopping) return;
+    const parsed = parsePeerAddress(addr);
+    if (!parsed) return;
+    const canonical = parsed.canonical;
+    if (!this.shouldDial(canonical)) return;
+
+    if (
+      requestedLocalPort !== undefined &&
+      (
+        !Number.isSafeInteger(requestedLocalPort) ||
+        requestedLocalPort < VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1 ||
+        requestedLocalPort > VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1
+      )
+    ) return;
+
+    const pinnedNodeId =
+      expectedNodeId || this.cachedExpectedNodeByAddress.get(canonical);
+
+    // Reserve the dial slot before the asynchronous route/local-address probe.
+    // Without this, concurrent punch-capable callers can both pass shouldDial()
+    // and race into duplicate outer relay connections.
+    this.dialing.add(canonical);
+    try {
+      const localAddress = await this.resolvePunchLocalAddress(
+        parsed.host,
+        parsed.port,
+      );
+      if (!localAddress || this.stopping) return;
+
+      const attempts = requestedLocalPort !== undefined
+        ? 1
+        : VOID_P2P_DIRECT_UPGRADE_LOCAL_BIND_ATTEMPTS_V1;
+
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const localPort = requestedLocalPort ??
+          crypto.randomInt(
+            VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1,
+            VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1 + 1,
+          );
+        const socket = new net.Socket();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const onError = (error: Error) => {
+              socket.off("error", onError);
+              reject(error);
+            };
+            socket.once("error", onError);
+            socket.connect(
+              {
+                host: parsed.host,
+                port: parsed.port,
+                localAddress,
+                localPort,
+              },
+              () => {
+                socket.off("error", onError);
+                resolve();
+              },
+            );
+          });
+
+          console.log(
+            `[dial] connected punch-capable relay ${canonical} from ${localAddress}:${localPort}`,
+          );
+          this.attachSocket(
+            socket,
+            canonical,
+            true,
+            pinnedNodeId,
+            canonical,
+            "direct",
+            undefined,
+            undefined,
+            true,
+            true,
+          );
+          return localPort;
+        } catch (error) {
+          socket.destroy();
+          const code =
+            error && typeof error === "object" && "code" in error
+              ? String((error as any).code || "")
+              : "";
+          if (
+            requestedLocalPort === undefined &&
+            code === "EADDRINUSE"
+          ) continue;
+          console.warn(
+            `[dial] punch-capable relay failed ${canonical}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+          return;
+        }
+      }
+
+      console.warn(
+        "VOID_P2P_DIRECT_UPGRADE_LOCAL_PORT_ALLOCATION_EXHAUSTED_V1",
+        { address: canonical },
+      );
+      return;
+    } finally {
+      this.dialing.delete(canonical);
+    }
+  }
+
+  requestDirectUpgrade(
+    relayNodeId: string,
+    targetNodeId: string,
+    startDelayMs = 200,
+    attemptTimeoutMs = 3_000,
+  ): string | undefined {
+    if (!this.directUpgradeEnabled) return;
+    const relayPeer = this.authenticatedDirectPeer(relayNodeId);
+    const targetPeer = this.peers.get(targetNodeId);
+    if (
+      !relayPeer ||
+      !relayPeer.punchCapable ||
+      !targetPeer ||
+      !targetPeer.handshakeDone ||
+      targetPeer.transport !== "relay" ||
+      targetPeer.relayViaNodeId !== relayNodeId ||
+      !targetPeer.relayStreamId ||
+      this.directUpgradePendingRequests.size >=
+        VOID_P2P_DIRECT_UPGRADE_MAX_PENDING_REQUESTS_V1
+    ) return;
+
+    const requestId = newVoidDirectUpgradeIdV1();
+    const request = normalizeVoidDirectUpgradeControlMessageV1({
+      type: "DIRECT_UPGRADE_REQUEST",
+      request_id: requestId,
+      stream_id: targetPeer.relayStreamId,
+      target_node_id: targetNodeId,
+      start_delay_ms: startDelayMs,
+      attempt_timeout_ms: attemptTimeoutMs,
+    }, this.directUpgradeAllowNonPublicCandidates);
+    if (!request || request.type !== "DIRECT_UPGRADE_REQUEST") return;
+
+    this.directUpgradePendingRequests.set(requestId, {
+      relay_node_id: relayNodeId,
+      target_node_id: targetNodeId,
+      stream_id: targetPeer.relayStreamId,
+      requested_at_ms: Date.now(),
+    });
+    this.sendRaw(relayPeer, request);
+    return requestId;
+  }
+
+  directUpgradeSnapshot() {
+    this.sweepDirectUpgradeState();
+    return {
+      enabled: this.directUpgradeEnabled,
+      pending_requests: this.directUpgradePendingRequests.size,
+      local_sessions: this.directUpgradeLocalSessions.size,
+      relay: this.directUpgradeRelayState.snapshot(),
+      local: [...this.directUpgradeLocalSessions.values()]
+        .map((session) => ({
+          session_id: session.session_id,
+          relay_node_id: session.relay_node_id,
+          stream_id: session.stream_id,
+          remote_node_id: session.remote_node_id,
+          peer_observed_address: session.peer_observed_address,
+          started: session.started,
+        }))
+        .sort((a, b) => a.session_id.localeCompare(b.session_id)),
+    };
+  }
+
+  private sweepDirectUpgradeState(nowMs = Date.now()): void {
+    this.directUpgradeRelayState.sweep(nowMs);
+    for (const [requestId, pending] of this.directUpgradePendingRequests) {
+      if (voidDirectUpgradeRequestTimedOutV1(pending.requested_at_ms, nowMs)) {
+        this.directUpgradePendingRequests.delete(requestId);
+      }
+    }
+    for (const [sessionId, session] of this.directUpgradeLocalSessions) {
+      if (session.expires_at_ms <= nowMs) {
+        this.directUpgradeLocalSessions.delete(sessionId);
+      }
+    }
+  }
+
+  private matchIncomingDirectUpgrade(
+    peerAddr: string,
+  ): DirectUpgradeLocalSessionV1 | undefined {
+    if (!this.directUpgradeEnabled) return;
+    this.sweepDirectUpgradeState();
+    const canonical = canonicalPeerAddress(peerAddr);
+    if (!canonical) return;
+    for (const session of this.directUpgradeLocalSessions.values()) {
+      if (
+        session.started &&
+        session.peer_observed_address === canonical &&
+        session.expires_at_ms > Date.now()
+      ) return session;
+    }
+    return;
+  }
+
+  private completeDirectUpgradeSession(
+    sessionId: string,
+    authenticatedPeerId: string,
+  ): void {
+    const session = this.directUpgradeLocalSessions.get(sessionId);
+    if (!session) return;
+    if (session.remote_node_id !== authenticatedPeerId) return;
+    this.directUpgradeLocalSessions.delete(sessionId);
+    console.log("VOID_P2P_DIRECT_UPGRADE_RUNTIME_V1_PROMOTED", {
+      session_id: sessionId,
+      remote_node_id: authenticatedPeerId,
+      relay_node_id: session.relay_node_id,
+    });
+  }
+
+  private attemptDirectUpgradeSession(sessionId: string): void {
+    const session = this.directUpgradeLocalSessions.get(sessionId);
+    if (!session || !session.started || this.stopping) return;
+    if (session.expires_at_ms <= Date.now()) {
+      this.directUpgradeLocalSessions.delete(sessionId);
+      return;
+    }
+
+    const relayPeer = this.authenticatedDirectPeer(session.relay_node_id);
+    const bind = relayPeer ? this.directUpgradeLocalBind(relayPeer) : undefined;
+    if (
+      !relayPeer ||
+      !relayPeer.punchCapable ||
+      !bind ||
+      bind.local_address !== session.local_address ||
+      bind.local_port !== session.local_port
+    ) {
+      this.directUpgradeLocalSessions.delete(sessionId);
+      return;
+    }
+
+    const parsed = parsePeerAddress(session.peer_observed_address);
+    if (!parsed) {
+      this.directUpgradeLocalSessions.delete(sessionId);
+      return;
+    }
+
+    const socket = new net.Socket();
+    let connected = false;
+    const timeout = setTimeout(() => {
+      if (!connected) socket.destroy();
+    }, Math.min(
+      session.attempt_timeout_ms,
+      VOID_P2P_DIRECT_UPGRADE_MAX_ATTEMPT_TIMEOUT_MS_V1,
+    ));
+    timeout.unref?.();
+
+    const onError = (error: Error) => {
+      if (connected) return;
+      clearTimeout(timeout);
+      socket.destroy();
+      this.directUpgradeLocalSessions.delete(sessionId);
+      console.warn("VOID_P2P_DIRECT_UPGRADE_RUNTIME_V1_ATTEMPT_FAILED", {
+        session_id: sessionId,
+        remote_node_id: session.remote_node_id,
+        reason: error.message,
+      });
+    };
+    socket.once("error", onError);
+    socket.connect(
+      {
+        host: parsed.host,
+        port: parsed.port,
+        localAddress: session.local_address,
+        localPort: session.local_port,
+      },
+      () => {
+        connected = true;
+        clearTimeout(timeout);
+        socket.off("error", onError);
+        this.attachSocket(
+          socket,
+          session.peer_observed_address,
+          true,
+          session.remote_node_id,
+          undefined,
+          "direct",
+          undefined,
+          undefined,
+          false,
+          false,
+          sessionId,
+        );
+      },
+    );
+  }
+
+  private rejectDirectUpgradeRequest(
+    peer: Peer,
+    requestId: string,
+    reason: string,
+  ): void {
+    this.sendRaw(peer, {
+      type: "DIRECT_UPGRADE_REJECT",
+      request_id: requestId,
+      reason,
+    });
+  }
+
+  private onDirectUpgradeControlMessage(
+    peer: Peer,
+    msg: VoidDirectUpgradeControlMessageV1,
+  ): void {
+    this.sweepDirectUpgradeState();
+
+    if (msg.type === "DIRECT_UPGRADE_REQUEST") {
+      if (
+        !this.directUpgradeEnabled ||
+        !this.relayServerEnabled ||
+        peer.transport !== "direct"
+      ) {
+        this.rejectDirectUpgradeRequest(
+          peer,
+          msg.request_id,
+          "direct-upgrade relay coordination disabled",
+        );
+        return;
+      }
+
+      const stream = this.relayServerStreamForDirectUpgrade(
+        msg.stream_id,
+        peer.id,
+        msg.target_node_id,
+      );
+      const targetPeer = this.authenticatedDirectPeer(msg.target_node_id);
+      if (!stream || !targetPeer) {
+        this.rejectDirectUpgradeRequest(
+          peer,
+          msg.request_id,
+          "direct-upgrade relay stream is not active",
+        );
+        return;
+      }
+
+      const sourceObserved = this.observedDirectUpgradeAddress(peer);
+      const targetObserved = this.observedDirectUpgradeAddress(targetPeer);
+      if (!sourceObserved || !targetObserved) {
+        this.rejectDirectUpgradeRequest(
+          peer,
+          msg.request_id,
+          "direct-upgrade public endpoint observation unavailable",
+        );
+        return;
+      }
+
+      try {
+        const session = this.directUpgradeRelayState.openSession({
+          requestId: msg.request_id,
+          streamId: msg.stream_id,
+          sourceNodeId: peer.id,
+          targetNodeId: msg.target_node_id,
+          sourceObservedAddress: sourceObserved,
+          targetObservedAddress: targetObserved,
+          startDelayMs: msg.start_delay_ms,
+          attemptTimeoutMs: msg.attempt_timeout_ms,
+          allowNonPublicObservedAddress:
+            this.directUpgradeAllowNonPublicCandidates,
+        });
+
+        this.sendRaw(peer, {
+          type: "DIRECT_UPGRADE_OFFER",
+          request_id: msg.request_id,
+          session_id: session.session_id,
+          stream_id: session.stream_id,
+          peer_node_id: session.target_node_id,
+          peer_observed_address: session.target_observed_address,
+          start_delay_ms: session.start_delay_ms,
+          attempt_timeout_ms: session.attempt_timeout_ms,
+        });
+        this.sendRaw(targetPeer, {
+          type: "DIRECT_UPGRADE_OFFER",
+          request_id: msg.request_id,
+          session_id: session.session_id,
+          stream_id: session.stream_id,
+          peer_node_id: session.source_node_id,
+          peer_observed_address: session.source_observed_address,
+          start_delay_ms: session.start_delay_ms,
+          attempt_timeout_ms: session.attempt_timeout_ms,
+        });
+      } catch (error) {
+        this.rejectDirectUpgradeRequest(
+          peer,
+          msg.request_id,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      return;
+    }
+
+    if (msg.type === "DIRECT_UPGRADE_OFFER") {
+      if (
+        !this.directUpgradeEnabled ||
+        peer.transport !== "direct" ||
+        !peer.punchCapable
+      ) return;
+
+      const localStream = this.relayStreams.get(
+        this.relayStreamKey(peer.id, msg.stream_id),
+      );
+      const bind = this.directUpgradeLocalBind(peer);
+      if (
+        !localStream ||
+        !localStream.started ||
+        localStream.remote_node_id !== msg.peer_node_id ||
+        !bind
+      ) return;
+
+      const pending = this.directUpgradePendingRequests.get(msg.request_id);
+      if (pending) {
+        if (
+          pending.relay_node_id !== peer.id ||
+          pending.target_node_id !== msg.peer_node_id ||
+          pending.stream_id !== msg.stream_id
+        ) return;
+        this.directUpgradePendingRequests.delete(msg.request_id);
+      }
+
+      if (
+        this.directUpgradeLocalSessions.size >=
+          VOID_P2P_DIRECT_UPGRADE_MAX_PENDING_REQUESTS_V1
+      ) return;
+
+      const now = Date.now();
+      const expiresAt =
+        now + msg.start_delay_ms + msg.attempt_timeout_ms +
+        VOID_P2P_DIRECT_UPGRADE_REQUEST_TIMEOUT_MS_V1;
+      if (!Number.isSafeInteger(expiresAt)) return;
+
+      const existing = this.directUpgradeLocalSessions.get(msg.session_id);
+      if (existing) {
+        if (
+          existing.relay_node_id !== peer.id ||
+          existing.stream_id !== msg.stream_id ||
+          existing.remote_node_id !== msg.peer_node_id ||
+          existing.peer_observed_address !== msg.peer_observed_address
+        ) return;
+      } else {
+        this.directUpgradeLocalSessions.set(msg.session_id, {
+          session_id: msg.session_id,
+          relay_node_id: peer.id,
+          stream_id: msg.stream_id,
+          remote_node_id: msg.peer_node_id,
+          peer_observed_address: msg.peer_observed_address,
+          local_address: bind.local_address,
+          local_port: bind.local_port,
+          start_delay_ms: msg.start_delay_ms,
+          attempt_timeout_ms: msg.attempt_timeout_ms,
+          created_at_ms: now,
+          expires_at_ms: expiresAt,
+          started: false,
+        });
+      }
+
+      this.sendRaw(peer, {
+        type: "DIRECT_UPGRADE_READY",
+        session_id: msg.session_id,
+        stream_id: msg.stream_id,
+      });
+      return;
+    }
+
+    if (msg.type === "DIRECT_UPGRADE_READY") {
+      if (
+        !this.directUpgradeEnabled ||
+        !this.relayServerEnabled ||
+        peer.transport !== "direct"
+      ) return;
+      try {
+        const ready = this.directUpgradeRelayState.markReady(
+          peer.id,
+          msg.session_id,
+          msg.stream_id,
+        );
+        if (!ready.started_now) return;
+
+        const sourcePeer =
+          this.authenticatedDirectPeer(ready.session.source_node_id);
+        const targetPeer =
+          this.authenticatedDirectPeer(ready.session.target_node_id);
+        if (!sourcePeer || !targetPeer) return;
+
+        this.sendRaw(sourcePeer, {
+          type: "DIRECT_UPGRADE_START",
+          session_id: ready.session.session_id,
+          stream_id: ready.session.stream_id,
+        });
+        this.sendRaw(targetPeer, {
+          type: "DIRECT_UPGRADE_START",
+          session_id: ready.session.session_id,
+          stream_id: ready.session.stream_id,
+        });
+      } catch (error) {
+        console.warn("VOID_P2P_DIRECT_UPGRADE_RUNTIME_V1_READY_REJECT", {
+          peer_id: peer.id,
+          session_id: msg.session_id,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "DIRECT_UPGRADE_START") {
+      if (!this.directUpgradeEnabled || peer.transport !== "direct") return;
+      const session = this.directUpgradeLocalSessions.get(msg.session_id);
+      if (
+        !session ||
+        session.relay_node_id !== peer.id ||
+        session.stream_id !== msg.stream_id ||
+        session.started
+      ) return;
+      session.started = true;
+      setTimeout(() => {
+        if (!this.stopping) {
+          this.attemptDirectUpgradeSession(msg.session_id);
+        }
+      }, session.start_delay_ms).unref?.();
+      return;
+    }
+
+    if (msg.type === "DIRECT_UPGRADE_REJECT") {
+      this.directUpgradePendingRequests.delete(msg.request_id);
+      console.warn("VOID_P2P_DIRECT_UPGRADE_RUNTIME_V1_REQUEST_REJECT", {
+        relay_node_id: peer.id,
+        request_id: msg.request_id,
+        reason: msg.reason,
+      });
+    }
+  }
+
   /** canonical tx intake (validation + dedupe) */
   acceptTx(raw: any): boolean {
     if (!raw || typeof raw !== "object") return false;
@@ -2143,7 +2947,11 @@ export class Node {
     }
     return true;
   }
-  connect(addr: string, expectedNodeId?: string) {
+  connect(
+    addr: string,
+    expectedNodeId?: string,
+    retryOnFailure = true,
+  ) {
     const parsed = parsePeerAddress(addr);
     if (!parsed) return;
     const canonical = parsed.canonical;
@@ -2165,11 +2973,17 @@ export class Node {
       console.warn(`[dial] failed ${canonical}:`, e.message);
       this.dialing.delete(canonical);
       socket.destroy();
+
+      // Third-party PEERS entries are unverified until authentication
+      // completes. Their initial discovery dial is one-shot: a sender cannot
+      // manufacture persistent retry loops toward arbitrary public targets.
+      if (!retryOnFailure) return;
+
       const cur = this.backoff.get(canonical) ?? this.MIN_BACKOFF;
       const nxt = Math.min(cur * 2, this.MAX_BACKOFF);
       this.backoff.set(canonical, nxt);
       setTimeout(() => {
-        if (!this.stopping) this.connect(canonical, pinnedNodeId);
+        if (!this.stopping) this.connect(canonical, pinnedNodeId, true);
       }, cur).unref?.();
     });
   }

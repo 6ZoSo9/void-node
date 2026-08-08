@@ -61,11 +61,37 @@ Each side then signs a path proof binding:
 
 The controller requires both its locally created proof and the verified remote proof before a secure key offer may become sufficient for readiness.
 
+## Authenticated-path evidence and secure-suite inheritance
+
+The bootstrap does not create a parallel trust root for secure transport.
+
+When it creates its local secure key offer, the controller passes the exact stored local authenticated-path proof into the merged secure-transport contract. When it verifies a remote key offer, it passes the exact stored remote proof together with the already accepted remote/local HELLO pair and the exact observed endpoint pair as `authenticatedPathEvidence`.
+
+That means a secure key offer is accepted only when its signed `authenticated_path_proof_sig` matches the proof already verified by this bootstrap for the same session, identities, public key, and observed endpoints. Substituting a different proof signature, session, endpoint, identity, or cryptographic-suite tag fails closed.
+
+The secure transport's explicit v1 suite is inherited unchanged:
+
+```text
+identity_algorithm=ed25519
+signature_algorithm=ed25519
+kex_algorithm=x25519
+kdf_algorithm=hkdf-sha256
+aead_algorithm=aes-256-gcm
+```
+
+Those tags provide a versioned crypto-agility extension point; they are not a post-quantum claim. This composed v1 session remains based on classical Ed25519/X25519 public-key cryptography:
+
+```text
+quantum_safe_claimed=false
+```
+
+A future hybrid or quantum-resistant suite requires a separately versioned contract and migration proof rather than silent substitution inside this controller.
+
 ## Signed X25519 boundary
 
 After mutual path authentication, each side creates a fresh ephemeral X25519 keypair and signs its X25519 offer with the already-authenticated Ed25519 VOID identity.
 
-The remote key offer must pass the secure-transport verifier and its exact Ed25519 public key must equal the key authenticated by the remote path HELLO. This prevents a later key-exchange message from silently changing peer identity.
+The remote key offer must pass the secure-transport verifier, must bind the exact stored authenticated-path evidence, and its exact Ed25519 public key must equal the key authenticated by the remote path HELLO. This prevents a later key-exchange message from silently changing peer identity or path evidence.
 
 Only reciprocal signed offers can produce the direction-specific secure transport keys.
 
@@ -96,7 +122,7 @@ The existing runtime also treats local/remote address metadata as optional on `P
 
 ## Failure and relay boundary
 
-Invalid or mismatched HELLO, path proof, or key offer does not produce a ready socket.
+Invalid or mismatched HELLO, path proof, authenticated-path evidence, secure-suite tag, or key offer does not produce a ready socket.
 
 This source lane does not tear down, replace, or mutate the existing relay path. The future runtime composition must preserve the authenticated relay until the direct UDP socket has completed this bootstrap and then completed normal VOID peer framing/authentication.
 
@@ -112,6 +138,9 @@ It proves:
 - exact reciprocal HELLO acceptance;
 - wrong-endpoint path-proof rejection;
 - mutual Ed25519 path proof before key readiness;
+- exact local/remote authenticated-path proof-signature binding into secure offers;
+- authenticated-path evidence substitution rejection;
+- cryptographic-suite substitution rejection;
 - tampered signed X25519 offer rejection;
 - local Ed25519 private/public mismatch rejection;
 - duplicate key-offer idempotence;
@@ -125,8 +154,14 @@ Expected marker:
 VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_V1_PROOF_GREEN
 mutual_ed25519_path_auth_required=true
 exact_observed_endpoint_binding_required=true
+authenticated_path_proof_binding_required=true
+secure_offer_path_evidence_substitution_accepted=false
 signed_x25519_offer_required=true
 x25519_offer_must_match_authenticated_identity=true
+secure_transport_algorithm_suite_bound=true
+secure_transport_suite_substitution_accepted=false
+crypto_agility_extension_point_inherited=true
+quantum_safe_claimed=false
 secure_reliable_transport_required=true
 peer_socket_adapter_required=true
 ready_before_remote_path_proof=false
