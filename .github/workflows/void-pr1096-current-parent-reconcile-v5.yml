@@ -1,4 +1,4 @@
-name: VOID PR1096 current-parent reconcile v5
+name: VOID PR1096 current-parent reconcile v6
 
 on:
   push:
@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   reconcile:
@@ -30,24 +32,44 @@ jobs:
 
       - name: Reconcile, prove, self-delete, and fast-forward
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
 
           BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
-          EXPECTED_PREVIOUS_HEAD='d1d4a5cc371a47d9e0ae577ac107e0a96206e505'
+          EXPECTED_PREVIOUS_HEAD='205f3df6aaaf7872d4564bedc28401988e180ff5'
           EXPECTED_BASE='29b8da4f1d10dfd703eae4334d95506709f2b03b'
           SELF='.github/workflows/void-pr1096-current-parent-reconcile-v5.yml'
+          REPO='6ZoSo9/void-node'
+          STAGE='bootstrap'
 
+          post_diag() {
+            gh pr comment 1096 --repo "$REPO" --body "$1" >/dev/null 2>&1 || true
+          }
+          on_fail() {
+            rc=$?
+            trap - ERR
+            post_diag "VOID_PR1096_RECONCILE_V6_FAIL head=$(git rev-parse HEAD 2>/dev/null || echo unknown) stage=$STAGE rc=$rc"
+            exit "$rc"
+          }
+          trap on_fail ERR
+
+          post_diag "VOID_PR1096_RECONCILE_V6_START head=$(git rev-parse HEAD) base=$EXPECTED_BASE"
+
+          STAGE='staging-head-guard'
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_HEAD"
           test "$(git diff --name-only "$EXPECTED_PREVIOUS_HEAD" HEAD)" = "$SELF"
 
+          STAGE='fetch-current-parent'
           git fetch --no-tags origin "$BASE_BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+          STAGE='merge-current-parent'
           set +e
           git merge --no-commit --no-ff "$EXPECTED_BASE"
           merge_rc=$?
@@ -57,9 +79,7 @@ jobs:
             test "$conflicts" = 'src/node_core.ts'
           fi
 
-          # Current parent owns node_core. Reapply only the reviewed #1096
-          # control-plane seam through exact anchors; every anchor must occur
-          # exactly once or the job fails before any branch mutation.
+          STAGE='apply-exact-node-core-anchors'
           git checkout "$EXPECTED_BASE" -- src/node_core.ts
 
           python3 - <<'PY'
@@ -268,6 +288,7 @@ jobs:
           test -z "$(git diff --name-only --diff-filter=U)"
           git rm -- "$SELF"
 
+          STAGE='scope-guard'
           actual_scope="$(git diff --name-only "$EXPECTED_BASE" | sort)"
           expected_scope="$(printf '%s\n' \
             '.github/workflows/void-p2p-udp-swarm-node-control-mount-v1.yml' \
@@ -276,16 +297,30 @@ jobs:
             'src/node_core.ts' | sort)"
           test "$actual_scope" = "$expected_scope"
 
+          STAGE='locked-install'
           npm ci --ignore-scripts --no-audit --no-fund
+          STAGE='node-control-proof'
           npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          STAGE='control-adapter-proof'
           npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+          STAGE='relay-bridge-proof'
           npx --no-install tsx scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts
+          STAGE='relay-reservation-proof'
           npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
+          STAGE='key-retention-proof'
           npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts
+          STAGE='raw-empty-catch-proof'
           npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          STAGE='typecheck'
           npm run typecheck
+          STAGE='build'
           npm run build
+          STAGE='diff-hygiene'
           git diff --cached --check "$EXPECTED_BASE"
 
+          STAGE='commit'
           git commit -m 'chore: reconcile UDP swarm Node control mount with current parent'
+          NEW_HEAD="$(git rev-parse HEAD)"
+          STAGE='push'
           git push origin "HEAD:$BRANCH"
+          post_diag "VOID_PR1096_RECONCILE_V6_PASS new_head=$NEW_HEAD base=$EXPECTED_BASE"
