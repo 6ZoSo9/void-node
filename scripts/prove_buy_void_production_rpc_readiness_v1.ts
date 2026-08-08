@@ -97,6 +97,26 @@ assert.equal(
 assert.equal(wrongConfirmation.rpc_probe_performed, false);
 assert.equal(fakeProbeCalls, 0);
 
+const paddedConfirmation = await runBuyVoidProductionRpcReadinessV1(
+  {
+    policy,
+    apply: true,
+    confirmation: `${VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1} `,
+    expected_plan_id_sha256: dry.plan_id_sha256,
+  },
+  { probe_chain2050: fakeProbe },
+);
+assert.equal(paddedConfirmation.ok, false);
+if (paddedConfirmation.ok) {
+  throw new Error("production_rpc_padded_confirmation_should_hold");
+}
+assert.equal(
+  paddedConfirmation.reason,
+  "production_rpc_readiness_confirmation_required",
+);
+assert.equal(paddedConfirmation.rpc_probe_performed, false);
+assert.equal(fakeProbeCalls, 0);
+
 const wrongPlanId = await runBuyVoidProductionRpcReadinessV1(
   {
     policy,
@@ -113,6 +133,26 @@ assert.equal(
   "production_rpc_readiness_plan_id_confirmation_required",
 );
 assert.equal(wrongPlanId.rpc_probe_performed, false);
+assert.equal(fakeProbeCalls, 0);
+
+const paddedPlanId = await runBuyVoidProductionRpcReadinessV1(
+  {
+    policy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1,
+    expected_plan_id_sha256: ` ${dry.plan_id_sha256}`,
+  },
+  { probe_chain2050: fakeProbe },
+);
+assert.equal(paddedPlanId.ok, false);
+if (paddedPlanId.ok) {
+  throw new Error("production_rpc_padded_plan_should_hold");
+}
+assert.equal(
+  paddedPlanId.reason,
+  "production_rpc_readiness_plan_id_confirmation_required",
+);
+assert.equal(paddedPlanId.rpc_probe_performed, false);
 assert.equal(fakeProbeCalls, 0);
 
 const readyFake = await runBuyVoidProductionRpcReadinessV1(
@@ -293,7 +333,9 @@ assert.equal(
 console.log("VOID_BUY_VOID_PRODUCTION_RPC_READINESS_V1_PROOF_GREEN");
 console.log("dry_run_rpc_probe_calls=0");
 console.log("wrong_confirmation_rpc_probe_calls=0");
+console.log("padded_confirmation_rpc_probe_calls=0");
 console.log("wrong_plan_id_rpc_probe_calls=0");
+console.log("padded_plan_id_rpc_probe_calls=0");
 console.log("exact_plan_id_echo_required=true");
 console.log("exact_rpc_probe_confirmation_required=true");
 console.log("actual_probe_primitive_reused=true");
