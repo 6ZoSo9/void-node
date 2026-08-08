@@ -27,6 +27,16 @@ import {
   buyVoidSagaBroadcastReconciliationRuntimeStatusV1,
   handleBuyVoidSagaBroadcastReconciliationRuntimeCommandV1,
 } from "./buy_void_saga_broadcast_reconciliation_runtime_v1.js";
+import {
+  VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ACTION_V1,
+  buyVoidSagaExecutePreparedTransactionRuntimeStatusV1,
+  handleBuyVoidSagaExecutePreparedTransactionRuntimeCommandV1,
+} from "./buy_void_saga_execute_prepared_transaction_runtime_v1.js";
+import {
+  VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
+  buyVoidSagaTerminalCloseoutRuntimeStatusV1,
+  handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1,
+} from "./buy_void_saga_terminal_closeout_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -46,6 +56,12 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   background_loop: false,
   rpc_call: false,
   private_broadcaster_inspection_ipc_possible: true,
+  private_broadcaster_submission_ipc_possible_when_explicitly_enabled: true,
+  delegated_transaction_broadcast_possible_when_execution_runtime_enabled: true,
+  delegated_money_movement_possible_when_submission_occurs: true,
+  delegated_inventory_consumption_possible_when_terminal_closeout_runtime_enabled: true,
+  delegated_public_fulfilled_projection_possible_when_terminal_closeout_runtime_enabled: true,
+  delegated_saga_closeout_possible_when_terminal_closeout_runtime_enabled: true,
   wallet_access: false,
   signing: false,
   raw_signed_transaction_input: false,
@@ -201,6 +217,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
       VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
       VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
+      VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ACTION_V1,
+      VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
     ],
     required_confirmations: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
     authority: VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1,
@@ -211,6 +229,10 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       buyVoidCrashConsistentSagaRuntimeStatusV1(),
     saga_broadcast_reconciliation_runtime:
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),
+    saga_execute_prepared_transaction_runtime:
+      buyVoidSagaExecutePreparedTransactionRuntimeStatusV1(),
+    saga_terminal_closeout_runtime:
+      buyVoidSagaTerminalCloseoutRuntimeStatusV1(),
   };
 }
 
@@ -286,6 +308,32 @@ export function handleBuyVoidRuntimeCommandV1(
 
   if (
     String((body as any).action || "") ===
+    VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidSagaExecutePreparedTransactionRuntimeCommandV1(
+      req,
+      res,
+      {
+        root_dir: buyVoidRuntimeRootDirV1(),
+      },
+    );
+  }
+
+  if (
+    String((body as any).action || "") ===
+    VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1
+  ) {
+    return handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1(
+      req,
+      res,
+      {
+        root_dir: buyVoidRuntimeRootDirV1(),
+      },
+    );
+  }
+
+  if (
+    String((body as any).action || "") ===
     VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1
   ) {
     return handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -307,6 +355,8 @@ export function handleBuyVoidRuntimeCommandV1(
         VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
         VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
         VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
+        VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ACTION_V1,
+        VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
       ],
     });
   }

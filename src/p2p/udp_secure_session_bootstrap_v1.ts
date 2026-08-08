@@ -31,8 +31,12 @@ export const VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_VERSION_V1 = 1;
 export const VOID_P2P_UDP_SECURE_SESSION_BOOTSTRAP_AUTHORITY_V1 = Object.freeze({
   mutual_ed25519_path_auth_required: true,
   exact_observed_endpoint_binding_required: true,
+  authenticated_path_proof_binding_required: true,
   signed_x25519_offer_required: true,
   x25519_offer_must_match_authenticated_identity: true,
+  secure_transport_algorithm_suite_bound: true,
+  crypto_agility_extension_point_inherited: true,
+  quantum_safe_claimed: false,
   secure_reliable_transport_required: true,
   peer_socket_adapter_required: true,
   ready_before_remote_path_proof: false,
@@ -226,6 +230,7 @@ export class VoidUdpSecureSessionBootstrapV1 {
       ed25519PublicPem: this.localPublicPemValue,
       ed25519PrivateKey: this.localPrivateKeyValue,
       x25519PublicKey: this.x25519.publicKey,
+      authenticatedPathProof: this.localProofValue,
       sourceObservedEndpoint: this.localObservedEndpointValue,
       targetObservedEndpoint: this.remoteObservedEndpointValue,
       allowNonPublicObservedEndpoint: this.allowNonPublicEndpointsValue,
@@ -250,6 +255,14 @@ export class VoidUdpSecureSessionBootstrapV1 {
       targetNodeId: this.localNodeIdValue,
       sourceObservedEndpoint: this.remoteObservedEndpointValue,
       targetObservedEndpoint: this.localObservedEndpointValue,
+      authenticatedPathEvidence: {
+        rawProof: this.remoteProofValue,
+        expectedRemoteHello: this.remoteHelloValue,
+        localHello: this.localHelloValue,
+        expectedRemoteObservedEndpoint: this.remoteObservedEndpointValue,
+        localObservedEndpoint: this.localObservedEndpointValue,
+        allowNonPublicEndpoints: this.allowNonPublicEndpointsValue,
+      },
       allowNonPublicObservedEndpoint: this.allowNonPublicEndpointsValue,
     });
     if (!offer) return false;

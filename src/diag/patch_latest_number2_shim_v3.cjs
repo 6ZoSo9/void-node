@@ -101,30 +101,16 @@
     return fn;
   }
 
-  function moveLayerToFront(app){
-    try{
-      const st = app && app._router && app._router.stack;
-      if (!Array.isArray(st) || st.length < 2) return;
-      for (let i = st.length - 1; i >= 0; i--){
-        const layer = st[i];
-        if (layer && layer.handle && layer.handle.__void_number2_shim_v3){
-          const picked = st.splice(i, 1)[0];
-          st.unshift(picked);
-          return;
-        }
-      }
-    }catch(moveLayerErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_MOVE_LAYER_FRONT", moveLayerErr); }
-  }
-
   function tryMount(app){
     try{
       if (!app || typeof app.use !== "function") return false;
       if (G.__void_number2_shim_v3_installed) return true;
       const h = makeHandler();
+      // Preserve normal Express registration order. Storage-derived route readiness
+      // middleware registered before this compatibility handler must remain authoritative.
       app.use(h);
-      moveLayerToFront(app);
       G.__void_number2_shim_v3_installed = true;
-      try{ console.error("[compat] number2 shim v3 installed (file-first, fallback /blocks/latest/number)"); }catch(installedLogErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
+      try{ console.error("[compat] number2 shim v3 installed (file-first, fallback /blocks/latest/number; normal route order)"); }catch(installedLogErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
       return true;
     }catch{
       return false;

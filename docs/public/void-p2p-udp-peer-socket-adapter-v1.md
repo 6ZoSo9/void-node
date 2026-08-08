@@ -1,6 +1,6 @@
 # VOID P2P UDP peer-socket adapter v1
 
-Status: source-only adapter above the secure/reliable punched UDP transport.
+Status: source-only adapter above the authenticated secure/reliable punched UDP transport.
 
 ## Purpose
 
@@ -9,9 +9,9 @@ properties without router configuration:
 
 1. outbound UDP mapping from ordinary residential networks;
 2. direct two-site UDP hole punching with OS-selected participant ports;
-3. mutual Ed25519 VOID-shaped peer authentication on the punched path; and
-4. signed X25519 key agreement plus AES-256-GCM protected reliable delivery,
-   including recovery after an intentionally dropped first data send.
+3. mutual VOID-shaped peer authentication on the punched path; and
+4. authenticated X25519 key agreement plus AES-256-GCM protected reliable
+   delivery, including recovery after an intentionally dropped first data send.
 
 The remaining source boundary before `node_core.ts` integration is shape
 compatibility. Existing VOID peer framing expects a socket-like ordered byte
@@ -20,6 +20,46 @@ backpressure semantics.
 
 This lane exposes that shape above the already-authenticated secure/reliable UDP
 transport without mounting it into the live Node runtime.
+
+## Inherited authenticated secure-path boundary
+
+The adapter is not a new authentication or key-establishment layer. It may only
+be constructed after the merged PR #1082 authenticated-path boundary and merged
+PR #1083 secure/reliable transport boundary have succeeded.
+
+The proof therefore establishes keys in this order:
+
+1. create reciprocal #1082 authenticated-path HELLO packets;
+2. create reciprocal signed authenticated-path PROOF packets;
+3. verify each PROOF against the exact session, peer identity, challenges, and
+   observed endpoints;
+4. create #1083 secure key offers that bind the verified authenticated-path
+   proof signatures;
+5. verify each key offer against that exact authenticated-path evidence; and
+6. derive the direction-specific secure/reliable transport keys used by the
+   adapter.
+
+The adapter does not bypass, replace, or weaken those checks. The inherited v1
+cryptographic suite remains explicitly bound as:
+
+```text
+identity_algorithm=ed25519
+signature_algorithm=ed25519
+kex_algorithm=x25519
+kdf_algorithm=hkdf-sha256
+aead_algorithm=aes-256-gcm
+```
+
+Unknown or substituted suite values remain fail-closed below this adapter. The
+suite is classical and does not make a post-quantum claim:
+
+```text
+quantum_safe_claimed=false
+```
+
+A future quantum-resistant or hybrid suite requires a separately versioned
+contract and proof wall; the peer-socket adapter must consume the established
+secure transport rather than inventing cryptography of its own.
 
 ## Byte-stream contract
 
@@ -31,7 +71,7 @@ A caller may write arbitrary byte chunks. The adapter:
 - copies the caller bytes;
 - splits them into secure-reliable payloads no larger than the v1 payload cap;
 - assigns ordered reliable data sequence numbers through the underlying sender;
-- transmits only AES-256-GCM protected packets;
+- transmits only authenticated encrypted secure packets;
 - accepts only packets validated by the underlying secure receiver;
 - emits delivered plaintext bytes in reliable data-sequence order; and
 - does not add message-boundary semantics of its own.
@@ -82,8 +122,8 @@ Replay/tamper decisions remain in the secure receiver. A rejected or replayed
 packet is never emitted as byte-stream data.
 
 The adapter never accepts plaintext UDP application payloads. The injected
-packet-transmit callback receives only established
-`VOID_UDP_SECURE_PACKET` objects from the secure/reliable transport.
+packet-transmit callback receives only established `VOID_UDP_SECURE_PACKET`
+objects from the secure/reliable transport.
 
 ## Socket-shaped surface
 
@@ -121,14 +161,18 @@ It does not:
   authority.
 
 A later reviewed runtime-composition lane can construct this adapter only after
-rendezvous, punching, endpoint authentication, and secure session establishment
-have already succeeded.
+rendezvous, punching, endpoint authentication, authenticated-path verification,
+and secure session establishment have already succeeded.
 
 ## Proof
 
-The focused proof uses two real loopback UDP sockets and the actual secure
-reliable transport. It verifies:
+The focused proof uses generated ephemeral test identities, two real loopback
+UDP sockets, the actual #1082 authenticated-path primitives, the actual #1083
+secure/reliable transport, and this adapter. It verifies:
 
+- authenticated-path evidence is verified before secure keys are derived;
+- secure key offers preserve the authenticated-path proof binding and explicit
+  cryptographic suite;
 - a large framed byte stream is split across multiple encrypted packets and
   reconstructed exactly;
 - arbitrary transport chunking preserves the original byte stream;
@@ -148,6 +192,10 @@ VOID_P2P_UDP_PEER_SOCKET_ADAPTER_V1_PROOF_GREEN
 peer_socket_shape_exposed=true
 real_udp_byte_stream_adapter_proven=true
 secure_reliable_transport_required=true
+authenticated_path_evidence_required=true
+authenticated_path_evidence_verified_before_secure_keys=true
+secure_suite_binding_preserved=true
+quantum_safe_claimed=false
 large_write_fragmented_and_reassembled=true
 arbitrary_udp_chunk_boundaries_supported=true
 intentional_first_packet_drop_recovered=true
