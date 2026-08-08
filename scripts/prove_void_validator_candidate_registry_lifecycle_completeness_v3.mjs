@@ -185,26 +185,77 @@ requireAll(
   "Waiting rollback",
 );
 
+const releaseBody = blockFor(contract, "function _releaseConsensusKey(");
+requireAll(
+  releaseBody,
+  [
+    "consensusKeyOwner[consensusKeyHash] != candidateOwner",
+    "delete consensusKeyOwner[consensusKeyHash];",
+    "emit ConsensusKeyReleased(candidateOwner, consensusKeyHash);",
+  ],
+  "owner-conditional consensus-key release",
+);
+assert.ok(
+  releaseBody.indexOf("consensusKeyOwner[consensusKeyHash] != candidateOwner") <
+    releaseBody.indexOf("delete consensusKeyOwner[consensusKeyHash]"),
+  "consensus-key release must verify the current owner before deletion",
+);
+assert.ok(
+  releaseBody.indexOf("delete consensusKeyOwner[consensusKeyHash]") <
+    releaseBody.indexOf("emit ConsensusKeyReleased(candidateOwner, consensusKeyHash)"),
+  "consensus-key release event must follow deletion",
+);
+
+const finalizeExitBody = blockFor(contract, "function finalizeExit(");
+requireAll(
+  finalizeExitBody,
+  [
+    "c.state = ValidatorState.Unbonded;",
+    "_releaseConsensusKey(msg.sender, c.consensusKeyHash);",
+    "emit CandidateUnbonded(msg.sender);",
+  ],
+  "participant exit key release",
+);
+assert.ok(
+  finalizeExitBody.indexOf("c.state = ValidatorState.Unbonded;") <
+    finalizeExitBody.indexOf("_releaseConsensusKey(msg.sender, c.consensusKeyHash);"),
+  "participant exit must enter Unbonded before releasing the key",
+);
+
+const markUnbondedBody = blockFor(contract, "function markUnbonded(");
+requireAll(
+  markUnbondedBody,
+  [
+    "c.state = ValidatorState.Unbonded;",
+    "_releaseConsensusKey(candidateOwner, c.consensusKeyHash);",
+    "emit CandidateUnbonded(candidateOwner);",
+  ],
+  "administrative unbond key release",
+);
+assert.ok(
+  markUnbondedBody.indexOf("c.state = ValidatorState.Unbonded;") <
+    markUnbondedBody.indexOf("_releaseConsensusKey(candidateOwner, c.consensusKeyHash);"),
+  "administrative unbond must enter Unbonded before releasing the key",
+);
+
 const withdrawalBody = blockFor(contract, "function withdrawStake(");
 requireAll(
   withdrawalBody,
   [
     "c.state != ValidatorState.Unbonded",
-    "bytes32 releasedConsensusKeyHash = c.consensusKeyHash;",
     "c.stakeAmount = 0;",
     "totalStaked -= amount;",
-    "delete consensusKeyOwner[releasedConsensusKeyHash];",
+    "_releaseConsensusKey(msg.sender, c.consensusKeyHash);",
     "recipient.call{value: amount}",
     "revert StakeTransferFailed();",
-    "emit ConsensusKeyReleased(",
     "emit StakeWithdrawn(",
   ],
-  "stake withdrawal and key release",
+  "stake withdrawal and defensive key release",
 );
 assert.ok(
-  withdrawalBody.indexOf("delete consensusKeyOwner[releasedConsensusKeyHash]") <
+  withdrawalBody.indexOf("_releaseConsensusKey(msg.sender, c.consensusKeyHash)") <
     withdrawalBody.indexOf("recipient.call{value: amount}"),
-  "key release must occur before the external interaction and roll back atomically",
+  "defensive key release must occur before the external interaction and roll back atomically",
 );
 
 const validationBody = blockFor(contract, "function _validateProfile(");
@@ -247,10 +298,19 @@ requireAll(
   contract,
   [
     "function moveToWaiting(address candidateOwner) external onlyOwner",
-    "function markActiveBatch(address[] calldata owners) external onlyOwner",
     "function withdrawStake(address payable recipient) external nonReentrant",
     "function cancelOwnershipTransfer() external onlyOwner",
     "function acceptOwnership() external",
+  ],
+  "legacy signature compatibility",
+);
+requirePatterns(
+  contract,
+  [
+    [
+      "markActiveBatch(address[] calldata owners) external onlyOwner",
+      /function\s+markActiveBatch\s*\(\s*address\[\]\s+calldata\s+owners\s*\)\s+external\s+onlyOwner/,
+    ],
   ],
   "legacy signature compatibility",
 );
