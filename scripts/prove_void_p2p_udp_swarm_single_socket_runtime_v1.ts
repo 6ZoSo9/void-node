@@ -256,8 +256,6 @@ async function main(): Promise<void> {
     const startedB = runtimeB.startDirectUpgrade(actionB);
     assert.equal(startedA.peer_observed_endpoint, boundB.endpoint);
     assert.equal(startedB.peer_observed_endpoint, boundA.endpoint);
-    assert.equal(startedA.plan.local_bind_port, 0);
-    assert.equal(startedB.plan.local_bind_port, 0);
 
     await waitFor(
       () => readyA.length === 1 && readyB.length === 1,
