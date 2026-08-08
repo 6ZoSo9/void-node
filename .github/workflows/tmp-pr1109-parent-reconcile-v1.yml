@@ -1,0 +1,99 @@
+name: VOID PR1109 parent reconciliation v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tmp-pr1109-parent-reconcile-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/buy-void-production-live-canary-preflight-v1-20260808'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reconcile exact current parent and remove helper
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BRANCH='feat/buy-void-production-live-canary-preflight-v1-20260808'
+          PARENT_BRANCH='feat/buy-void-production-private-services-activation-v1-20260808'
+          EXPECTED_CHILD_HEAD='6728ffc5071b786161ba6fd2d8063625cef68e79'
+          EXPECTED_PARENT_HEAD='a0cb7c67085fe079bd2af943fcad55b930f4fd45'
+          EXPECTED_MERGE_BASE='33611e71ecf07b90dbb1a688cdf2439d6cf262e2'
+          HELPER='.github/workflows/tmp-pr1109-parent-reconcile-v1.yml'
+
+          CHILD_FILES=(
+            '.github/workflows/buy-void-production-live-canary-preflight-v1.yml'
+            'docs/operators/buy-void-production-live-canary-preflight-v1.md'
+            'scripts/prove_buy_void_production_live_canary_preflight_v1.ts'
+            'src/economic/buy_void_production_live_canary_preflight_v1.ts'
+          )
+          PARENT_FILES=(
+            '.github/workflows/buy-void-production-private-services-activation-v1.yml'
+            '.github/workflows/storage-readiness-route-stack-boundary-v1.yml'
+            'scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs'
+            'src/diag/patch_latest_number2_shim_v3.cjs'
+            'src/index.ts'
+          )
+
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_CHILD_HEAD"
+          test "$(git diff --name-only "$EXPECTED_CHILD_HEAD" HEAD)" = "$HELPER"
+
+          git fetch --no-tags origin "$PARENT_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_PARENT_HEAD"
+          test "$(git merge-base "$EXPECTED_CHILD_HEAD" "$EXPECTED_PARENT_HEAD")" = "$EXPECTED_MERGE_BASE"
+
+          actual_child_scope="$(git diff --name-only "$EXPECTED_MERGE_BASE" "$EXPECTED_CHILD_HEAD" | sort)"
+          expected_child_scope="$(printf '%s\n' "${CHILD_FILES[@]}" | sort)"
+          test "$actual_child_scope" = "$expected_child_scope"
+
+          actual_parent_scope="$(git diff --name-only "$EXPECTED_MERGE_BASE" "$EXPECTED_PARENT_HEAD" | sort)"
+          expected_parent_scope="$(printf '%s\n' "${PARENT_FILES[@]}" | sort)"
+          test "$actual_parent_scope" = "$expected_parent_scope"
+
+          declare -A CHILD_BLOBS
+          for f in "${CHILD_FILES[@]}"; do
+            CHILD_BLOBS["$f"]="$(git rev-parse "$EXPECTED_CHILD_HEAD:$f")"
+          done
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git merge --no-ff --no-commit "$EXPECTED_PARENT_HEAD"
+          git rm -- "$HELPER"
+
+          for f in "${CHILD_FILES[@]}"; do
+            test "$(git hash-object -- "$f")" = "${CHILD_BLOBS[$f]}"
+          done
+
+          final_scope="$(git diff --name-only "$EXPECTED_PARENT_HEAD" | sort)"
+          test "$final_scope" = "$expected_child_scope"
+          git diff --check "$EXPECTED_PARENT_HEAD"
+
+          git commit -m 'chore: reconcile PR1109 with current parent'
+
+          new_head="$(git rev-parse HEAD)"
+          parents="$(git show -s --format='%P' HEAD)"
+          first_parent="$(printf '%s\n' "$parents" | awk '{print $1}')"
+          second_parent="$(printf '%s\n' "$parents" | awk '{print $2}')"
+          test "$second_parent" = "$EXPECTED_PARENT_HEAD"
+          test "$(git rev-parse "$first_parent^")" = "$EXPECTED_CHILD_HEAD"
+
+          final_committed_scope="$(git diff --name-only "$EXPECTED_PARENT_HEAD" "$new_head" | sort)"
+          test "$final_committed_scope" = "$expected_child_scope"
+          test ! -e "$HELPER"
+
+          git push origin "HEAD:$BRANCH"
