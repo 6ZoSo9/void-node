@@ -82,6 +82,10 @@ function assertNoSideEffects(): void {
 }
 
 function assertBoundPolicy(value: any): void {
+  assert.equal(Object.isFrozen(value), true);
+  assert.equal(Object.isFrozen(value.custodian), true);
+  assert.equal(Object.isFrozen(value.broadcaster), true);
+  assert.equal(Object.isFrozen(value.broadcaster.rpc), true);
   assert.equal(value.custodian.socket_path, EXPECTED.custodian_socket_path);
   assert.equal(value.custodian.custody_store_dir, EXPECTED.custody_store_dir);
   assert.equal(
@@ -220,6 +224,7 @@ function makeDependencies(
     run_custodian_activation: (async (input: any) => {
       custodianStarts += 1;
       assert.notEqual(input.policy, policy.custodian);
+      assert.equal(Object.isFrozen(input.policy), true);
       assert.equal(input.policy.socket_path, EXPECTED.custodian_socket_path);
       assert.equal(input.policy.custody_store_dir, EXPECTED.custody_store_dir);
       assert.equal(
@@ -278,6 +283,8 @@ function makeDependencies(
     run_broadcaster_activation: (async (input: any) => {
       broadcasterStarts += 1;
       assert.notEqual(input.policy, policy.broadcaster);
+      assert.equal(Object.isFrozen(input.policy), true);
+      assert.equal(Object.isFrozen(input.policy.rpc), true);
       assert.equal(input.policy.socket_path, EXPECTED.broadcaster_socket_path);
       assert.equal(input.policy.custody_store_dir, EXPECTED.custody_store_dir);
       assert.equal(input.policy.state_dir, EXPECTED.broadcaster_state_dir);
@@ -668,6 +675,7 @@ console.log("separate_custodian_activation_confirmation_required=true");
 console.log("separate_broadcaster_activation_confirmation_required=true");
 console.log("component_confirmation_failures_before_side_effects=true");
 console.log("plan_derived_policy_snapshot_required=true");
+console.log("plan_derived_policy_snapshot_frozen=true");
 console.log("caller_policy_mutation_after_plan_derivation_escaped=false");
 console.log("unbound_rpc_transport_overrides_applied=false");
 console.log("rpc_readiness_required_before_service_start=true");
