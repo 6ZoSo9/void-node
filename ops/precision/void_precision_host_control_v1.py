@@ -21,7 +21,7 @@ VERSION = 1
 EXPECTED_HOST = "zoso-Precision-Tower-7810"
 OPERATOR_USER = "zoso"
 EXPECTED_OPERATOR_UID = 1000
-EXPECTED_SUDO_USER = "void-gh-runner"
+RUNNER_USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 
 CANONICAL_REPO = Path("/home/zoso/dev/void-node")
 UNIT = "void-node-live.service"
@@ -67,11 +67,10 @@ AUTHORITY = {
     "closed_operation_allowlist": True,
     "operations": [OP_INSPECT, OP_RELOAD],
     "exact_confirmation_required": True,
-    "main_ref_source_sha_required": True,
+    "main_source_sha_required": True,
     "binding_sha_required": True,
-    "dedicated_runner_user_required": True,
+    "sudoers_exact_caller_required": True,
     "root_owned_installed_helper_required": True,
-    "repository_checkout_required": False,
     "arbitrary_shell_input": False,
     "credential_read": False,
     "signer_access": False,
@@ -104,7 +103,7 @@ class ServiceSnapshot:
 
 
 class Backend:
-    """Minimal host boundary. Production CLI uses this exact implementation."""
+    """Minimal fixed-argv host boundary used by the installed root helper."""
 
     def __init__(self, operator_user: str = OPERATOR_USER) -> None:
         self.operator_user = operator_user
@@ -291,7 +290,9 @@ def exact_gate_values(paths: Iterable[str]) -> dict[str, list[str]]:
     return values
 
 
-def assert_money_gates_disabled(snapshot: ServiceSnapshot) -> dict[str, list[str]]:
+def assert_money_gates_disabled(
+    snapshot: ServiceSnapshot,
+) -> dict[str, list[str]]:
     values = exact_gate_values(snapshot.dropin_paths)
     for key, observed in values.items():
         if any(value.lower() in TRUTHY for value in observed):
@@ -390,7 +391,10 @@ def run_operation(
         raise Hold("void_node_sub_state_changed")
     if operation == OP_RELOAD and after.need_daemon_reload != "no":
         raise Hold("daemon_reload_not_recognized")
-    if operation == OP_RELOAD and str(BINDING_DROPIN) not in after.dropin_paths:
+    if (
+        operation == OP_RELOAD
+        and str(BINDING_DROPIN) not in after.dropin_paths
+    ):
         raise Hold("custodian_binding_dropin_not_recognized")
 
     return {
@@ -440,11 +444,12 @@ def production_entry(argv: Sequence[str]) -> int:
     if os.geteuid() != 0:
         print("HOLD: root helper execution required", file=sys.stderr)
         return 64
-    if os.environ.get("SUDO_USER") != EXPECTED_SUDO_USER:
-        print("HOLD: dedicated runner sudo caller required", file=sys.stderr)
+    sudo_user = str(os.environ.get("SUDO_USER") or "").strip()
+    if not RUNNER_USER.fullmatch(sudo_user) or sudo_user == "root":
+        print("HOLD: bounded runner sudo user required", file=sys.stderr)
         return 64
+    args = parse_args(argv)
     try:
-        args = parse_args(argv)
         result = run_operation(
             Backend(),
             operation=args.operation,
@@ -452,11 +457,26 @@ def production_entry(argv: Sequence[str]) -> int:
             expected_main_sha=args.expected_main_sha,
             expected_binding_sha256=args.expected_binding_sha256,
         )
-    except (Hold, KeyError, OSError, subprocess.SubprocessError) as error:
-        reason = re.sub(r"[^A-Za-z0-9_.:-]", "_", str(error))[:240]
-        print(f"HOLD: {reason}", file=sys.stderr)
-        return 75
-    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    except Hold as error:
+        print(
+            json.dumps(
+                {
+                    "marker": MARKER,
+                    "version": VERSION,
+                    "status": "held",
+                    "reason": str(error),
+                    "operation": args.operation,
+                    "service_restart": False,
+                    "credential_read": False,
+                    "rpc_call": False,
+                    "transaction_broadcast": False,
+                    "money_movement": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 65
+    print(json.dumps(result, sort_keys=True))
     return 0
 
 
