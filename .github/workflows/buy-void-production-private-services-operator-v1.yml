@@ -19,7 +19,9 @@ on:
       - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
       - "scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
   push:
-    branches: [main]
+    branches:
+      - main
+      - feat/buy-void-production-private-services-foreground-operator-v1-20260808
     paths:
       - ".github/workflows/buy-void-production-private-services-operator-v1.yml"
       - "docs/operators/buy-void-production-private-services-operator-v1.md"
