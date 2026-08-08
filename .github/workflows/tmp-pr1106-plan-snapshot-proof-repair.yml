@@ -1,0 +1,139 @@
+name: tmp-pr1106-plan-snapshot-proof-repair
+
+on:
+  push:
+    branches:
+      - feat/buy-void-production-private-services-activation-v1-20260808
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.head_commit.message == 'chore: stage PR #1106 plan snapshot proof repair'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify exact staging ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_parent='e5f2a9db7c9c4513587660546876031ccaba6399'
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          test "$(git diff --name-only HEAD^..HEAD)" = '.github/workflows/tmp-pr1106-plan-snapshot-proof-repair.yml'
+      - name: Patch proof and operator documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          proof_path = Path('scripts/prove_buy_void_production_private_services_activation_v1.ts')
+          docs_path = Path('docs/operators/buy-void-production-private-services-activation-v1.md')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          proof = proof_path.read_text()
+          proof = replace_once(
+              proof,
+              '''    custodian_stop_fails?: boolean;\n    broadcaster_stop_fails?: boolean;\n''',
+              '''    custodian_stop_fails?: boolean;\n    broadcaster_stop_fails?: boolean;\n    on_rpc_input?: (input: any) => void;\n    on_custodian_input?: (input: any) => void;\n    on_broadcaster_input?: (input: any) => void;\n''',
+              'proof callback option types',
+          )
+          proof = replace_once(
+              proof,
+              '''      assert.equal(input.expected_plan_id_sha256, dry.plan_id_sha256);\n      if (options.rpc === "held") {\n''',
+              '''      assert.equal(input.expected_plan_id_sha256, dry.plan_id_sha256);\n      options.on_rpc_input?.(input);\n      if (options.rpc === "held") {\n''',
+              'proof rpc callback',
+          )
+          proof = replace_once(
+              proof,
+              '''        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,\n      );\n      if (options.custodian === "held") {\n''',
+              '''        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,\n      );\n      options.on_custodian_input?.(input);\n      if (options.custodian === "held") {\n''',
+              'proof custodian callback',
+          )
+          proof = replace_once(
+              proof,
+              '''        VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,\n      );\n      if (options.broadcaster === "held") {\n''',
+              '''        VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,\n      );\n      options.on_broadcaster_input?.(input);\n      if (options.broadcaster === "held") {\n''',
+              'proof broadcaster callback',
+          )
+          proof = replace_once(
+              proof,
+              '''resetCounters();\nconst started = await runBuyVoidProductionPrivateServicesActivationV1(\n  authorizedInput,\n  makeDependencies(),\n);\n''',
+              '''resetCounters();\nconst mutableCallerPolicy: any = {\n  custodian: { ...policy.custodian },\n  broadcaster: {\n    ...policy.broadcaster,\n    rpc: { ...policy.broadcaster.rpc },\n  },\n};\nconst mutatedCustodianSocket =\n  "/run/void/buy-void/mutated-custodian.sock";\nconst mutatedBroadcasterSocket =\n  "/run/void/buy-void/mutated-broadcaster.sock";\nconst mutatedRpcUrl = "http://127.0.0.1:9545/";\nlet observedCustodianSocket = "";\nlet observedBroadcasterSocket = "";\nlet observedBroadcasterRpcUrl = "";\nconst snapshotBound =\n  await runBuyVoidProductionPrivateServicesActivationV1(\n    { ...authorizedInput, policy: mutableCallerPolicy },\n    makeDependencies({\n      on_rpc_input(input: any) {\n        assert.notEqual(input.policy, mutableCallerPolicy);\n        assert.equal(Object.isFrozen(input.policy), true);\n        assert.equal(Object.isFrozen(input.policy.custodian), true);\n        assert.equal(Object.isFrozen(input.policy.broadcaster), true);\n        assert.equal(Object.isFrozen(input.policy.broadcaster.rpc), true);\n        assert.equal(\n          input.policy.custodian.socket_path,\n          policy.custodian.socket_path,\n        );\n        assert.equal(\n          input.policy.broadcaster.socket_path,\n          policy.broadcaster.socket_path,\n        );\n        assert.equal(\n          input.policy.broadcaster.rpc.rpc_url,\n          policy.broadcaster.rpc.rpc_url,\n        );\n        mutableCallerPolicy.custodian.socket_path = mutatedCustodianSocket;\n        mutableCallerPolicy.broadcaster.socket_path = mutatedBroadcasterSocket;\n        mutableCallerPolicy.broadcaster.rpc.rpc_url = mutatedRpcUrl;\n      },\n      on_custodian_input(input: any) {\n        observedCustodianSocket = input.policy.socket_path;\n      },\n      on_broadcaster_input(input: any) {\n        observedBroadcasterSocket = input.policy.socket_path;\n        observedBroadcasterRpcUrl = input.policy.rpc.rpc_url;\n      },\n    }),\n  );\nassert.equal(snapshotBound.ok, true);\nassert.equal(snapshotBound.status, "started");\nassert.equal(mutableCallerPolicy.custodian.socket_path, mutatedCustodianSocket);\nassert.equal(mutableCallerPolicy.broadcaster.socket_path, mutatedBroadcasterSocket);\nassert.equal(mutableCallerPolicy.broadcaster.rpc.rpc_url, mutatedRpcUrl);\nassert.equal(observedCustodianSocket, policy.custodian.socket_path);\nassert.equal(observedBroadcasterSocket, policy.broadcaster.socket_path);\nassert.equal(observedBroadcasterRpcUrl, policy.broadcaster.rpc.rpc_url);\nassert.equal(readinessCalls, 1);\nassert.equal(custodianStarts, 1);\nassert.equal(broadcasterStarts, 1);\nassert.equal(custodianStops, 0);\nassert.equal(broadcasterStops, 0);\n\nresetCounters();\nconst started = await runBuyVoidProductionPrivateServicesActivationV1(\n  authorizedInput,\n  makeDependencies(),\n);\n''',
+              'proof immutable plan snapshot case',
+          )
+          proof = replace_once(
+              proof,
+              '''assert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .read_only_rpc_probe_before_service_start,\n  true,\n);\n''',
+              '''assert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .plan_derived_policy_snapshot_required,\n  true,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .plan_derived_policy_snapshot_revalidated,\n  true,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .caller_policy_reused_after_plan_derivation,\n  false,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .unbound_rpc_transport_overrides_applied,\n  false,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1\n    .read_only_rpc_probe_before_service_start,\n  true,\n);\n''',
+              'proof immutable snapshot authority assertions',
+          )
+          proof = replace_once(
+              proof,
+              '''console.log("component_confirmation_failures_before_side_effects=true");\nconsole.log("rpc_readiness_required_before_service_start=true");\n''',
+              '''console.log("component_confirmation_failures_before_side_effects=true");\nconsole.log("plan_derived_policy_snapshot_required=true");\nconsole.log("plan_derived_policy_snapshot_revalidated=true");\nconsole.log("caller_policy_reused_after_plan_derivation=false");\nconsole.log("caller_policy_mutation_changes_activation_targets=false");\nconsole.log("rpc_readiness_required_before_service_start=true");\n''',
+              'proof immutable snapshot markers',
+          )
+          proof_path.write_text(proof)
+
+          docs = docs_path.read_text()
+          docs = replace_once(
+              docs,
+              '''The separate real-transaction confirmation\n`buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1` is not accepted or used by\nthis coordinator. Real submission remains a later independent authority gate.\n\n## Partial-start rollback\n''',
+              '''The separate real-transaction confirmation\n`buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1` is not accepted or used by\nthis coordinator. Real submission remains a later independent authority gate.\n\n## Immutable validated-plan policy\n\nAfter the exact plan ID and all independent confirmation echoes pass, the\ncoordinator derives a new frozen activation policy only from normalized values\ncarried by that validated plan. It re-runs the production plan validator over\nthe frozen snapshot and requires the plan ID, RPC fingerprint, and signer\nfingerprint to remain exact.\n\nRPC readiness, custodian activation, and broadcaster activation consume that\nplan-derived snapshot rather than re-reading the caller's original policy\nobject. A caller therefore cannot mutate its policy while an asynchronous\nreadiness probe is in flight and retarget a later Unix socket, custody/state or\ncredential path, signer binding, or RPC endpoint after the plan was confirmed.\n\n## Partial-start rollback\n''',
+              'docs immutable plan policy section',
+          )
+          docs = replace_once(
+              docs,
+              '''- exact forwarding of each independent confirmation to its existing primitive;\n- RPC readiness failure before either service starts;\n''',
+              '''- exact forwarding of each independent confirmation to its existing primitive;\n- caller-policy mutation after plan confirmation cannot change any downstream\n  activation target;\n- RPC readiness failure before either service starts;\n''',
+              'docs immutable snapshot proof bullet',
+          )
+          docs_path.write_text(docs)
+          PY
+      - name: Verify focused and broad compiler walls
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx tsx scripts/prove_buy_void_production_private_services_activation_v1.ts
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_*.ts
+          npm run typecheck
+          npm run build
+          git diff --check
+      - name: Commit proof and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            scripts/prove_buy_void_production_private_services_activation_v1.ts \
+            docs/operators/buy-void-production-private-services-activation-v1.md
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git diff --cached --check
+          git commit -m 'test: prove immutable Buy VOID activation plan policy v1'
+          git push origin HEAD:feat/buy-void-production-private-services-activation-v1-20260808
