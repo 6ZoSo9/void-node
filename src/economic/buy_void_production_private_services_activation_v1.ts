@@ -43,6 +43,10 @@ export const VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 =
   coordinator_confirmation_does_not_substitute_component_authority: true,
   all_component_confirmations_checked_before_side_effects: true,
   production_activation_plan_revalidated: true,
+  plan_derived_policy_snapshot_required: true,
+  plan_derived_policy_snapshot_revalidated: true,
+  caller_policy_reused_after_plan_derivation: false,
+  unbound_rpc_transport_overrides_applied: false,
   production_rpc_readiness_required: true,
   read_only_rpc_probe_before_service_start: true,
   custodian_started_before_broadcaster: true,
@@ -385,6 +389,49 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
     });
   }
 
+  const boundPolicy: Readonly<BuyVoidProductionActivationPlanPolicyV1> =
+    Object.freeze({
+      custodian: Object.freeze({
+        socket_path: plan.custodian_socket_path,
+        custody_store_dir: plan.custody_store_dir,
+        credentials_directory: plan.credentials_directory,
+        expected_wallet_address: plan.expected_wallet_address,
+      }),
+      broadcaster: Object.freeze({
+        socket_path: plan.broadcaster_socket_path,
+        custody_store_dir: plan.custody_store_dir,
+        state_dir: plan.broadcaster_state_dir,
+        expected_signer_fingerprint_sha256:
+          plan.expected_signer_fingerprint_sha256,
+        rpc: Object.freeze({
+          rpc_url: plan.rpc_url,
+          expected_chain_id: 2050,
+        }),
+      }),
+    });
+
+  const boundPlan = createBuyVoidProductionActivationPlanV1(boundPolicy);
+  if (boundPlan.ok === false) {
+    return held({
+      applied: true,
+      reason: "production_private_services_activation_plan_snapshot_invalid",
+      plan_id_sha256: plan.plan_id_sha256,
+    });
+  }
+  if (
+    boundPlan.plan_id_sha256 !== plan.plan_id_sha256 ||
+    boundPlan.rpc_url_fingerprint_sha256 !==
+      plan.rpc_url_fingerprint_sha256 ||
+    boundPlan.expected_signer_fingerprint_sha256 !==
+      plan.expected_signer_fingerprint_sha256
+  ) {
+    return held({
+      applied: true,
+      reason: "production_private_services_activation_plan_snapshot_mismatch",
+      plan_id_sha256: plan.plan_id_sha256,
+    });
+  }
+
   const runReadiness =
     dependencies.run_rpc_readiness || runBuyVoidProductionRpcReadinessV1;
 
@@ -392,7 +439,7 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
   try {
     readiness = await runReadiness(
       {
-        policy: input.policy,
+        policy: boundPolicy,
         apply: true,
         confirmation: input.rpc_readiness_confirmation,
         expected_plan_id_sha256: plan.plan_id_sha256,
@@ -451,7 +498,7 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
   try {
     custodian = await runCustodian(
       {
-        policy: input.policy.custodian,
+        policy: boundPolicy.custodian,
         apply: true,
         confirmation: input.custodian_activation_confirmation,
       },
@@ -521,7 +568,7 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
   try {
     broadcaster = await runBroadcaster(
       {
-        policy: input.policy.broadcaster,
+        policy: boundPolicy.broadcaster,
         apply: true,
         confirmation: input.broadcaster_activation_confirmation,
       },
