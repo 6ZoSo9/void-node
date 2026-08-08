@@ -7,68 +7,12 @@ on:
       - .github/workflows/tmp-pr1110-chain2050-result-boundary-runner-v1.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   run-bounded-helper:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'fix/buy-void-chain2050-transport-result-boundary-v1-20260808'
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
     steps:
-      - name: Checkout exact PR head
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Execute bounded helper and remove both transient workflows
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          helper = Path('.github/workflows/tmp-pr1110-chain2050-result-boundary-apply-v1.yml')
-          runner = '.github/workflows/tmp-pr1110-chain2050-result-boundary-runner-v1.yml'
-          lines = helper.read_text().splitlines()
-          marker = '        run: |'
-          starts = [i for i, line in enumerate(lines) if line == marker]
-          if len(starts) != 1:
-              raise SystemExit('HOLD: helper run block not uniquely found')
-          body = lines[starts[0] + 1:]
-          if not body or any(line and not line.startswith('          ') for line in body):
-              raise SystemExit('HOLD: helper run block indentation changed')
-          script = '\n'.join(
-              line[10:] if line.startswith('          ') else ''
-              for line in body
-          ) + '\n'
-
-          old_parent = 'test "$(git rev-parse HEAD^)" = "$BASE"'
-          new_parent = 'test "$(git rev-parse HEAD^^)" = "$BASE"'
-          old_scope = 'test "$(git diff --name-only "$BASE" HEAD)" = "$HELPER"'
-          new_scope = '''expected_transient="$(printf '%s\\n' "$HELPER" "''' + runner + '''" | sort)"
-          actual_transient="$(git diff --name-only "$BASE" HEAD | sort)"
-          test "$actual_transient" = "$expected_transient"'''
-          old_remove = 'git rm -- "$HELPER"'
-          new_remove = 'git rm -- "$HELPER" "' + runner + '"'
-
-          for old, new, label in [
-              (old_parent, new_parent, 'parent'),
-              (old_scope, new_scope, 'transient scope'),
-              (old_remove, new_remove, 'transient removal'),
-          ]:
-              if script.count(old) != 1:
-                  raise SystemExit(f'HOLD: helper {label} anchor mismatch')
-              script = script.replace(old, new, 1)
-
-          Path('/tmp/pr1110-bounded-helper.sh').write_text(script)
-          PY
-          bash /tmp/pr1110-bounded-helper.sh
+      - name: Disabled while read-only diagnostics run
+        run: echo 'transient writer disabled'
