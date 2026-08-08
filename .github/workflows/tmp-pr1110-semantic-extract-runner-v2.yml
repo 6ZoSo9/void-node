@@ -1,0 +1,107 @@
+name: VOID PR1110 semantic extract runner v2
+
+on:
+  push:
+    branches:
+      - fix/buy-void-chain2050-transport-result-boundary-v1-20260808
+    paths:
+      - .github/workflows/tmp-pr1110-semantic-extract-runner-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish-clean-semantic-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact staging head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Reconstruct, prove, and publish exact semantic patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          BASE='7d2ea5a633b29d08432190543e2ff2d5a82ed082'
+          STAGING='fix/buy-void-chain2050-transport-result-boundary-v1-20260808'
+          SEMANTIC='fix/buy-void-chain2050-transport-result-boundary-semantic-v1-20260808'
+          HELPER='.github/workflows/tmp-pr1110-chain2050-result-boundary-apply-v1.yml'
+          SOURCE='src/economic/buy_void_native_chain2050_broadcaster_v1.ts'
+          PROOF='scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts'
+          GUARD='scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts'
+
+          test "$GITHUB_REF_NAME" = "$STAGING"
+          test -f "$HELPER"
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-parse "$BASE:$SOURCE")" = '6bb2912ee0e89839bf83ce6663234614a756518c'
+          test "$(git rev-parse "$BASE:$PROOF")" = 'b2a83e37ece3550d6f351290eff0e938940b8c7c'
+          test "$(git rev-parse "$BASE:$GUARD")" = 'fe9b7edea8c94be9df68cd85595ac9f0d242eda0'
+
+          cp -- "$HELPER" /tmp/pr1110-apply-helper.yml
+          git checkout --detach "$BASE"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          helper = Path('/tmp/pr1110-apply-helper.yml').read_text().splitlines()
+          start_marker = "          python3 - <<'PY'"
+          end_marker = "          PY"
+          try:
+              start = helper.index(start_marker) + 1
+              end = helper.index(end_marker, start)
+          except ValueError as exc:
+              raise SystemExit(f'HOLD: helper python markers missing: {exc}')
+
+          body = helper[start:end]
+          prefix = '          '
+          if any(line and not line.startswith(prefix) for line in body):
+              raise SystemExit('HOLD: helper python indentation drift')
+          code = '\n'.join(line[len(prefix):] if line.startswith(prefix) else '' for line in body) + '\n'
+          Path('/tmp/pr1110-apply.py').write_text(code)
+          PY
+
+          python3 /tmp/pr1110-apply.py
+          git diff --check
+
+          mapfile -t changed < <(git diff --name-only | sort)
+          expected=(
+            'scripts/prove_buy_void_native_chain2050_broadcaster_guard_v1.ts'
+            'scripts/prove_buy_void_native_chain2050_broadcaster_v1.ts'
+            'src/economic/buy_void_native_chain2050_broadcaster_v1.ts'
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do
+            test "${changed[$i]}" = "${expected[$i]}"
+          done
+
+          npm ci
+          npx tsx "$PROOF"
+          npx tsx "$GUARD"
+          npm run typecheck
+          npm run build
+
+          if git ls-remote --exit-code --heads origin "$SEMANTIC" >/dev/null 2>&1; then
+            echo "HOLD: semantic branch already exists: $SEMANTIC"
+            exit 1
+          fi
+
+          git switch -c "$SEMANTIC"
+          git add -- "$SOURCE" "$PROOF" "$GUARD"
+          test "$(git diff --cached --name-only | sort)" = "$(printf '%s\n' "${expected[@]}")"
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'fix: fail closed on malformed chain2050 transport results'
+          git push origin "HEAD:refs/heads/$SEMANTIC"
