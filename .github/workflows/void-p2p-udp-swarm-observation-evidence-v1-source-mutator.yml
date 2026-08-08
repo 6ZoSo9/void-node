@@ -1,0 +1,135 @@
+name: VOID P2P UDP swarm observation evidence v1 source mutator
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-observation-evidence-v1-source-mutator.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  mutate-and-prove:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Guard exact parent and temporary-only scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE='0171515ea4d884bb1467d912aa711919cf47e1b1'
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-list --count "$BASE"..HEAD)" -eq 1
+          test "$(git diff --name-only "$BASE"..HEAD)" = '.github/workflows/void-p2p-udp-swarm-observation-evidence-v1-source-mutator.yml'
+          test "$(git status --porcelain)" = ''
+
+      - name: Apply exact stable-observation evidence handoff
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path: str, edits: list[tuple[str, str, str]]) -> None:
+              p = Path(path)
+              s = p.read_text()
+              for old, new, label in edits:
+                  count = s.count(old)
+                  if count != 1:
+                      raise SystemExit(f'HOLD: {path} {label} anchor count={count}')
+                  s = s.replace(old, new, 1)
+              p.write_text(s)
+
+          patch('src/p2p/udp_swarm_control_v1.ts', [
+              (
+                  '  VoidUdpRendezvousStateV1,\n',
+                  '  VOID_P2P_UDP_RENDEZVOUS_MAX_PROBES_PER_TICKET_V1,\n  VoidUdpRendezvousStateV1,\n',
+                  'rendezvous max probe import',
+              ),
+              (
+                  '''  local_observed_endpoint: string;\n  peer_observed_endpoint: string;\n  start_delay_ms: number;\n''',
+                  '''  local_observed_endpoint: string;\n  peer_observed_endpoint: string;\n  local_observation: VoidUdpRendezvousObservationV1;\n  peer_observation: VoidUdpRendezvousObservationV1;\n  start_delay_ms: number;\n''',
+                  'offer evidence fields',
+              ),
+              (
+                  '''function normalizedEndpoint(raw: unknown, allowNonPublic: boolean): string | undefined {\n  return normalizeVoidUdpObservedEndpointV1(raw, allowNonPublic);\n}\n\nexport function normalizeVoidUdpSwarmControlMessageV1(\n''',
+                  '''function normalizedEndpoint(raw: unknown, allowNonPublic: boolean): string | undefined {\n  return normalizeVoidUdpObservedEndpointV1(raw, allowNonPublic);\n}\n\nfunction normalizedStableObservation(\n  raw: unknown,\n  allowNonPublicEndpoint: boolean,\n): VoidUdpRendezvousObservationV1 | undefined {\n  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;\n  const value = raw as Record<string, unknown>;\n  if (!exactKeys(value, [\n    "ticket_id",\n    "node_id",\n    "observed_endpoint",\n    "first_seen_ms",\n    "last_seen_ms",\n    "probe_count",\n    "stable_same_rendezvous",\n    "mapping_conflicted",\n  ])) return;\n  const ticket_id = idValue(value.ticket_id);\n  const node_id = nodeId(value.node_id);\n  const observed_endpoint = normalizedEndpoint(\n    value.observed_endpoint,\n    allowNonPublicEndpoint,\n  );\n  const first_seen_ms = safeInteger(value.first_seen_ms, 0, Number.MAX_SAFE_INTEGER);\n  const last_seen_ms = safeInteger(value.last_seen_ms, 0, Number.MAX_SAFE_INTEGER);\n  const probe_count = safeInteger(\n    value.probe_count,\n    2,\n    VOID_P2P_UDP_RENDEZVOUS_MAX_PROBES_PER_TICKET_V1,\n  );\n  if (\n    !ticket_id ||\n    !node_id ||\n    !observed_endpoint ||\n    first_seen_ms === undefined ||\n    last_seen_ms === undefined ||\n    last_seen_ms < first_seen_ms ||\n    probe_count === undefined ||\n    value.stable_same_rendezvous !== true ||\n    value.mapping_conflicted !== false\n  ) return;\n  return Object.freeze({\n    ticket_id,\n    node_id,\n    observed_endpoint,\n    first_seen_ms,\n    last_seen_ms,\n    probe_count,\n    stable_same_rendezvous: true,\n    mapping_conflicted: false,\n  });\n}\n\nexport function normalizeVoidUdpSwarmControlMessageV1(\n''',
+                  'stable observation normalizer',
+              ),
+              (
+                  '''      "local_observed_endpoint", "peer_observed_endpoint", "start_delay_ms",\n      "attempt_timeout_ms",\n''',
+                  '''      "local_observed_endpoint", "peer_observed_endpoint", "local_observation",\n      "peer_observation", "start_delay_ms", "attempt_timeout_ms",\n''',
+                  'offer exact keys',
+              ),
+              (
+                  '''    const start_delay_ms = safeInteger(value.start_delay_ms, 25, 2_000);\n    const attempt_timeout_ms = safeInteger(value.attempt_timeout_ms, 1, 10_000);\n    if (!request_id || !session_id || !stream_id || !peer_node_id ||\n        !local_observed_endpoint || !peer_observed_endpoint ||\n        start_delay_ms === undefined || attempt_timeout_ms === undefined) return;\n    return Object.freeze({\n      type, protocol: 1, request_id, session_id, stream_id, peer_node_id,\n      local_observed_endpoint, peer_observed_endpoint, start_delay_ms,\n      attempt_timeout_ms,\n    });\n''',
+                  '''    const local_observation = normalizedStableObservation(\n      value.local_observation,\n      allowNonPublicEndpoint,\n    );\n    const peer_observation = normalizedStableObservation(\n      value.peer_observation,\n      allowNonPublicEndpoint,\n    );\n    const start_delay_ms = safeInteger(value.start_delay_ms, 25, 2_000);\n    const attempt_timeout_ms = safeInteger(value.attempt_timeout_ms, 1, 10_000);\n    if (!request_id || !session_id || !stream_id || !peer_node_id ||\n        !local_observed_endpoint || !peer_observed_endpoint ||\n        !local_observation || !peer_observation ||\n        peer_observation.node_id !== peer_node_id ||\n        local_observation.node_id === peer_node_id ||\n        local_observation.ticket_id === peer_observation.ticket_id ||\n        local_observation.observed_endpoint !== local_observed_endpoint ||\n        peer_observation.observed_endpoint !== peer_observed_endpoint ||\n        start_delay_ms === undefined || attempt_timeout_ms === undefined) return;\n    return Object.freeze({\n      type, protocol: 1, request_id, session_id, stream_id, peer_node_id,\n      local_observed_endpoint, peer_observed_endpoint,\n      local_observation, peer_observation, start_delay_ms, attempt_timeout_ms,\n    });\n''',
+                  'offer evidence normalization',
+              ),
+              (
+                  '''    const sourceOffer = this.offerMessage(\n      session,\n      session.target_node_id,\n      source.observed_endpoint,\n      target.observed_endpoint,\n    );\n    const targetOffer = this.offerMessage(\n      session,\n      session.source_node_id,\n      target.observed_endpoint,\n      source.observed_endpoint,\n    );\n''',
+                  '''    const sourceOffer = this.offerMessage(\n      session,\n      session.target_node_id,\n      source,\n      target,\n    );\n    const targetOffer = this.offerMessage(\n      session,\n      session.source_node_id,\n      target,\n      source,\n    );\n''',
+                  'offer evidence source',
+              ),
+              (
+                  '''  private offerMessage(\n    session: MutableSessionV1,\n    peerNodeId: string,\n    localObservedEndpoint: string,\n    peerObservedEndpoint: string,\n  ): VoidUdpSwarmUpgradeOfferV1 {\n''',
+                  '''  private offerMessage(\n    session: MutableSessionV1,\n    peerNodeId: string,\n    localObservation: VoidUdpRendezvousObservationV1,\n    peerObservation: VoidUdpRendezvousObservationV1,\n  ): VoidUdpSwarmUpgradeOfferV1 {\n''',
+                  'offer signature',
+              ),
+              (
+                  '''      peer_node_id: peerNodeId,\n      local_observed_endpoint: localObservedEndpoint,\n      peer_observed_endpoint: peerObservedEndpoint,\n      start_delay_ms: VOID_P2P_UDP_SWARM_CONTROL_DEFAULT_START_DELAY_MS_V1,\n''',
+                  '''      peer_node_id: peerNodeId,\n      local_observed_endpoint: localObservation.observed_endpoint,\n      peer_observed_endpoint: peerObservation.observed_endpoint,\n      local_observation: localObservation,\n      peer_observation: peerObservation,\n      start_delay_ms: VOID_P2P_UDP_SWARM_CONTROL_DEFAULT_START_DELAY_MS_V1,\n''',
+                  'offer evidence message',
+              ),
+          ])
+
+          patch('src/p2p/udp_swarm_authenticated_control_adapter_v1.ts', [
+              (
+                  '''  offer_exact_session_binding_required: true,\n  node_core_mount_performed: false,\n''',
+                  '''  offer_exact_session_binding_required: true,\n  offer_exact_rendezvous_evidence_required: true,\n  local_ticket_evidence_binding_required: true,\n  synthetic_rendezvous_observation_allowed: false,\n  node_core_mount_performed: false,\n''',
+                  'authority evidence flags',
+              ),
+              (
+                  '''      if (route.expires_at_ms <= nowMs) {\n        this.removeRoute(route.session_id);\n        throw new Error("UDP swarm authenticated control adapter offer route expired");\n      }\n''',
+                  '''      if (\n        message.local_observation.ticket_id !== route.ticket_id ||\n        message.local_observation.node_id !== this.options.localNodeId ||\n        message.peer_observation.node_id !== route.peer_node_id ||\n        message.local_observation.observed_endpoint !== message.local_observed_endpoint ||\n        message.peer_observation.observed_endpoint !== message.peer_observed_endpoint ||\n        message.local_observation.last_seen_ms >= route.expires_at_ms ||\n        message.peer_observation.last_seen_ms >= route.expires_at_ms\n      ) {\n        throw new Error(\n          "UDP swarm authenticated control adapter offer rendezvous evidence binding mismatch",\n        );\n      }\n      if (route.expires_at_ms <= nowMs) {\n        this.removeRoute(route.session_id);\n        throw new Error("UDP swarm authenticated control adapter offer route expired");\n      }\n''',
+                  'offer route evidence binding',
+              ),
+          ])
+          PY
+
+          git diff --check
+          grep -q 'local_observation: VoidUdpRendezvousObservationV1' src/p2p/udp_swarm_control_v1.ts
+          grep -q 'synthetic_rendezvous_observation_allowed: false' src/p2p/udp_swarm_authenticated_control_adapter_v1.ts
+
+      - name: Prove existing UDP swarm stack and compile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_control_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --check
+
+      - name: Commit source and self-remove workflow
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/p2p/udp_swarm_control_v1.ts src/p2p/udp_swarm_authenticated_control_adapter_v1.ts
+          git commit -m 'feat: preserve exact UDP swarm rendezvous evidence v1'
+          git rm .github/workflows/void-p2p-udp-swarm-observation-evidence-v1-source-mutator.yml
+          git commit -m 'ci: remove UDP swarm observation evidence source mutator'
+          git push origin "HEAD:${BRANCH}"
