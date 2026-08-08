@@ -122,10 +122,6 @@ export type BuyVoidProductionRpcReadinessDecisionV1 =
       authority: typeof VOID_BUY_VOID_PRODUCTION_RPC_READINESS_AUTHORITY_V1;
     };
 
-function text(value: unknown): string {
-  return String(value ?? "").trim();
-}
-
 function held(
   applied: boolean,
   reason: string,
@@ -159,7 +155,7 @@ export async function runBuyVoidProductionRpcReadinessV1(
 
   if (
     apply &&
-    text(input?.confirmation) !==
+    input?.confirmation !==
       VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1
   ) {
     return held(true, "production_rpc_readiness_confirmation_required");
@@ -213,8 +209,9 @@ export async function runBuyVoidProductionRpcReadinessV1(
     };
   }
 
-  const expectedPlanId = text(input?.expected_plan_id_sha256).toLowerCase();
+  const expectedPlanId = input?.expected_plan_id_sha256;
   if (
+    typeof expectedPlanId !== "string" ||
     !SHA256.test(expectedPlanId) ||
     expectedPlanId !== plan.plan_id_sha256
   ) {
