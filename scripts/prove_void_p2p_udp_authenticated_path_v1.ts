@@ -5,10 +5,13 @@ import * as dgram from "node:dgram";
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
   VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1,
+  VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+  VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
   createVoidUdpAuthenticatedPathHelloV1,
   createVoidUdpAuthenticatedPathProofV1,
   decodeVoidUdpAuthenticatedPathPacketV1,
   encodeVoidUdpAuthenticatedPathPacketV1,
+  normalizeVoidUdpAuthenticatedPathHelloV1,
   normalizeVoidUdpAuthenticatedPathProofV1,
   verifyVoidUdpAuthenticatedPathProofV1,
   type VoidUdpAuthenticatedPathPacketV1,
@@ -120,6 +123,38 @@ async function main(): Promise<void> {
       challenge: "b".repeat(64),
     });
 
+    assert.equal(
+      helloA.identity_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+    );
+    assert.equal(
+      helloA.signature_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
+    );
+    assert.equal(
+      helloB.identity_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+    );
+    assert.equal(
+      helloB.signature_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
+    );
+
+    assert.equal(
+      normalizeVoidUdpAuthenticatedPathHelloV1({
+        ...helloA,
+        identity_algorithm: "ml-dsa-65",
+      }),
+      undefined,
+    );
+    assert.equal(
+      normalizeVoidUdpAuthenticatedPathHelloV1({
+        ...helloA,
+        signature_algorithm: "ml-dsa-65",
+      }),
+      undefined,
+    );
+
     const helloAtA = receiveOne(
       socketA,
       (packet) =>
@@ -164,12 +199,35 @@ async function main(): Promise<void> {
       allowNonPublicEndpoints: true,
     });
 
+    assert.equal(
+      proofA.identity_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_IDENTITY_ALGORITHM_V1,
+    );
+    assert.equal(
+      proofA.signature_algorithm,
+      VOID_P2P_UDP_AUTHENTICATED_PATH_SIGNATURE_ALGORITHM_V1,
+    );
+
     // Production normalization rejects the loopback fixture; only the explicit
     // proof override permits it.
     assert.equal(normalizeVoidUdpAuthenticatedPathProofV1(proofA), undefined);
     assert.deepEqual(
       normalizeVoidUdpAuthenticatedPathProofV1(proofA, true),
       proofA,
+    );
+    assert.equal(
+      normalizeVoidUdpAuthenticatedPathProofV1(
+        { ...proofA, identity_algorithm: "ml-dsa-65" },
+        true,
+      ),
+      undefined,
+    );
+    assert.equal(
+      normalizeVoidUdpAuthenticatedPathProofV1(
+        { ...proofA, signature_algorithm: "ml-dsa-65" },
+        true,
+      ),
+      undefined,
     );
 
     const proofAtA = receiveOne(
@@ -215,6 +273,29 @@ async function main(): Promise<void> {
     });
     assert.deepEqual(verifiedA, proofA);
     assert.deepEqual(verifiedB, proofB);
+
+    assert.equal(
+      verifyVoidUdpAuthenticatedPathProofV1({
+        rawProof: { ...proofA, identity_algorithm: "ml-dsa-65" },
+        expectedRemoteHello: helloA,
+        localHello: helloB,
+        expectedRemoteObservedEndpoint: endpointA,
+        localObservedEndpoint: endpointB,
+        allowNonPublicEndpoints: true,
+      }),
+      undefined,
+    );
+    assert.equal(
+      verifyVoidUdpAuthenticatedPathProofV1({
+        rawProof: { ...proofA, signature_algorithm: "ml-dsa-65" },
+        expectedRemoteHello: helloA,
+        localHello: helloB,
+        expectedRemoteObservedEndpoint: endpointA,
+        localObservedEndpoint: endpointB,
+        allowNonPublicEndpoints: true,
+      }),
+      undefined,
+    );
 
     const wrongKeyProofA = createVoidUdpAuthenticatedPathProofV1({
       localHello: helloA,
@@ -281,6 +362,26 @@ async function main(): Promise<void> {
       true,
     );
     assert.equal(
+      VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.identity_algorithm_explicit,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.signature_algorithm_explicit,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.algorithm_confusion_rejected,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.crypto_agility_extension_point_explicit,
+      true,
+    );
+    assert.equal(
+      VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.quantum_safe_claimed,
+      false,
+    );
+    assert.equal(
       VOID_P2P_UDP_AUTHENTICATED_PATH_AUTHORITY_V1.mutual_fresh_challenges_required,
       true,
     );
@@ -307,6 +408,11 @@ async function main(): Promise<void> {
 
     console.log("real_udp_socket_exchange_proven=true");
     console.log("void_ed25519_identity_required=true");
+    console.log("identity_algorithm_explicit=true");
+    console.log("signature_algorithm_explicit=true");
+    console.log("algorithm_confusion_accepted=false");
+    console.log("crypto_agility_extension_point_explicit=true");
+    console.log("quantum_safe_claimed=false");
     console.log("node_id_public_key_binding_required=true");
     console.log("mutual_fresh_challenges_required=true");
     console.log("exact_session_binding_required=true");
