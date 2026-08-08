@@ -1,0 +1,59 @@
+name: VOID P2P verified peer cache reconnect v1
+
+on:
+  pull_request:
+    paths:
+      - "src/node_core.ts"
+      - "src/p2p/verified_peer_cache_v1.ts"
+      - "scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts"
+      - "docs/public/void-p2p-verified-peer-cache-reconnect-v1.md"
+      - ".github/workflows/void-p2p-verified-peer-cache-reconnect-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-verified-peer-cache-reconnect-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prove verified peer cache and reconnect
+        run: npx --no-install tsx scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts
+
+      - name: Preserve authenticated peer identity proof
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_identity_v1.ts
+
+      - name: Preserve multipath address proof
+        run: npx --no-install tsx scripts/prove_void_p2p_multipath_address_v1.ts
+
+      - name: Diff hygiene
+        run: git diff --check
