@@ -1,0 +1,130 @@
+name: VOID P2P UDP swarm single-socket runtime v1 source mutator
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-single-socket-runtime-v1-source-mutator.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  mutate-and-prove:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Guard exact parent and temporary-only scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE='3da7e1c88e5cfb1452ef9b8e44bcbab01293e6f6'
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-list --count "$BASE"..HEAD)" -eq 1
+          test "$(git diff --name-only "$BASE"..HEAD)" = '.github/workflows/void-p2p-udp-swarm-single-socket-runtime-v1-source-mutator.yml'
+          test "$(git status --porcelain)" = ''
+
+      - name: Apply exact bounded UDP payload and timing prerequisites
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path: str, edits: list[tuple[str, str, str]]) -> None:
+              p = Path(path)
+              s = p.read_text()
+              for old, new, label in edits:
+                  count = s.count(old)
+                  if count != 1:
+                      raise SystemExit(f'HOLD: {path} {label} anchor count={count}')
+                  s = s.replace(old, new, 1)
+              p.write_text(s)
+
+          patch('src/p2p/udp_peer_socket_adapter_v1.ts', [
+              (
+                  '''  bounded_retransmission_required: true,\n  transport_exhaustion_fails_closed: true,\n''',
+                  '''  bounded_retransmission_required: true,\n  configurable_secure_payload_chunk_bytes: true,\n  transport_exhaustion_fails_closed: true,\n''',
+                  'authority chunking flag',
+              ),
+              (
+                  '''  maxQueuedBytes?: number;\n}>;\n''',
+                  '''  maxQueuedBytes?: number;\n  maxPayloadBytes?: number;\n}>;\n''',
+                  'adapter option',
+              ),
+              (
+                  '''  private readonly maxQueuedBytes: number;\n  private readonly pollMs: number;\n''',
+                  '''  private readonly maxQueuedBytes: number;\n  private readonly maxPayloadBytes: number;\n  private readonly pollMs: number;\n''',
+                  'adapter field',
+              ),
+              (
+                  '''    this.pollMs = boundedInteger(\n      options.retransmitPollMs,\n''',
+                  '''    this.maxPayloadBytes = boundedInteger(\n      options.maxPayloadBytes,\n      VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,\n      1,\n      VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,\n    );\n    this.pollMs = boundedInteger(\n      options.retransmitPollMs,\n''',
+                  'adapter payload init',
+              ),
+              (
+                  '''      offset += VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1\n''',
+                  '''      offset += this.maxPayloadBytes\n''',
+                  'chunk stride',
+              ),
+              (
+                  '''            offset + VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,\n''',
+                  '''            offset + this.maxPayloadBytes,\n''',
+                  'chunk end',
+              ),
+          ])
+
+          patch('src/p2p/udp_swarm_upgrade_v1.ts', [
+              (
+                  '''  relay_fallback_preserved_on_direct_failure: true,\n  runtime_node_core_mount_performed: false,\n''',
+                  '''  relay_fallback_preserved_on_direct_failure: true,\n  bounded_offer_punch_timing_supported: true,\n  runtime_node_core_mount_performed: false,\n''',
+                  'authority timing flag',
+              ),
+              (
+                  '''  remoteObservation: VoidUdpRendezvousObservationV1;\n  transmitSecurePacket: (packet: VoidUdpSecurePacketV1) => void | Promise<void>;\n''',
+                  '''  remoteObservation: VoidUdpRendezvousObservationV1;\n  startDelayMs?: number;\n  attemptTimeoutMs?: number;\n  transmitSecurePacket: (packet: VoidUdpSecurePacketV1) => void | Promise<void>;\n''',
+                  'upgrade timing options',
+              ),
+              (
+                  '''      peerObservedEndpoint: this.options.remoteObservation.observed_endpoint,\n      allowNonPublicObservedEndpoint: this.options.allowNonPublicEndpoints === true,\n''',
+                  '''      peerObservedEndpoint: this.options.remoteObservation.observed_endpoint,\n      startDelayMs: this.options.startDelayMs,\n      attemptTimeoutMs: this.options.attemptTimeoutMs,\n      allowNonPublicObservedEndpoint: this.options.allowNonPublicEndpoints === true,\n''',
+                  'upgrade timing pass-through',
+              ),
+          ])
+          PY
+
+          git diff --check
+          grep -q 'maxPayloadBytes?: number' src/p2p/udp_peer_socket_adapter_v1.ts
+          grep -q 'attemptTimeoutMs?: number' src/p2p/udp_swarm_upgrade_v1.ts
+
+      - name: Re-prove prerequisite stack and compile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_upgrade_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_observation_evidence_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --check
+
+      - name: Commit source and self-remove workflow
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/p2p/udp_peer_socket_adapter_v1.ts src/p2p/udp_swarm_upgrade_v1.ts
+          git commit -m 'feat: add bounded UDP socket runtime prerequisites v1'
+          git rm .github/workflows/void-p2p-udp-swarm-single-socket-runtime-v1-source-mutator.yml
+          git commit -m 'ci: remove UDP swarm single-socket source mutator'
+          git push origin "HEAD:${BRANCH}"
