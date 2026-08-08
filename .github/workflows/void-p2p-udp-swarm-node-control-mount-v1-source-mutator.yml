@@ -1,0 +1,152 @@
+name: VOID P2P UDP swarm Node control mount v1 source mutator
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-control-mount-v1-source-mutator.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  mutate-and-prove:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Guard exact parent and temporary-only scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git rev-list --count "$BASE"..HEAD)" -eq 1
+          test "$(git diff --name-only "$BASE"..HEAD)" = '.github/workflows/void-p2p-udp-swarm-node-control-mount-v1-source-mutator.yml'
+          test "$(git status --porcelain)" = ''
+
+      - name: Apply exact-anchor Node control mount
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/node_core.ts')
+          s = p.read_text()
+
+          def once(old: str, new: str, label: str) -> None:
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'HOLD: {label} anchor count={count}')
+              s = s.replace(old, new, 1)
+
+          once(
+              '} from "./p2p/relay_v1.js";\n',
+              '''} from "./p2p/relay_v1.js";\nimport {\n  normalizeVoidUdpSwarmControlMessageV1,\n  type VoidUdpSwarmControlMessageV1,\n} from "./p2p/udp_swarm_control_v1.js";\nimport { VoidUdpSwarmRelayBridgeV1 } from "./p2p/udp_swarm_relay_bridge_v1.js";\nimport {\n  VoidUdpSwarmAuthenticatedControlAdapterV1,\n  type VoidUdpSwarmControlDeliveryV1,\n  type VoidUdpSwarmProbeActionV1,\n  type VoidUdpSwarmDirectUpgradeOfferActionV1,\n} from "./p2p/udp_swarm_authenticated_control_adapter_v1.js";\n''',
+              'imports',
+          )
+
+          once(
+              '  | VoidRelayControlMessageV1;\n',
+              '  | VoidRelayControlMessageV1\n  | VoidUdpSwarmControlMessageV1;\n',
+              'wire union',
+          )
+
+          once(
+              '''type NodeOpts = {\n  allowEmptyBlocks?: boolean;\n  reachabilityTestAllowNonPublicProbe?: boolean;\n  relayServer?: boolean;\n};\n''',
+              '''type NodeOpts = {\n  allowEmptyBlocks?: boolean;\n  reachabilityTestAllowNonPublicProbe?: boolean;\n  relayServer?: boolean;\n  udpSwarmRelayEndpoint?: string;\n  udpSwarmAllowNonPublicEndpoint?: boolean;\n};\n''',
+              'NodeOpts',
+          )
+
+          once(
+              '  private relayStreams = new Map<string, RelayLocalStreamV1>();\n',
+              '''  private relayStreams = new Map<string, RelayLocalStreamV1>();\n  private readonly udpSwarmAllowNonPublicEndpoint: boolean;\n  private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;\n''',
+              'control fields',
+          )
+
+          once(
+              '''    this.relayServerEnabled = !!opts?.relayServer;\n    ensureDir(this.blobsDir);\n''',
+              '''    this.relayServerEnabled = !!opts?.relayServer;\n    this.udpSwarmAllowNonPublicEndpoint =\n      opts?.udpSwarmAllowNonPublicEndpoint === true;\n    const udpSwarmRelayEndpoint = String(\n      opts?.udpSwarmRelayEndpoint || "",\n    ).trim();\n    if (udpSwarmRelayEndpoint && !this.relayServerEnabled) {\n      throw new Error(\n        "UDP swarm relay endpoint requires relayServer=true",\n      );\n    }\n    const udpSwarmRelayBridge = udpSwarmRelayEndpoint\n      ? new VoidUdpSwarmRelayBridgeV1(\n          this.relayServerState,\n          udpSwarmRelayEndpoint,\n          (nodeId) =>\n            this.authenticatedDirectPeer(nodeId)?.authenticatedPublicPem,\n          this.udpSwarmAllowNonPublicEndpoint,\n        )\n      : undefined;\n    this.udpSwarmControl = new VoidUdpSwarmAuthenticatedControlAdapterV1({\n      localNodeId: this.id,\n      localPublicPem: this.pubPEM,\n      localPrivateKey: this.priv,\n      isStartedRelayClientStream: (relayNodeId, peerNodeId, streamId) => {\n        const entry = this.relayStreams.get(\n          this.relayStreamKey(relayNodeId, streamId),\n        );\n        return !!entry && entry.started && entry.remote_node_id === peerNodeId;\n      },\n      relayBridge: udpSwarmRelayBridge,\n      allowNonPublicEndpoint: this.udpSwarmAllowNonPublicEndpoint,\n    });\n    ensureDir(this.blobsDir);\n''',
+              'constructor mount',
+          )
+
+          once(
+              '''  }) => void;\n  onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook\n''',
+              '''  }) => void;\n  onUdpSwarmProbeAction?: (action: VoidUdpSwarmProbeActionV1) => void;\n  onUdpSwarmDirectUpgradeOffer?: (\n    action: VoidUdpSwarmDirectUpgradeOfferActionV1,\n  ) => void;\n  onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook\n''',
+              'callbacks',
+          )
+
+          once(
+              '''          this.sweepRelayClientState();\n          this.sweepRelayServerState();\n''',
+              '''          this.sweepRelayClientState();\n          this.sweepRelayServerState();\n          this.udpSwarmControl.sweep();\n''',
+              'periodic sweep',
+          )
+
+          once(
+              '''    if ((msg as any)?.type === "REACHABILITY_DIALBACK_RESULT") {\n      this.handleReachabilityDialbackResult(peer, msg);\n      return;\n    }\n\n    if (isVoidRelayControlTypeV1((msg as any)?.type)) {\n''',
+              '''    if ((msg as any)?.type === "REACHABILITY_DIALBACK_RESULT") {\n      this.handleReachabilityDialbackResult(peer, msg);\n      return;\n    }\n\n    const udpSwarmMessage = normalizeVoidUdpSwarmControlMessageV1(\n      msg,\n      this.udpSwarmAllowNonPublicEndpoint,\n    );\n    if (udpSwarmMessage) {\n      this.handleUdpSwarmAuthenticatedControl(peer, udpSwarmMessage);\n      return;\n    }\n\n    if (isVoidRelayControlTypeV1((msg as any)?.type)) {\n''',
+              'authenticated onMsg control gate',
+          )
+
+          once(
+              '''  private relayStreamKey(relayNodeId: string, streamId: string): string {\n''',
+              '''  private sendUdpSwarmControlDeliveries(\n    deliveries: readonly VoidUdpSwarmControlDeliveryV1[],\n  ): number {\n    let sent = 0;\n    for (const delivery of deliveries) {\n      const recipient = this.authenticatedDirectPeer(delivery.recipient_node_id);\n      if (!recipient) {\n        console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_DELIVERY_HOLD", {\n          recipient_node_id: delivery.recipient_node_id,\n          reason: "authenticated direct control peer unavailable",\n        });\n        continue;\n      }\n      this.sendRaw(recipient, delivery.message);\n      sent += 1;\n    }\n    return sent;\n  }\n\n  private handleUdpSwarmAuthenticatedControl(\n    peer: Peer,\n    message: VoidUdpSwarmControlMessageV1,\n  ): void {\n    if (peer.transport !== "direct") {\n      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {\n        peer_id: peer.id,\n        reason: "UDP swarm control requires authenticated direct control peer",\n      });\n      return;\n    }\n    try {\n      const result = this.udpSwarmControl.handleAuthenticatedControl({\n        fromNodeId: peer.id,\n        message,\n      });\n      this.sendUdpSwarmControlDeliveries(result.control_deliveries);\n      for (const action of result.udp_probe_actions) {\n        this.onUdpSwarmProbeAction?.(action);\n      }\n      if (result.direct_upgrade_offer) {\n        this.onUdpSwarmDirectUpgradeOffer?.(result.direct_upgrade_offer);\n      }\n    } catch (error) {\n      const reason = error instanceof Error ? error.message : String(error);\n      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {\n        peer_id: peer.id,\n        message_type: message.type,\n        reason,\n      });\n      if (message.type === "UDP_SWARM_UPGRADE_REQUEST") {\n        const rejection = normalizeVoidUdpSwarmControlMessageV1({\n          type: "UDP_SWARM_UPGRADE_REJECT",\n          protocol: 1,\n          request_id: message.request_id,\n          reason: "udp_swarm_upgrade_unavailable",\n        });\n        if (rejection?.type === "UDP_SWARM_UPGRADE_REJECT") {\n          this.sendRaw(peer, rejection);\n        }\n      }\n    }\n  }\n\n  requestUdpSwarmUpgradeV1(\n    relayNodeId: string,\n    targetNodeId: string,\n    streamId: string,\n  ): { ok: true; request_id: string } | { ok: false; error: string } {\n    const relayPeer = this.authenticatedDirectPeer(relayNodeId);\n    if (!relayPeer) return { ok: false, error: "relay_not_authenticated_direct" };\n    try {\n      const started = this.udpSwarmControl.beginUpgrade({\n        relayNodeId,\n        targetNodeId,\n        streamId,\n      });\n      if (started.control_delivery.recipient_node_id !== relayNodeId) {\n        throw new Error("UDP swarm request delivery relay mismatch");\n      }\n      this.sendRaw(relayPeer, started.control_delivery.message);\n      return { ok: true, request_id: started.request_id };\n    } catch (error) {\n      return {\n        ok: false,\n        error: error instanceof Error ? error.message : String(error),\n      };\n    }\n  }\n\n  ingestUdpSwarmRendezvousProbeV1(\n    packet: unknown,\n    remoteAddress: string,\n    remotePort: number,\n  ):\n    | { ok: true; control_deliveries_sent: number; observation: unknown }\n    | { ok: false; error: string } {\n    try {\n      const result = this.udpSwarmControl.handleRelayUdpProbe({\n        packet,\n        remoteAddress,\n        remotePort,\n      });\n      const sent = this.sendUdpSwarmControlDeliveries(\n        result.control_deliveries,\n      );\n      return {\n        ok: true,\n        control_deliveries_sent: sent,\n        observation: structuredClone(result.observation),\n      };\n    } catch (error) {\n      return {\n        ok: false,\n        error: error instanceof Error ? error.message : String(error),\n      };\n    }\n  }\n\n  udpSwarmControlSnapshot() {\n    return this.udpSwarmControl.snapshot();\n  }\n\n  private relayStreamKey(relayNodeId: string, streamId: string): string {\n''',
+              'control methods',
+          )
+
+          once(
+              '''    this.relayStreams.delete(key);\n    entry.socket.remoteClose(reason);\n''',
+              '''    this.relayStreams.delete(key);\n    entry.socket.remoteClose(reason);\n    this.udpSwarmControl.sweep();\n''',
+              'local relay close cleanup',
+          )
+
+          once(
+              '''        if (entry?.socket === peer.socket) this.relayStreams.delete(key);\n      }\n      return;\n''',
+              '''        if (entry?.socket === peer.socket) {\n          this.relayStreams.delete(key);\n          this.udpSwarmControl.sweep();\n        }\n      }\n      return;\n''',
+              'relayed peer close cleanup',
+          )
+
+          once(
+              '''    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;\n\n    if (this.relayServerEnabled) {\n''',
+              '''    if (!peer.handshakeDone || peer.id.startsWith("?-")) return;\n\n    this.udpSwarmControl.removeAuthenticatedPeer(peer.id);\n\n    if (this.relayServerEnabled) {\n''',
+              'direct peer close cleanup',
+          )
+
+          p.write_text(s)
+          PY
+
+          git diff --check
+          grep -q 'requestUdpSwarmUpgradeV1' src/node_core.ts
+          grep -q 'ingestUdpSwarmRendezvousProbeV1' src/node_core.ts
+          grep -q 'onUdpSwarmProbeAction' src/node_core.ts
+          grep -q 'onUdpSwarmDirectUpgradeOffer' src/node_core.ts
+
+      - name: Prove repository hygiene and compile source mount
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --check
+
+      - name: Commit source and self-remove workflow
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/node_core.ts
+          git commit -m 'feat: mount UDP swarm authenticated control into Node v1'
+          git rm .github/workflows/void-p2p-udp-swarm-node-control-mount-v1-source-mutator.yml
+          git commit -m 'ci: remove UDP swarm Node control source mutator'
+          git push origin "HEAD:${BRANCH}"
