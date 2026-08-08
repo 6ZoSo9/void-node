@@ -1,5 +1,7 @@
 name: VOID PR1116 preflight import isolation repair v1
 
+# Arming revision: the workflow now exists in the parent commit, so this
+# pull_request synchronization can execute it under the exact-head guard below.
 on:
   pull_request:
     branches: [main]
@@ -30,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "fc0749bd86cea31e1e3be248c79cdbe50d6f393e"
+          test "$(git rev-parse HEAD^)" = "cd5a0d2bc608df0ac8c7fcfde2e96d3666fd5893"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/void-pr1116-preflight-import-isolation-repair-v1.yml"
       - name: Isolate preflight library import from dependency injector startup
         shell: bash
