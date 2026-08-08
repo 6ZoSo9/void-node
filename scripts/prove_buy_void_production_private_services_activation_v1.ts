@@ -149,6 +149,10 @@ assert.equal(dry.rpc_probe_performed, false);
 assert.equal(dry.custodian_service_start_performed, false);
 assert.equal(dry.broadcaster_service_start_performed, false);
 
+const dryRpcUrlFingerprintSha256 = dry.rpc_url_fingerprint_sha256;
+const dryExpectedSignerFingerprintSha256 =
+  dry.expected_signer_fingerprint_sha256;
+
 const authorizedInput = Object.freeze({
   policy,
   apply: true,
@@ -208,7 +212,7 @@ function makeDependencies(
         plan_id_sha256: dry.plan_id_sha256,
         chain_id: "2050",
         rpc_url: EXPECTED.rpc_url,
-        rpc_url_fingerprint_sha256: dry.rpc_url_fingerprint_sha256,
+        rpc_url_fingerprint_sha256: dryRpcUrlFingerprintSha256,
         provider_submission_id: "synthetic-production-readiness",
         rpc_probe_performed: true,
         rpc_mutation_performed: false,
@@ -262,7 +266,7 @@ function makeDependencies(
         applied: true,
         service_started: true,
         private_prepare_signing_capability_started: true,
-        signer_fingerprint_sha256: dry.expected_signer_fingerprint_sha256,
+        signer_fingerprint_sha256: dryExpectedSignerFingerprintSha256,
         credential_read_performed: false,
         signing_performed: false,
         rpc_call_performed: false,
@@ -327,7 +331,7 @@ function makeDependencies(
         rpc_url_fingerprint_sha256:
           options.broadcaster === "boundary_invalid"
             ? "f".repeat(64)
-            : dry.rpc_url_fingerprint_sha256,
+            : dryRpcUrlFingerprintSha256,
         submission_enabled: true,
         submit_once_allowed: true,
         inspection_submission_supported: true,
