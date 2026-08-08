@@ -72,6 +72,39 @@ The separate real-transaction confirmation
 `buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1` is not accepted or used by
 this coordinator. Real submission remains a later independent authority gate.
 
+## Validated-plan policy snapshot
+
+After the production plan and every authority echo validate, the coordinator
+constructs a new frozen activation policy exclusively from normalized values
+carried by that validated plan. The readiness probe, custodian activation, and
+broadcaster activation consume this plan-derived snapshot; the caller's original
+nested policy object is not read again after plan derivation.
+
+This closes an asynchronous retargeting window. A caller cannot confirm one plan
+ID and then mutate its own policy object while the readiness probe is awaiting in
+order to change any of these later activation targets:
+
+- custodian socket path;
+- shared custody-store path;
+- credential directory;
+- expected wallet;
+- broadcaster socket path;
+- broadcaster state path;
+- expected signer fingerprint;
+- RPC URL; or
+- expected chain ID.
+
+The derived snapshot is re-run through the production activation-plan function
+before any RPC probe. Its plan ID, RPC fingerprint, and signer fingerprint must
+match the already confirmed plan exactly.
+
+`request_timeout_ms` and `max_response_bytes` are optional transport controls but
+are not currently part of the production plan ID. This coordinator therefore does
+not propagate caller-supplied values for those fields after plan confirmation;
+the existing bounded transport defaults apply. If production needs non-default
+values later, those controls must first be added to the reviewed production-plan
+contract rather than bypassing it here.
+
 ## Partial-start rollback
 
 The custodian starts before the broadcaster. This ordering keeps broadcaster
@@ -135,6 +168,9 @@ The synthetic proof covers:
 - wrong and whitespace-modified custodian confirmation before side effects;
 - wrong and whitespace-modified broadcaster confirmation before side effects;
 - exact forwarding of each independent confirmation to its existing primitive;
+- caller-policy mutation during the awaited readiness call cannot change any
+  later plan-bound activation target;
+- unbound caller RPC timeout/response-size overrides are not propagated;
 - RPC readiness failure before either service starts;
 - custodian failure before broadcaster start;
 - broadcaster failure after custodian start with exact rollback;
