@@ -349,7 +349,7 @@ assert.equal(
 );
 assert.equal(runtimeCalls, 0);
 
-const chainMismatch = runtimePolicy();
+const chainMismatch: any = runtimePolicy();
 chainMismatch.planner_policy.expected_chain_id = "1";
 const chainHeld = await runBuyVoidProductionLiveCanaryPreflightV1(
   {
