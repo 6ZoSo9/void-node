@@ -40,11 +40,19 @@ The authenticated control adapter applies additional stateful checks that the wi
 
 A syntactically valid stable observation from another ticket therefore cannot be substituted for the local evidence.
 
+After an offer passes those authenticated stateful checks, the endpoint adapter
+mints an in-memory `verifyAuthenticatedRendezvousObservation` capability on the
+accepted direct-upgrade action. The verifier accepts only the exact normalized
+local or peer observation values carried by that authenticated accepted offer,
+paired with the exact expected local or peer node ID. A detached observation
+that is merely stable and structurally valid is rejected if any evidence field
+differs.
+
 ## Trust boundary
 
 The observations are **relay-observed evidence delivered over the already-authenticated direct relay control peer**. This lane does not make an observed endpoint, a ticket, or the relay evidence itself a replacement for normal VOID peer identity authentication.
 
-The evidence is sufficient to feed the existing direct traversal orchestrator because it preserves the relay's actual stable observation records. The eventual direct UDP transport must still complete its secure bootstrap and then normal VOID HELLO/AUTH before the direct peer is authenticated or relay retirement can be authorized.
+The observations alone are not treated as sufficient provenance by the existing direct traversal orchestrator. The accepted offer action supplies both the relay's exact stable observation records and the verifier capability minted by the authenticated control adapter. `VoidUdpSwarmUpgradeV1` requires that verifier and fails closed for missing, throwing, false, or detached substituted evidence. The eventual direct UDP transport must still complete its secure bootstrap and then normal VOID HELLO/AUTH before the direct peer is authenticated or relay retirement can be authorized.
 
 This lane does not claim a standalone per-message relay signature over the evidence. Its trust boundary is the existing authenticated control peer. A later hardening lane may add separately signed control attestations without changing the fact that direct peer promotion still requires normal VOID authentication.
 
@@ -53,8 +61,10 @@ This lane does not claim a standalone per-message relay signature over the evide
 A client that accepts an exact evidence-bearing offer can construct `VoidUdpSwarmUpgradeV1` directly with:
 
 ```text
-localObservation  = offer.local_observation
-remoteObservation = offer.peer_observation
+localObservation  = action.message.local_observation
+remoteObservation = action.message.peer_observation
+verifyAuthenticatedRendezvousObservation =
+  action.verifyAuthenticatedRendezvousObservation
 ```
 
 No fabricated ticket ID, synthetic probe count, inferred timestamp, or reconstructed observation record is required.
@@ -79,7 +89,9 @@ It drives the full request → tickets → signed mapping probes → stable rela
 - a peer identity mismatch is rejected;
 - extra nested observation keys are rejected;
 - after rejected tampering, the exact untampered evidence can still be accepted;
-- both endpoints can construct `VoidUdpSwarmUpgradeV1` directly from their received offer evidence;
+- both endpoints can construct `VoidUdpSwarmUpgradeV1` directly from their received offer evidence plus the accepted-offer provenance verifier;
+- the verifier accepts exact value-equivalent clones of the accepted local/peer observations for the correct expected node ID;
+- a structurally valid detached observation with altered evidence is rejected by the verifier and by `VoidUdpSwarmUpgradeV1`;
 - no synthetic rendezvous record is constructed;
 - relay retirement remains unauthorized before direct peer authentication;
 - public adapter snapshots expose neither observation evidence nor PEM material.
