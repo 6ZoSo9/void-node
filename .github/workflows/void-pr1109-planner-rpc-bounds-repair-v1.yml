@@ -1,0 +1,163 @@
+name: VOID PR1109 planner RPC bounds repair v1
+
+on:
+  push:
+    branches:
+      - 'feat/buy-void-production-live-canary-preflight-v1-20260808'
+    paths:
+      - '.github/workflows/void-pr1109-planner-rpc-bounds-repair-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact staging head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Patch, prove, self-delete, and fast-forward
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BRANCH='feat/buy-void-production-live-canary-preflight-v1-20260808'
+          EXPECTED_FEATURE_HEAD='bcbe965e67b030d703c32b13b4dd7268ecf4f756'
+          TEMP='.github/workflows/void-pr1109-planner-rpc-bounds-repair-v1.yml'
+
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_FEATURE_HEAD"
+          test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch_file(path_str: str, replacements):
+              path = Path(path_str)
+              text = path.read_text()
+              for old, new, label in replacements:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'HOLD: {path_str}: {label} anchor count={count}')
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+
+          patch_file(
+              'src/economic/buy_void_production_live_canary_preflight_v1.ts',
+              [
+                  (
+                      '  production_rpc_binding_required: true,\n  one_attempt_execution_policy_required: true,',
+                      '  production_rpc_binding_required: true,\n  planner_rpc_request_timeout_bound: true,\n  planner_rpc_max_response_bytes_bound: true,\n  one_attempt_execution_policy_required: true,',
+                      'authority RPC bounds',
+                  ),
+                  (
+                      '    `planner_fee_multiplier_bps=${runtime.planner_policy.fee_multiplier_bps}`,\n    `rpc_url_fingerprint_sha256=${plan.rpc_url_fingerprint_sha256}`,',
+                      '    `planner_fee_multiplier_bps=${runtime.planner_policy.fee_multiplier_bps}`,\n    `planner_request_timeout_ms=${runtime.planner_policy.request_timeout_ms ?? ""}`,\n    `planner_max_response_bytes=${runtime.planner_policy.max_response_bytes ?? ""}`,\n    `rpc_url_fingerprint_sha256=${plan.rpc_url_fingerprint_sha256}`,',
+                      'fingerprint RPC bounds',
+                  ),
+                  (
+                      '      fee_multiplier_bps: runtime.planner_policy.fee_multiplier_bps,\n    },',
+                      '      fee_multiplier_bps: runtime.planner_policy.fee_multiplier_bps,\n      ...(runtime.planner_policy.request_timeout_ms !== undefined\n        ? { request_timeout_ms: runtime.planner_policy.request_timeout_ms }\n        : {}),\n      ...(runtime.planner_policy.max_response_bytes !== undefined\n        ? { max_response_bytes: runtime.planner_policy.max_response_bytes }\n        : {}),\n    },',
+                      'snapshot RPC bounds',
+                  ),
+              ],
+          )
+
+          patch_file(
+              'scripts/prove_buy_void_production_live_canary_preflight_v1.ts',
+              [
+                  (
+                      '      fee_multiplier_bps: "12000",\n    },',
+                      '      fee_multiplier_bps: "12000",\n      request_timeout_ms: 1_500,\n      max_response_bytes: 32_768,\n    },',
+                      'fixture RPC bounds',
+                  ),
+                  (
+                      'assert.equal(\n  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1\n    .live_canary_authorized_by_preflight,\n  false,\n);',
+                      'assert.equal(\n  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1\n    .planner_rpc_request_timeout_bound,\n  true,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1\n    .planner_rpc_max_response_bytes_bound,\n  true,\n);\nassert.equal(\n  VOID_BUY_VOID_PRODUCTION_LIVE_CANARY_PREFLIGHT_AUTHORITY_V1\n    .live_canary_authorized_by_preflight,\n  false,\n);',
+                      'authority proof RPC bounds',
+                  ),
+                  (
+                      'assert.equal(repeatedPlan.preflight_plan_id_sha256, planned.preflight_plan_id_sha256);\n\nconst invalidAttempt',
+                      'assert.equal(repeatedPlan.preflight_plan_id_sha256, planned.preflight_plan_id_sha256);\n\nconst timeoutBoundPolicy = runtimePolicy();\ntimeoutBoundPolicy.planner_policy.request_timeout_ms = 1_501;\nconst timeoutBoundPlan = await runBuyVoidProductionLiveCanaryPreflightV1({\n  production_policy: productionPolicy(),\n  execution_runtime_policy: timeoutBoundPolicy,\n  attempt_id: attemptId,\n});\nassert.equal(timeoutBoundPlan.ok, true);\nif (timeoutBoundPlan.ok !== true || timeoutBoundPlan.status !== "planned") {\n  throw new Error("timeout-bound plan expected");\n}\nassert.notEqual(\n  timeoutBoundPlan.preflight_plan_id_sha256,\n  planned.preflight_plan_id_sha256,\n);\n\nconst responseBoundPolicy = runtimePolicy();\nresponseBoundPolicy.planner_policy.max_response_bytes = 32_769;\nconst responseBoundPlan = await runBuyVoidProductionLiveCanaryPreflightV1({\n  production_policy: productionPolicy(),\n  execution_runtime_policy: responseBoundPolicy,\n  attempt_id: attemptId,\n});\nassert.equal(responseBoundPlan.ok, true);\nif (responseBoundPlan.ok !== true || responseBoundPlan.status !== "planned") {\n  throw new Error("response-bound plan expected");\n}\nassert.notEqual(\n  responseBoundPlan.preflight_plan_id_sha256,\n  planned.preflight_plan_id_sha256,\n);\n\nconst invalidAttempt',
+                      'plan ID changes for RPC bounds',
+                  ),
+                  (
+                      'assert.equal(Object.isFrozen(exactInput.runtime_policy.planner_policy), true);\nassert.equal(exactInput.runtime_policy.enabled, false);',
+                      'assert.equal(Object.isFrozen(exactInput.runtime_policy.planner_policy), true);\nassert.equal(exactInput.runtime_policy.planner_policy.request_timeout_ms, 1_500);\nassert.equal(exactInput.runtime_policy.planner_policy.max_response_bytes, 32_768);\nassert.equal(exactInput.runtime_policy.enabled, false);',
+                      'exact inspect preserves RPC bounds',
+                  ),
+                  (
+                      'mutableRuntime.planner_policy.rpc_url = "http://127.0.0.1:9999/";\nreleaseInspect();',
+                      'mutableRuntime.planner_policy.rpc_url = "http://127.0.0.1:9999/";\nmutableRuntime.planner_policy.request_timeout_ms = 30_000;\nmutableRuntime.planner_policy.max_response_bytes = 1_048_576;\nreleaseInspect();',
+                      'mutation race changes RPC bounds',
+                  ),
+                  (
+                      'assert.equal(capturedSnapshot.planner_policy.rpc_url, "http://127.0.0.1:8545/");\nassert.equal(Object.isFrozen(capturedSnapshot), true);',
+                      'assert.equal(capturedSnapshot.planner_policy.rpc_url, "http://127.0.0.1:8545/");\nassert.equal(capturedSnapshot.planner_policy.request_timeout_ms, 1_500);\nassert.equal(capturedSnapshot.planner_policy.max_response_bytes, 32_768);\nassert.equal(Object.isFrozen(capturedSnapshot), true);',
+                      'mutation race snapshot RPC bounds',
+                  ),
+                  (
+                      'console.log("production_rpc_binding_required=true");\nconsole.log("native_execution_apply=false");',
+                      'console.log("production_rpc_binding_required=true");\nconsole.log("planner_rpc_request_timeout_bound=true");\nconsole.log("planner_rpc_max_response_bytes_bound=true");\nconsole.log("planner_rpc_bounds_preserved_in_snapshot=true");\nconsole.log("native_execution_apply=false");',
+                      'proof markers RPC bounds',
+                  ),
+              ],
+          )
+
+          patch_file(
+              'docs/operators/buy-void-production-live-canary-preflight-v1.md',
+              [
+                  (
+                      '- exact production loopback RPC URL;\n- one execution attempt per payment;',
+                      '- exact production loopback RPC URL;\n- planner RPC request-timeout bound;\n- planner RPC response-size bound;\n- one execution attempt per payment;',
+                      'docs binding bullets',
+                  ),
+                  (
+                      'cap, gas/fee caps, fee multiplier, runtime root, and RPC URL fingerprint.\n\nChanging any of those values',
+                      'cap, gas/fee caps, fee multiplier, planner RPC request timeout, planner RPC\nresponse-size cap, runtime root, and RPC URL fingerprint.\n\nChanging any of those values',
+                      'docs fingerprint bounds',
+                  ),
+                  (
+                      'mutation cannot retarget the wallet, RPC URL, journal root, limits, or execution\npolicy after the plan IDs have been approved.',
+                      'mutation cannot retarget the wallet, RPC URL, RPC timeout/response-size bounds,\njournal root, limits, or execution policy after the plan IDs have been approved.',
+                      'docs frozen snapshot bounds',
+                  ),
+              ],
+          )
+          PY
+
+          git add \
+            src/economic/buy_void_production_live_canary_preflight_v1.ts \
+            scripts/prove_buy_void_production_live_canary_preflight_v1.ts \
+            docs/operators/buy-void-production-live-canary-preflight-v1.md
+          git rm -- "$TEMP"
+
+          actual_scope="$(git diff --name-only "$EXPECTED_FEATURE_HEAD" | sort)"
+          expected_scope="$(printf '%s\n' \
+            'docs/operators/buy-void-production-live-canary-preflight-v1.md' \
+            'scripts/prove_buy_void_production_live_canary_preflight_v1.ts' \
+            'src/economic/buy_void_production_live_canary_preflight_v1.ts' | sort)"
+          test "$actual_scope" = "$expected_scope"
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_buy_void_production_live_canary_preflight_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_native_execution_runtime_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --cached --check "$EXPECTED_FEATURE_HEAD"
+
+          git commit -m 'security: bind live-canary planner RPC bounds into preflight'
+          git push origin "HEAD:$BRANCH"
