@@ -1,0 +1,159 @@
+name: VOID PR1097 ancestry reconciliation push helper v1
+
+on:
+  push:
+    branches:
+      - 'ops/pr1097-ancestry-reconcile-push-v1-20260808'
+    paths:
+      - '.github/workflows/void-pr1097-ancestry-reconcile-push-v1.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact helper head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prove exact tree and fast-forward PR1097 ancestry only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          TARGET_BRANCH='feat/p2p-udp-swarm-observation-evidence-v1-20260807'
+          PARENT_BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+          HELPER_BRANCH='ops/pr1097-ancestry-reconcile-push-v1-20260808'
+          HELPER_FILE='.github/workflows/void-pr1097-ancestry-reconcile-push-v1.yml'
+          EXPECTED_TARGET='44dfde62991edb44e23ed97124897022d20665db'
+          EXPECTED_PARENT='62d6a42cd55563cbd394c14fe5b73e09ec749837'
+          ORIGINAL_GREEN='3da7e1c88e5cfb1452ef9b8e44bcbab01293e6f6'
+          PARENT_FOCUSED_RUN='31273732210'
+          PARENT_LEARNED_RUN='31273732256'
+
+          WORKFLOW='.github/workflows/void-p2p-udp-swarm-observation-evidence-v1.yml'
+          DOC='docs/public/void-p2p-udp-swarm-observation-evidence-v1.md'
+          PROOF='scripts/prove_void_p2p_udp_swarm_observation_evidence_v1.ts'
+          ADAPTER='src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+          CONTROL='src/p2p/udp_swarm_control_v1.ts'
+
+          die() {
+            printf '::error title=PR1097 ancestry guard::%s\n' "$*" >&2
+            exit 1
+          }
+
+          expect_eq() {
+            local label="$1" expected="$2" actual="$3"
+            if [[ "$actual" != "$expected" ]]; then
+              printf '::error title=PR1097 ancestry guard::%s mismatch\n' "$label" >&2
+              printf 'expected=%s\nactual=%s\n' "$expected" "$actual" >&2
+              exit 1
+            fi
+            printf 'PASS %s\n' "$label"
+          }
+
+          check_parent_run() {
+            local run_id="$1" label="$2"
+            local run_head run_status run_conclusion
+            read -r run_head run_status run_conclusion <<< "$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+                --jq '[.head_sha,.status,.conclusion] | @tsv'
+            )"
+            expect_eq "$label head" "$EXPECTED_PARENT" "$run_head"
+            expect_eq "$label status" 'completed' "$run_status"
+            expect_eq "$label conclusion" 'success' "$run_conclusion"
+          }
+
+          echo 'stage=guard_helper_scope'
+          helper_merge_base="$(git merge-base HEAD "$EXPECTED_PARENT")"
+          expect_eq 'helper merge-base' "$EXPECTED_PARENT" "$helper_merge_base"
+          helper_scope="$(git diff --name-only "$EXPECTED_PARENT" HEAD)"
+          expect_eq 'helper scope' "$HELPER_FILE" "$helper_scope"
+
+          echo 'stage=guard_parent_exact_head_feature_walls'
+          check_parent_run "$PARENT_FOCUSED_RUN" 'parent focused wall'
+          check_parent_run "$PARENT_LEARNED_RUN" 'parent learned-peer wall'
+
+          echo 'stage=refresh_exact_refs'
+          git fetch --no-tags origin \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" \
+            "+refs/heads/$PARENT_BRANCH:refs/remotes/origin/$PARENT_BRANCH"
+          live_target="$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          live_parent="$(git rev-parse "refs/remotes/origin/$PARENT_BRANCH")"
+          expect_eq 'live target' "$EXPECTED_TARGET" "$live_target"
+          expect_eq 'live parent' "$EXPECTED_PARENT" "$live_parent"
+
+          echo 'stage=verify_original_exact_green_tree_preserved'
+          git cat-file -e "$ORIGINAL_GREEN^{commit}" || die 'original exact-green commit is unavailable'
+          if ! git diff --quiet "$ORIGINAL_GREEN" "$EXPECTED_TARGET" --; then
+            die 'current PR1097 tree drifted from original exact-green tree'
+          fi
+          printf 'PASS original exact-green tree preserved\n'
+
+          echo 'stage=verify_current_parent_semantic_delta'
+          actual_scope="$(git diff --name-status "$EXPECTED_PARENT" "$EXPECTED_TARGET" | sort)"
+          expected_scope="$(
+            printf 'A\t%s\nA\t%s\nA\t%s\nM\t%s\nM\t%s\n' \
+              "$WORKFLOW" "$DOC" "$PROOF" "$ADAPTER" "$CONTROL" | sort
+          )"
+          expect_eq 'semantic scope' "$expected_scope" "$actual_scope"
+
+          actual_numstat="$(git diff --numstat "$EXPECTED_PARENT" "$EXPECTED_TARGET" | sort -k3,3)"
+          expected_numstat="$(
+            printf '80\t0\t%s\n113\t0\t%s\n358\t0\t%s\n16\t0\t%s\n83\t12\t%s\n' \
+              "$WORKFLOW" "$DOC" "$PROOF" "$ADAPTER" "$CONTROL" | sort -k3,3
+          )"
+          expect_eq 'semantic numstat' "$expected_numstat" "$actual_numstat"
+          git diff --check "$EXPECTED_PARENT" "$EXPECTED_TARGET"
+
+          echo 'stage=create_tree_preserving_two_parent_commit'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          target_tree_before="$(git rev-parse "$EXPECTED_TARGET^{tree}")"
+          git checkout --detach "$EXPECTED_TARGET"
+          git merge -s ours --no-ff "$EXPECTED_PARENT" \
+            -m 'chore: reconcile PR1097 ancestry with current PR1096'
+          candidate="$(git rev-parse HEAD)"
+          expect_eq 'candidate first parent' "$EXPECTED_TARGET" "$(git rev-parse HEAD^1)"
+          expect_eq 'candidate second parent' "$EXPECTED_PARENT" "$(git rev-parse HEAD^2)"
+          expect_eq 'candidate tree' "$target_tree_before" "$(git rev-parse HEAD^{tree})"
+          git merge-base --is-ancestor "$EXPECTED_TARGET" "$candidate" || die 'target is not candidate ancestor'
+          git merge-base --is-ancestor "$EXPECTED_PARENT" "$candidate" || die 'parent is not candidate ancestor'
+
+          final_scope="$(git diff --name-status "$EXPECTED_PARENT" "$candidate" | sort)"
+          final_numstat="$(git diff --numstat "$EXPECTED_PARENT" "$candidate" | sort -k3,3)"
+          expect_eq 'final semantic scope' "$expected_scope" "$final_scope"
+          expect_eq 'final semantic numstat' "$expected_numstat" "$final_numstat"
+          git diff --check "$EXPECTED_PARENT" "$candidate"
+
+          echo 'stage=final_compare_and_swap_guard'
+          check_parent_run "$PARENT_FOCUSED_RUN" 'final parent focused wall'
+          check_parent_run "$PARENT_LEARNED_RUN" 'final parent learned-peer wall'
+          git fetch --no-tags origin \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" \
+            "+refs/heads/$PARENT_BRANCH:refs/remotes/origin/$PARENT_BRANCH"
+          expect_eq 'final live target' "$EXPECTED_TARGET" "$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          expect_eq 'final live parent' "$EXPECTED_PARENT" "$(git rev-parse "refs/remotes/origin/$PARENT_BRANCH")"
+
+          echo 'stage=publish_target_fast_forward_only'
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          printf 'PASS published_candidate=%s\n' "$candidate"
+
+          echo 'stage=self_clean_helper_branch'
+          git fetch --no-tags origin \
+            "+refs/heads/$HELPER_BRANCH:refs/remotes/origin/$HELPER_BRANCH"
+          git checkout -B helper-clean "refs/remotes/origin/$HELPER_BRANCH"
+          test -f "$HELPER_FILE" || die 'helper workflow missing before self-clean'
+          git rm -- "$HELPER_FILE"
+          git commit -m 'chore: retire PR1097 ancestry reconciliation helper v1'
+          git push origin "HEAD:refs/heads/$HELPER_BRANCH"
+          printf 'PASS helper_workflow_retired=true\n'
