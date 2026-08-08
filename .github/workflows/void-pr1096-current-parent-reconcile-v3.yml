@@ -1,0 +1,92 @@
+name: VOID PR1096 current-parent reconcile v3
+
+on:
+  push:
+    branches:
+      - 'feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+    paths:
+      - '.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact staging head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Reconcile current parent, prove, self-delete, and fast-forward
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
+          BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
+          EXPECTED_FEATURE_HEAD='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
+          OLD_PARENT='764727e5a752aec3fd01a56e3c86ce6d4a19ea49'
+          EXPECTED_BASE='dcb44d278f5c9713e66abdd4dc2fa3d304638744'
+          TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_FEATURE_HEAD"
+          test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
+
+          git fetch --no-tags origin "$BASE_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
+
+          git diff --binary "$OLD_PARENT" "$EXPECTED_FEATURE_HEAD" -- src/node_core.ts > /tmp/pr1096-node-core.patch
+          test -s /tmp/pr1096-node-core.patch
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          set +e
+          git merge --no-commit --no-ff "$EXPECTED_BASE"
+          merge_rc=$?
+          set -e
+          if [ "$merge_rc" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            test "$conflicts" = 'src/node_core.ts'
+          fi
+
+          # Current parent owns node_core. Reapply only the exact old-parent ->
+          # PR1096 control-plane patch using Git's three-way patch machinery.
+          git checkout "$EXPECTED_BASE" -- src/node_core.ts
+          git add src/node_core.ts
+          git apply --3way --index /tmp/pr1096-node-core.patch
+
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git rm -- "$TEMP"
+
+          actual_scope="$(git diff --name-only "$EXPECTED_BASE" | sort)"
+          expected_scope="$(printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-control-mount-v1.yml' \
+            'docs/public/void-p2p-udp-swarm-node-control-mount-v1.md' \
+            'scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts' \
+            'src/node_core.ts' | sort)"
+          test "$actual_scope" = "$expected_scope"
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --cached --check "$EXPECTED_BASE"
+
+          git commit -m 'chore: reconcile UDP swarm Node control mount with current parent'
+          git push origin "HEAD:$BRANCH"
