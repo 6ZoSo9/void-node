@@ -509,18 +509,36 @@ export async function runBuyVoidProductionLiveCanaryPreflightV1(
     dependencies.run_native_execution_runtime ??
     runBuyVoidNativeExecutionRuntimeCommandV1;
   const plannerTransport = dependencies.planner_transport;
-  const executionDryRun = await runNativeExecution({
-    runtime_policy: boundRuntimePolicy,
-    command: {
+  let executionDryRun: BuyVoidNativeExecutionRuntimeDecisionV1;
+  try {
+    executionDryRun = await runNativeExecution({
+      runtime_policy: boundRuntimePolicy,
+      command: {
+        attempt_id: attemptId,
+        apply: false,
+      },
+      ...(plannerTransport ? { planner_transport: plannerTransport } : {}),
+    });
+  } catch {
+    return held({
+      inspected: true,
+      reason: "production_live_canary_preflight_native_execution_dry_run_failed",
       attempt_id: attemptId,
-      apply: false,
-    },
-    ...(plannerTransport ? { planner_transport: plannerTransport } : {}),
-  });
+      production_activation_plan_id_sha256: productionPlan.plan_id_sha256,
+      preflight_plan_id_sha256: preflightPlanId,
+      native_execution_dry_run_invoked: true,
+    });
+  }
 
-  const mutation = executionDryRun.mutation_performed === true;
-  const signing = executionDryRun.signing_performed === true;
-  const broadcast = executionDryRun.transaction_broadcast_performed === true;
+  const mutation =
+    executionDryRun.mutation_performed === true ||
+    executionDryRun.worker?.mutation_performed === true;
+  const signing =
+    executionDryRun.signing_performed === true ||
+    executionDryRun.worker?.signing_performed === true;
+  const broadcast =
+    executionDryRun.transaction_broadcast_performed === true ||
+    executionDryRun.worker?.transaction_broadcast_performed === true;
   if (
     executionDryRun.ok !== true ||
     executionDryRun.marker !== VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1 ||
@@ -530,6 +548,7 @@ export async function runBuyVoidProductionLiveCanaryPreflightV1(
     mutation ||
     signing ||
     broadcast ||
+    executionDryRun.worker?.ok !== true ||
     executionDryRun.worker?.status !== "dry_run"
   ) {
     return held({
