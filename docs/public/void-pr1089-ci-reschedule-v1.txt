@@ -1,2 +1,0 @@
-VOID_PR1089_CI_RESCHEDULE_V1
-Transient connector-authored CI reschedule marker. This file is removed in the immediately following commit and is not part of the PR scope.
