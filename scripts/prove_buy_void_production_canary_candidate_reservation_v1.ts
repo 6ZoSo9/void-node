@@ -25,10 +25,11 @@ const delegatedAttemptConfirmation = "buyVoidReserveExecution";
 function dryRun(nextAction: string, options: {
   action_confirmation?: string;
   delegated_confirmation?: string | null;
+  omit_delegated_confirmation?: boolean;
   attempt_id?: string;
   attempt_status?: string;
 } = {}): Record<string, unknown> {
-  return {
+  const response: Record<string, unknown> = {
     marker: VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RUNTIME_MARKER_V1,
     version: 1,
     ok: true,
@@ -41,10 +42,6 @@ function dryRun(nextAction: string, options: {
     required_saga_confirmation: sagaConfirmation,
     required_action_confirmation:
       options.action_confirmation || inventoryActionConfirmation,
-    required_delegated_confirmation:
-      options.delegated_confirmation === undefined
-        ? null
-        : options.delegated_confirmation,
     required_policy_fingerprint_sha256: policyFingerprint,
     derived_snapshot: {
       request_id: requestId,
@@ -54,6 +51,13 @@ function dryRun(nextAction: string, options: {
       broadcast_status: "none",
     },
   };
+  if (!options.omit_delegated_confirmation) {
+    response.required_delegated_confirmation =
+      options.delegated_confirmation === undefined
+        ? null
+        : options.delegated_confirmation;
+  }
+  return response;
 }
 
 function applied(): Record<string, unknown> {
@@ -305,6 +309,7 @@ async function main(): Promise<void> {
       status: 200,
       json: dryRun("prepare_transaction", {
         action_confirmation: "prepareTransaction",
+        omit_delegated_confirmation: true,
         attempt_id: attemptId,
         attempt_status: "reserved",
       }),
@@ -332,6 +337,7 @@ async function main(): Promise<void> {
       status: 200,
       json: dryRun("prepare_transaction", {
         action_confirmation: "prepareTransaction",
+        omit_delegated_confirmation: true,
         attempt_id: attemptId,
         attempt_status: "reserved",
       }),
