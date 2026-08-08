@@ -1,9 +1,6 @@
-name: VOID PR1116 focused TypeScript diagnostic v1
+name: VOID PR1116 focused TypeScript narrowing repair v1
 
 on:
-  pull_request:
-    paths:
-      - .github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml
   push:
     branches:
       - feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
@@ -11,29 +8,72 @@ on:
       - .github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: void-pr1116-focused-tsc-narrowing-repair-v1
+  cancel-in-progress: false
 
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
+      - name: Verify exact staging boundary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          EXPECTED_PARENT='d6d6fb6e84b198058cc1d9355ebd3245f74a0c66'
+          EXPECTED_PROOF_BLOB='050652a2c2bc74d5eeb137ea8c1c49ddf80a7f78'
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_PARENT:scripts/prove_buy_void_production_preflight_operator_v1.ts")" = "$EXPECTED_PROOF_BLOB"
+          test "$(git diff --name-only "$EXPECTED_PARENT"..HEAD)" = '.github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml'
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: '22'
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Capture focused TypeScript compiler output
-        id: compile
+      - name: Repair proof narrowing
         shell: bash
         run: |
-          set +e
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/prove_buy_void_production_preflight_operator_v1.ts')
+          text = path.read_text()
+          pairs = [
+              (
+                  '  assert.equal(resolved.ok, true);\n  if (!resolved.ok) throw new Error(resolved.reason);\n',
+                  '  if (!resolved.ok) throw new Error(resolved.reason);\n  assert.equal(resolved.ok, true);\n',
+              ),
+              (
+                  '  assert.equal(planned.ok, true);\n  if (!planned.ok) throw new Error(planned.reason);\n',
+                  '  if (!planned.ok) throw new Error(planned.reason);\n  assert.equal(planned.ok, true);\n',
+              ),
+              (
+                  '  assert.equal(inspected.ok, true);\n  if (!inspected.ok) throw new Error(inspected.reason);\n',
+                  '  if (!inspected.ok) throw new Error(inspected.reason);\n  assert.equal(inspected.ok, true);\n',
+              ),
+          ]
+          for old, new in pairs:
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one narrowing pair: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          git diff --check
+          test "$(git diff --name-only)" = 'scripts/prove_buy_void_production_preflight_operator_v1.ts'
+      - name: Preserve focused TypeScript compiler gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           ./node_modules/.bin/tsc \
             --noEmit \
             --target ES2022 \
@@ -47,24 +87,28 @@ jobs:
             --skipLibCheck \
             scripts/buy_void_production_preflight_operator_v1.ts \
             scripts/prove_buy_void_production_preflight_operator_v1.ts \
-            scripts/prove_buy_void_production_live_canary_preflight_v1.ts \
-            > pr1116-focused-tsc.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > pr1116-focused-tsc.exit
-          cat pr1116-focused-tsc.log
-          exit 0
-      - name: Upload compiler diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr1116-focused-tsc-diagnostic
-          path: |
-            pr1116-focused-tsc.log
-            pr1116-focused-tsc.exit
-          if-no-files-found: error
-          retention-days: 1
-      - name: Preserve compiler result
+            scripts/prove_buy_void_production_live_canary_preflight_v1.ts
+      - name: Prove production preflight operator
+        run: npx --yes tsx scripts/prove_buy_void_production_preflight_operator_v1.ts
+      - name: Preserve live-canary preflight proof
+        run: npx --yes tsx scripts/prove_buy_void_production_live_canary_preflight_v1.ts
+      - name: Preserve native runtime guard
+        run: npx --yes tsx scripts/prove_buy_void_native_execution_runtime_guard_v1.ts
+      - name: Self-remove transient workflow and publish exact repair
         shell: bash
         run: |
-          status="$(cat pr1116-focused-tsc.exit)"
-          test "$status" = "0"
+          set -Eeuo pipefail
+          BRANCH='feat/buy-void-production-preflight-operator-entrypoint-v1-20260808'
+          TRIGGER_SHA='${{ github.sha }}'
+          git rm .github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml
+          git diff --check
+          printf '%s\n' "$(git diff --name-only | sort)" > /tmp/changed.txt
+          printf '%s\n' '.github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml' 'scripts/prove_buy_void_production_preflight_operator_v1.ts' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/changed.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/prove_buy_void_production_preflight_operator_v1.ts
+          git commit -m 'test(buy-void): fix preflight operator proof narrowing'
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse "origin/$BRANCH")" = "$TRIGGER_SHA"
+          git push origin "HEAD:$BRANCH"
