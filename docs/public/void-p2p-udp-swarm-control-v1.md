@@ -73,9 +73,17 @@ Each ticket is created by `VoidUdpRendezvousStateV1`, which already requires sig
 
 The coordinator requires both endpoints to reach `stable_same_rendezvous=true` before emitting offers. A mapping conflict under a ticket does not produce an offer.
 
+## Authenticated observation provenance handoff
+
+The current #1087 orchestrator requires a caller-supplied `verifyAuthenticatedRendezvousObservation` capability; a structurally plausible detached observation is not sufficient.
+
+The #1088 proof binds that capability to this coordinator's exact active relay session. For each expected node ID it fetches the current session record and accepts only an observation whose ticket ID, node ID, observed endpoint, timestamps, probe count, stability flag, and conflict flag exactly match the coordinator's internally recorded observation produced after signed-probe verification.
+
+A fabricated clone with altered observation metadata remains structurally eligible but fails that provenance check and is rejected by #1087. This preserves the authority boundary: #1088 supplies authenticated relay/rendezvous provenance, while #1087 consumes it without pretending to reverify probe signatures from detached observation data.
+
 ## Compatibility with swarm upgrade orchestrator
 
-The proof feeds the coordinator's stable observations directly into `VoidUdpSwarmUpgradeV1` and verifies that the resulting punch plan targets the exact reciprocal endpoint from the relay offer.
+The proof feeds the coordinator's stable observations into `VoidUdpSwarmUpgradeV1` through the authenticated-session-bound verifier and verifies that the resulting punch plan targets the exact reciprocal endpoint from the relay offer.
 
 After the offer, all identity and relay-retirement rules remain those of the #1087 orchestrator: punch success is not identity, secure-socket readiness is not peer promotion, and relay retirement waits for normal VOID peer authentication on the new socket.
 
@@ -92,6 +100,8 @@ wrong_key_mapping_probe_accepted=false
 stable_mapping_both_endpoints_required_before_offer=true
 mapping_conflict_offer_allowed=false
 reciprocal_mapping_offers_proven=true
+authenticated_rendezvous_observation_provenance_bound=true
+fabricated_detached_observation_accepted=false
 swarm_upgrade_orchestrator_compatibility_proven=true
 offer_defines_peer_identity=false
 normal_void_peer_auth_still_required=true
@@ -104,7 +114,7 @@ wallet_signer_validator_wc_money_authority=0
 
 ## Authority boundary
 
-Source, proof, documentation, CI, ordinary branch publication, and draft PR only.
+Source, proof, documentation, CI, ordinary branch publication, authenticated provenance handoff proof, and draft PR only.
 
 No merge, `node_core.ts` mutation, live relay UDP socket activation, production identity-key access, peer promotion, relay removal, verified-direct-cache mutation, deployment, service restart, router/firewall/DNS/interface mutation, wallet/signer/validator/Work Credit authority, transaction action, broadcast, or fund movement.
 
