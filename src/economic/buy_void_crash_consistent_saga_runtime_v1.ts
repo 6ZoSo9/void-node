@@ -65,6 +65,9 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
   stable_policy_fingerprint_bound_in_saga: true,
   one_request_per_invocation: true,
   one_business_stage_per_invocation: true,
+  candidate_reservation_ceiling_supported: true,
+  candidate_reservation_ceiling_blocks_transaction_preparation: true,
+  candidate_reservation_ceiling_rpc_call: false,
   per_request_lease_required: true,
   monotonically_increasing_fencing_token_required: true,
   restart_reconciliation_before_retry: true,
@@ -296,6 +299,13 @@ function canonical(value: unknown): string {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
     .join(",")}}`;
+}
+
+function sha256Canonical(value: unknown): string {
+  return crypto
+    .createHash("sha256")
+    .update(canonical(value), "utf8")
+    .digest("hex");
 }
 
 function same(left: unknown, right: unknown): boolean {
@@ -892,6 +902,7 @@ export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unkn
     enabled: enabled(),
     enable_env: ENABLE_ENV,
     request_dir_env: REQUEST_DIR_ENV,
+    candidate_reservation_ceiling_supported: true,
     preparation_enabled: preparationEnabled(),
     preparation_enable_env: PREPARATION_ENABLE_ENV,
     custodian_ipc_configured: preparationCustodian.ok,
@@ -966,6 +977,17 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
     });
   }
+  if (
+    Object.prototype.hasOwnProperty.call(body, "candidate_reservation_only") &&
+    body.candidate_reservation_only !== true
+  ) {
+    return res.status(400).json({
+      marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+      ok: false,
+      error: "candidate_reservation_only_must_be_true_when_present",
+    });
+  }
+  const candidateReservationOnly = body.candidate_reservation_only === true;
   const requestId = text(body.request_id);
   if (!SAFE_REQUEST_ID.test(requestId)) {
     return res.status(400).json({
@@ -994,6 +1016,47 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
     if (derived.status === "held") {
       throw new Error(`snapshot_held:${derived.reason}`);
     }
+
+    if (
+      candidateReservationOnly &&
+      text(derived.snapshot.claim_status) !== "claimed"
+    ) {
+      return res.status(200).json({
+        marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+        version: 1,
+        ok: true,
+        status: "dry_run",
+        applied: false,
+        request_id: requestId,
+        saga_id: "not_initialized",
+        saga_exists: false,
+        next_action: "claim_payment",
+        candidate_reservation_only: true,
+        candidate_reservation_ceiling_reached: true,
+        required_runtime_confirmation:
+          VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONFIRMATION_V1,
+        required_saga_confirmation: "not_applicable",
+        required_action_confirmation: "not_applicable",
+        required_delegated_confirmation: null,
+        required_policy_fingerprint_sha256:
+          serverPolicy.fingerprints.combined_policy_sha256,
+        derived_snapshot_sha256: sha256Canonical(derived.snapshot),
+        snapshot_evidence_sha256: sha256Canonical(derived.evidence),
+        derived_snapshot: derived.snapshot,
+        snapshot_evidence: derived.evidence,
+        preparation_invoked: false,
+        rpc_call_performed: false,
+        credential_access_performed: false,
+        inventory_decrement_performed: false,
+        wallet_access_performed: false,
+        signing_performed: false,
+        transaction_broadcast_performed: false,
+        public_fulfilled_closeout_performed: false,
+        money_movement_performed: false,
+        authority: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
+      });
+    }
+
     const request = readRequest(requests, requestId);
     const saga = await deps.load_saga_module();
     const existingIntent = exactlyOneOrNull(
@@ -1051,14 +1114,62 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         "next_stage_outside_prepared_transaction_runtime_boundary",
       );
     }
+    if (next.action !== "claim_payment" && stageCommand) {
+      throw new Error("stage_command_not_allowed_for_server_policy_stage");
+    }
+
+    if (
+      candidateReservationOnly &&
+      next.action === "prepare_transaction"
+    ) {
+      const attemptId = text(attempt?.reservation?.attempt_id).toLowerCase();
+      if (!SHA256.test(attemptId)) {
+        throw new Error("prepared_transaction_attempt_id_invalid");
+      }
+      return res.status(200).json({
+        marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+        version: 1,
+        ok: true,
+        status: "dry_run",
+        applied: false,
+        request_id: requestId,
+        saga_id: sagaId,
+        saga_exists: Boolean(recovered.record),
+        next_action: "prepare_transaction",
+        attempt_id: attemptId,
+        candidate_reservation_only: true,
+        candidate_reservation_ceiling_reached: true,
+        required_runtime_confirmation:
+          VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_CONFIRMATION_V1,
+        required_saga_confirmation: saga.ADVANCE_CONFIRMATION,
+        required_action_confirmation: next.required_confirmation,
+        required_delegated_confirmation: null,
+        required_policy_fingerprint_sha256:
+          serverPolicy.fingerprints.combined_policy_sha256,
+        server_policy_fingerprints: serverPolicy.fingerprints,
+        server_policy_public_summary: serverPolicy.public_summary,
+        derived_snapshot_sha256: sha256Canonical(derived.snapshot),
+        snapshot_evidence_sha256: sha256Canonical(derived.evidence),
+        derived_snapshot: derived.snapshot,
+        snapshot_evidence: derived.evidence,
+        preparation_invoked: false,
+        rpc_call_performed: false,
+        credential_access_performed: false,
+        inventory_decrement_performed: false,
+        wallet_access_performed: false,
+        signing_performed: false,
+        transaction_broadcast_performed: false,
+        public_fulfilled_closeout_performed: false,
+        money_movement_performed: false,
+        authority: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
+      });
+    }
+
     if (
       next.action === "prepare_transaction" &&
       !preparationEnabled()
     ) {
       throw new Error("transaction_preparation_disabled");
-    }
-    if (next.action !== "claim_payment" && stageCommand) {
-      throw new Error("stage_command_not_allowed_for_server_policy_stage");
     }
 
     if (next.action === "prepare_transaction") {
@@ -1330,6 +1441,23 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         server_policy_public_summary: serverPolicy.public_summary,
         derived_snapshot: derived.snapshot,
         snapshot_evidence: derived.evidence,
+        ...(candidateReservationOnly
+          ? {
+              candidate_reservation_only: true,
+              candidate_reservation_ceiling_reached: false,
+              derived_snapshot_sha256: sha256Canonical(derived.snapshot),
+              snapshot_evidence_sha256: sha256Canonical(derived.evidence),
+              preparation_invoked: false,
+              rpc_call_performed: false,
+              credential_access_performed: false,
+              inventory_decrement_performed: false,
+              wallet_access_performed: false,
+              signing_performed: false,
+              transaction_broadcast_performed: false,
+              public_fulfilled_closeout_performed: false,
+              money_movement_performed: false,
+            }
+          : {}),
         authority: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1,
       });
     }
@@ -1500,6 +1628,15 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         serverPolicy.fingerprints.combined_policy_sha256,
       restart_reconciliation_before_retry: true,
       automatic_retry: false,
+      ...(candidateReservationOnly
+        ? {
+            candidate_reservation_only: true,
+            candidate_reservation_ceiling_reached: false,
+            preparation_invoked: false,
+            rpc_call_performed: false,
+            credential_access_performed: false,
+          }
+        : {}),
       inventory_decrement_performed: false,
       wallet_access_performed: false,
       signing_performed: false,
