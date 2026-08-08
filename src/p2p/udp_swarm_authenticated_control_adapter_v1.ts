@@ -29,6 +29,9 @@ export const VOID_P2P_UDP_SWARM_AUTHENTICATED_CONTROL_ADAPTER_AUTHORITY_V1 = Obj
   signed_mapping_probes_use_existing_node_key: true,
   two_mapping_probes_emitted_per_ticket: true,
   offer_exact_session_binding_required: true,
+  offer_exact_rendezvous_evidence_required: true,
+  local_ticket_evidence_binding_required: true,
+  synthetic_rendezvous_observation_allowed: false,
   node_core_mount_performed: false,
   udp_socket_allocation_performed: false,
   network_send_performed: false,
@@ -364,6 +367,19 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         route.peer_node_id !== message.peer_node_id
       ) {
         throw new Error("UDP swarm authenticated control adapter offer route binding mismatch");
+      }
+      if (
+        message.local_observation.ticket_id !== route.ticket_id ||
+        message.local_observation.node_id !== this.options.localNodeId ||
+        message.peer_observation.node_id !== route.peer_node_id ||
+        message.local_observation.observed_endpoint !== message.local_observed_endpoint ||
+        message.peer_observation.observed_endpoint !== message.peer_observed_endpoint ||
+        message.local_observation.last_seen_ms >= route.expires_at_ms ||
+        message.peer_observation.last_seen_ms >= route.expires_at_ms
+      ) {
+        throw new Error(
+          "UDP swarm authenticated control adapter offer rendezvous evidence binding mismatch",
+        );
       }
       if (route.expires_at_ms <= nowMs) {
         this.removeRoute(route.session_id);
