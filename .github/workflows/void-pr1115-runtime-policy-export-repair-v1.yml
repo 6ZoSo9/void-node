@@ -1,0 +1,105 @@
+name: VOID PR1115 runtime policy export repair v1
+
+on:
+  push:
+    branches:
+      - feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
+    paths:
+      - ".github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-pr1115-runtime-policy-export-repair-v1
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Guard exact helper parent and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "53b7776c4df8675910de0c875fb9e7185305a0c7"
+          test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml"
+      - name: Export canonical native runtime policy resolver
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("src/economic/buy_void_native_execution_runtime_v1.ts")
+          text = p.read_text(encoding="utf-8")
+
+          old_type = "type PolicyStateV1 ="
+          new_type = "export type BuyVoidNativeExecutionRuntimePolicyStateV1 ="
+          old_fn = "function policyState(): PolicyStateV1 {"
+          new_fn = "export function buyVoidNativeExecutionRuntimePolicyStateV1():\n  BuyVoidNativeExecutionRuntimePolicyStateV1 {"
+          old_call = "const policy = policyState();"
+          new_call = "const policy = buyVoidNativeExecutionRuntimePolicyStateV1();"
+
+          if text.count(old_type) != 1:
+              raise SystemExit(f"unexpected PolicyStateV1 declaration count: {text.count(old_type)}")
+          if text.count(old_fn) != 1:
+              raise SystemExit(f"unexpected policyState declaration count: {text.count(old_fn)}")
+          if text.count(old_call) != 2:
+              raise SystemExit(f"unexpected policyState call count: {text.count(old_call)}")
+
+          text = text.replace(old_type, new_type)
+          text = text.replace(old_fn, new_fn)
+          text = text.replace(old_call, new_call)
+          p.write_text(text, encoding="utf-8")
+          PY
+          git diff --check -- src/economic/buy_void_native_execution_runtime_v1.ts
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove PR1115 focused boundary
+        run: npx --no-install tsx scripts/prove_buy_void_production_preflight_operator_v1.ts
+      - name: Preserve merged PR1109 preflight
+        run: npx --no-install tsx scripts/prove_buy_void_production_live_canary_preflight_v1.ts
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Remove temporary helper and verify final scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/void-pr1115-runtime-policy-export-repair-v1.yml
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          cat > "$expected" <<'EOF'
+          .github/workflows/buy-void-production-preflight-operator-v1.yml
+          docs/operators/buy-void-production-preflight-operator-v1.md
+          scripts/buy_void_production_preflight_operator_v1.ts
+          scripts/prove_buy_void_production_preflight_operator_v1.ts
+          src/economic/buy_void_native_execution_runtime_v1.ts
+          src/economic/buy_void_production_preflight_operator_v1.ts
+          EOF
+          git diff --name-only 7d2ea5a633b29d08432190543e2ff2d5a82ed082 | sort > "$actual"
+          diff -u "$expected" "$actual"
+          git diff --check 7d2ea5a633b29d08432190543e2ff2d5a82ed082
+      - name: Commit and normal fast-forward push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
+          test "$(git rev-parse origin/feat/buy-void-production-preflight-operator-entrypoint-v1-20260808)" = "$(git rev-parse HEAD)"
+          git config user.name "VOID guarded workflow"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+          git add -- src/economic/buy_void_native_execution_runtime_v1.ts
+          git status --short
+          git commit -m "feat: expose canonical Buy VOID runtime policy resolver"
+          git push origin HEAD:feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
