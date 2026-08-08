@@ -5,6 +5,7 @@ import {
   VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,
 } from "./buy_void_prepared_transaction_custodian_credential_activation_v1.js";
 import {
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1,
   VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1,
   VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1,
   runBuyVoidProductionPrivateServicesActivationV1,
@@ -251,7 +252,6 @@ function createSession(
   let shutdownPromise:
     | Promise<BuyVoidProductionPrivateServicesOperatorShutdownReceiptV1>
     | null = null;
-  let firstReceipt: BuyVoidProductionPrivateServicesOperatorShutdownReceiptV1 | null = null;
 
   async function performStop(
     trigger: BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1,
@@ -266,7 +266,7 @@ function createSession(
       await services.custodian.stop();
       custodianStopSucceeded = true;
     } catch {}
-    const receipt: BuyVoidProductionPrivateServicesOperatorShutdownReceiptV1 = {
+    return {
       marker: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1,
       version: 1,
       status:
@@ -286,8 +286,6 @@ function createSession(
       money_movement_performed: false,
       authority: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1,
     };
-    firstReceipt = receipt;
-    return receipt;
   }
 
   return Object.freeze({
@@ -295,15 +293,12 @@ function createSession(
       trigger: BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1 =
         "operator",
     ) => {
+      const duplicateShutdown = shutdownPromise !== null;
       if (!shutdownPromise) shutdownPromise = performStop(trigger);
-      const receipt = firstReceipt || await shutdownPromise;
-      if (receipt === firstReceipt && shutdownPromise) {
-        const settled = await shutdownPromise;
-        if (settled === receipt && firstReceipt === receipt) {
-          return receipt;
-        }
-      }
-      return { ...receipt, duplicate_shutdown: true };
+      const receipt = await shutdownPromise;
+      return duplicateShutdown
+        ? { ...receipt, duplicate_shutdown: true }
+        : receipt;
     },
   });
 }
@@ -356,6 +351,13 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
       applied: input.apply === true,
       stage: "operator_input",
       reason: "production_private_services_operator_unexpected_input",
+    });
+  }
+  if (input.apply !== undefined && typeof input.apply !== "boolean") {
+    return held({
+      applied: false,
+      stage: "operator_input",
+      reason: "production_private_services_operator_apply_boolean_required",
     });
   }
 
@@ -429,10 +431,14 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     return held({
       applied: apply,
       stage: "activation",
-      reason: safeReason(
-        activation.reason,
-        "production_private_services_operator_activation_held",
-      ),
+      reason:
+        activation.authority ===
+        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+          ? safeReason(
+              activation.reason,
+              "production_private_services_operator_activation_held",
+            )
+          : "production_private_services_operator_activation_held_boundary_invalid",
       production_activation_plan_id_sha256: activation.plan_id_sha256,
       rpc_probe_performed: flags.rpcProbe,
       service_state_mutation_performed: flags.serviceMutation,
@@ -451,6 +457,8 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
       apply ||
       activation.applied !== false ||
       activation.marker !== VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 ||
+      activation.authority !==
+        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 ||
       activation.plan_id_sha256 !==
         policyState.production_activation_plan_id_sha256 ||
       activation.rpc_url_fingerprint_sha256 !==
@@ -534,6 +542,8 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     activation.status !== "started" ||
     activation.applied !== true ||
     activation.marker !== VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 ||
+    activation.authority !==
+      VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 ||
     activation.plan_id_sha256 !==
       policyState.production_activation_plan_id_sha256 ||
     activation.rpc_url_fingerprint_sha256 !==
