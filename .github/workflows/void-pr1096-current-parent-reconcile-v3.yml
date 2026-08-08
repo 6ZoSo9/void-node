@@ -39,9 +39,10 @@ jobs:
 
           BRANCH='feat/p2p-udp-swarm-node-control-mount-v1-20260807'
           BASE_BRANCH='feat/p2p-udp-swarm-authenticated-control-adapter-v1-20260807'
-          EXPECTED_PREVIOUS_STAGING_HEAD='9a4036cf5cf9b8109ba5c0590693d1a6e1f91cbf'
+          EXPECTED_PREVIOUS_STAGING_HEAD='5506e5f35a2c12abba907393349ba3a59418ae6e'
           EXPECTED_FEATURE_HEAD='a71a7c92a31b54aac7ad9cbc9d767ff69ec31901'
           TEMP='.github/workflows/void-pr1096-current-parent-reconcile-v3.yml'
+          CONTROLLER='.github/workflows/void-pr1096-current-parent-reconcile-controller-v1.yml'
 
           BASE_WORKFLOW='.github/workflows/void-p2p-udp-swarm-authenticated-control-adapter-v1.yml'
           BASE_DOC='docs/public/void-p2p-udp-swarm-authenticated-control-adapter-v1.md'
@@ -54,7 +55,9 @@ jobs:
 
           STAGING_HEAD="$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_STAGING_HEAD"
-          test "$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD)" = "$TEMP"
+          actual_stage="$(git diff --name-only "$EXPECTED_FEATURE_HEAD" HEAD | sort)"
+          expected_stage="$(printf '%s\n' "$CONTROLLER" "$TEMP" | sort)"
+          test "$actual_stage" = "$expected_stage"
 
           git fetch --no-tags origin "$BASE_BRANCH"
           BASE_HEAD="$(git rev-parse FETCH_HEAD)"
@@ -371,7 +374,7 @@ jobs:
           PY
 
           git add src/node_core.ts
-          git rm -- "$TEMP"
+          git rm -- "$TEMP" "$CONTROLLER"
 
           actual_scope="$(git diff --name-only "$BASE_HEAD" | sort)"
           expected_scope="$(printf '%s\n' \
