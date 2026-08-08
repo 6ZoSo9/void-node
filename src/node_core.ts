@@ -256,6 +256,7 @@ type Peer = {
   handshakeDone: boolean;
   localChallenge: string;
   remoteHello?: VoidPeerHelloV1;
+  authenticatedPublicPem?: string;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -1322,6 +1323,7 @@ export class Node {
     this.peers.delete(temporaryId);
     peer.id = auth.id;
     peer.handshakeDone = true;
+    peer.authenticatedPublicPem = auth.pubkey;
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (
