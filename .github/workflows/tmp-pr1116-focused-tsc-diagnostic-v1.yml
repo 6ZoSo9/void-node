@@ -1,6 +1,9 @@
 name: VOID PR1116 focused TypeScript diagnostic v1
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/tmp-pr1116-focused-tsc-diagnostic-v1.yml
   push:
     branches:
       - feat/buy-void-production-preflight-operator-entrypoint-v1-20260808
