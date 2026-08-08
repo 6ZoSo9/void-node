@@ -1,9 +1,8 @@
 name: VOID PR1099 dgram AddressInfo repair v1
 
 on:
-  push:
-    branches:
-      - 'feat/p2p-udp-swarm-node-datagram-runtime-v1-20260808'
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: write
@@ -28,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_PARENT='967167772afdeecb06be3a0544769e2a1917349a'
+          EXPECTED_PARENT='9c1cec7726fe218dee17c3bd77ff2f0b84547844'
           SRC='src/p2p/udp_swarm_datagram_runtime_v1.ts'
           WF='.github/workflows/tmp-pr1099-dgram-addressinfo-repair-v1.yml'
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
@@ -77,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_PARENT='967167772afdeecb06be3a0544769e2a1917349a'
+          EXPECTED_PARENT='9c1cec7726fe218dee17c3bd77ff2f0b84547844'
           SRC='src/p2p/udp_swarm_datagram_runtime_v1.ts'
           test "$(git diff --name-only "$EXPECTED_PARENT")" = "$SRC"
           git diff --check "$EXPECTED_PARENT"
