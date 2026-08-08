@@ -73,6 +73,11 @@ type StoppablePrivateServiceV1 = {
   stop: () => Promise<void>;
 };
 
+type ReportedStartedServiceCleanupV1 = {
+  start_performed: boolean;
+  rollback_succeeded: boolean | null;
+};
+
 export type RunBuyVoidProductionPrivateServicesActivationInputV1 = {
   policy: Readonly<BuyVoidProductionActivationPlanPolicyV1>;
   apply?: boolean;
@@ -247,6 +252,37 @@ async function stopService(service: StoppablePrivateServiceV1): Promise<boolean>
   } catch {
     return false;
   }
+}
+
+async function rollbackReportedStartedService(
+  result: unknown,
+): Promise<ReportedStartedServiceCleanupV1> {
+  if (typeof result !== "object" || result === null) {
+    return { start_performed: false, rollback_succeeded: null };
+  }
+
+  const record = result as {
+    service_started?: unknown;
+    service?: unknown;
+  };
+
+  if (record.service_started !== true) {
+    return { start_performed: false, rollback_succeeded: null };
+  }
+
+  const service = record.service;
+  if (
+    typeof service !== "object" ||
+    service === null ||
+    typeof (service as { stop?: unknown }).stop !== "function"
+  ) {
+    return { start_performed: true, rollback_succeeded: false };
+  }
+
+  return {
+    start_performed: true,
+    rollback_succeeded: await stopService(service as StoppablePrivateServiceV1),
+  };
 }
 
 export async function runBuyVoidProductionPrivateServicesActivationV1(
@@ -514,20 +550,34 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
   }
 
   if (custodian.ok === false) {
+    const cleanup = await rollbackReportedStartedService(custodian);
     return held({
       applied: true,
-      reason: `production_private_services_activation_${custodian.reason}`,
+      reason: cleanup.start_performed
+        ? cleanup.rollback_succeeded
+          ? `production_private_services_activation_${custodian.reason}_reported_start_rolled_back`
+          : `production_private_services_activation_${custodian.reason}_reported_start_rollback_failed`
+        : `production_private_services_activation_${custodian.reason}`,
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
+      custodian_service_start_performed: cleanup.start_performed,
+      custodian_rollback_succeeded: cleanup.rollback_succeeded,
     });
   }
 
   if (custodian.status !== "started") {
+    const cleanup = await rollbackReportedStartedService(custodian);
     return held({
       applied: true,
-      reason: "production_private_services_activation_custodian_not_started",
+      reason: cleanup.start_performed
+        ? cleanup.rollback_succeeded
+          ? "production_private_services_activation_custodian_status_invalid_reported_start_rolled_back"
+          : "production_private_services_activation_custodian_status_invalid_reported_start_rollback_failed"
+        : "production_private_services_activation_custodian_not_started",
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
+      custodian_service_start_performed: cleanup.start_performed,
+      custodian_rollback_succeeded: cleanup.rollback_succeeded,
     });
   }
 
@@ -547,16 +597,17 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
     custodian.authority !==
       VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_AUTHORITY_V1
   ) {
-    const custodianRollback = await stopService(custodian.service);
+    const cleanup = await rollbackReportedStartedService(custodian);
     return held({
       applied: true,
-      reason: custodianRollback
-        ? "production_private_services_activation_custodian_boundary_invalid_rolled_back"
-        : "production_private_services_activation_custodian_boundary_invalid_rollback_failed",
+      reason:
+        cleanup.start_performed && cleanup.rollback_succeeded
+          ? "production_private_services_activation_custodian_boundary_invalid_rolled_back"
+          : "production_private_services_activation_custodian_boundary_invalid_rollback_failed",
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
-      custodian_service_start_performed: true,
-      custodian_rollback_succeeded: custodianRollback,
+      custodian_service_start_performed: cleanup.start_performed,
+      custodian_rollback_succeeded: cleanup.rollback_succeeded,
     });
   }
 
@@ -589,30 +640,44 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
   }
 
   if (broadcaster.ok === false) {
+    const broadcasterCleanup = await rollbackReportedStartedService(broadcaster);
     const custodianRollback = await stopService(custodian.service);
     return held({
       applied: true,
-      reason: custodianRollback
-        ? `production_private_services_activation_${broadcaster.reason}_custodian_rolled_back`
-        : `production_private_services_activation_${broadcaster.reason}_custodian_rollback_failed`,
+      reason: broadcasterCleanup.start_performed
+        ? broadcasterCleanup.rollback_succeeded === true && custodianRollback
+          ? `production_private_services_activation_${broadcaster.reason}_reported_start_rolled_back`
+          : `production_private_services_activation_${broadcaster.reason}_reported_start_rollback_failed`
+        : custodianRollback
+          ? `production_private_services_activation_${broadcaster.reason}_custodian_rolled_back`
+          : `production_private_services_activation_${broadcaster.reason}_custodian_rollback_failed`,
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
       custodian_service_start_performed: true,
+      broadcaster_service_start_performed: broadcasterCleanup.start_performed,
       custodian_rollback_succeeded: custodianRollback,
+      broadcaster_rollback_succeeded: broadcasterCleanup.rollback_succeeded,
     });
   }
 
   if (broadcaster.status !== "started") {
+    const broadcasterCleanup = await rollbackReportedStartedService(broadcaster);
     const custodianRollback = await stopService(custodian.service);
     return held({
       applied: true,
-      reason: custodianRollback
-        ? "production_private_services_activation_broadcaster_not_started_custodian_rolled_back"
-        : "production_private_services_activation_broadcaster_not_started_custodian_rollback_failed",
+      reason: broadcasterCleanup.start_performed
+        ? broadcasterCleanup.rollback_succeeded === true && custodianRollback
+          ? "production_private_services_activation_broadcaster_status_invalid_reported_start_rolled_back"
+          : "production_private_services_activation_broadcaster_status_invalid_reported_start_rollback_failed"
+        : custodianRollback
+          ? "production_private_services_activation_broadcaster_not_started_custodian_rolled_back"
+          : "production_private_services_activation_broadcaster_not_started_custodian_rollback_failed",
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
       custodian_service_start_performed: true,
+      broadcaster_service_start_performed: broadcasterCleanup.start_performed,
       custodian_rollback_succeeded: custodianRollback,
+      broadcaster_rollback_succeeded: broadcasterCleanup.rollback_succeeded,
     });
   }
 
@@ -632,9 +697,12 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
     broadcaster.authority !==
       VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_AUTHORITY_V1
   ) {
-    const broadcasterRollback = await stopService(broadcaster.service);
+    const broadcasterCleanup = await rollbackReportedStartedService(broadcaster);
     const custodianRollback = await stopService(custodian.service);
-    const rollbackSucceeded = broadcasterRollback && custodianRollback;
+    const rollbackSucceeded =
+      custodianRollback &&
+      (!broadcasterCleanup.start_performed ||
+        broadcasterCleanup.rollback_succeeded === true);
     return held({
       applied: true,
       reason: rollbackSucceeded
@@ -643,9 +711,9 @@ export async function runBuyVoidProductionPrivateServicesActivationV1(
       plan_id_sha256: plan.plan_id_sha256,
       rpc_probe_performed: true,
       custodian_service_start_performed: true,
-      broadcaster_service_start_performed: true,
+      broadcaster_service_start_performed: broadcasterCleanup.start_performed,
       custodian_rollback_succeeded: custodianRollback,
-      broadcaster_rollback_succeeded: broadcasterRollback,
+      broadcaster_rollback_succeeded: broadcasterCleanup.rollback_succeeded,
     });
   }
 
