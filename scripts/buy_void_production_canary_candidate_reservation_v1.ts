@@ -201,9 +201,10 @@ function parseDry(value: unknown, requestId: string): DryRun | null {
     !v || v.marker !== VOID_BUY_VOID_PRODUCTION_CANARY_CANDIDATE_RUNTIME_MARKER_V1 ||
     v.ok !== true || v.status !== "dry_run" || v.applied !== false || text(v.request_id) !== requestId
   ) return null;
-  const delegated = v.required_delegated_confirmation === null
+  const delegatedRaw = v.required_delegated_confirmation;
+  const delegated = delegatedRaw === undefined || delegatedRaw === null
     ? null
-    : text(v.required_delegated_confirmation);
+    : text(delegatedRaw);
   const dry: DryRun = {
     request_id: requestId,
     saga_id: text(v.saga_id),
@@ -218,7 +219,7 @@ function parseDry(value: unknown, requestId: string): DryRun | null {
   if (
     !dry.saga_id || !dry.next_action || !dry.required_runtime_confirmation ||
     !dry.required_saga_confirmation || !dry.required_action_confirmation ||
-    (v.required_delegated_confirmation !== null && !delegated) ||
+    (delegatedRaw !== undefined && delegatedRaw !== null && !delegated) ||
     !SHA256.test(dry.required_policy_fingerprint_sha256) ||
     Object.keys(dry.derived_snapshot).length === 0
   ) return null;
