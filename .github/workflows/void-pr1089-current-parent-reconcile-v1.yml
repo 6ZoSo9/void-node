@@ -1,0 +1,124 @@
+name: VOID PR1089 current-parent reconcile v1
+
+on:
+  push:
+    branches:
+      - 'feat/p2p-ephemeral-direct-mount-v1-20260807'
+    paths:
+      - '.github/workflows/void-pr1089-current-parent-reconcile-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact staging head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Reconcile current parent and prove
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BRANCH='feat/p2p-ephemeral-direct-mount-v1-20260807'
+          BASE_BRANCH='feat/p2p-udp-swarm-relay-control-v1-20260807'
+          EXPECTED_OLD_HEAD='4b0d8456d715c36636a779a421f4b54535cce58c'
+          EXPECTED_BASE='0d1f7fb11a8643949a640db694720e0f3cf29ee1'
+          TEMP='.github/workflows/void-pr1089-current-parent-reconcile-v1.yml'
+
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_OLD_HEAD"
+          test "$(git diff --name-only "$EXPECTED_OLD_HEAD" HEAD)" = "$TEMP"
+
+          git fetch --no-tags origin "$BASE_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          set +e
+          git merge --no-commit --no-ff "$EXPECTED_BASE"
+          merge_rc=$?
+          set -e
+
+          if [ "$merge_rc" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            test "$conflicts" = 'src/node_core.ts'
+          fi
+
+          # Current parent owns node_core. Reapply only the surviving PR1089 seam.
+          git checkout "$EXPECTED_BASE" -- src/node_core.ts
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/node_core.ts')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'HOLD: {label} anchor count={count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '''      peer.probe ||\n      peer.transport !== "direct" ||\n      peer.outbound ||''',
+              '''      peer.probe ||\n      peer.transport !== "direct" ||\n      !peer.persistDirectEvidence ||\n      peer.outbound ||''',
+              'ephemeral reachability suppression',
+          )
+
+          replace_once(
+              '''        this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");\n      } else {\n        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {''',
+              '''        this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");\n      } else if (!peer.persistDirectEvidence) {\n        console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {\n          expected_node_id: peer.expectedNodeId,\n          authenticated_node_id: auth.id,\n          transport_hint: peer.addr,\n        });\n        this.rejectUnauthenticatedPeer(peer, "ephemeral direct peer identity mismatch");\n      } else {\n        console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {''',
+              'ephemeral identity mismatch branch',
+          )
+
+          method = '''\n  attachEphemeralDirectTransportV1(\n    socket: PeerSocketV1,\n    expectedNodeId: string,\n    transportHint: string,\n  ): boolean {\n    if (\n      this.stopping ||\n      !/^[0-9a-f]{32}$/.test(expectedNodeId) ||\n      expectedNodeId === this.id ||\n      typeof transportHint !== "string" ||\n      transportHint.length < 1 ||\n      transportHint.length > 256 ||\n      /[\\s\\u0000-\\u001f\\u007f]/.test(transportHint)\n    ) return false;\n\n    this.attachSocket(\n      socket,\n      transportHint,\n      true,\n      expectedNodeId,\n      undefined,\n      "direct",\n      undefined,\n      undefined,\n      false,\n    );\n    return true;\n  }\n'''
+          replace_once(
+              '\n  private attachSocket(\n',
+              method + '\n  private attachSocket(\n',
+              'ephemeral mount insertion',
+          )
+
+          replace_once(
+              '      suppressReconnect: !!reachabilityProbe,',
+              '      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,',
+              'ephemeral reconnect suppression',
+          )
+
+          path.write_text(text)
+          PY
+
+          git add src/node_core.ts
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+          actual_scope="$(git diff --name-only "$EXPECTED_BASE" | sort)"
+          expected_scope="$(printf '%s\n' \
+            '.github/workflows/void-p2p-ephemeral-direct-mount-v1.yml' \
+            '.github/workflows/void-pr1089-current-parent-reconcile-v1.yml' \
+            'docs/public/void-p2p-ephemeral-direct-mount-v1.md' \
+            'scripts/prove_void_p2p_ephemeral_direct_mount_v1.ts' \
+            'src/node_core.ts' | sort)"
+          test "$actual_scope" = "$expected_scope"
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsx scripts/prove_void_p2p_ephemeral_direct_mount_v1.ts
+          npx --no-install tsx scripts/prove_void_p2p_udp_swarm_control_v1.ts
+          npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+          npm run typecheck
+          npm run build
+          git diff --check
+
+          git add src/node_core.ts
+          git commit -m 'chore: reconcile ephemeral direct mount with current relay-control parent'
+          git push origin "HEAD:$BRANCH"
