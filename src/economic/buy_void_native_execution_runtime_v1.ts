@@ -55,6 +55,8 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1 = {
   attempt_id_only_selector: true,
   journal_reconstruction_required: true,
   exact_confirmation_required_before_apply_io: true,
+  exact_policy_fingerprint_required_before_apply_planning: true,
+  exact_plan_fingerprint_required_before_signing: true,
   injected_dependencies_required_before_apply_io: true,
   read_only_nonce_fee_planning: true,
   public_request_journal_write: false,
@@ -147,6 +149,8 @@ export type BuyVoidNativeExecutionRuntimeCommandV1 = {
   apply?: boolean;
   confirmation?: unknown;
   submission_idempotency_key?: unknown;
+  expected_plan_fingerprint_sha256?: unknown;
+  policy_fingerprint_sha256?: unknown;
   now_ms?: number;
 };
 
@@ -158,6 +162,8 @@ export type BuyVoidNativeExecutionRuntimeDecisionV1 =
       status: "dry_run" | "broadcast_accepted";
       attempt_id: string;
       reconstructed_from_server_journals: true;
+      plan_fingerprint_sha256: string;
+      runtime_policy_fingerprint_sha256: string;
       planner: BuyVoidNativeExecutionNonceFeePlanDecisionV1 & {
         ok: true;
         status: "planned";
@@ -219,6 +225,71 @@ export type BuyVoidNativeExecutionRuntimePolicyStateV1 =
 
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
+    .join(",")}}`;
+}
+
+function buyVoidNativeExecutionRuntimePolicyFingerprintV1(
+  policy: BuyVoidNativeExecutionRuntimePolicyV1,
+): string {
+  return sha256Hex(
+    [
+      `root_dir=${policy.root_dir}`,
+      `pool_id=${policy.worker_policy.pool_id}`,
+      `fulfillment_wallet_address=${policy.worker_policy.fulfillment_wallet_address.toLowerCase()}`,
+      `max_void_amount_units=${policy.worker_policy.max_void_amount_units}`,
+      `gas_limit=${policy.planner_policy.gas_limit}`,
+      `max_gas_limit=${policy.worker_policy.max_gas_limit}`,
+      `max_fee_per_gas_wei=${policy.worker_policy.max_fee_per_gas_wei}`,
+      `max_priority_fee_per_gas_wei=${policy.worker_policy.max_priority_fee_per_gas_wei}`,
+      `fee_multiplier_bps=${policy.planner_policy.fee_multiplier_bps}`,
+      `rpc_url_fingerprint_sha256=${sha256Hex(policy.planner_policy.rpc_url)}`,
+    ].join("\n"),
+  );
+}
+
+function buyVoidNativeExecutionPlanFingerprintV1(input: {
+  runtime_policy: BuyVoidNativeExecutionRuntimePolicyV1;
+  attempt_id: string;
+  reconstructed: ReconstructedV1;
+  planner: BuyVoidNativeExecutionNonceFeePlanDecisionV1 & {
+    ok: true;
+    status: "planned";
+  };
+  native_value_wei: bigint;
+}): string {
+  const planner = input.planner;
+  const plan = planner.transaction_plan;
+  return sha256Hex(canonical({
+    attempt_id: input.attempt_id,
+    inventory_reservation_id: input.reconstructed.bounded_plan.inventory_reservation_id,
+    bounded_execution_plan_id_sha256: input.reconstructed.bounded_plan.plan_id,
+    chain_id: "2050",
+    delivery_address: input.reconstructed.bounded_plan.delivery_address,
+    void_amount_units: input.reconstructed.bounded_plan.void_amount_units,
+    native_value_wei: input.native_value_wei.toString(),
+    nonce: plan.nonce,
+    gas_limit: String(plan.gas_limit),
+    max_fee_per_gas_wei: String(plan.max_fee_per_gas_wei),
+    max_priority_fee_per_gas_wei: String(plan.max_priority_fee_per_gas_wei),
+    wallet_address_fingerprint_sha256: planner.wallet_address_fingerprint_sha256,
+    rpc_url_fingerprint_sha256: planner.rpc_url_fingerprint_sha256,
+    observed_gas_price_wei: String(planner.observed_gas_price_wei),
+    estimated_max_transaction_cost_wei: String(planner.estimated_max_transaction_cost_wei),
+    observed_wallet_balance_wei: String(planner.observed_wallet_balance_wei),
+    rpc_methods_used: [...planner.rpc_methods_used],
+    runtime_policy_fingerprint_sha256:
+      buyVoidNativeExecutionRuntimePolicyFingerprintV1(input.runtime_policy),
+    required_confirmation: VOID_BUY_VOID_NATIVE_EXECUTION_CONFIRMATION_V1,
+  }));
 }
 
 function enabled(): boolean {
@@ -421,31 +492,19 @@ export function buyVoidNativeExecutionRuntimePolicyStateV1():
     fee_multiplier_bps: values.fee_multiplier_bps,
   };
 
-  const fingerprint = sha256Hex(
-    [
-      `root_dir=${rootDir}`,
-      `pool_id=${values.pool_id}`,
-      `fulfillment_wallet_address=${values.fulfillment_wallet_address.toLowerCase()}`,
-      `max_void_amount_units=${values.max_void_amount_units}`,
-      `gas_limit=${values.gas_limit}`,
-      `max_gas_limit=${values.max_gas_limit}`,
-      `max_fee_per_gas_wei=${values.max_fee_per_gas_wei}`,
-      `max_priority_fee_per_gas_wei=${values.max_priority_fee_per_gas_wei}`,
-      `fee_multiplier_bps=${values.fee_multiplier_bps}`,
-      `rpc_url_fingerprint_sha256=${sha256Hex(values.rpc_url)}`,
-    ].join("\n"),
-  );
+  const policy: BuyVoidNativeExecutionRuntimePolicyV1 = {
+    enabled: enabled(),
+    root_dir: rootDir,
+    worker_policy: workerPolicy,
+    execution_policy: executionPolicy,
+    planner_policy: plannerPolicy,
+  };
 
   return {
     configured: true,
-    policy: {
-      enabled: enabled(),
-      root_dir: rootDir,
-      worker_policy: workerPolicy,
-      execution_policy: executionPolicy,
-      planner_policy: plannerPolicy,
-    },
-    fingerprint_sha256: fingerprint,
+    policy,
+    fingerprint_sha256:
+      buyVoidNativeExecutionRuntimePolicyFingerprintV1(policy),
     rpc_url_fingerprint_sha256: sha256Hex(values.rpc_url),
   };
 }
@@ -654,6 +713,36 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
     });
   }
 
+  const runtimePolicyFingerprint =
+    buyVoidNativeExecutionRuntimePolicyFingerprintV1(runtimePolicy);
+  if (command.apply === true) {
+    const suppliedPolicyFingerprint = String(
+      command.policy_fingerprint_sha256 || "",
+    ).trim();
+    const suppliedPlanFingerprint = String(
+      command.expected_plan_fingerprint_sha256 || "",
+    ).trim();
+    if (!SHA256.test(suppliedPolicyFingerprint)) {
+      return held("runtime_policy", {
+        reason: "exact_policy_fingerprint_required",
+        attempt_id: attemptId,
+      });
+    }
+    if (suppliedPolicyFingerprint !== runtimePolicyFingerprint) {
+      return held("runtime_policy", {
+        reason: "native_execution_policy_fingerprint_mismatch",
+        attempt_id: attemptId,
+        detail: { required_policy_fingerprint_sha256: runtimePolicyFingerprint },
+      });
+    }
+    if (!SHA256.test(suppliedPlanFingerprint)) {
+      return held("runtime_policy", {
+        reason: "exact_plan_fingerprint_required",
+        attempt_id: attemptId,
+      });
+    }
+  }
+
   const reconstructed = reconstruct(
     runtimePolicy.root_dir,
     runtimePolicy.worker_policy.pool_id,
@@ -683,6 +772,26 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
       attempt_id: attemptId,
       planner,
       detail: planner.detail,
+    });
+  }
+
+  const planFingerprint = buyVoidNativeExecutionPlanFingerprintV1({
+    runtime_policy: runtimePolicy,
+    attempt_id: attemptId,
+    reconstructed,
+    planner,
+    native_value_wei: nativeValue,
+  });
+  if (
+    command.apply === true &&
+    String(command.expected_plan_fingerprint_sha256 || "").trim() !==
+      planFingerprint
+  ) {
+    return held("nonce_fee_planning", {
+      reason: "native_execution_plan_fingerprint_mismatch",
+      attempt_id: attemptId,
+      planner,
+      detail: { required_plan_fingerprint_sha256: planFingerprint },
     });
   }
 
@@ -720,6 +829,8 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
     status: worker.status,
     attempt_id: attemptId,
     reconstructed_from_server_journals: true,
+    plan_fingerprint_sha256: planFingerprint,
+    runtime_policy_fingerprint_sha256: runtimePolicyFingerprint,
     planner,
     worker,
     mutation_performed: worker.mutation_performed,
@@ -840,6 +951,8 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
     "apply",
     "confirmation",
     "submission_idempotency_key",
+    "expected_plan_fingerprint_sha256",
+    "policy_fingerprint_sha256",
   ]);
   const unexpected = Object.keys(body).filter(
     (key) => !allowed.has(key),
@@ -871,6 +984,10 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
       confirmation: (body as any).confirmation,
       submission_idempotency_key:
         (body as any).submission_idempotency_key,
+      expected_plan_fingerprint_sha256:
+        (body as any).expected_plan_fingerprint_sha256,
+      policy_fingerprint_sha256:
+        (body as any).policy_fingerprint_sha256,
     },
     dependencies: externalDependencies(),
   });
