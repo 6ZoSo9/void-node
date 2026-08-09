@@ -35,6 +35,8 @@ export const VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1 = {
   replan_before_apply: true,
   exact_plan_fingerprint_required: true,
   exact_policy_fingerprint_required: true,
+  runtime_validates_exact_plan_fingerprint_before_signing: true,
+  runtime_validates_exact_policy_fingerprint_before_apply_planning: true,
   exact_execution_confirmation_required: true,
   submission_idempotency_key_caller_supplied: true,
   submission_idempotency_key_synthesized: false,
@@ -114,7 +116,7 @@ type RuntimeStatusV1 = {
 };
 
 type DryRuntimeV1 = {
-  plan_material: Record<string, unknown>;
+  plan_fingerprint_sha256: string;
   public_plan: Record<string, unknown>;
 };
 
@@ -223,9 +225,10 @@ function ambiguousApply(
     reason,
     plan_fingerprint_sha256: planFingerprint,
     policy_fingerprint_sha256: policyFingerprint,
-    mutation_performed: false,
-    signing_performed: false,
-    transaction_broadcast_performed: false,
+    mutation_performed: null,
+    signing_performed: null,
+    transaction_broadcast_performed: null,
+    side_effect_state_known: false,
     submission_may_have_occurred: true,
     reconciliation_required: true,
     automatic_retry_allowed: false,
@@ -421,6 +424,8 @@ function parseRuntimeStatus(value: unknown): RuntimeStatusV1 | null {
     authority.server_controlled_rpc_url !== true ||
     authority.attempt_id_only_selector !== true ||
     authority.exact_confirmation_required_before_apply_io !== true ||
+    authority.exact_policy_fingerprint_required_before_apply_planning !== true ||
+    authority.exact_plan_fingerprint_required_before_signing !== true ||
     authority.injected_dependencies_required_before_apply_io !== true ||
     authority.raw_signed_transaction_input !== false ||
     authority.raw_signed_transaction_persistence !== false ||
@@ -471,6 +476,10 @@ function parseDryRuntime(
     runtime.transaction_broadcast_performed !== false ||
     runtime.raw_signed_transaction_persisted !== false ||
     runtime.raw_signed_transaction_returned !== false ||
+    !SHA256.test(text(runtime.plan_fingerprint_sha256)) ||
+    !SHA256.test(text(runtime.runtime_policy_fingerprint_sha256)) ||
+    text(runtime.runtime_policy_fingerprint_sha256) !==
+      status.policy_fingerprint_sha256 ||
     !planner ||
     planner.ok !== true ||
     planner.marker !== VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_PLANNER_MARKER_V1 ||
@@ -568,12 +577,10 @@ function parseDryRuntime(
     observed_wallet_balance_wei: decimal(planner.observed_wallet_balance_wei)!,
     rpc_methods_used: [...EXPECTED_RPC_METHODS],
   };
-  const planMaterial = {
-    ...publicPlan,
-    runtime_policy_fingerprint_sha256: status.policy_fingerprint_sha256,
-    required_confirmation: VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_CONFIRMATION_V1,
+  return {
+    plan_fingerprint_sha256: text(runtime.plan_fingerprint_sha256),
+    public_plan: publicPlan,
   };
-  return { plan_material: planMaterial, public_plan: publicPlan };
 }
 
 export async function planBuyVoidProductionNativeExecutionV1(input: {
@@ -641,7 +648,7 @@ export async function planBuyVoidProductionNativeExecutionV1(input: {
   }
   const dry = parseDryRuntime(dryResponse.json, attemptId, status);
   if (!dry) return held(attemptId, "dry_run", "runtime_dry_run_boundary_invalid");
-  const planFingerprint = sha256Hex(canonical(dry.plan_material));
+  const planFingerprint = dry.plan_fingerprint_sha256;
   return {
     marker: VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_V1,
     version: 1,
@@ -875,6 +882,8 @@ export async function runBuyVoidProductionNativeExecutionOperatorV1(input: {
     apply: true,
     confirmation: input.args.confirmation,
     submission_idempotency_key: input.args.submission_idempotency_key,
+    expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+    policy_fingerprint_sha256: plan.runtime_policy_fingerprint_sha256,
   } as const;
   let response: { status: number; json: unknown };
   try {
