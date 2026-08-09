@@ -10,12 +10,25 @@ type ParsedArgs = {
   output: string | null;
   requireExactOne: boolean;
   repoRoot: string;
+  runtimeRoot: string | null;
+};
+
+type RuntimeRootResolutionV1 = {
+  root_dir: string | null;
+  source:
+    | "cli_runtime_root"
+    | "VOID_BUY_VOID_RUNTIME_DIR"
+    | "DATA_DIR"
+    | "VOID_DATA_DIR"
+    | "unique_repo_runtime_root"
+    | "not_required_no_canonical_requests";
 };
 
 function parseArgs(argv: string[]): ParsedArgs {
   let output: string | null = null;
   let requireExactOne = false;
   let repoRoot = process.cwd();
+  let runtimeRoot: string | null = null;
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -37,6 +50,15 @@ function parseArgs(argv: string[]): ParsedArgs {
       index += 1;
       continue;
     }
+    if (value === "--runtime-root") {
+      const next = argv[index + 1];
+      if (!next) {
+        throw new Error("--runtime-root requires a path");
+      }
+      runtimeRoot = next;
+      index += 1;
+      continue;
+    }
     if (value === "--require-exact-one") {
       requireExactOne = true;
       continue;
@@ -49,6 +71,7 @@ function parseArgs(argv: string[]): ParsedArgs {
           "",
           "Options:",
           "  --repo-root PATH       Repository root containing .runtime request records",
+          "  --runtime-root PATH    Exact Buy VOID runtime-integration journal root",
           "  --output PATH          Write the JSON report to an operator-selected file",
           "  --require-exact-one    Exit 3 for no candidate or 4 for multiple candidates",
           "  --help                 Show this help",
@@ -63,7 +86,108 @@ function parseArgs(argv: string[]): ParsedArgs {
     output,
     requireExactOne,
     repoRoot,
+    runtimeRoot,
   };
+}
+
+function resolveAgainstRepo(
+  repoRoot: string,
+  configured: string,
+): string {
+  return path.isAbsolute(configured)
+    ? path.normalize(configured)
+    : path.resolve(repoRoot, configured);
+}
+
+function dataRuntimeRoot(
+  repoRoot: string,
+  configuredDataDir: string,
+): string {
+  const dataDir = resolveAgainstRepo(repoRoot, configuredDataDir);
+  return path.join(dataDir, "buy_void_v1", "runtime-integration-v1");
+}
+
+function discoverRepoRuntimeRoots(repoRoot: string): string[] {
+  if (!fs.existsSync(repoRoot)) return [];
+
+  const roots: string[] = [];
+  for (const entry of fs.readdirSync(repoRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const candidate = path.join(
+      repoRoot,
+      entry.name,
+      "buy_void_v1",
+      "runtime-integration-v1",
+    );
+    try {
+      const stat = fs.lstatSync(candidate);
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        roots.push(path.resolve(candidate));
+      }
+    } catch {
+      // Missing candidate directories are not runtime roots.
+    }
+  }
+  return roots.sort();
+}
+
+function resolveRuntimeRootV1(input: {
+  repoRoot: string;
+  runtimeRoot: string | null;
+  canonicalRequestCount: number;
+}): RuntimeRootResolutionV1 {
+  const cliRoot = String(input.runtimeRoot || "").trim();
+  if (cliRoot) {
+    return {
+      root_dir: resolveAgainstRepo(input.repoRoot, cliRoot),
+      source: "cli_runtime_root",
+    };
+  }
+
+  const runtimeEnv = String(
+    process.env.VOID_BUY_VOID_RUNTIME_DIR || "",
+  ).trim();
+  if (runtimeEnv) {
+    return {
+      root_dir: resolveAgainstRepo(input.repoRoot, runtimeEnv),
+      source: "VOID_BUY_VOID_RUNTIME_DIR",
+    };
+  }
+
+  const dataDirEnv = String(process.env.DATA_DIR || "").trim();
+  if (dataDirEnv) {
+    return {
+      root_dir: dataRuntimeRoot(input.repoRoot, dataDirEnv),
+      source: "DATA_DIR",
+    };
+  }
+
+  const voidDataDirEnv = String(process.env.VOID_DATA_DIR || "").trim();
+  if (voidDataDirEnv) {
+    return {
+      root_dir: dataRuntimeRoot(input.repoRoot, voidDataDirEnv),
+      source: "VOID_DATA_DIR",
+    };
+  }
+
+  if (input.canonicalRequestCount === 0) {
+    return {
+      root_dir: null,
+      source: "not_required_no_canonical_requests",
+    };
+  }
+
+  const discovered = discoverRepoRuntimeRoots(input.repoRoot);
+  if (discovered.length === 1) {
+    return {
+      root_dir: discovered[0],
+      source: "unique_repo_runtime_root",
+    };
+  }
+  if (discovered.length === 0) {
+    throw new Error("runtime_root_authority_required");
+  }
+  throw new Error(`runtime_root_ambiguous:${discovered.length}`);
 }
 
 function walkJsonFiles(directory: string): string[] {
@@ -104,14 +228,6 @@ async function main(): Promise<void> {
     "..",
   );
 
-  const runtimeIntegration = await import(
-    pathToFileURL(
-      path.join(
-        sourceRoot,
-        "src/economic/buy_void_runtime_integration_v1.ts",
-      ),
-    ).href
-  );
   const snapshotModule = await import(
     pathToFileURL(
       path.join(
@@ -140,9 +256,6 @@ async function main(): Promise<void> {
     ).href
   );
 
-  const rootDir = String(
-    runtimeIntegration.buyVoidRuntimeRootDirV1(),
-  );
   const requestDir = path.join(
     args.repoRoot,
     ".runtime",
@@ -194,6 +307,13 @@ async function main(): Promise<void> {
     }
   }
 
+  const runtimeRoot = resolveRuntimeRootV1({
+    repoRoot: args.repoRoot,
+    runtimeRoot: args.runtimeRoot,
+    canonicalRequestCount: requestIds.size,
+  });
+  const rootDir = runtimeRoot.root_dir;
+
   const orphanOperatorEventRequestIds =
     [...operatorEventRequestIds]
       .filter((requestId) => !requestIds.has(requestId))
@@ -202,6 +322,10 @@ async function main(): Promise<void> {
   const records: BuyVoidObserveAndClaimCandidateRecordV1[] = [];
 
   for (const requestId of [...requestIds].sort()) {
+    if (!rootDir) {
+      throw new Error("runtime_root_authority_required");
+    }
+
     const derived =
       snapshotModule
         .deriveBuyVoidBoundedOrchestratorServerSnapshotV1({
@@ -339,6 +463,8 @@ async function main(): Promise<void> {
     ...summary,
     repository_root: args.repoRoot,
     request_directory: requestDir,
+    runtime_root: rootDir,
+    runtime_root_source: runtimeRoot.source,
     request_json_file_count: requestFiles.length,
     canonical_request_json_file_count:
       canonicalRequestJsonFileCount,
@@ -387,6 +513,7 @@ async function main(): Promise<void> {
     "orphan_operator_event_request_id_count="
       + orphanOperatorEventRequestIds.length,
   );
+  console.log(`runtime_root_source=${runtimeRoot.source}`);
   console.log("activation_performed=false");
   console.log("runtime_mutation_performed=false");
   console.log("money_movement=false");
