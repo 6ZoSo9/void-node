@@ -10,7 +10,6 @@ on:
       - 'scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts'
       - 'docs/public/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.md'
       - '.github/workflows/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.yml'
-      - 'src/node_core.ts'
 
 permissions:
   contents: write
@@ -137,40 +136,39 @@ jobs:
           diff -u /tmp/expected-untracked.txt /tmp/actual-untracked.txt
           git status --short
 
-      - name: Retire bootstrap carrier and stage exact publication scope
+      - name: Commit proven Node source only
         shell: bash
         run: |
           set -euo pipefail
-          git add -- src/node_core.ts .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml
-          git rm -- \
-            .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml \
-            scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+          git add -- src/node_core.ts
           git diff --cached --check
-          printf '%s\n' \
-            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml' \
-            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
-            'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py' \
-            'src/node_core.ts' > /tmp/expected-staged-paths.txt
+          printf '%s\n' 'src/node_core.ts' > /tmp/expected-staged-paths.txt
           git diff --cached --name-only | sort > /tmp/actual-staged-paths.txt
           diff -u /tmp/expected-staged-paths.txt /tmp/actual-staged-paths.txt
           git commit -m "feat: mount UDP post-retirement recovery in Node v1"
 
-      - name: Verify final semantic tree before push
+      - name: Verify source-only publication tree
         shell: bash
         run: |
           set -euo pipefail
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           git diff --check "$BASE_SHA"...HEAD
           printf '%s\n' \
-            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml' \
+            'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py' \
             'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts' \
-            'src/node_core.ts' > /tmp/expected-final-paths.txt
-          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual-final-paths.txt
-          diff -u /tmp/expected-final-paths.txt /tmp/actual-final-paths.txt
-          test ! -e .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml
-          test ! -e scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+            'src/node_core.ts' > /tmp/expected-interim-paths.txt
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual-interim-paths.txt
+          diff -u /tmp/expected-interim-paths.txt /tmp/actual-interim-paths.txt
+          test -e .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml
+          test -e scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            > /tmp/expected-untracked.txt
+          git ls-files --others --exclude-standard | sort > /tmp/actual-untracked.txt
+          diff -u /tmp/expected-untracked.txt /tmp/actual-untracked.txt
 
-      - name: Guard live branch then fast-forward publish
+      - name: Guard live branch then fast-forward publish source
         shell: bash
         run: |
           set -euo pipefail
