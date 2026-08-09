@@ -82,18 +82,45 @@ jobs:
               file = Path(path)
               text = file.read_text()
               count = text.count(old)
+              allowed_runtime_response_duplicate = (
+                  path == "src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts"
+                  and old == "      required_policy_fingerprint_sha256:\\n        dry.required_policy_fingerprint_sha256,\\n      required_saga_confirmation: dry.required_saga_confirmation,"
+                  and count == 2
+              )
               allowed_runtime_apply_duplicate = (
                   path == "scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts"
                   and old == "      policy_fingerprint_sha256: policyFingerprint,\\n      saga_confirmation: sagaConfirmation,"
                   and count == 2
               )
-              if count != 1 and not allowed_runtime_apply_duplicate:
+              if count != 1 and not (
+                  allowed_runtime_response_duplicate or allowed_runtime_apply_duplicate
+              ):
                   raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:100]!r}")
               file.write_text(text.replace(old, new, 1))'''
           patch.write_text(text[:start] + replacement + text[end:])
           PY
             trap 'git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py' EXIT
             python3 scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
+            python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts")
+          old = """      required_policy_fingerprint_sha256:
+                dry.required_policy_fingerprint_sha256,
+              required_saga_confirmation: dry.required_saga_confirmation,"""
+          new = """      required_policy_fingerprint_sha256:
+                dry.required_policy_fingerprint_sha256,
+              required_terminal_plan_fingerprint_sha256:
+                dry.required_plan_fingerprint_sha256,
+              required_saga_confirmation: dry.required_saga_confirmation,"""
+          text = path.read_text()
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f"terminal runtime remaining authority response count={text.count(old)}"
+              )
+          path.write_text(text.replace(old, new, 1))
+          print("VOID_BUY_VOID_TERMINAL_RUNTIME_SECOND_AUTHORITY_RESPONSE_PATCHED")
+          PY
           ) 2>&1 | tee "$LOG"
           status=${PIPESTATUS[0]}
           exit "$status"
