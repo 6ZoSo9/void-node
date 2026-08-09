@@ -544,6 +544,31 @@ async function main(): Promise<void> {
     ),
     "utf8",
   );
+  const closeoutSource = fs.readFileSync(
+    new URL(
+      "../src/economic/buy_void_saga_terminal_closeout_v1.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const confirmedCloseoutSource = fs.readFileSync(
+    new URL(
+      "../src/economic/buy_void_confirmed_closeout_v1.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const indexSource = fs.readFileSync(
+    new URL("../src/index.ts", import.meta.url),
+    "utf8",
+  );
+  const requestLockSource = fs.readFileSync(
+    new URL(
+      "../src/economic/buy_void_terminal_closeout_request_lock_v1.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   assert.equal(
     artifactSource.includes("function atomicReplaceJsonLines("),
     false,
@@ -552,6 +577,40 @@ async function main(): Promise<void> {
     artifactSource.includes(
       "function appendTerminalPublicJsonLineDurable(",
     ),
+    true,
+  );
+  assert.equal(
+    requestLockSource.includes(
+      "export function withBuyVoidTerminalCloseoutRequestLockV1",
+    ),
+    true,
+  );
+  for (const source of [artifactSource, confirmedCloseoutSource, indexSource]) {
+    assert.equal(
+      source.includes("withBuyVoidTerminalCloseoutRequestLockV1"),
+      true,
+    );
+  }
+  const applyStart = artifactSource.indexOf(
+    "export function applyTerminalCloseoutArtifactsV1(",
+  );
+  const requestLockStart = artifactSource.indexOf(
+    "return withBuyVoidTerminalCloseoutRequestLockV1(",
+    applyStart,
+  );
+  const lockedRevalidationStart = artifactSource.indexOf(
+    "const current = reconstructLocked();",
+    requestLockStart,
+  );
+  const planPersistenceStart = artifactSource.indexOf(
+    "const planState = persistTerminalCloseoutPlanV1(",
+    lockedRevalidationStart,
+  );
+  assert.equal(
+    applyStart >= 0 &&
+      requestLockStart > applyStart &&
+      lockedRevalidationStart > requestLockStart &&
+      planPersistenceStart > lockedRevalidationStart,
     true,
   );
 
@@ -656,6 +715,61 @@ async function main(): Promise<void> {
     readJsonLines(path.join(fixture.request_dir, "operator-events.jsonl"))
       .filter((row) => row.operator_status === "fulfilled").length,
     0,
+  );
+
+  const lockWindowProbe = {
+    schema: "void_buy_void_operator_mark_v1",
+    request_id: fixture.request_id,
+    operator_status: "reviewed",
+    marked_at_ms: Date.parse("2026-08-06T12:10:08.000Z"),
+    tx_hash: `0x${"7".repeat(64)}`,
+    terminal_plan_lock_window_probe: true,
+  };
+  let lockWindowInjected = false;
+  const lockWindowDrift = await runBuyVoidSagaTerminalCloseoutV1({
+    ...applyInput(dry, fixture),
+    dependencies: {
+      ...dependencies,
+      fault_inject: (stage: BuyVoidSagaTerminalCloseoutFaultStageV1) => {
+        if (
+          stage === "after_request_lock_before_plan_revalidation" &&
+          !lockWindowInjected
+        ) {
+          lockWindowInjected = true;
+          fs.appendFileSync(
+            path.join(fixture.request_dir, "operator-events.jsonl"),
+            `${JSON.stringify(lockWindowProbe)}\n`,
+          );
+          return;
+        }
+        dependencies.fault_inject(stage);
+      },
+    },
+  });
+  assert.equal(lockWindowInjected, true);
+  assert.equal(lockWindowDrift.ok, false);
+  if (lockWindowDrift.ok !== false) {
+    throw new Error("expected locked terminal plan drift hold");
+  }
+  assert.equal(lockWindowDrift.stage, "closeout_plan");
+  assert.equal(
+    lockWindowDrift.reason,
+    "terminal_closeout_plan_changed_during_apply",
+  );
+  assert.equal(lockWindowDrift.mutation_performed, false);
+  assert.equal(lockWindowDrift.inventory_consumption_performed, false);
+  assert.equal(lockWindowDrift.public_request_fulfilled, false);
+  assert.equal(lockWindowDrift.saga_closeout_appended, false);
+  assert.equal(listBuyVoidInventoryConsumptionsV1(fixture.root).length, 0);
+  assert.equal(
+    readJsonLines(path.join(fixture.request_dir, "operator-events.jsonl"))
+      .filter((row) => row.operator_status === "fulfilled").length,
+    0,
+  );
+  writeJsonLines(
+    path.join(fixture.request_dir, "operator-events.jsonl"),
+    readJsonLines(path.join(fixture.request_dir, "operator-events.jsonl"))
+      .filter((row) => row.terminal_plan_lock_window_probe !== true),
   );
 
   const confirmedPaths = buyVoidConfirmedStateJournalPathsV1(fixture.root);
@@ -1004,6 +1118,8 @@ async function main(): Promise<void> {
   process.stdout.write("saga_closeout_event_count=1\n");
   process.stdout.write("terminal_plan_fingerprint_bound_before_mutation=true\n");
   process.stdout.write("terminal_plan_inner_reconstruction_drift_blocked=true\n");
+  process.stdout.write("terminal_plan_revalidated_inside_shared_request_lock=true\n");
+  process.stdout.write("operator_event_writers_share_terminal_request_lock=true\n");
   process.stdout.write("post_append_verification_mismatch_saga_append_truth=true\n");
   process.stdout.write("post_append_verification_mismatch_automatic_retry=false\n");
   process.stdout.write("concurrent_process_closeout_unique=true\n");

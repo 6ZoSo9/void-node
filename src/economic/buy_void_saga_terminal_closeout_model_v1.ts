@@ -26,6 +26,8 @@ export const VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_AUTHORITY_V1 = {
   request_scoped_crash_recoverable_lock: true,
   deterministic_closeout_plan_persistence: true,
   exact_terminal_plan_fingerprint_required_before_mutation: true,
+  terminal_plan_revalidation_inside_request_lock: true,
+  shared_operator_event_writer_lock: true,
   append_only_inventory_consumption: true,
   atomic_public_operator_journal_projection: true,
   saga_closeout_committed_append: true,
@@ -51,6 +53,7 @@ export const TERMINAL_CLOSEOUT_ROOT = "buy-void-saga-terminal-closeout-v1";
 export const TERMINAL_CLOSEOUT_LEASE_TTL_MS = 30_000;
 
 export type BuyVoidSagaTerminalCloseoutFaultStageV1 =
+  | "after_request_lock_before_plan_revalidation"
   | "after_plan_before_inventory"
   | "after_inventory_before_public"
   | "after_public_before_saga";
