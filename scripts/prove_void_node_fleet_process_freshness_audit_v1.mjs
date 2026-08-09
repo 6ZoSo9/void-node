@@ -54,15 +54,19 @@ async function reservePort() {
 }
 
 async function waitForHealth(port, child) {
+  let lastError = "health endpoint did not return a green response";
   for (let attempt = 0; attempt < 100; attempt += 1) {
     assert.equal(child.exitCode, null, "fixture process exited before becoming healthy");
     try {
       const response = await fetch(`http://127.0.0.1:${port}/health`);
       if (response.ok && (await response.json()).ok === true) return;
-    } catch {}
+      lastError = `health response status=${response.status}`;
+    } catch (error) {
+      lastError = String(error?.message || error);
+    }
     await delay(50);
   }
-  assert.fail("fixture process did not become healthy");
+  assert.fail(`fixture process did not become healthy: ${lastError}`);
 }
 
 function baseSnapshot(overrides = {}) {
