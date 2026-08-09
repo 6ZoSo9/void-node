@@ -30,6 +30,7 @@ function healthyInput(
     consecutive_successful_round_trips:
       VOID_P2P_UDP_SWARM_DIRECT_ROUTE_HEALTH_MIN_CONSECUTIVE_ROUND_TRIPS_V1,
     failed_round_trips_since_promotion: 0,
+    first_success_at_ms: PROMOTED_AT,
     last_success_at_ms: NOW,
     ...overrides,
   };
@@ -97,6 +98,28 @@ function main(): void {
     "insufficient_consecutive_successes",
   );
   expectRetain(
+    { first_success_at_ms: null },
+    "first_success_missing_or_invalid",
+  );
+  expectRetain(
+    { first_success_at_ms: PROMOTED_AT - 1 },
+    "first_success_missing_or_invalid",
+  );
+  expectRetain(
+    {
+      first_success_at_ms: PROMOTED_AT + 2,
+      last_success_at_ms: PROMOTED_AT + 1,
+    },
+    "last_success_missing_or_invalid",
+  );
+  expectRetain(
+    {
+      first_success_at_ms: NOW - 1,
+      last_success_at_ms: NOW,
+    },
+    "success_window_too_short",
+  );
+  expectRetain(
     { last_success_at_ms: null },
     "last_success_missing_or_invalid",
   );
@@ -138,6 +161,8 @@ function main(): void {
   console.log("exact_identity_required=true");
   console.log("live_promoted_direct_route_required=true");
   console.log("live_relay_fallback_required_before_authorization=true");
+  console.log("successful_observation_span_required=true");
+  console.log("terminal_success_burst_rejected=true");
   console.log("zero_failed_round_trips_required=true");
   console.log("relay_retirement_authorization_may_be_returned=true");
   console.log("relay_retirement_performed=false");
