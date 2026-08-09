@@ -31,6 +31,7 @@ import {
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1,
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ROUTES_V1,
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
+  buyVoidNativeExecutionRuntimeHttpJsonV1,
   handleBuyVoidNativeExecutionRuntimeCommandV1,
   runBuyVoidNativeExecutionRuntimeCommandV1,
   type BuyVoidNativeExecutionRuntimePolicyV1,
@@ -277,6 +278,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .http_response_bigint_decimal_projection,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
     .startup_execution,
   false,
 );
@@ -284,6 +290,17 @@ assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
     .inventory_decrement,
   false,
+);
+const runtimeSource = fs.readFileSync(
+  new URL(
+    "../src/economic/buy_void_native_execution_runtime_v1.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+assert.match(
+  runtimeSource,
+  /json\(\s*buyVoidNativeExecutionRuntimeHttpJsonV1\(decision\)\s*\)/,
 );
 
 const root = fs.mkdtempSync(
@@ -712,12 +729,37 @@ try {
   assert.equal(accepted.transaction_broadcast_performed, true);
   assert.equal(signerCalls, 2);
   assert.equal(broadcasterCalls, 1);
+  assert.throws(() => JSON.stringify(accepted), TypeError);
+  const acceptedHttpJson = buyVoidNativeExecutionRuntimeHttpJsonV1(
+    accepted,
+  ) as any;
+  const acceptedHttpEncoded = JSON.stringify(acceptedHttpJson);
+  const acceptedHttpDecoded = JSON.parse(acceptedHttpEncoded);
+  const internalTransactionPlan =
+    (accepted as any).worker.adapter_decision.transaction_plan;
+  const httpTransactionPlan =
+    acceptedHttpDecoded.worker.adapter_decision.transaction_plan;
+  for (const key of [
+    "chainId",
+    "gasLimit",
+    "maxFeePerGas",
+    "maxPriorityFeePerGas",
+    "value",
+  ] as const) {
+    assert.equal(typeof internalTransactionPlan[key], "bigint", key);
+    assert.equal(
+      httpTransactionPlan[key],
+      internalTransactionPlan[key].toString(),
+      key,
+    );
+  }
+  assert.equal(httpTransactionPlan.nonce, internalTransactionPlan.nonce);
+  assert.equal(httpTransactionPlan.to, internalTransactionPlan.to);
+  assert.equal(httpTransactionPlan.data, internalTransactionPlan.data);
+  assert.equal(typeof internalTransactionPlan.chainId, "bigint");
+  assert.equal(typeof httpTransactionPlan.chainId, "string");
   assert.equal(
-    JSON.stringify(
-      accepted,
-      (_key, value) =>
-        typeof value === "bigint" ? value.toString() : value,
-    ).includes(
+    acceptedHttpEncoded.includes(
       runtimePolicy(root).planner_policy.rpc_url,
     ),
     false,
@@ -744,6 +786,8 @@ console.log("dry_run_signing=0");
 console.log("dry_run_transaction_broadcast=0");
 console.log("applied_signing=1");
 console.log("applied_transaction_broadcast=1");
+console.log("http_response_bigint_decimal_projection=1");
+console.log("applied_http_json_serialization=1");
 console.log("automatic_retry=0");
 console.log("receipt_wait=0");
 console.log("inventory_decrement=0");
