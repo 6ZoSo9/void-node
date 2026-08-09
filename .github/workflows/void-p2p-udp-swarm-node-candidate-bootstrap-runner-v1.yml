@@ -384,12 +384,18 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check "$EXPECTED_POLICY_HEAD"
-          test "$(git diff --name-only "$EXPECTED_POLICY_HEAD" | sort)" = "$(printf '%s\n' \
+          actual="$({
+            git diff --name-only "$EXPECTED_POLICY_HEAD"
+            git ls-files --others --exclude-standard
+          } | sort -u)"
+          expected="$(printf '%s\n' \
             '.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml' \
             '.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml' \
             'docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md' \
             'scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts' \
             'src/node_core.ts' | sort)"
+          printf 'actual paths:\n%s\nexpected paths:\n%s\n' "$actual" "$expected"
+          test "$actual" = "$expected"
 
       - name: Commit and push proven restacked integration
         shell: bash
