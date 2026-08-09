@@ -35,6 +35,7 @@ export type VoidUdpSwarmDirectRouteHealthPolicyInputV1 = Readonly<{
   now_ms: number;
   consecutive_successful_round_trips: number;
   failed_round_trips_since_promotion: number;
+  first_success_at_ms: number | null;
   last_success_at_ms: number | null;
 }>;
 
@@ -49,7 +50,9 @@ export type VoidUdpSwarmDirectRouteHealthPolicyReasonV1 =
   | "health_window_too_short"
   | "failed_round_trip_observed"
   | "insufficient_consecutive_successes"
+  | "first_success_missing_or_invalid"
   | "last_success_missing_or_invalid"
+  | "success_window_too_short"
   | "last_success_stale"
   | "relay_retirement_may_be_authorized";
 
@@ -148,12 +151,26 @@ export function evaluateVoidUdpSwarmDirectRouteHealthPolicyV1(
   }
 
   if (
+    input.first_success_at_ms === null ||
+    !boundedNonNegativeInteger(input.first_success_at_ms) ||
+    input.first_success_at_ms < input.promoted_at_ms ||
+    input.first_success_at_ms > input.now_ms
+  ) {
+    return decision("retain_relay", "first_success_missing_or_invalid");
+  }
+  if (
     input.last_success_at_ms === null ||
     !boundedNonNegativeInteger(input.last_success_at_ms) ||
-    input.last_success_at_ms < input.promoted_at_ms ||
+    input.last_success_at_ms < input.first_success_at_ms ||
     input.last_success_at_ms > input.now_ms
   ) {
     return decision("retain_relay", "last_success_missing_or_invalid");
+  }
+  if (
+    input.last_success_at_ms - input.first_success_at_ms <
+    VOID_P2P_UDP_SWARM_DIRECT_ROUTE_HEALTH_MIN_WINDOW_MS_V1
+  ) {
+    return decision("retain_relay", "success_window_too_short");
   }
   if (
     input.now_ms - input.last_success_at_ms >
