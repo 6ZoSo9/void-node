@@ -5,10 +5,13 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const MARKER = "VOIDCHAIN_ORG_WORDPRESS_HOME_SYNC_V1";
 const PAGE_ID = 243945;
 const PAGE_ENDPOINT = `https://voidchain.org/wp-json/wp/v2/pages/${PAGE_ID}`;
+const WORDPRESS_HTML_BLOCK_OPEN = "<!-- wp:html -->";
+const WORDPRESS_HTML_BLOCK_CLOSE = "<!-- /wp:html -->";
 const CONTENT_PATH = path.resolve(
   process.cwd(),
   "ops/public/voidchain-org-wordpress-home-v1.html",
@@ -131,6 +134,19 @@ const validatePage = (page) => {
 };
 
 const validateCanonical = (content) => {
+  if (
+    !content.startsWith(`${WORDPRESS_HTML_BLOCK_OPEN}\n`) ||
+    !content.endsWith(`${WORDPRESS_HTML_BLOCK_CLOSE}\n`)
+  ) {
+    throw new Error("canonical content must be one WordPress Custom HTML block");
+  }
+  if (
+    content.split(WORDPRESS_HTML_BLOCK_OPEN).length - 1 !== 1 ||
+    content.split(WORDPRESS_HTML_BLOCK_CLOSE).length - 1 !== 1
+  ) {
+    throw new Error("canonical content must contain one Custom HTML block");
+  }
+
   const required = [
     "VOIDCHAIN_ORG_WORDPRESS_HOME_V1",
     "VOIDCHAIN_ORG_NODE_LIVE_V2",
@@ -155,12 +171,64 @@ const validateCanonical = (content) => {
   }
 };
 
-const hasLayoutV1 = (content) => [
-  "VOIDCHAIN_ORG_WORDPRESS_HOME_V1",
-  "body.page-id-243945",
-  "max-width:none !important",
-  'href="https://voidchain.org/app"',
-].every((token) => content.includes(token));
+const elementPayload = (content, tag, id) => {
+  const pattern = new RegExp(
+    `<${tag}\\b[^>]*\\bid=["']${id}["'][^>]*>([\\s\\S]*?)<\\/${tag}>`,
+    "i",
+  );
+  const match = content.match(pattern);
+  if (!match) {
+    throw new Error(`rendered page is missing ${tag}#${id}`);
+  }
+  return match[1];
+};
+
+const validateRenderedIntegrity = (content) => {
+  const required = [
+    "VOIDCHAIN_ORG_WORDPRESS_HOME_V1",
+    "VOIDCHAIN_ORG_NODE_LIVE_V2",
+    "VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1",
+    'href="https://voidchain.org/app"',
+  ];
+  for (const token of required) {
+    if (!content.includes(token)) {
+      throw new Error(`rendered page is missing ${token}`);
+    }
+  }
+
+  const style = elementPayload(
+    content,
+    "style",
+    "voidchain-org-node-mirror-v1-css",
+  );
+  const script = elementPayload(
+    content,
+    "script",
+    "voidchain-org-node-live-client-v1",
+  );
+  for (const [label, payload] of [["style", style], ["script", script]]) {
+    if (/<\/?p(?:\s|>)/i.test(payload) || /<br\s*\/?>/i.test(payload)) {
+      throw new Error(`WordPress paragraph formatting contaminated the ${label}`);
+    }
+  }
+  if (
+    !/#voidchain-org-node-mirror-v1\s*\{[^}]*width:100vw;[^}]*max-width:none !important;/s.test(
+      style,
+    )
+  ) {
+    throw new Error("rendered page lost the full-width root rule");
+  }
+  new Function(script);
+};
+
+const hasLayoutV1 = (content) => {
+  try {
+    validateRenderedIntegrity(content);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const publicRenderedContent = async () => {
   const page = await requestJson(`${PAGE_ENDPOINT}?context=view`);
@@ -184,14 +252,21 @@ const editableRawContent = async (authorization) => {
   return { page, content: raw };
 };
 
-const args = (() => {
-  try {
-    return parseArgs(process.argv.slice(2));
-  } catch (error) {
-    fail("invalid_arguments", { detail: String(error?.message || error) });
-    return null;
-  }
-})();
+export { validateCanonical, validateRenderedIntegrity };
+
+const isDirectRun =
+  Boolean(process.argv[1]) &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const args = isDirectRun
+  ? (() => {
+      try {
+        return parseArgs(process.argv.slice(2));
+      } catch (error) {
+        fail("invalid_arguments", { detail: String(error?.message || error) });
+        return null;
+      }
+    })()
+  : null;
 
 if (args) {
   try {
@@ -201,9 +276,10 @@ if (args) {
     const authorization = credentials();
 
     if (args.mode === "inspect") {
+      const rendered = await publicRenderedContent();
       const current = authorization
         ? await editableRawContent(authorization)
-        : await publicRenderedContent();
+        : rendered;
       const contentSha256 = sha256(current.content);
       process.stdout.write(`${JSON.stringify({
         marker: MARKER,
@@ -214,7 +290,8 @@ if (args) {
         modified_gmt: current.page.modified_gmt,
         current_content_sha256: contentSha256,
         canonical_content_sha256: canonicalSha256,
-        layout_v1_deployed: hasLayoutV1(current.content),
+        layout_v1_deployed: hasLayoutV1(rendered.content),
+        rendered_integrity_verified: hasLayoutV1(rendered.content),
         raw_content_equivalent: authorization
           ? contentSha256 === canonicalSha256
           : null,
@@ -251,8 +328,12 @@ if (args) {
       });
       validatePage(updated);
 
+      const confirmed = await editableRawContent(authorization);
+      if (sha256(confirmed.content) !== canonicalSha256) {
+        throw new Error("WordPress raw content does not match canonical after apply");
+      }
       const live = await publicRenderedContent();
-      validateCanonical(live.content);
+      validateRenderedIntegrity(live.content);
       process.stdout.write(`${JSON.stringify({
         marker: MARKER,
         outcome: "APPLIED",
@@ -262,6 +343,7 @@ if (args) {
         modified_gmt: updated.modified_gmt,
         previous_content_sha256: currentSha256,
         canonical_content_sha256: canonicalSha256,
+        raw_content_equivalent: true,
         live_layout_verified: true,
       })}\n`);
     }
