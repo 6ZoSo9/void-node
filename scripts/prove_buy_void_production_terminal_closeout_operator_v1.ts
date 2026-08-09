@@ -40,6 +40,7 @@ function runtimeAuthority(): Record<string, unknown> {
     exact_runtime_confirmation_required: true,
     exact_terminal_closeout_confirmation_required: true,
     exact_policy_fingerprint_echo_required: true,
+    exact_terminal_plan_fingerprint_echo_required: true,
     exact_saga_confirmation_required: true,
     exact_saga_action_confirmation_required: true,
     dry_run_available_without_apply_enable: true,
@@ -73,6 +74,7 @@ function terminalAuthority(): Record<string, unknown> {
     canonical_confirmed_state_fingerprint_binding: true,
     request_scoped_crash_recoverable_lock: true,
     deterministic_closeout_plan_persistence: true,
+    exact_terminal_plan_fingerprint_required_before_mutation: true,
     append_only_inventory_consumption: true,
     atomic_public_operator_journal_projection: true,
     saga_closeout_committed_append: true,
@@ -175,6 +177,8 @@ function dryFixture(input: {
     required_runtime_confirmation: RUNTIME_CONFIRMATION,
     required_terminal_closeout_confirmation: TERMINAL_CONFIRMATION,
     required_policy_fingerprint_sha256: policyFp,
+    required_terminal_plan_fingerprint_sha256:
+      input.planFingerprint || TERMINAL_PLAN_FP,
     required_saga_confirmation: SAGA_CONFIRMATION,
     required_saga_action_confirmation: ACTION_CONFIRMATION,
     inventory_consumption_performed: false,
@@ -192,6 +196,8 @@ function dryFixture(input: {
       plan,
       required_confirmation: TERMINAL_CONFIRMATION,
       required_policy_fingerprint_sha256: policyFp,
+      required_plan_fingerprint_sha256:
+        input.planFingerprint || TERMINAL_PLAN_FP,
       required_saga_confirmation: SAGA_CONFIRMATION,
       required_saga_action_confirmation: ACTION_CONFIRMATION,
       inventory_consumption_performed: false,
@@ -546,6 +552,7 @@ assert.deepEqual(Object.keys(applyBody).sort(), [
   "saga_confirmation",
   "saga_id",
   "terminal_closeout_confirmation",
+  "terminal_plan_fingerprint_sha256",
 ]);
 assert.deepEqual(applyBody, {
   action: ACTION,
@@ -554,6 +561,7 @@ assert.deepEqual(applyBody, {
   confirmation: RUNTIME_CONFIRMATION,
   terminal_closeout_confirmation: TERMINAL_CONFIRMATION,
   policy_fingerprint_sha256: POLICY_FP,
+  terminal_plan_fingerprint_sha256: TERMINAL_PLAN_FP,
   saga_confirmation: SAGA_CONFIRMATION,
   saga_action_confirmation: ACTION_CONFIRMATION,
 });
@@ -699,7 +707,8 @@ console.log(JSON.stringify({
   replan_before_apply: true,
   deterministic_operator_plan_fingerprint: true,
   exact_confirmation_echoes_required: true,
-  exact_apply_command_key_count: 8,
+  exact_apply_command_key_count: 9,
+  server_enforced_terminal_plan_fingerprint: true,
   canonical_confirmed_state_bound: true,
   terminal_plan_fingerprint_bound: true,
   duplicate_terminal_truth_preserved: true,
