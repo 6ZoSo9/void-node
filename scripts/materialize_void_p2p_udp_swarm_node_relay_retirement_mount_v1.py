@@ -256,7 +256,7 @@ private sweepUdpSwarmPromotedRelayRetirementV1(
           nowMs,
         ),
     });
-    if (result.ok) {
+    if (result.ok === true) {
       context.relay_retired_at_ms = nowMs;
       context.relay_retirement_last_error = null;
       retirementsPerformed += 1;
