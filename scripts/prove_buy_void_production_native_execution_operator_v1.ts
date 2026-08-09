@@ -40,6 +40,26 @@ function sha256(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function transactionPlanFingerprint(expectedHash = TX_HASH): string {
+  return sha256(JSON.stringify({
+    asset_mode: "native_void",
+    attempt_id: ATTEMPT,
+    calldata: "0x",
+    chain_id: "2050",
+    delivery_address: DELIVERY,
+    expected_transaction_hash: expectedHash,
+    fulfillment_unit_decimals: "6",
+    gas_limit: "21000",
+    max_fee_per_gas_wei: "2000000000",
+    max_priority_fee_per_gas_wei: "1000000000",
+    native_unit_decimals: "18",
+    native_value_wei: "400000000000000",
+    nonce: "7",
+    type: "2",
+    void_amount_units: "400",
+  }));
+}
+
 function runtimeAuthority() {
   return {
     operator_loopback_only: true,
@@ -207,6 +227,8 @@ function acceptedRuntime() {
     status: "broadcast_accepted",
     attempt_id: ATTEMPT,
     reconstructed_from_server_journals: true,
+    plan_fingerprint_sha256: PLAN_FP,
+    runtime_policy_fingerprint_sha256: POLICY_FP,
     worker: {
       ok: true,
       status: "broadcast_accepted",
@@ -219,7 +241,7 @@ function acceptedRuntime() {
         status: "broadcast_accepted",
         attempt_id: ATTEMPT,
         expected_transaction_hash: TX_HASH,
-        transaction_plan_fingerprint_sha256: "6".repeat(64),
+        transaction_plan_fingerprint_sha256: transactionPlanFingerprint(),
         submission_guard_claimed: true,
         submission_guard_released: false,
         signing_performed: true,
@@ -709,6 +731,22 @@ for (const field of [
   assertAmbiguousAppliedEnvelope(
     await observeAppliedEnvelope(envelope),
     `accepted:adapter_scalar:${field}`,
+  );
+}
+
+for (const [label, mutate] of [
+  ["runtime_plan", (value: any) => { value.plan_fingerprint_sha256 = "8".repeat(64); }],
+  ["runtime_policy", (value: any) => { value.runtime_policy_fingerprint_sha256 = "9".repeat(64); }],
+  ["adapter_transaction_plan", (value: any) => {
+    value.worker.adapter_decision.transaction_plan_fingerprint_sha256 =
+      "6".repeat(64);
+  }],
+] as const) {
+  const envelope = acceptedRuntime() as any;
+  mutate(envelope);
+  assertAmbiguousAppliedEnvelope(
+    await observeAppliedEnvelope(envelope),
+    `accepted:stale_plan_binding:${label}`,
   );
 }
 

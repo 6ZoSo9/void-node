@@ -689,6 +689,9 @@ function parseValidAppliedRuntime(
   value: unknown,
   httpStatus: number,
   attemptId: string,
+  expectedPlanFingerprint: string,
+  expectedPolicyFingerprint: string,
+  expectedPublicPlan: Readonly<Record<string, unknown>>,
 ): {
   kind: "broadcast_accepted" | "not_broadcast" | "broadcast_unknown" | "held";
   mutation_performed: boolean;
@@ -721,6 +724,8 @@ function parseValidAppliedRuntime(
     const adapter = object(worker?.adapter_decision);
     if (
       httpStatus !== 200 ||
+      runtime.plan_fingerprint_sha256 !== expectedPlanFingerprint ||
+      runtime.runtime_policy_fingerprint_sha256 !== expectedPolicyFingerprint ||
       runtime.reconstructed_from_server_journals !== true ||
       runtime.mutation_performed !== true ||
       runtime.signing_performed !== true ||
@@ -762,6 +767,28 @@ function parseValidAppliedRuntime(
     const expectedHash = adapter.expected_transaction_hash.toLowerCase();
     const txHash = adapter.transaction_hash.toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(expectedHash) || txHash !== expectedHash) return null;
+    const expectedTransactionPlanFingerprint = sha256Hex(canonical({
+      attempt_id: attemptId,
+      expected_transaction_hash: expectedHash,
+      asset_mode: "native_void",
+      type: "2",
+      chain_id: text(expectedPublicPlan.chain_id),
+      nonce: text(expectedPublicPlan.nonce),
+      gas_limit: text(expectedPublicPlan.gas_limit),
+      max_fee_per_gas_wei: text(expectedPublicPlan.max_fee_per_gas_wei),
+      max_priority_fee_per_gas_wei:
+        text(expectedPublicPlan.max_priority_fee_per_gas_wei),
+      delivery_address: text(expectedPublicPlan.delivery_address),
+      void_amount_units: text(expectedPublicPlan.void_amount_units),
+      fulfillment_unit_decimals: "6",
+      native_unit_decimals: "18",
+      native_value_wei: text(expectedPublicPlan.native_value_wei),
+      calldata: "0x",
+    }));
+    if (
+      adapter.transaction_plan_fingerprint_sha256 !==
+        expectedTransactionPlanFingerprint
+    ) return null;
     const provider = adapter.provider_submission_id;
     if (!/^[A-Za-z0-9._:@/-]{0,200}$/.test(provider)) return null;
     return {
@@ -965,7 +992,14 @@ export async function runBuyVoidProductionNativeExecutionOperatorV1(input: {
     );
   }
 
-  const parsed = parseValidAppliedRuntime(response.json, response.status, attemptId);
+  const parsed = parseValidAppliedRuntime(
+    response.json,
+    response.status,
+    attemptId,
+    plan.plan_fingerprint_sha256,
+    plan.runtime_policy_fingerprint_sha256,
+    plan.execution_preview,
+  );
   if (!parsed) {
     return ambiguousApply(
       attemptId,
