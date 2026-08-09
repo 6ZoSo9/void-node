@@ -243,6 +243,46 @@ jobs:
           grep -Fq '7f76f0d520d0f28aaed10f525fbf5b07d9c44886' \
             .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
 
+      - name: Harden candidate staging bootstrap anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml')
+          source = path.read_text()
+
+          old_anchor = "\n".join([
+              "          '''  attachEphemeralDirectTransportV1(",
+              "            socket: PeerSocketV1,''',",
+          ])
+          hardened_anchor = "          '''  attachEphemeralDirectTransportV1(''',"
+          if source.count(old_anchor) != 1:
+              raise SystemExit(
+                  f'candidate public staging old anchor: expected exactly one match, got {source.count(old_anchor)}'
+              )
+          source = source.replace(old_anchor, hardened_anchor, 1)
+
+          old_tail = "\n".join([
+              "          attachEphemeralDirectTransportV1(",
+              "            socket: PeerSocketV1,''',",
+              "          'candidate public staging surface',",
+          ])
+          hardened_tail = "\n".join([
+              "          attachEphemeralDirectTransportV1(''',",
+              "          'candidate public staging surface',",
+          ])
+          if source.count(old_tail) != 1:
+              raise SystemExit(
+                  f'candidate public staging replacement tail: expected exactly one match, got {source.count(old_tail)}'
+              )
+          source = source.replace(old_tail, hardened_tail, 1)
+          path.write_text(source)
+          PY
+
+          git diff --check
+
       - name: Extract repaired bootstrap generation scripts
         shell: bash
         run: |
