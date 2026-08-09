@@ -1,0 +1,292 @@
+--- a/src/node_core.ts
++++ b/src/node_core.ts
+@@ -332,6 +332,15 @@
+   udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1;
+ };
+ 
++type UdpSwarmPromotedRelayFallbackV1 = Readonly<{
++  session_id: string;
++  peer_node_id: string;
++  relay_node_id: string;
++  relay_stream_id: string;
++  direct_peer: Peer;
++  relay_peer: Peer;
++}>;
++
+ /** ================================================================= */
+ /**                               Node                                 */
+ /** ================================================================= */
+@@ -408,6 +417,8 @@
+   private readonly udpSwarmAllowNonPublicEndpoint: boolean;
+   private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;
+   private readonly udpSwarmDirectCandidates = new Map<string, Peer>();
++  private readonly udpSwarmPromotedRelayFallbacks =
++    new Map<string, UdpSwarmPromotedRelayFallbackV1>();
+ 
+   private readonly directUpgradeEnabled: boolean;
+   private readonly directUpgradeAllowNonPublicCandidates: boolean;
+@@ -672,6 +683,7 @@
+       peer.udpSwarmDirectCandidate?.candidate.discard("node_stopping");
+     }
+     this.udpSwarmDirectCandidates.clear();
++    this.udpSwarmPromotedRelayFallbacks.clear();
+     for (const p of this.peers.values()) {
+       p.suppressReconnect = true;
+       p.socket.destroy();
+@@ -1384,12 +1396,12 @@
+     peer.socket.destroy();
+   }
+ 
+-  private liveRelayPeerForUdpSwarmCandidateV1(
++  private exactLiveRelayPeerForUdpSwarmV1(
++  relayPeer: Peer | undefined,
+   expectedPeerNodeId: string,
+   relayNodeId: string,
+   relayStreamId: string,
+ ): Peer | undefined {
+-  const relayPeer = this.peers.get(expectedPeerNodeId);
+   if (
+     !relayPeer ||
+     !relayPeer.handshakeDone ||
+@@ -1411,6 +1423,34 @@
+   return relayPeer;
+ }
+ 
++private liveRelayPeerForUdpSwarmCandidateV1(
++  expectedPeerNodeId: string,
++  relayNodeId: string,
++  relayStreamId: string,
++): Peer | undefined {
++  const routedRelay = this.exactLiveRelayPeerForUdpSwarmV1(
++    this.peers.get(expectedPeerNodeId),
++    expectedPeerNodeId,
++    relayNodeId,
++    relayStreamId,
++  );
++  if (routedRelay) return routedRelay;
++
++  const promotedFallback =
++    this.udpSwarmPromotedRelayFallbacks.get(expectedPeerNodeId);
++  if (
++    !promotedFallback ||
++    promotedFallback.relay_node_id !== relayNodeId ||
++    promotedFallback.relay_stream_id !== relayStreamId
++  ) return;
++  return this.exactLiveRelayPeerForUdpSwarmV1(
++    promotedFallback.relay_peer,
++    expectedPeerNodeId,
++    relayNodeId,
++    relayStreamId,
++  );
++}
++
+ private sweepUdpSwarmAuthenticatedDirectCandidatesV1(
+   reason = "relay_fallback_lost",
+ ): void {
+@@ -1758,6 +1798,175 @@
+   };
+ }
+ 
++promoteUdpSwarmAuthenticatedDirectCandidateV1(
++  sessionId: string,
++):
++  | {
++      ok: true;
++      session_id: string;
++      peer_node_id: string;
++      relay_fallback_live: true;
++      persist_direct_evidence: false;
++      relay_retirement_performed: false;
++    }
++  | { ok: false; error: string } {
++  if (this.stopping) return { ok: false, error: "node_stopping" };
++  const peer = this.udpSwarmDirectCandidates.get(sessionId);
++  const context = peer?.udpSwarmDirectCandidate;
++  if (!peer || !context || context.session_id !== sessionId) {
++    return { ok: false, error: "candidate_not_staged" };
++  }
++
++  const snapshot = context.candidate.snapshot();
++  if (
++    snapshot.phase !== "authenticated_candidate" ||
++    snapshot.authenticated_peer_node_id !== context.expected_peer_node_id ||
++    !snapshot.authenticated_public_key_bound ||
++    !peer.authenticatedPublicPem ||
++    peer.handshakeDone ||
++    peer.transport !== "direct" ||
++    peer.persistDirectEvidence ||
++    peer.expectedNodeId !== context.expected_peer_node_id ||
++    this.peers.get(peer.id) !== peer
++  ) {
++    return { ok: false, error: "candidate_not_promotion_ready" };
++  }
++
++  if (
++    this.udpSwarmPromotedRelayFallbacks.has(context.expected_peer_node_id)
++  ) {
++    return { ok: false, error: "relay_fallback_already_retained" };
++  }
++
++  const relayPeer = this.liveRelayPeerForUdpSwarmCandidateV1(
++    context.expected_peer_node_id,
++    context.relay_node_id,
++    context.relay_stream_id,
++  );
++  if (
++    !relayPeer ||
++    this.peers.get(context.expected_peer_node_id) !== relayPeer
++  ) {
++    return { ok: false, error: "exact_live_relay_route_required" };
++  }
++
++  const promotion = context.candidate.authorizeDirectPeerPromotion();
++  if (!promotion) {
++    if (context.candidate.phase === "discarded") {
++      this.udpSwarmDirectCandidates.delete(sessionId);
++    }
++    return { ok: false, error: "promotion_authorization_rejected" };
++  }
++  if (
++    promotion.session_id !== sessionId ||
++    promotion.peer_node_id !== context.expected_peer_node_id ||
++    promotion.relay_node_id !== context.relay_node_id ||
++    promotion.relay_stream_id !== context.relay_stream_id ||
++    promotion.socket !== peer.socket ||
++    promotion.persist_direct_evidence !== false ||
++    promotion.relay_retirement_authorized !== false ||
++    this.peers.get(context.expected_peer_node_id) !== relayPeer ||
++    !this.exactLiveRelayPeerForUdpSwarmV1(
++      relayPeer,
++      context.expected_peer_node_id,
++      context.relay_node_id,
++      context.relay_stream_id,
++    )
++  ) {
++    this.udpSwarmDirectCandidates.delete(sessionId);
++    peer.socket.destroy(new Error("promotion authorization binding changed"));
++    return { ok: false, error: "promotion_binding_changed" };
++  }
++
++  const temporaryId = peer.id;
++  this.udpSwarmPromotedRelayFallbacks.set(
++    context.expected_peer_node_id,
++    Object.freeze({
++      session_id: sessionId,
++      peer_node_id: context.expected_peer_node_id,
++      relay_node_id: context.relay_node_id,
++      relay_stream_id: context.relay_stream_id,
++      direct_peer: peer,
++      relay_peer: relayPeer,
++    }),
++  );
++  this.udpSwarmDirectCandidates.delete(sessionId);
++  if (this.peers.get(temporaryId) === peer) this.peers.delete(temporaryId);
++  delete peer.udpSwarmDirectCandidate;
++  peer.id = context.expected_peer_node_id;
++  peer.handshakeDone = true;
++  this.peers.set(peer.id, peer);
++
++  this.sendRaw(peer, {
++    type: "PEERS",
++    addrs: this.publicPeerExchangeAddrsV1(),
++  });
++  for (const topic of this.myTopics) this.sendRaw(peer, { type: "SUB", topic });
++
++  return {
++    ok: true,
++    session_id: sessionId,
++    peer_node_id: peer.id,
++    relay_fallback_live: true,
++    persist_direct_evidence: false,
++    relay_retirement_performed: false,
++  };
++}
++
++udpSwarmPromotedDirectRouteSnapshotV1() {
++  const routes = [...this.udpSwarmPromotedRelayFallbacks.values()]
++    .map((entry) => {
++      const routedPeer = this.peers.get(entry.peer_node_id);
++      return {
++        session_id: entry.session_id,
++        peer_node_id: entry.peer_node_id,
++        relay_node_id: entry.relay_node_id,
++        relay_stream_id: entry.relay_stream_id,
++        direct_route_live:
++          routedPeer === entry.direct_peer &&
++          routedPeer.handshakeDone &&
++          routedPeer.transport === "direct",
++        relay_fallback_live:
++          this.exactLiveRelayPeerForUdpSwarmV1(
++            entry.relay_peer,
++            entry.peer_node_id,
++            entry.relay_node_id,
++            entry.relay_stream_id,
++          ) === entry.relay_peer,
++        persist_direct_evidence: entry.direct_peer.persistDirectEvidence,
++        relay_retirement_performed: false as const,
++      };
++    })
++    .sort((a, b) => a.peer_node_id.localeCompare(b.peer_node_id));
++  return {
++    promoted_route_count: routes.length,
++    routes,
++    relay_retirement_performed: false,
++  };
++}
++
++private restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer: Peer): boolean {
++  const fallback = this.udpSwarmPromotedRelayFallbacks.get(peer.id);
++  if (!fallback || fallback.direct_peer !== peer) return false;
++  this.udpSwarmPromotedRelayFallbacks.delete(peer.id);
++  if (this.peers.has(peer.id)) return false;
++  const relayPeer = this.exactLiveRelayPeerForUdpSwarmV1(
++    fallback.relay_peer,
++    fallback.peer_node_id,
++    fallback.relay_node_id,
++    fallback.relay_stream_id,
++  );
++  if (!relayPeer) return false;
++  this.peers.set(fallback.peer_node_id, relayPeer);
++  console.warn("VOID_P2P_UDP_SWARM_DIRECT_PROMOTION_V1_RELAY_RESTORED", {
++    peer_node_id: fallback.peer_node_id,
++    session_id: fallback.session_id,
++    relay_node_id: fallback.relay_node_id,
++    relay_stream_id: fallback.relay_stream_id,
++  });
++  return true;
++}
++
+ attachEphemeralDirectTransportV1(
+     socket: PeerSocketV1,
+     expectedNodeId: string,
+@@ -1861,7 +2070,11 @@
+           peer,
+         );
+       }
+-      if (this.peers.get(peer.id) === peer) this.peers.delete(peer.id);
++      const closedNormalRoute = this.peers.get(peer.id) === peer;
++      if (closedNormalRoute) this.peers.delete(peer.id);
++      if (closedNormalRoute && peer.transport === "direct") {
++        this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
++      }
+       if (peer.directUpgradeSessionId) {
+         this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
+       }
+@@ -1958,6 +2171,17 @@
+ 
+     if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+ 
++    const retainedRelayFallback =
++      peer.transport === "relay"
++        ? this.udpSwarmPromotedRelayFallbacks.get(peer.id)
++        : undefined;
++    if (
++      retainedRelayFallback?.relay_peer === peer &&
++      this.peers.get(peer.id) !== peer
++    ) {
++      return;
++    }
++
+     this.emitAuthenticatedOutboundSeen(peer);
+ 
+     if ((msg as any)?.type === "REACHABILITY_OBSERVATION") {
