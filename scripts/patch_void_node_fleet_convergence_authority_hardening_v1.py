@@ -98,7 +98,7 @@ proof = replace_once(
 proof = replace_once(
     proof,
     '''  assert.throws(\n    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),\n    /must exactly match coordinator canonical remote URL/,\n  );\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
-    '''  assert.throws(\n    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),\n    /must exactly match coordinator canonical remote URL/,\n  );\n  assert.throws(\n    () => buildApplyScriptV1(mismatchedRemoteConfig, fixturePlan),\n    /must exactly match coordinator canonical remote URL/,\n    "exported apply builder must enforce coordinator remote binding",\n  );\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
+    '''  assert.throws(\n    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),\n    /must exactly match coordinator canonical remote URL/,\n  );\n  assert.throws(\n    () => buildApplyScriptV1(mismatchedRemoteConfig, fixedPlan),\n    /must exactly match coordinator canonical remote URL/,\n    "exported apply builder must enforce coordinator remote binding",\n  );\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
     "proof apply builder remote binding",
 )
 
