@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           git merge-base --is-ancestor a65284ffdee050c878138e2449d9c232d76aa260 HEAD
           test "$(git hash-object src/node_core.ts)" = 'd1706757c06578dc790689747400ecb5d1c33550'
-          test "$(sha256sum scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch | awk '{print $1}')" = 'cbe591edd4b4e9a790ef0bfff5cd5e41acdb9eb20be46b8142745d90288c896c'
+          test "$(sha256sum scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch | awk '{print $1}')" = 'b31f7ae391aaafdf1dbac3b08ec4d215e99c1c804e22c3d97d624ba92ec872b5'
 
       - name: Apply deterministic Node promotion patch
         shell: bash
@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           git apply --check scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch
           git apply scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch
-          test "$(sha256sum src/node_core.ts | awk '{print $1}')" = '067fdb3398924609e039cd5108f1c8a5305ca40cf1fba0873684dac2e5b405a8'
+          test "$(sha256sum src/node_core.ts | awk '{print $1}')" = 'f3d950bf466e65dd174f33869958e87ca736f76c755256425d62e6447740fa11'
           git diff --check
 
       - name: Setup Node 24
