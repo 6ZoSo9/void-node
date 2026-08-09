@@ -1,0 +1,108 @@
+name: VOID node fleet convergence authority main reconcile v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-node-fleet-convergence-authority-main-reconcile-v1.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-node-fleet-convergence-authority-main-reconcile-v1-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: >-
+      github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.repo.full_name == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.ref == 'fix/void-node-fleet-convergence-authority-hardening-v1-20260809' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      EXPECTED_MAIN: 000b89f59698b19c6744c77be34f8393316e8fab
+      OLD_BASE: 96e995b4ee924ee89122dce29e4aa9eb1756ea0e
+      CARRIER_PATH: .github/workflows/void-node-fleet-convergence-authority-main-reconcile-v1.yml
+    steps:
+      - name: Checkout exact triggering head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard branch and exact live main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test -z "$(git status --porcelain)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          test "$(git rev-parse refs/remotes/origin/main)" = "$EXPECTED_MAIN"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN"
+          git merge-base --is-ancestor "$OLD_BASE" HEAD
+
+      - name: Prove main did not touch semantic repair paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet "$OLD_BASE" "$EXPECTED_MAIN" -- \
+            docs/operations/void-node-fleet-source-convergence-v1.md \
+            scripts/prove_void_node_fleet_source_convergence_v1.mjs \
+            tools/void-node-fleet-source-convergence-v1.mjs
+
+      - name: Merge exact current main locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge --no-ff --no-edit "$EXPECTED_MAIN"
+          git merge-base --is-ancestor "$EXPECTED_MAIN" HEAD
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove reconciled semantic repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/void-node-fleet-source-convergence-v1.mjs
+          node --check scripts/prove_void_node_fleet_source_convergence_v1.mjs
+          node scripts/prove_void_node_fleet_source_convergence_v1.mjs
+          node scripts/prove_void_node_fleet_drift_audit_v1.mjs
+          npm run typecheck
+          npm run build
+
+      - name: Retire carrier and prove final exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -- "$CARRIER_PATH"
+          git commit -m 'ci: retire fleet authority main reconcile carrier'
+          git diff --check "$EXPECTED_MAIN...HEAD"
+          printf '%s\n' \
+            'docs/operations/void-node-fleet-source-convergence-v1.md' \
+            'scripts/prove_void_node_fleet_source_convergence_v1.mjs' \
+            'tools/void-node-fleet-source-convergence-v1.mjs' | sort > /tmp/expected-files.txt
+          git diff --name-only "$EXPECTED_MAIN...HEAD" | sort > /tmp/actual-files.txt
+          diff -u /tmp/expected-files.txt /tmp/actual-files.txt
+
+      - name: Guard live refs and ordinary fast-forward publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_OLD="${{ github.event.pull_request.head.sha }}"
+          LIVE_HEAD="$(git ls-remote origin refs/heads/${{ github.event.pull_request.head.ref }} | awk '{print $1}')"
+          LIVE_MAIN="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          test "$LIVE_HEAD" = "$EXPECTED_OLD"
+          test "$LIVE_MAIN" = "$EXPECTED_MAIN"
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
