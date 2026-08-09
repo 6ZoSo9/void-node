@@ -356,6 +356,27 @@ const childDisabled = await planBuyVoidProductionBroadcastReconciliationV1({
 assert.equal(childDisabled.ok, false);
 assert.equal(childDisabled.reason, "operator_runtime_status_boundary_invalid");
 
+const authorityMutations = [
+  (value: any) => { value.application_wallet_access = true; },
+  (value: any) => { value.unreviewed_authority = true; },
+  (value: any) => { delete value.raw_signed_transaction_persistence; },
+] as const;
+for (const [index, mutateAuthority] of authorityMutations.entries()) {
+  const malformed = statusFixture() as any;
+  mutateAuthority(malformed.saga_broadcast_reconciliation_runtime.authority);
+  const result = await planBuyVoidProductionBroadcastReconciliationV1({
+    saga_id: SAGA_ID,
+    http_get: async () => ({ status: 200, json: malformed }),
+    http_post: async () => { throw new Error("must not post"); },
+  });
+  assert.equal(result.ok, false, `authority:${index}`);
+  assert.equal(
+    result.reason,
+    "operator_runtime_status_boundary_invalid",
+    `authority:${index}`,
+  );
+}
+
 const notApplyAction = await planBuyVoidProductionBroadcastReconciliationV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture() }),
@@ -552,6 +573,23 @@ assert.equal(exactHeld.side_effect_state_known, true);
 assert.equal(exactHeld.mutation_performed, false);
 assert.equal(exactHeld.broadcaster_inspection_performed, true);
 assert.equal(exactHeld.reconciliation_required, true);
+
+const falseMutationSuccess = await observeAppliedEnvelope(
+  appliedFixture({ outcome: "confirmed", mutation: false }),
+);
+assert.equal(falseMutationSuccess.ok, false);
+assert.equal(falseMutationSuccess.status, "reconciliation_unknown");
+assert.equal(falseMutationSuccess.side_effect_state_known, false);
+assert.equal(falseMutationSuccess.reconciliation_required, true);
+assert.equal(falseMutationSuccess.automatic_retry_allowed, false);
+
+const appliedAuthorityExtra = appliedFixture({ outcome: "confirmed" }) as any;
+appliedAuthorityExtra.authority.unreviewed_authority = true;
+const appliedAuthorityUnknown = await observeAppliedEnvelope(appliedAuthorityExtra);
+assert.equal(appliedAuthorityUnknown.ok, false);
+assert.equal(appliedAuthorityUnknown.status, "reconciliation_unknown");
+assert.equal(appliedAuthorityUnknown.side_effect_state_known, false);
+assert.equal(appliedAuthorityUnknown.reconciliation_required, true);
 
 const exactDecisionBooleanFields = [
   "applied",
@@ -876,6 +914,8 @@ process.stdout.write(`${JSON.stringify({
   applied_envelope_exact_boolean_schema: true,
   malformed_side_effect_truth_reconciliation_unknown: true,
   held_envelope_exact_scalar_schema: true,
+  successful_reconciliation_mutation_truth_bound: true,
+  child_runtime_authority_exact_schema: true,
   submit_once_runtime_adapter: false,
   inspect_submission_runtime_adapter: true,
   transport_unknown_reconciliation_required: true,
