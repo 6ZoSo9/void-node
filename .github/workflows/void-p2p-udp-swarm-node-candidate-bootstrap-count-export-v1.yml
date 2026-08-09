@@ -1,0 +1,62 @@
+name: VOID P2P UDP swarm Node candidate bootstrap count export v1
+
+on:
+  pull_request:
+    branches:
+      - 'feat/p2p-udp-swarm-relay-preserving-takeover-policy-v1-20260808'
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-count-export-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'feat/p2p-udp-swarm-node-candidate-integration-v1-20260808'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Guard exact automation blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object .github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml)" = 'cb27836444828b52c8396c60ed96e3597be70dac'
+          test "$(git hash-object .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml)" = '22c1d678a813497e02606825738921ecbc362ac3'
+
+      - name: Generate exact patched runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml')
+          source = path.read_text()
+          old = """              2,\n              'policy regression proof steps',\n"""
+          new = """              1,\n              'policy regression proof steps',\n"""
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f'policy regression proof-step count repair: expected exactly one match, got {count}'
+              )
+          patched = source.replace(old, new, 1)
+          if patched.count(new) != 1 or old in patched:
+              raise SystemExit('patched runner multiplicity verification failed')
+          Path('void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml').write_text(patched)
+          PY
+          git diff --no-index --check \
+            .github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml \
+            void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml || test "$?" = 1
+
+      - name: Upload exact patched runner
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1-patched
+          path: void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml
+          if-no-files-found: error
+          retention-days: 1
