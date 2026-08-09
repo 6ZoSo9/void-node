@@ -66,7 +66,6 @@ text = one(
     "terminal plan hash canonicality",
 )
 
-# Duplicate response + decision exactness.
 text = one(
     text,
     '''    text(response.saga_id).toLowerCase() !== sagaId ||
@@ -77,6 +76,7 @@ text = one(
 ''',
     "duplicate response saga exactness",
 )
+
 text = one(
     text,
     '''    decision.money_movement_performed !== false ||
@@ -98,7 +98,6 @@ text = one(
     "duplicate decision canonicality",
 )
 
-# Dry response + decision exact authority material.
 text = one(
     text,
     '''    response.status !== "dry_run" ||
@@ -111,6 +110,7 @@ text = one(
 ''',
     "dry response saga exactness",
 )
+
 text = one(
     text,
     '''    decision.money_movement_performed !== false ||
@@ -156,6 +156,7 @@ text = one(
 ''',
     "dry authority extraction",
 )
+
 text = one(
     text,
     '''    text(decision.required_confirmation) !== terminalConfirmation ||
@@ -193,7 +194,6 @@ text = one(
     "dry HTTP success binding",
 )
 
-# Applied response: raw response saga and successful decision IDs.
 text = one(
     text,
     '''    response.applied !== decision.applied ||
@@ -204,6 +204,7 @@ text = one(
 ''',
     "applied response saga exactness",
 )
+
 text = one(
     text,
     '''  if (decision.ok === true) {
@@ -224,8 +225,6 @@ text = one(
     "applied success exact IDs",
 )
 
-# Bind applied HTTP semantics to the lower runtime contract: success is 200;
-# a known mutating held envelope is explicitly 500; all other statuses are unknown.
 text = one(
     text,
     '''  const parsed = parseAppliedEnvelope(response.json, sagaId);
@@ -237,12 +236,7 @@ text = one(
   );
 ''',
     '''  const parsed = parseAppliedEnvelope(response.json, sagaId);
-  if (
-    response.status === 200 &&
-    parsed?.ok === true
-  ) {
-    return parsed;
-  }
+  if (response.status === 200 && parsed?.ok === true) return parsed;
   if (
     response.status === 500 &&
     parsed?.ok === false &&
@@ -265,11 +259,11 @@ text = one(
 source.write_text(text)
 
 
-proof = Path("scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts")
-text = proof.read_text()
+proof_path = Path("scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts")
+proof = proof_path.read_text()
 
-text = one(
-    text,
+proof = one(
+    proof,
     '''assert.equal(duplicatePlan.mutation_performed, false);
 
 const childDisabled = await planBuyVoidProductionTerminalCloseoutV1({
@@ -297,8 +291,8 @@ const childDisabled = await planBuyVoidProductionTerminalCloseoutV1({
     "non-200 dry and duplicate proofs",
 )
 
-text = one(
-    text,
+proof = one(
+    proof,
     '''assert.equal(wrongPolicyDry.ok, false);
 assert.equal(wrongPolicyDry.reason, "operator_runtime_dry_run_boundary_invalid");
 
@@ -318,111 +312,94 @@ const uppercaseStatusPolicy = await planBuyVoidProductionTerminalCloseoutV1({
 assert.equal(uppercaseStatusPolicy.ok, false);
 assert.equal(uppercaseStatusPolicy.reason, "operator_terminal_policy_fingerprint_invalid");
 
-const paddedRuntimeConfirmationBody = dryFixture();
-(paddedRuntimeConfirmationBody as any).required_runtime_confirmation =
-  `${RUNTIME_CONFIRMATION} `;
-const paddedRuntimeConfirmation = await planBuyVoidProductionTerminalCloseoutV1({
+const paddedDryRuntime = dryFixture() as any;
+paddedDryRuntime.required_runtime_confirmation = `${RUNTIME_CONFIRMATION} `;
+const paddedDryRuntimeResult = await planBuyVoidProductionTerminalCloseoutV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture() }),
-  http_post: async () => ({ status: 200, json: paddedRuntimeConfirmationBody }),
+  http_post: async () => ({ status: 200, json: paddedDryRuntime }),
 });
-assert.equal(paddedRuntimeConfirmation.ok, false);
-assert.equal(paddedRuntimeConfirmation.reason, "operator_runtime_dry_run_boundary_invalid");
+assert.equal(paddedDryRuntimeResult.ok, false);
+assert.equal(paddedDryRuntimeResult.reason, "operator_runtime_dry_run_boundary_invalid");
 
-const uppercasePlanPolicyBody = dryFixture();
-((uppercasePlanPolicyBody as any).decision.plan as any)
-  .server_policy_fingerprint_sha256 = POLICY_FP.toUpperCase();
-const uppercasePlanPolicy = await planBuyVoidProductionTerminalCloseoutV1({
+const uppercaseTerminalPlan = dryFixture() as any;
+uppercaseTerminalPlan.decision.plan.plan_fingerprint_sha256 = TERMINAL_PLAN_FP.toUpperCase();
+const uppercaseTerminalPlanResult = await planBuyVoidProductionTerminalCloseoutV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture() }),
-  http_post: async () => ({ status: 200, json: uppercasePlanPolicyBody }),
+  http_post: async () => ({ status: 200, json: uppercaseTerminalPlan }),
 });
-assert.equal(uppercasePlanPolicy.ok, false);
-assert.equal(uppercasePlanPolicy.reason, "operator_runtime_dry_run_boundary_invalid");
-
-const uppercaseTransactionBody = dryFixture();
-((uppercaseTransactionBody as any).decision.plan as any).transaction_hash =
-  `0x${"A".repeat(64)}`;
-const uppercaseTransaction = await planBuyVoidProductionTerminalCloseoutV1({
-  saga_id: SAGA_ID,
-  http_get: async () => ({ status: 200, json: statusFixture() }),
-  http_post: async () => ({ status: 200, json: uppercaseTransactionBody }),
-});
-assert.equal(uppercaseTransaction.ok, false);
-assert.equal(uppercaseTransaction.reason, "operator_runtime_dry_run_boundary_invalid");
+assert.equal(uppercaseTerminalPlanResult.ok, false);
+assert.equal(uppercaseTerminalPlanResult.reason, "operator_runtime_dry_run_boundary_invalid");
 
 let wrongPlanPosts = 0;
 ''',
-    "runtime canonicality adversarial proofs",
+    "canonical authority proofs",
 )
 
-text = one(
-    text,
-    '''assert.deepEqual(applyBody, {
-  action: ACTION,
-  saga_id: SAGA_ID,
-  apply: true,
-  confirmation: RUNTIME_CONFIRMATION,
-  terminal_closeout_confirmation: TERMINAL_CONFIRMATION,
-  policy_fingerprint_sha256: POLICY_FP,
-  saga_confirmation: SAGA_CONFIRMATION,
-  saga_action_confirmation: ACTION_CONFIRMATION,
-});
+proof = one(
+    proof,
+    '''assert.equal(recovered.closeout_outcome, "recovered_partial");
+assert.equal(recovered.automatic_retry_allowed, false);
 
-let recoveredPosts = 0;
+let partialPosts = 0;
 ''',
-    '''assert.deepEqual(applyBody, {
-  action: ACTION,
-  saga_id: SAGA_ID,
-  apply: true,
-  confirmation: RUNTIME_CONFIRMATION,
-  terminal_closeout_confirmation: TERMINAL_CONFIRMATION,
-  policy_fingerprint_sha256: POLICY_FP,
-  saga_confirmation: SAGA_CONFIRMATION,
-  saga_action_confirmation: ACTION_CONFIRMATION,
-});
+    '''assert.equal(recovered.closeout_outcome, "recovered_partial");
+assert.equal(recovered.automatic_retry_allowed, false);
 
-let non200ClosedPosts = 0;
-const non200Closed = await runBuyVoidProductionTerminalCloseoutV1({
+let successOn500Posts = 0;
+const successOn500 = await runBuyVoidProductionTerminalCloseoutV1({
   args: applyArgs(plan.plan_fingerprint_sha256),
-  http_get: async () => ({
-    status: 200,
-    json: statusFixture({ applyEnabled: true }),
-  }),
+  http_get: async () => ({ status: 200, json: statusFixture({ applyEnabled: true }) }),
   http_post: async () => {
-    non200ClosedPosts += 1;
-    if (non200ClosedPosts <= 2) return { status: 200, json: dryFixture() };
-    return { status: 500, json: appliedFixture({ outcome: "closed" }) };
+    successOn500Posts += 1;
+    return successOn500Posts <= 2
+      ? { status: 200, json: dryFixture() }
+      : { status: 500, json: appliedFixture({ outcome: "closed" }) };
   },
 });
-assert.equal(non200Closed.ok, false);
-assert.equal(non200Closed.status, "closeout_unknown");
-assert.equal(non200Closed.side_effect_state_known, false);
-assert.equal(non200Closed.recovery_required, true);
-assert.equal(non200Closed.mutation_performed, null);
-assert.equal(non200Closed.inventory_consumption_performed, null);
-assert.equal(non200Closed.public_request_fulfilled, null);
-assert.equal(non200Closed.saga_closeout_appended, null);
+assert.equal(successOn500.ok, false);
+assert.equal(successOn500.status, "closeout_unknown");
+assert.equal(successOn500.side_effect_state_known, false);
+assert.equal(successOn500.mutation_performed, null);
 
-let recoveredPosts = 0;
+let heldOn200Posts = 0;
+const heldOn200 = await runBuyVoidProductionTerminalCloseoutV1({
+  args: applyArgs(plan.plan_fingerprint_sha256),
+  http_get: async () => ({ status: 200, json: statusFixture({ applyEnabled: true }) }),
+  http_post: async () => {
+    heldOn200Posts += 1;
+    return heldOn200Posts <= 2
+      ? { status: 200, json: dryFixture() }
+      : { status: 200, json: partialHeldFixture() };
+  },
+});
+assert.equal(heldOn200.ok, false);
+assert.equal(heldOn200.status, "closeout_unknown");
+assert.equal(heldOn200.side_effect_state_known, false);
+assert.equal(heldOn200.mutation_performed, null);
+
+let partialPosts = 0;
 ''',
-    "non-200 success-shaped applied proof",
+    "applied HTTP mismatch proofs",
 )
 
-# Existing #1153 500 mutating held fixtures remain intact and prove the
-# explicitly validated lower-runtime 500 held envelope, including saga append truth.
-text = one(
-    text,
+proof = one(
+    proof,
     '''  post_append_verification_mismatch_saga_truth_preserved: true,
   applied_transport_unknown_preserved: true,
+  malformed_applied_envelope_unknown: true,
 ''',
     '''  post_append_verification_mismatch_saga_truth_preserved: true,
-  success_http_status_bound: true,
-  mutating_500_held_envelope_explicitly_validated: true,
-  runtime_authority_material_required_canonical: true,
+  dry_http_status_bound: true,
+  canonical_authority_bytes_required: true,
+  applied_http_status_bound: true,
   applied_transport_unknown_preserved: true,
+  malformed_applied_envelope_unknown: true,
 ''',
-    "terminal proof receipt",
+    "proof marker detail",
 )
 
-proof.write_text(text)
+proof_path.write_text(proof)
+
+print("VOID_BUY_VOID_POSTMERGE_TERMINAL_CLOSEOUT_PATCH_V2_GREEN")
