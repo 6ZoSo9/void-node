@@ -12,6 +12,10 @@ export const VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_POLICY_AUTHORITY_V1 =
     may_authorize_fresh_same_relay_continuity_reacquisition: true,
     requires_fresh_relay_stream: true,
     retired_stream_reuse_authorized: false,
+    blocks_during_node_stop: true,
+    requires_no_newer_udp_swarm_session: true,
+    requires_no_retired_or_replacement_relay_stream: true,
+    requires_no_recovery_in_flight: true,
     normal_peer_map_mutation_performed: false,
     relay_stream_mutation_performed: false,
     network_dial_performed: false,
@@ -32,9 +36,14 @@ const EVIDENCE_KEYS = Object.freeze([
   "retirement_callback_attempted",
   "relay_retirement_performed",
   "relay_retired_at_ms",
+  "node_stopping",
+  "newer_udp_swarm_session_present",
   "direct_route_live",
   "normal_route_live",
   "relay_fallback_live",
+  "retired_relay_stream_live",
+  "replacement_relay_stream_live",
+  "recovery_in_flight",
   "relay_control_route_live",
   "relay_control_route_transport",
   "authenticated_relay_control_node_id",
@@ -63,9 +72,14 @@ export type VoidUdpSwarmPostRetirementRecoveryEvidenceV1 = Readonly<{
   retirement_callback_attempted: boolean;
   relay_retirement_performed: boolean | null;
   relay_retired_at_ms: number | null;
+  node_stopping: boolean;
+  newer_udp_swarm_session_present: boolean;
   direct_route_live: boolean;
   normal_route_live: boolean;
   relay_fallback_live: boolean;
+  retired_relay_stream_live: boolean;
+  replacement_relay_stream_live: boolean;
+  recovery_in_flight: boolean;
   relay_control_route_live: boolean;
   relay_control_route_transport: "direct" | "relay" | null;
   authenticated_relay_control_node_id: string | null;
@@ -82,9 +96,14 @@ export type VoidUdpSwarmPostRetirementRecoveryReasonV1 =
   | "invalid_evidence"
   | "retirement_not_successful"
   | "retirement_time_invalid"
+  | "node_stopping"
+  | "newer_udp_swarm_session_present"
   | "direct_route_still_live"
   | "normal_route_already_live"
   | "relay_fallback_already_live"
+  | "retired_relay_stream_still_live"
+  | "replacement_relay_stream_already_live"
+  | "recovery_already_in_flight"
   | "relay_control_route_unavailable"
   | "relay_control_route_not_direct"
   | "relay_control_identity_mismatch"
@@ -155,9 +174,14 @@ function validEvidenceShape(
       evidence.relay_retirement_performed !== null) ||
     (evidence.relay_retired_at_ms !== null &&
       !safeNonNegativeInteger(evidence.relay_retired_at_ms)) ||
+    typeof evidence.node_stopping !== "boolean" ||
+    typeof evidence.newer_udp_swarm_session_present !== "boolean" ||
     typeof evidence.direct_route_live !== "boolean" ||
     typeof evidence.normal_route_live !== "boolean" ||
     typeof evidence.relay_fallback_live !== "boolean" ||
+    typeof evidence.retired_relay_stream_live !== "boolean" ||
+    typeof evidence.replacement_relay_stream_live !== "boolean" ||
+    typeof evidence.recovery_in_flight !== "boolean" ||
     typeof evidence.relay_control_route_live !== "boolean"
   ) return false;
 
@@ -259,6 +283,17 @@ export function evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1(
     return decision("hold_recovery", "retirement_time_invalid", binding, false);
   }
 
+  if (evidence.node_stopping) {
+    return decision("hold_recovery", "node_stopping", binding, false);
+  }
+  if (evidence.newer_udp_swarm_session_present) {
+    return decision(
+      "hold_recovery",
+      "newer_udp_swarm_session_present",
+      binding,
+      false,
+    );
+  }
   if (evidence.direct_route_live) {
     return decision("hold_recovery", "direct_route_still_live", binding, false);
   }
@@ -267,6 +302,25 @@ export function evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1(
   }
   if (evidence.relay_fallback_live) {
     return decision("hold_recovery", "relay_fallback_already_live", binding, false);
+  }
+  if (evidence.retired_relay_stream_live) {
+    return decision(
+      "hold_recovery",
+      "retired_relay_stream_still_live",
+      binding,
+      false,
+    );
+  }
+  if (evidence.replacement_relay_stream_live) {
+    return decision(
+      "hold_recovery",
+      "replacement_relay_stream_already_live",
+      binding,
+      false,
+    );
+  }
+  if (evidence.recovery_in_flight) {
+    return decision("hold_recovery", "recovery_already_in_flight", binding, false);
   }
   if (!evidence.relay_control_route_live) {
     return decision("hold_recovery", "relay_control_route_unavailable", binding, false);
