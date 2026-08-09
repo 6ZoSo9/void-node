@@ -53,7 +53,7 @@ function run(command, args, options = {}) {
     env: options.env ?? process.env,
   });
   if (options.allowFailure) return result;
-  assert.equal(result.status, 0, `${command} ${args.join(" ")} failed:\n${result.stderr}`);
+  assert.equal(result.status, 0, `${command} ${args.join(" ")} failed:\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   return result.stdout.trim();
 }
 
@@ -455,6 +455,8 @@ const proofEnvironmentKeys = [
   "VOID_PROOF_REAL_TR",
   "VOID_PROOF_CMDLINE_MODE",
   "VOID_PROOF_DECOY_ENTRY",
+  "VOID_PROOF_PROC_VISIBLE",
+  "VOID_PROOF_MAIN_PID_OVERRIDE",
 ];
 const priorProofEnvironment = new Map(proofEnvironmentKeys.map((key) => [key, process.env[key]]));
 let oldChild = null;
@@ -537,8 +539,15 @@ case "$command" in
   show)
     epoch="$(cat "$epoch_file")"
     kill -0 "$(cat "$pid_file")"
+    if test -n "\${VOID_PROOF_MAIN_PID_OVERRIDE:-}"; then
+      main_pid="$VOID_PROOF_MAIN_PID_OVERRIDE"
+    elif test "\${VOID_PROOF_PROC_VISIBLE:-0}" = 1; then
+      main_pid="$(cat "$pid_file")"
+    else
+      main_pid="$VOID_PROOF_MAIN_PID"
+    fi
     printf 'ActiveState=active\\n'
-    printf 'MainPID=%s\\n' "$VOID_PROOF_MAIN_PID"
+    printf 'MainPID=%s\\n' "$main_pid"
     printf 'ExecMainStartTimestamp=%s\\n' "$(date -u --date="@$epoch" '+%Y-%m-%d %H:%M:%S UTC')"
     ;;
   restart)
@@ -606,6 +615,7 @@ fi
     process.env.VOID_PROOF_REAL_TR = realTr;
   }
   process.env.VOID_PROOF_MAIN_PID = String(collectorPid);
+  process.env.VOID_PROOF_PROC_VISIBLE = procVisible ? "1" : "0";
   process.env.PATH = `${fakeBin}:${priorPath}`;
 
   await moveToLaterSecond(oldStartEpoch);
@@ -667,7 +677,7 @@ fi
   });
   await delay(100);
   assert.equal(decoyChild.exitCode, null, "decoy process must remain live for apply-preflight proof");
-  process.env.VOID_PROOF_MAIN_PID = String(procVisible ? decoyChild.pid : 1);
+  process.env.VOID_PROOF_MAIN_PID_OVERRIDE = String(procVisible ? decoyChild.pid : 1);
   process.env.VOID_PROOF_CMDLINE_MODE = "decoy";
   process.env.VOID_PROOF_DECOY_ENTRY = decoyPath;
   const decoyApply = run("bash", ["-s"], {
@@ -679,7 +689,7 @@ fi
   assert.equal(readFileSync(join(state, "pid"), "utf8").trim(), String(oldChild.pid),
     "rejected decoy identity must not invoke systemctl restart");
   assert.deepEqual(await waitForJson(`http://127.0.0.1:${port}/loaded`, (value) => value.loaded === "one"), { loaded: "one" });
-  process.env.VOID_PROOF_MAIN_PID = String(collectorPid);
+  delete process.env.VOID_PROOF_MAIN_PID_OVERRIDE;
   process.env.VOID_PROOF_CMDLINE_MODE = "exact";
   decoyChild.kill("SIGTERM");
   await Promise.race([
