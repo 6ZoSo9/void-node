@@ -20,8 +20,8 @@ const STATUS_PATH = "/__void/operator/buy-void-runtime-v1/status";
 const COMMAND_PATH = "/__void/operator/buy-void-runtime-v1/command";
 const SAGA_ID = `voidbvfsg1_${"1".repeat(64)}`;
 const ATTEMPT_ID = "2".repeat(64);
-const POLICY_FP = "3".repeat(64);
-const SOCKET_FP = "4".repeat(64);
+const POLICY_FP = "a3".repeat(32);
+const SOCKET_FP = "b4".repeat(32);
 const SAGA_CONFIRMATION = "advanceSagaV1";
 const ACTION_CONFIRMATION = "reconcilePossibleBroadcastV1";
 
@@ -270,6 +270,50 @@ const planAgain = await planBuyVoidProductionBroadcastReconciliationV1({
 });
 assert.equal(planAgain.plan_fingerprint_sha256, plan.plan_fingerprint_sha256);
 
+const non200Dry = await planBuyVoidProductionBroadcastReconciliationV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 500, json: dryFixture() }),
+});
+assert.equal(non200Dry.ok, false);
+assert.equal(non200Dry.reason, "operator_runtime_dry_run_http_invalid");
+
+const uppercaseRuntimePolicy = await planBuyVoidProductionBroadcastReconciliationV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({
+    status: 200,
+    json: dryFixture({ policyFingerprint: POLICY_FP.toUpperCase() }),
+  }),
+});
+assert.equal(uppercaseRuntimePolicy.ok, false);
+assert.equal(uppercaseRuntimePolicy.reason, "operator_runtime_dry_run_boundary_invalid");
+
+const paddedRuntimeConfirmationBody = dryFixture();
+(paddedRuntimeConfirmationBody as any).required_runtime_confirmation =
+  `${RUNTIME_CONFIRMATION} `;
+const paddedRuntimeConfirmation = await planBuyVoidProductionBroadcastReconciliationV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 200, json: paddedRuntimeConfirmationBody }),
+});
+assert.equal(paddedRuntimeConfirmation.ok, false);
+assert.equal(paddedRuntimeConfirmation.reason, "operator_runtime_dry_run_boundary_invalid");
+
+const uppercaseSocketStatus = await planBuyVoidProductionBroadcastReconciliationV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({
+    status: 200,
+    json: statusFixture({
+      socketConfigured: true,
+      socketFingerprint: SOCKET_FP.toUpperCase(),
+    }),
+  }),
+  http_post: async () => { throw new Error("must not post"); },
+});
+assert.equal(uppercaseSocketStatus.ok, false);
+assert.equal(uppercaseSocketStatus.reason, "operator_runtime_socket_fingerprint_invalid");
+
 const childDisabled = await planBuyVoidProductionBroadcastReconciliationV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture({ childEnabled: false }) }),
@@ -438,6 +482,97 @@ assert.equal(applied.transaction_broadcast_performed, false);
 assert.equal(applied.money_movement_performed, false);
 assert.equal(postCount, 3);
 
+for (const outcome of ["unknown", "accepted"] as const) {
+  let contradictoryPosts = 0;
+  const contradictory = await runBuyVoidProductionBroadcastReconciliationV1({
+    args: {
+      saga_id: SAGA_ID,
+      apply: true,
+      expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+      confirmation: RUNTIME_CONFIRMATION,
+      coordinator_confirmation: COORDINATOR_CONFIRMATION,
+      policy_fingerprint_sha256: POLICY_FP,
+      saga_confirmation: SAGA_CONFIRMATION,
+      saga_action_confirmation: ACTION_CONFIRMATION,
+    },
+    http_get: async () => ({
+      status: 200,
+      json: statusFixture({ applyEnabled: true, socketConfigured: true }),
+    }),
+    http_post: async () => {
+      contradictoryPosts += 1;
+      if (contradictoryPosts <= 2) return { status: 200, json: dryFixture() };
+      return {
+        status: 200,
+        json: appliedFixture({ outcome, reconciliationRequired: false }),
+      };
+    },
+  });
+  assert.equal(contradictory.ok, false);
+  assert.equal(contradictory.status, "reconciliation_unknown");
+  assert.equal(contradictory.side_effect_state_known, false);
+  assert.equal(contradictory.reconciliation_required, true);
+}
+
+for (const outcome of ["not_submitted", "confirmed", "reverted"] as const) {
+  let contradictoryPosts = 0;
+  const contradictory = await runBuyVoidProductionBroadcastReconciliationV1({
+    args: {
+      saga_id: SAGA_ID,
+      apply: true,
+      expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+      confirmation: RUNTIME_CONFIRMATION,
+      coordinator_confirmation: COORDINATOR_CONFIRMATION,
+      policy_fingerprint_sha256: POLICY_FP,
+      saga_confirmation: SAGA_CONFIRMATION,
+      saga_action_confirmation: ACTION_CONFIRMATION,
+    },
+    http_get: async () => ({
+      status: 200,
+      json: statusFixture({ applyEnabled: true, socketConfigured: true }),
+    }),
+    http_post: async () => {
+      contradictoryPosts += 1;
+      if (contradictoryPosts <= 2) return { status: 200, json: dryFixture() };
+      return {
+        status: 200,
+        json: appliedFixture({ outcome, reconciliationRequired: true }),
+      };
+    },
+  });
+  assert.equal(contradictory.ok, false);
+  assert.equal(contradictory.status, "reconciliation_unknown");
+  assert.equal(contradictory.side_effect_state_known, false);
+  assert.equal(contradictory.reconciliation_required, true);
+}
+
+let non200AppliedPosts = 0;
+const non200Applied = await runBuyVoidProductionBroadcastReconciliationV1({
+  args: {
+    saga_id: SAGA_ID,
+    apply: true,
+    expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+    confirmation: RUNTIME_CONFIRMATION,
+    coordinator_confirmation: COORDINATOR_CONFIRMATION,
+    policy_fingerprint_sha256: POLICY_FP,
+    saga_confirmation: SAGA_CONFIRMATION,
+    saga_action_confirmation: ACTION_CONFIRMATION,
+  },
+  http_get: async () => ({
+    status: 200,
+    json: statusFixture({ applyEnabled: true, socketConfigured: true }),
+  }),
+  http_post: async () => {
+    non200AppliedPosts += 1;
+    if (non200AppliedPosts <= 2) return { status: 200, json: dryFixture() };
+    return { status: 500, json: appliedFixture({ outcome: "confirmed" }) };
+  },
+});
+assert.equal(non200Applied.ok, false);
+assert.equal(non200Applied.status, "reconciliation_unknown");
+assert.equal(non200Applied.side_effect_state_known, false);
+assert.equal(non200Applied.reconciliation_required, true);
+
 let envelopeMismatchPosts = 0;
 const envelopeMismatch =
   await runBuyVoidProductionBroadcastReconciliationV1({
@@ -545,7 +680,7 @@ const boundaryViolation = await runBuyVoidProductionBroadcastReconciliationV1({
     boundaryPostCount += 1;
     if (boundaryPostCount <= 2) return { status: 200, json: dryFixture() };
     return {
-      status: 500,
+      status: 200,
       json: appliedFixture({ submissionCall: true, broadcast: true, money: true }),
     };
   },
