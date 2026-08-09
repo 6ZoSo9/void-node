@@ -1,29 +1,25 @@
-name: Buy VOID postmerge execution reconciliation hardening PR bootstrap v1
+name: Buy VOID postmerge execution reconciliation hardening PR bootstrap v2
 
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
     paths:
-      - ".github/workflows/buy-void-postmerge-execution-reconciliation-hardening-bootstrap-v1.yml"
       - ".github/workflows/buy-void-postmerge-execution-reconciliation-hardening-pr-bootstrap-v1.yml"
       - "scripts/patch_buy_void_postmerge_execution_reconciliation_hardening_v1.py"
-      - "docs/operators/buy-void-production-native-execution-operator-v1.md"
-      - "scripts/buy_void_production_native_execution_operator_v1.ts"
-      - "scripts/prove_buy_void_native_execution_runtime_v1.ts"
-      - "scripts/prove_buy_void_production_native_execution_operator_v1.ts"
-      - "src/economic/buy_void_native_execution_runtime_v1.ts"
-      - "scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts"
-      - "scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts"
 
 permissions:
   contents: write
 
 concurrency:
-  group: buy-void-postmerge-execution-reconciliation-hardening-pr-bootstrap-v1-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  group: buy-void-postmerge-execution-reconciliation-hardening-pr-bootstrap-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'fix/buy-void-postmerge-execution-reconciliation-hardening-')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -37,39 +33,67 @@ jobs:
           node-version: "24"
           cache: npm
 
-      - name: Verify exact branch and import proven native hardening
+      - name: Guard inputs, reconcile main, and import immutable native hardening
+        id: guard
         shell: bash
         env:
           EXPECTED_BRANCH: fix/buy-void-postmerge-execution-reconciliation-hardening-v1-20260809
-          NATIVE_FIX_BRANCH: fix/buy-void-production-native-execution-plan-binding-v1-20260809
-          NATIVE_FIX_HEAD: bee95220dad382ed896272f92863bda4591dfe26
+          MERGED_OPERATOR_BASE: 96e995b4ee924ee89122dce29e4aa9eb1756ea0e
+          NATIVE_FIX_COMMIT: 71b24f94861618363493d164ed6a803cd924c41c
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           test "$GITHUB_HEAD_REF" = "$EXPECTED_BRANCH"
           test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
-          remote_native="$(git ls-remote origin "refs/heads/$NATIVE_FIX_BRANCH" | awk '{print $1}')"
-          echo "native_fix_remote=$remote_native"
-          test "$remote_native" = "$NATIVE_FIX_HEAD"
-          git fetch --no-tags origin "refs/heads/$NATIVE_FIX_BRANCH"
-          test "$(git rev-parse FETCH_HEAD)" = "$NATIVE_FIX_HEAD"
-          git checkout "$NATIVE_FIX_HEAD" -- \
-            docs/operators/buy-void-production-native-execution-operator-v1.md \
-            scripts/buy_void_production_native_execution_operator_v1.ts \
-            scripts/prove_buy_void_native_execution_runtime_v1.ts \
-            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+
+          git fetch --no-tags origin main
+          start_main="$(git rev-parse origin/main)"
+          echo "start_main=$start_main"
+          git merge-base --is-ancestor "$MERGED_OPERATOR_BASE" "$start_main"
+
+          semantic=(
+            docs/operators/buy-void-production-native-execution-operator-v1.md
+            scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts
+            scripts/buy_void_production_native_execution_operator_v1.ts
+            scripts/prove_buy_void_native_execution_runtime_v1.ts
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts
             src/economic/buy_void_native_execution_runtime_v1.ts
+          )
+          git diff --quiet "$MERGED_OPERATOR_BASE" "$start_main" -- "${semantic[@]}"
+
+          git fetch --no-tags origin "$NATIVE_FIX_COMMIT"
+          test "$(git rev-parse FETCH_HEAD)" = "$NATIVE_FIX_COMMIT"
+          git merge-base --is-ancestor "$MERGED_OPERATOR_BASE" "$NATIVE_FIX_COMMIT"
+          mapfile -t native_changed < <(git diff --name-only "$MERGED_OPERATOR_BASE...$NATIVE_FIX_COMMIT" | sort)
+          native_expected=(
+            docs/operators/buy-void-production-native-execution-operator-v1.md
+            scripts/buy_void_production_native_execution_operator_v1.ts
+            scripts/prove_buy_void_native_execution_runtime_v1.ts
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts
+            src/economic/buy_void_native_execution_runtime_v1.ts
+          )
+          mapfile -t native_expected_sorted < <(printf '%s\n' "${native_expected[@]}" | sort)
+          test "${#native_changed[@]}" -eq 5
+          for i in "${!native_expected_sorted[@]}"; do
+            test "${native_changed[$i]}" = "${native_expected_sorted[$i]}"
+          done
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-ff --no-edit "$start_main"
+          git checkout "$NATIVE_FIX_COMMIT" -- "${native_expected[@]}"
+          echo "start_main=$start_main" >> "$GITHUB_OUTPUT"
 
       - name: Apply exact post-merge hardening patch
         run: python3 scripts/patch_buy_void_postmerge_execution_reconciliation_hardening_v1.py
 
-      - name: Verify exact semantic scope
+      - name: Verify exact working semantic scope
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
           mapfile -t changed < <(git diff --name-only | sort)
-          printf 'changed=%s\n' "${changed[@]}"
           expected=(
             docs/operators/buy-void-production-native-execution-operator-v1.md
             scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts
@@ -80,7 +104,8 @@ jobs:
             src/economic/buy_void_native_execution_runtime_v1.ts
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
-          test "${#changed[@]}" -eq "${#expected_sorted[@]}"
+          printf 'changed=%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 7
           for i in "${!expected_sorted[@]}"; do
             test "${changed[$i]}" = "${expected_sorted[$i]}"
           done
@@ -157,13 +182,12 @@ jobs:
       - name: Commit proven semantic repair and publish non-force
         shell: bash
         env:
+          START_MAIN: ${{ steps.guard.outputs.start_main }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
             docs/operators/buy-void-production-native-execution-operator-v1.md \
             scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts \
@@ -174,12 +198,18 @@ jobs:
             src/economic/buy_void_native_execution_runtime_v1.ts
           test -z "$(git diff --name-only)"
           git commit -m "fix: harden Buy VOID post-merge execution boundaries"
+
+          remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
           remote_head="$(git ls-remote origin "refs/heads/$PR_HEAD_BRANCH" | awk '{print $1}')"
+          echo "remote_main_before_push=$remote_main"
+          echo "start_main=$START_MAIN"
           echo "remote_head_before_push=$remote_head"
           echo "pr_head_before_run=$PR_HEAD_SHA"
+          test "$remote_main" = "$START_MAIN"
           test "$remote_head" = "$PR_HEAD_SHA"
+
           git push origin "HEAD:refs/heads/$PR_HEAD_BRANCH"
-          echo "VOID_BUY_VOID_POSTMERGE_EXECUTION_RECONCILIATION_HARDENING_V1_GREEN"
+          echo "VOID_BUY_VOID_POSTMERGE_EXECUTION_RECONCILIATION_HARDENING_V2_GREEN"
           echo "production_operator_invocation_performed=false"
           echo "production_credential_access_performed=false"
           echo "real_signing_performed=false"
