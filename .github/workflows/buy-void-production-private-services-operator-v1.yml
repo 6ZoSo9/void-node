@@ -18,6 +18,29 @@ on:
       - "scripts/prove_buy_void_prepared_transaction_custodian_credential_activation_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
       - "scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "src/economic/buy_void_native_execution_runtime_v1.ts"
+      - "scripts/prove_buy_void_native_execution_runtime_v1.ts"
+      - "scripts/prove_buy_void_native_execution_runtime_guard_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_native_execution_worker_v1.ts"
+      - "src/economic/buy_void_production_activation_plan_v1.ts"
+      - "scripts/prove_buy_void_production_activation_plan_v1.ts"
+      - "src/economic/buy_void_native_chain2050_broadcaster_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_credential_signer_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
   push:
     branches: [main]
     paths:
@@ -36,6 +59,29 @@ on:
       - "scripts/prove_buy_void_prepared_transaction_custodian_credential_activation_v1.ts"
       - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
       - "scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "src/economic/buy_void_native_execution_runtime_v1.ts"
+      - "scripts/prove_buy_void_native_execution_runtime_v1.ts"
+      - "scripts/prove_buy_void_native_execution_runtime_guard_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_native_execution_worker_v1.ts"
+      - "src/economic/buy_void_production_activation_plan_v1.ts"
+      - "scripts/prove_buy_void_production_activation_plan_v1.ts"
+      - "src/economic/buy_void_native_chain2050_broadcaster_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "scripts/prove_buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_credential_signer_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_ipc_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -93,6 +139,19 @@ jobs:
         run: npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_activation_v1.ts
       - name: Preserve broadcaster submission activation
         run: npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts
+      - name: Preserve production activation plan and chain transport
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_production_activation_plan_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+      - name: Preserve custodian credential composition
+        run: npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_composition_v1.ts
+      - name: Preserve native execution and parent runtime policy ownership
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_native_execution_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_native_execution_runtime_guard_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+      - name: Preserve synthetic end-to-end rehearsal
+        run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
       - name: Typecheck repository
         run: npm run typecheck
       - name: Build repository

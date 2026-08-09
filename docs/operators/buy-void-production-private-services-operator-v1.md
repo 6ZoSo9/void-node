@@ -55,6 +55,10 @@ fingerprints, and the independent confirmation strings required for apply.
 Dry run performs zero RPC probes, zero service starts, zero credential reads,
 zero signing, zero submission/broadcast, and zero money movement.
 
+Dry-run calls also reject activation confirmation/plan arguments instead of silently
+ignoring them. The five apply-only authority inputs are accepted only when
+`apply=true`; the CLI likewise rejects those flags unless `--apply` is present.
+
 Raw private paths, the wallet address, RPC URL, credentials, private key material,
 and in-process service handles are never serialized by the operator receipt.
 
@@ -141,15 +145,21 @@ broadcaster_service_active_after_return=<bool>
 It does not claim that rollback was clean and does not invent a second automatic
 cleanup retry when #1106 returned a normal held result without service handles.
 
-If #1106 throws or returns a non-object result instead of its normal bounded
-result, exact service state cannot be trusted. The operator therefore reports:
+If the coordinator itself throws rather than returning its normal bounded
+result, the operator reports `side_effect_state_known=false` instead of claiming
+that no startup side effect occurred. Unknown side-effect state is always treated
+as residual service risk.
 
-```text
-side_effect_state_known=false
-residual_service_state=true
-```
+A returned `held` decision is trusted only when its exact #1106 marker, version,
+status, applied state, authority object, plan binding, typed lifecycle fields, and
+zero credential/sign/submit/broadcast/money flags all validate. A malformed held
+result is a boundary failure. If it unexpectedly carries service handles, cleanup
+is attempted in broadcaster-then-custodian order, but the receipt remains
+conservative with `side_effect_state_known=false`.
 
-It never converts unknown side effects into a clean/no-residual claim.
+The wrapper does not introduce a second provider-submission-ID parser. Successful
+provider IDs remain owned and sanitized by the reviewed chain-2050/#1106 stack;
+this operator only requires the already-reviewed successful value to be non-empty.
 
 ## Unexpected started-result cleanup
 
@@ -182,6 +192,11 @@ Accepted options are only:
 
 There is no wallet/RPC/runtime-root/signer/credential/private-path override and
 no transaction submission flag.
+
+CLI parse/argument failures occur before activation invocation and are reported as
+known zero-side-effect failures (`side_effect_state_known=true`,
+`residual_service_state=false`). Errors after activation invocation remain
+conservative (`side_effect_state_known=false`, `residual_service_state=true`).
 
 ## Proof
 

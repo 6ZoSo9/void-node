@@ -41,6 +41,9 @@ export const VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1 = {
   shutdown_broadcaster_before_custodian: true,
   duplicate_shutdown_idempotent: true,
   unexpected_started_result_cleanup: true,
+  held_result_boundary_revalidated: true,
+  dry_run_authority_arguments_rejected_without_apply: true,
+  provider_submission_id_parser_duplicated: false,
   unknown_side_effect_state_is_residual: true,
   credential_read_during_startup_or_shutdown: false,
   signing_during_startup_or_shutdown: false,
@@ -61,7 +64,6 @@ const SAFE_INPUT_KEYS = new Set([
 ]);
 const SHA256 = /^[0-9a-f]{64}$/;
 const SAFE_REASON = /^[A-Za-z0-9._:-]{1,220}$/;
-const SAFE_PROVIDER_ID = /^[A-Za-z0-9._:@/-]{1,200}$/;
 
 export type RunBuyVoidProductionPrivateServicesOperatorInputV1 = {
   apply?: boolean;
@@ -334,7 +336,7 @@ function createSession(services: {
   });
 }
 
-async function cleanupUnexpectedStartedResult(raw: Record<string, any>): Promise<{
+async function cleanupUnexpectedActivationResult(raw: Record<string, any>): Promise<{
   custodian_active: boolean;
   broadcaster_active: boolean;
 }> {
@@ -393,6 +395,20 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
   }
 
   const apply = input.apply === true;
+  if (
+    !apply &&
+    (input.confirmation !== undefined ||
+      input.expected_plan_id_sha256 !== undefined ||
+      input.rpc_readiness_confirmation !== undefined ||
+      input.custodian_activation_confirmation !== undefined ||
+      input.broadcaster_activation_confirmation !== undefined)
+  ) {
+    return held({
+      applied: false,
+      stage: "operator_input",
+      reason: "production_private_services_operator_dry_run_authority_input_forbidden",
+    });
+  }
   const resolvePolicy =
     dependencies.resolve_policy || resolveBuyVoidProductionPreflightOperatorPolicyV1;
   let policyState: BuyVoidProductionPreflightOperatorPolicyDecisionV1;
@@ -471,24 +487,74 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
   const raw = activation as Record<string, any>;
   const flags = activationFlags(raw);
   if (raw.ok !== true) {
+    const heldBoundaryValid =
+      raw.ok === false &&
+      raw.status === "held" &&
+      raw.applied === apply &&
+      raw.marker === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 &&
+      raw.version === 1 &&
+      typeof raw.reason === "string" &&
+      raw.authority ===
+        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 &&
+      (raw.plan_id_sha256 === null ||
+        raw.plan_id_sha256 === policyState.production_activation_plan_id_sha256) &&
+      typeof raw.rpc_probe_performed === "boolean" &&
+      typeof raw.custodian_service_start_performed === "boolean" &&
+      typeof raw.broadcaster_service_start_performed === "boolean" &&
+      typeof raw.custodian_service_active_after_return === "boolean" &&
+      typeof raw.broadcaster_service_active_after_return === "boolean" &&
+      typeof raw.custodian_rollback_attempted === "boolean" &&
+      (raw.custodian_rollback_succeeded === null ||
+        typeof raw.custodian_rollback_succeeded === "boolean") &&
+      typeof raw.broadcaster_rollback_attempted === "boolean" &&
+      (raw.broadcaster_rollback_succeeded === null ||
+        typeof raw.broadcaster_rollback_succeeded === "boolean") &&
+      raw.services === undefined &&
+      raw.credential_read_performed === false &&
+      raw.signing_performed === false &&
+      raw.submit_once_performed === false &&
+      raw.transaction_broadcast_performed === false &&
+      raw.money_movement_performed === false;
+
+    if (!heldBoundaryValid) {
+      const cleanup = await cleanupUnexpectedActivationResult(raw);
+      return held({
+        applied: apply,
+        stage: "activation",
+        reason: "production_private_services_operator_activation_held_boundary_invalid",
+        production_activation_plan_id_sha256:
+          typeof raw.plan_id_sha256 === "string" ? raw.plan_id_sha256 : null,
+        rpc_probe_performed: flags.rpc_probe,
+        service_state_mutation_performed: flags.service_mutation,
+        custodian_service_active_after_return: cleanup.custodian_active,
+        broadcaster_service_active_after_return: cleanup.broadcaster_active,
+        side_effect_state_known: false,
+        credential_read_performed: flags.credential_read,
+        signing_performed: flags.signing,
+        submit_once_performed: flags.submit_once,
+        transaction_broadcast_performed: flags.broadcast,
+        money_movement_performed: flags.money,
+      });
+    }
+
     return held({
       applied: apply,
       stage: "activation",
-      reason:
-        raw.authority === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
-          ? safeReason(raw.reason, "production_private_services_operator_activation_held")
-          : "production_private_services_operator_activation_held_boundary_invalid",
+      reason: safeReason(
+        raw.reason,
+        "production_private_services_operator_activation_held",
+      ),
       production_activation_plan_id_sha256:
         typeof raw.plan_id_sha256 === "string" ? raw.plan_id_sha256 : null,
       rpc_probe_performed: flags.rpc_probe,
       service_state_mutation_performed: flags.service_mutation,
       custodian_service_active_after_return: flags.custodian_active,
       broadcaster_service_active_after_return: flags.broadcaster_active,
-      credential_read_performed: flags.credential_read,
-      signing_performed: flags.signing,
-      submit_once_performed: flags.submit_once,
-      transaction_broadcast_performed: flags.broadcast,
-      money_movement_performed: flags.money,
+      credential_read_performed: false,
+      signing_performed: false,
+      submit_once_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
@@ -596,11 +662,11 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     typeof services?.custodian?.stop === "function" &&
     typeof services?.broadcaster?.stop === "function" &&
     typeof raw.provider_submission_id === "string" &&
-    SAFE_PROVIDER_ID.test(raw.provider_submission_id);
+    raw.provider_submission_id.length > 0;
 
   if (!startedValid) {
     const cleanup = raw.status === "started"
-      ? await cleanupUnexpectedStartedResult(raw)
+      ? await cleanupUnexpectedActivationResult(raw)
       : {
           custodian_active: flags.custodian_active,
           broadcaster_active: flags.broadcaster_active,

@@ -98,6 +98,19 @@ function parseArgs(argv: string[]): ParsedArgs {
     throw new Error(`unknown argument: ${value}`);
   }
 
+  if (
+    !apply &&
+    [
+      "--confirm",
+      "--expected-plan-id-sha256",
+      "--rpc-readiness-confirm",
+      "--custodian-confirm",
+      "--broadcaster-confirm",
+    ].some((flag) => seen.has(flag))
+  ) {
+    throw new Error("--apply is required with activation confirmation options");
+  }
+
   return {
     apply,
     confirmation,
@@ -144,20 +157,28 @@ function createShutdownSignalLatch(): {
   return { promise, dispose };
 }
 
+let activationInvocationStarted = false;
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const signalLatch = args.apply ? createShutdownSignalLatch() : null;
 
   let result;
   try {
-    result = await runBuyVoidProductionPrivateServicesOperatorV1({
-      apply: args.apply,
-      confirmation: args.confirmation,
-      expected_plan_id_sha256: args.expectedPlanId,
-      rpc_readiness_confirmation: args.rpcReadinessConfirmation,
-      custodian_activation_confirmation: args.custodianActivationConfirmation,
-      broadcaster_activation_confirmation: args.broadcasterActivationConfirmation,
-    });
+    activationInvocationStarted = true;
+    result = await runBuyVoidProductionPrivateServicesOperatorV1(
+      args.apply
+        ? {
+            apply: true,
+            confirmation: args.confirmation,
+            expected_plan_id_sha256: args.expectedPlanId,
+            rpc_readiness_confirmation: args.rpcReadinessConfirmation,
+            custodian_activation_confirmation: args.custodianActivationConfirmation,
+            broadcaster_activation_confirmation:
+              args.broadcasterActivationConfirmation,
+          }
+        : { apply: false },
+    );
   } catch (error) {
     signalLatch?.dispose();
     throw error;
@@ -197,8 +218,8 @@ main().catch((error) => {
     error_class: /^[A-Za-z0-9._:-]{1,80}$/.test(errorClass)
       ? errorClass
       : "Error",
-    residual_service_state: true,
-    side_effect_state_known: false,
+    residual_service_state: activationInvocationStarted,
+    side_effect_state_known: !activationInvocationStarted,
     credential_read_performed: false,
     signing_performed: false,
     submit_once_performed: false,

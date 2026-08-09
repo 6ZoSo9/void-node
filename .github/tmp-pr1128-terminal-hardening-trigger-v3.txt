@@ -1,2 +1,0 @@
-trigger=pr1128-terminal-hardening-v3
-base_helper=078c43e1b1713ecfd2f14b3a65a86958d21b0d7d
