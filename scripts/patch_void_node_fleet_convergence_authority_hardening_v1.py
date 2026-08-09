@@ -31,6 +31,13 @@ tool = replace_once(
 
 tool = replace_once(
     tool,
+    '''  if (SAFE_GIT_REMOTE_URL_RE.test(remote)) return remote;\n  if (SAFE_GIT_SCP_REMOTE_RE.test(remote)) return remote;\n''',
+    '''  if (SAFE_GIT_REMOTE_URL_RE.test(remote)) return remote;\n  if (/^[A-Za-z][A-Za-z0-9+.-]*:\\/\\//.test(remote)) {\n    fail(`${label} must use HTTPS, SSH, scp-style SSH, or an absolute local path`);\n  }\n  if (SAFE_GIT_SCP_REMOTE_RE.test(remote)) return remote;\n''',
+    "reject unsupported URL schemes before scp syntax",
+)
+
+tool = replace_once(
+    tool,
     '''      expected_remote_url: assertExactString(node.expected_remote_url, `${name}.expected_remote_url`),\n''',
     '''      expected_remote_url: assertSafeGitRemoteUrl(node.expected_remote_url, `${name}.expected_remote_url`),\n''',
     "node expected remote validation",
