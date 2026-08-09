@@ -38260,26 +38260,6 @@ try {
         }
       });
 
-      // steal: move our newest GET handler for PATH to the front
-      try{
-        const stack:any[] = app?._router?.stack;
-        if (Array.isArray(stack)) {
-          let idx = -1;
-          for (let i=stack.length-1; i>=0; i--){
-            const layer:any = stack[i];
-            const route:any = layer?.route;
-            if (!route) continue;
-            if (route?.path !== PATH) continue;
-            const methods = route?.methods || {};
-            if (methods.get || methods["get"]) { idx = i; break; }
-          }
-          if (idx >= 0) {
-            const layer = stack.splice(idx, 1)[0];
-            stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5b stole route (moved to front)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37350:24", err); }
-          }
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37353:25", err); }
     })();
   }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37355:26", err); }
 })();
@@ -38358,26 +38338,6 @@ try {
         }
       });
 
-      // steal: move newest handler for PATH to front
-      try{
-        const stack:any[] = app?._router?.stack;
-        if (Array.isArray(stack)) {
-          let idx=-1;
-          for (let i=stack.length-1; i>=0; i--){
-            const layer:any = stack[i];
-            const route:any = layer?.route;
-            if (!route) continue;
-            if (route?.path !== PATH) continue;
-            const methods = route?.methods || {};
-            if (methods.get || methods["get"]) { idx=i; break; }
-          }
-          if (idx>=0) {
-            const layer = stack.splice(idx,1)[0];
-            stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5c stole route (disk-first)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37448:33", err); }
-          }
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37451:34", err); }
     })();
   }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37453:35", err); }
 })();

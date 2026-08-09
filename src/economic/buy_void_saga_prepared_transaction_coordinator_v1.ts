@@ -526,6 +526,7 @@ function one<T>(values: T[], label: string): T {
 
 function bindingFromIntent(
   intent: BuyVoidFulfillmentJournalIntentV1,
+  poolId: string,
 ): Record<string, unknown> {
   return {
     request_id: text(intent.claim?.request_id),
@@ -538,7 +539,7 @@ function bindingFromIntent(
     void_amount_units:
       text(intent.claim?.unsigned_instruction?.void_amount_units),
     chain_id: "2050",
-    pool_id: "void-fixed-price-pool-v1",
+    pool_id: poolId,
   };
 }
 
@@ -615,7 +616,7 @@ async function reconstruct(input: {
   const inventories = input.deps
     .list_inventory({
       root_dir: input.root_dir,
-      pool_id: "void-fixed-price-pool-v1",
+      pool_id: input.server_policy.inventory_policy.pool_id,
     })
     .map((value) => value as BuyVoidInventoryReservationV1)
     .filter((value) => matchesIdentity(value as any, reservation));
@@ -633,7 +634,10 @@ async function reconstruct(input: {
   }
   const wallet = walletAllowlist[0];
   const binding = input.saga.validateSagaBindingV1(
-    bindingFromIntent(intent),
+    bindingFromIntent(
+      intent,
+      input.server_policy.inventory_policy.pool_id,
+    ),
   );
   const sagaId = input.saga.computeSagaIdV1(binding);
   const store = existingSagaStore(input.saga, input.root_dir, sagaId);

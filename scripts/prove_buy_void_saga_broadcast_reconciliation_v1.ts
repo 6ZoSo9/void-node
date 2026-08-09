@@ -54,6 +54,7 @@ const USDC = "0x6666666666666666666666666666666666666666";
 const PAYER = "0x7777777777777777777777777777777777777777";
 const RECEIVE = "0x8888888888888888888888888888888888888888";
 const VOID_UNITS = "2500000";
+const POOL_ID = "void-presale-mainnet0-v1";
 const SOURCE_FLOOR = "c4f742c2c2c33c91fcaa27dc462505cd5c19abdc";
 
 function digest(value: string): string {
@@ -137,7 +138,7 @@ function makeInventory(
     marker: "VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1",
     reservation_id: digest(`inventory:${label}`),
     reserved_at_ms: Date.parse("2026-08-06T11:10:01.000Z"),
-    pool_id: "void-fixed-price-pool-v1",
+    pool_id: POOL_ID,
     inventory_policy_version: "proof-policy-v1",
     pool_capacity_void_units: "10000000",
     committed_before_void_units: "0",
@@ -177,6 +178,7 @@ function configuredEnv(): Record<string, string> {
     [economic.rate_void_units_numerator]: "2",
     [economic.rate_void_units_denominator]: "1",
     [economic.inventory_policy_version]: "proof-policy-v1",
+    [economic.pool_id]: POOL_ID,
     [economic.pool_capacity_void_units]: "10000000",
     [economic.max_reservation_void_units]: "5000000",
     [economic.fulfillment_wallet_address]: WALLET,
@@ -360,7 +362,7 @@ async function initializeSaga(input: {
     void_amount_units:
       input.intent.claim.unsigned_instruction.void_amount_units,
     chain_id: "2050",
-    pool_id: "void-fixed-price-pool-v1",
+    pool_id: POOL_ID,
   });
   const sagaId = saga.computeSagaIdV1(binding);
   const store = saga.createFilesystemSagaStoreV1(
