@@ -1,0 +1,82 @@
+name: VOID P2P UDP swarm Node candidate promotion bootstrap v1
+
+on:
+  pull_request:
+    branches:
+      - 'feat/p2p-udp-swarm-node-candidate-integration-v1-20260808'
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-candidate-promotion-bootstrap-v1.yml'
+      - 'scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch'
+      - 'scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-node-candidate-promotion-v1.md'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-prove:
+    if: github.event.pull_request.head.ref == 'feat/p2p-udp-swarm-node-candidate-promotion-v1-20260808'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard exact parent and patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor a65284ffdee050c878138e2449d9c232d76aa260 HEAD
+          test "$(git hash-object src/node_core.ts)" = 'd1706757c06578dc790689747400ecb5d1c33550'
+          test "$(sha256sum scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch | awk '{print $1}')" = 'a0688e2ae64b7212d99944f781aa1dbc0a33c4f6cb4fd63760ad8466cfb36521'
+
+      - name: Apply deterministic Node promotion patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch
+          git apply scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch
+          test "$(sha256sum src/node_core.ts | awk '{print $1}')" = '067fdb3398924609e039cd5108f1c8a5305ca40cf1fba0873684dac2e5b405a8'
+          git diff --check
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove Node candidate promotion
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts
+
+      - name: Re-prove Node candidate integration
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+
+      - name: Re-prove relay-preserving takeover policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts
+
+      - name: Re-prove authenticated direct candidate
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit proven source and remove patch carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/node_core.ts
+          git rm scripts/void_p2p_udp_swarm_node_candidate_promotion_v1.patch
+          git diff --cached --check
+          git commit -m 'feat: atomically promote authenticated UDP candidate in Node v1'
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
