@@ -362,11 +362,12 @@ function validateStatus(
     return held(sagaId, "operator_runtime_status_boundary_invalid");
   }
   const socketFpRaw = child.broadcaster_socket_fingerprint_sha256;
-  const socketFp = socketFpRaw === null || socketFpRaw === undefined
-    ? null
-    : text(socketFpRaw).toLowerCase();
-  if (socketFp !== null && !SHA256.test(socketFp)) {
-    return held(sagaId, "operator_runtime_socket_fingerprint_invalid");
+  let socketFp: string | null = null;
+  if (socketFpRaw !== null && socketFpRaw !== undefined) {
+    if (typeof socketFpRaw !== "string" || !SHA256.test(socketFpRaw)) {
+      return held(sagaId, "operator_runtime_socket_fingerprint_invalid");
+    }
+    socketFp = socketFpRaw;
   }
   if (
     forApply &&
@@ -396,7 +397,7 @@ function parseDryRuntime(
     response.ok !== true ||
     response.status !== "dry_run" ||
     response.applied !== false ||
-    text(response.saga_id).toLowerCase() !== sagaId ||
+    response.saga_id !== sagaId ||
     response.execute_prepared_transaction_mounted !== false ||
     response.broadcaster_socket_required_for_dry_run !== false ||
     response.transaction_broadcast_performed !== false ||
@@ -414,7 +415,7 @@ function parseDryRuntime(
     decision.signed_payload_bytes_persisted !== false ||
     decision.signed_payload_bytes_returned !== false ||
     decision.money_movement_performed !== false ||
-    text(decision.saga_id).toLowerCase() !== sagaId
+    decision.saga_id !== sagaId
   ) {
     return null;
   }
@@ -436,12 +437,28 @@ function parseDryRuntime(
   ) {
     return null;
   }
-  const attemptId = text(decision.attempt_id).toLowerCase();
-  const runtimeConfirmation = text(response.required_runtime_confirmation);
-  const coordinatorConfirmation = text(response.required_coordinator_confirmation);
-  const policyFp = text(response.required_policy_fingerprint_sha256).toLowerCase();
-  const sagaConfirmation = text(response.required_saga_confirmation);
-  const actionConfirmation = text(response.required_saga_action_confirmation);
+  const attemptId =
+    typeof decision.attempt_id === "string" ? decision.attempt_id : "";
+  const runtimeConfirmation =
+    typeof response.required_runtime_confirmation === "string"
+      ? response.required_runtime_confirmation
+      : "";
+  const coordinatorConfirmation =
+    typeof response.required_coordinator_confirmation === "string"
+      ? response.required_coordinator_confirmation
+      : "";
+  const policyFp =
+    typeof response.required_policy_fingerprint_sha256 === "string"
+      ? response.required_policy_fingerprint_sha256
+      : "";
+  const sagaConfirmation =
+    typeof response.required_saga_confirmation === "string"
+      ? response.required_saga_confirmation
+      : "";
+  const actionConfirmation =
+    typeof response.required_saga_action_confirmation === "string"
+      ? response.required_saga_action_confirmation
+      : "";
   if (
     !SHA256.test(attemptId) ||
     runtimeConfirmation !== RUNTIME_CONFIRMATION ||
@@ -450,7 +467,7 @@ function parseDryRuntime(
     !SAFE_TOKEN.test(sagaConfirmation) ||
     !SAFE_TOKEN.test(actionConfirmation) ||
     decision.required_confirmation !== coordinatorConfirmation ||
-    text(decision.required_policy_fingerprint_sha256).toLowerCase() !== policyFp ||
+    decision.required_policy_fingerprint_sha256 !== policyFp ||
     decision.required_saga_confirmation !== sagaConfirmation ||
     decision.required_saga_action_confirmation !== actionConfirmation
   ) {
@@ -539,6 +556,11 @@ async function runDry(input: {
       error_class: text((error as Error)?.name || "Error").slice(0, 80),
     });
   }
+  if (response.status !== 200) {
+    return held(input.saga_id, "operator_runtime_dry_run_http_invalid", {
+      http_status: response.status,
+    });
+  }
   const dry = parseDryRuntime(response.json, input.saga_id);
   if (!dry) {
     const body = object(response.json);
@@ -603,7 +625,7 @@ function parseAppliedEnvelope(
     response.marker !== CHILD_MARKER ||
     response.version !== 1 ||
     response.applied !== true ||
-    text(response.saga_id).toLowerCase() !== sagaId ||
+    response.saga_id !== sagaId ||
     response.execute_prepared_transaction_mounted !== false ||
     response.submit_once_runtime_adapter !== false ||
     response.inspect_submission_runtime_adapter !== true ||
@@ -637,10 +659,16 @@ function parseAppliedEnvelope(
     }
     if (
       decision.applied !== true ||
-      text(decision.saga_id).toLowerCase() !== sagaId ||
-      text(decision.action) !== "reconcile_possible_broadcast" ||
-      !SHA256.test(text(decision.attempt_id).toLowerCase())
+      decision.saga_id !== sagaId ||
+      decision.action !== "reconcile_possible_broadcast" ||
+      typeof decision.attempt_id !== "string" ||
+      !SHA256.test(decision.attempt_id)
     ) return null;
+    const expectedReconciliationRequired =
+      status === "unknown" || status === "accepted";
+    if (decision.reconciliation_required !== expectedReconciliationRequired) {
+      return null;
+    }
     return {
       marker: VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_V1,
       version: 1,
@@ -648,7 +676,7 @@ function parseAppliedEnvelope(
       status: "reconciled",
       applied: true,
       saga_id: sagaId,
-      attempt_id: text(decision.attempt_id).toLowerCase(),
+      attempt_id: decision.attempt_id,
       reconciliation_outcome: status,
       mutation_performed: decision.mutation_performed === true,
       broadcaster_inspection_performed: decision.broadcaster_called === true,
@@ -780,6 +808,13 @@ export async function runBuyVoidProductionBroadcastReconciliationV1(input: {
       sagaId,
       "operator_reconciliation_apply_transport_unknown",
       text((error as Error)?.name || "Error"),
+    );
+  }
+  if (response.status !== 200) {
+    return transportUnknown(
+      sagaId,
+      "operator_reconciliation_apply_http_unknown",
+      `HTTP${response.status}`,
     );
   }
   const parsed = parseAppliedEnvelope(response.json, sagaId);
