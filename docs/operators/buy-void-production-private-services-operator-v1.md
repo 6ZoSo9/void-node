@@ -36,6 +36,10 @@ It does not parse or accept caller overrides for:
 The reused resolver keeps the native execution runtime disabled and derives the
 signer fingerprint from the server-owned fulfillment wallet.
 
+The provider-submission identifier returned by the existing chain-2050 readiness
+boundary is accepted only under that boundary's existing sanitized provider-ID
+contract. This operator does not invent a narrower provider-ID grammar.
+
 ## Dry-run default
 
 Default invocation:
@@ -86,11 +90,25 @@ transaction_broadcast_performed=false
 money_movement_performed=false
 ```
 
+## Signal capture before activation
+
+In apply mode, the CLI installs its one-shot SIGINT/SIGTERM latch **before** it
+calls the activation operator.
+
+This closes the startup signal window where a termination request could otherwise
+arrive after a private socket was started but before shutdown handlers existed.
+If a signal arrives while #1106 is still completing its bounded activation, the
+signal is retained. A successful start is then shut down immediately through the
+normal foreground session path.
+
+Dry-run mode installs no signal latch. Held/planned outcomes remove any apply-mode
+handlers before returning.
+
 ## Foreground ownership
 
 A successful start returns two in-process `stop()` handles from #1106. The CLI
 never serializes them. Instead, the CLI becomes their foreground owner and stays
-running until SIGINT or SIGTERM.
+running until the latched SIGINT or SIGTERM is consumed.
 
 On the first shutdown request it:
 
@@ -121,11 +139,34 @@ broadcaster_service_active_after_return=<bool>
 ```
 
 It does not claim that rollback was clean and does not invent a second automatic
-cleanup retry.
+cleanup retry when #1106 returned a normal held result without service handles.
 
-If the coordinator itself throws rather than returning its normal bounded
-result, the operator reports `side_effect_state_known=false` instead of claiming
-that no startup side effect occurred.
+If #1106 throws or returns a non-object result instead of its normal bounded
+result, exact service state cannot be trusted. The operator therefore reports:
+
+```text
+side_effect_state_known=false
+residual_service_state=true
+```
+
+It never converts unknown side effects into a clean/no-residual claim.
+
+## Unexpected started-result cleanup
+
+A separate case exists when #1106 reports `ok=true`, `status=started`, and returns
+service handles, but the result contradicts the reviewed started boundary—for
+example a mutation/signing/broadcast flag is wrong, a binding is wrong, or the
+provider ID is malformed.
+
+Because those returned handles are available to this wrapper, the operator does
+not simply discard them. It attempts bounded cleanup in the same safe order:
+
+1. broadcaster stop once;
+2. custodian stop once.
+
+Successful cleanup clears the corresponding residual-service flag. Failed or
+missing cleanup keeps that service conservatively active in the held receipt.
+There is no automatic retry.
 
 ## Closed CLI surface
 
@@ -155,6 +196,11 @@ Expected marker:
 ```text
 VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1_PROOF_GREEN
 ```
+
+The focused proof covers canonical-policy reuse, dry-run I/O exclusion, exact
+confirmation forwarding, sanitized receipts, shutdown order, duplicate shutdown,
+cleanup failure, unknown-side-effect residual handling, unexpected-start cleanup,
+provider-ID contract alignment, and signal-latch-before-activation source order.
 
 The focused workflow also preserves the merged #1106 activation proof, #1118
 policy/preflight operator proof, production RPC readiness, custodian credential
