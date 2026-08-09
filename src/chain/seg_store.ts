@@ -109,7 +109,7 @@ function atomicWriteText(root: string, p: string, text: string) {
 }
 
 export class SegStore {
-  // --- WAL replay metrics (v1) ---
+  // --- WAL replay metrics (v1; additive) ---
   private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
   public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
 
@@ -451,7 +451,6 @@ export class SegStore {
               !Number.isSafeInteger(ent?.n) ||
               !Number.isSafeInteger(ent?.off) ||
               Number(ent.n) < segmentBase ||
-              Number(ent.n) > n ||
               Number(ent.off) < 0 ||
               Number(ent.off) + 4 > st.size ||
               this.segName(Number(ent.n)) !== seg
@@ -459,7 +458,7 @@ export class SegStore {
               best = null;
               throw new Error("invalid sparse index entry");
             }
-            if (!best || Number(ent.n) > best.n) {
+            if (Number(ent.n) <= n && (!best || Number(ent.n) > best.n)) {
               best = { n: Number(ent.n), off: Number(ent.off) };
             }
           }
