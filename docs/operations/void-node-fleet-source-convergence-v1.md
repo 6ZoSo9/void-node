@@ -173,4 +173,3 @@ the selected node's local `main` source only. It does not:
 
 After a successful source sync, build/restart/deployment and post-deployment
 proof remain separate operator actions with separate authorization.
-
