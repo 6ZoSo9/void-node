@@ -72,20 +72,6 @@ jobs:
                   raise SystemExit(f'{label}: expected exactly one match, got {count}')
               source = source.replace(old, new, 1)
 
-          def replace_exact_count(
-              old: str,
-              new: str,
-              expected: int,
-              label: str,
-          ) -> None:
-              global source
-              count = source.count(old)
-              if count != expected:
-                  raise SystemExit(
-                      f'{label}: expected exactly {expected} matches, got {count}'
-                  )
-              source = source.replace(old, new)
-
           replace_once(
               block(
                   "          EXPECTED_PARENT='271535c0d2ef0c89480ab18b814488d36c9584a9'",
@@ -227,7 +213,7 @@ jobs:
               'operator note proof statement',
           )
 
-          replace_exact_count(
+          replace_once(
               block(
                   '      - name: Re-prove authenticated direct candidate primitive',
                   '        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts',
@@ -239,8 +225,7 @@ jobs:
                   '      - name: Re-prove authenticated direct candidate primitive',
                   '        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts',
               ),
-              2,
-              'policy regression proof steps',
+              'policy regression proof step',
           )
 
           replace_once(
