@@ -315,30 +315,24 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       action_confirmation: requiredActionConfirmation,
       adapters: {
         closeout_confirmed_delivery: async ({ record }: any) => {
-          const current = reconstructTerminalCloseoutV1({
-            root_dir: rootDir,
-            saga_module: sagaModule,
-            saga_store: sagaStore,
-            saga_record: record,
-            policy,
-            dependencies,
-          });
-          if (
-            current.plan.plan_fingerprint_sha256 !==
-            reconstructed.plan.plan_fingerprint_sha256
-          ) {
-            throw new Error("terminal_closeout_plan_changed_during_apply");
-          }
           artifacts = applyTerminalCloseoutArtifactsV1(
-            current,
+            reconstructed,
             dependencies,
             progress,
+            () => reconstructTerminalCloseoutV1({
+              root_dir: rootDir,
+              saga_module: sagaModule,
+              saga_store: sagaStore,
+              saga_record: record,
+              policy,
+              dependencies,
+            }),
           );
           return {
             payload: {
-              attempt_id: current.plan.attempt_id,
-              transaction_hash: current.plan.transaction_hash,
-              closeout_id: current.plan.closeout_id,
+              attempt_id: reconstructed.plan.attempt_id,
+              transaction_hash: reconstructed.plan.transaction_hash,
+              closeout_id: reconstructed.plan.closeout_id,
               inventory_decremented: true,
               public_request_fulfilled: true,
             },
