@@ -223,7 +223,7 @@ export type BuyVoidSagaTerminalCloseoutDecisionV1 =
       mutation_performed: boolean;
       inventory_consumption_performed: boolean;
       public_request_fulfilled: boolean;
-      saga_closeout_appended: false;
+      saga_closeout_appended: boolean;
       automatic_retry_allowed: false;
       money_movement_performed: false;
     };
