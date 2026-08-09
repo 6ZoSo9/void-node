@@ -16,6 +16,8 @@ export const VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_POLICY_AUTHORITY_V1 =
     requires_no_newer_udp_swarm_session: true,
     requires_no_retired_or_replacement_relay_stream: true,
     requires_no_recovery_in_flight: true,
+    direct_route_reconnect_authorized: false,
+    verified_direct_evidence_persistence_authorized: false,
     normal_peer_map_mutation_performed: false,
     relay_stream_mutation_performed: false,
     network_dial_performed: false,
@@ -121,6 +123,8 @@ export type VoidUdpSwarmPostRetirementRecoveryDecisionV1 = Readonly<{
   minimum_retry_at_ms: number | null;
   requires_fresh_relay_stream: true;
   retired_stream_reuse_authorized: false;
+  direct_route_reconnect_authorized: false;
+  verified_direct_evidence_persistence_authorized: false;
   normal_peer_map_mutation_performed: false;
   relay_stream_mutation_performed: false;
   network_dial_performed: false;
@@ -247,6 +251,8 @@ function decision(
     minimum_retry_at_ms: minimumRetryAtMs,
     requires_fresh_relay_stream: true,
     retired_stream_reuse_authorized: false,
+    direct_route_reconnect_authorized: false,
+    verified_direct_evidence_persistence_authorized: false,
     normal_peer_map_mutation_performed: false,
     relay_stream_mutation_performed: false,
     network_dial_performed: false,
