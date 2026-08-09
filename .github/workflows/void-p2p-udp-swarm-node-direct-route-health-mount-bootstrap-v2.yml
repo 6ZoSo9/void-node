@@ -1,51 +1,45 @@
-name: VOID P2P UDP swarm Node direct-route health mount bootstrap v2
+name: VOID P2P UDP swarm Node direct-route health mount v1
 
 on:
   pull_request:
-    branches:
-      - 'feat/p2p-udp-swarm-direct-route-health-probe-v1-20260809'
     paths:
       - '.github/workflows/void-p2p-udp-swarm-node-direct-route-health-mount-bootstrap-v2.yml'
-      - 'scripts/apply_void_p2p_udp_swarm_node_direct_route_health_mount_v1.py'
+      - 'src/node_core.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_node_direct_route_health_mount_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-node-direct-route-health-mount-v1.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-direct-route-health-mount-bootstrap-v2.yml'
+      - 'src/node_core.ts'
       - 'scripts/prove_void_p2p_udp_swarm_node_direct_route_health_mount_v1.ts'
       - 'docs/public/void-p2p-udp-swarm-node-direct-route-health-mount-v1.md'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-and-prove:
-    if: github.event.pull_request.head.ref == 'feat/p2p-udp-swarm-node-direct-route-health-mount-v1-20260809'
+  prove:
+    name: prove (Node ${{ matrix.node-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout exact source head
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Guard exact parent
-        shell: bash
-        run: |
-          set -euo pipefail
-          git merge-base --is-ancestor 98689b23eb1fa2d349a63ce42d7cb0e87685fc07 HEAD
-
-      - name: Apply source-aware Node health mount
-        run: python3 scripts/apply_void_p2p_udp_swarm_node_direct_route_health_mount_v1.py
-
-      - name: Check mounted diff
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          grep -Fq 'udpSwarmPromotedDirectRouteHealthSnapshotV1' src/node_core.ts
-          grep -Fq 'VOID_P2P_UDP_SWARM_DIRECT_HEALTH_MOUNT_V1_REJECT' src/node_core.ts
-
-      - name: Setup Node 24
+      - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install locked dependencies
@@ -69,19 +63,15 @@ jobs:
       - name: Re-prove Node candidate integration
         run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
 
-      - name: Typecheck
+      - name: Typecheck repository
         run: npm run typecheck
 
-      - name: Build
+      - name: Build repository
         run: npm run build
 
-      - name: Commit proven Node health mount
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/node_core.ts
-          git diff --cached --check
-          git commit -m 'feat: mount UDP direct-route health in Node v1'
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+      - name: Working-tree diff hygiene
+        run: git diff --check
+
+      - name: Pull-request committed-range diff hygiene
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
