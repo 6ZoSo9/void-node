@@ -14,11 +14,10 @@ def replace_once(text: str, old: str, new: str, name: str) -> str:
     return text.replace(old, new, 1)
 
 
-# Keep the original guarded hardening program immutable and repair only the two
-# response-saga anchors that became ambiguous because dry and applied envelopes
-# intentionally contain the same expression. Do not relax the original
-# one-anchor invariant globally: every semantic mutation must still match one
-# exact contextual preimage.
+# Keep the original guarded hardening program immutable and repair only the
+# ambiguous response/decision saga anchors. Dry and applied envelopes
+# intentionally contain the same scalar expressions, so each semantic mutation
+# binds to an exact contextual preimage instead of relaxing one() globally.
 source = subprocess.check_output(
     ["git", "show", f"{PINNED_PATCH_COMMIT}:{PATCH_PATH}"],
     text=True,
@@ -43,6 +42,29 @@ source = replace_once(
     "reconciliation dry response saga",
 )""",
     "dry response saga carrier repair",
+)
+
+source = replace_once(
+    source,
+    """text = one(
+    text,
+    'text(decision.saga_id).toLowerCase() !== sagaId',
+    'decision.saga_id !== sagaId',
+    "reconciliation dry decision saga",
+)""",
+    """text = one(
+    text,
+    '''    decision.signed_payload_bytes_returned !== false ||
+    decision.money_movement_performed !== false ||
+    text(decision.saga_id).toLowerCase() !== sagaId
+  ) {''',
+    '''    decision.signed_payload_bytes_returned !== false ||
+    decision.money_movement_performed !== false ||
+    decision.saga_id !== sagaId
+  ) {''',
+    "reconciliation dry decision saga",
+)""",
+    "dry decision saga carrier repair",
 )
 
 source = replace_once(
