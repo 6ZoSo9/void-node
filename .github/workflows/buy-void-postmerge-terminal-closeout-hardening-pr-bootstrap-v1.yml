@@ -1,0 +1,166 @@
+name: Buy VOID postmerge terminal closeout hardening PR bootstrap v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml"
+      - "scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py"
+      - "docs/operators/buy-void-production-terminal-closeout-operator-v1.md"
+      - "scripts/buy_void_production_terminal_closeout_operator_v1.ts"
+      - "scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts"
+      - "scripts/prove_buy_void_saga_terminal_closeout_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_model_v1.ts"
+      - "src/economic/buy_void_saga_terminal_closeout_v1.ts"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Verify exact branch and import terminal append-truth semantics
+        shell: bash
+        env:
+          EXPECTED_BRANCH: fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809
+          APPEND_TRUTH_BRANCH: fix/buy-void-terminal-closeout-append-truth-v1-20260809
+          APPEND_TRUTH_HEAD: 2c8169eade5a2e9b13102acb9cb6b9edcc83d374
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_HEAD_REF" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          remote_append="$(git ls-remote origin "refs/heads/$APPEND_TRUTH_BRANCH" | awk '{print $1}')"
+          echo "append_truth_remote=$remote_append"
+          test "$remote_append" = "$APPEND_TRUTH_HEAD"
+          git fetch --no-tags origin "refs/heads/$APPEND_TRUTH_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$APPEND_TRUTH_HEAD"
+          git checkout "$APPEND_TRUTH_HEAD" -- \
+            docs/operators/buy-void-production-terminal-closeout-operator-v1.md \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_model_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Apply terminal transport and canonical-envelope hardening
+        run: python3 scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py
+
+      - name: Verify exact semantic scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          mapfile -t changed < <(git diff --name-only | sort)
+          printf 'changed=%s\n' "${changed[@]}"
+          expected=(
+            docs/operators/buy-void-production-terminal-closeout-operator-v1.md
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts
+            src/economic/buy_void_saga_terminal_closeout_model_v1.ts
+            src/economic/buy_void_saga_terminal_closeout_v1.ts
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+          test "${#changed[@]}" -eq "${#expected_sorted[@]}"
+          for i in "${!expected_sorted[@]}"; do
+            test "${changed[$i]}" = "${expected_sorted[$i]}"
+          done
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Focused TypeScript compile
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_model_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Prove terminal closeout hardening wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          for proof in \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts \
+            scripts/prove_buy_void_confirmed_closeout_v1.ts \
+            scripts/prove_buy_void_crash_consistent_saga_server_policy_v1.ts \
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts \
+            scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts \
+            scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts \
+            scripts/prove_buy_void_runtime_integration_v1.ts \
+            scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+          do
+            echo "proof=$proof"
+            npx --no-install tsx "$proof"
+          done
+
+      - name: Typecheck and build repository
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Commit proven semantic repair and publish non-force
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            docs/operators/buy-void-production-terminal-closeout-operator-v1.md \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_model_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_v1.ts
+          test -z "$(git diff --name-only)"
+          git commit -m "fix: harden Buy VOID terminal closeout post-merge truth"
+          remote_head="$(git ls-remote origin "refs/heads/$PR_HEAD_BRANCH" | awk '{print $1}')"
+          echo "remote_head_before_push=$remote_head"
+          echo "pr_head_before_run=$PR_HEAD_SHA"
+          test "$remote_head" = "$PR_HEAD_SHA"
+          git push origin "HEAD:refs/heads/$PR_HEAD_BRANCH"
+          echo "VOID_BUY_VOID_POSTMERGE_TERMINAL_CLOSEOUT_HARDENING_V1_GREEN"
+          echo "live_terminal_closeout_performed=false"
+          echo "inventory_consumption_performed=false"
+          echo "public_fulfillment_mutation_performed=false"
+          echo "saga_mutation_performed=false"
+          echo "credential_access_performed=false"
+          echo "signing_performed=false"
+          echo "transaction_broadcast_performed=false"
+          echo "money_movement_performed=false"
