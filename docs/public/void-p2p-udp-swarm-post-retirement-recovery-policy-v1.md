@@ -87,7 +87,9 @@ Relay retirement does not convert a transient NAT-punched endpoint into durable 
 
 The existing VOID reachability runtime keeps a stronger independent boundary for `direct_confirmed`: the candidate must be public and fresh authenticated dialback success must come from at least two independent observers in at least two failure domains.
 
-This recovery policy does not weaken or bypass that boundary and always reports `verified_direct_evidence_persisted=false`. Its continuity response to an expired ephemeral direct path is fresh relay reacquisition, not automatic verified-peer persistence or direct reconnect.
+This recovery policy does not weaken or bypass that boundary. Every decision fixes both `direct_route_reconnect_authorized=false` and `verified_direct_evidence_persistence_authorized=false`, in addition to `verified_direct_evidence_persisted=false`.
+
+Its continuity response to an expired ephemeral direct path is fresh relay reacquisition, not automatic verified-peer persistence or direct reconnect.
 
 ## Closed input boundary
 
@@ -97,8 +99,10 @@ The stale-recovery booleans are also closed-schema fields; malformed types for s
 
 ## Authority boundary
 
-Even an authorization decision reports all mutation fields false:
+Even an authorization decision fixes all non-relay-reacquisition authority and mutation fields false:
 
+- `direct_route_reconnect_authorized=false`;
+- `verified_direct_evidence_persistence_authorized=false`;
 - `normal_peer_map_mutation_performed=false`;
 - `relay_stream_mutation_performed=false`;
 - `network_dial_performed=false`;
