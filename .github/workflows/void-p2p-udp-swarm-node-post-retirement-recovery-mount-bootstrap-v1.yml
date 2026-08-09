@@ -7,6 +7,9 @@ on:
       - 'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py'
       - 'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts'
       - 'src/p2p/udp_swarm_post_retirement_recovery_policy_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.yml'
       - 'src/node_core.ts'
 
 permissions:
@@ -33,16 +36,49 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Guard exact branch ancestry and clean worktree
+      - name: Guard child scope and reconcile exact moving parent
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           test -z "$(git status --porcelain)"
-          BASE_SHA="$(git rev-parse origin/${{ github.event.pull_request.base.ref }})"
-          test "$BASE_SHA" = "${{ github.event.pull_request.base.sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git cat-file -e "$BASE_SHA^{commit}"
+          MERGE_BASE="$(git merge-base HEAD "$BASE_SHA")"
+
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml' \
+            'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py' \
+            'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts' \
+            > /tmp/expected-child-paths.txt
+          git diff --name-only "$MERGE_BASE"...HEAD | sort > /tmp/actual-child-paths.txt
+          diff -u /tmp/expected-child-paths.txt /tmp/actual-child-paths.txt
+
+          git diff --name-only "$MERGE_BASE"..."$BASE_SHA" | sort > /tmp/parent-paths.txt
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.yml|\
+              docs/public/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.md|\
+              scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts|\
+              src/p2p/udp_swarm_post_retirement_recovery_policy_v1.ts)
+                ;;
+              "")
+                ;;
+              *)
+                echo "unexpected moving-parent path: $path" >&2
+                exit 1
+                ;;
+            esac
+          done < /tmp/parent-paths.txt
+
+          if ! git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            git merge --no-edit --no-ff "$BASE_SHA"
+          fi
           git merge-base --is-ancestor "$BASE_SHA" HEAD
-          test "$(git rev-list --count "$BASE_SHA"..HEAD)" -ge 1
+          test -z "$(git status --porcelain)"
 
       - name: Setup Node 24
         uses: actions/setup-node@v6
@@ -105,8 +141,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- src/node_core.ts .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml
           git rm -- \
             .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml \
