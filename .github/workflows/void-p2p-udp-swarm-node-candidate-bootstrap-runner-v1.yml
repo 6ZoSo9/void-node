@@ -3,7 +3,7 @@ name: VOID P2P UDP swarm Node candidate bootstrap runner v1
 on:
   pull_request:
     branches:
-      - 'feat/p2p-udp-swarm-authenticated-direct-candidate-v1-20260808'
+      - 'feat/p2p-udp-swarm-relay-preserving-takeover-policy-v1-20260808'
     paths:
       - '.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml'
       - '.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml'
@@ -23,15 +23,242 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Guard exact source and parent ancestry
+      - name: Guard exact relay-policy base and source
+        shell: bash
+        env:
+          EXPECTED_POLICY_BRANCH: feat/p2p-udp-swarm-relay-preserving-takeover-policy-v1-20260808
+          EXPECTED_POLICY_HEAD: 7f76f0d520d0f28aaed10f525fbf5b07d9c44886
+          EXPECTED_NODE_CORE_BLOB: bd47640e8e057cf98c0da7cd22d3da52066e5a8d
+          EXPECTED_POLICY_BLOB: 6993fc12cd73ebfa757ac75835c409539a6d439f
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.base.ref }}" = "$EXPECTED_POLICY_BRANCH"
+          test "$(git hash-object src/node_core.ts)" = "$EXPECTED_NODE_CORE_BLOB"
+          git fetch --no-tags origin \
+            "$EXPECTED_POLICY_BRANCH:refs/remotes/origin/$EXPECTED_POLICY_BRANCH"
+          test "$(git rev-parse "refs/remotes/origin/$EXPECTED_POLICY_BRANCH")" = "$EXPECTED_POLICY_HEAD"
+          test "$(git show "$EXPECTED_POLICY_HEAD:src/p2p/udp_swarm_relay_preserving_takeover_policy_v1.ts" | git hash-object --stdin)" = "$EXPECTED_POLICY_BLOB"
+          test -f .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
+
+      - name: Restack on exact relay-preserving policy
+        shell: bash
+        env:
+          EXPECTED_POLICY_HEAD: 7f76f0d520d0f28aaed10f525fbf5b07d9c44886
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-edit "$EXPECTED_POLICY_HEAD"
+          git merge-base --is-ancestor "$EXPECTED_POLICY_HEAD" HEAD
+          test "$(git hash-object src/p2p/udp_swarm_relay_preserving_takeover_policy_v1.ts)" = '6993fc12cd73ebfa757ac75835c409539a6d439f'
+
+      - name: Repair guarded integration bootstrap for relay policy
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 271535c0d2ef0c89480ab18b814488d36c9584a9 HEAD
-          test "$(git hash-object src/node_core.ts)" = 'bd47640e8e057cf98c0da7cd22d3da52066e5a8d'
-          test -f .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Reuse exact bootstrap generation steps
+          path = Path('.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml')
+          source = path.read_text()
+
+          def block(*lines: str) -> str:
+              return '\n'.join(lines)
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global source
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              source = source.replace(old, new, 1)
+
+          def replace_exact_count(
+              old: str,
+              new: str,
+              expected: int,
+              label: str,
+          ) -> None:
+              global source
+              count = source.count(old)
+              if count != expected:
+                  raise SystemExit(
+                      f'{label}: expected exactly {expected} matches, got {count}'
+                  )
+              source = source.replace(old, new)
+
+          replace_once(
+              block(
+                  "          EXPECTED_PARENT='271535c0d2ef0c89480ab18b814488d36c9584a9'",
+                  '          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"',
+                  '          test "$(git diff --name-only "$EXPECTED_PARENT...HEAD")" = \' .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml\''.replace("' ", "'"),
+              ),
+              block(
+                  "          EXPECTED_POLICY_PARENT='7f76f0d520d0f28aaed10f525fbf5b07d9c44886'",
+                  '          git merge-base --is-ancestor "$EXPECTED_POLICY_PARENT" HEAD',
+                  '          test "$(git hash-object src/node_core.ts)" = \'bd47640e8e057cf98c0da7cd22d3da52066e5a8d\'',
+                  '          test "$(git hash-object src/p2p/udp_swarm_relay_preserving_takeover_policy_v1.ts)" = \'6993fc12cd73ebfa757ac75835c409539a6d439f\'',
+              ),
+              'bootstrap parent guard',
+          )
+
+          replace_once(
+              block(
+                  '          import type { VoidUdpPeerSocketAdapterV1 } from "./p2p/udp_peer_socket_adapter_v1.js";',
+                  '          import { VoidUdpSwarmAuthenticatedDirectCandidateV1 } from "./p2p/udp_swarm_authenticated_direct_candidate_v1.js";',
+                  '          import {',
+              ),
+              block(
+                  '          import type { VoidUdpPeerSocketAdapterV1 } from "./p2p/udp_peer_socket_adapter_v1.js";',
+                  '          import { VoidUdpSwarmAuthenticatedDirectCandidateV1 } from "./p2p/udp_swarm_authenticated_direct_candidate_v1.js";',
+                  '          import { evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1 } from "./p2p/udp_swarm_relay_preserving_takeover_policy_v1.js";',
+                  '          import {',
+              ),
+              'relay policy import',
+          )
+
+          replace_once(
+              block(
+                  '            if (!context.candidate.acceptNormalVoidAuthentication(auth.id, auth.pubkey)) {',
+                  '              this.udpSwarmDirectCandidates.delete(context.session_id);',
+                  '              return false;',
+                  '            }',
+                  '',
+                  '            if (peer.authTimer) {',
+              ),
+              block(
+                  '            if (!context.candidate.acceptNormalVoidAuthentication(auth.id, auth.pubkey)) {',
+                  '              this.udpSwarmDirectCandidates.delete(context.session_id);',
+                  '              return false;',
+                  '            }',
+                  '',
+                  '            const candidateSnapshot = context.candidate.snapshot();',
+                  '            const existingRoute = this.peers.get(context.expected_peer_node_id);',
+                  '            const takeoverDecision =',
+                  '              evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1({',
+                  '                candidate_phase: candidateSnapshot.phase,',
+                  '                expected_peer_node_id: context.expected_peer_node_id,',
+                  '                authenticated_peer_node_id:',
+                  '                  candidateSnapshot.authenticated_peer_node_id,',
+                  '                existing_authenticated_route:',
+                  '                  existingRoute &&',
+                  '                  existingRoute.handshakeDone &&',
+                  '                  existingRoute.id === context.expected_peer_node_id',
+                  '                    ? {',
+                  '                        peer_node_id: existingRoute.id,',
+                  '                        transport: existingRoute.transport,',
+                  '                        relay_node_id: existingRoute.relayViaNodeId ?? null,',
+                  '                        relay_stream_id: existingRoute.relayStreamId ?? null,',
+                  '                      }',
+                  '                    : null,',
+                  '                relay_fallback_live:',
+                  '                  !!this.liveRelayPeerForUdpSwarmCandidateV1(',
+                  '                    context.expected_peer_node_id,',
+                  '                    context.relay_node_id,',
+                  '                    context.relay_stream_id,',
+                  '                  ),',
+                  '              });',
+                  '            if (takeoverDecision.action !== "stage_authenticated_candidate") {',
+                  '              this.udpSwarmDirectCandidates.delete(context.session_id);',
+                  '              context.candidate.discard(',
+                  '                `relay-preserving takeover policy rejected candidate: ${takeoverDecision.reason}`,',
+                  '              );',
+                  '              return false;',
+                  '            }',
+                  '',
+                  '            if (peer.authTimer) {',
+              ),
+              'relay policy admission decision',
+          )
+
+          replace_once(
+              block(
+                  '            const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-udp-node-candidate-v1-"));',
+                  '            let pair: SecurePair | undefined;',
+              ),
+              block(
+                  '            const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-udp-node-candidate-v1-"));',
+                  '            const nodeCoreSource = fs.readFileSync(',
+                  '              path.join(process.cwd(), "src/node_core.ts"),',
+                  '              "utf8",',
+                  '            );',
+                  '            assert.equal(',
+                  '              nodeCoreSource.includes(',
+                  '                "evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1({",',
+                  '              ),',
+                  '              true,',
+                  '            );',
+                  '            let pair: SecurePair | undefined;',
+              ),
+              'integration proof policy-consumption assertion',
+          )
+
+          replace_once(
+              block(
+                  '              console.log("exact_live_relay_tuple_required=true");',
+                  '              console.log("authenticated_candidate_kept_non_routable=true");',
+              ),
+              block(
+                  '              console.log("exact_live_relay_tuple_required=true");',
+                  '              console.log("relay_preserving_takeover_policy_enforced=true");',
+                  '              console.log("authenticated_candidate_kept_non_routable=true");',
+              ),
+              'integration proof policy marker',
+          )
+
+          replace_once(
+              block(
+                  '          The secure UDP socket then runs through the existing normal VOID HELLO/AUTH path. The verified `AUTH` result is handed to `VoidUdpSwarmAuthenticatedDirectCandidateV1` for its independent public-key/node-ID binding and relay-liveness checks.',
+                  '',
+                  '          ## Non-routable authenticated candidate',
+              ),
+              block(
+                  '          The secure UDP socket then runs through the existing normal VOID HELLO/AUTH path. The verified `AUTH` result is handed to `VoidUdpSwarmAuthenticatedDirectCandidateV1` for its independent public-key/node-ID binding and relay-liveness checks.',
+                  '',
+                  '          After that authentication succeeds, Node derives the currently authenticated route for the exact peer and evaluates `evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1()` from the preceding relay-preserving policy lane. The candidate remains staged only when that policy returns `stage_authenticated_candidate`; every reject decision destroys only the candidate and leaves the continuity relay untouched.',
+                  '',
+                  '          ## Non-routable authenticated candidate',
+              ),
+              'operator note policy boundary',
+          )
+
+          replace_once(
+              '          The proof establishes an exact live relay tuple in Node, runs normal VOID HELLO/AUTH over a secure UDP adapter pair, proves the authenticated candidate remains non-routable while the relay remains the sole normal route, proves invalid relay provenance destroys only the candidate, and proves relay loss discards a waiting candidate.',
+              '          The proof establishes an exact live relay tuple in Node, runs normal VOID HELLO/AUTH over a secure UDP adapter pair, proves the Node source consumes the relay-preserving takeover policy before retaining an authenticated candidate, proves the authenticated candidate remains non-routable while the relay remains the sole normal route, proves invalid relay provenance destroys only the candidate, and proves relay loss discards a waiting candidate.',
+              'operator note proof statement',
+          )
+
+          replace_exact_count(
+              block(
+                  '      - name: Re-prove authenticated direct candidate primitive',
+                  '        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts',
+              ),
+              block(
+                  '      - name: Re-prove relay-preserving takeover policy',
+                  '        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts',
+                  '',
+                  '      - name: Re-prove authenticated direct candidate primitive',
+                  '        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts',
+              ),
+              2,
+              'policy regression proof steps',
+          )
+
+          replace_once(
+              '          git diff --check 271535c0d2ef0c89480ab18b814488d36c9584a9...HEAD',
+              '          git diff --check 7f76f0d520d0f28aaed10f525fbf5b07d9c44886',
+              'diff hygiene parent',
+          )
+
+          path.write_text(source)
+          PY
+
+          git diff --check
+          grep -Fq 'evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1' \
+            .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
+          grep -Fq '7f76f0d520d0f28aaed10f525fbf5b07d9c44886' \
+            .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
+
+      - name: Reuse repaired bootstrap generation steps
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +316,9 @@ jobs:
       - name: Prove Node candidate integration
         run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
 
+      - name: Re-prove relay-preserving takeover policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts
+
       - name: Re-prove authenticated direct candidate primitive
         run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts
 
@@ -107,25 +337,30 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify intended generated delta
+      - name: Verify exact restacked delta
         shell: bash
+        env:
+          EXPECTED_POLICY_HEAD: 7f76f0d520d0f28aaed10f525fbf5b07d9c44886
         run: |
           set -euo pipefail
-          git diff --check
-          test "$(git diff --name-only | sort)" = "$(printf '%s\n' \
+          git diff --check "$EXPECTED_POLICY_HEAD"
+          test "$(git diff --name-only "$EXPECTED_POLICY_HEAD" | sort)" = "$(printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-candidate-bootstrap-runner-v1.yml' \
+            '.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml' \
             'docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md' \
             'scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts' \
             'src/node_core.ts' | sort)"
 
-      - name: Commit proven implementation delta
+      - name: Commit and push proven restacked integration
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/node_core.ts \
+          git add .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml \
+            src/node_core.ts \
             scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts \
             docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md
           git diff --cached --check
-          git commit -m 'feat: stage authenticated UDP candidates in Node v1'
+          git commit -m 'feat: enforce relay-preserving UDP candidate staging'
           git push origin "HEAD:${GITHUB_HEAD_REF}"
