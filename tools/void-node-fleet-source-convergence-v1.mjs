@@ -21,6 +21,20 @@ const SERVICE_RE = /^[a-z0-9][a-z0-9_.@:-]{0,126}\.service$/i;
 const LOOPBACK_HTTP_RE = /^http:\/\/(?:127\.0\.0\.1|\[::1\]):([1-9][0-9]{0,4})$/;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_AUDIT_AGE_SECONDS = 300;
+const AUDIT_AUTHORITY_KEYS_V1 = Object.freeze([
+  "git_fetch",
+  "git_pull",
+  "checkout",
+  "reset",
+  "service_restart",
+  "deployment",
+  "credential_read",
+  "wallet_or_signer",
+  "transaction",
+  "funds_moved",
+]);
+const SAFE_GIT_REMOTE_URL_RE = /^(?:https|ssh):\/\/[^\s]+$/i;
+const SAFE_GIT_SCP_REMOTE_RE = /^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9.-]+:[^\s]+$/;
 
 function fail(message) {
   const error = new Error(message);
@@ -50,6 +64,18 @@ function assertSafePath(value, label) {
     fail(`${label} must be absolute or begin with ~/`);
   }
   return path;
+}
+
+function assertSafeGitRemoteUrl(value, label) {
+  const remote = assertExactString(value, label);
+  if (remote.includes("::")) fail(`${label} uses forbidden Git remote-helper syntax`);
+  if (remote.startsWith("/")) return remote;
+  if (SAFE_GIT_REMOTE_URL_RE.test(remote)) return remote;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(remote)) {
+    fail(`${label} must use HTTPS, SSH, scp-style SSH, or an absolute local path`);
+  }
+  if (SAFE_GIT_SCP_REMOTE_RE.test(remote)) return remote;
+  fail(`${label} must use HTTPS, SSH, scp-style SSH, or an absolute local path`);
 }
 
 function expandHome(value) {
@@ -181,7 +207,7 @@ export function validateFleetConfigV1(input, selectedNode) {
       service,
       http_base: httpBase,
       min_peers: minPeers,
-      expected_remote_url: assertExactString(node.expected_remote_url, `${name}.expected_remote_url`),
+      expected_remote_url: assertSafeGitRemoteUrl(node.expected_remote_url, `${name}.expected_remote_url`),
       git_remote: canonicalRemote,
       connect_timeout_seconds: Number.isInteger(node.connect_timeout_seconds)
         ? Math.max(1, Math.min(20, node.connect_timeout_seconds))
@@ -196,6 +222,27 @@ export function validateFleetConfigV1(input, selectedNode) {
     canonical_branch: canonicalBranch,
     node,
   };
+}
+
+export function verifyCoordinatorRemoteBindingV1(config) {
+  const expected = assertSafeGitRemoteUrl(
+    config.node.expected_remote_url,
+    `${config.node.name}.expected_remote_url`,
+  );
+  const observedResult = run(
+    "git",
+    ["-C", config.coordinator_repo, "remote", "get-url", config.canonical_remote],
+    { timeoutMs: 10_000 },
+  );
+  if (!observedResult.ok) fail("coordinator canonical remote URL is unavailable");
+  const observed = assertSafeGitRemoteUrl(
+    observedResult.stdout.trim(),
+    "coordinator canonical remote URL",
+  );
+  if (observed !== expected) {
+    fail("node expected_remote_url must exactly match coordinator canonical remote URL");
+  }
+  return true;
 }
 
 function normalizedAuditDigestPayload(audit) {
@@ -221,8 +268,17 @@ export function validateFleetAuditV1(audit, config, selectedNode) {
   }
   if (audit.decision !== "CONVERGENCE_RECOMMENDED") fail("audit decision must be CONVERGENCE_RECOMMENDED");
   if (audit.mutation_attempted !== false) fail("audit must prove mutation_attempted=false");
-  if (!audit.authority || Object.values(audit.authority).some((value) => value !== false)) {
-    fail("audit authority must contain only false values");
+  if (!audit.authority || typeof audit.authority !== "object" || Array.isArray(audit.authority)) {
+    fail("audit authority must be an exact object");
+  }
+  const authorityKeys = Object.keys(audit.authority).sort();
+  const expectedAuthorityKeys = [...AUDIT_AUTHORITY_KEYS_V1].sort();
+  if (
+    authorityKeys.length !== expectedAuthorityKeys.length ||
+    authorityKeys.some((key, index) => key !== expectedAuthorityKeys[index]) ||
+    expectedAuthorityKeys.some((key) => audit.authority[key] !== false)
+  ) {
+    fail("audit authority must contain the exact all-false authority schema");
   }
   if (!audit.canonical || audit.canonical.remote !== config.canonical_remote || audit.canonical.branch !== config.canonical_branch) {
     fail("audit canonical remote/branch does not match config");
@@ -369,7 +425,7 @@ export GIT_TERMINAL_PROMPT=0
 repo=${repo}
 remote=${bashLiteral(node.git_remote)}
 branch=${bashLiteral(config.canonical_branch)}
-expected_remote_url=${bashLiteral(node.expected_remote_url)}
+expected_remote_url=${bashLiteral(assertSafeGitRemoteUrl(node.expected_remote_url, "node expected_remote_url"))}
 from_sha=${bashLiteral(plan.from_sha)}
 to_sha=${bashLiteral(plan.to_sha)}
 git_dir="$(git -C "$repo" rev-parse --absolute-git-dir)"
@@ -531,6 +587,7 @@ function main() {
   if (auditAgeSeconds > args.maxAuditAgeSeconds) fail(`audit file is stale (${Math.floor(auditAgeSeconds)}s old)`);
 
   const config = validateFleetConfigV1(readJson(configPath, "config"), args.node);
+  verifyCoordinatorRemoteBindingV1(config);
   const validatedAudit = validateFleetAuditV1(readJson(auditPath, "audit"), config, args.node);
   const plan = buildConvergencePlanV1(validatedAudit, config);
   if (args.apply) validateApplyConfirmationsV1(args, plan);
