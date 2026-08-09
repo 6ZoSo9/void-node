@@ -99,7 +99,7 @@ jobs:
           printf '%s\n' \
             'docs/operators/buy-void-production-native-execution-operator-v1.md' \
             'scripts/buy_void_production_native_execution_operator_v1.ts' \
-            'scripts/prove_buy_void_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_native_execution_runtime_v1.ts' \
             'scripts/prove_buy_void_production_native_execution_operator_v1.ts' \
             'src/economic/buy_void_native_execution_runtime_v1.ts' > /tmp/expected.txt
           git diff --name-only | sort > /tmp/actual.txt
@@ -113,14 +113,14 @@ jobs:
           git add -- \
             docs/operators/buy-void-production-native-execution-operator-v1.md \
             scripts/buy_void_production_native_execution_operator_v1.ts \
-            scripts/prove_buy_void_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_v1.ts \
             scripts/prove_buy_void_production_native_execution_operator_v1.ts \
             src/economic/buy_void_native_execution_runtime_v1.ts
           git diff --cached --check
           printf '%s\n' \
             'docs/operators/buy-void-production-native-execution-operator-v1.md' \
             'scripts/buy_void_production_native_execution_operator_v1.ts' \
-            'scripts/prove_buy_void_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_native_execution_runtime_v1.ts' \
             'scripts/prove_buy_void_production_native_execution_operator_v1.ts' \
             'src/economic/buy_void_native_execution_runtime_v1.ts' > /tmp/expected.txt
           git diff --cached --name-only | sort > /tmp/actual.txt
