@@ -716,13 +716,14 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
   const runtimePolicyFingerprint =
     buyVoidNativeExecutionRuntimePolicyFingerprintV1(runtimePolicy);
   if (command.apply === true) {
-    const suppliedPolicyFingerprint = String(
-      command.policy_fingerprint_sha256 || "",
-    ).trim();
-    const suppliedPlanFingerprint = String(
-      command.expected_plan_fingerprint_sha256 || "",
-    ).trim();
-    if (!SHA256.test(suppliedPolicyFingerprint)) {
+    const suppliedPolicyFingerprint =
+      command.policy_fingerprint_sha256;
+    const suppliedPlanFingerprint =
+      command.expected_plan_fingerprint_sha256;
+    if (
+      typeof suppliedPolicyFingerprint !== "string" ||
+      !SHA256.test(suppliedPolicyFingerprint)
+    ) {
       return held("runtime_policy", {
         reason: "exact_policy_fingerprint_required",
         attempt_id: attemptId,
@@ -735,7 +736,10 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
         detail: { required_policy_fingerprint_sha256: runtimePolicyFingerprint },
       });
     }
-    if (!SHA256.test(suppliedPlanFingerprint)) {
+    if (
+      typeof suppliedPlanFingerprint !== "string" ||
+      !SHA256.test(suppliedPlanFingerprint)
+    ) {
       return held("runtime_policy", {
         reason: "exact_plan_fingerprint_required",
         attempt_id: attemptId,
@@ -784,8 +788,7 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
   });
   if (
     command.apply === true &&
-    String(command.expected_plan_fingerprint_sha256 || "").trim() !==
-      planFingerprint
+    command.expected_plan_fingerprint_sha256 !== planFingerprint
   ) {
     return held("nonce_fee_planning", {
       reason: "native_execution_plan_fingerprint_mismatch",
