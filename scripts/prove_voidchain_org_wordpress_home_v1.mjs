@@ -5,6 +5,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import {
+  validateCanonical,
+  validateRenderedIntegrity,
+} from "../ops/public/sync-voidchain-org-wordpress-home-v1.mjs";
 
 const MARKER = "VOIDCHAIN_ORG_WORDPRESS_HOME_PROOF_V1";
 const repo = process.cwd();
@@ -21,6 +25,8 @@ const [page, sync] = await Promise.all([
   readFile(pagePath, "utf8"),
   readFile(syncPath, "utf8"),
 ]);
+const WORDPRESS_HTML_BLOCK_OPEN = "<!-- wp:html -->";
+const WORDPRESS_HTML_BLOCK_CLOSE = "<!-- /wp:html -->";
 
 const one = (source, token, label = token) => {
   assert.equal(
@@ -31,15 +37,84 @@ const one = (source, token, label = token) => {
 };
 
 one(page, "<!-- VOIDCHAIN_ORG_WORDPRESS_HOME_V1 -->", "page marker");
+one(page, WORDPRESS_HTML_BLOCK_OPEN, "WordPress Custom HTML block open");
+one(page, WORDPRESS_HTML_BLOCK_CLOSE, "WordPress Custom HTML block close");
 one(page, 'id="voidchain-org-node-mirror-v1"', "page root id");
 one(page, 'id="voidchain-org-node-mirror-v1-css"', "page style id");
 one(page, 'id="voidchain-org-node-live-client-v1"', "live client id");
+
+const customHtmlPrefix = `${WORDPRESS_HTML_BLOCK_OPEN}\n`;
+const customHtmlSuffix = `\n${WORDPRESS_HTML_BLOCK_CLOSE}\n`;
+assert.ok(
+  page.startsWith(customHtmlPrefix) && page.endsWith(customHtmlSuffix),
+  "the entire canonical page must be one WordPress Custom HTML block",
+);
+const customHtmlRendered = page.slice(
+  customHtmlPrefix.length,
+  -customHtmlSuffix.length,
+);
+assert.doesNotThrow(
+  () => validateCanonical(page),
+  "production canonical validator must accept the reviewed page",
+);
+assert.doesNotThrow(
+  () => validateRenderedIntegrity(customHtmlRendered),
+  "production rendered validator must accept intact Custom HTML",
+);
+const wpautopFixture = customHtmlRendered.replace(
+  /\n{2,}/g,
+  "\n</p>\n<p>",
+);
+const contaminatedStyle = wpautopFixture.match(
+  /<style id="voidchain-org-node-mirror-v1-css">([\s\S]*?)<\/style>/,
+);
+const contaminatedScript = wpautopFixture.match(
+  /<script id="voidchain-org-node-live-client-v1">([\s\S]*?)<\/script>/,
+);
+assert.ok(
+  contaminatedStyle?.[1].includes("</p>"),
+  "fixture must reproduce WordPress paragraph contamination in CSS",
+);
+assert.ok(
+  contaminatedScript?.[1].includes("</p>"),
+  "fixture must reproduce WordPress paragraph contamination in JavaScript",
+);
+assert.throws(
+  () => validateRenderedIntegrity(wpautopFixture),
+  /WordPress paragraph formatting contaminated/,
+  "production rendered validator must reject WordPress paragraph injection",
+);
+assert.throws(
+  () => validateRenderedIntegrity(
+    customHtmlRendered.replace(
+      "width:100vw; max-width:none !important;",
+      "width:100vw;",
+    ),
+  ),
+  /lost the full-width root rule/,
+  "production rendered validator must reject a lost max-width override",
+);
+assert.throws(
+  () => validateRenderedIntegrity(
+    customHtmlRendered.replace(
+      'const MARKER = "VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1";',
+      'const MARKER = ; // VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1',
+    ),
+  ),
+  SyntaxError,
+  "production rendered validator must reject invalid live-client JavaScript",
+);
 
 const styleMatch = page.match(
   /<style id="voidchain-org-node-mirror-v1-css">([\s\S]*?)<\/style>/,
 );
 assert.ok(styleMatch, "page must contain its scoped style");
 const style = styleMatch[1];
+assert.doesNotMatch(
+  style,
+  /<\/?p(?:\s|>)|<br\s*\/?>/i,
+  "canonical style must not contain WordPress paragraph markup",
+);
 
 assert.match(
   style,
@@ -83,6 +158,11 @@ const scriptMatch = page.match(
 );
 assert.ok(scriptMatch, "page must contain its live read-only client");
 const liveClient = scriptMatch[1];
+assert.doesNotMatch(
+  liveClient,
+  /<\/?p(?:\s|>)|<br\s*\/?>/i,
+  "canonical live client must not contain WordPress paragraph markup",
+);
 new Function(liveClient);
 
 for (const token of [
@@ -140,6 +220,11 @@ for (const token of [
   'method: "POST"',
   "page modified_gmt changed before apply",
   "page content changed before apply",
+  "WORDPRESS_HTML_BLOCK_OPEN",
+  "validateRenderedIntegrity",
+  "rendered_integrity_verified",
+  "WordPress paragraph formatting contaminated",
+  "WordPress raw content does not match canonical after apply",
 ]) {
   assert.ok(sync.includes(token), `sync tool must contain ${token}`);
 }
@@ -154,6 +239,9 @@ process.stdout.write(`${JSON.stringify({
   viewport_fixture_px: viewportWidth,
   reproduced_broken_width_px: brokenRenderedWidth,
   repaired_width_px: repairedRenderedWidth,
+  wordpress_custom_html_block: true,
+  wpautop_contamination_reproduced: true,
+  rendered_integrity_guard: true,
   canonical_domain: "https://voidchain.org",
   page_path: path.relative(repo, pagePath),
   sync_path: path.relative(repo, syncPath),
