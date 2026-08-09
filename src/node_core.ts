@@ -101,6 +101,11 @@ import {
   type VoidUdpSwarmRelayRetirementRevalidationV1,
 } from "./p2p/udp_swarm_relay_retirement_executor_v1.js";
 import {
+  VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_RETRY_INTERVAL_MS_V1,
+  evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1,
+  type VoidUdpSwarmPostRetirementRecoveryDecisionV1,
+} from "./p2p/udp_swarm_post_retirement_recovery_policy_v1.js";
+import {
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1,
   VOID_P2P_DIRECT_UPGRADE_LOCAL_BIND_ATTEMPTS_V1,
@@ -371,6 +376,20 @@ type UdpSwarmPromotedDirectRouteHealthContextV1 = {
   relay_retirement_last_error: string | null;
 };
 
+type UdpSwarmPostRetirementRecoveryContextV1 = {
+  session_id: string;
+  peer_node_id: string;
+  relay_node_id: string;
+  retired_relay_stream_id: string;
+  relay_retired_at_ms: number;
+  reacquisition_attempt_count: number;
+  last_reacquisition_attempt_at_ms: number | null;
+  local_admission_retry_at_ms: number | null;
+  last_request_id: string | null;
+  last_error: string | null;
+  last_decision_reason: string | null;
+};
+
 const VOID_P2P_UDP_SWARM_PROMOTED_DIRECT_HEALTH_PROBE_INTERVAL_MS_V1 =
   7_500;
 
@@ -454,6 +473,8 @@ export class Node {
     new Map<string, UdpSwarmPromotedRelayFallbackV1>();
   private readonly udpSwarmPromotedDirectRouteHealth =
     new Map<string, UdpSwarmPromotedDirectRouteHealthContextV1>();
+  private readonly udpSwarmPostRetirementRecovery =
+    new Map<string, UdpSwarmPostRetirementRecoveryContextV1>();
 
   private readonly directUpgradeEnabled: boolean;
   private readonly directUpgradeAllowNonPublicCandidates: boolean;
@@ -675,6 +696,7 @@ export class Node {
           this.udpSwarmControl.sweep();
           this.sweepDirectUpgradeState();
           this.sweepUdpSwarmPromotedRelayRetirementV1();
+          this.sweepUdpSwarmPostRetirementRecoveryV1();
           this.sweepUdpSwarmPromotedDirectRouteHealthV1();
         }
       }, 1_000);
@@ -722,6 +744,7 @@ export class Node {
     this.udpSwarmDirectCandidates.clear();
     this.udpSwarmPromotedRelayFallbacks.clear();
     this.udpSwarmPromotedDirectRouteHealth.clear();
+    this.udpSwarmPostRetirementRecovery.clear();
     for (const p of this.peers.values()) {
       p.suppressReconnect = true;
       p.socket.destroy();
@@ -2375,6 +2398,263 @@ udpSwarmPromotedDirectRouteHealthSnapshotV1(nowMs = Date.now()) {
   };
 }
 
+
+private captureUdpSwarmPostRetirementRecoveryAfterDirectCloseV1(
+  peer: Peer,
+): boolean {
+  const healthContext = this.udpSwarmPromotedDirectRouteHealth.get(peer.id);
+  const retirement = healthContext?.retirement.snapshot();
+  this.udpSwarmPromotedDirectRouteHealth.delete(peer.id);
+
+  const relayRestored = this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
+  if (relayRestored) {
+    this.udpSwarmPostRetirementRecovery.delete(peer.id);
+    return false;
+  }
+
+  if (
+    !healthContext ||
+    !retirement ||
+    retirement.phase !== "retired" ||
+    retirement.retirement_callback_attempted !== true ||
+    retirement.relay_retirement_performed !== true ||
+    healthContext.relay_retired_at_ms === null ||
+    retirement.binding.session_id !== healthContext.session_id ||
+    retirement.binding.expected_peer_node_id !== peer.id ||
+    healthContext.peer_node_id !== peer.id ||
+    healthContext.direct_peer !== peer
+  ) return false;
+
+  const binding = retirement.binding;
+  this.udpSwarmPostRetirementRecovery.set(peer.id, {
+    session_id: binding.session_id,
+    peer_node_id: binding.expected_peer_node_id,
+    relay_node_id: binding.relay_node_id,
+    retired_relay_stream_id: binding.relay_stream_id,
+    relay_retired_at_ms: healthContext.relay_retired_at_ms,
+    reacquisition_attempt_count: 0,
+    last_reacquisition_attempt_at_ms: null,
+    local_admission_retry_at_ms: null,
+    last_request_id: null,
+    last_error: null,
+    last_decision_reason: null,
+  });
+  console.warn("VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_V1_ARMED", {
+    peer_node_id: binding.expected_peer_node_id,
+    session_id: binding.session_id,
+    relay_node_id: binding.relay_node_id,
+    retired_relay_stream_id: binding.relay_stream_id,
+  });
+  return true;
+}
+
+private udpSwarmPostRetirementNewerSessionPresentV1(
+  context: UdpSwarmPostRetirementRecoveryContextV1,
+): boolean {
+  const health = this.udpSwarmPromotedDirectRouteHealth.get(context.peer_node_id);
+  if (health && health.session_id !== context.session_id) return true;
+
+  const fallback = this.udpSwarmPromotedRelayFallbacks.get(context.peer_node_id);
+  if (fallback && fallback.session_id !== context.session_id) return true;
+
+  for (const peer of this.udpSwarmDirectCandidates.values()) {
+    const candidate = peer.udpSwarmDirectCandidate;
+    if (
+      candidate &&
+      candidate.expected_peer_node_id === context.peer_node_id &&
+      candidate.session_id !== context.session_id
+    ) return true;
+  }
+  return false;
+}
+
+private udpSwarmPostRetirementRecoveryDecisionV1(
+  context: UdpSwarmPostRetirementRecoveryContextV1,
+  nowMs: number,
+): VoidUdpSwarmPostRetirementRecoveryDecisionV1 {
+  const routedPeer = this.peers.get(context.peer_node_id);
+  const normalRouteLive = !!routedPeer &&
+    routedPeer.handshakeDone &&
+    !routedPeer.id.startsWith("?-") &&
+    routedPeer.socket.destroyed !== true;
+  const directRouteLive = normalRouteLive && routedPeer?.transport === "direct";
+
+  const fallback = this.udpSwarmPromotedRelayFallbacks.get(context.peer_node_id);
+  const relayFallbackLive = !!fallback &&
+    this.exactLiveRelayPeerForUdpSwarmV1(
+      fallback.relay_peer,
+      fallback.peer_node_id,
+      fallback.relay_node_id,
+      fallback.relay_stream_id,
+    ) === fallback.relay_peer;
+
+  const retiredRelayStreamLive = this.relayStreams.has(
+    this.relayStreamKey(
+      context.relay_node_id,
+      context.retired_relay_stream_id,
+    ),
+  );
+  const replacementRelayStreamLive = [...this.relayStreams.values()].some(
+    (entry) =>
+      entry.relay_node_id === context.relay_node_id &&
+      entry.remote_node_id === context.peer_node_id &&
+      entry.stream_id !== context.retired_relay_stream_id,
+  );
+  const recoveryInFlight = [...this.relayPendingConnects.values()].some(
+    (pending) =>
+      pending.relay_node_id === context.relay_node_id &&
+      pending.target_node_id === context.peer_node_id,
+  );
+  const relayControlPeer = this.authenticatedDirectPeer(context.relay_node_id);
+
+  return evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1({
+    session_id: context.session_id,
+    expected_peer_node_id: context.peer_node_id,
+    relay_node_id: context.relay_node_id,
+    retired_relay_stream_id: context.retired_relay_stream_id,
+    retirement_phase: "retired",
+    retirement_callback_attempted: true,
+    relay_retirement_performed: true,
+    relay_retired_at_ms: context.relay_retired_at_ms,
+    node_stopping: this.stopping,
+    newer_udp_swarm_session_present:
+      this.udpSwarmPostRetirementNewerSessionPresentV1(context),
+    direct_route_live: directRouteLive,
+    normal_route_live: normalRouteLive,
+    relay_fallback_live: relayFallbackLive,
+    retired_relay_stream_live: retiredRelayStreamLive,
+    replacement_relay_stream_live: replacementRelayStreamLive,
+    recovery_in_flight: recoveryInFlight,
+    relay_control_route_live: !!relayControlPeer,
+    relay_control_route_transport: relayControlPeer?.transport ?? null,
+    authenticated_relay_control_node_id: relayControlPeer?.id ?? null,
+    reacquisition_attempt_count: context.reacquisition_attempt_count,
+    last_reacquisition_attempt_at_ms:
+      context.last_reacquisition_attempt_at_ms,
+    now_ms: nowMs,
+  });
+}
+
+private sweepUdpSwarmPostRetirementRecoveryV1(
+  nowMs = Date.now(),
+): {
+  contexts: number;
+  attempts_started: number;
+  attempts_rejected: number;
+  contexts_cleared: number;
+} {
+  let attemptsStarted = 0;
+  let attemptsRejected = 0;
+  let contextsCleared = 0;
+
+  for (const [peerNodeId, context] of this.udpSwarmPostRetirementRecovery) {
+    const decision = this.udpSwarmPostRetirementRecoveryDecisionV1(
+      context,
+      nowMs,
+    );
+    context.last_decision_reason = decision.reason;
+
+    if (
+      decision.reason === "normal_route_already_live" ||
+      decision.reason === "direct_route_still_live" ||
+      decision.reason === "newer_udp_swarm_session_present" ||
+      decision.reason === "relay_fallback_already_live"
+    ) {
+      this.udpSwarmPostRetirementRecovery.delete(peerNodeId);
+      contextsCleared += 1;
+      continue;
+    }
+
+    if (
+      decision.action !== "authorize_fresh_relay_reacquisition" ||
+      decision.next_attempt_number === null
+    ) continue;
+
+    if (
+      context.local_admission_retry_at_ms !== null &&
+      nowMs < context.local_admission_retry_at_ms
+    ) {
+      context.last_decision_reason =
+        "local_relay_admission_retry_interval_not_elapsed";
+      continue;
+    }
+
+    const requestId = this.connectViaRelay(
+      context.relay_node_id,
+      context.peer_node_id,
+    );
+    context.last_request_id = requestId ?? null;
+    if (requestId) {
+      context.reacquisition_attempt_count = decision.next_attempt_number;
+      context.last_reacquisition_attempt_at_ms = nowMs;
+      context.local_admission_retry_at_ms = null;
+      context.last_error = null;
+      attemptsStarted += 1;
+      console.warn("VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_V1_REQUESTED", {
+        peer_node_id: context.peer_node_id,
+        session_id: context.session_id,
+        relay_node_id: context.relay_node_id,
+        retired_relay_stream_id: context.retired_relay_stream_id,
+        request_id: requestId,
+        attempt_number: context.reacquisition_attempt_count,
+      });
+    } else {
+      const retryAtMs =
+        nowMs +
+        VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_RETRY_INTERVAL_MS_V1;
+      context.local_admission_retry_at_ms = Number.isSafeInteger(retryAtMs)
+        ? retryAtMs
+        : Number.MAX_SAFE_INTEGER;
+      context.last_error = "relay_connect_request_not_started";
+      context.last_decision_reason = "local_relay_admission_rejected";
+      attemptsRejected += 1;
+    }
+  }
+
+  return {
+    contexts: this.udpSwarmPostRetirementRecovery.size,
+    attempts_started: attemptsStarted,
+    attempts_rejected: attemptsRejected,
+    contexts_cleared: contextsCleared,
+  };
+}
+
+udpSwarmPostRetirementRecoverySnapshotV1(nowMs = Date.now()) {
+  const recoveries = [...this.udpSwarmPostRetirementRecovery.values()]
+    .map((context) => {
+      const decision = this.udpSwarmPostRetirementRecoveryDecisionV1(
+        context,
+        nowMs,
+      );
+      return {
+        session_id: context.session_id,
+        peer_node_id: context.peer_node_id,
+        relay_node_id: context.relay_node_id,
+        retired_relay_stream_id: context.retired_relay_stream_id,
+        relay_retired_at_ms: context.relay_retired_at_ms,
+        reacquisition_attempt_count: context.reacquisition_attempt_count,
+        last_reacquisition_attempt_at_ms:
+          context.last_reacquisition_attempt_at_ms,
+        local_admission_retry_at_ms: context.local_admission_retry_at_ms,
+        local_admission_retry_active:
+          context.local_admission_retry_at_ms !== null &&
+          nowMs < context.local_admission_retry_at_ms,
+        last_request_id: context.last_request_id,
+        last_error: context.last_error,
+        last_decision_reason: context.last_decision_reason,
+        decision,
+      };
+    })
+    .sort((a, b) => a.peer_node_id.localeCompare(b.peer_node_id));
+  return {
+    recovery_context_count: recoveries.length,
+    recoveries,
+    network_dial_performed: false as const,
+    verified_direct_evidence_persisted: false as const,
+    production_udp_activation_performed: false as const,
+  };
+}
+
 attachEphemeralDirectTransportV1(
     socket: PeerSocketV1,
     expectedNodeId: string,
@@ -2481,8 +2761,7 @@ attachEphemeralDirectTransportV1(
       const closedNormalRoute = this.peers.get(peer.id) === peer;
       if (closedNormalRoute) this.peers.delete(peer.id);
       if (closedNormalRoute && peer.transport === "direct") {
-        this.udpSwarmPromotedDirectRouteHealth.delete(peer.id);
-        this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
+        this.captureUdpSwarmPostRetirementRecoveryAfterDirectCloseV1(peer);
       }
       if (peer.directUpgradeSessionId) {
         this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
