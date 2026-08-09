@@ -665,7 +665,12 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     raw.provider_submission_id.length > 0;
 
   if (!startedValid) {
-    const cleanup = raw.status === "started"
+    const unexpectedLiveServiceState =
+      typeof services?.custodian?.stop === "function" ||
+      typeof services?.broadcaster?.stop === "function" ||
+      flags.custodian_active ||
+      flags.broadcaster_active;
+    const cleanup = unexpectedLiveServiceState
       ? await cleanupUnexpectedActivationResult(raw)
       : {
           custodian_active: flags.custodian_active,

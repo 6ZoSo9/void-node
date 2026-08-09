@@ -52,6 +52,7 @@ function held(
     mutation_performed?: boolean;
     inventory_consumption_performed?: boolean;
     public_request_fulfilled?: boolean;
+    saga_closeout_appended?: boolean;
   } = {},
 ): Extract<BuyVoidSagaTerminalCloseoutDecisionV1, { ok: false }> {
   return {
@@ -66,7 +67,8 @@ function held(
       options.inventory_consumption_performed === true,
     public_request_fulfilled:
       options.public_request_fulfilled === true,
-    saga_closeout_appended: false,
+    saga_closeout_appended:
+      options.saga_closeout_appended === true,
     automatic_retry_allowed: false,
     money_movement_performed: false,
   };
@@ -356,6 +358,7 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       mutation_performed: true,
       inventory_consumption_performed: progress.inventory_committed,
       public_request_fulfilled: progress.public_committed,
+      saga_closeout_appended: true,
     });
   }
 

@@ -224,3 +224,8 @@ This operator never:
 A source merge, PR review transition, or CI run performs no live terminal
 closeout. A real production `--apply` remains a separate explicit accounting and
 state-mutation authorization after canonical confirmed-chain evidence exists.
+
+
+## Post-append verification truth
+
+A rare final verification-read mismatch can occur after the saga supervisor has already durably appended `closeout_committed`. In that case the terminal-closeout runtime reports a held/recovery-required result with `saga_closeout_appended=true`; the production operator preserves that exact persisted-effect flag rather than relabeling the closeout as not appended. Automatic retry remains disabled.
