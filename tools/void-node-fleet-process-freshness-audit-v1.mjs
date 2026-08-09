@@ -155,6 +155,8 @@ fi
 printf 'repo_ok\\t1\\n'
 repo_real="$(readlink -f -- "$repo" 2>/dev/null || true)"
 entrypoint_absolute="$repo_real/$entrypoint"
+preflight_absolute="$repo_real/node_modules/tsx/dist/preflight.cjs"
+loader_url="file://$repo_real/node_modules/tsx/dist/loader.mjs"
 head_before="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
 branch_before="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
 status_readable=0
@@ -193,8 +195,15 @@ if printf '%s' "$main_pid" | grep -Eq '^[1-9][0-9]*$' && test -d "/proc/$main_pi
   executable="$(readlink -f -- "/proc/$main_pid/exe" 2>/dev/null || true)"
   executable_base="\${executable##*/}"
   test "$executable_base" = "node" -o "$executable_base" = "nodejs" && executable_node=1
-  tr '\\0' '\\n' < "/proc/$main_pid/cmdline" 2>/dev/null |
-    grep -Fxq -e "$entrypoint" -e "$entrypoint_absolute" && entrypoint_match=1
+  process_argv="$(tr '\\0' '\\n' < "/proc/$main_pid/cmdline" 2>/dev/null || true)"
+  expected_process_argv="$(printf '%s\\n' \
+    "$executable" \
+    --require \
+    "$preflight_absolute" \
+    --import \
+    "$loader_url" \
+    "$entrypoint_absolute")"
+  test "$process_argv" = "$expected_process_argv" && entrypoint_match=1
 fi
 
 health="$(curl -fsS --max-time 4 "$http_base/health" 2>/dev/null || true)"

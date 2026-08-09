@@ -5,6 +5,7 @@ import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writ
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import {
   VOID_NODE_FLEET_DRIFT_CONFIG_V1,
   VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1,
@@ -160,6 +161,11 @@ assert.equal(Array.from(collectorScript.matchAll(/systemctl --user show/g)).leng
   "collector must bracket process evidence with two service snapshots");
 assert.match(collectorScript, /ExecMainStartTimestamp/);
 assert.match(collectorScript, /\/proc\/\$main_pid\/cmdline/);
+assert.match(collectorScript, /expected_process_argv/);
+assert.match(collectorScript, /node_modules\/tsx\/dist\/preflight\.cjs/);
+assert.match(collectorScript, /node_modules\/tsx\/dist\/loader\.mjs/);
+assert.doesNotMatch(collectorScript, /grep -Fxq -e "\$entrypoint"/,
+  "the expected entrypoint must not be accepted as an arbitrary argv token");
 for (const forbidden of [
   /\bgit[^\n]*\bfetch\b/,
   /\bgit[^\n]*\bpull\b/,
@@ -181,6 +187,7 @@ assert.throws(() => validateProcessFreshnessConfigV1(unsafeService), /safe user-
 
 const root = mkdtempSync(join(tmpdir(), "void-process-freshness-v1-"));
 let child = null;
+let decoyChild = null;
 const preservedEnvironment = new Map([
   "PATH",
   "VOID_PROOF_MAIN_PID",
@@ -189,6 +196,8 @@ const preservedEnvironment = new Map([
   "VOID_PROOF_NODE_EXE",
   "VOID_PROOF_REAL_READLINK",
   "VOID_PROOF_REAL_TR",
+  "VOID_PROOF_CMDLINE_MODE",
+  "VOID_PROOF_DECOY_ENTRY",
 ].map((name) => [name, process.env[name]]));
 const originalPath = process.env.PATH;
 try {
@@ -202,6 +211,7 @@ try {
   git(repo, "config", "user.email", "proof@void.invalid");
 
   const port = await reservePort();
+  writeFileSync(join(repo, ".gitignore"), "node_modules/\n");
   writeFileSync(join(repo, "package.json"), JSON.stringify({ private: true, type: "commonjs" }, null, 2) + "\n");
   writeFileSync(join(repo, "src", "index.ts"), `const http = require("node:http");
 const { execFileSync } = require("node:child_process");
@@ -218,14 +228,27 @@ http.createServer((request, response) => {
   response.end(JSON.stringify({ ok: false }));
 }).listen(port, "127.0.0.1");
 `);
-  git(repo, "add", "--", "package.json", "src/index.ts");
+  git(repo, "add", "--", ".gitignore", "package.json", "src/index.ts");
   git(repo, "commit", "-m", "fixture source v1");
   const firstHead = git(repo, "rev-parse", "HEAD");
   const firstTransition = Number(run("stat", ["-c", "%Y", join(repo, ".git", "logs", "HEAD")]));
 
+  const tsxDist = join(repo, "node_modules", "tsx", "dist");
+  mkdirSync(join(repo, "node_modules"));
+  mkdirSync(join(repo, "node_modules", "tsx"));
+  mkdirSync(tsxDist);
+  const preflightPath = join(tsxDist, "preflight.cjs");
+  const loaderPath = join(tsxDist, "loader.mjs");
+  writeFileSync(preflightPath, "module.exports = {};\n");
+  writeFileSync(loaderPath, "export {};\n");
+
   await waitUntilEpochAtLeast(firstTransition + 2);
   const processStartEpoch = Math.floor(Date.now() / 1000);
-  child = spawn(process.execPath, [join(repo, "src", "index.ts")], {
+  child = spawn(process.execPath, [
+    "--require", preflightPath,
+    "--import", pathToFileURL(loaderPath).href,
+    join(repo, "src", "index.ts"),
+  ], {
     cwd: repo,
     env: { ...process.env, VOID_PROOF_PORT: String(port) },
     stdio: "ignore",
@@ -264,7 +287,20 @@ esac
 `, { mode: 0o700 });
     writeFileSync(fakeTr, `#!/bin/sh
 if test "$#" -eq 2 && test "$1" = '\\0' && test "$2" = '\\n'; then
-  printf '%s\\n' "$VOID_PROOF_REPO/src/index.ts"
+  if test "\${VOID_PROOF_CMDLINE_MODE:-exact}" = decoy; then
+    printf '%s\\n' \
+      "$VOID_PROOF_NODE_EXE" \
+      "$VOID_PROOF_DECOY_ENTRY" \
+      "$VOID_PROOF_REPO/src/index.ts"
+  else
+    printf '%s\\n' \
+      "$VOID_PROOF_NODE_EXE" \
+      --require \
+      "$VOID_PROOF_REPO/node_modules/tsx/dist/preflight.cjs" \
+      --import \
+      "file://$VOID_PROOF_REPO/node_modules/tsx/dist/loader.mjs" \
+      "$VOID_PROOF_REPO/src/index.ts"
+  fi
 else
   exec "$VOID_PROOF_REAL_TR" "$@"
 fi
@@ -349,6 +385,45 @@ fi
   const staleCliRun = run(process.execPath, [toolPath, "--config", configPath], { allowFailure: true });
   assert.equal(staleCliRun.status, 3, staleCliRun.stderr);
   assert.equal(JSON.parse(staleCliRun.stdout).decision, "RESTART_REQUIRED");
+
+  const secondTransition = Number(run("stat", ["-c", "%Y", join(repo, ".git", "logs", "HEAD")]));
+  await waitUntilEpochAtLeast(secondTransition + 2);
+  const decoyPort = await reservePort();
+  const decoyPath = join(root, "old-entry.cjs");
+  writeFileSync(decoyPath, `const http = require("node:http");
+const { execFileSync } = require("node:child_process");
+const port = Number(process.env.VOID_PROOF_PORT);
+http.createServer((request, response) => {
+  response.setHeader("content-type", "application/json");
+  if (request.url === "/health") return response.end(JSON.stringify({ ok: true }));
+  if (request.url === "/__void/ready.json") return response.end(JSON.stringify({ ready: true, gap: 0 }));
+  if (request.url === "/version") {
+    const git_commit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
+    return response.end(JSON.stringify({ git_commit }));
+  }
+  response.statusCode = 404;
+  response.end(JSON.stringify({ ok: false }));
+}).listen(port, "127.0.0.1");
+`);
+  const decoyStartEpoch = Math.floor(Date.now() / 1000);
+  decoyChild = spawn(process.execPath, [decoyPath, join(repo, "src", "index.ts")], {
+    cwd: repo,
+    env: { ...process.env, VOID_PROOF_PORT: String(decoyPort) },
+    stdio: "ignore",
+  });
+  await waitForHealth(decoyPort, decoyChild);
+  process.env.VOID_PROOF_MAIN_PID = String(procVisible ? decoyChild.pid : 1);
+  process.env.VOID_PROOF_START_EPOCH = String(decoyStartEpoch);
+  process.env.VOID_PROOF_CMDLINE_MODE = "decoy";
+  process.env.VOID_PROOF_DECOY_ENTRY = decoyPath;
+  const [decoyNode] = validateProcessFreshnessConfigV1({
+    ...liveConfig,
+    nodes: [{ ...liveConfig.nodes[0], http_base: `http://127.0.0.1:${decoyPort}` }],
+  }, "fixture");
+  const decoyResult = collectNodeProcessFreshnessV1(decoyNode);
+  assert.equal(decoyResult.classification, "HOLD", JSON.stringify(decoyResult));
+  assert.deepEqual(decoyResult.reasons, ["process_entrypoint_mismatch"],
+    "a different script must not gain authority by passing the expected entrypoint as an application argument");
 } finally {
   for (const [name, value] of preservedEnvironment) {
     if (value === undefined) delete process.env[name];
@@ -361,6 +436,14 @@ fi
       delay(2_000),
     ]);
     if (child.exitCode === null) child.kill("SIGKILL");
+  }
+  if (decoyChild && decoyChild.exitCode === null) {
+    decoyChild.kill("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => decoyChild.once("exit", resolve)),
+      delay(2_000),
+    ]);
+    if (decoyChild.exitCode === null) decoyChild.kill("SIGKILL");
   }
   rmSync(root, { recursive: true, force: true });
 }

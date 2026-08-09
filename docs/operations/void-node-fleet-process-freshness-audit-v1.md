@@ -82,8 +82,10 @@ For each node, the collector reads:
   `ExecMainStartTimestamp` snapshots from read-only `systemctl --user show`
   calls;
 - boolean checks that the MainPID working directory is the configured repo, its
-  executable is Node, and one argv token is relative `src/index.ts` or the exact
-  absolute `<repo>/src/index.ts` used by `ops/run-void-node-live-v1.sh`; and
+  executable is Node, and its complete argv exactly matches the checked-in
+  launcher shape: executable, `--require` with the repo-local TSX preflight,
+  `--import` with the repo-local TSX loader URL, and the absolute
+  `<repo>/src/index.ts`, with no extra application arguments; and
 - loopback `/health`, `/__void/ready.json`, and `/version` responses.
 
 The tool emits one of three node classifications:
