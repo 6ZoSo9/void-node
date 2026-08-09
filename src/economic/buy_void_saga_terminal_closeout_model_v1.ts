@@ -25,6 +25,7 @@ export const VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_AUTHORITY_V1 = {
   canonical_confirmed_state_fingerprint_binding: true,
   request_scoped_crash_recoverable_lock: true,
   deterministic_closeout_plan_persistence: true,
+  exact_terminal_plan_fingerprint_required_before_mutation: true,
   append_only_inventory_consumption: true,
   atomic_public_operator_journal_projection: true,
   saga_closeout_committed_append: true,
@@ -89,6 +90,7 @@ export type RunBuyVoidSagaTerminalCloseoutInputV1 = {
   apply?: boolean;
   confirmation?: unknown;
   policy_fingerprint_sha256?: unknown;
+  expected_plan_fingerprint_sha256?: unknown;
   saga_confirmation?: unknown;
   saga_action_confirmation?: unknown;
   dependencies?: BuyVoidSagaTerminalCloseoutDependenciesV1;
@@ -179,6 +181,7 @@ export type BuyVoidSagaTerminalCloseoutDecisionV1 =
       required_confirmation:
         typeof VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1;
       required_policy_fingerprint_sha256: string;
+      required_plan_fingerprint_sha256: string;
       required_saga_confirmation: string;
       required_saga_action_confirmation: string;
       inventory_consumption_performed: false;

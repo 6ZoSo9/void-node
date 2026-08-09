@@ -20,6 +20,7 @@ const APPLY_ENV =
 
 const sagaId = `voidbvfsg1_${"a".repeat(64)}`;
 const policyFingerprint = "b".repeat(64);
+const terminalPlanFingerprint = "e".repeat(64);
 const sagaConfirmation = "saga-confirmation-v1";
 const sagaActionConfirmation = "closeout-action-confirmation-v1";
 const rootDir = fs.mkdtempSync(
@@ -84,10 +85,11 @@ const dryDecision = {
   saga_id: sagaId,
   attempt_id: "c".repeat(64),
   closeout_id: "d".repeat(64),
-  plan: {},
+  plan: { plan_fingerprint_sha256: terminalPlanFingerprint },
   required_confirmation:
     VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
   required_policy_fingerprint_sha256: policyFingerprint,
+  required_plan_fingerprint_sha256: terminalPlanFingerprint,
   required_saga_confirmation: sagaConfirmation,
   required_saga_action_confirmation: sagaActionConfirmation,
   inventory_consumption_performed: false,
@@ -123,6 +125,7 @@ const successfulRun = async (input: any) => {
       VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
     );
     assert.equal(input.policy_fingerprint_sha256, policyFingerprint);
+    assert.equal(input.expected_plan_fingerprint_sha256, terminalPlanFingerprint);
     assert.equal(input.saga_confirmation, sagaConfirmation);
     assert.equal(input.saga_action_confirmation, sagaActionConfirmation);
     return closedDecision;
@@ -202,6 +205,10 @@ try {
     VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
   );
   assert.equal(dry.body.required_policy_fingerprint_sha256, policyFingerprint);
+  assert.equal(
+    dry.body.required_terminal_plan_fingerprint_sha256,
+    terminalPlanFingerprint,
+  );
   assert.equal(dry.body.inventory_consumption_performed, false);
   assert.equal(dry.body.public_request_fulfilled, false);
   assert.equal(dry.body.saga_closeout_appended, false);
@@ -239,6 +246,29 @@ try {
   );
   assert.equal(applyCalls, 0);
 
+  const wrongPlan = await call(
+    {
+      action: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
+      saga_id: sagaId,
+      apply: true,
+      confirmation:
+        VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_CONFIRMATION_V1,
+      terminal_closeout_confirmation:
+        VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
+      policy_fingerprint_sha256: policyFingerprint,
+      terminal_plan_fingerprint_sha256: "f".repeat(64),
+      saga_confirmation: sagaConfirmation,
+      saga_action_confirmation: sagaActionConfirmation,
+    },
+    successfulRun,
+  );
+  assert.equal(wrongPlan.status, 428);
+  assert.equal(
+    wrongPlan.body.error,
+    "saga_terminal_closeout_runtime_confirmation_mismatch",
+  );
+  assert.equal(applyCalls, 0);
+
   const exact = await call(
     {
       action: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
@@ -249,6 +279,7 @@ try {
       terminal_closeout_confirmation:
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
       policy_fingerprint_sha256: policyFingerprint,
+      terminal_plan_fingerprint_sha256: terminalPlanFingerprint,
       saga_confirmation: sagaConfirmation,
       saga_action_confirmation: sagaActionConfirmation,
     },
@@ -290,6 +321,7 @@ try {
       terminal_closeout_confirmation:
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
       policy_fingerprint_sha256: policyFingerprint,
+      terminal_plan_fingerprint_sha256: terminalPlanFingerprint,
       saga_confirmation: sagaConfirmation,
       saga_action_confirmation: sagaActionConfirmation,
     },
@@ -312,6 +344,7 @@ try {
   console.log("exact_runtime_confirmation_required=true");
   console.log("exact_terminal_closeout_confirmation_required=true");
   console.log("exact_policy_fingerprint_echo_required=true");
+  console.log("exact_terminal_plan_fingerprint_echo_required=true");
   console.log("inventory_consumption_possible_only_on_explicit_apply=true");
   console.log("public_fulfilled_projection_possible_only_on_explicit_apply=true");
   console.log("saga_closeout_possible_only_on_explicit_apply=true");

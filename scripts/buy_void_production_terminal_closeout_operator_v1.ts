@@ -15,6 +15,7 @@ export const VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_AUTHORITY_V1 = 
   exact_runtime_confirmation_required: true,
   exact_terminal_closeout_confirmation_required: true,
   exact_policy_fingerprint_required: true,
+  runtime_validates_exact_terminal_plan_fingerprint_before_mutation: true,
   exact_saga_confirmation_required: true,
   exact_saga_action_confirmation_required: true,
   server_controlled_root_dir: true,
@@ -344,6 +345,7 @@ function validRuntimeAuthority(value: unknown): boolean {
     authority.exact_runtime_confirmation_required === true &&
     authority.exact_terminal_closeout_confirmation_required === true &&
     authority.exact_policy_fingerprint_echo_required === true &&
+    authority.exact_terminal_plan_fingerprint_echo_required === true &&
     authority.exact_saga_confirmation_required === true &&
     authority.exact_saga_action_confirmation_required === true &&
     authority.inventory_consumption_possible_when_explicitly_applied === true &&
@@ -372,6 +374,7 @@ function validTerminalAuthority(value: unknown): boolean {
     authority.canonical_confirmed_state_fingerprint_binding === true &&
     authority.request_scoped_crash_recoverable_lock === true &&
     authority.deterministic_closeout_plan_persistence === true &&
+    authority.exact_terminal_plan_fingerprint_required_before_mutation === true &&
     authority.append_only_inventory_consumption === true &&
     authority.atomic_public_operator_journal_projection === true &&
     authority.saga_closeout_committed_append === true &&
@@ -609,6 +612,15 @@ function parseDry(
 
   const plan = safePlan(decision.plan, sagaId, attemptId, closeoutId, policyFp);
   if (!plan) return null;
+  const requiredTerminalPlanFingerprint = text(
+    response.required_terminal_plan_fingerprint_sha256,
+  ).toLowerCase();
+  if (
+    !SHA256.test(requiredTerminalPlanFingerprint) ||
+    requiredTerminalPlanFingerprint !== plan.terminal_plan_fingerprint_sha256 ||
+    text(decision.required_plan_fingerprint_sha256).toLowerCase() !==
+      requiredTerminalPlanFingerprint
+  ) return null;
   return {
     ...plan,
     required_runtime_confirmation: runtimeConfirmation,
@@ -976,6 +988,8 @@ export async function runBuyVoidProductionTerminalCloseoutV1(input: {
     confirmation: input.args.confirmation,
     terminal_closeout_confirmation: input.args.terminal_closeout_confirmation,
     policy_fingerprint_sha256: input.args.policy_fingerprint_sha256,
+    terminal_plan_fingerprint_sha256:
+      freshPlan.terminal_plan_fingerprint_sha256,
     saga_confirmation: input.args.saga_confirmation,
     saga_action_confirmation: input.args.saga_action_confirmation,
   } as const;
