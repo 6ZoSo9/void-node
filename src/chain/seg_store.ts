@@ -109,7 +109,7 @@ function atomicWriteText(root: string, p: string, text: string) {
 }
 
 export class SegStore {
-  // --- WAL replay metrics (v1; additive) ---
+  // --- WAL replay metrics (v1) ---
   private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
   public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
 
