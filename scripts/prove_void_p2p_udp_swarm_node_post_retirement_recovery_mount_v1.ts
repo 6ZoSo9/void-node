@@ -323,6 +323,94 @@ function main(): void {
     assert.equal(armed.verified_direct_evidence_persisted, false);
     assert.equal(armed.production_udp_activation_performed, false);
 
+    // A same-target authenticated-control upgrade already in flight owns newer
+    // topology work. The stale retirement tombstone must clear without sending
+    // a recovery RELAY_CONNECT through the retired session's relay.
+    const recoveryContext = core.udpSwarmPostRetirementRecovery.get(remote.nodeId);
+    assert(recoveryContext);
+    const control = core.udpSwarmControl;
+    const pendingControlRequestId = crypto.randomBytes(16).toString("hex");
+    const pendingControlStreamId = crypto.randomBytes(16).toString("hex");
+    control.pendingRequests.set(pendingControlRequestId, {
+      request_id: pendingControlRequestId,
+      relay_node_id: keypair().nodeId,
+      target_node_id: remote.nodeId,
+      stream_id: pendingControlStreamId,
+      requested_at_ms: recoveryStartMs,
+    });
+    const pendingControlSnapshot = node.udpSwarmPostRetirementRecoverySnapshotV1(
+      recoveryStartMs,
+    );
+    assert.equal(
+      pendingControlSnapshot.recoveries[0]?.decision.reason,
+      "newer_udp_swarm_session_present",
+    );
+    assert.deepEqual(
+      core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs),
+      {
+        contexts: 0,
+        attempts_started: 0,
+        attempts_rejected: 0,
+        contexts_cleared: 1,
+      },
+    );
+    assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 0);
+    control.pendingRequests.delete(pendingControlRequestId);
+    recoveryContext.last_decision_reason = null;
+    core.udpSwarmPostRetirementRecovery.set(remote.nodeId, recoveryContext);
+
+    // An authenticated-control active route for the same peer on a different
+    // relay is also newer ownership. It deliberately does not satisfy the old
+    // relay's replacement-stream test, so this proves the newer-session guard.
+    const newerRelay = keypair();
+    const newerSessionId = crypto.randomBytes(16).toString("hex");
+    const newerStreamId = crypto.randomBytes(16).toString("hex");
+    const newerRequestId = crypto.randomBytes(16).toString("hex");
+    const newerTicketId = crypto.randomBytes(16).toString("hex");
+    const newerRelayStreamKey = core.relayStreamKey(
+      newerRelay.nodeId,
+      newerStreamId,
+    );
+    core.relayStreams.set(newerRelayStreamKey, {
+      relay_node_id: newerRelay.nodeId,
+      remote_node_id: remote.nodeId,
+      stream_id: newerStreamId,
+      outgoing: true,
+      started: true,
+      socket: new TestSocket(),
+    });
+    control.activeRoutes.set(newerSessionId, {
+      request_id: newerRequestId,
+      session_id: newerSessionId,
+      relay_node_id: newerRelay.nodeId,
+      peer_node_id: remote.nodeId,
+      stream_id: newerStreamId,
+      ticket_id: newerTicketId,
+      expires_at_ms: recoveryStartMs + 60_000,
+      offer_received: true,
+    });
+    const newerRouteSnapshot = node.udpSwarmPostRetirementRecoverySnapshotV1(
+      recoveryStartMs,
+    );
+    assert.equal(
+      newerRouteSnapshot.recoveries[0]?.decision.reason,
+      "newer_udp_swarm_session_present",
+    );
+    assert.deepEqual(
+      core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs),
+      {
+        contexts: 0,
+        attempts_started: 0,
+        attempts_rejected: 0,
+        contexts_cleared: 1,
+      },
+    );
+    assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 0);
+    control.activeRoutes.delete(newerSessionId);
+    core.relayStreams.delete(newerRelayStreamKey);
+    recoveryContext.last_decision_reason = null;
+    core.udpSwarmPostRetirementRecovery.set(remote.nodeId, recoveryContext);
+
     // Saturate unrelated local pending capacity. connectViaRelay must reject
     // admission without sending RELAY_CONNECT and without consuming one of the
     // three network-attempt slots. The runtime adds a local 5-second backoff.

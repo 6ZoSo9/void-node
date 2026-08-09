@@ -2450,7 +2450,22 @@ private captureUdpSwarmPostRetirementRecoveryAfterDirectCloseV1(
 
 private udpSwarmPostRetirementNewerSessionPresentV1(
   context: UdpSwarmPostRetirementRecoveryContextV1,
+  nowMs: number,
 ): boolean {
+  const control = this.udpSwarmControl.snapshot(nowMs);
+  if (
+    control.pending_requests.some(
+      (entry) => entry.target_node_id === context.peer_node_id,
+    )
+  ) return true;
+  if (
+    control.active_routes.some(
+      (entry) =>
+        entry.peer_node_id === context.peer_node_id &&
+        entry.session_id !== context.session_id,
+    )
+  ) return true;
+
   const health = this.udpSwarmPromotedDirectRouteHealth.get(context.peer_node_id);
   if (health && health.session_id !== context.session_id) return true;
 
@@ -2518,7 +2533,7 @@ private udpSwarmPostRetirementRecoveryDecisionV1(
     relay_retired_at_ms: context.relay_retired_at_ms,
     node_stopping: this.stopping,
     newer_udp_swarm_session_present:
-      this.udpSwarmPostRetirementNewerSessionPresentV1(context),
+      this.udpSwarmPostRetirementNewerSessionPresentV1(context, nowMs),
     direct_route_live: directRouteLive,
     normal_route_live: normalRouteLive,
     relay_fallback_live: relayFallbackLive,
