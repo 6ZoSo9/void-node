@@ -28,9 +28,14 @@ function evidence(
     retirement_callback_attempted: true,
     relay_retirement_performed: true,
     relay_retired_at_ms: RETIRED_AT_MS,
+    node_stopping: false,
+    newer_udp_swarm_session_present: false,
     direct_route_live: false,
     normal_route_live: false,
     relay_fallback_live: false,
+    retired_relay_stream_live: false,
+    replacement_relay_stream_live: false,
+    recovery_in_flight: false,
     relay_control_route_live: true,
     relay_control_route_transport: "direct",
     authenticated_relay_control_node_id: RELAY_NODE_ID,
@@ -75,6 +80,10 @@ assert.deepEqual(
     may_authorize_fresh_same_relay_continuity_reacquisition: true,
     requires_fresh_relay_stream: true,
     retired_stream_reuse_authorized: false,
+    blocks_during_node_stop: true,
+    requires_no_newer_udp_swarm_session: true,
+    requires_no_retired_or_replacement_relay_stream: true,
+    requires_no_recovery_in_flight: true,
     normal_peer_map_mutation_performed: false,
     relay_stream_mutation_performed: false,
     network_dial_performed: false,
@@ -221,9 +230,23 @@ expectHold(
   "retirement_time_invalid",
 );
 
+expectHold(evidence({ node_stopping: true }), "node_stopping");
+expectHold(
+  evidence({ newer_udp_swarm_session_present: true }),
+  "newer_udp_swarm_session_present",
+);
 expectHold(evidence({ direct_route_live: true }), "direct_route_still_live");
 expectHold(evidence({ normal_route_live: true }), "normal_route_already_live");
 expectHold(evidence({ relay_fallback_live: true }), "relay_fallback_already_live");
+expectHold(
+  evidence({ retired_relay_stream_live: true }),
+  "retired_relay_stream_still_live",
+);
+expectHold(
+  evidence({ replacement_relay_stream_live: true }),
+  "replacement_relay_stream_already_live",
+);
+expectHold(evidence({ recovery_in_flight: true }), "recovery_already_in_flight");
 expectHold(
   evidence({ relay_control_route_live: false }),
   "relay_control_route_unavailable",
@@ -258,7 +281,12 @@ for (const malformed of [
   { ...evidence(), relay_retirement_performed: "true" },
   { ...evidence(), relay_retired_at_ms: -1 },
   { ...evidence(), relay_retired_at_ms: 1.5 },
+  { ...evidence(), node_stopping: "false" },
+  { ...evidence(), newer_udp_swarm_session_present: "false" },
   { ...evidence(), direct_route_live: "false" },
+  { ...evidence(), retired_relay_stream_live: "false" },
+  { ...evidence(), replacement_relay_stream_live: "false" },
+  { ...evidence(), recovery_in_flight: "false" },
   { ...evidence(), relay_control_route_transport: "udp" },
   { ...evidence(), authenticated_relay_control_node_id: "invalid" },
   { ...evidence(), reacquisition_attempt_count: -1 },
@@ -286,6 +314,7 @@ console.log("fresh_relay_stream_required=true");
 console.log("retired_stream_reuse_authorized=false");
 console.log("automatic_reacquisition_attempts_max=3");
 console.log("retry_interval_ms=5000");
+console.log("stale_recovery_race_guards=true");
 console.log("network_dial_performed=false");
 console.log("verified_direct_evidence_persisted=false");
 console.log("VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_POLICY_V1_PROOF_GREEN");
