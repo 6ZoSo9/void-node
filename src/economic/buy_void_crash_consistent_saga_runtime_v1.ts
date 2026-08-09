@@ -97,7 +97,6 @@ const CUSTODIAN_SOCKET_ENV =
 const CUSTODIAN_SIGNER_FINGERPRINT_ENV =
   "VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_SIGNER_FINGERPRINT_SHA256";
 const SOURCE_FLOOR_MAIN = "74f90863d738531a75eb3b4c886ad44543ae0419";
-const POOL_ID = "void-fixed-price-pool-v1";
 const LEASE_TTL_MS = 30_000;
 const MAX_JSON_BYTES = 4 * 1024 * 1024;
 const MAX_INPUT_NESTING_DEPTH = 16;
@@ -166,7 +165,7 @@ export type BuyVoidCrashConsistentSagaBindingV1 = {
   delivery_address: string;
   void_amount_units: string;
   chain_id: "2050";
-  pool_id: typeof POOL_ID;
+  pool_id: string;
 };
 
 type SagaStoreV1 = {
@@ -451,9 +450,10 @@ function inventoryFor(
   deps: Required<BuyVoidCrashConsistentSagaRuntimeDependenciesV1>,
   rootDir: string,
   requestId: string,
+  poolId: string,
 ): BuyVoidInventoryReservationV1[] {
   return deps
-    .list_inventory({ root_dir: rootDir, pool_id: POOL_ID })
+    .list_inventory({ root_dir: rootDir, pool_id: poolId })
     .map(objectValue)
     .filter((value): value is Record<string, any> => Boolean(value))
     .filter((value) => text(value.request_id) === requestId) as
@@ -500,7 +500,7 @@ function inventoryForBinding(
   binding: BuyVoidCrashConsistentSagaBindingV1,
 ): BuyVoidInventoryReservationV1[] {
   return deps
-    .list_inventory({ root_dir: rootDir, pool_id: POOL_ID })
+    .list_inventory({ root_dir: rootDir, pool_id: binding.pool_id })
     .map(objectValue)
     .filter((value): value is Record<string, any> => Boolean(value))
     .filter((value) => projectionMatchesBinding(value, binding)) as
@@ -527,6 +527,7 @@ function exactlyOneOrNull<T>(values: T[], label: string): T | null {
 
 function bindingFromIntent(
   intent: BuyVoidFulfillmentJournalIntentV1,
+  poolId: string,
 ): BuyVoidCrashConsistentSagaBindingV1 {
   const instruction = intent.claim?.unsigned_instruction;
   return {
@@ -537,11 +538,14 @@ function bindingFromIntent(
     delivery_address: text(instruction?.delivery_address).toLowerCase(),
     void_amount_units: text(instruction?.void_amount_units),
     chain_id: "2050",
-    pool_id: POOL_ID,
+    pool_id: poolId,
   };
 }
 
-function bindingFromClaim(claim: Record<string, any>): BuyVoidCrashConsistentSagaBindingV1 {
+function bindingFromClaim(
+  claim: Record<string, any>,
+  poolId: string,
+): BuyVoidCrashConsistentSagaBindingV1 {
   const instruction = claim.unsigned_instruction;
   const requestId = text(claim.request_id);
   const paymentIdentity = text(claim.canonical_payment_identity);
@@ -557,7 +561,7 @@ function bindingFromClaim(claim: Record<string, any>): BuyVoidCrashConsistentSag
     delivery_address: text(instruction?.delivery_address).toLowerCase(),
     void_amount_units: text(instruction?.void_amount_units),
     chain_id: "2050",
-    pool_id: POOL_ID,
+    pool_id: poolId,
   };
 }
 
@@ -649,7 +653,10 @@ async function deriveBinding(input: {
   );
   if (intent) {
     assertIntentServerPolicy(intent, input.server_policy);
-    return bindingFromIntent(intent);
+    return bindingFromIntent(
+      intent,
+      input.server_policy.inventory_policy.pool_id,
+    );
   }
   if (!input.receipt) throw new Error("claim_receipt_required");
   const preview = objectValue(await input.deps.run_pipeline_command({
@@ -665,7 +672,10 @@ async function deriveBinding(input: {
   if (!preview || preview.ok !== true || preview.status !== "dry_run" || !claim) {
     throw new Error(`claim_preview_held:${text(preview?.reason) || "unknown"}`);
   }
-  return bindingFromClaim(claim);
+  return bindingFromClaim(
+    claim,
+    input.server_policy.inventory_policy.pool_id,
+  );
 }
 
 function assertProjection(input: {
@@ -682,7 +692,10 @@ function assertProjection(input: {
   }
   if (intent) {
     assertIntentServerPolicy(intent, server_policy);
-    if (!same(bindingFromIntent(intent), binding)) {
+    if (!same(
+      bindingFromIntent(intent, server_policy.inventory_policy.pool_id),
+      binding,
+    )) {
       throw new Error("claim_binding_conflict");
     }
   }
@@ -1384,7 +1397,10 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         }
         if (!selected) throw new Error("claim_projection_missing_after_apply");
         assertIntentServerPolicy(selected, serverPolicy);
-        if (!same(bindingFromIntent(selected), binding)) {
+        if (!same(
+          bindingFromIntent(selected, serverPolicy.inventory_policy.pool_id),
+          binding,
+        )) {
           throw new Error("claim_projection_missing_or_changed");
         }
         return {
