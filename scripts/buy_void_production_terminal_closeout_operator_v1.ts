@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 export const VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_V1 =
   "VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_V1";
@@ -109,6 +110,10 @@ const NO_FINANCIAL_AUTHORITY = {
 
 function text(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function exact(value: unknown, expected: string): boolean {
+  return typeof value === "string" && value === expected;
 }
 
 function object(value: unknown): Record<string, any> | null {
@@ -362,8 +367,10 @@ function validTerminalAuthority(value: unknown): boolean {
     authority &&
     authority.exact_saga_selector === true &&
     authority.exact_confirmed_state_completion_required === true &&
+    authority.exact_confirmed_state_request_index_required === true &&
     authority.canonical_confirmed_state_id_binding === true &&
     authority.canonical_confirmed_state_fingerprint_binding === true &&
+    authority.request_scoped_crash_recoverable_lock === true &&
     authority.deterministic_closeout_plan_persistence === true &&
     authority.append_only_inventory_consumption === true &&
     authority.atomic_public_operator_journal_projection === true &&
@@ -905,19 +912,29 @@ export async function runBuyVoidProductionTerminalCloseoutV1(input: {
   if (!input.args.apply || firstPlan.status === "duplicate") return firstPlan;
   if (firstPlan.ok !== true || firstPlan.status !== "planned") return firstPlan;
 
-  const expectedPlan = text(input.args.expected_plan_fingerprint_sha256).toLowerCase();
-  if (!SHA256.test(expectedPlan) || expectedPlan !== firstPlan.plan_fingerprint_sha256) {
+  const expectedPlan = input.args.expected_plan_fingerprint_sha256;
+  if (
+    typeof expectedPlan !== "string" ||
+    !SHA256.test(expectedPlan) ||
+    expectedPlan !== firstPlan.plan_fingerprint_sha256
+  ) {
     return cleanHeld(sagaId, "exact_plan_fingerprint_required");
   }
+  const suppliedPolicyFingerprint = input.args.policy_fingerprint_sha256;
   if (
-    text(input.args.confirmation) !== firstPlan.required_runtime_confirmation ||
-    text(input.args.terminal_closeout_confirmation) !==
-      firstPlan.required_terminal_closeout_confirmation ||
-    text(input.args.policy_fingerprint_sha256).toLowerCase() !==
-      firstPlan.required_policy_fingerprint_sha256 ||
-    text(input.args.saga_confirmation) !== firstPlan.required_saga_confirmation ||
-    text(input.args.saga_action_confirmation) !==
-      firstPlan.required_saga_action_confirmation
+    !exact(input.args.confirmation, firstPlan.required_runtime_confirmation) ||
+    !exact(
+      input.args.terminal_closeout_confirmation,
+      firstPlan.required_terminal_closeout_confirmation,
+    ) ||
+    typeof suppliedPolicyFingerprint !== "string" ||
+    !SHA256.test(suppliedPolicyFingerprint) ||
+    suppliedPolicyFingerprint !== firstPlan.required_policy_fingerprint_sha256 ||
+    !exact(input.args.saga_confirmation, firstPlan.required_saga_confirmation) ||
+    !exact(
+      input.args.saga_action_confirmation,
+      firstPlan.required_saga_action_confirmation,
+    )
   ) {
     return cleanHeld(sagaId, "exact_closeout_confirmations_required");
   }
@@ -1019,8 +1036,10 @@ async function main(): Promise<void> {
   process.exitCode = decision.ok ? 0 : 1;
 }
 
-const invoked = process.argv[1] &&
-  new URL(import.meta.url).pathname === new URL(`file://${process.argv[1]}`).pathname;
+const invoked = Boolean(
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+);
 if (invoked) {
   main().catch((error) => {
     process.stderr.write(`${JSON.stringify(cleanHeld(
