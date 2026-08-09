@@ -1,0 +1,46 @@
+name: VOID runtime JS copy symlink ancestor v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-runtime-js-copy-symlink-ancestor-v1.yml"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/prove_void_runtime_js_copy_symlink_ancestor_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-runtime-js-copy-symlink-ancestor-v1.yml"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/prove_void_runtime_js_copy_symlink_ancestor_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove symlink-ancestor rejection
+        run: node scripts/prove_void_runtime_js_copy_symlink_ancestor_v1.mjs
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check
