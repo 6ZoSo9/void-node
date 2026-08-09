@@ -1,0 +1,137 @@
+name: Buy VOID production native-execution plan binding v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-production-native-execution-plan-binding-v1.yml'
+      - 'scripts/patch_buy_void_production_native_execution_plan_binding_v1.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: buy-void-production-native-execution-plan-binding-v1-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    if: >-
+      github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.repo.full_name == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.ref == 'fix/buy-void-production-native-execution-plan-binding-v1-20260809' &&
+      github.event.pull_request.base.ref == 'feat/buy-void-production-native-execution-operator-v1-20260809'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact child head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard exact child and parent ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Apply deterministic plan-binding hardening
+        run: python3 scripts/patch_buy_void_production_native_execution_plan_binding_v1.py
+
+      - name: Prove production native-execution operator
+        run: npx --no-install tsx scripts/prove_buy_void_production_native_execution_operator_v1.ts
+
+      - name: Prove native execution runtime
+        run: npx --no-install tsx scripts/prove_buy_void_native_execution_runtime_v1.ts
+
+      - name: Re-prove native execution runtime guard
+        run: npx --no-install tsx scripts/prove_buy_void_native_execution_runtime_guard_v1.ts
+
+      - name: Re-prove native execution worker
+        run: npx --no-install tsx scripts/prove_buy_void_native_execution_worker_v1.ts
+
+      - name: Re-prove nonce and fee planner
+        run: npx --no-install tsx scripts/prove_buy_void_native_execution_nonce_fee_planner_v1.ts
+
+      - name: Re-prove durable submission guard
+        run: npx --no-install tsx scripts/prove_buy_void_delivery_submission_guard_v1.ts
+
+      - name: Re-prove production preflight operator
+        run: npx --no-install tsx scripts/prove_buy_void_production_preflight_operator_v1.ts
+
+      - name: Re-prove production private-services activation
+        run: npx --no-install tsx scripts/prove_buy_void_production_private_services_activation_v1.ts
+
+      - name: Re-prove Chain-2050 prepared transaction transport
+        run: npx --no-install tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+
+      - name: Re-prove Buy VOID runtime integration
+        run: npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+
+      - name: Re-prove synthetic end-to-end fulfillment rehearsal
+        run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Verify exact semantic hardening scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          printf '%s\n' \
+            'docs/operators/buy-void-production-native-execution-operator-v1.md' \
+            'scripts/buy_void_production_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_production_native_execution_operator_v1.ts' \
+            'src/economic/buy_void_native_execution_runtime_v1.ts' > /tmp/expected.txt
+          git diff --name-only | sort > /tmp/actual.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          test -z "$(git ls-files --others --exclude-standard)"
+
+      - name: Commit proven semantic hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- \
+            docs/operators/buy-void-production-native-execution-operator-v1.md \
+            scripts/buy_void_production_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+            src/economic/buy_void_native_execution_runtime_v1.ts
+          git diff --cached --check
+          printf '%s\n' \
+            'docs/operators/buy-void-production-native-execution-operator-v1.md' \
+            'scripts/buy_void_production_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_native_execution_operator_v1.ts' \
+            'scripts/prove_buy_void_production_native_execution_operator_v1.ts' \
+            'src/economic/buy_void_native_execution_runtime_v1.ts' > /tmp/expected.txt
+          git diff --cached --name-only | sort > /tmp/actual.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          git commit -m 'fix: bind Buy VOID apply to reviewed native plan'
+
+      - name: Guard live child then fast-forward publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_OLD="${{ github.event.pull_request.head.sha }}"
+          LIVE="$(git ls-remote origin refs/heads/${{ github.event.pull_request.head.ref }} | awk '{print $1}')"
+          test "$LIVE" = "$EXPECTED_OLD"
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
