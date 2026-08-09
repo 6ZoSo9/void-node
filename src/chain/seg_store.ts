@@ -48,6 +48,7 @@ type SegOpts = { segmentMaxBytes?: number; sparseEvery?: number };
 
 const SEG_SPAN = 10_000;
 const SEGSTORE_CANONICAL_READ_CORRUPTION_V1 = "VOID_SEGSTORE_CANONICAL_READ_CORRUPTION_V1";
+const SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1 = "VOID_SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1";
 
 function canonicalReadCorruptionV1(message: string): Error {
   return new Error(`${SEGSTORE_CANONICAL_READ_CORRUPTION_V1}: ${message}`);
@@ -118,6 +119,7 @@ export class SegStore {
   private headsFile: string;
   private sparseEvery: number;
   private metaCache = new Map<string, Meta>();
+  private canonicalCommitWriteHold: string | null = null;
 
   constructor(root: string, opts: SegOpts = {}) {
     this.root = root;
@@ -256,6 +258,26 @@ export class SegStore {
     this.metaCache.set(seg, m);
   }
 
+  private assertCanonicalCommitWritable(): void {
+    if (!this.canonicalCommitWriteHold) return;
+    throw new Error(
+      `${SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1}: write hold active; restart/recovery required after ${this.canonicalCommitWriteHold}`,
+    );
+  }
+
+  private canonicalCommitDurabilityFailure(
+    b: Block,
+    seg: string,
+    phase: string,
+    err: unknown,
+  ): Error {
+    const message = err instanceof Error ? err.message : String(err);
+    this.canonicalCommitWriteHold = `block=${Number(b?.number)} segment=${seg} phase=${phase}: ${message}`;
+    return new Error(
+      `${SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1}: failed to durably commit canonical block ${Number(b?.number)} in ${seg} during ${phase}: ${message}`,
+    );
+  }
+
   // TS overload signatures (single implementation)
   public saveBlock(b: any): any;
   public saveBlock(b: Block): void;
@@ -264,6 +286,7 @@ export class SegStore {
     // (This keeps WAL replay safe if head.json lags behind blocks.bin.)
     const n = Number(b?.number);
     if (!Number.isFinite(n) || n < 0) throw new Error("SegStore.saveBlock: invalid block.number");
+    this.assertCanonicalCommitWritable();
     const head = this.loadHeadNumber();
     if (head >= n) {
       const existing = this.loadBlock(n);
@@ -285,7 +308,7 @@ export class SegStore {
     // A durable WAL intent is a hard prerequisite for canonical segment append.
     this.walAppendDurable(seg, b);
 
-    // Commit to segment store only after the WAL intent is durably established.
+    // Canonical bytes and their directory entry must be durable before head truth advances.
     this.saveBlockCommit(b);
 
     // Head bump (atomic rename)
@@ -333,7 +356,7 @@ export class SegStore {
   private saveBlockCommit(b: Block) {
     const seg = this.segName(b.number);
     this.ensureSeg(seg);
-    const { bin, idx } = this.segPaths(seg);
+    const { dir, bin, idx } = this.segPaths(seg);
     assertVoidSegStoreRegularFileV1(this.root, bin, false);
     assertVoidSegStoreRegularFileV1(this.root, idx, false);
     const m = this.meta(seg);
@@ -341,25 +364,55 @@ export class SegStore {
     const body = Buffer.from(JSON.stringify(b));
     const len = Buffer.alloc(4);
     len.writeUInt32BE(body.length, 0);
-
+    const frame = Buffer.concat([len, body]);
     const off = fs.statSync(bin).size;
-    fs.appendFileSync(bin, Buffer.concat([len, body]));
-    assertVoidSegStoreRegularFileV1(this.root, bin, false);
 
-    if (b.number % this.sparseEvery === 0) {
-      fs.appendFileSync(idx, JSON.stringify({ n: b.number, off }) + "\n");
-      assertVoidSegStoreRegularFileV1(this.root, idx, false);
+    let phase = "append";
+    try {
+      fs.appendFileSync(bin, frame);
+      assertVoidSegStoreRegularFileV1(this.root, bin, false);
+
+      phase = "blocks_file_fsync";
+      const fd = fs.openSync(bin, "r");
+      try {
+        fs.fsyncSync(fd);
+      } finally {
+        try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-commit-file-close", err); }
+      }
+
+      phase = "segment_directory_fsync";
+      assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: false });
+      const dfd = fs.openSync(dir, "r");
+      try {
+        fs.fsyncSync(dfd);
+      } finally {
+        try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-commit-directory-close", err); }
+      }
+    } catch (err) {
+      throw this.canonicalCommitDurabilityFailure(b, seg, phase, err);
     }
 
-    m.to = Math.max(m.to, b.number);
-    m.bytes += 4 + body.length;
-    this.putMeta(seg, m);
+    // Sparse index and metadata are rebuildable derived state. They update only
+    // after canonical block bytes are durable and never override canonical truth.
+    if (b.number % this.sparseEvery === 0) {
+      try {
+        fs.appendFileSync(idx, JSON.stringify({ n: b.number, off }) + "\n");
+        assertVoidSegStoreRegularFileV1(this.root, idx, false);
+      } catch (err) {
+        recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-commit-derived-index", err);
+      }
+    }
 
-    // Best-effort durability: fsync blocks.bin and index/meta
+    const nextMeta: Meta = {
+      ...m,
+      to: Math.max(m.to, b.number),
+      bytes: m.bytes + frame.length,
+    };
     try {
-      const fd = fs.openSync(bin, "r");
-      try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-15", err); } }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-16", err); }
+      this.putMeta(seg, nextMeta);
+    } catch (err) {
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("canonical-commit-derived-meta", err);
+    }
   }
 
   loadBlock(n: number): Block | null {
@@ -676,6 +729,39 @@ export class SegStore {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
+
+        // A physically readable frame can still be only page-cache-visible after
+        // the previous process failed before confirming canonical fsync. Rebuild
+        // the same file + directory durability boundary before head truth moves.
+        try {
+          const { dir, bin } = this.segPaths(seg);
+          assertVoidSegStoreRegularFileV1(this.root, bin, false);
+          let phase = "replay_blocks_file_fsync";
+          try {
+            const fd = fs.openSync(bin, "r");
+            try {
+              fs.fsyncSync(fd);
+            } finally {
+              try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-file-close", err); }
+            }
+
+            phase = "replay_segment_directory_fsync";
+            assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: false });
+            const dfd = fs.openSync(dir, "r");
+            try {
+              fs.fsyncSync(dfd);
+            } finally {
+              try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-directory-close", err); }
+            }
+          } catch (err) {
+            throw this.canonicalCommitDurabilityFailure(blk as Block, seg, phase, err);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          keep(index, `head_heal_durability_failed:${n}:${message}`);
+          continue;
+        }
+
         try {
           this.persistHeadAtomic(n);
           applied++;
