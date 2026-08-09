@@ -29,6 +29,11 @@ export const VOID_P2P_UDP_SWARM_AUTHENTICATED_CONTROL_ADAPTER_AUTHORITY_V1 = Obj
   signed_mapping_probes_use_existing_node_key: true,
   two_mapping_probes_emitted_per_ticket: true,
   offer_exact_session_binding_required: true,
+  offer_exact_rendezvous_evidence_required: true,
+  local_ticket_evidence_binding_required: true,
+  authenticated_offer_provenance_verifier_emitted: true,
+  detached_structural_observation_trusted: false,
+  synthetic_rendezvous_observation_allowed: false,
   node_core_mount_performed: false,
   udp_socket_allocation_performed: false,
   network_send_performed: false,
@@ -58,6 +63,10 @@ export type VoidUdpSwarmProbeActionV1 = Readonly<{
 export type VoidUdpSwarmDirectUpgradeOfferActionV1 = Readonly<{
   relay_node_id: string;
   message: VoidUdpSwarmUpgradeOfferV1;
+  verifyAuthenticatedRendezvousObservation: (
+    observation: VoidUdpRendezvousObservationV1,
+    expectedNodeId: string,
+  ) => boolean;
 }>;
 
 export type VoidUdpSwarmAuthenticatedControlAdapterSnapshotV1 = Readonly<{
@@ -128,6 +137,20 @@ function freezeDeliveries(
   deliveries: VoidUdpSwarmControlDeliveryV1[],
 ): readonly VoidUdpSwarmControlDeliveryV1[] {
   return Object.freeze(deliveries.map((entry) => Object.freeze(entry)));
+}
+
+function sameRendezvousObservation(
+  left: VoidUdpRendezvousObservationV1,
+  right: VoidUdpRendezvousObservationV1,
+): boolean {
+  return left.ticket_id === right.ticket_id &&
+    left.node_id === right.node_id &&
+    left.observed_endpoint === right.observed_endpoint &&
+    left.first_seen_ms === right.first_seen_ms &&
+    left.last_seen_ms === right.last_seen_ms &&
+    left.probe_count === right.probe_count &&
+    left.stable_same_rendezvous === right.stable_same_rendezvous &&
+    left.mapping_conflicted === right.mapping_conflicted;
 }
 
 export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
@@ -365,6 +388,19 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
       ) {
         throw new Error("UDP swarm authenticated control adapter offer route binding mismatch");
       }
+      if (
+        message.local_observation.ticket_id !== route.ticket_id ||
+        message.local_observation.node_id !== this.options.localNodeId ||
+        message.peer_observation.node_id !== route.peer_node_id ||
+        message.local_observation.observed_endpoint !== message.local_observed_endpoint ||
+        message.peer_observation.observed_endpoint !== message.peer_observed_endpoint ||
+        message.local_observation.last_seen_ms >= route.expires_at_ms ||
+        message.peer_observation.last_seen_ms >= route.expires_at_ms
+      ) {
+        throw new Error(
+          "UDP swarm authenticated control adapter offer rendezvous evidence binding mismatch",
+        );
+      }
       if (route.expires_at_ms <= nowMs) {
         this.removeRoute(route.session_id);
         throw new Error("UDP swarm authenticated control adapter offer route expired");
@@ -383,12 +419,41 @@ export class VoidUdpSwarmAuthenticatedControlAdapterV1 {
         throw new Error("UDP swarm authenticated control adapter duplicate upgrade offer rejected");
       }
       route.offer_received = true;
+
+      // Mint provenance only after the offer has passed the exact authenticated
+      // relay/route/ticket/session/stream/peer/evidence/fallback checks above.
+      // The verifier is value-bound to these normalized frozen observations;
+      // structural plausibility alone is never accepted.
+      const localNodeId = this.options.localNodeId;
+      const peerNodeId = route.peer_node_id;
+      const acceptedLocalObservation = message.local_observation;
+      const acceptedPeerObservation = message.peer_observation;
+      const verifyAuthenticatedRendezvousObservation = Object.freeze((
+        observation: VoidUdpRendezvousObservationV1,
+        expectedNodeId: string,
+      ): boolean => {
+        if (expectedNodeId === localNodeId) {
+          return sameRendezvousObservation(
+            observation,
+            acceptedLocalObservation,
+          );
+        }
+        if (expectedNodeId === peerNodeId) {
+          return sameRendezvousObservation(
+            observation,
+            acceptedPeerObservation,
+          );
+        }
+        return false;
+      });
+
       return Object.freeze({
         control_deliveries: Object.freeze([]),
         udp_probe_actions: Object.freeze([]),
         direct_upgrade_offer: Object.freeze({
           relay_node_id: fromNodeId,
           message,
+          verifyAuthenticatedRendezvousObservation,
         }),
       });
     }
