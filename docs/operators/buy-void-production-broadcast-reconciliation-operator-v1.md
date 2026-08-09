@@ -111,7 +111,11 @@ The dry command body is exactly:
 ```
 
 The operator accepts only the reviewed child runtime dry-run envelope and its
-nested coordinator dry-run decision.
+nested coordinator dry-run decision. The envelope's
+`reconcile_possible_broadcast_apply_supported` flag must exactly agree with the
+reported `next_action`. When the next action is reconciliation, the nested dry
+decision must also carry `required_broadcast_confirmation=null`; a reconciliation
+plan can never inherit transaction-submission authority.
 
 The dry boundary requires:
 
@@ -197,7 +201,10 @@ reverted
 ```
 
 The operator preserves those distinctions in a sanitized result. It does not
-serialize the coordinator's full journal/evidence objects.
+serialize the coordinator's full journal/evidence objects. The applied runtime
+envelope's top-level `ok` value must exactly match the nested coordinator
+decision; contradictory envelopes are treated as unknown side-effect state and
+require reinspection.
 
 It preserves:
 

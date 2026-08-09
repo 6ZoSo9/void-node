@@ -100,6 +100,8 @@ function dryFixture(input: {
   nextAction?: "execute_prepared_transaction" | "reconcile_possible_broadcast";
   policyFingerprint?: string;
   attemptId?: string;
+  applySupported?: boolean;
+  broadcastConfirmation?: string | null;
 } = {}): Record<string, unknown> {
   const nextAction = input.nextAction || "reconcile_possible_broadcast";
   const policyFp = input.policyFingerprint || POLICY_FP;
@@ -119,7 +121,9 @@ function dryFixture(input: {
     required_saga_action_confirmation: ACTION_CONFIRMATION,
     execute_prepared_transaction_mounted: false,
     reconcile_possible_broadcast_apply_supported:
-      nextAction === "reconcile_possible_broadcast",
+      input.applySupported === undefined
+        ? nextAction === "reconcile_possible_broadcast"
+        : input.applySupported,
     broadcaster_socket_required_for_dry_run: false,
     transaction_broadcast_performed: false,
     money_movement_performed: false,
@@ -135,7 +139,10 @@ function dryFixture(input: {
       required_policy_fingerprint_sha256: policyFp,
       required_saga_confirmation: SAGA_CONFIRMATION,
       required_saga_action_confirmation: ACTION_CONFIRMATION,
-      required_broadcast_confirmation: null,
+      required_broadcast_confirmation:
+        input.broadcastConfirmation === undefined
+          ? null
+          : input.broadcastConfirmation,
       broadcaster_called: false,
       submission_call_performed: false,
       transaction_broadcast_performed: false,
@@ -284,6 +291,37 @@ const notApplyAction = await planBuyVoidProductionBroadcastReconciliationV1({
 assert.equal(notApplyAction.ok, true);
 assert.equal(notApplyAction.reconcile_possible_broadcast_apply_supported, false);
 
+const mismatchedApplySupport = await planBuyVoidProductionBroadcastReconciliationV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({
+    status: 200,
+    json: dryFixture({ applySupported: false }),
+  }),
+});
+assert.equal(mismatchedApplySupport.ok, false);
+assert.equal(
+  mismatchedApplySupport.reason,
+  "operator_runtime_dry_run_boundary_invalid",
+);
+
+const unexpectedBroadcastConfirmation =
+  await planBuyVoidProductionBroadcastReconciliationV1({
+    saga_id: SAGA_ID,
+    http_get: async () => ({ status: 200, json: statusFixture() }),
+    http_post: async () => ({
+      status: 200,
+      json: dryFixture({
+        broadcastConfirmation: "buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1",
+      }),
+    }),
+  });
+assert.equal(unexpectedBroadcastConfirmation.ok, false);
+assert.equal(
+  unexpectedBroadcastConfirmation.reason,
+  "operator_runtime_dry_run_boundary_invalid",
+);
+
 let wrongPlanPosts = 0;
 const wrongPlan = await runBuyVoidProductionBroadcastReconciliationV1({
   args: {
@@ -399,6 +437,44 @@ assert.equal(applied.automatic_retry_allowed, false);
 assert.equal(applied.transaction_broadcast_performed, false);
 assert.equal(applied.money_movement_performed, false);
 assert.equal(postCount, 3);
+
+let envelopeMismatchPosts = 0;
+const envelopeMismatch =
+  await runBuyVoidProductionBroadcastReconciliationV1({
+    args: {
+      saga_id: SAGA_ID,
+      apply: true,
+      expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+      confirmation: RUNTIME_CONFIRMATION,
+      coordinator_confirmation: COORDINATOR_CONFIRMATION,
+      policy_fingerprint_sha256: POLICY_FP,
+      saga_confirmation: SAGA_CONFIRMATION,
+      saga_action_confirmation: ACTION_CONFIRMATION,
+    },
+    http_get: async () => ({
+      status: 200,
+      json: statusFixture({ applyEnabled: true, socketConfigured: true }),
+    }),
+    http_post: async () => {
+      envelopeMismatchPosts += 1;
+      if (envelopeMismatchPosts <= 2) {
+        return { status: 200, json: dryFixture() };
+      }
+      return {
+        status: 500,
+        json: {
+          ...appliedFixture({ outcome: "unknown" }),
+          ok: false,
+        },
+      };
+    },
+  });
+assert.equal(envelopeMismatch.ok, false);
+assert.equal(envelopeMismatch.status, "reconciliation_unknown");
+assert.equal(envelopeMismatch.side_effect_state_known, false);
+assert.equal(envelopeMismatch.reconciliation_required, true);
+assert.equal(envelopeMismatch.automatic_retry_allowed, false);
+
 const applyBody = applyBodies[2];
 assert.deepEqual(Object.keys(applyBody).sort(), [
   "action",
@@ -529,6 +605,9 @@ process.stdout.write(`${JSON.stringify({
   deterministic_plan_fingerprint: true,
   exact_confirmation_echoes_required: true,
   exact_apply_command_key_count: 8,
+  dry_apply_support_boundary_revalidated: true,
+  reconciliation_broadcast_confirmation_forbidden: true,
+  applied_envelope_ok_binding_revalidated: true,
   submit_once_runtime_adapter: false,
   inspect_submission_runtime_adapter: true,
   transport_unknown_reconciliation_required: true,

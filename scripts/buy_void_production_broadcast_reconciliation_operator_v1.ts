@@ -424,6 +424,18 @@ function parseDryRuntime(
     "reconcile_possible_broadcast",
   ].includes(next)) return null;
   if (text(decision.next_action) !== next) return null;
+  if (
+    response.reconcile_possible_broadcast_apply_supported !==
+      (next === "reconcile_possible_broadcast")
+  ) {
+    return null;
+  }
+  if (
+    next === "reconcile_possible_broadcast" &&
+    decision.required_broadcast_confirmation !== null
+  ) {
+    return null;
+  }
   const attemptId = text(decision.attempt_id).toLowerCase();
   const runtimeConfirmation = text(response.required_runtime_confirmation);
   const coordinatorConfirmation = text(response.required_coordinator_confirmation);
@@ -599,6 +611,8 @@ function parseAppliedEnvelope(
     response.money_movement_performed !== false ||
     !validChildAuthority(response.authority) ||
     !decision ||
+    typeof response.ok !== "boolean" ||
+    response.ok !== decision.ok ||
     decision.automatic_retry_allowed !== false ||
     decision.signed_payload_bytes_persisted !== false ||
     decision.signed_payload_bytes_returned !== false
