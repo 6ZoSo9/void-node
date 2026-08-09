@@ -745,6 +745,7 @@ export class Node {
     if (
       peer.probe ||
       peer.transport !== "direct" ||
+      !peer.persistDirectEvidence ||
       peer.outbound ||
       peer.outboundSeenEmitted ||
       !peer.handshakeDone ||
@@ -1333,6 +1334,13 @@ export class Node {
           authenticated_node_id: auth.id,
         });
         this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");
+      } else if (!peer.persistDirectEvidence) {
+        console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+          transport_hint: peer.addr,
+        });
+        this.rejectUnauthenticatedPeer(peer, "ephemeral direct peer identity mismatch");
       } else {
         console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {
           address: peer.reconnectAddr || peer.addr,
@@ -1447,6 +1455,35 @@ export class Node {
     return true;
   }
 
+  attachEphemeralDirectTransportV1(
+    socket: PeerSocketV1,
+    expectedNodeId: string,
+    transportHint: string,
+  ): boolean {
+    if (
+      this.stopping ||
+      !/^[0-9a-f]{32}$/.test(expectedNodeId) ||
+      expectedNodeId === this.id ||
+      typeof transportHint !== "string" ||
+      transportHint.length < 1 ||
+      transportHint.length > 256 ||
+      /[\s\u0000-\u001f\u007f]/.test(transportHint)
+    ) return false;
+
+    this.attachSocket(
+      socket,
+      transportHint,
+      true,
+      expectedNodeId,
+      undefined,
+      "direct",
+      undefined,
+      undefined,
+      false,
+    );
+    return true;
+  }
+
   private attachSocket(
     socket: PeerSocketV1,
     peerAddr: string,
@@ -1473,7 +1510,7 @@ export class Node {
       authTimer: null,
       expectedNodeId,
       reconnectAddr,
-      suppressReconnect: !!reachabilityProbe,
+      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,
       attachedAtMs: Date.now(),
       outboundSeenEmitted: false,
       probe: reachabilityProbe,
