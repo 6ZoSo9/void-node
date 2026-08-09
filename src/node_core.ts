@@ -2646,10 +2646,15 @@ udpSwarmPostRetirementRecoverySnapshotV1(nowMs = Date.now()) {
       };
     })
     .sort((a, b) => a.peer_node_id.localeCompare(b.peer_node_id));
+  const activeRecoveryNetworkAttemptsStarted = recoveries.reduce(
+    (total, entry) => total + entry.reacquisition_attempt_count,
+    0,
+  );
   return {
     recovery_context_count: recoveries.length,
     recoveries,
-    network_dial_performed: false as const,
+    active_recovery_network_attempts_started:
+      activeRecoveryNetworkAttemptsStarted,
     verified_direct_evidence_persisted: false as const,
     production_udp_activation_performed: false as const,
   };

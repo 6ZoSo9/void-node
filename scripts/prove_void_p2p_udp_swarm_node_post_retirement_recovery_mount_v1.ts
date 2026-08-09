@@ -319,7 +319,7 @@ function main(): void {
     assert.equal(armed.recoveries[0]?.last_reacquisition_attempt_at_ms, null);
     assert.equal(armed.recoveries[0]?.local_admission_retry_at_ms, null);
     assert.equal(armed.recoveries[0]?.last_request_id, null);
-    assert.equal(armed.network_dial_performed, false);
+    assert.equal(armed.active_recovery_network_attempts_started, 0);
     assert.equal(armed.verified_direct_evidence_persisted, false);
     assert.equal(armed.production_udp_activation_performed, false);
 
@@ -420,6 +420,7 @@ function main(): void {
       firstAttemptMs,
     );
     assert.equal(firstStarted.recoveries[0]?.local_admission_retry_at_ms, null);
+    assert.equal(firstStarted.active_recovery_network_attempts_started, 1);
 
     const firstPending = core.relayPendingConnects.get(firstConnect.request_id);
     assert(firstPending);
@@ -565,6 +566,7 @@ function main(): void {
       exhaustedAtMs,
     );
     assert.equal(exhausted.recoveries[0]?.reacquisition_attempt_count, 3);
+    assert.equal(exhausted.active_recovery_network_attempts_started, 3);
     assert.equal(
       exhausted.recoveries[0]?.decision.reason,
       "reacquisition_attempts_exhausted",
@@ -603,6 +605,11 @@ function main(): void {
       },
     );
     assert.equal(core.udpSwarmPostRetirementRecovery.size, 0);
+    assert.equal(
+      node.udpSwarmPostRetirementRecoverySnapshotV1(exhaustedAtMs + 1)
+        .active_recovery_network_attempts_started,
+      0,
+    );
     assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 3);
 
     // No recovery action ever changed the ephemeral direct-evidence boundary.
