@@ -108,44 +108,80 @@ function parseArgs(argv: string[]): ParsedArgs {
   };
 }
 
-function waitForShutdownSignal(): Promise<BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1> {
-  return new Promise((resolve) => {
-    const finish = (signal: "SIGINT" | "SIGTERM") => {
-      process.off("SIGINT", onSigint);
-      process.off("SIGTERM", onSigterm);
-      resolve(signal);
-    };
-    const onSigint = () => finish("SIGINT");
-    const onSigterm = () => finish("SIGTERM");
-    process.once("SIGINT", onSigint);
-    process.once("SIGTERM", onSigterm);
-  });
+function createShutdownSignalLatch(): {
+  promise: Promise<BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1>;
+  dispose: () => void;
+} {
+  let settled = false;
+  let resolveSignal!: (
+    signal: BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1,
+  ) => void;
+  const promise = new Promise<BuyVoidProductionPrivateServicesOperatorShutdownTriggerV1>(
+    (resolve) => {
+      resolveSignal = resolve;
+    },
+  );
+
+  function dispose(): void {
+    process.off("SIGINT", onSigint);
+    process.off("SIGTERM", onSigterm);
+  }
+  function finish(signal: "SIGINT" | "SIGTERM"): void {
+    if (settled) return;
+    settled = true;
+    dispose();
+    resolveSignal(signal);
+  }
+  function onSigint(): void {
+    finish("SIGINT");
+  }
+  function onSigterm(): void {
+    finish("SIGTERM");
+  }
+
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
+  return { promise, dispose };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const result = await runBuyVoidProductionPrivateServicesOperatorV1({
-    apply: args.apply,
-    confirmation: args.confirmation,
-    expected_plan_id_sha256: args.expectedPlanId,
-    rpc_readiness_confirmation: args.rpcReadinessConfirmation,
-    custodian_activation_confirmation: args.custodianActivationConfirmation,
-    broadcaster_activation_confirmation: args.broadcasterActivationConfirmation,
-  });
+  const signalLatch = args.apply ? createShutdownSignalLatch() : null;
+
+  let result;
+  try {
+    result = await runBuyVoidProductionPrivateServicesOperatorV1({
+      apply: args.apply,
+      confirmation: args.confirmation,
+      expected_plan_id_sha256: args.expectedPlanId,
+      rpc_readiness_confirmation: args.rpcReadinessConfirmation,
+      custodian_activation_confirmation: args.custodianActivationConfirmation,
+      broadcaster_activation_confirmation: args.broadcasterActivationConfirmation,
+    });
+  } catch (error) {
+    signalLatch?.dispose();
+    throw error;
+  }
 
   console.log(JSON.stringify(result.decision, null, 2));
 
   if (!result.decision.ok) {
+    signalLatch?.dispose();
     process.exitCode = result.decision.residual_service_state ? 3 : 2;
     return;
   }
-  if (result.decision.status === "planned") return;
-  if (!result.session) {
+  if (result.decision.status === "planned") {
+    signalLatch?.dispose();
+    return;
+  }
+  if (!result.session || !signalLatch) {
+    signalLatch?.dispose();
     throw new Error("production_private_services_operator_started_session_missing");
   }
 
-  const signal = await waitForShutdownSignal();
+  const signal = await signalLatch.promise;
   const shutdown = await result.session.stop(signal);
+  signalLatch.dispose();
   console.log(JSON.stringify(shutdown, null, 2));
   if (shutdown.status !== "stopped") process.exitCode = 3;
 }
@@ -161,6 +197,7 @@ main().catch((error) => {
     error_class: /^[A-Za-z0-9._:-]{1,80}$/.test(errorClass)
       ? errorClass
       : "Error",
+    residual_service_state: true,
     side_effect_state_known: false,
     credential_read_performed: false,
     signing_performed: false,
