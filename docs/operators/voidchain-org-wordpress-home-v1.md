@@ -12,6 +12,9 @@ of the viewport left on the theme's white canvas.
 
 The canonical page source now:
 
+- packages the entire page as one WordPress Custom HTML block so server-side
+  paragraph formatting cannot inject `<p>` or `<br>` markup into CSS or
+  JavaScript;
 - clears the WordPress wrapper and root `max-width` constraints;
 - removes theme padding and gives the page canvas the VOID background;
 - retains the static node snapshot and read-only live browser refresh;
@@ -36,7 +39,23 @@ node scripts/prove_voidchain_org_wordpress_home_v1.mjs
 The proof reproduces the 800px constraint with a 1920px viewport fixture and
 requires the repaired root to resolve to the full 1920px width. It also checks
 the responsive CSS, unique element IDs, canonical links, live-client syntax,
-GET-only browser behavior, fallback retention, and guarded sync contract.
+GET-only browser behavior, fallback retention, the Custom HTML block boundary,
+the prior paragraph-injection failure fixture, and the guarded sync contract.
+
+## WordPress rendering boundary
+
+The first guarded v1 apply proved that a successful REST write is not enough.
+WordPress accepted the exact raw page, then its content filter inserted
+paragraph markup inside the page's `<style>` and `<script>` elements. The
+outer canvas became dark, but the full-width root rule and live client were
+invalid in the public document, leaving the content at the theme's 800px
+maximum.
+
+The canonical file must therefore remain one `<!-- wp:html -->` Custom HTML
+block. The sync tool validates both the editable raw content and the public
+rendered content. It holds if WordPress contaminates either scoped element,
+if the full-width root rule is missing, or if the rendered live-client source
+does not compile.
 
 ## Read-only inspection
 
@@ -73,8 +92,10 @@ Immediately before its single WordPress write, the tool re-reads page `243945`
 with edit context and holds if the modification time or raw-content digest has
 changed. It writes only the page content. It does not change the title, slug,
 publication status, template, site theme, plugins, users, DNS, CORS, gateway,
-node service, or any economic/network state. It then reads the public page and
-requires the full-width layout markers before reporting `APPLIED`.
+node service, or any economic/network state. It then re-reads the editable
+content, requires exact canonical SHA-256 equivalence, reads the public
+rendered page, and rejects paragraph contamination, a missing full-width rule,
+or invalid live-client JavaScript before reporting `APPLIED`.
 
 The GitHub workflow exposes the same inspect/apply split through
 `workflow_dispatch`. Store the two credentials as secrets in the
