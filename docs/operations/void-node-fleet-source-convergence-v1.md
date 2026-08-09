@@ -38,7 +38,7 @@ The controller accepts only an audit that:
 
 - has marker/version `VOID_NODE_FLEET_DRIFT_AUDIT_V1` / `1`;
 - reports `CONVERGENCE_RECOMMENDED`;
-- proves no prior mutation and no granted mutation authority;
+- proves no prior mutation and carries the exact ten-key all-false audit authority schema;
 - has an internally reproducible `audit_id_sha256`;
 - contains no `HOLD` node;
 - lists every behind node, and only behind nodes, as convergence candidates;
@@ -69,9 +69,13 @@ exact `expected_remote_url` to every node that may be synchronized:
 }
 ```
 
-The value must exactly match `git remote get-url origin` on that node. HTTPS is
-also valid when it is the node's exact configured URL. Do not place tokens,
-passwords, private-key paths, or authorization headers in this file.
+The value must exactly match `git remote get-url origin` on that node **and**
+the coordinator's own canonical remote URL. Before any fetch, the controller
+accepts only HTTPS, `ssh://`, scp-style SSH (for example `git@github.com:...`),
+or an absolute local path used by deterministic fixtures. Git remote-helper
+syntax such as `ext::...`, unknown URL schemes, and `file://` URLs fail closed.
+Do not place tokens, passwords, private-key paths, or authorization headers in
+this file.
 
 V1 requires canonical branch `main`, a non-shallow repository, a clean
 worktree, no Git operation in progress, and a numeric-loopback HTTP endpoint.

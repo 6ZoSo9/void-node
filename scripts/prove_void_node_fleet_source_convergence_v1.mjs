@@ -16,6 +16,7 @@ import {
   validateApplyConfirmationsV1,
   validateFleetAuditV1,
   validateFleetConfigV1,
+  verifyCoordinatorRemoteBindingV1,
 } from "../tools/void-node-fleet-source-convergence-v1.mjs";
 
 function stableJson(value) {
@@ -171,6 +172,8 @@ const malformedCases = [
   { label: "hold decision", mutate: (audit) => { audit.decision = "HOLD"; } },
   { label: "prior mutation", mutate: (audit) => { audit.mutation_attempted = true; } },
   { label: "authority escalation", mutate: (audit) => { audit.authority.git_fetch = true; } },
+  { label: "authority schema missing", mutate: (audit) => { audit.authority = {}; } },
+  { label: "authority schema extra", mutate: (audit) => { audit.authority.extra = false; } },
   { label: "candidate mismatch", mutate: (audit) => { audit.convergence_candidates[0].to_sha = "3".repeat(40); } },
   { label: "dirty node", mutate: (audit) => { audit.nodes[0].dirty_count = 1; } },
   { label: "unhealthy node", mutate: (audit) => { audit.nodes[0].health_ok = false; } },
@@ -189,6 +192,12 @@ assert.throws(() => validateFleetConfigV1(unsafeService, "nimo"), /safe user-sys
 const unsafeHttp = baseConfig("/tmp/x", "/tmp/o");
 unsafeHttp.nodes[0].http_base = "http://example.com:4100";
 assert.throws(() => validateFleetConfigV1(unsafeHttp, "nimo"), /numeric loopback/);
+const remoteHelper = baseConfig("/tmp/x", "ext::sh -c touch /tmp/void-owned");
+assert.throws(() => validateFleetConfigV1(remoteHelper, "nimo"), /remote-helper syntax/);
+const unknownRemoteScheme = baseConfig("/tmp/x", "helper://example.invalid/void-node");
+assert.throws(() => validateFleetConfigV1(unknownRemoteScheme, "nimo"), /must use HTTPS, SSH/);
+const fileRemoteScheme = baseConfig("/tmp/x", "file:///tmp/void-origin.git");
+assert.throws(() => validateFleetConfigV1(fileRemoteScheme, "nimo"), /must use HTTPS, SSH/);
 
 const inspectionGood = {
   repo_ok: true,
@@ -272,6 +281,15 @@ try {
   git(seed, "push", "origin", "main");
 
   const fixtureConfig = validateFleetConfigV1(baseConfig(good, remote), "nimo");
+  assert.equal(verifyCoordinatorRemoteBindingV1(fixtureConfig), true);
+  const mismatchedRemoteConfig = validateFleetConfigV1(
+    baseConfig(good, join(root, "different-origin.git")),
+    "nimo",
+  );
+  assert.throws(
+    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),
+    /must exactly match coordinator canonical remote URL/,
+  );
   const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");
   const fixturePlan = buildConvergencePlanV1(fixtureAudit, fixtureConfig);
   assert.equal(git(good, "rev-parse", "HEAD"), fromSha, "plan construction must not mutate source");
