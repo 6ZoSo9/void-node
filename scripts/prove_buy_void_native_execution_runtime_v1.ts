@@ -513,6 +513,86 @@ try {
     "eth_getBalance",
   ]);
 
+  let paddedPolicySignerCalls = 0;
+  let paddedPolicyBroadcasterCalls = 0;
+  const paddedPolicyCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+  const paddedPolicy = await runBuyVoidNativeExecutionRuntimeCommandV1({
+    runtime_policy: runtimePolicy(root),
+    command: {
+      attempt_id: reserved.attempt_id,
+      apply: true,
+      confirmation: VOID_BUY_VOID_NATIVE_EXECUTION_CONFIRMATION_V1,
+      submission_idempotency_key: hash("6"),
+      expected_plan_fingerprint_sha256: dry.plan_fingerprint_sha256,
+      policy_fingerprint_sha256: `${dry.runtime_policy_fingerprint_sha256} `,
+    },
+    dependencies: {
+      signer: {
+        async get_address() {
+          paddedPolicySignerCalls += 1;
+          return walletAddress;
+        },
+        async sign_transaction() {
+          paddedPolicySignerCalls += 1;
+          throw new Error("padded policy signer must not run");
+        },
+      },
+      broadcaster: {
+        async broadcast_signed_transaction() {
+          paddedPolicyBroadcasterCalls += 1;
+          throw new Error("padded policy broadcaster must not run");
+        },
+      },
+    },
+    planner_transport: plannerTransport(paddedPolicyCalls),
+  });
+  assert.equal(paddedPolicy.ok, false);
+  if (!("reason" in paddedPolicy)) throw new Error("expected padded policy hold");
+  assert.equal(paddedPolicy.reason, "exact_policy_fingerprint_required");
+  assert.equal(paddedPolicyCalls.length, 0);
+  assert.equal(paddedPolicySignerCalls, 0);
+  assert.equal(paddedPolicyBroadcasterCalls, 0);
+
+  let paddedPlanSignerCalls = 0;
+  let paddedPlanBroadcasterCalls = 0;
+  const paddedPlanCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+  const paddedPlan = await runBuyVoidNativeExecutionRuntimeCommandV1({
+    runtime_policy: runtimePolicy(root),
+    command: {
+      attempt_id: reserved.attempt_id,
+      apply: true,
+      confirmation: VOID_BUY_VOID_NATIVE_EXECUTION_CONFIRMATION_V1,
+      submission_idempotency_key: hash("5"),
+      expected_plan_fingerprint_sha256: `${dry.plan_fingerprint_sha256} `,
+      policy_fingerprint_sha256: dry.runtime_policy_fingerprint_sha256,
+    },
+    dependencies: {
+      signer: {
+        async get_address() {
+          paddedPlanSignerCalls += 1;
+          return walletAddress;
+        },
+        async sign_transaction() {
+          paddedPlanSignerCalls += 1;
+          throw new Error("padded plan signer must not run");
+        },
+      },
+      broadcaster: {
+        async broadcast_signed_transaction() {
+          paddedPlanBroadcasterCalls += 1;
+          throw new Error("padded plan broadcaster must not run");
+        },
+      },
+    },
+    planner_transport: plannerTransport(paddedPlanCalls),
+  });
+  assert.equal(paddedPlan.ok, false);
+  if (!("reason" in paddedPlan)) throw new Error("expected padded plan hold");
+  assert.equal(paddedPlan.reason, "exact_plan_fingerprint_required");
+  assert.equal(paddedPlanCalls.length, 0);
+  assert.equal(paddedPlanSignerCalls, 0);
+  assert.equal(paddedPlanBroadcasterCalls, 0);
+
   let driftSignerCalls = 0;
   let driftBroadcasterCalls = 0;
   const driftCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
