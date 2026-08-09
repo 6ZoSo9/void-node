@@ -336,3 +336,10 @@ the production private services, dependency injection, runtime enablement, exact
 candidate, and reviewed operator plan are separately proven.
 
 Refs #1135, #1128, #1125, #1118, #1106.
+
+
+## Server-enforced plan binding
+
+The dry-run response now carries the runtime-produced deterministic plan fingerprint. The operator requires the reviewed fingerprint and current runtime-policy fingerprint, then echoes both into the value-bearing apply request. The runtime independently recomputes its current policy fingerprint before planning and recomputes the current execution-plan fingerprint after the fresh nonce/fee/balance read but before invoking the worker. Any policy or plan drift holds before signing or broadcast.
+
+An apply transport timeout, lost response, or malformed response is not reported as a clean no-side-effect result. Those mutation/signing/broadcast fields are indeterminate and reconciliation remains required; automatic retry remains disabled.
