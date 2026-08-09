@@ -51,6 +51,8 @@ function assertNoMutationAuthority(
 ): void {
   assert.equal(result.requires_fresh_relay_stream, true);
   assert.equal(result.retired_stream_reuse_authorized, false);
+  assert.equal(result.direct_route_reconnect_authorized, false);
+  assert.equal(result.verified_direct_evidence_persistence_authorized, false);
   assert.equal(result.normal_peer_map_mutation_performed, false);
   assert.equal(result.relay_stream_mutation_performed, false);
   assert.equal(result.network_dial_performed, false);
@@ -84,6 +86,8 @@ assert.deepEqual(
     requires_no_newer_udp_swarm_session: true,
     requires_no_retired_or_replacement_relay_stream: true,
     requires_no_recovery_in_flight: true,
+    direct_route_reconnect_authorized: false,
+    verified_direct_evidence_persistence_authorized: false,
     normal_peer_map_mutation_performed: false,
     relay_stream_mutation_performed: false,
     network_dial_performed: false,
@@ -315,6 +319,8 @@ console.log("retired_stream_reuse_authorized=false");
 console.log("automatic_reacquisition_attempts_max=3");
 console.log("retry_interval_ms=5000");
 console.log("stale_recovery_race_guards=true");
+console.log("direct_route_reconnect_authorized=false");
+console.log("verified_direct_evidence_persistence_authorized=false");
 console.log("network_dial_performed=false");
 console.log("verified_direct_evidence_persisted=false");
 console.log("VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_POLICY_V1_PROOF_GREEN");
