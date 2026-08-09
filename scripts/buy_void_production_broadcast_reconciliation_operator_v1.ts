@@ -641,9 +641,19 @@ function parseAppliedEnvelope(
   ) return null;
 
   if (
-    decision.submission_call_performed === true ||
-    decision.transaction_broadcast_performed === true ||
-    decision.money_movement_performed === true
+    typeof decision.applied !== "boolean" ||
+    typeof decision.mutation_performed !== "boolean" ||
+    typeof decision.broadcaster_called !== "boolean" ||
+    typeof decision.submission_call_performed !== "boolean" ||
+    typeof decision.transaction_broadcast_performed !== "boolean" ||
+    typeof decision.reconciliation_required !== "boolean" ||
+    typeof decision.money_movement_performed !== "boolean"
+  ) return null;
+
+  if (
+    decision.submission_call_performed !== false ||
+    decision.transaction_broadcast_performed !== false ||
+    decision.money_movement_performed !== false
   ) {
     return {
       ...held(sagaId, "operator_reconciliation_authority_boundary_violation"),
@@ -653,7 +663,8 @@ function parseAppliedEnvelope(
   }
 
   if (decision.ok === true) {
-    const status = text(decision.status);
+    if (typeof decision.status !== "string") return null;
+    const status = decision.status;
     if (!["not_submitted", "unknown", "accepted", "confirmed", "reverted"].includes(status)) {
       return null;
     }
@@ -678,16 +689,24 @@ function parseAppliedEnvelope(
       saga_id: sagaId,
       attempt_id: decision.attempt_id,
       reconciliation_outcome: status,
-      mutation_performed: decision.mutation_performed === true,
-      broadcaster_inspection_performed: decision.broadcaster_called === true,
-      reconciliation_required: decision.reconciliation_required === true,
+      mutation_performed: decision.mutation_performed,
+      broadcaster_inspection_performed: decision.broadcaster_called,
+      reconciliation_required: decision.reconciliation_required,
       side_effect_state_known: true,
       ...ZERO_AUTHORITY,
       authority: VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_AUTHORITY_V1,
     };
   }
 
-  if (decision.ok === false && decision.status === "held") {
+  if (
+    decision.ok === false &&
+    decision.status === "held" &&
+    decision.applied === true &&
+    typeof decision.stage === "string" &&
+    SAFE_TOKEN.test(decision.stage) &&
+    typeof decision.reason === "string" &&
+    SAFE_TOKEN.test(decision.reason)
+  ) {
     return {
       marker: VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_V1,
       version: 1,
@@ -695,10 +714,10 @@ function parseAppliedEnvelope(
       status: "held",
       applied: true,
       saga_id: sagaId,
-      reason: SAFE_TOKEN.test(text(decision.reason)) ? text(decision.reason) : "runtime_reconciliation_held",
-      mutation_performed: decision.mutation_performed === true,
-      broadcaster_inspection_performed: decision.broadcaster_called === true,
-      reconciliation_required: decision.reconciliation_required === true,
+      reason: decision.reason,
+      mutation_performed: decision.mutation_performed,
+      broadcaster_inspection_performed: decision.broadcaster_called,
+      reconciliation_required: decision.reconciliation_required,
       side_effect_state_known: true,
       ...ZERO_AUTHORITY,
       authority: VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_AUTHORITY_V1,

@@ -200,6 +200,38 @@ function appliedFixture(input: {
   };
 }
 
+function heldFixture(): Record<string, unknown> {
+  return {
+    marker: CHILD_MARKER,
+    version: 1,
+    ok: false,
+    applied: true,
+    saga_id: SAGA_ID,
+    execute_prepared_transaction_mounted: false,
+    submit_once_runtime_adapter: false,
+    inspect_submission_runtime_adapter: true,
+    transaction_broadcast_performed: false,
+    money_movement_performed: false,
+    decision: {
+      ok: false,
+      status: "held",
+      applied: true,
+      stage: "external_inspection",
+      reason: "synthetic_reconciliation_hold",
+      mutation_performed: false,
+      broadcaster_called: true,
+      submission_call_performed: false,
+      transaction_broadcast_performed: false,
+      reconciliation_required: true,
+      automatic_retry_allowed: false,
+      signed_payload_bytes_persisted: false,
+      signed_payload_bytes_returned: false,
+      money_movement_performed: false,
+    },
+    authority: authority(),
+  };
+}
+
 assert.equal(
   buyVoidProductionBroadcastReconciliationStatusEndpointV1({}),
   `http://127.0.0.1:4100${STATUS_PATH}`,
@@ -482,6 +514,104 @@ assert.equal(applied.transaction_broadcast_performed, false);
 assert.equal(applied.money_movement_performed, false);
 assert.equal(postCount, 3);
 
+async function observeAppliedEnvelope(
+  envelope: Record<string, unknown>,
+) {
+  let calls = 0;
+  const result = await runBuyVoidProductionBroadcastReconciliationV1({
+    args: {
+      saga_id: SAGA_ID,
+      apply: true,
+      expected_plan_fingerprint_sha256: plan.plan_fingerprint_sha256,
+      confirmation: RUNTIME_CONFIRMATION,
+      coordinator_confirmation: COORDINATOR_CONFIRMATION,
+      policy_fingerprint_sha256: POLICY_FP,
+      saga_confirmation: SAGA_CONFIRMATION,
+      saga_action_confirmation: ACTION_CONFIRMATION,
+    },
+    http_get: async () => ({
+      status: 200,
+      json: statusFixture({ applyEnabled: true, socketConfigured: true }),
+    }),
+    http_post: async () => {
+      calls += 1;
+      return calls <= 2
+        ? { status: 200, json: dryFixture() }
+        : { status: 200, json: envelope };
+    },
+  });
+  assert.equal(calls, 3);
+  return result;
+}
+
+const exactHeld = await observeAppliedEnvelope(heldFixture());
+assert.equal(exactHeld.ok, false);
+assert.equal(exactHeld.status, "held");
+assert.equal(exactHeld.reason, "synthetic_reconciliation_hold");
+assert.equal(exactHeld.side_effect_state_known, true);
+assert.equal(exactHeld.mutation_performed, false);
+assert.equal(exactHeld.broadcaster_inspection_performed, true);
+assert.equal(exactHeld.reconciliation_required, true);
+
+const exactDecisionBooleanFields = [
+  "applied",
+  "mutation_performed",
+  "broadcaster_called",
+  "submission_call_performed",
+  "transaction_broadcast_performed",
+  "reconciliation_required",
+  "money_movement_performed",
+] as const;
+const malformedDecisionBooleanValues = [
+  { label: "missing", value: undefined },
+  { label: "null", value: null },
+  { label: "string", value: "false" },
+  { label: "number", value: 0 },
+] as const;
+const appliedEnvelopeFactories = [
+  {
+    label: "success",
+    create: () => appliedFixture({ outcome: "confirmed" }),
+  },
+  { label: "held", create: heldFixture },
+] as const;
+
+for (const factory of appliedEnvelopeFactories) {
+  for (const field of exactDecisionBooleanFields) {
+    for (const malformed of malformedDecisionBooleanValues) {
+      const envelope = factory.create() as any;
+      if (malformed.value === undefined) {
+        delete envelope.decision[field];
+      } else {
+        envelope.decision[field] = malformed.value;
+      }
+      const result = await observeAppliedEnvelope(envelope);
+      const label = `${factory.label}:${field}:${malformed.label}`;
+      assert.equal(result.ok, false, label);
+      assert.equal(result.status, "reconciliation_unknown", label);
+      assert.equal(result.side_effect_state_known, false, label);
+      assert.equal(result.reconciliation_required, true, label);
+      assert.equal(result.automatic_retry_allowed, false, label);
+    }
+  }
+}
+
+for (const field of ["stage", "reason"] as const) {
+  const envelope = heldFixture() as any;
+  envelope.decision[field] = [envelope.decision[field]];
+  const result = await observeAppliedEnvelope(envelope);
+  assert.equal(result.ok, false, field);
+  assert.equal(result.status, "reconciliation_unknown", field);
+  assert.equal(result.side_effect_state_known, false, field);
+}
+
+const arrayStatusEnvelope = appliedFixture({ outcome: "confirmed" }) as any;
+arrayStatusEnvelope.decision.status = ["confirmed"];
+const arrayStatus = await observeAppliedEnvelope(arrayStatusEnvelope);
+assert.equal(arrayStatus.ok, false);
+assert.equal(arrayStatus.status, "reconciliation_unknown");
+assert.equal(arrayStatus.side_effect_state_known, false);
+
 for (const outcome of ["unknown", "accepted"] as const) {
   let contradictoryPosts = 0;
   const contradictory = await runBuyVoidProductionBroadcastReconciliationV1({
@@ -743,6 +873,9 @@ process.stdout.write(`${JSON.stringify({
   dry_apply_support_boundary_revalidated: true,
   reconciliation_broadcast_confirmation_forbidden: true,
   applied_envelope_ok_binding_revalidated: true,
+  applied_envelope_exact_boolean_schema: true,
+  malformed_side_effect_truth_reconciliation_unknown: true,
+  held_envelope_exact_scalar_schema: true,
   submit_once_runtime_adapter: false,
   inspect_submission_runtime_adapter: true,
   transport_unknown_reconciliation_required: true,
