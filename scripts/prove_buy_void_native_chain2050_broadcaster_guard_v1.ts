@@ -68,7 +68,13 @@ for (const marker of [
   "Transaction.from(raw)",
   "transaction.chainId !== policy.expected_chain_id",
   "returnedHash !== expectedHash",
-  '"error_code" in response',
+  "normalizeTransportResult",
+  '"transport_result_boundary_invalid"',
+  "Object.prototype.hasOwnProperty.call",
+  "record.ok === true",
+  "record.ok === false",
+  'input.method === "eth_sendRawTransaction"',
+  "providerRaw !== safeProviderSubmissionId(providerRaw)",
   '"reason" in startupProbe',
   '"reason" in liveProbe',
   "agent: false",
@@ -140,9 +146,21 @@ assert.equal(
 );
 
 assert.equal(
-  (moduleText.match(/"error_code" in response/g) || []).length,
-  2,
-  "JSON-RPC result unions must use explicit held-result narrowing",
+  (moduleText.match(/normalizeTransportResult\(input, response\)/g) || [])
+    .length,
+  1,
+  "all injected transport returns must cross the runtime result validator",
+);
+assert.equal(
+  moduleText.indexOf("const response: unknown = await transport.call(input)") <
+    moduleText.indexOf("return normalizeTransportResult(input, response)"),
+  true,
+  "transport result validation must occur immediately after the injected call",
+);
+assert.equal(
+  moduleText.includes('error_code: "transport_result_boundary_invalid"'),
+  true,
+  "malformed injected results must become a fail-closed held result",
 );
 assert.equal(
   moduleText.includes('"reason" in startupProbe'),
@@ -194,6 +212,18 @@ assert.equal(
 );
 assert.equal(
   behaviorProof.includes("submission_may_have_occurred"),
+  true,
+);
+assert.equal(
+  behaviorProof.includes("transport_result_boundary_invalid"),
+  true,
+);
+assert.equal(
+  behaviorProof.includes("bad provider id!"),
+  true,
+);
+assert.equal(
+  behaviorProof.includes("malformed transport result accepted"),
   true,
 );
 

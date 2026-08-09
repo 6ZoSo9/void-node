@@ -33,6 +33,34 @@ POST /__void/operator/buy-void-runtime-v1/command
 
 The parent Buy VOID runtime and the crash-consistent saga runtime remain disabled by default.
 
+
+## Inventory-pool authority
+
+The saga runtime does not own a separate inventory-pool name. Its server policy
+uses the existing Buy VOID inventory authority:
+
+```text
+VOID_BUY_VOID_INVENTORY_POOL_ID
+```
+
+This value is required for the saga server policy to configure successfully,
+must satisfy the bounded pool-ID syntax contract, is included in the stable
+inventory-policy fingerprint, and therefore changes the saga policy ID if it
+changes. The runtime and prepared-transaction coordinator consume the exact
+`server_policy.inventory_policy.pool_id`; neither keeps a private fallback pool
+constant.
+
+The current Mainnet-0 production reservation pool is:
+
+```text
+void-presale-mainnet0-v1
+```
+
+This prevents the saga path from silently reserving against the obsolete
+`void-fixed-price-pool-v1` bucket while production inventory is already tracked
+under the Mainnet-0 presale pool. Missing or invalid pool configuration holds
+before saga business-stage mutation.
+
 ## Separate transaction-preparation gate
 
 Enabling the existing saga runtime does **not** enable transaction preparation.
