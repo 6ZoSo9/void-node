@@ -36,6 +36,7 @@ import {
   type VoidUdpSwarmRelayRetirementRevalidationV1,
 } from "./p2p/udp_swarm_relay_retirement_executor_v1.js";
 import {
+  VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_RETRY_INTERVAL_MS_V1,
   evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1,
   type VoidUdpSwarmPostRetirementRecoveryDecisionV1,
 } from "./p2p/udp_swarm_post_retirement_recovery_policy_v1.js";
@@ -78,6 +79,7 @@ type UdpSwarmPostRetirementRecoveryContextV1 = {
   relay_retired_at_ms: number;
   reacquisition_attempt_count: number;
   last_reacquisition_attempt_at_ms: number | null;
+  local_admission_retry_at_ms: number | null;
   last_request_id: string | null;
   last_error: string | null;
   last_decision_reason: string | null;
@@ -178,6 +180,7 @@ private captureUdpSwarmPostRetirementRecoveryAfterDirectCloseV1(
     relay_retired_at_ms: healthContext.relay_retired_at_ms,
     reacquisition_attempt_count: 0,
     last_reacquisition_attempt_at_ms: null,
+    local_admission_retry_at_ms: null,
     last_request_id: null,
     last_error: null,
     last_decision_reason: null,
@@ -313,14 +316,24 @@ private sweepUdpSwarmPostRetirementRecoveryV1(
       decision.next_attempt_number === null
     ) continue;
 
-    context.reacquisition_attempt_count = decision.next_attempt_number;
-    context.last_reacquisition_attempt_at_ms = nowMs;
+    if (
+      context.local_admission_retry_at_ms !== null &&
+      nowMs < context.local_admission_retry_at_ms
+    ) {
+      context.last_decision_reason =
+        "local_relay_admission_retry_interval_not_elapsed";
+      continue;
+    }
+
     const requestId = this.connectViaRelay(
       context.relay_node_id,
       context.peer_node_id,
     );
     context.last_request_id = requestId ?? null;
     if (requestId) {
+      context.reacquisition_attempt_count = decision.next_attempt_number;
+      context.last_reacquisition_attempt_at_ms = nowMs;
+      context.local_admission_retry_at_ms = null;
       context.last_error = null;
       attemptsStarted += 1;
       console.warn("VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_V1_REQUESTED", {
@@ -332,7 +345,14 @@ private sweepUdpSwarmPostRetirementRecoveryV1(
         attempt_number: context.reacquisition_attempt_count,
       });
     } else {
+      const retryAtMs =
+        nowMs +
+        VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_RETRY_INTERVAL_MS_V1;
+      context.local_admission_retry_at_ms = Number.isSafeInteger(retryAtMs)
+        ? retryAtMs
+        : Number.MAX_SAFE_INTEGER;
       context.last_error = "relay_connect_request_not_started";
+      context.last_decision_reason = "local_relay_admission_rejected";
       attemptsRejected += 1;
     }
   }
@@ -361,6 +381,10 @@ udpSwarmPostRetirementRecoverySnapshotV1(nowMs = Date.now()) {
         reacquisition_attempt_count: context.reacquisition_attempt_count,
         last_reacquisition_attempt_at_ms:
           context.last_reacquisition_attempt_at_ms,
+        local_admission_retry_at_ms: context.local_admission_retry_at_ms,
+        local_admission_retry_active:
+          context.local_admission_retry_at_ms !== null &&
+          nowMs < context.local_admission_retry_at_ms,
         last_request_id: context.last_request_id,
         last_error: context.last_error,
         last_decision_reason: context.last_decision_reason,
