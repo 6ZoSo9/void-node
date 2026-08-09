@@ -8,6 +8,7 @@ import { Node } from "../src/node_core.js";
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import { VoidUdpSwarmDirectRouteHealthObserverV1 } from "../src/p2p/udp_swarm_direct_route_health_observer_v1.js";
 import { VoidUdpSwarmDirectRouteHealthProbeV1 } from "../src/p2p/udp_swarm_direct_route_health_probe_v1.js";
+import { VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1 } from "../src/p2p/relay_v1.js";
 import { VoidUdpSwarmRelayRetirementExecutorV1 } from "../src/p2p/udp_swarm_relay_retirement_executor_v1.js";
 
 class TestSocket {
@@ -315,15 +316,84 @@ function main(): void {
       "fresh_relay_reacquisition_may_be_authorized",
     );
     assert.equal(armed.recoveries[0]?.reacquisition_attempt_count, 0);
+    assert.equal(armed.recoveries[0]?.last_reacquisition_attempt_at_ms, null);
+    assert.equal(armed.recoveries[0]?.local_admission_retry_at_ms, null);
     assert.equal(armed.recoveries[0]?.last_request_id, null);
     assert.equal(armed.network_dial_performed, false);
     assert.equal(armed.verified_direct_evidence_persisted, false);
     assert.equal(armed.production_udp_activation_performed, false);
 
-    // First bounded recovery attempt uses the existing relay client API and
-    // sends one fresh RELAY_CONNECT through the exact authenticated relay node.
+    // Saturate unrelated local pending capacity. connectViaRelay must reject
+    // admission without sending RELAY_CONNECT and without consuming one of the
+    // three network-attempt slots. The runtime adds a local 5-second backoff.
+    for (let i = 0; i < VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1; i += 1) {
+      core.relayPendingConnects.set(i.toString(16).padStart(32, "0"), {
+        relay_node_id: "33".repeat(16),
+        target_node_id: "44".repeat(16),
+        requested_at_ms: recoveryStartMs,
+      });
+    }
+    assert.equal(
+      core.relayPendingConnects.size,
+      VOID_P2P_RELAY_MAX_PENDING_REQUESTS_V1,
+    );
     assert.deepEqual(
       core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs),
+      {
+        contexts: 1,
+        attempts_started: 0,
+        attempts_rejected: 1,
+        contexts_cleared: 0,
+      },
+    );
+    assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 0);
+    const admissionRejected = node.udpSwarmPostRetirementRecoverySnapshotV1(
+      recoveryStartMs,
+    );
+    assert.equal(admissionRejected.recoveries[0]?.reacquisition_attempt_count, 0);
+    assert.equal(
+      admissionRejected.recoveries[0]?.last_reacquisition_attempt_at_ms,
+      null,
+    );
+    assert.equal(
+      admissionRejected.recoveries[0]?.local_admission_retry_at_ms,
+      recoveryStartMs + 5_000,
+    );
+    assert.equal(
+      admissionRejected.recoveries[0]?.last_error,
+      "relay_connect_request_not_started",
+    );
+    assert.equal(
+      admissionRejected.recoveries[0]?.last_decision_reason,
+      "local_relay_admission_rejected",
+    );
+    core.relayPendingConnects.clear();
+
+    assert.deepEqual(
+      core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs + 4_999),
+      {
+        contexts: 1,
+        attempts_started: 0,
+        attempts_rejected: 0,
+        contexts_cleared: 0,
+      },
+    );
+    assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 0);
+    const localBackoff = node.udpSwarmPostRetirementRecoverySnapshotV1(
+      recoveryStartMs + 4_999,
+    );
+    assert.equal(localBackoff.recoveries[0]?.reacquisition_attempt_count, 0);
+    assert.equal(localBackoff.recoveries[0]?.local_admission_retry_active, true);
+    assert.equal(
+      localBackoff.recoveries[0]?.last_decision_reason,
+      "local_relay_admission_retry_interval_not_elapsed",
+    );
+
+    // First real bounded recovery attempt starts only after local admission
+    // becomes available; this is network attempt #1, not #2.
+    const firstAttemptMs = recoveryStartMs + 5_000;
+    assert.deepEqual(
+      core.sweepUdpSwarmPostRetirementRecoveryV1(firstAttemptMs),
       {
         contexts: 1,
         attempts_started: 1,
@@ -341,20 +411,30 @@ function main(): void {
     assert.equal(firstConnect.target_node_id, remote.nodeId);
     assert.equal(core.relayPendingConnects.size, 1);
 
+    const firstStarted = node.udpSwarmPostRetirementRecoverySnapshotV1(
+      firstAttemptMs,
+    );
+    assert.equal(firstStarted.recoveries[0]?.reacquisition_attempt_count, 1);
+    assert.equal(
+      firstStarted.recoveries[0]?.last_reacquisition_attempt_at_ms,
+      firstAttemptMs,
+    );
+    assert.equal(firstStarted.recoveries[0]?.local_admission_retry_at_ms, null);
+
     const firstPending = core.relayPendingConnects.get(firstConnect.request_id);
     assert(firstPending);
     assert.equal(firstPending.relay_node_id, relay.nodeId);
     assert.equal(firstPending.target_node_id, remote.nodeId);
 
     const inFlight = node.udpSwarmPostRetirementRecoverySnapshotV1(
-      recoveryStartMs + 5_000,
+      firstAttemptMs + 5_000,
     );
     assert.equal(
       inFlight.recoveries[0]?.decision.reason,
       "recovery_already_in_flight",
     );
     assert.deepEqual(
-      core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs + 5_000),
+      core.sweepUdpSwarmPostRetirementRecoveryV1(firstAttemptMs + 5_000),
       {
         contexts: 1,
         attempts_started: 0,
@@ -365,7 +445,7 @@ function main(): void {
     assert.equal(relayConnectCount(fixture.sent, fixture.relayControlPeer), 1);
 
     // A rejection clears the existing relay pending request. Retry is still
-    // bounded by the recovery policy's local monotonic attempt timestamp.
+    // bounded by the recovery policy's monotonic network-attempt timestamp.
     core.onRelayControlMessage(fixture.relayControlPeer, {
       type: "RELAY_REJECT",
       request_id: firstConnect.request_id,
@@ -374,7 +454,7 @@ function main(): void {
     assert.equal(core.relayPendingConnects.size, 0);
 
     assert.deepEqual(
-      core.sweepUdpSwarmPostRetirementRecoveryV1(recoveryStartMs + 4_999),
+      core.sweepUdpSwarmPostRetirementRecoveryV1(firstAttemptMs + 4_999),
       {
         contexts: 1,
         attempts_started: 0,
@@ -383,14 +463,14 @@ function main(): void {
       },
     );
     const tooSoon = node.udpSwarmPostRetirementRecoverySnapshotV1(
-      recoveryStartMs + 4_999,
+      firstAttemptMs + 4_999,
     );
     assert.equal(
       tooSoon.recoveries[0]?.decision.reason,
       "retry_interval_not_elapsed",
     );
 
-    const secondAttemptMs = recoveryStartMs + 5_000;
+    const secondAttemptMs = firstAttemptMs + 5_000;
     assert.deepEqual(
       core.sweepUdpSwarmPostRetirementRecoveryV1(secondAttemptMs),
       {
@@ -530,6 +610,9 @@ function main(): void {
     assert.equal(fixture.directSocket.destroyed, false);
 
     console.log("fresh_relay_connect_requests=3");
+    console.log("local_admission_rejections=1");
+    console.log("local_admission_rejection_consumes_network_attempt=false");
+    console.log("local_admission_retry_interval_ms=5000");
     console.log("duplicate_request_while_in_flight=false");
     console.log("retired_stream_reused=false");
     console.log("replacement_stream_duplicate_request=false");
