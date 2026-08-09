@@ -52,13 +52,6 @@ tool = replace_once(
 
 tool = replace_once(
     tool,
-    '''export function buildApplyScriptV1(config, plan) {\n  const node = config.node;\n''',
-    '''export function buildApplyScriptV1(config, plan) {\n  verifyCoordinatorRemoteBindingV1(config);\n  const node = config.node;\n''',
-    "apply builder coordinator remote binding",
-)
-
-tool = replace_once(
-    tool,
     '''expected_remote_url=${bashLiteral(node.expected_remote_url)}\n''',
     '''expected_remote_url=${bashLiteral(assertSafeGitRemoteUrl(node.expected_remote_url, "node expected_remote_url"))}\n''',
     "apply script remote validation",
@@ -98,8 +91,8 @@ proof = replace_once(
 proof = replace_once(
     proof,
     '''  const fixtureConfig = validateFleetConfigV1(baseConfig(good, remote), "nimo");\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
-    '''  const fixtureConfig = validateFleetConfigV1(baseConfig(good, remote), "nimo");\n  assert.equal(verifyCoordinatorRemoteBindingV1(fixtureConfig), true);\n  const mismatchedRemoteConfig = validateFleetConfigV1(\n    baseConfig(good, join(root, "different-origin.git")),\n    "nimo",\n  );\n  assert.throws(\n    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),\n    /must exactly match coordinator canonical remote URL/,\n  );\n  assert.throws(\n    () => buildApplyScriptV1(mismatchedRemoteConfig, fixedPlan),\n    /must exactly match coordinator canonical remote URL/,\n    "exported apply builder must enforce coordinator remote binding",\n  );\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
-    "proof coordinator and apply-builder remote binding",
+    '''  const fixtureConfig = validateFleetConfigV1(baseConfig(good, remote), "nimo");\n  assert.equal(verifyCoordinatorRemoteBindingV1(fixtureConfig), true);\n  const mismatchedRemoteConfig = validateFleetConfigV1(\n    baseConfig(good, join(root, "different-origin.git")),\n    "nimo",\n  );\n  assert.throws(\n    () => verifyCoordinatorRemoteBindingV1(mismatchedRemoteConfig),\n    /must exactly match coordinator canonical remote URL/,\n  );\n  const fixtureAudit = validateFleetAuditV1(buildAudit(fromSha, toSha), fixtureConfig, "nimo");\n''',
+    "proof coordinator remote binding",
 )
 
 PROOF.write_text(proof)
@@ -115,7 +108,7 @@ doc = replace_once(
 doc = replace_once(
     doc,
     '''The value must exactly match `git remote get-url origin` on that node. HTTPS is\nalso valid when it is the node's exact configured URL. Do not place tokens,\npasswords, private-key paths, or authorization headers in this file.\n''',
-    '''The value must exactly match `git remote get-url origin` on that node **and**\nthe coordinator's own canonical remote URL. Before any fetch, the controller\naccepts only HTTPS, `ssh://`, scp-style SSH (for example `git@github.com:...`),\nor an absolute local path used by deterministic fixtures. Git remote-helper\nsyntax such as `ext::...`, unknown URL schemes, and `file://` URLs fail closed.\nThe exported apply-script builder enforces the same coordinator binding, so\nlibrary callers cannot bypass the CLI guard. Do not place tokens, passwords,\nprivate-key paths, or authorization headers in this file.\n''',
+    '''The value must exactly match `git remote get-url origin` on that node **and**\nthe coordinator's own canonical remote URL. Before any fetch, the controller\naccepts only HTTPS, `ssh://`, scp-style SSH (for example `git@github.com:...`),\nor an absolute local path used by deterministic fixtures. Git remote-helper\nsyntax such as `ext::...`, unknown URL schemes, and `file://` URLs fail closed.\nDo not place tokens, passwords, private-key paths, or authorization headers in\nthis file.\n''',
     "doc safe remote and coordinator binding",
 )
 
