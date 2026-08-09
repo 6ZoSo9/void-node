@@ -26,7 +26,11 @@ function greenSnapshot(overrides = {}) {
     readiness_json_ok: true,
     readiness: { ready: true, gap: 0 },
     peers_json_ok: true,
-    peers: { peers: [{ nodeId: "peer" }] },
+    peers: {
+      connected: [{ id: "peer", addr: "127.0.0.1:4700" }],
+      knownAddrs: ["127.0.0.1:4700"],
+      verifiedPeers: [],
+    },
     ...overrides,
   };
 }
@@ -79,7 +83,18 @@ for (const [name, snapshot, comparison, expectedReason] of [
   ["service", greenSnapshot({ service_active: false }), { relation: "current" }, "service_inactive"],
   ["health", greenSnapshot({ health: { ok: false } }), { relation: "current" }, "health_not_green"],
   ["ready", greenSnapshot({ readiness: { ready: false, gap: 1 } }), { relation: "current" }, "readiness_not_green"],
-  ["peers", greenSnapshot({ peers: { peers: [] } }), { relation: "current" }, "peer_floor_not_met"],
+  [
+    "peers",
+    greenSnapshot({
+      peers: {
+        connected: [],
+        knownAddrs: ["127.0.0.1:4700"],
+        verifiedPeers: [{ node_id: "cached-peer", addresses: ["127.0.0.1:4700"] }],
+      },
+    }),
+    { relation: "current" },
+    "peer_floor_not_met",
+  ],
   ["diverged", greenSnapshot(), { relation: "diverged" }, "git_diverged"],
 ]) {
   const result = classifyNodeSnapshotV1(snapshot, comparison, 1);
