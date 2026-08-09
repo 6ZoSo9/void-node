@@ -1,6 +1,14 @@
 --- a/src/node_core.ts
 +++ b/src/node_core.ts
-@@ -332,6 +332,15 @@
+@@ -261,6 +261,7 @@
+   readonly localPort?: number;
+   readonly remoteAddress?: string;
+   readonly remotePort?: number;
++  readonly destroyed?: boolean;
+ };
+ 
+ type RelayLocalStreamV1 = {
+@@ -332,6 +333,15 @@
    udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1;
  };
  
@@ -16,7 +24,7 @@
  /** ================================================================= */
  /**                               Node                                 */
  /** ================================================================= */
-@@ -408,6 +417,8 @@
+@@ -408,6 +418,8 @@
    private readonly udpSwarmAllowNonPublicEndpoint: boolean;
    private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;
    private readonly udpSwarmDirectCandidates = new Map<string, Peer>();
@@ -25,7 +33,7 @@
  
    private readonly directUpgradeEnabled: boolean;
    private readonly directUpgradeAllowNonPublicCandidates: boolean;
-@@ -672,6 +683,7 @@
+@@ -672,6 +684,7 @@
        peer.udpSwarmDirectCandidate?.candidate.discard("node_stopping");
      }
      this.udpSwarmDirectCandidates.clear();
@@ -33,7 +41,7 @@
      for (const p of this.peers.values()) {
        p.suppressReconnect = true;
        p.socket.destroy();
-@@ -1384,12 +1396,12 @@
+@@ -1384,14 +1397,15 @@
      peer.socket.destroy();
    }
  
@@ -47,8 +55,11 @@
 -  const relayPeer = this.peers.get(expectedPeerNodeId);
    if (
      !relayPeer ||
++    relayPeer.socket.destroyed === true ||
      !relayPeer.handshakeDone ||
-@@ -1411,6 +1423,34 @@
+     relayPeer.id !== expectedPeerNodeId ||
+     relayPeer.transport !== "relay" ||
+@@ -1411,6 +1425,34 @@
    return relayPeer;
  }
  
@@ -83,7 +94,7 @@
  private sweepUdpSwarmAuthenticatedDirectCandidatesV1(
    reason = "relay_fallback_lost",
  ): void {
-@@ -1758,6 +1798,175 @@
+@@ -1758,6 +1800,175 @@
    };
  }
  
@@ -259,7 +270,7 @@
  attachEphemeralDirectTransportV1(
      socket: PeerSocketV1,
      expectedNodeId: string,
-@@ -1861,7 +2070,11 @@
+@@ -1861,7 +2072,11 @@
            peer,
          );
        }
@@ -272,7 +283,7 @@
        if (peer.directUpgradeSessionId) {
          this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
        }
-@@ -1958,6 +2171,17 @@
+@@ -1958,6 +2173,17 @@
  
      if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
  
