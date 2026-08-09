@@ -677,6 +677,7 @@ async function main(): Promise<void> {
     assert.equal(confirmedReceipt.to_address, deliveryAddress);
     assert.equal(confirmedReceipt.amount_units, amountUnits);
 
+    const closeoutPlanFingerprint = sha256("e2e:closeout-plan");
     const closeoutDryDecision = {
       ok: true,
       status: "dry_run",
@@ -685,10 +686,11 @@ async function main(): Promise<void> {
       saga_id: sagaId,
       attempt_id: attemptId,
       closeout_id: sha256("e2e-rehearsal:closeout"),
-      plan: {},
+      plan: { plan_fingerprint_sha256: closeoutPlanFingerprint },
       required_confirmation:
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
       required_policy_fingerprint_sha256: sha256("e2e:closeout-policy"),
+      required_plan_fingerprint_sha256: closeoutPlanFingerprint,
       required_saga_confirmation: "e2e-closeout-saga-confirmation-v1",
       required_saga_action_confirmation:
         "e2e-closeout-action-confirmation-v1",
@@ -708,6 +710,10 @@ async function main(): Promise<void> {
       assert.equal(
         input.confirmation,
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
+      );
+      assert.equal(
+        input.expected_plan_fingerprint_sha256,
+        closeoutPlanFingerprint,
       );
       return {
         ok: true,
@@ -739,6 +745,10 @@ async function main(): Promise<void> {
     );
     assert.equal(closeoutDry.status, 200);
     assert.equal(closeoutDry.body.status, "dry_run");
+    assert.equal(
+      closeoutDry.body.required_terminal_plan_fingerprint_sha256,
+      closeoutPlanFingerprint,
+    );
 
     const closeoutApplied = await callCloseout(
       {
@@ -751,6 +761,8 @@ async function main(): Promise<void> {
           closeoutDry.body.required_terminal_closeout_confirmation,
         policy_fingerprint_sha256:
           closeoutDry.body.required_policy_fingerprint_sha256,
+        terminal_plan_fingerprint_sha256:
+          closeoutDry.body.required_terminal_plan_fingerprint_sha256,
         saga_confirmation: closeoutDry.body.required_saga_confirmation,
         saga_action_confirmation:
           closeoutDry.body.required_saga_action_confirmation,

@@ -143,6 +143,38 @@ function provePoisonedSparseIndexFallsBack() {
   });
 }
 
+function proveFutureSparseAnchorsDoNotPoisonEarlierReads() {
+  withRoot("future-index-anchor", (root) => {
+    const block0 = makeBlock(0);
+    const block1 = makeBlock(1, block0);
+    const block2 = makeBlock(2, block1);
+    const store = new SegStore(root, { sparseEvery: 1 });
+    store.saveBlock(block0);
+    store.saveBlock(block1);
+    store.saveBlock(block2);
+
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      warnings.push(args);
+    };
+    try {
+      assert.deepEqual(store.loadBlock(1), block1);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const sparseFallbackWarnings = warnings.filter(
+      (args) => args?.[1]?.scope === "canonical-read-sparse-index-fallback",
+    );
+    assert.equal(
+      sparseFallbackWarnings.length,
+      0,
+      "valid sparse anchors above the requested height must not poison the index fast path",
+    );
+  });
+}
+
 function proveMalformedCompleteJsonFailsClosed() {
   withRoot("bad-json", (root) => {
     seedRoot(root, 0);
@@ -216,6 +248,7 @@ function proveEarlierSatisfiedReadDoesNotInspectLaterTornTail() {
 proveOrdinaryReadAndTrueAbsence();
 proveSegmentMayBeginAboveBase();
 provePoisonedSparseIndexFallsBack();
+proveFutureSparseAnchorsDoNotPoisonEarlierReads();
 proveMalformedCompleteJsonFailsClosed();
 proveInvalidBlockNumberFailsClosed();
 proveWrongSegmentFailsClosed();
@@ -227,6 +260,7 @@ proveEarlierSatisfiedReadDoesNotInspectLaterTornTail();
 console.log("ordinary_missing_block_returns_null=true");
 console.log("non_base_first_frame_supported=true");
 console.log("poisoned_sparse_index_false_absence=false");
+console.log("future_sparse_anchor_triggers_fallback=false");
 console.log("malformed_complete_frame_returns_null=false");
 console.log("invalid_block_number_returns_null=false");
 console.log("wrong_segment_frame_returns_null=false");
