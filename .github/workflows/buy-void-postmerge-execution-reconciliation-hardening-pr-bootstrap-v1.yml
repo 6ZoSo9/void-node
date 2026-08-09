@@ -92,8 +92,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git diff --check
-          mapfile -t changed < <(git diff --name-only | sort)
+          git diff HEAD --check
+          mapfile -t changed < <(git diff HEAD --name-only | sort)
           expected=(
             docs/operators/buy-void-production-native-execution-operator-v1.md
             scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts
@@ -187,7 +187,7 @@ jobs:
           PR_HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          git diff --check
+          git diff HEAD --check
           git add -- \
             docs/operators/buy-void-production-native-execution-operator-v1.md \
             scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts \
