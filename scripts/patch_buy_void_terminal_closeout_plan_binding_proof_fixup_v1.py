@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+# Carrier retry marker: exact #1153 remaining-anchor audit passed.
 path = Path("scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts")
 text = path.read_text()
 old = '''  "policy_fingerprint_sha256",
