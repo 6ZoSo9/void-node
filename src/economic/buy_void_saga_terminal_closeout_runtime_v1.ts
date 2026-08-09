@@ -29,6 +29,7 @@ export const VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_AUTHORITY_V1 = {
   exact_runtime_confirmation_required: true,
   exact_terminal_closeout_confirmation_required: true,
   exact_policy_fingerprint_echo_required: true,
+  exact_terminal_plan_fingerprint_echo_required: true,
   exact_saga_confirmation_required: true,
   exact_saga_action_confirmation_required: true,
   dry_run_available_without_apply_enable: true,
@@ -61,6 +62,7 @@ const ALLOWED_KEYS = new Set([
   "confirmation",
   "terminal_closeout_confirmation",
   "policy_fingerprint_sha256",
+  "terminal_plan_fingerprint_sha256",
   "saga_confirmation",
   "saga_action_confirmation",
 ]);
@@ -327,6 +329,8 @@ export async function handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1(
       required_terminal_closeout_confirmation: dry.required_confirmation,
       required_policy_fingerprint_sha256:
         dry.required_policy_fingerprint_sha256,
+      required_terminal_plan_fingerprint_sha256:
+        dry.required_plan_fingerprint_sha256,
       required_saga_confirmation: dry.required_saga_confirmation,
       required_saga_action_confirmation:
         dry.required_saga_action_confirmation,
@@ -359,6 +363,9 @@ export async function handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1(
       dry.required_confirmation &&
     text(body.policy_fingerprint_sha256).toLowerCase() ===
       dry.required_policy_fingerprint_sha256 &&
+    typeof body.terminal_plan_fingerprint_sha256 === "string" &&
+    body.terminal_plan_fingerprint_sha256 ===
+      dry.required_plan_fingerprint_sha256 &&
     text(body.saga_confirmation) === dry.required_saga_confirmation &&
     text(body.saga_action_confirmation) ===
       dry.required_saga_action_confirmation;
@@ -373,6 +380,8 @@ export async function handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1(
       required_terminal_closeout_confirmation: dry.required_confirmation,
       required_policy_fingerprint_sha256:
         dry.required_policy_fingerprint_sha256,
+      required_terminal_plan_fingerprint_sha256:
+        dry.required_plan_fingerprint_sha256,
       required_saga_confirmation: dry.required_saga_confirmation,
       required_saga_action_confirmation:
         dry.required_saga_action_confirmation,
@@ -390,6 +399,8 @@ export async function handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1(
     confirmation: dry.required_confirmation,
     policy_fingerprint_sha256:
       dry.required_policy_fingerprint_sha256,
+    expected_plan_fingerprint_sha256:
+      dry.required_plan_fingerprint_sha256,
     saga_confirmation: dry.required_saga_confirmation,
     saga_action_confirmation:
       dry.required_saga_action_confirmation,

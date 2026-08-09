@@ -34,7 +34,12 @@ import {
 } from "../src/economic/buy_void_confirmed_state_journal_v1.js";
 import {
   listBuyVoidInventoryConsumptionsV1,
+  planBuyVoidConfirmedCloseoutV1,
 } from "../src/economic/buy_void_confirmed_closeout_v1.js";
+
+function requireConfirmedCloseoutPlanner(input: any): any {
+  return planBuyVoidConfirmedCloseoutV1(input);
+}
 import {
   readBuyVoidCrashConsistentSagaServerPolicyV1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
@@ -478,6 +483,8 @@ function applyInput(
     confirmation: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
     policy_fingerprint_sha256:
       dry.required_policy_fingerprint_sha256,
+    expected_plan_fingerprint_sha256:
+      dry.required_plan_fingerprint_sha256,
     saga_confirmation: dry.required_saga_confirmation,
     saga_action_confirmation:
       dry.required_saga_action_confirmation,
@@ -581,6 +588,74 @@ async function main(): Promise<void> {
   assert.equal(
     dry.plan.inventory_consumption.canonical_confirmed_state_id,
     fixture.confirmed_state_id,
+  );
+  assert.equal(
+    dry.required_plan_fingerprint_sha256,
+    dry.plan.plan_fingerprint_sha256,
+  );
+
+  const wrongPlanBinding = await runBuyVoidSagaTerminalCloseoutV1({
+    ...applyInput(dry, fixture),
+    expected_plan_fingerprint_sha256: "0".repeat(64),
+    dependencies,
+  });
+  assert.equal(wrongPlanBinding.ok, false);
+  if (wrongPlanBinding.ok !== false) {
+    throw new Error("expected terminal plan fingerprint hold");
+  }
+  assert.equal(wrongPlanBinding.stage, "closeout_plan");
+  assert.equal(
+    wrongPlanBinding.reason,
+    "terminal_closeout_plan_fingerprint_mismatch",
+  );
+  assert.equal(wrongPlanBinding.mutation_performed, false);
+  assert.equal(wrongPlanBinding.inventory_consumption_performed, false);
+  assert.equal(wrongPlanBinding.public_request_fulfilled, false);
+  assert.equal(wrongPlanBinding.saga_closeout_appended, false);
+  assert.equal(listBuyVoidInventoryConsumptionsV1(fixture.root).length, 0);
+
+  let innerPlanCalls = 0;
+  const innerPlanDrift = await runBuyVoidSagaTerminalCloseoutV1({
+    ...applyInput(dry, fixture),
+    dependencies: {
+      ...dependencies,
+      plan_closeout: (input: any) => {
+        innerPlanCalls += 1;
+        const planner = requireConfirmedCloseoutPlanner(input);
+        if (
+          planner.ok === true &&
+          innerPlanCalls >= 2
+        ) {
+          return {
+            ...planner,
+            plan: {
+              ...planner.plan,
+              terminal_plan_binding_drift_probe: "inner-reconstruction",
+            },
+          };
+        }
+        return planner;
+      },
+    },
+  });
+  assert.equal(innerPlanDrift.ok, false);
+  if (innerPlanDrift.ok !== false) {
+    throw new Error("expected inner terminal plan drift hold");
+  }
+  assert.equal(innerPlanDrift.stage, "closeout_plan");
+  assert.equal(
+    innerPlanDrift.reason,
+    "terminal_closeout_plan_changed_during_apply",
+  );
+  assert.equal(innerPlanDrift.mutation_performed, false);
+  assert.equal(innerPlanDrift.inventory_consumption_performed, false);
+  assert.equal(innerPlanDrift.public_request_fulfilled, false);
+  assert.equal(innerPlanDrift.saga_closeout_appended, false);
+  assert.equal(listBuyVoidInventoryConsumptionsV1(fixture.root).length, 0);
+  assert.equal(
+    readJsonLines(path.join(fixture.request_dir, "operator-events.jsonl"))
+      .filter((row) => row.operator_status === "fulfilled").length,
+    0,
   );
 
   const confirmedPaths = buyVoidConfirmedStateJournalPathsV1(fixture.root);
@@ -927,6 +1002,8 @@ async function main(): Promise<void> {
   process.stdout.write("inventory_consumption_count=1\n");
   process.stdout.write("public_fulfilled_event_count=1\n");
   process.stdout.write("saga_closeout_event_count=1\n");
+  process.stdout.write("terminal_plan_fingerprint_bound_before_mutation=true\n");
+  process.stdout.write("terminal_plan_inner_reconstruction_drift_blocked=true\n");
   process.stdout.write("post_append_verification_mismatch_saga_append_truth=true\n");
   process.stdout.write("post_append_verification_mismatch_automatic_retry=false\n");
   process.stdout.write("concurrent_process_closeout_unique=true\n");

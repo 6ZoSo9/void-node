@@ -242,6 +242,8 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       required_confirmation:
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
       required_policy_fingerprint_sha256: policy.fingerprint_sha256,
+      required_plan_fingerprint_sha256:
+        reconstructed.plan.plan_fingerprint_sha256,
       required_saga_confirmation: requiredSagaConfirmation,
       required_saga_action_confirmation: requiredActionConfirmation,
       inventory_consumption_performed: false,
@@ -250,6 +252,24 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       automatic_retry_allowed: false,
       money_movement_performed: false,
     };
+  }
+
+  if (
+    typeof input.expected_plan_fingerprint_sha256 !== "string" ||
+    input.expected_plan_fingerprint_sha256 !==
+      reconstructed.plan.plan_fingerprint_sha256
+  ) {
+    return held(
+      true,
+      "closeout_plan",
+      "terminal_closeout_plan_fingerprint_mismatch",
+      {
+        detail: {
+          required_plan_fingerprint_sha256:
+            reconstructed.plan.plan_fingerprint_sha256,
+        },
+      },
+    );
   }
 
   if (
@@ -303,6 +323,12 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
             policy,
             dependencies,
           });
+          if (
+            current.plan.plan_fingerprint_sha256 !==
+            reconstructed.plan.plan_fingerprint_sha256
+          ) {
+            throw new Error("terminal_closeout_plan_changed_during_apply");
+          }
           artifacts = applyTerminalCloseoutArtifactsV1(
             current,
             dependencies,
