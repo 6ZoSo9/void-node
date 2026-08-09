@@ -6,7 +6,6 @@ import { createHash } from "node:crypto";
 import type {
   VoidUdpSwarmRelayRetirementBindingV1,
   VoidUdpSwarmRelayRetirementExecutorPhaseV1,
-  VoidUdpSwarmRelayRetirementExecutorSnapshotV1,
 } from "./udp_swarm_relay_retirement_executor_v1.js";
 
 export const VOID_P2P_UDP_SWARM_RELAY_RETIREMENT_RECEIPT_VERSION_V1 = 1;
@@ -172,24 +171,29 @@ function expectedPerformedFor(
 }
 
 export function buildVoidUdpSwarmRelayRetirementReceiptV1(
-  snapshot: VoidUdpSwarmRelayRetirementExecutorSnapshotV1,
+  snapshotInput: unknown,
 ): VoidUdpSwarmRelayRetirementReceiptResultV1 {
-  if (!hasExactKeys(snapshot, SNAPSHOT_KEYS)) {
+  if (!hasExactKeys(snapshotInput, SNAPSHOT_KEYS)) {
     return failure("invalid_snapshot_shape");
   }
+  const snapshot = snapshotInput as Record<string, unknown>;
   if (snapshot.version !== 1) {
     return failure("invalid_snapshot_shape");
   }
-  if (!validBinding(snapshot.binding)) {
+
+  const bindingInput = snapshot.binding;
+  if (!validBinding(bindingInput)) {
     return failure("invalid_binding");
   }
-  if (snapshot.phase === "pending") {
+
+  const phase = snapshot.phase;
+  if (phase === "pending") {
     return failure("snapshot_not_terminal");
   }
   if (
-    snapshot.phase !== "retired" &&
-    snapshot.phase !== "callback_rejected" &&
-    snapshot.phase !== "callback_indeterminate"
+    phase !== "retired" &&
+    phase !== "callback_rejected" &&
+    phase !== "callback_indeterminate"
   ) {
     return failure("invalid_snapshot_shape");
   }
@@ -204,18 +208,18 @@ export function buildVoidUdpSwarmRelayRetirementReceiptV1(
     return failure("snapshot_inconsistent");
   }
 
-  const expectedPerformed = expectedPerformedFor(snapshot.phase);
+  const expectedPerformed = expectedPerformedFor(phase);
   if (snapshot.relay_retirement_performed !== expectedPerformed) {
     return failure("snapshot_inconsistent");
   }
 
-  const binding = freezeBinding(snapshot.binding);
-  const disposition = dispositionFor(snapshot.phase);
+  const binding = freezeBinding(bindingInput);
+  const disposition = dispositionFor(phase);
   const material = Object.freeze({
     domain: VOID_P2P_UDP_SWARM_RELAY_RETIREMENT_RECEIPT_DOMAIN_V1,
     version: VOID_P2P_UDP_SWARM_RELAY_RETIREMENT_RECEIPT_VERSION_V1,
     binding,
-    executor_phase: snapshot.phase,
+    executor_phase: phase,
     disposition,
     retirement_callback_attempted: true as const,
     relay_retirement_performed: expectedPerformed,
