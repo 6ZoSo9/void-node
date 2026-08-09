@@ -14,12 +14,15 @@ Relay-retirement authorization is returned only when all of the following remain
 - the authenticated peer identity exactly matches the expected peer;
 - the promoted normal route is still live and uses direct transport;
 - the retained relay fallback is still live;
-- the promoted direct route has remained under observation for at least 30 seconds;
+- the promoted direct route is at least 30 seconds old;
+- successful direct round-trip observations span at least 30 seconds from first success to most recent success;
 - at least five direct round trips have succeeded consecutively;
 - no direct round-trip failure has been observed since promotion; and
 - the most recent successful direct round trip is no more than 10 seconds old.
 
-Any missing, stale, malformed, failed, or contradictory evidence returns `retain_relay`.
+Promotion age alone is insufficient. Five successful round trips arriving as a terminal burst after an otherwise unobserved 30-second interval do not prove sustained direct-route health and therefore retain the relay.
+
+Any missing, stale, malformed, failed, contradictory, or too-short success-window evidence returns `retain_relay`.
 
 ## Output boundary
 
@@ -49,7 +52,7 @@ Run:
 npx --no-install tsx scripts/prove_void_p2p_udp_swarm_direct_route_health_policy_v1.ts
 ```
 
-The proof covers malformed binding, identity mismatch, missing direct route, wrong transport, lost relay fallback, invalid clock, insufficient health duration, any failed round trip, insufficient consecutive successes, missing/stale success evidence, the exact freshness boundary, and the successful authorization case.
+The proof covers malformed binding, identity mismatch, missing direct route, wrong transport, lost relay fallback, invalid clock, insufficient route age, any failed round trip, insufficient consecutive successes, missing/invalid first-success evidence, invalid success ordering, a terminal burst that does not span the health window, missing/stale last-success evidence, the exact freshness boundary, and the successful authorization case.
 
 Expected marker:
 
@@ -71,4 +74,4 @@ This lane does not:
 
 ## Next seam
 
-A later observation lane may collect bounded direct-route round-trip evidence and feed this pure policy. A still-later execution lane would require separate authority before acting on `authorize_relay_retirement`.
+A later observation lane may collect bounded direct-route round-trip evidence, including the first and most recent successful observation timestamps, and feed this pure policy. A still-later execution lane would require separate authority before acting on `authorize_relay_retirement`.
