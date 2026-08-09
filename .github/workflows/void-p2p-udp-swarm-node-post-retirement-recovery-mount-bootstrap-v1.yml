@@ -91,9 +91,15 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
+          printf '%s\n' 'src/node_core.ts' > /tmp/expected-tracked-changes.txt
+          git diff --name-only | sort > /tmp/actual-tracked-changes.txt
+          diff -u /tmp/expected-tracked-changes.txt /tmp/actual-tracked-changes.txt
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            > /tmp/expected-untracked.txt
+          git ls-files --others --exclude-standard | sort > /tmp/actual-untracked.txt
+          diff -u /tmp/expected-untracked.txt /tmp/actual-untracked.txt
           git status --short
-          git diff --name-only | sort
-          test "$(git diff --name-only | sort | tr '\n' ' ')" = ".github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml src/node_core.ts "
 
       - name: Retire bootstrap carrier and stage exact publication scope
         shell: bash
