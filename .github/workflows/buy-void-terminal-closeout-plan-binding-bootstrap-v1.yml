@@ -88,7 +88,9 @@ jobs:
           PY
           python3 scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
           git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
-          python3 scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py
+
+      - name: Normalize operator proof key order
+        run: python3 scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py
 
       - name: Prove terminal-closeout core plan binding
         run: npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_v1.ts
