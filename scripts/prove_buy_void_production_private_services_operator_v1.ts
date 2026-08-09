@@ -110,9 +110,10 @@ function dryRunActivation(): any {
   };
 }
 
-function startedActivation(
-  services: { custodian: { stop: () => Promise<void> }; broadcaster: { stop: () => Promise<void> } },
-): any {
+function startedActivation(services: {
+  custodian: { stop: () => Promise<void> };
+  broadcaster: { stop: () => Promise<void> };
+}): any {
   return {
     ok: true,
     status: "started",
@@ -153,8 +154,8 @@ const invalidInput = await runBuyVoidProductionPrivateServicesOperatorV1(
     },
   },
 );
-assert.equal(invalidInput.decision.ok, false);
-assert.equal(invalidInput.decision.stage, "operator_input");
+assert.equal((invalidInput.decision as any).ok, false);
+assert.equal((invalidInput.decision as any).stage, "operator_input");
 assert.equal(activationCalls, 0);
 
 const policyHeld = await runBuyVoidProductionPrivateServicesOperatorV1(
@@ -174,8 +175,8 @@ const policyHeld = await runBuyVoidProductionPrivateServicesOperatorV1(
     },
   },
 );
-assert.equal(policyHeld.decision.ok, false);
-assert.equal(policyHeld.decision.stage, "operator_policy");
+assert.equal((policyHeld.decision as any).ok, false);
+assert.equal((policyHeld.decision as any).stage, "operator_policy");
 assert.equal(activationCalls, 0);
 
 let dryInput: any = null;
@@ -190,27 +191,36 @@ const planned = await runBuyVoidProductionPrivateServicesOperatorV1(
     },
   },
 );
-assert.equal(planned.decision.ok, true);
-assert.equal(planned.decision.status, "planned");
+const plannedDecision = planned.decision as any;
+assert.equal(plannedDecision.ok, true);
+assert.equal(plannedDecision.status, "planned");
 assert.equal(planned.session, null);
 assert.equal(dryInput.policy, productionPolicy);
 assert.equal(dryInput.apply, false);
 assert.equal(dryInput.confirmation, undefined);
 assert.equal(dryInput.expected_plan_id_sha256, undefined);
-assert.equal(planned.decision.production_activation_plan_id_sha256, PLAN_ID);
-assert.equal(planned.decision.required_confirmation,
-  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1);
-assert.equal(planned.decision.required_rpc_readiness_confirmation,
-  VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1);
-assert.equal(planned.decision.required_custodian_activation_confirmation,
-  VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1);
-assert.equal(planned.decision.required_broadcaster_activation_confirmation,
-  VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1);
-assert.equal(planned.decision.rpc_probe_performed, false);
-assert.equal(planned.decision.service_state_mutation_performed, false);
-assert.equal(planned.decision.money_movement_performed, false);
+assert.equal(plannedDecision.production_activation_plan_id_sha256, PLAN_ID);
+assert.equal(
+  plannedDecision.required_confirmation,
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(
+  plannedDecision.required_rpc_readiness_confirmation,
+  VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1,
+);
+assert.equal(
+  plannedDecision.required_custodian_activation_confirmation,
+  VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(
+  plannedDecision.required_broadcaster_activation_confirmation,
+  VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(plannedDecision.rpc_probe_performed, false);
+assert.equal(plannedDecision.service_state_mutation_performed, false);
+assert.equal(plannedDecision.money_movement_performed, false);
 
-const serializedPlan = JSON.stringify(planned.decision);
+const serializedPlan = JSON.stringify(plannedDecision);
 for (const privateValue of [
   PRIVATE_ROOT,
   CUSTODIAN_SOCKET,
@@ -225,6 +235,7 @@ for (const privateValue of [
 }
 
 const stopOrder: string[] = [];
+let appliedInput: any = null;
 const started = await runBuyVoidProductionPrivateServicesOperatorV1(
   {
     apply: true,
@@ -241,17 +252,7 @@ const started = await runBuyVoidProductionPrivateServicesOperatorV1(
   {
     resolve_policy: () => readyPolicy(),
     run_activation: async (input) => {
-      assert.equal(input.policy, productionPolicy);
-      assert.equal(input.apply, true);
-      assert.equal(input.confirmation,
-        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1);
-      assert.equal(input.expected_plan_id_sha256, PLAN_ID);
-      assert.equal(input.rpc_readiness_confirmation,
-        VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1);
-      assert.equal(input.custodian_activation_confirmation,
-        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1);
-      assert.equal(input.broadcaster_activation_confirmation,
-        VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1);
+      appliedInput = input;
       return startedActivation({
         broadcaster: {
           stop: async () => { stopOrder.push("broadcaster"); },
@@ -263,17 +264,37 @@ const started = await runBuyVoidProductionPrivateServicesOperatorV1(
     },
   },
 );
-assert.equal(started.decision.ok, true);
-assert.equal(started.decision.status, "started");
+const startedDecision = started.decision as any;
+assert.equal(appliedInput.policy, productionPolicy);
+assert.equal(appliedInput.apply, true);
+assert.equal(
+  appliedInput.confirmation,
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(appliedInput.expected_plan_id_sha256, PLAN_ID);
+assert.equal(
+  appliedInput.rpc_readiness_confirmation,
+  VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1,
+);
+assert.equal(
+  appliedInput.custodian_activation_confirmation,
+  VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(
+  appliedInput.broadcaster_activation_confirmation,
+  VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1,
+);
+assert.equal(startedDecision.ok, true);
+assert.equal(startedDecision.status, "started");
 assert.ok(started.session);
-assert.equal(started.decision.rpc_probe_performed, true);
-assert.equal(started.decision.service_state_mutation_performed, true);
-assert.equal(started.decision.credential_read_performed, false);
-assert.equal(started.decision.signing_performed, false);
-assert.equal(started.decision.submit_once_performed, false);
-assert.equal(started.decision.transaction_broadcast_performed, false);
-assert.equal(started.decision.money_movement_performed, false);
-const serializedStarted = JSON.stringify(started.decision);
+assert.equal(startedDecision.rpc_probe_performed, true);
+assert.equal(startedDecision.service_state_mutation_performed, true);
+assert.equal(startedDecision.credential_read_performed, false);
+assert.equal(startedDecision.signing_performed, false);
+assert.equal(startedDecision.submit_once_performed, false);
+assert.equal(startedDecision.transaction_broadcast_performed, false);
+assert.equal(startedDecision.money_movement_performed, false);
+const serializedStarted = JSON.stringify(startedDecision);
 assert.equal(serializedStarted.includes("services"), false);
 assert.equal(serializedStarted.includes(CUSTODIAN_SOCKET), false);
 assert.equal(serializedStarted.includes(BROADCASTER_SOCKET), false);
@@ -333,23 +354,20 @@ const residual = await runBuyVoidProductionPrivateServicesOperatorV1(
       broadcaster_service_start_performed: false,
       custodian_service_active_after_return: true,
       broadcaster_service_active_after_return: false,
-      custodian_rollback_attempted: true,
-      custodian_rollback_succeeded: false,
-      broadcaster_rollback_attempted: false,
-      broadcaster_rollback_succeeded: null,
       credential_read_performed: false,
       signing_performed: false,
       submit_once_performed: false,
       transaction_broadcast_performed: false,
       money_movement_performed: false,
       authority: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1,
-    }),
+    } as any),
   },
 );
-assert.equal(residual.decision.ok, false);
-assert.equal(residual.decision.stage, "activation");
-assert.equal(residual.decision.residual_service_state, true);
-assert.equal(residual.decision.custodian_service_active_after_return, true);
+const residualDecision = residual.decision as any;
+assert.equal(residualDecision.ok, false);
+assert.equal(residualDecision.stage, "activation");
+assert.equal(residualDecision.residual_service_state, true);
+assert.equal(residualDecision.custodian_service_active_after_return, true);
 assert.equal(residual.session, null);
 
 const thrown = await runBuyVoidProductionPrivateServicesOperatorV1(
@@ -361,33 +379,110 @@ const thrown = await runBuyVoidProductionPrivateServicesOperatorV1(
     },
   },
 );
-assert.equal(thrown.decision.ok, false);
-assert.equal(thrown.decision.reason, "production_private_services_operator_activation_threw");
-assert.equal(thrown.decision.side_effect_state_known, false);
+const thrownDecision = thrown.decision as any;
+assert.equal(thrownDecision.ok, false);
+assert.equal(
+  thrownDecision.reason,
+  "production_private_services_operator_activation_threw",
+);
+assert.equal(thrownDecision.side_effect_state_known, false);
+assert.equal(thrownDecision.residual_service_state, true);
 
+const malformed = await runBuyVoidProductionPrivateServicesOperatorV1(
+  { apply: true },
+  {
+    resolve_policy: () => readyPolicy(),
+    run_activation: async () => null as any,
+  },
+);
+assert.equal((malformed.decision as any).side_effect_state_known, false);
+assert.equal((malformed.decision as any).residual_service_state, true);
+
+const contradictoryCleanupOrder: string[] = [];
 const contradictory = await runBuyVoidProductionPrivateServicesOperatorV1(
   { apply: true },
   {
     resolve_policy: () => readyPolicy(),
     run_activation: async () => ({
       ...startedActivation({
-        broadcaster: { stop: async () => {} },
-        custodian: { stop: async () => {} },
+        broadcaster: {
+          stop: async () => { contradictoryCleanupOrder.push("broadcaster"); },
+        },
+        custodian: {
+          stop: async () => { contradictoryCleanupOrder.push("custodian"); },
+        },
       }),
       money_movement_performed: true,
     }),
   },
 );
-assert.equal(contradictory.decision.ok, false);
-assert.equal(contradictory.decision.reason,
-  "production_private_services_operator_started_boundary_invalid");
-assert.equal(contradictory.decision.money_movement_performed, true);
+const contradictoryDecision = contradictory.decision as any;
+assert.equal(contradictoryDecision.ok, false);
+assert.equal(
+  contradictoryDecision.reason,
+  "production_private_services_operator_started_boundary_invalid",
+);
+assert.equal(contradictoryDecision.money_movement_performed, true);
+assert.equal(contradictoryDecision.residual_service_state, false);
+assert.equal(contradictory.session, null);
+assert.deepEqual(contradictoryCleanupOrder, ["broadcaster", "custodian"]);
 
-assert.equal(VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.daemonize, false);
-assert.equal(VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.automatic_restart, false);
-assert.equal(VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.service_handles_serialized, false);
-assert.equal(VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.transaction_submission_confirmation_accepted, false);
-assert.equal(VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.money_movement_during_startup_or_shutdown, false);
+const cleanupFailureOrder: string[] = [];
+const cleanupFailure = await runBuyVoidProductionPrivateServicesOperatorV1(
+  { apply: true },
+  {
+    resolve_policy: () => readyPolicy(),
+    run_activation: async () => ({
+      ...startedActivation({
+        broadcaster: {
+          stop: async () => {
+            cleanupFailureOrder.push("broadcaster");
+            throw new Error("synthetic cleanup failure");
+          },
+        },
+        custodian: {
+          stop: async () => { cleanupFailureOrder.push("custodian"); },
+        },
+      }),
+      provider_submission_id: "invalid provider id with spaces",
+    }),
+  },
+);
+const cleanupFailureDecision = cleanupFailure.decision as any;
+assert.equal(cleanupFailureDecision.ok, false);
+assert.equal(cleanupFailureDecision.residual_service_state, true);
+assert.equal(cleanupFailureDecision.broadcaster_service_active_after_return, true);
+assert.equal(cleanupFailureDecision.custodian_service_active_after_return, false);
+assert.deepEqual(cleanupFailureOrder, ["broadcaster", "custodian"]);
+
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.daemonize,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.automatic_restart,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.service_handles_serialized,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.transaction_submission_confirmation_accepted,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.unexpected_started_result_cleanup,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.unknown_side_effect_state_is_residual,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1.money_movement_during_startup_or_shutdown,
+  false,
+);
 
 const operatorSource = fs.readFileSync(
   new URL("../src/economic/buy_void_production_private_services_operator_v1.ts", import.meta.url),
@@ -400,7 +495,11 @@ const cliSource = fs.readFileSync(
 assert.match(operatorSource, /resolveBuyVoidProductionPreflightOperatorPolicyV1/);
 assert.match(operatorSource, /runBuyVoidProductionPrivateServicesActivationV1/);
 assert.doesNotMatch(operatorSource, /process\.env/);
-assert.doesNotMatch(operatorSource, /buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1/);
+assert.doesNotMatch(
+  operatorSource,
+  /buyVoidSubmitPreparedTransactionFromOpaqueCustodyV1/,
+);
+assert.doesNotMatch(operatorSource, /catch\s*\{\s*\}/);
 for (const forbiddenFlag of [
   "--runtime-root",
   "--wallet",
@@ -415,6 +514,13 @@ for (const forbiddenFlag of [
 }
 assert.match(cliSource, /process\.once\("SIGINT"/);
 assert.match(cliSource, /process\.once\("SIGTERM"/);
+const latchCall = cliSource.indexOf(
+  "const signalLatch = args.apply ? createShutdownSignalLatch() : null",
+);
+const activationCall = cliSource.indexOf(
+  "await runBuyVoidProductionPrivateServicesOperatorV1",
+);
+assert.ok(latchCall >= 0 && activationCall > latchCall);
 
 process.stdout.write(`${JSON.stringify({
   marker: "VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1_PROOF_GREEN",
@@ -422,10 +528,12 @@ process.stdout.write(`${JSON.stringify({
   dry_run_io_free_boundary_preserved: true,
   exact_activation_authorities_forwarded: true,
   service_handles_serialized: false,
-  foreground_signal_shutdown: true,
+  foreground_signal_latched_before_activation: true,
   shutdown_order: ["broadcaster", "custodian"],
   duplicate_shutdown_idempotent: true,
+  unexpected_started_result_cleanup: true,
   cleanup_failure_explicit: true,
+  unknown_side_effect_state_is_residual: true,
   residual_service_state_explicit: true,
   credential_read: false,
   signing: false,
