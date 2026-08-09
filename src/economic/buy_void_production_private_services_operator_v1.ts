@@ -9,7 +9,6 @@ import {
   VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1,
   VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1,
   runBuyVoidProductionPrivateServicesActivationV1,
-  type BuyVoidProductionPrivateServicesActivationDecisionV1,
   type BuyVoidProductionPrivateServicesActivationDependenciesV1,
 } from "./buy_void_production_private_services_activation_v1.js";
 import {
@@ -41,6 +40,8 @@ export const VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1 = {
   service_handles_serialized: false,
   shutdown_broadcaster_before_custodian: true,
   duplicate_shutdown_idempotent: true,
+  unexpected_started_result_cleanup: true,
+  unknown_side_effect_state_is_residual: true,
   credential_read_during_startup_or_shutdown: false,
   signing_during_startup_or_shutdown: false,
   submit_once_during_startup_or_shutdown: false,
@@ -60,6 +61,7 @@ const SAFE_INPUT_KEYS = new Set([
 ]);
 const SHA256 = /^[0-9a-f]{64}$/;
 const SAFE_REASON = /^[A-Za-z0-9._:-]{1,220}$/;
+const SAFE_PROVIDER_ID = /^[A-Za-z0-9._:-]{1,220}$/;
 
 export type RunBuyVoidProductionPrivateServicesOperatorInputV1 = {
   apply?: boolean;
@@ -114,15 +116,11 @@ export type BuyVoidProductionPrivateServicesOperatorDecisionV1 =
       runtime_policy_fingerprint_sha256: string;
       rpc_url_fingerprint_sha256: string;
       private_path_fingerprint_sha256: string;
-      required_confirmation:
-        typeof VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1;
+      required_confirmation: typeof VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1;
       required_plan_id_sha256: string;
-      required_rpc_readiness_confirmation:
-        typeof VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1;
-      required_custodian_activation_confirmation:
-        typeof VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1;
-      required_broadcaster_activation_confirmation:
-        typeof VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1;
+      required_rpc_readiness_confirmation: typeof VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1;
+      required_custodian_activation_confirmation: typeof VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1;
+      required_broadcaster_activation_confirmation: typeof VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1;
       rpc_probe_performed: false;
       service_state_mutation_performed: false;
       custodian_service_active_after_return: false;
@@ -190,6 +188,18 @@ export type BuyVoidProductionPrivateServicesOperatorDependenciesV1 = {
   activation_dependencies?: BuyVoidProductionPrivateServicesActivationDependenciesV1;
 };
 
+type ActivationFlagsV1 = {
+  rpc_probe: boolean;
+  service_mutation: boolean;
+  custodian_active: boolean;
+  broadcaster_active: boolean;
+  credential_read: boolean;
+  signing: boolean;
+  submit_once: boolean;
+  broadcast: boolean;
+  money: boolean;
+};
+
 function safeReason(value: unknown, fallback: string): string {
   const reason = String(value ?? "");
   return SAFE_REASON.test(reason) ? reason : fallback;
@@ -213,6 +223,7 @@ function held(input: {
 }): BuyVoidProductionPrivateServicesOperatorRunResultV1 {
   const custodianActive = input.custodian_service_active_after_return === true;
   const broadcasterActive = input.broadcaster_service_active_after_return === true;
+  const sideEffectStateKnown = input.side_effect_state_known !== false;
   return {
     decision: {
       ok: false,
@@ -229,8 +240,10 @@ function held(input: {
         input.service_state_mutation_performed === true,
       custodian_service_active_after_return: custodianActive,
       broadcaster_service_active_after_return: broadcasterActive,
-      residual_service_state: custodianActive || broadcasterActive,
-      side_effect_state_known: input.side_effect_state_known !== false,
+      residual_service_state: sideEffectStateKnown
+        ? custodianActive || broadcasterActive
+        : true,
+      side_effect_state_known: sideEffectStateKnown,
       credential_read_performed: input.credential_read_performed === true,
       signing_performed: input.signing_performed === true,
       submit_once_performed: input.submit_once_performed === true,
@@ -243,12 +256,26 @@ function held(input: {
   };
 }
 
-function createSession(
-  services: Readonly<{
-    custodian: StoppableServiceV1;
-    broadcaster: StoppableServiceV1;
-  }>,
-): BuyVoidProductionPrivateServicesOperatorSessionV1 {
+function activationFlags(raw: Record<string, any>): ActivationFlagsV1 {
+  return {
+    rpc_probe: raw.rpc_probe_performed === true,
+    service_mutation:
+      raw.custodian_service_start_performed === true ||
+      raw.broadcaster_service_start_performed === true,
+    custodian_active: raw.custodian_service_active_after_return === true,
+    broadcaster_active: raw.broadcaster_service_active_after_return === true,
+    credential_read: raw.credential_read_performed === true,
+    signing: raw.signing_performed === true,
+    submit_once: raw.submit_once_performed === true,
+    broadcast: raw.transaction_broadcast_performed === true,
+    money: raw.money_movement_performed === true,
+  };
+}
+
+function createSession(services: {
+  custodian: StoppableServiceV1;
+  broadcaster: StoppableServiceV1;
+}): BuyVoidProductionPrivateServicesOperatorSessionV1 {
   let shutdownPromise:
     | Promise<BuyVoidProductionPrivateServicesOperatorShutdownReceiptV1>
     | null = null;
@@ -261,11 +288,15 @@ function createSession(
     try {
       await services.broadcaster.stop();
       broadcasterStopSucceeded = true;
-    } catch {}
+    } catch (error) {
+      void error;
+    }
     try {
       await services.custodian.stop();
       custodianStopSucceeded = true;
-    } catch {}
+    } catch (error) {
+      void error;
+    }
     return {
       marker: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1,
       version: 1,
@@ -303,32 +334,33 @@ function createSession(
   });
 }
 
-function activationFlags(
-  activation: BuyVoidProductionPrivateServicesActivationDecisionV1,
-): {
-  rpcProbe: boolean;
-  serviceMutation: boolean;
-  custodianActive: boolean;
-  broadcasterActive: boolean;
-  credentialRead: boolean;
-  signing: boolean;
-  submitOnce: boolean;
-  broadcast: boolean;
-  money: boolean;
-} {
-  return {
-    rpcProbe: activation.rpc_probe_performed === true,
-    serviceMutation:
-      activation.custodian_service_start_performed === true ||
-      activation.broadcaster_service_start_performed === true,
-    custodianActive: activation.custodian_service_active_after_return === true,
-    broadcasterActive: activation.broadcaster_service_active_after_return === true,
-    credentialRead: activation.credential_read_performed === true,
-    signing: activation.signing_performed === true,
-    submitOnce: activation.submit_once_performed === true,
-    broadcast: activation.transaction_broadcast_performed === true,
-    money: activation.money_movement_performed === true,
-  };
+async function cleanupUnexpectedStartedResult(raw: Record<string, any>): Promise<{
+  custodian_active: boolean;
+  broadcaster_active: boolean;
+}> {
+  const services = raw.services as
+    | { custodian?: StoppableServiceV1; broadcaster?: StoppableServiceV1 }
+    | undefined;
+  let broadcasterActive = true;
+  let custodianActive = true;
+
+  if (typeof services?.broadcaster?.stop === "function") {
+    try {
+      await services.broadcaster.stop();
+      broadcasterActive = false;
+    } catch (error) {
+      void error;
+    }
+  }
+  if (typeof services?.custodian?.stop === "function") {
+    try {
+      await services.custodian.stop();
+      custodianActive = false;
+    } catch (error) {
+      void error;
+    }
+  }
+  return { custodian_active: custodianActive, broadcaster_active: broadcasterActive };
 }
 
 export async function runBuyVoidProductionPrivateServicesOperatorV1(
@@ -342,7 +374,6 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
       reason: "production_private_services_operator_input_object_required",
     });
   }
-
   const unexpectedKeys = Object.keys(input as Record<string, unknown>)
     .filter((key) => !SAFE_INPUT_KEYS.has(key))
     .sort();
@@ -367,7 +398,8 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
   let policyState: BuyVoidProductionPreflightOperatorPolicyDecisionV1;
   try {
     policyState = resolvePolicy();
-  } catch {
+  } catch (error) {
+    void error;
     return held({
       applied: apply,
       stage: "operator_policy",
@@ -399,7 +431,7 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
 
   const runActivation =
     dependencies.run_activation || runBuyVoidProductionPrivateServicesActivationV1;
-  let activation: BuyVoidProductionPrivateServicesActivationDecisionV1;
+  let activation: unknown;
   try {
     activation = await runActivation(
       {
@@ -408,14 +440,13 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
         confirmation: input.confirmation,
         expected_plan_id_sha256: input.expected_plan_id_sha256,
         rpc_readiness_confirmation: input.rpc_readiness_confirmation,
-        custodian_activation_confirmation:
-          input.custodian_activation_confirmation,
-        broadcaster_activation_confirmation:
-          input.broadcaster_activation_confirmation,
+        custodian_activation_confirmation: input.custodian_activation_confirmation,
+        broadcaster_activation_confirmation: input.broadcaster_activation_confirmation,
       },
       dependencies.activation_dependencies,
     );
-  } catch {
+  } catch (error) {
+    void error;
     return held({
       applied: apply,
       stage: "activation",
@@ -426,81 +457,87 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     });
   }
 
-  const flags = activationFlags(activation);
-  if (activation.ok === false) {
+  if (!activation || typeof activation !== "object" || Array.isArray(activation)) {
+    return held({
+      applied: apply,
+      stage: "activation",
+      reason: "production_private_services_operator_activation_result_invalid",
+      production_activation_plan_id_sha256:
+        policyState.production_activation_plan_id_sha256,
+      side_effect_state_known: false,
+    });
+  }
+
+  const raw = activation as Record<string, any>;
+  const flags = activationFlags(raw);
+  if (raw.ok !== true) {
     return held({
       applied: apply,
       stage: "activation",
       reason:
-        activation.authority ===
-        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
-          ? safeReason(
-              activation.reason,
-              "production_private_services_operator_activation_held",
-            )
+        raw.authority === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1
+          ? safeReason(raw.reason, "production_private_services_operator_activation_held")
           : "production_private_services_operator_activation_held_boundary_invalid",
-      production_activation_plan_id_sha256: activation.plan_id_sha256,
-      rpc_probe_performed: flags.rpcProbe,
-      service_state_mutation_performed: flags.serviceMutation,
-      custodian_service_active_after_return: flags.custodianActive,
-      broadcaster_service_active_after_return: flags.broadcasterActive,
-      credential_read_performed: flags.credentialRead,
+      production_activation_plan_id_sha256:
+        typeof raw.plan_id_sha256 === "string" ? raw.plan_id_sha256 : null,
+      rpc_probe_performed: flags.rpc_probe,
+      service_state_mutation_performed: flags.service_mutation,
+      custodian_service_active_after_return: flags.custodian_active,
+      broadcaster_service_active_after_return: flags.broadcaster_active,
+      credential_read_performed: flags.credential_read,
       signing_performed: flags.signing,
-      submit_once_performed: flags.submitOnce,
+      submit_once_performed: flags.submit_once,
       transaction_broadcast_performed: flags.broadcast,
       money_movement_performed: flags.money,
     });
   }
 
-  if (activation.status === "dry_run") {
-    if (
-      apply ||
-      activation.applied !== false ||
-      activation.marker !== VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 ||
-      activation.authority !==
-        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 ||
-      activation.plan_id_sha256 !==
-        policyState.production_activation_plan_id_sha256 ||
-      activation.rpc_url_fingerprint_sha256 !==
-        policyState.rpc_url_fingerprint_sha256 ||
-      activation.required_confirmation !==
-        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1 ||
-      activation.required_plan_id_sha256 !==
-        policyState.production_activation_plan_id_sha256 ||
-      activation.required_rpc_readiness_confirmation !==
-        VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1 ||
-      activation.required_custodian_activation_confirmation !==
-        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1 ||
-      activation.required_broadcaster_activation_confirmation !==
-        VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1 ||
-      flags.rpcProbe ||
-      flags.serviceMutation ||
-      flags.custodianActive ||
-      flags.broadcasterActive ||
-      flags.credentialRead ||
-      flags.signing ||
-      flags.submitOnce ||
-      flags.broadcast ||
-      flags.money
-    ) {
+  if (raw.status === "dry_run") {
+    const dryRunValid =
+      !apply &&
+      raw.applied === false &&
+      raw.marker === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 &&
+      raw.authority === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 &&
+      raw.plan_id_sha256 === policyState.production_activation_plan_id_sha256 &&
+      raw.rpc_url_fingerprint_sha256 === policyState.rpc_url_fingerprint_sha256 &&
+      raw.expected_signer_fingerprint_sha256 ===
+        policyState.production_policy.broadcaster.expected_signer_fingerprint_sha256 &&
+      raw.required_confirmation ===
+        VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_CONFIRMATION_V1 &&
+      raw.required_plan_id_sha256 === policyState.production_activation_plan_id_sha256 &&
+      raw.required_rpc_readiness_confirmation ===
+        VOID_BUY_VOID_PRODUCTION_RPC_READINESS_CONFIRMATION_V1 &&
+      raw.required_custodian_activation_confirmation ===
+        VOID_BUY_VOID_PREPARED_TRANSACTION_CUSTODIAN_CREDENTIAL_ACTIVATION_CONFIRMATION_V1 &&
+      raw.required_broadcaster_activation_confirmation ===
+        VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_SUBMISSION_ACTIVATION_CONFIRMATION_V1 &&
+      !flags.rpc_probe &&
+      !flags.service_mutation &&
+      !flags.custodian_active &&
+      !flags.broadcaster_active &&
+      !flags.credential_read &&
+      !flags.signing &&
+      !flags.submit_once &&
+      !flags.broadcast &&
+      !flags.money;
+    if (!dryRunValid) {
       return held({
         applied: apply,
         stage: "activation",
         reason: "production_private_services_operator_dry_run_boundary_invalid",
         production_activation_plan_id_sha256:
           policyState.production_activation_plan_id_sha256,
-        rpc_probe_performed: flags.rpcProbe,
-        service_state_mutation_performed: flags.serviceMutation,
-        custodian_service_active_after_return: flags.custodianActive,
-        broadcaster_service_active_after_return: flags.broadcasterActive,
-        credential_read_performed: flags.credentialRead,
+        rpc_probe_performed: flags.rpc_probe,
+        service_state_mutation_performed: flags.service_mutation,
+        custodian_service_active_after_return: flags.custodian_active,
+        broadcaster_service_active_after_return: flags.broadcaster_active,
+        credential_read_performed: flags.credential_read,
         signing_performed: flags.signing,
-        submit_once_performed: flags.submitOnce,
+        submit_once_performed: flags.submit_once,
         transaction_broadcast_performed: flags.broadcast,
         money_movement_performed: flags.money,
       });
     }
-
     return {
       decision: {
         ok: true,
@@ -508,20 +545,17 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
         applied: false,
         marker: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1,
         version: 1,
-        production_activation_plan_id_sha256: activation.plan_id_sha256,
-        runtime_policy_fingerprint_sha256:
-          policyState.runtime_policy_fingerprint_sha256,
-        rpc_url_fingerprint_sha256: activation.rpc_url_fingerprint_sha256,
-        private_path_fingerprint_sha256:
-          policyState.private_path_fingerprint_sha256,
-        required_confirmation: activation.required_confirmation,
-        required_plan_id_sha256: activation.required_plan_id_sha256,
-        required_rpc_readiness_confirmation:
-          activation.required_rpc_readiness_confirmation,
+        production_activation_plan_id_sha256: raw.plan_id_sha256,
+        runtime_policy_fingerprint_sha256: policyState.runtime_policy_fingerprint_sha256,
+        rpc_url_fingerprint_sha256: raw.rpc_url_fingerprint_sha256,
+        private_path_fingerprint_sha256: policyState.private_path_fingerprint_sha256,
+        required_confirmation: raw.required_confirmation,
+        required_plan_id_sha256: raw.required_plan_id_sha256,
+        required_rpc_readiness_confirmation: raw.required_rpc_readiness_confirmation,
         required_custodian_activation_confirmation:
-          activation.required_custodian_activation_confirmation,
+          raw.required_custodian_activation_confirmation,
         required_broadcaster_activation_confirmation:
-          activation.required_broadcaster_activation_confirmation,
+          raw.required_broadcaster_activation_confirmation,
         rpc_probe_performed: false,
         service_state_mutation_performed: false,
         custodian_service_active_after_return: false,
@@ -537,45 +571,53 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
     };
   }
 
-  if (
-    !apply ||
-    activation.status !== "started" ||
-    activation.applied !== true ||
-    activation.marker !== VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 ||
-    activation.authority !==
-      VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 ||
-    activation.plan_id_sha256 !==
-      policyState.production_activation_plan_id_sha256 ||
-    activation.rpc_url_fingerprint_sha256 !==
-      policyState.rpc_url_fingerprint_sha256 ||
-    !flags.rpcProbe ||
-    !flags.serviceMutation ||
-    !flags.custodianActive ||
-    !flags.broadcasterActive ||
-    flags.credentialRead ||
-    flags.signing ||
-    flags.submitOnce ||
-    flags.broadcast ||
-    flags.money ||
-    !activation.services ||
-    typeof activation.services.custodian?.stop !== "function" ||
-    typeof activation.services.broadcaster?.stop !== "function" ||
-    typeof activation.provider_submission_id !== "string" ||
-    activation.provider_submission_id.length < 1
-  ) {
+  const services = raw.services as
+    | { custodian?: StoppableServiceV1; broadcaster?: StoppableServiceV1 }
+    | undefined;
+  const startedValid =
+    apply &&
+    raw.status === "started" &&
+    raw.applied === true &&
+    raw.marker === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_V1 &&
+    raw.authority === VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_ACTIVATION_AUTHORITY_V1 &&
+    raw.plan_id_sha256 === policyState.production_activation_plan_id_sha256 &&
+    raw.rpc_url_fingerprint_sha256 === policyState.rpc_url_fingerprint_sha256 &&
+    raw.expected_signer_fingerprint_sha256 ===
+      policyState.production_policy.broadcaster.expected_signer_fingerprint_sha256 &&
+    flags.rpc_probe &&
+    flags.service_mutation &&
+    flags.custodian_active &&
+    flags.broadcaster_active &&
+    !flags.credential_read &&
+    !flags.signing &&
+    !flags.submit_once &&
+    !flags.broadcast &&
+    !flags.money &&
+    typeof services?.custodian?.stop === "function" &&
+    typeof services?.broadcaster?.stop === "function" &&
+    typeof raw.provider_submission_id === "string" &&
+    SAFE_PROVIDER_ID.test(raw.provider_submission_id);
+
+  if (!startedValid) {
+    const cleanup = raw.status === "started"
+      ? await cleanupUnexpectedStartedResult(raw)
+      : {
+          custodian_active: flags.custodian_active,
+          broadcaster_active: flags.broadcaster_active,
+        };
     return held({
       applied: apply,
       stage: "activation",
       reason: "production_private_services_operator_started_boundary_invalid",
       production_activation_plan_id_sha256:
         policyState.production_activation_plan_id_sha256,
-      rpc_probe_performed: flags.rpcProbe,
-      service_state_mutation_performed: flags.serviceMutation,
-      custodian_service_active_after_return: flags.custodianActive,
-      broadcaster_service_active_after_return: flags.broadcasterActive,
-      credential_read_performed: flags.credentialRead,
+      rpc_probe_performed: flags.rpc_probe,
+      service_state_mutation_performed: flags.service_mutation,
+      custodian_service_active_after_return: cleanup.custodian_active,
+      broadcaster_service_active_after_return: cleanup.broadcaster_active,
+      credential_read_performed: flags.credential_read,
       signing_performed: flags.signing,
-      submit_once_performed: flags.submitOnce,
+      submit_once_performed: flags.submit_once,
       transaction_broadcast_performed: flags.broadcast,
       money_movement_performed: flags.money,
     });
@@ -588,13 +630,11 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
       applied: true,
       marker: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_V1,
       version: 1,
-      production_activation_plan_id_sha256: activation.plan_id_sha256,
-      runtime_policy_fingerprint_sha256:
-        policyState.runtime_policy_fingerprint_sha256,
-      rpc_url_fingerprint_sha256: activation.rpc_url_fingerprint_sha256,
-      private_path_fingerprint_sha256:
-        policyState.private_path_fingerprint_sha256,
-      provider_submission_id: activation.provider_submission_id,
+      production_activation_plan_id_sha256: raw.plan_id_sha256,
+      runtime_policy_fingerprint_sha256: policyState.runtime_policy_fingerprint_sha256,
+      rpc_url_fingerprint_sha256: raw.rpc_url_fingerprint_sha256,
+      private_path_fingerprint_sha256: policyState.private_path_fingerprint_sha256,
+      provider_submission_id: raw.provider_submission_id,
       rpc_probe_performed: true,
       service_state_mutation_performed: true,
       custodian_service_active_after_return: true,
@@ -606,6 +646,9 @@ export async function runBuyVoidProductionPrivateServicesOperatorV1(
       money_movement_performed: false,
       authority: VOID_BUY_VOID_PRODUCTION_PRIVATE_SERVICES_OPERATOR_AUTHORITY_V1,
     },
-    session: createSession(activation.services),
+    session: createSession({
+      custodian: services!.custodian!,
+      broadcaster: services!.broadcaster!,
+    }),
   };
 }
