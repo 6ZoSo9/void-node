@@ -1,0 +1,138 @@
+name: Buy VOID terminal-closeout append truth main reconcile v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-terminal-closeout-append-truth-main-reconcile-v1.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: buy-void-terminal-closeout-append-truth-main-reconcile-v1-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: >-
+      github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.repo.full_name == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.ref == 'fix/buy-void-terminal-closeout-append-truth-v1-20260809' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact child head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard exact child and current main movement
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA='${{ github.event.pull_request.head.sha }}'
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain)"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          MERGE_BASE="$(git merge-base HEAD "$BASE_SHA")"
+          printf '%s\n' \
+            '.github/workflows/buy-void-terminal-closeout-append-truth-main-reconcile-v1.yml' \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts' \
+            > /tmp/expected-child.txt
+          git diff --name-only "$MERGE_BASE"...HEAD | sort > /tmp/actual-child.txt
+          diff -u /tmp/expected-child.txt /tmp/actual-child.txt
+
+          git diff --name-only "$MERGE_BASE".."$BASE_SHA" | sort > /tmp/main-movement.txt
+          for path in \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts'; do
+            if grep -Fxq "$path" /tmp/main-movement.txt; then
+              echo "main overlap detected: $path" >&2
+              exit 1
+            fi
+          done
+
+      - name: Merge exact current main base
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          git merge --no-edit --no-ff "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test -z "$(git status --porcelain)"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove terminal-closeout append truth
+        run: npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Prove terminal-closeout runtime
+        run: npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts
+
+      - name: Prove production terminal-closeout operator
+        run: npx --no-install tsx scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
+
+      - name: Re-prove confirmed closeout and server policy
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_confirmed_closeout_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_server_policy_v1.ts
+
+      - name: Re-prove Buy VOID integration and E2E
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+
+      - name: Typecheck and build repository
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Verify exact reconciled scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          git diff --check "$BASE_SHA"...HEAD
+          printf '%s\n' \
+            '.github/workflows/buy-void-terminal-closeout-append-truth-main-reconcile-v1.yml' \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts' \
+            > /tmp/expected.txt
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+
+      - name: Guard live child then fast-forward publish reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_OLD='${{ github.event.pull_request.head.sha }}'
+          LIVE="$(git ls-remote origin refs/heads/${{ github.event.pull_request.head.ref }} | awk '{print $1}')"
+          test "$LIVE" = "$EXPECTED_OLD"
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
