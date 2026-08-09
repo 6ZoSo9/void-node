@@ -59,10 +59,16 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Apply deterministic terminal plan binding patch
+        id: terminal_plan_patch
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
+          set -uo pipefail
+          LOG=/tmp/terminal-plan-binding-patch.log
+          set +e
+          (
+            set -euo pipefail
+            python3 - <<'PY'
           from pathlib import Path
 
           patch = Path("scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py")
@@ -86,8 +92,25 @@ jobs:
               file.write_text(text.replace(old, new, 1))'''
           patch.write_text(text[:start] + replacement + text[end:])
           PY
-          python3 scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
-          git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
+            trap 'git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py' EXIT
+            python3 scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
+          ) 2>&1 | tee "$LOG"
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload deterministic patch diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-plan-binding-patch-log-${{ github.event.pull_request.head.sha }}
+          path: /tmp/terminal-plan-binding-patch.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Require deterministic patch success
+        if: steps.terminal_plan_patch.outcome != 'success'
+        shell: bash
+        run: exit 1
 
       - name: Normalize operator proof key order
         run: python3 scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py
