@@ -19,6 +19,35 @@ function fail(message) {
   process.exit(1);
 }
 
+function assertExistingPathChainIsReal(targetPath, label) {
+  const relative = path.relative(ROOT, targetPath);
+  if (
+    !relative
+    || relative === ".."
+    || relative.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relative)
+  ) {
+    fail(`${label} must stay beneath repository root`);
+  }
+
+  let current = ROOT;
+  for (const segment of relative.split(path.sep)) {
+    current = path.join(current, segment);
+    if (!fs.existsSync(current)) break;
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (error) {
+      fail(`${label} path inspection failed: ${error.message}`);
+    }
+    if (stat.isSymbolicLink()) {
+      fail(`${label} path must not contain symlink ancestors`);
+    }
+  }
+}
+
+assertExistingPathChainIsReal(path.dirname(SOURCE), "source runtime");
+
 let sourceStat;
 try {
   sourceStat = fs.lstatSync(SOURCE);
@@ -31,7 +60,9 @@ if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
 }
 
 const sourceBytes = fs.readFileSync(SOURCE);
+assertExistingPathChainIsReal(DESTINATION_DIRECTORY, "destination runtime");
 fs.mkdirSync(DESTINATION_DIRECTORY, { recursive: true, mode: 0o755 });
+assertExistingPathChainIsReal(DESTINATION_DIRECTORY, "destination runtime");
 
 const destinationDirectoryStat = fs.lstatSync(DESTINATION_DIRECTORY);
 if (!destinationDirectoryStat.isDirectory() || destinationDirectoryStat.isSymbolicLink()) {
@@ -62,4 +93,6 @@ console.log(`marker=${MARKER}`);
 console.log(`source=${path.relative(ROOT, SOURCE)}`);
 console.log(`destination=${path.relative(ROOT, DESTINATION)}`);
 console.log(`bytes=${destinationBytes.length}`);
+console.log("source_path_symlink_ancestors=false");
+console.log("destination_path_symlink_ancestors=false");
 console.log("VOID_NODE_RUNTIME_JS_COPY_V1_GREEN");
