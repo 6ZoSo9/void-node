@@ -13,7 +13,8 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1 = {
   single_payment_chain: true,
   fixed_execution_chain_id: 2050,
   fixed_max_attempts_per_payment: 1,
-  fixed_pool_id: "void-fixed-price-pool-v1",
+  server_controlled_pool_id: true,
+  inventory_pool_env: "VOID_BUY_VOID_INVENTORY_POOL_ID",
   exact_payment_required: true,
   secret_material: false,
   rpc_call: false,
@@ -41,6 +42,7 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1 = {
     "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR",
   inventory_policy_version:
     "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION",
+  pool_id: "VOID_BUY_VOID_INVENTORY_POOL_ID",
   pool_capacity_void_units:
     "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS",
   max_reservation_void_units:
@@ -49,7 +51,6 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1 = {
     "VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS",
 } as const;
 
-const POOL_ID = "void-fixed-price-pool-v1";
 const PAYMENT_CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const SAFE_ID = /^[A-Za-z0-9._:-]{1,160}$/;
@@ -70,7 +71,7 @@ export type BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
   payment_min_confirmations: number;
   execution_chain_id: "2050";
   max_attempts_per_payment: 1;
-  pool_id: typeof POOL_ID;
+  pool_id: string;
   exact_payment_required: true;
   usdc_contract_fingerprint_sha256: string;
   receive_address_fingerprint_sha256: string;
@@ -220,10 +221,12 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
   const usdcContract = normalizeAddress(values.payment_usdc_contract);
   const receiveAddress = normalizeAddress(values.payment_receive_address);
   const fulfillmentWallet = normalizeAddress(values.fulfillment_wallet_address);
+  const poolId = text(values.pool_id);
   if (!paymentChain) return held("invalid_payment_chain");
   if (!usdcContract) return held("invalid_payment_usdc_contract");
   if (!receiveAddress) return held("invalid_payment_receive_address");
   if (!fulfillmentWallet) return held("invalid_fulfillment_wallet_address");
+  if (!SAFE_ID.test(poolId)) return held("invalid_pool_id");
 
   const currentBlock = parsePositiveInteger(
     values.payment_current_block_number,
@@ -296,7 +299,7 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
   };
   const inventoryPolicy: BuyVoidInventoryReservationPolicyV1 = {
     inventory_reservation_enabled: true,
-    pool_id: POOL_ID,
+    pool_id: poolId,
     inventory_policy_version: inventoryPolicyVersion,
     pool_capacity_void_units: poolCapacity.toString(),
     max_reservation_void_units: maximumReservation.toString(),
@@ -334,7 +337,7 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
     payment_min_confirmations: minimumConfirmationsNumber,
     execution_chain_id: "2050",
     max_attempts_per_payment: 1,
-    pool_id: POOL_ID,
+    pool_id: poolId,
     exact_payment_required: true,
     usdc_contract_fingerprint_sha256: fingerprint(usdcContract),
     receive_address_fingerprint_sha256: fingerprint(receiveAddress),
