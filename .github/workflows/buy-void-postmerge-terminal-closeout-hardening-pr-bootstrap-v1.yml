@@ -1,8 +1,8 @@
-name: Buy VOID postmerge terminal closeout hardening PR bootstrap v2
+name: Buy VOID terminal closeout transport hardening bootstrap v3
 
 on:
   pull_request:
-    branches: [main]
+    branches: [fix/buy-void-terminal-closeout-plan-binding-v1-20260809]
     types: [opened, synchronize, reopened]
     paths:
       - ".github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml"
@@ -12,77 +12,72 @@ permissions:
   contents: write
 
 concurrency:
-  group: buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v2-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: buy-void-terminal-closeout-transport-hardening-v3-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
   repair:
     if: >-
+      github.repository == '6ZoSo9/void-node' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.head_ref, 'fix/buy-void-postmerge-terminal-closeout-hardening-')
+      github.head_ref == 'fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout exact child head
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: true
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Guard and reconcile canonical main
+      - name: Reconcile exact #1159 parent
         id: guard
         shell: bash
         env:
-          EXPECTED_BRANCH: fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809
-          BASELINE_MAIN: 0791c33f74c5449cb1d29ef92ae899fb34e42c59
-          EXPECTED_OPERATOR_BLOB: 7bd21b29cdec8ca76bc1b52b031b21e8738fd8d2
-          EXPECTED_PROOF_BLOB: de6562c847850f6de6ce82d8458ae0aef394e5c9
+          EXPECTED_PARENT: 0663c20fd06c4cb886f20490fa03a7029f3407b9
+          EXPECTED_OPERATOR_BLOB: 8a9b8a58a66d538c41034b3527fe96a19d134a75
+          EXPECTED_PROOF_BLOB: 8b67f3ddf5e16ce1a269f8ae2b1228eaac641e14
+          PARENT_BRANCH: fix/buy-void-terminal-closeout-plan-binding-v1-20260809
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          test "$GITHUB_HEAD_REF" = "$EXPECTED_BRANCH"
           test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
-
-          git fetch --no-tags origin main
-          start_main="$(git rev-parse origin/main)"
-          echo "start_main=$start_main"
-          git merge-base --is-ancestor "$BASELINE_MAIN" "$start_main"
-
-          operator_blob="$(git ls-tree "$start_main" scripts/buy_void_production_terminal_closeout_operator_v1.ts | awk '{print $3}')"
-          proof_blob="$(git ls-tree "$start_main" scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts | awk '{print $3}')"
-          echo "operator_blob=$operator_blob"
-          echo "proof_blob=$proof_blob"
+          test '${{ github.event.pull_request.base.sha }}' = "$EXPECTED_PARENT"
+          git fetch --no-tags origin "$PARENT_BRANCH"
+          live_parent="$(git rev-parse FETCH_HEAD)"
+          test "$live_parent" = "$EXPECTED_PARENT"
+          operator_blob="$(git ls-tree "$live_parent" scripts/buy_void_production_terminal_closeout_operator_v1.ts | awk '{print $3}')"
+          proof_blob="$(git ls-tree "$live_parent" scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts | awk '{print $3}')"
           test "$operator_blob" = "$EXPECTED_OPERATOR_BLOB"
           test "$proof_blob" = "$EXPECTED_PROOF_BLOB"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff "$live_parent" -m 'Merge exact #1159 terminal plan binding parent'
+          test -z "$(git status --porcelain)"
+          echo "parent=$live_parent" >> "$GITHUB_OUTPUT"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git merge --no-ff --no-edit "$start_main"
-          echo "start_main=$start_main" >> "$GITHUB_OUTPUT"
-
-      - name: Apply terminal transport and canonical-envelope hardening
+      - name: Apply transport and canonical-envelope hardening
         run: python3 scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py
 
-      - name: Verify exact working semantic scope
+      - name: Verify exact semantic working scope
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          mapfile -t changed < <(git diff --name-only | sort)
-          printf 'changed=%s\n' "${changed[@]}"
-          expected=(
-            scripts/buy_void_production_terminal_closeout_operator_v1.ts
-            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
-          )
-          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
-          test "${#changed[@]}" -eq 2
-          for i in "${!expected_sorted[@]}"; do
-            test "${changed[$i]}" = "${expected_sorted[$i]}"
-          done
+          printf '%s\n' \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            > /tmp/expected-semantic.txt
+          git diff --name-only | sort > /tmp/actual-semantic.txt
+          diff -u /tmp/expected-semantic.txt /tmp/actual-semantic.txt
+          test -z "$(git ls-files --others --exclude-standard)"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
 
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
@@ -125,43 +120,64 @@ jobs:
             npx --no-install tsx "$proof"
           done
 
-      - name: Typecheck and build repository
-        run: |
-          set -euo pipefail
-          npm run typecheck
-          npm run build
+      - name: Typecheck repository
+        run: npm run typecheck
 
-      - name: Commit proven semantic repair and publish non-force
+      - name: Build repository
+        run: npm run build
+
+      - name: Commit proven semantic delta
         shell: bash
-        env:
-          START_MAIN: ${{ steps.guard.outputs.start_main }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          git diff --check
           git add -- \
             scripts/buy_void_production_terminal_closeout_operator_v1.ts \
             scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
-          test -z "$(git diff --name-only)"
-          git commit -m "fix: harden Buy VOID terminal closeout transport boundary"
+          git diff --cached --check
+          printf '%s\n' \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            > /tmp/expected-staged.txt
+          git diff --cached --name-only | sort > /tmp/actual-staged.txt
+          diff -u /tmp/expected-staged.txt /tmp/actual-staged.txt
+          git commit -m 'fix: harden Buy VOID terminal closeout transport boundary'
 
-          remote_main="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
-          remote_head="$(git ls-remote origin "refs/heads/$PR_HEAD_BRANCH" | awk '{print $1}')"
-          echo "remote_main_before_push=$remote_main"
-          echo "start_main=$START_MAIN"
-          echo "remote_head_before_push=$remote_head"
-          echo "pr_head_before_run=$PR_HEAD_SHA"
-          test "$remote_main" = "$START_MAIN"
-          test "$remote_head" = "$PR_HEAD_SHA"
+      - name: Verify exact child delta
+        shell: bash
+        env:
+          PARENT: ${{ steps.guard.outputs.parent }}
+        run: |
+          set -euo pipefail
+          git diff --check "$PARENT"...HEAD
+          printf '%s\n' \
+            .github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            > /tmp/expected-child.txt
+          git diff --name-only "$PARENT"...HEAD | sort > /tmp/actual-child.txt
+          diff -u /tmp/expected-child.txt /tmp/actual-child.txt
 
-          git push origin "HEAD:refs/heads/$PR_HEAD_BRANCH"
-          echo "VOID_BUY_VOID_POSTMERGE_TERMINAL_CLOSEOUT_HARDENING_V2_GREEN"
-          echo "live_terminal_closeout_performed=false"
-          echo "inventory_consumption_performed=false"
-          echo "public_fulfillment_mutation_performed=false"
-          echo "saga_mutation_performed=false"
-          echo "credential_access_performed=false"
-          echo "signing_performed=false"
-          echo "transaction_broadcast_performed=false"
-          echo "money_movement_performed=false"
+      - name: Guard live refs then publish non-force
+        shell: bash
+        env:
+          EXPECTED_PARENT: ${{ steps.guard.outputs.parent }}
+          EXPECTED_CHILD: ${{ github.event.pull_request.head.sha }}
+          CHILD_BRANCH: ${{ github.head_ref }}
+          PARENT_BRANCH: fix/buy-void-terminal-closeout-plan-binding-v1-20260809
+        run: |
+          set -euo pipefail
+          live_parent="$(git ls-remote origin "refs/heads/$PARENT_BRANCH" | awk '{print $1}')"
+          live_child="$(git ls-remote origin "refs/heads/$CHILD_BRANCH" | awk '{print $1}')"
+          test "$live_parent" = "$EXPECTED_PARENT"
+          test "$live_child" = "$EXPECTED_CHILD"
+          git push origin "HEAD:refs/heads/$CHILD_BRANCH"
+          echo 'VOID_BUY_VOID_TERMINAL_CLOSEOUT_TRANSPORT_HARDENING_V3_GREEN'
+          echo 'live_terminal_closeout_performed=false'
+          echo 'inventory_consumption_performed=false'
+          echo 'public_fulfillment_mutation_performed=false'
+          echo 'saga_mutation_performed=false'
+          echo 'credential_access_performed=false'
+          echo 'signing_performed=false'
+          echo 'transaction_broadcast_performed=false'
+          echo 'money_movement_performed=false'
