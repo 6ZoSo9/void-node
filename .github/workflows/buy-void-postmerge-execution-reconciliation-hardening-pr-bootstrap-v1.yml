@@ -1,0 +1,188 @@
+name: Buy VOID postmerge execution reconciliation hardening PR bootstrap v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-postmerge-execution-reconciliation-hardening-bootstrap-v1.yml"
+      - ".github/workflows/buy-void-postmerge-execution-reconciliation-hardening-pr-bootstrap-v1.yml"
+      - "scripts/patch_buy_void_postmerge_execution_reconciliation_hardening_v1.py"
+      - "docs/operators/buy-void-production-native-execution-operator-v1.md"
+      - "scripts/buy_void_production_native_execution_operator_v1.ts"
+      - "scripts/prove_buy_void_native_execution_runtime_v1.ts"
+      - "scripts/prove_buy_void_production_native_execution_operator_v1.ts"
+      - "src/economic/buy_void_native_execution_runtime_v1.ts"
+      - "scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts"
+      - "scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: buy-void-postmerge-execution-reconciliation-hardening-pr-bootstrap-v1-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Verify exact branch and import proven native hardening
+        shell: bash
+        env:
+          EXPECTED_BRANCH: fix/buy-void-postmerge-execution-reconciliation-hardening-v1-20260809
+          NATIVE_FIX_BRANCH: fix/buy-void-production-native-execution-plan-binding-v1-20260809
+          NATIVE_FIX_HEAD: bee95220dad382ed896272f92863bda4591dfe26
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_HEAD_REF" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          remote_native="$(git ls-remote origin "refs/heads/$NATIVE_FIX_BRANCH" | awk '{print $1}')"
+          echo "native_fix_remote=$remote_native"
+          test "$remote_native" = "$NATIVE_FIX_HEAD"
+          git fetch --no-tags origin "refs/heads/$NATIVE_FIX_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$NATIVE_FIX_HEAD"
+          git checkout "$NATIVE_FIX_HEAD" -- \
+            docs/operators/buy-void-production-native-execution-operator-v1.md \
+            scripts/buy_void_production_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+            src/economic/buy_void_native_execution_runtime_v1.ts
+
+      - name: Apply exact post-merge hardening patch
+        run: python3 scripts/patch_buy_void_postmerge_execution_reconciliation_hardening_v1.py
+
+      - name: Verify exact semantic scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          mapfile -t changed < <(git diff --name-only | sort)
+          printf 'changed=%s\n' "${changed[@]}"
+          expected=(
+            docs/operators/buy-void-production-native-execution-operator-v1.md
+            scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts
+            scripts/buy_void_production_native_execution_operator_v1.ts
+            scripts/prove_buy_void_native_execution_runtime_v1.ts
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts
+            src/economic/buy_void_native_execution_runtime_v1.ts
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+          test "${#changed[@]}" -eq "${#expected_sorted[@]}"
+          for i in "${!expected_sorted[@]}"; do
+            test "${changed[$i]}" = "${expected_sorted[$i]}"
+          done
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Focused TypeScript compile
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            src/economic/buy_void_native_execution_runtime_v1.ts \
+            scripts/buy_void_production_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+            scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts \
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts
+
+      - name: Prove native execution hardening wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          for proof in \
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_guard_v1.ts \
+            scripts/prove_buy_void_native_execution_worker_v1.ts \
+            scripts/prove_buy_void_native_execution_nonce_fee_planner_v1.ts \
+            scripts/prove_buy_void_delivery_submission_guard_v1.ts \
+            scripts/prove_buy_void_production_preflight_operator_v1.ts \
+            scripts/prove_buy_void_production_private_services_activation_v1.ts \
+            scripts/prove_buy_void_production_private_services_operator_v1.ts \
+            scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts \
+            scripts/prove_buy_void_runtime_integration_v1.ts \
+            scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+          do
+            echo "proof=$proof"
+            npx --no-install tsx "$proof"
+          done
+
+      - name: Prove broadcast reconciliation hardening wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          for proof in \
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts \
+            scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts \
+            scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts \
+            scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts \
+            scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts \
+            scripts/prove_buy_void_runtime_integration_v1.ts
+          do
+            echo "proof=$proof"
+            npx --no-install tsx "$proof"
+          done
+
+      - name: Typecheck and build repository
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Commit proven semantic repair and publish non-force
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            docs/operators/buy-void-production-native-execution-operator-v1.md \
+            scripts/buy_void_production_broadcast_reconciliation_operator_v1.ts \
+            scripts/buy_void_production_native_execution_operator_v1.ts \
+            scripts/prove_buy_void_native_execution_runtime_v1.ts \
+            scripts/prove_buy_void_production_broadcast_reconciliation_operator_v1.ts \
+            scripts/prove_buy_void_production_native_execution_operator_v1.ts \
+            src/economic/buy_void_native_execution_runtime_v1.ts
+          test -z "$(git diff --name-only)"
+          git commit -m "fix: harden Buy VOID post-merge execution boundaries"
+          remote_head="$(git ls-remote origin "refs/heads/$PR_HEAD_BRANCH" | awk '{print $1}')"
+          echo "remote_head_before_push=$remote_head"
+          echo "pr_head_before_run=$PR_HEAD_SHA"
+          test "$remote_head" = "$PR_HEAD_SHA"
+          git push origin "HEAD:refs/heads/$PR_HEAD_BRANCH"
+          echo "VOID_BUY_VOID_POSTMERGE_EXECUTION_RECONCILIATION_HARDENING_V1_GREEN"
+          echo "production_operator_invocation_performed=false"
+          echo "production_credential_access_performed=false"
+          echo "real_signing_performed=false"
+          echo "real_transaction_broadcast_performed=false"
+          echo "inventory_mutation_performed=false"
+          echo "money_movement_performed=false"
