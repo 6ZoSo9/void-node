@@ -273,6 +273,7 @@ function compareAtCoordinator(repo, nodeSha, canonicalSha) {
 
 function peerCount(peers) {
   if (Array.isArray(peers)) return peers.length;
+  if (peers && Array.isArray(peers.connected)) return peers.connected.length;
   if (peers && Array.isArray(peers.peers)) return peers.peers.length;
   return 0;
 }
