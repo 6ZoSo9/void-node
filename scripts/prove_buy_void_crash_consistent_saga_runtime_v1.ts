@@ -42,7 +42,7 @@ const RECEIVE = "0x8888888888888888888888888888888888888888";
 const PAYMENT_TX = `0x${"5".repeat(64)}`;
 const PAYMENT_ID = `voidpay1:ethereum:${PAYMENT_TX}:0`;
 const VOID_UNITS = "2500000";
-const POOL_ID = "void-fixed-price-pool-v1";
+const POOL_ID = "void-presale-mainnet0-v1";
 const RUNTIME_ENABLE_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
 const PREPARATION_ENABLE_ENV =
@@ -218,6 +218,8 @@ function policyEnvValues(): Record<string, string> {
       "1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.inventory_policy_version]:
       "proof-policy-v1",
+    [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_id]:
+      POOL_ID,
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_capacity_void_units]:
       "10000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.max_reservation_void_units]:
@@ -244,6 +246,8 @@ async function main(): Promise<void> {
     "restart_reconciliation_before_retry",
     "caller_supplied_policy_forbidden",
     "stable_policy_fingerprint_bound_in_saga",
+    "serverPolicy.inventory_policy.pool_id",
+    "binding.pool_id",
     "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED",
     "runBuyVoidSagaPreparedTransactionCoordinatorV1",
     "createBuyVoidPreparedTransactionCustodianIpcV1",
