@@ -93,6 +93,10 @@ Dry run performs two fresh read-only checks:
    clean non-shallow repository, expected remote URL, no Git operation in
    progress, active service, green health/readiness, and configured peer floor.
 
+The peer floor counts only live `connected` entries in the current VOID peer
+snapshot. Known addresses and cached authenticated peers do not authorize a
+source fast-forward while live connectivity is absent.
+
 Success emits `READY_TO_APPLY`, a sanitized deterministic `plan_id_sha256`, and
 the exact confirmation marker. It does not fetch or change a ref.
 

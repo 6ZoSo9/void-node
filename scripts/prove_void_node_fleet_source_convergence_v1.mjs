@@ -204,9 +204,24 @@ const inspectionGood = {
   readiness_json_ok: true,
   readiness: { ready: true, gap: 0 },
   peers_json_ok: true,
-  peers: { peers: [{ id: "a" }] },
+  peers: {
+    connected: [{ id: "a", addr: "127.0.0.1:4700" }],
+    knownAddrs: ["127.0.0.1:4700"],
+    verifiedPeers: [],
+  },
 };
 assert.deepEqual(assessInspectionV1(inspectionGood, fixedConfig, fixedFrom).reasons, []);
+assert.deepEqual(
+  assessInspectionV1({
+    ...inspectionGood,
+    peers: {
+      connected: [],
+      knownAddrs: ["127.0.0.1:4700"],
+      verifiedPeers: [{ node_id: "cached-peer", addresses: ["127.0.0.1:4700"] }],
+    },
+  }, fixedConfig, fixedFrom).reasons,
+  ["peer_floor_not_met"],
+);
 assert.deepEqual(
   assessInspectionV1({ ...inspectionGood, dirty_count: 1, git_operation_in_progress: true }, fixedConfig, fixedFrom).reasons,
   ["git_operation_in_progress", "worktree_dirty"],
