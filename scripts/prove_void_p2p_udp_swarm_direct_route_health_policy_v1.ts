@@ -126,8 +126,10 @@ function main(): void {
   expectRetain(
     {
       now_ms:
-        NOW + VOID_P2P_UDP_SWARM_DIRECT_ROUTE_HEALTH_MAX_LAST_SUCCESS_AGE_MS_V1,
-      last_success_at_ms: NOW - 1,
+        NOW +
+        VOID_P2P_UDP_SWARM_DIRECT_ROUTE_HEALTH_MAX_LAST_SUCCESS_AGE_MS_V1 +
+        1,
+      last_success_at_ms: NOW,
     },
     "last_success_stale",
   );
