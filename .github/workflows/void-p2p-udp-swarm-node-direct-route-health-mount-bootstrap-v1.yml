@@ -216,12 +216,12 @@ jobs:
 
           replace_once(
           '''      if (closedNormalRoute && peer.transport === "direct") {
-                this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
-              }''',
+                  this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
+                }''',
           '''      if (closedNormalRoute && peer.transport === "direct") {
-                this.udpSwarmPromotedDirectRouteHealth.delete(peer.id);
-                this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
-              }''',
+                  this.udpSwarmPromotedDirectRouteHealth.delete(peer.id);
+                  this.restoreUdpSwarmRelayFallbackAfterDirectCloseV1(peer);
+                }''',
           'direct close health cleanup',
           )
 
