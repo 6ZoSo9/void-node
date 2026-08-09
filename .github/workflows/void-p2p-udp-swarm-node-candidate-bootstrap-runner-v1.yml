@@ -146,7 +146,7 @@ jobs:
                   '            if (takeoverDecision.action !== "stage_authenticated_candidate") {',
                   '              this.udpSwarmDirectCandidates.delete(context.session_id);',
                   '              context.candidate.discard(',
-                  '                `relay-preserving takeover policy rejected candidate: ${takeoverDecision.reason}`,',
+                  '                `relay-preserving takeover policy rejected candidate: ${takeoverDecision.reason}`,' ,
                   '              );',
                   '              return false;',
                   '            }',
@@ -243,22 +243,23 @@ jobs:
           grep -Fq '7f76f0d520d0f28aaed10f525fbf5b07d9c44886' \
             .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
 
-      - name: Reuse repaired bootstrap generation steps
+      - name: Extract repaired bootstrap generation scripts
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import subprocess
+          import os
 
           workflow = Path('.github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml').read_text().splitlines()
-          wanted = [
-              'Apply exact Node candidate integration patch',
-              'Write focused integration proof',
-              'Write operator note',
-          ]
+          wanted = {
+              'Apply exact Node candidate integration patch': 'apply-node-candidate-integration.sh',
+              'Write focused integration proof': 'write-focused-integration-proof.sh',
+              'Write operator note': 'write-operator-note.sh',
+          }
 
-          for step_name in wanted:
+          runner_temp = Path(os.environ['RUNNER_TEMP'])
+          for step_name, filename in wanted.items():
               marker = f'      - name: {step_name}'
               try:
                   start = workflow.index(marker)
@@ -286,8 +287,22 @@ jobs:
               script = '\n'.join(body).rstrip() + '\n'
               if not script.strip():
                   raise SystemExit(f'empty run block for bootstrap step: {step_name}')
-              subprocess.run(['bash', '-c', script], check=True)
+              target = runner_temp / filename
+              target.write_text(script)
+              target.chmod(0o700)
           PY
+
+      - name: Apply exact Node candidate integration patch
+        shell: bash
+        run: bash -euo pipefail "$RUNNER_TEMP/apply-node-candidate-integration.sh"
+
+      - name: Write focused integration proof
+        shell: bash
+        run: bash -euo pipefail "$RUNNER_TEMP/write-focused-integration-proof.sh"
+
+      - name: Write operator note
+        shell: bash
+        run: bash -euo pipefail "$RUNNER_TEMP/write-operator-note.sh"
 
       - name: Setup Node 24
         uses: actions/setup-node@v6
