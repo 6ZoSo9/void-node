@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import express from "express";
-import "./buy_void_native_delivery_runtime_dependencies_v1.js";
 import {
   listBuyVoidFulfillmentJournalClaimsV1,
   type BuyVoidFulfillmentJournalIntentV1,
@@ -206,7 +205,7 @@ type ReconstructedV1 = {
   bounded_plan: BuyVoidBoundedExecutionPlanV1;
 };
 
-type PolicyStateV1 =
+export type BuyVoidNativeExecutionRuntimePolicyStateV1 =
   | {
       configured: true;
       policy: BuyVoidNativeExecutionRuntimePolicyV1;
@@ -358,7 +357,8 @@ function held(
   };
 }
 
-function policyState(): PolicyStateV1 {
+export function buyVoidNativeExecutionRuntimePolicyStateV1():
+  BuyVoidNativeExecutionRuntimePolicyStateV1 {
   const values = Object.fromEntries(
     Object.entries(POLICY_ENVS).map(([key, env]) => [
       key,
@@ -733,7 +733,7 @@ export async function runBuyVoidNativeExecutionRuntimeCommandV1(input: {
 
 export function buyVoidNativeExecutionRuntimeStatusV1():
   Record<string, unknown> {
-  const policy = policyState();
+  const policy = buyVoidNativeExecutionRuntimePolicyStateV1();
   const dependencies = externalDependencies();
   return {
     marker: VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
@@ -853,7 +853,7 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
     });
   }
 
-  const policy = policyState();
+  const policy = buyVoidNativeExecutionRuntimePolicyStateV1();
   if ("missing_envs" in policy) {
     return res.status(503).json({
       marker: VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,

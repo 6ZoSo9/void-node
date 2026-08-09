@@ -45,6 +45,12 @@ function held(
   };
 }
 
+function malformed(
+  value: unknown,
+): BuyVoidNativeChain2050JsonRpcCallResultV1 {
+  return value as BuyVoidNativeChain2050JsonRpcCallResultV1;
+}
+
 function queueTransport(
   responses: Array<
     | BuyVoidNativeChain2050JsonRpcCallResultV1
@@ -67,7 +73,9 @@ function queueTransport(
           params: [...input.params],
         });
         const next = queue.shift();
-        assert.ok(next, `missing synthetic response for ${input.method}`);
+        if (next === undefined) {
+          throw new Error(`missing synthetic response for ${input.method}`);
+        }
         if (next instanceof Error) throw next;
         return typeof next === "function" ? next(input) : next;
       },
@@ -135,6 +143,107 @@ for (const invalidPolicy of [
   ]);
 }
 
+const malformedProbeResponses = [
+  malformed(null),
+  malformed([]),
+  malformed({
+    ok: false,
+    request_sent: true,
+    response_received: true,
+    http_status: 200,
+    request_id: 1,
+    result: "0x802",
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: false,
+    response_received: true,
+    http_status: 200,
+    request_id: 1,
+    result: "0x802",
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: false,
+    http_status: 200,
+    request_id: 1,
+    result: "0x802",
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: true,
+    http_status: 503,
+    request_id: 1,
+    result: "0x802",
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: true,
+    http_status: 200,
+    request_id: 99,
+    result: "0x802",
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: true,
+    http_status: 200,
+    request_id: 1,
+    provider_submission_id: "proof:1:malformed",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: true,
+    http_status: 200,
+    request_id: 1,
+    result: "0x802",
+    provider_submission_id: "bad provider id!",
+  }),
+  malformed({
+    ok: true,
+    request_sent: true,
+    response_received: true,
+    http_status: 200,
+    request_id: 1,
+    result: "0x802",
+    error_code: "synthetic_error",
+    json_rpc_error_code: "",
+    provider_submission_id: "proof:1:malformed",
+  }),
+];
+
+for (const malformedResponse of malformedProbeResponses) {
+  const queued = queueTransport([malformedResponse]);
+  const probe = await probeBuyVoidNativeChain2050BroadcasterV1(
+    policy,
+    queued.transport,
+  );
+  assert.equal(probe.ok, false);
+  if (probe.ok) throw new Error("malformed transport result accepted");
+  assert.equal(probe.reason, "chain_identity_probe_failed");
+  assert.equal(
+    probe.detail?.error_code,
+    "transport_result_boundary_invalid",
+  );
+  assert.equal(
+    probe.provider_submission_id,
+    "chain2050-rpc:1:boundary-invalid",
+  );
+  assert.equal(probe.mutation_performed, false);
+  assert.deepEqual(queued.calls.map((call) => call.method), [
+    "eth_chainId",
+  ]);
+}
+
 const wallet = Wallet.createRandom();
 const recipient = Wallet.createRandom().address;
 const raw2050 = await wallet.signTransaction({
@@ -150,6 +259,77 @@ const raw2050 = await wallet.signTransaction({
 });
 const hash2050 = String(Transaction.from(raw2050).hash).toLowerCase();
 assert.match(hash2050, /^0x[0-9a-f]{64}$/);
+
+{
+  const queued = queueTransport([
+    ready(1, "0x802"),
+    malformed({
+      ok: true,
+      request_sent: true,
+      response_received: true,
+      http_status: 200,
+      request_id: 2,
+      result: "0x802",
+      provider_submission_id: "bad provider id!",
+    }),
+  ]);
+  const created = requireCreatedReady(
+    await createBuyVoidNativeChain2050BroadcasterV1(
+      policy,
+      queued.transport,
+    ),
+  );
+  const result = await created.broadcaster.broadcast_signed_transaction(
+    raw2050,
+  );
+  assert.equal(result.accepted, false);
+  assert.equal(result.submission_may_have_occurred, false);
+  assert.equal(
+    result.provider_submission_id,
+    "chain2050-rpc:2:boundary-invalid",
+  );
+  assert.deepEqual(queued.calls.map((call) => call.method), [
+    "eth_chainId",
+    "eth_chainId",
+  ]);
+}
+
+{
+  const queued = queueTransport([
+    ready(1, "0x802"),
+    ready(2, "0x802"),
+    malformed({
+      ok: false,
+      request_sent: false,
+      response_received: false,
+      http_status: null,
+      request_id: 3,
+      result: hash2050,
+      provider_submission_id: "proof:3:malformed",
+    }),
+  ]);
+  const created = requireCreatedReady(
+    await createBuyVoidNativeChain2050BroadcasterV1(
+      policy,
+      queued.transport,
+    ),
+  );
+  const result = await created.broadcaster.broadcast_signed_transaction(
+    raw2050,
+  );
+  assert.equal(result.accepted, false);
+  assert.equal(result.transaction_hash, hash2050);
+  assert.equal(result.submission_may_have_occurred, true);
+  assert.equal(
+    result.provider_submission_id,
+    "chain2050-rpc:3:boundary-invalid",
+  );
+  assert.deepEqual(queued.calls.map((call) => call.method), [
+    "eth_chainId",
+    "eth_chainId",
+    "eth_sendRawTransaction",
+  ]);
+}
 
 const rawWrongChain = await wallet.signTransaction({
   type: 2,
