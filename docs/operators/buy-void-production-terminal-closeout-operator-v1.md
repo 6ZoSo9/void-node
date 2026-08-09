@@ -235,6 +235,8 @@ A rare final verification-read mismatch can occur after the saga supervisor has 
 
 The final apply request echoes the exact `terminal_plan_fingerprint_sha256` from the fresh reviewed dry run. The loopback runtime requires that fingerprint and passes it to the terminal-closeout core as `expected_plan_fingerprint_sha256`.
 
-The core independently reconstructs the current terminal plan and rejects any mismatch before inventory consumption, public fulfilled projection, or saga append. The supervisor adapter performs a second equality check immediately before `applyTerminalCloseoutArtifactsV1(...)`, closing the race between the core's outer reconstruction and the lease-protected inner reconstruction.
+The core independently reconstructs the current terminal plan and rejects any mismatch before inventory consumption, public fulfilled projection, or saga append. The artifact apply path acquires the exact per-request terminal-closeout lock, reconstructs the plan again while holding that lock, compares its fingerprint to the reviewed plan, and only then persists or applies terminal artifacts.
+
+Every checked-in writer of `operator-events.jsonl` uses that same per-request lock, including manual operator marks, legacy confirmed closeout, and saga terminal closeout. An operator-status change therefore cannot enter between the final plan comparison and the terminal public projection. A change observed after the reviewed dry run is held as `terminal_closeout_plan_changed_during_apply` before terminal accounting mutation.
 
 A plan mismatch or an inner reconstruction drift is a held closeout-plan decision with automatic retry disabled and all terminal accounting mutation flags false. The fingerprint is an execution/accounting binding, not additional wallet, RPC, signing, transaction-broadcast, or money-movement authority.

@@ -313,17 +313,38 @@ function validChildAuthority(value: unknown): boolean {
   const authority = object(value);
   return Boolean(
     authority &&
+    Object.keys(authority).length === 32 &&
     authority.operator_loopback_only === true &&
-    authority.saga_id_only_selector === true &&
+    authority.disabled_by_default === true &&
+    authority.apply_disabled_by_default === true &&
     authority.server_controlled_root_dir === true &&
+    authority.saga_id_only_selector === true &&
     authority.server_controlled_broadcaster_socket === true &&
+    authority.broadcaster_socket_path_not_exposed === true &&
+    authority.stable_policy_fingerprint_echo_required === true &&
+    authority.exact_runtime_confirmation_required === true &&
+    authority.exact_coordinator_confirmation_required === true &&
+    authority.exact_saga_confirmation_required === true &&
+    authority.exact_saga_action_confirmation_required === true &&
+    authority.dry_run_available_without_broadcaster_socket === true &&
+    authority.reconcile_possible_broadcast_only_when_applied === true &&
+    authority.execute_prepared_transaction_mounted === false &&
     authority.submit_once_runtime_adapter === false &&
     authority.inspect_submission_runtime_adapter === true &&
-    authority.execute_prepared_transaction_mounted === false &&
+    authority.external_inspection_possible_when_applied === true &&
+    authority.automatic_resubmission === false &&
+    authority.raw_signed_transaction_input === false &&
+    authority.raw_signed_transaction_persistence === false &&
+    authority.raw_signed_transaction_output === false &&
+    authority.custody_handle_input === false &&
+    authority.custody_handle_output === false &&
+    authority.application_wallet_access === false &&
+    authority.application_signing === false &&
     authority.transaction_broadcast === false &&
     authority.inventory_decrement === false &&
     authority.public_fulfilled_closeout === false &&
-    authority.automatic_resubmission === false &&
+    authority.background_loop === false &&
+    authority.startup_execution === false &&
     authority.money_movement === false
   );
 }
@@ -670,6 +691,7 @@ function parseAppliedEnvelope(
     }
     if (
       decision.applied !== true ||
+      decision.mutation_performed !== true ||
       decision.saga_id !== sagaId ||
       decision.action !== "reconcile_possible_broadcast" ||
       typeof decision.attempt_id !== "string" ||
