@@ -122,11 +122,7 @@ function hasExactKeys(value: unknown, expected: readonly string[]): boolean {
 }
 
 function safeNonNegativeInteger(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isSafeInteger(value) &&
-    value >= 0
-  );
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function validEvidenceShape(
@@ -144,18 +140,14 @@ function validEvidenceShape(
     !NODE_ID_RE.test(evidence.relay_node_id) ||
     typeof evidence.retired_relay_stream_id !== "string" ||
     !SAFE_TOKEN_RE.test(evidence.retired_relay_stream_id)
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     evidence.retirement_phase !== "pending" &&
     evidence.retirement_phase !== "retired" &&
     evidence.retirement_phase !== "callback_rejected" &&
     evidence.retirement_phase !== "callback_indeterminate"
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     typeof evidence.retirement_callback_attempted !== "boolean" ||
@@ -167,25 +159,19 @@ function validEvidenceShape(
     typeof evidence.normal_route_live !== "boolean" ||
     typeof evidence.relay_fallback_live !== "boolean" ||
     typeof evidence.relay_control_route_live !== "boolean"
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     evidence.relay_control_route_transport !== "direct" &&
     evidence.relay_control_route_transport !== "relay" &&
     evidence.relay_control_route_transport !== null
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     evidence.authenticated_relay_control_node_id !== null &&
     (typeof evidence.authenticated_relay_control_node_id !== "string" ||
       !NODE_ID_RE.test(evidence.authenticated_relay_control_node_id))
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     !safeNonNegativeInteger(evidence.reacquisition_attempt_count) ||
@@ -194,22 +180,16 @@ function validEvidenceShape(
     (evidence.last_reacquisition_attempt_at_ms !== null &&
       !safeNonNegativeInteger(evidence.last_reacquisition_attempt_at_ms)) ||
     !safeNonNegativeInteger(evidence.now_ms)
-  ) {
-    return false;
-  }
+  ) return false;
 
   if (
     evidence.reacquisition_attempt_count === 0 &&
     evidence.last_reacquisition_attempt_at_ms !== null
-  ) {
-    return false;
-  }
+  ) return false;
   if (
     evidence.reacquisition_attempt_count > 0 &&
     evidence.last_reacquisition_attempt_at_ms === null
-  ) {
-    return false;
-  }
+  ) return false;
 
   return true;
 }
@@ -267,12 +247,7 @@ export function evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1(
     evidence.relay_retirement_performed !== true ||
     evidence.relay_retired_at_ms === null
   ) {
-    return decision(
-      "hold_recovery",
-      "retirement_not_successful",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "retirement_not_successful", binding, false);
   }
 
   if (
@@ -281,75 +256,33 @@ export function evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1(
       (evidence.last_reacquisition_attempt_at_ms < evidence.relay_retired_at_ms ||
         evidence.last_reacquisition_attempt_at_ms > evidence.now_ms))
   ) {
-    return decision(
-      "hold_recovery",
-      "retirement_time_invalid",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "retirement_time_invalid", binding, false);
   }
 
   if (evidence.direct_route_live) {
-    return decision(
-      "hold_recovery",
-      "direct_route_still_live",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "direct_route_still_live", binding, false);
   }
   if (evidence.normal_route_live) {
-    return decision(
-      "hold_recovery",
-      "normal_route_already_live",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "normal_route_already_live", binding, false);
   }
   if (evidence.relay_fallback_live) {
-    return decision(
-      "hold_recovery",
-      "relay_fallback_already_live",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "relay_fallback_already_live", binding, false);
   }
   if (!evidence.relay_control_route_live) {
-    return decision(
-      "hold_recovery",
-      "relay_control_route_unavailable",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "relay_control_route_unavailable", binding, false);
   }
   if (evidence.relay_control_route_transport !== "direct") {
-    return decision(
-      "hold_recovery",
-      "relay_control_route_not_direct",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "relay_control_route_not_direct", binding, false);
   }
-  if (
-    evidence.authenticated_relay_control_node_id !== evidence.relay_node_id
-  ) {
-    return decision(
-      "hold_recovery",
-      "relay_control_identity_mismatch",
-      binding,
-      false,
-    );
+  if (evidence.authenticated_relay_control_node_id !== evidence.relay_node_id) {
+    return decision("hold_recovery", "relay_control_identity_mismatch", binding, false);
   }
 
   if (
     evidence.reacquisition_attempt_count >=
     VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_MAX_ATTEMPTS_V1
   ) {
-    return decision(
-      "hold_recovery",
-      "reacquisition_attempts_exhausted",
-      binding,
-      false,
-    );
+    return decision("hold_recovery", "reacquisition_attempts_exhausted", binding, false);
   }
 
   let minimumRetryAtMs: number | null = null;
@@ -357,8 +290,9 @@ export function evaluateVoidUdpSwarmPostRetirementRecoveryPolicyV1(
     const next =
       evidence.last_reacquisition_attempt_at_ms +
       VOID_P2P_UDP_SWARM_POST_RETIREMENT_RECOVERY_RETRY_INTERVAL_MS_V1;
-    minimumRetryAtMs = Number.isSafeInteger(next) ? next : Number.MAX_SAFE_INTEGER;
-    if (evidence.now_ms < minimumRetryAtMs) {
+    const retryTimeOverflow = !Number.isSafeInteger(next);
+    minimumRetryAtMs = retryTimeOverflow ? Number.MAX_SAFE_INTEGER : next;
+    if (retryTimeOverflow || evidence.now_ms < minimumRetryAtMs) {
       return decision(
         "hold_recovery",
         "retry_interval_not_elapsed",
