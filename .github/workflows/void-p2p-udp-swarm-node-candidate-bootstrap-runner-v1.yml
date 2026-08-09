@@ -397,16 +397,14 @@ jobs:
           printf 'actual paths:\n%s\nexpected paths:\n%s\n' "$actual" "$expected"
           test "$actual" = "$expected"
 
-      - name: Commit and push proven restacked integration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml \
-            src/node_core.ts \
-            scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts \
+      - name: Export proven integration packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-p2p-udp-swarm-node-candidate-integration-v1-proven-${{ github.event.pull_request.head.sha }}
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            .github/workflows/void-p2p-udp-swarm-node-candidate-integration-v1.yml
             docs/public/void-p2p-udp-swarm-node-candidate-integration-v1.md
-          git diff --cached --check
-          git commit -m 'feat: enforce relay-preserving UDP candidate staging'
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+            scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+            src/node_core.ts
