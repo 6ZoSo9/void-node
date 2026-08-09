@@ -300,7 +300,7 @@ const runtimeSource = fs.readFileSync(
 );
 assert.match(
   runtimeSource,
-  /json\(\s*buyVoidNativeExecutionRuntimeHttpJsonV1\(decision\)\s*\)/,
+  /json\(\s*buyVoidNativeExecutionRuntimeHttpJsonV1\(decision\),?\s*\)/,
 );
 
 const root = fs.mkdtempSync(
