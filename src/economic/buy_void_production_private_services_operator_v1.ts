@@ -61,7 +61,7 @@ const SAFE_INPUT_KEYS = new Set([
 ]);
 const SHA256 = /^[0-9a-f]{64}$/;
 const SAFE_REASON = /^[A-Za-z0-9._:-]{1,220}$/;
-const SAFE_PROVIDER_ID = /^[A-Za-z0-9._:-]{1,220}$/;
+const SAFE_PROVIDER_ID = /^[A-Za-z0-9._:@/-]{1,200}$/;
 
 export type RunBuyVoidProductionPrivateServicesOperatorInputV1 = {
   apply?: boolean;
