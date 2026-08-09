@@ -16,6 +16,7 @@ export const VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_AUTHORITY_V1 = 
   exact_terminal_closeout_confirmation_required: true,
   exact_policy_fingerprint_required: true,
   runtime_validates_exact_terminal_plan_fingerprint_before_mutation: true,
+  runtime_revalidates_terminal_plan_inside_shared_request_lock: true,
   exact_saga_confirmation_required: true,
   exact_saga_action_confirmation_required: true,
   server_controlled_root_dir: true,
@@ -375,6 +376,8 @@ function validTerminalAuthority(value: unknown): boolean {
     authority.request_scoped_crash_recoverable_lock === true &&
     authority.deterministic_closeout_plan_persistence === true &&
     authority.exact_terminal_plan_fingerprint_required_before_mutation === true &&
+    authority.terminal_plan_revalidation_inside_request_lock === true &&
+    authority.shared_operator_event_writer_lock === true &&
     authority.append_only_inventory_consumption === true &&
     authority.atomic_public_operator_journal_projection === true &&
     authority.saga_closeout_committed_append === true &&
