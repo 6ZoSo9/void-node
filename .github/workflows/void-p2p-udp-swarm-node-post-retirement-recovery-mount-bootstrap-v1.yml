@@ -1,0 +1,180 @@
+name: VOID P2P UDP swarm Node post-retirement recovery mount bootstrap v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml'
+      - 'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py'
+      - 'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts'
+      - 'src/p2p/udp_swarm_post_retirement_recovery_policy_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.yml'
+      - 'src/node_core.ts'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: >-
+      github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.repo.full_name == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.ref == 'feat/p2p-udp-swarm-node-post-retirement-recovery-mount-v1-20260809' &&
+      github.event.pull_request.base.ref == 'feat/p2p-udp-swarm-post-retirement-recovery-policy-v1-20260809'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard child scope and reconcile exact moving parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test -z "$(git status --porcelain)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git cat-file -e "$BASE_SHA^{commit}"
+          MERGE_BASE="$(git merge-base HEAD "$BASE_SHA")"
+
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml' \
+            'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py' \
+            'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts' \
+            > /tmp/expected-child-paths.txt
+          git diff --name-only "$MERGE_BASE"...HEAD | sort > /tmp/actual-child-paths.txt
+          diff -u /tmp/expected-child-paths.txt /tmp/actual-child-paths.txt
+
+          git diff --name-only "$MERGE_BASE"..."$BASE_SHA" | sort > /tmp/parent-paths.txt
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.yml|\
+              docs/public/void-p2p-udp-swarm-post-retirement-recovery-policy-v1.md|\
+              scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts|\
+              src/p2p/udp_swarm_post_retirement_recovery_policy_v1.ts)
+                ;;
+              "")
+                ;;
+              *)
+                echo "unexpected moving-parent path: $path" >&2
+                exit 1
+                ;;
+            esac
+          done < /tmp/parent-paths.txt
+
+          if ! git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            git merge --no-edit --no-ff "$BASE_SHA"
+          fi
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test -z "$(git status --porcelain)"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Materialize exact Node recovery mount
+        run: python3 scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+
+      - name: Prove Node post-retirement recovery mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts
+
+      - name: Re-prove post-retirement recovery policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_post_retirement_recovery_policy_v1.ts
+
+      - name: Re-prove Node relay retirement mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_relay_retirement_mount_v1.ts
+
+      - name: Re-prove relay retirement executor
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_retirement_executor_v1.ts
+
+      - name: Re-prove Node direct-route health mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_direct_route_health_mount_v1.ts
+
+      - name: Re-prove direct-route health policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_direct_route_health_policy_v1.ts
+
+      - name: Re-prove Node candidate promotion
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts
+
+      - name: Re-prove Node candidate integration
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          printf '%s\n' 'src/node_core.ts' > /tmp/expected-tracked-changes.txt
+          git diff --name-only | sort > /tmp/actual-tracked-changes.txt
+          diff -u /tmp/expected-tracked-changes.txt /tmp/actual-tracked-changes.txt
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            > /tmp/expected-untracked.txt
+          git ls-files --others --exclude-standard | sort > /tmp/actual-untracked.txt
+          diff -u /tmp/expected-untracked.txt /tmp/actual-untracked.txt
+          git status --short
+
+      - name: Retire bootstrap carrier and stage exact publication scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- src/node_core.ts .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml
+          git rm -- \
+            .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml \
+            scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+          git diff --cached --check
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            'scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py' \
+            'src/node_core.ts' > /tmp/expected-staged-paths.txt
+          git diff --cached --name-only | sort > /tmp/actual-staged-paths.txt
+          diff -u /tmp/expected-staged-paths.txt /tmp/actual-staged-paths.txt
+          git commit -m "feat: mount UDP post-retirement recovery in Node v1"
+
+      - name: Verify final semantic tree before push
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git diff --check "$BASE_SHA"...HEAD
+          printf '%s\n' \
+            '.github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-v1.yml' \
+            'scripts/prove_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.ts' \
+            'src/node_core.ts' > /tmp/expected-final-paths.txt
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual-final-paths.txt
+          diff -u /tmp/expected-final-paths.txt /tmp/actual-final-paths.txt
+          test ! -e .github/workflows/void-p2p-udp-swarm-node-post-retirement-recovery-mount-bootstrap-v1.yml
+          test ! -e scripts/materialize_void_p2p_udp_swarm_node_post_retirement_recovery_mount_v1.py
+
+      - name: Guard live branch then fast-forward publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_OLD="${{ github.event.pull_request.head.sha }}"
+          LIVE="$(git ls-remote origin refs/heads/${{ github.event.pull_request.head.ref }} | awk '{print $1}')"
+          test "$LIVE" = "$EXPECTED_OLD"
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
