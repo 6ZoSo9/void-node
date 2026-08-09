@@ -1,0 +1,219 @@
+name: Buy VOID terminal-closeout plan binding bootstrap v2
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-terminal-closeout-plan-binding-bootstrap-v2.yml'
+      - 'scripts/patch_buy_void_terminal_closeout_plan_binding_e2e_v1.py'
+      - 'scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py'
+      - 'scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: buy-void-terminal-closeout-plan-binding-bootstrap-v2-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    if: >-
+      github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.repo.full_name == '6ZoSo9/void-node' &&
+      github.event.pull_request.head.ref == 'fix/buy-void-terminal-closeout-plan-binding-v1-20260809' &&
+      github.event.pull_request.base.ref == 'fix/buy-void-terminal-closeout-append-truth-v1-20260809'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact child head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard exact child and parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          test '${{ github.event.pull_request.base.sha }}' = 'a08e5472052789882d7e5f153ca9e988dc1c2622'
+          git merge-base --is-ancestor '${{ github.event.pull_request.base.sha }}' HEAD
+          test -z "$(git status --porcelain)"
+          printf '%s\n' \
+            '.github/workflows/buy-void-terminal-closeout-plan-binding-bootstrap-v1.yml' \
+            '.github/workflows/buy-void-terminal-closeout-plan-binding-bootstrap-v2.yml' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_e2e_v1.py' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py' \
+            > /tmp/expected-carriers.txt
+          git diff --name-only '${{ github.event.pull_request.base.sha }}'...HEAD | sort > /tmp/actual-carriers.txt
+          diff -u /tmp/expected-carriers.txt /tmp/actual-carriers.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Apply deterministic terminal plan binding patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          patch = Path("scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py")
+          text = patch.read_text()
+          start = text.index("def replace_once(")
+          end = text.index("\n\nMODEL =", start)
+          current = text[start:end]
+          if "if count != 1:" not in current or "file.write_text(text.replace(old, new, 1))" not in current:
+              raise SystemExit("terminal_plan_binding_replace_once_shape_changed")
+          replacement = '''def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              allowed_runtime_response_duplicate = (
+                  path == "src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts"
+                  and old == "      required_policy_fingerprint_sha256:\\n        dry.required_policy_fingerprint_sha256,\\n      required_saga_confirmation: dry.required_saga_confirmation,"
+                  and count == 2
+              )
+              allowed_runtime_apply_duplicate = (
+                  path == "scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts"
+                  and old == "      policy_fingerprint_sha256: policyFingerprint,\\n      saga_confirmation: sagaConfirmation,"
+                  and count == 2
+              )
+              if count != 1 and not (
+                  allowed_runtime_response_duplicate or allowed_runtime_apply_duplicate
+              ):
+                  raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:100]!r}")
+              replacement_count = 2 if allowed_runtime_response_duplicate else 1
+              file.write_text(text.replace(old, new, replacement_count))'''
+          patch.write_text(text[:start] + replacement + text[end:])
+          PY
+          trap 'git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py' EXIT
+          python3 scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
+          git checkout -- scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py
+          trap - EXIT
+
+      - name: Normalize operator proof key order
+        run: python3 scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py
+
+      - name: Patch synthetic E2E terminal plan authority
+        run: python3 scripts/patch_buy_void_terminal_closeout_plan_binding_e2e_v1.py
+
+      - name: Prove terminal-closeout core plan binding
+        run: npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_v1.ts
+
+      - name: Prove terminal-closeout runtime plan binding
+        run: npx --no-install tsx scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts
+
+      - name: Prove production terminal-closeout operator binding
+        run: npx --no-install tsx scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
+
+      - name: Re-prove confirmed closeout and server policy
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_confirmed_closeout_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_server_policy_v1.ts
+
+      - name: Re-prove Buy VOID runtime integration
+        run: npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+
+      - name: Re-prove synthetic end-to-end fulfillment rehearsal
+        run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Verify exact semantic patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          printf '%s\n' \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts' \
+            > /tmp/expected-semantic.txt
+          git diff --name-only | sort > /tmp/actual-semantic.txt
+          diff -u /tmp/expected-semantic.txt /tmp/actual-semantic.txt
+          test -z "$(git ls-files --others --exclude-standard)"
+
+      - name: Commit proven semantic hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- \
+            docs/operators/buy-void-production-terminal-closeout-operator-v1.md \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts \
+            scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
+            scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_model_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts \
+            src/economic/buy_void_saga_terminal_closeout_v1.ts
+          git diff --cached --check
+          printf '%s\n' \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts' \
+            > /tmp/expected-staged.txt
+          git diff --cached --name-only | sort > /tmp/actual-staged.txt
+          diff -u /tmp/expected-staged.txt /tmp/actual-staged.txt
+          git commit -m 'fix: bind terminal closeout apply to reviewed plan v1'
+
+      - name: Verify publication tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          git diff --check "$BASE_SHA"...HEAD
+          printf '%s\n' \
+            '.github/workflows/buy-void-terminal-closeout-plan-binding-bootstrap-v1.yml' \
+            '.github/workflows/buy-void-terminal-closeout-plan-binding-bootstrap-v2.yml' \
+            'docs/operators/buy-void-production-terminal-closeout-operator-v1.md' \
+            'scripts/buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_e2e_v1.py' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_proof_fixup_v1.py' \
+            'scripts/patch_buy_void_terminal_closeout_plan_binding_v1.py' \
+            'scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'scripts/prove_buy_void_saga_terminal_closeout_v1.ts' \
+            'scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_model_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_runtime_v1.ts' \
+            'src/economic/buy_void_saga_terminal_closeout_v1.ts' \
+            > /tmp/expected-publication.txt
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual-publication.txt
+          diff -u /tmp/expected-publication.txt /tmp/actual-publication.txt
+
+      - name: Guard live child then fast-forward publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_OLD='${{ github.event.pull_request.head.sha }}'
+          LIVE="$(git ls-remote origin refs/heads/${{ github.event.pull_request.head.ref }} | awk '{print $1}')"
+          test "$LIVE" = "$EXPECTED_OLD"
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
