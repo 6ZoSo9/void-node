@@ -275,7 +275,12 @@ function appliedFixture(input: {
   };
 }
 
-function partialHeldFixture(): Record<string, unknown> {
+function partialHeldFixture(input: {
+  publicFulfilled?: boolean;
+  sagaAppended?: boolean;
+} = {}): Record<string, unknown> {
+  const publicFulfilled = input.publicFulfilled === true;
+  const sagaAppended = input.sagaAppended === true;
   return {
     marker: CHILD_MARKER,
     version: 1,
@@ -287,19 +292,21 @@ function partialHeldFixture(): Record<string, unknown> {
       ok: false,
       status: "held",
       applied: true,
-      stage: "public_closeout",
-      reason: "synthetic_public_projection_failure",
+      stage: sagaAppended ? "saga_append" : "public_closeout",
+      reason: sagaAppended
+        ? "terminal_closeout_final_saga_mismatch"
+        : "synthetic_public_projection_failure",
       mutation_performed: true,
       inventory_consumption_performed: true,
-      public_request_fulfilled: false,
-      saga_closeout_appended: false,
+      public_request_fulfilled: publicFulfilled,
+      saga_closeout_appended: sagaAppended,
       automatic_retry_allowed: false,
       money_movement_performed: false,
     },
     mutation_performed: true,
     inventory_consumption_performed: true,
-    public_request_fulfilled: false,
-    saga_closeout_appended: false,
+    public_request_fulfilled: publicFulfilled,
+    saga_closeout_appended: sagaAppended,
     automatic_retry_allowed: false,
     money_movement_performed: false,
     authority: runtimeAuthority(),
@@ -585,7 +592,38 @@ assert.equal(partial.recovery_required, true);
 assert.equal(partial.mutation_performed, true);
 assert.equal(partial.inventory_consumption_performed, true);
 assert.equal(partial.public_request_fulfilled, false);
+assert.equal(partial.saga_closeout_appended, false);
 assert.equal(partial.automatic_retry_allowed, false);
+
+let postAppendHeldPosts = 0;
+const postAppendHeld = await runBuyVoidProductionTerminalCloseoutV1({
+  args: applyArgs(plan.plan_fingerprint_sha256),
+  http_get: async () => ({
+    status: 200,
+    json: statusFixture({ applyEnabled: true }),
+  }),
+  http_post: async () => {
+    postAppendHeldPosts += 1;
+    return postAppendHeldPosts <= 2
+      ? { status: 200, json: dryFixture() }
+      : {
+          status: 500,
+          json: partialHeldFixture({
+            publicFulfilled: true,
+            sagaAppended: true,
+          }),
+        };
+  },
+});
+assert.equal(postAppendHeld.ok, false);
+assert.equal(postAppendHeld.status, "held");
+assert.equal(postAppendHeld.side_effect_state_known, true);
+assert.equal(postAppendHeld.recovery_required, true);
+assert.equal(postAppendHeld.mutation_performed, true);
+assert.equal(postAppendHeld.inventory_consumption_performed, true);
+assert.equal(postAppendHeld.public_request_fulfilled, true);
+assert.equal(postAppendHeld.saga_closeout_appended, true);
+assert.equal(postAppendHeld.automatic_retry_allowed, false);
 
 let transportPosts = 0;
 const transportUnknown = await runBuyVoidProductionTerminalCloseoutV1({
@@ -667,6 +705,7 @@ console.log(JSON.stringify({
   duplicate_terminal_truth_preserved: true,
   recovered_partial_truth_preserved: true,
   partial_mutation_truth_preserved: true,
+  post_append_verification_mismatch_saga_truth_preserved: true,
   applied_transport_unknown_preserved: true,
   malformed_applied_envelope_unknown: true,
   automatic_retry: false,
