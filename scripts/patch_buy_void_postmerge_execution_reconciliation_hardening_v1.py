@@ -16,7 +16,7 @@ def replace_once(text: str, old: str, new: str, name: str) -> str:
 
 # Keep the original guarded hardening program immutable and repair only the two
 # response-saga anchors that became ambiguous because dry and applied envelopes
-# intentionally contain the same expression.  Do not relax the original
+# intentionally contain the same expression. Do not relax the original
 # one-anchor invariant globally: every semantic mutation must still match one
 # exact contextual preimage.
 source = subprocess.check_output(
@@ -26,43 +26,43 @@ source = subprocess.check_output(
 
 source = replace_once(
     source,
-    '''text = one(
+    """text = one(
     text,
     'text(response.saga_id).toLowerCase() !== sagaId',
     'response.saga_id !== sagaId',
     "reconciliation dry response saga",
-)''',
-    '''text = one(
+)""",
+    """text = one(
     text,
-    \'''    response.applied !== false ||
+    '''    response.applied !== false ||
     text(response.saga_id).toLowerCase() !== sagaId ||
-    response.execute_prepared_transaction_mounted !== false\''',
-    \'''    response.applied !== false ||
+    response.execute_prepared_transaction_mounted !== false''',
+    '''    response.applied !== false ||
     response.saga_id !== sagaId ||
-    response.execute_prepared_transaction_mounted !== false\''',
+    response.execute_prepared_transaction_mounted !== false''',
     "reconciliation dry response saga",
-)''',
+)""",
     "dry response saga carrier repair",
 )
 
 source = replace_once(
     source,
-    '''text = one(
+    """text = one(
     text,
     'text(response.saga_id).toLowerCase() !== sagaId',
     'response.saga_id !== sagaId',
     "reconciliation applied response saga",
-)''',
-    '''text = one(
+)""",
+    """text = one(
     text,
-    \'''    response.applied !== true ||
+    '''    response.applied !== true ||
     text(response.saga_id).toLowerCase() !== sagaId ||
-    response.execute_prepared_transaction_mounted !== false\''',
-    \'''    response.applied !== true ||
+    response.execute_prepared_transaction_mounted !== false''',
+    '''    response.applied !== true ||
     response.saga_id !== sagaId ||
-    response.execute_prepared_transaction_mounted !== false\''',
+    response.execute_prepared_transaction_mounted !== false''',
     "reconciliation applied response saga",
-)''',
+)""",
     "applied response saga carrier repair",
 )
 
