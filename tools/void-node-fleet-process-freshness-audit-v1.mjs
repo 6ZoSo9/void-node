@@ -155,17 +155,32 @@ fi
 printf 'repo_ok\\t1\\n'
 repo_real="$(readlink -f -- "$repo" 2>/dev/null || true)"
 entrypoint_absolute="$repo_real/$entrypoint"
+head_before="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
+branch_before="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
+status_readable=0
+status_before=""
+if status_before="$(git -C "$repo" status --porcelain=v1 2>/dev/null)"; then
+  status_readable=1
+fi
+dirty_count=0
+if test -n "$status_before"; then
+  dirty_count="$(printf '%s\\n' "$status_before" | wc -l | tr -d '[:space:]')"
+fi
 head_log="$(git -C "$repo" rev-parse --path-format=absolute --git-path logs/HEAD 2>/dev/null || true)"
 head_transition_epoch=""
+head_log_size=""
 head_log_present=0
 if test -n "$head_log" && test -f "$head_log"; then
   head_log_present=1
   head_transition_epoch="$(stat -c %Y -- "$head_log" 2>/dev/null || true)"
+  head_log_size="$(stat -c %s -- "$head_log" 2>/dev/null || true)"
 fi
 
-active_state="$(systemctl --user show "$service" --property=ActiveState --value 2>/dev/null || true)"
-main_pid="$(systemctl --user show "$service" --property=MainPID --value 2>/dev/null || true)"
-start_text="$(systemctl --user show "$service" --property=ExecMainStartTimestamp --value 2>/dev/null || true)"
+service_show_before="$(systemctl --user show "$service" \
+  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp 2>/dev/null || true)"
+active_state="$(printf '%s\\n' "$service_show_before" | sed -n 's/^ActiveState=//p' | tail -n 1)"
+main_pid="$(printf '%s\\n' "$service_show_before" | sed -n 's/^MainPID=//p' | tail -n 1)"
+start_text="$(printf '%s\\n' "$service_show_before" | sed -n 's/^ExecMainStartTimestamp=//p' | tail -n 1)"
 process_start_epoch="$(date --date="$start_text" +%s 2>/dev/null || true)"
 process_present=0
 cwd_match=0
@@ -186,9 +201,38 @@ health="$(curl -fsS --max-time 4 "$http_base/health" 2>/dev/null || true)"
 ready="$(curl -fsS --max-time 4 "$http_base/__void/ready.json" 2>/dev/null || true)"
 version="$(curl -fsS --max-time 4 "$http_base/version" 2>/dev/null || true)"
 
-printf 'head\\t%s\\n' "$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
-printf 'branch\\t%s\\n' "$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
-printf 'dirty_count\\t%s\\n' "$(git -C "$repo" status --porcelain=v1 2>/dev/null | wc -l | tr -d '[:space:]')"
+head_after="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
+branch_after="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
+status_after_readable=0
+status_after=""
+if status_after="$(git -C "$repo" status --porcelain=v1 2>/dev/null)"; then
+  status_after_readable=1
+fi
+head_transition_epoch_after=""
+head_log_size_after=""
+if test -n "$head_log" && test -f "$head_log"; then
+  head_transition_epoch_after="$(stat -c %Y -- "$head_log" 2>/dev/null || true)"
+  head_log_size_after="$(stat -c %s -- "$head_log" 2>/dev/null || true)"
+fi
+source_stable=0
+if test "$status_readable" = 1 && test "$status_after_readable" = 1 &&
+   test "$head_before" = "$head_after" && test "$branch_before" = "$branch_after" &&
+   test "$status_before" = "$status_after" &&
+   test "$head_transition_epoch" = "$head_transition_epoch_after" &&
+   test "$head_log_size" = "$head_log_size_after"; then
+  source_stable=1
+fi
+
+service_show_after="$(systemctl --user show "$service" \
+  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp 2>/dev/null || true)"
+process_identity_stable=0
+test "$service_show_before" = "$service_show_after" && process_identity_stable=1
+
+printf 'head\\t%s\\n' "$head_before"
+printf 'branch\\t%s\\n' "$branch_before"
+printf 'dirty_count\\t%s\\n' "$dirty_count"
+printf 'worktree_status_readable\\t%s\\n' "$status_readable"
+printf 'source_stable\\t%s\\n' "$source_stable"
 printf 'head_log_present\\t%s\\n' "$head_log_present"
 printf 'head_transition_epoch\\t%s\\n' "$head_transition_epoch"
 printf 'observed_at_epoch\\t%s\\n' "$(date +%s)"
@@ -198,6 +242,7 @@ printf 'process_start_epoch\\t%s\\n' "$process_start_epoch"
 printf 'process_cwd_matches_repo\\t%s\\n' "$cwd_match"
 printf 'process_entrypoint_matches\\t%s\\n' "$entrypoint_match"
 printf 'process_executable_node\\t%s\\n' "$executable_node"
+printf 'process_identity_stable\\t%s\\n' "$process_identity_stable"
 printf 'health_b64\\t%s\\n' "$(printf '%s' "$health" | base64 -w0 2>/dev/null || true)"
 printf 'readiness_b64\\t%s\\n' "$(printf '%s' "$ready" | base64 -w0 2>/dev/null || true)"
 printf 'version_b64\\t%s\\n' "$(printf '%s' "$version" | base64 -w0 2>/dev/null || true)"
@@ -222,6 +267,8 @@ export function parseProcessFreshnessCollectorOutputV1(stdout) {
     source_head: fields.get("head") ?? "",
     source_branch: fields.get("branch") ?? "",
     dirty_count: integer("dirty_count"),
+    worktree_status_readable: fields.get("worktree_status_readable") === "1",
+    source_stable: fields.get("source_stable") === "1",
     head_log_present: fields.get("head_log_present") === "1",
     head_transition_epoch: integer("head_transition_epoch"),
     observed_at_epoch: integer("observed_at_epoch"),
@@ -231,6 +278,7 @@ export function parseProcessFreshnessCollectorOutputV1(stdout) {
     process_cwd_matches_repo: fields.get("process_cwd_matches_repo") === "1",
     process_entrypoint_matches: fields.get("process_entrypoint_matches") === "1",
     process_executable_node: fields.get("process_executable_node") === "1",
+    process_identity_stable: fields.get("process_identity_stable") === "1",
     health_json_ok: health.ok,
     health: health.value,
     readiness_json_ok: readiness.ok,
@@ -253,7 +301,9 @@ export function classifyProcessFreshnessV1(snapshot) {
   if (!snapshot.repo_ok) reasons.push("repo_unavailable");
   if (!SHA40_RE.test(snapshot.source_head ?? "")) reasons.push("invalid_source_head");
   if (snapshot.source_branch !== "main") reasons.push("source_branch_not_main");
-  if (snapshot.dirty_count !== 0) reasons.push("worktree_dirty_or_unreadable");
+  if (!snapshot.worktree_status_readable) reasons.push("worktree_status_unreadable");
+  if (snapshot.worktree_status_readable && snapshot.dirty_count !== 0) reasons.push("worktree_dirty");
+  if (!snapshot.source_stable) reasons.push("source_changed_during_collection");
   if (!snapshot.head_log_present || !Number.isSafeInteger(snapshot.head_transition_epoch)) reasons.push("head_transition_time_unavailable");
   if (!snapshot.service_active) reasons.push("service_inactive");
   if (!snapshot.process_present) reasons.push("main_process_unavailable");
@@ -262,6 +312,7 @@ export function classifyProcessFreshnessV1(snapshot) {
   if (!snapshot.process_cwd_matches_repo) reasons.push("process_cwd_mismatch");
   if (!snapshot.process_entrypoint_matches) reasons.push("process_entrypoint_mismatch");
   if (!snapshot.process_executable_node) reasons.push("process_executable_not_node");
+  if (!snapshot.process_identity_stable) reasons.push("process_changed_during_collection");
   if (!snapshot.health_json_ok || snapshot.health?.ok !== true) reasons.push("health_not_green");
   if (!readinessGreen(snapshot)) reasons.push("readiness_not_green");
   if (Number.isSafeInteger(snapshot.observed_at_epoch) && Number.isSafeInteger(snapshot.process_start_epoch) &&
@@ -341,12 +392,15 @@ export function collectNodeProcessFreshnessV1(node) {
     source_head: SHA40_RE.test(snapshot.source_head) ? snapshot.source_head : null,
     source_branch: snapshot.source_branch || null,
     dirty_count: snapshot.dirty_count,
+    worktree_status_readable: snapshot.worktree_status_readable,
+    source_stable: snapshot.source_stable,
     service_active: snapshot.service_active,
     process_present: snapshot.process_present,
     process_cwd_matches_repo: snapshot.process_cwd_matches_repo,
     process_entrypoint: PROCESS_ENTRYPOINT_V1,
     process_entrypoint_matches: snapshot.process_entrypoint_matches,
     process_executable_node: snapshot.process_executable_node,
+    process_identity_stable: snapshot.process_identity_stable,
     head_transition_epoch: snapshot.head_transition_epoch,
     process_start_epoch: snapshot.process_start_epoch,
     observed_at_epoch: snapshot.observed_at_epoch,

@@ -75,6 +75,8 @@ function baseSnapshot(overrides = {}) {
     source_head: "1".repeat(40),
     source_branch: "main",
     dirty_count: 0,
+    worktree_status_readable: true,
+    source_stable: true,
     head_log_present: true,
     head_transition_epoch: 100,
     observed_at_epoch: 110,
@@ -84,6 +86,7 @@ function baseSnapshot(overrides = {}) {
     process_cwd_matches_repo: true,
     process_entrypoint_matches: true,
     process_executable_node: true,
+    process_identity_stable: true,
     health_json_ok: true,
     health: { ok: true },
     readiness_json_ok: true,
@@ -117,6 +120,17 @@ const unhealthy = classifyProcessFreshnessV1(baseSnapshot({
 assert.equal(unhealthy.classification, "HOLD");
 assert.deepEqual(unhealthy.reasons, ["health_not_green", "process_cwd_mismatch", "source_branch_not_main"]);
 
+const raced = classifyProcessFreshnessV1(baseSnapshot({
+  source_stable: false,
+  process_identity_stable: false,
+}));
+assert.equal(raced.classification, "HOLD");
+assert.deepEqual(raced.reasons, ["process_changed_during_collection", "source_changed_during_collection"]);
+
+const unreadableStatus = classifyProcessFreshnessV1(baseSnapshot({ worktree_status_readable: false }));
+assert.equal(unreadableStatus.classification, "HOLD");
+assert.deepEqual(unreadableStatus.reasons, ["worktree_status_unreadable"]);
+
 const alignedNode = { name: "nimo", source_head: "1".repeat(40), ...aligned };
 const staleNode = { name: "precision", source_head: "2".repeat(40), ...stale };
 const fleet = buildFleetProcessFreshnessDecisionV1([alignedNode, staleNode]);
@@ -142,6 +156,8 @@ const sampleConfig = {
 const [sampleNode] = validateProcessFreshnessConfigV1(sampleConfig, "nimo");
 const collectorScript = buildProcessFreshnessCollectorScriptV1(sampleNode);
 assert.match(collectorScript, /systemctl --user show/);
+assert.equal(Array.from(collectorScript.matchAll(/systemctl --user show/g)).length, 2,
+  "collector must bracket process evidence with two service snapshots");
 assert.match(collectorScript, /ExecMainStartTimestamp/);
 assert.match(collectorScript, /\/proc\/\$main_pid\/cmdline/);
 for (const forbidden of [
@@ -219,6 +235,10 @@ http.createServer((request, response) => {
   const fakeSystemctl = join(bin, "systemctl");
   writeFileSync(fakeSystemctl, `#!/bin/sh
 case "$*" in
+  *--property=ActiveState*--property=MainPID*--property=ExecMainStartTimestamp*)
+    printf 'ActiveState=active\\nMainPID=%s\\nExecMainStartTimestamp=@%s\\n' \
+      "$VOID_PROOF_MAIN_PID" "$VOID_PROOF_START_EPOCH"
+    ;;
   *--property=ActiveState*) printf '%s\\n' active ;;
   *--property=MainPID*) printf '%s\\n' "$VOID_PROOF_MAIN_PID" ;;
   *--property=ExecMainStartTimestamp*) printf '@%s\\n' "$VOID_PROOF_START_EPOCH" ;;
@@ -285,9 +305,13 @@ fi
     env: process.env,
   });
   assert.match(rawFreshCollector, /process_present\t1/, rawFreshCollector);
+  assert.match(rawFreshCollector, /source_stable\t1/, rawFreshCollector);
+  assert.match(rawFreshCollector, /process_identity_stable\t1/, rawFreshCollector);
   const freshResult = collectNodeProcessFreshnessV1(liveNode);
   assert.equal(freshResult.source_head, firstHead);
   assert.equal(freshResult.classification, "PROCESS_SOURCE_ALIGNED", JSON.stringify(freshResult));
+  assert.equal(freshResult.source_stable, true);
+  assert.equal(freshResult.process_identity_stable, true);
   assert.equal(freshResult.version_git_commit_matches_source_head_diagnostic_only, true);
 
   const configPath = join(root, "fleet-config.json");

@@ -31,6 +31,8 @@ that match as process identity. The receipt always includes:
 Process freshness is instead bounded to evidence from the service MainPID, its
 start timestamp, the repository HEAD reflog transition timestamp, its working
 directory and command line, and current clean-source/runtime health checks.
+Source and service identity are sampled at both edges of collection; either
+changing while health/readiness evidence is gathered forces `HOLD`.
 
 ## Configuration
 
@@ -66,18 +68,19 @@ node tools/void-node-fleet-process-freshness-audit-v1.mjs \
   --output "$HOME/.config/void/node-fleet-process-freshness-nimo-v1.json"
 ```
 
-Output files are created or tightened to mode `0600`. Receipts do not contain repository
-paths, SSH targets, process IDs, executable paths, command lines, service start
-text, credentials, or HTTP response bodies.
+Output files are created or tightened to mode `0600`. Receipts do not contain
+repository paths, SSH targets, process IDs, executable paths, command lines,
+service start text, credentials, or HTTP response bodies.
 
 ## Evidence and classification
 
 For each node, the collector reads:
 
-- checked-out Git HEAD, exact branch, clean-worktree count, and the modification
-  epoch of that worktree's absolute `logs/HEAD` reflog path;
-- `ActiveState`, `MainPID`, and `ExecMainStartTimestamp` from read-only
-  `systemctl --user show` calls;
+- matching before/after Git HEAD, exact branch, readable porcelain status, and
+  modification epoch of that worktree's absolute `logs/HEAD` reflog path;
+- matching before/after `ActiveState`, `MainPID`, and
+  `ExecMainStartTimestamp` snapshots from read-only `systemctl --user show`
+  calls;
 - boolean checks that the MainPID working directory is the configured repo, its
   executable is Node, and one argv token is relative `src/index.ts` or the exact
   absolute `<repo>/src/index.ts` used by `ops/run-void-node-live-v1.sh`; and
@@ -91,7 +94,7 @@ The tool emits one of three node classifications:
 - `STALE_SOURCE_AFTER_PROCESS_START` — all other gates are green, but HEAD
   transitioned at least one whole second after process start; or
 - `HOLD` — identity, source, health, timestamp, transport, or parsing evidence is
-  missing or ambiguous.
+  missing, changes during collection, or is ambiguous.
 
 The one-second separation is deliberate because the portable evidence is
 second-granularity. Equal-second observations fail closed as
@@ -123,6 +126,9 @@ authorized build/deployment/restart, run this audit again and require
 - An unavailable SSH node, inactive service, dirty worktree, detached/wrong
   branch, future time, non-JSON endpoint, unhealthy node, or non-ready node is
   `HOLD`.
+- A source HEAD/branch/status/reflog transition or service
+  ActiveState/MainPID/start tuple that changes between the collector's bracketing
+  snapshots is `HOLD`; the tool never combines evidence across that race.
 
 ## Authority boundary
 
