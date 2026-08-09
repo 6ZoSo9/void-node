@@ -1,0 +1,80 @@
+name: VOID P2P UDP swarm relay retirement executor v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-relay-retirement-executor-v1.yml'
+      - 'src/p2p/udp_swarm_relay_retirement_executor_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_relay_retirement_executor_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-relay-retirement-executor-v1.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/void-p2p-udp-swarm-relay-retirement-executor-v1.yml'
+      - 'src/p2p/udp_swarm_relay_retirement_executor_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_relay_retirement_executor_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-relay-retirement-executor-v1.md'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove relay retirement executor
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_retirement_executor_v1.ts
+
+      - name: Re-prove Node direct-route health mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_direct_route_health_mount_v1.ts
+
+      - name: Re-prove direct-route health probe
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_direct_route_health_probe_v1.ts
+
+      - name: Re-prove direct-route health observer
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_direct_route_health_observer_v1.ts
+
+      - name: Re-prove direct-route health policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_direct_route_health_policy_v1.ts
+
+      - name: Re-prove Node candidate promotion
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_promotion_v1.ts
+
+      - name: Re-prove Node candidate integration
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_candidate_integration_v1.ts
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Working-tree diff hygiene
+        run: git diff --check
+
+      - name: Pull-request committed-range diff hygiene
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
