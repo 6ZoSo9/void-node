@@ -16,6 +16,8 @@ const runtimeRelative =
   "src/economic/buy_void_native_execution_runtime_v1.ts";
 const runtimeIntegrationRelative =
   "src/economic/buy_void_runtime_integration_v1.ts";
+const nativeDeliveryRuntimeIntegrationRelative =
+  "src/economic/buy_void_native_delivery_runtime_integration_v1.ts";
 const plannerProofRelative =
   "scripts/prove_buy_void_native_execution_nonce_fee_planner_v1.ts";
 const runtimeProofRelative =
@@ -33,6 +35,7 @@ for (const relative of [
   plannerRelative,
   runtimeRelative,
   runtimeIntegrationRelative,
+  nativeDeliveryRuntimeIntegrationRelative,
   plannerProofRelative,
   runtimeProofRelative,
   guardProofRelative,
@@ -57,6 +60,10 @@ const runtime = fs.readFileSync(
 );
 const runtimeIntegration = fs.readFileSync(
   path.join(root, runtimeIntegrationRelative),
+  "utf8",
+);
+const nativeDeliveryRuntimeIntegration = fs.readFileSync(
+  path.join(root, nativeDeliveryRuntimeIntegrationRelative),
   "utf8",
 );
 const plannerProof = fs.readFileSync(
@@ -199,9 +206,21 @@ assert.doesNotMatch(
   /buy_void_native_execution_runtime_v1/,
 );
 
-assert.match(
+assert.doesNotMatch(
   runtime,
   /buy_void_native_delivery_runtime_dependencies_v1\.js/,
+);
+assert.match(
+  nativeDeliveryRuntimeIntegration,
+  /import "\.\/buy_void_native_delivery_runtime_dependencies_v1\.js";/,
+);
+assert.ok(
+  runtimeIntegration.indexOf(
+    'import "./buy_void_native_delivery_runtime_integration_v1.js";',
+  ) <
+    runtimeIntegration.indexOf(
+      'import "./buy_void_native_execution_runtime_v1.js";',
+    ),
 );
 assert.match(
   runtime,
@@ -327,6 +346,8 @@ console.log("runtime_disabled_by_default=1");
 console.log("disabled_dry_run_allowed=1");
 console.log("disabled_apply_allowed=0");
 console.log("dependency_injector_disabled_by_default=1");
+console.log("dependency_initializer_owned_by_native_delivery_runtime=1");
+console.log("native_execution_library_dependency_side_effect_import=0");
 console.log("loopback_operator_only=1");
 console.log("read_only_rpc_method_count=4");
 console.log("startup_execution=0");
