@@ -846,7 +846,8 @@ function parseAppliedEnvelope(
     const mutation = decision.mutation_performed === true;
     const inventory = decision.inventory_consumption_performed === true;
     const publicFulfilled = decision.public_request_fulfilled === true;
-    const recovery = mutation || inventory || publicFulfilled;
+    const sagaAppended = decision.saga_closeout_appended === true;
+    const recovery = mutation || inventory || publicFulfilled || sagaAppended;
     return {
       marker: VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_V1,
       version: 1,
@@ -861,7 +862,7 @@ function parseAppliedEnvelope(
       mutation_performed: mutation,
       inventory_consumption_performed: inventory,
       public_request_fulfilled: publicFulfilled,
-      saga_closeout_appended: false,
+      saga_closeout_appended: sagaAppended,
       ...NO_FINANCIAL_AUTHORITY,
       authority: VOID_BUY_VOID_PRODUCTION_TERMINAL_CLOSEOUT_OPERATOR_AUTHORITY_V1,
     };
