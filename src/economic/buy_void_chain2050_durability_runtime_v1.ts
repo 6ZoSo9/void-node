@@ -32,6 +32,7 @@ export const VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_AUTHORITY_V1 = {
   server_controlled_rpc_url: true,
   server_controlled_checkpoint_root: true,
   server_controlled_durability_root: true,
+  server_controlled_buy_void_runtime_root: true,
   confirmed_execution_attempt_required: true,
   exact_confirmation_required_before_checkpoint_io: true,
   checkpoint_minimum_bound_to_confirmed_delivery_block: true,
@@ -50,6 +51,7 @@ export const VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_AUTHORITY_V1 = {
 const ENABLE_ENV = "VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_ENABLED";
 const RPC_ENV = "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL";
 const CHECKPOINT_ROOT_ENV = "VOID_PRIVATE_CHAIN2050_CHECKPOINT_ROOT";
+const BUY_VOID_RUNTIME_ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
 const GLOBAL_MARK = "__void_buy_void_chain2050_durability_runtime_v1";
 const HASH = /^0x[0-9a-f]{64}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -153,6 +155,20 @@ function checkpointRoot(): string | undefined {
   return raw ? path.resolve(raw) : undefined;
 }
 
+function buyVoidRuntimeRootDirV1(): string {
+  const configured = String(process.env[BUY_VOID_RUNTIME_ROOT_ENV] || "").trim();
+  if (configured) return path.resolve(configured);
+  const dataDir = String(
+    process.env.VOID_DATA_DIR || process.env.DATA_DIR || "data_a",
+  ).trim();
+  return path.resolve(
+    process.cwd(),
+    dataDir,
+    "buy_void_v1",
+    "runtime-integration-v1",
+  );
+}
+
 function safeAttemptId(value: unknown): string {
   const id = String(value || "").trim().toLowerCase();
   return SHA256.test(id) ? id : "";
@@ -251,7 +267,8 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
   attempt_id: unknown;
   apply?: boolean;
   confirmation?: unknown;
-  root_dir?: string;
+  durability_root_dir?: string;
+  buy_void_runtime_root_dir?: string;
   checkpoint_capture?: BuyVoidChain2050CheckpointCaptureV1;
   now_ms?: number;
 }): Promise<BuyVoidChain2050DurabilityRuntimeDecisionV1> {
@@ -277,10 +294,15 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     });
   }
 
-  const root = input.root_dir || buyVoidChain2050DurabilityRootDirV1();
+  const durabilityRoot = input.durability_root_dir
+    ? path.resolve(input.durability_root_dir)
+    : buyVoidChain2050DurabilityRootDirV1();
+  const runtimeRoot = input.buy_void_runtime_root_dir
+    ? path.resolve(input.buy_void_runtime_root_dir)
+    : buyVoidRuntimeRootDirV1();
   let durability;
   try {
-    durability = inspectBuyVoidChain2050DurabilityV1(root);
+    durability = inspectBuyVoidChain2050DurabilityV1(durabilityRoot);
   } catch (error) {
     return held(
       "durability_debt",
@@ -301,6 +323,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
       detail: {
         unresolved_debt_count: durability.unresolved_debt_count,
         unresolved_transaction_hashes: durability.unresolved_transaction_hashes,
+        preclaim_debt_count: durability.preclaim_debt_count,
       },
     });
   }
@@ -308,10 +331,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
   let attempt;
   try {
     attempt = readBuyVoidExecutionAttemptV1({
-      root_dir: path.resolve(
-        String(process.env.VOID_BUY_VOID_RUNTIME_DIR || "").trim() ||
-          path.dirname(root),
-      ),
+      root_dir: runtimeRoot,
       attempt_id: attemptId,
     });
   } catch (error) {
@@ -402,7 +422,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
   let satisfaction: BuyVoidChain2050DurabilitySatisfactionV1;
   try {
     satisfaction = satisfyBuyVoidChain2050DurabilityDebtV1({
-      root_dir: root,
+      root_dir: durabilityRoot,
       transaction_hash: transactionHash,
       attempt_id: attemptId,
       delivery_block_number: String(deliveryBlock),
@@ -472,7 +492,10 @@ export function buyVoidChain2050DurabilityRuntimeStatusV1(): Record<string, unkn
       routes: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_ROUTES_V1,
       rpc_configured: Boolean(rpc),
       checkpoint_root_configured: Boolean(checkpointRoot()),
+      buy_void_runtime_root: buyVoidRuntimeRootDirV1(),
       durability_root: state.root_dir,
+      active_debt_transaction_hash: state.active_debt_transaction_hash,
+      preclaim_debt_count: state.preclaim_debt_count,
       unresolved_debt_count: state.unresolved_debt_count,
       unresolved_transaction_hashes: state.unresolved_transaction_hashes,
       durability_state_fingerprint_sha256:
