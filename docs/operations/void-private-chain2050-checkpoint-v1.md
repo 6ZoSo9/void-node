@@ -22,11 +22,11 @@ A checkpoint is eligible only when all of the following are true:
 - `anvil_dumpState` returns a bounded `0x` hexadecimal state payload; and
 - the exact block number and hash are unchanged after the dump completes.
 
-The head is therefore bracketed around state export. A transaction, manual mining event, reset, reorg-like replacement, or other head transition during capture returns `HOLD` and writes no checkpoint.
+The head is bracketed around state export. A transaction, manual mining event, reset, reorg-like replacement, or other head transition during capture returns `HOLD` and writes no successful checkpoint receipt.
 
 ## RPC authority boundary
 
-The v1 RPC method sequence is closed and exact:
+The V1 RPC method sequence is closed and exact:
 
 1. `eth_chainId`
 2. `eth_blockNumber`
@@ -48,7 +48,7 @@ The checkpoint manifest fixes:
 
 `anvil_dumpState` is treated as a sensitive local state export. The state file is never emitted to stdout.
 
-## Storage contract
+## Crash-consistent storage contract
 
 The default private checkpoint root is:
 
@@ -56,11 +56,25 @@ The default private checkpoint root is:
 ~/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1
 ```
 
-The directory is mode `0700`. State and manifest files are mode `0600`.
+The root is mode `0700`. State, manifest, and finalization-marker files are mode `0600` and must be owned by the current operator account. Existing symlink path components are rejected.
 
-The state payload is written byte-for-byte as returned by `anvil_dumpState`. Its SHA-256 digest, byte length, block number, block hash, exact RPC method sequence, and authority flags are bound into `checkpoint_id_sha256`.
+The state payload is written byte-for-byte as returned by `anvil_dumpState`. Its SHA-256 digest, byte length, block number, block hash, exact RPC method sequence, and no-authority fields are bound into `checkpoint_id_sha256`.
 
-File names include the block number and checkpoint ID. Existing exact content is accepted idempotently; conflicting content, unsafe file type, symlink, or incorrect mode fails closed.
+Checkpoint publication is two-phase. State and manifest files are individually fsynced, then the checkpoint root is fsynced so that pair is durable. Only after that first directory fsync does the writer create and fsync an exact content-addressed `.complete-v1` finalization marker. The root is fsynced a second time before capture may return success.
+
+A power loss before finalization may leave a state-only artifact or an unmarked state/manifest pair. Those artifacts are **not** checkpoints and grant no startup authority. The paired startup selector treats exact-name unmarked artifacts as non-authoritative crash debris, reports their count, and never uses them to satisfy a required durable head.
+
+Because the state/manifest pair is directory-fsynced before the marker is created, a surviving finalization marker without its exact pair is not a normal interrupted-capture state; it indicates later tamper/corruption and fails closed. Unknown or malformed root entries also fail closed.
+
+This preserves the key property: only a fully finalized checkpoint becomes startup-eligible, while an interrupted capture cannot become partially trusted.
+
+## Idempotency and existing-state validation
+
+An exact existing state file is accepted only after regular-file, owner, mode, size, and byte-equality checks.
+
+An existing manifest is inspected with `lstat` and bounded size checks **before** it is read or parsed. Idempotent reuse then rebinds the complete closed manifest schema and every authority-bearing field, not only block/hash identifiers. The original canonical `captured_at` is preserved for an already-existing checkpoint.
+
+Conflicting content, unexpected keys, invalid timestamps, unsafe modes, symlinks, owner mismatch, oversized files, or altered authority fields return `HOLD`.
 
 Checkpoint state is runtime-private evidence and must not be committed to Git.
 
@@ -104,7 +118,7 @@ Run:
 node scripts/prove_void_private_chain2050_checkpoint_v1.mjs
 ```
 
-The synthetic proof covers stable capture, content addressing, exact file modes, exact idempotency, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, and the closed no-mutation RPC method set.
+The synthetic proof covers stable capture, content addressing, exact file modes, two-phase checkpoint-root directory fsync and finalization-marker publication, exact idempotency, complete existing-manifest rebinding, symlink-path rejection, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, canonical timestamp enforcement, and the closed no-mutation RPC method set.
 
 Expected marker:
 
