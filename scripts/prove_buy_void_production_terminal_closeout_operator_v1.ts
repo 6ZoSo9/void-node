@@ -75,6 +75,8 @@ function terminalAuthority(): Record<string, unknown> {
     request_scoped_crash_recoverable_lock: true,
     deterministic_closeout_plan_persistence: true,
     exact_terminal_plan_fingerprint_required_before_mutation: true,
+    terminal_plan_revalidation_inside_request_lock: true,
+    shared_operator_event_writer_lock: true,
     append_only_inventory_consumption: true,
     atomic_public_operator_journal_projection: true,
     saga_closeout_committed_append: true,
