@@ -31,10 +31,12 @@ operator lane.
 
 1. Read current `main`, open pull requests, and the files relevant to the task.
 2. Select one narrow outcome with an explicit changed-path boundary.
-3. Classify coordination collisions by severity. Red collisions are hard stops;
-   Amber collisions are advisory and require a bounded reconciliation plan.
-4. Reuse an existing matching branch or PR instead of creating a duplicate.
-5. Record assumptions and fail closed when required repository or runtime state
+3. Check that the planned paths do not overlap another active branch or open PR.
+4. Classify any detected coordination collision by severity. Red collisions are
+   hard stops; Amber collisions are advisory and require a bounded
+   reconciliation plan.
+5. Reuse an existing matching branch or PR instead of creating a duplicate.
+6. Record assumptions and fail closed when required repository or runtime state
    cannot be verified.
 
 Do not use a different branch name to disguise a path collision. Do not advance
