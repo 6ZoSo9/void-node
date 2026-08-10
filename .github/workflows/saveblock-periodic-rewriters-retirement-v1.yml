@@ -10,6 +10,7 @@ on:
       - 'scripts/copy_void_runtime_js_v1.mjs'
       - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
       - 'scripts/prove_saveblock_periodic_rewriters_retirement_v1.mjs'
+      - 'scripts/prove_void_node_clone_and_run_v1.mjs'
       - '.github/workflows/saveblock-periodic-rewriters-retirement-v1.yml'
   push:
     branches:
@@ -22,6 +23,7 @@ on:
       - 'scripts/copy_void_runtime_js_v1.mjs'
       - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
       - 'scripts/prove_saveblock_periodic_rewriters_retirement_v1.mjs'
+      - 'scripts/prove_void_node_clone_and_run_v1.mjs'
       - '.github/workflows/saveblock-periodic-rewriters-retirement-v1.yml'
 
 permissions:
@@ -46,7 +48,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Build emitted runtime with retirement postbuild
+      - name: Build canonical emitted runtime with retirement transform
         run: npm run build
 
       - name: Prove retirement transform is idempotent
