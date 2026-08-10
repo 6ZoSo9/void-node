@@ -6,6 +6,7 @@ import * as crypto from "node:crypto";
 import { deriveVoidNodeIdFromPublicPemV1 } from "./auth_v1.js";
 import { normalizeVoidUdpObservedEndpointV1 } from "./udp_hole_punch_v1.js";
 import {
+  VOID_P2P_UDP_RENDEZVOUS_MAX_PROBES_PER_TICKET_V1,
   VoidUdpRendezvousStateV1,
   normalizeVoidUdpRendezvousProbeV1,
   type VoidUdpRendezvousObservationV1,
@@ -52,6 +53,8 @@ export type VoidUdpSwarmUpgradeOfferV1 = Readonly<{
   peer_node_id: string;
   local_observed_endpoint: string;
   peer_observed_endpoint: string;
+  local_observation: VoidUdpRendezvousObservationV1;
+  peer_observation: VoidUdpRendezvousObservationV1;
   start_delay_ms: number;
   attempt_timeout_ms: number;
 }>;
@@ -169,6 +172,58 @@ function normalizedEndpoint(raw: unknown, allowNonPublic: boolean): string | und
   return normalizeVoidUdpObservedEndpointV1(raw, allowNonPublic);
 }
 
+function normalizedStableObservation(
+  raw: unknown,
+  allowNonPublicEndpoint: boolean,
+): VoidUdpRendezvousObservationV1 | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
+  const value = raw as Record<string, unknown>;
+  if (!exactKeys(value, [
+    "ticket_id",
+    "node_id",
+    "observed_endpoint",
+    "first_seen_ms",
+    "last_seen_ms",
+    "probe_count",
+    "stable_same_rendezvous",
+    "mapping_conflicted",
+  ])) return;
+  const ticket_id = idValue(value.ticket_id);
+  const node_id = nodeId(value.node_id);
+  const observed_endpoint = normalizedEndpoint(
+    value.observed_endpoint,
+    allowNonPublicEndpoint,
+  );
+  const first_seen_ms = safeInteger(value.first_seen_ms, 0, Number.MAX_SAFE_INTEGER);
+  const last_seen_ms = safeInteger(value.last_seen_ms, 0, Number.MAX_SAFE_INTEGER);
+  const probe_count = safeInteger(
+    value.probe_count,
+    2,
+    VOID_P2P_UDP_RENDEZVOUS_MAX_PROBES_PER_TICKET_V1,
+  );
+  if (
+    !ticket_id ||
+    !node_id ||
+    !observed_endpoint ||
+    first_seen_ms === undefined ||
+    last_seen_ms === undefined ||
+    last_seen_ms < first_seen_ms ||
+    probe_count === undefined ||
+    value.stable_same_rendezvous !== true ||
+    value.mapping_conflicted !== false
+  ) return;
+  return Object.freeze({
+    ticket_id,
+    node_id,
+    observed_endpoint,
+    first_seen_ms,
+    last_seen_ms,
+    probe_count,
+    stable_same_rendezvous: true,
+    mapping_conflicted: false,
+  });
+}
+
 export function normalizeVoidUdpSwarmControlMessageV1(
   raw: unknown,
   allowNonPublicEndpoint = false,
@@ -210,8 +265,8 @@ export function normalizeVoidUdpSwarmControlMessageV1(
   if (type === "UDP_SWARM_UPGRADE_OFFER") {
     if (!exactKeys(value, [
       "type", "protocol", "request_id", "session_id", "stream_id", "peer_node_id",
-      "local_observed_endpoint", "peer_observed_endpoint", "start_delay_ms",
-      "attempt_timeout_ms",
+      "local_observed_endpoint", "peer_observed_endpoint", "local_observation",
+      "peer_observation", "start_delay_ms", "attempt_timeout_ms",
     ])) return;
     const request_id = idValue(value.request_id);
     const session_id = idValue(value.session_id);
@@ -225,15 +280,29 @@ export function normalizeVoidUdpSwarmControlMessageV1(
       value.peer_observed_endpoint,
       allowNonPublicEndpoint,
     );
+    const local_observation = normalizedStableObservation(
+      value.local_observation,
+      allowNonPublicEndpoint,
+    );
+    const peer_observation = normalizedStableObservation(
+      value.peer_observation,
+      allowNonPublicEndpoint,
+    );
     const start_delay_ms = safeInteger(value.start_delay_ms, 25, 2_000);
     const attempt_timeout_ms = safeInteger(value.attempt_timeout_ms, 1, 10_000);
     if (!request_id || !session_id || !stream_id || !peer_node_id ||
         !local_observed_endpoint || !peer_observed_endpoint ||
+        !local_observation || !peer_observation ||
+        peer_observation.node_id !== peer_node_id ||
+        local_observation.node_id === peer_node_id ||
+        local_observation.ticket_id === peer_observation.ticket_id ||
+        local_observation.observed_endpoint !== local_observed_endpoint ||
+        peer_observation.observed_endpoint !== peer_observed_endpoint ||
         start_delay_ms === undefined || attempt_timeout_ms === undefined) return;
     return Object.freeze({
       type, protocol: 1, request_id, session_id, stream_id, peer_node_id,
-      local_observed_endpoint, peer_observed_endpoint, start_delay_ms,
-      attempt_timeout_ms,
+      local_observed_endpoint, peer_observed_endpoint,
+      local_observation, peer_observation, start_delay_ms, attempt_timeout_ms,
     });
   }
 
@@ -430,14 +499,14 @@ export class VoidUdpSwarmRelayCoordinatorV1 {
     const sourceOffer = this.offerMessage(
       session,
       session.target_node_id,
-      source.observed_endpoint,
-      target.observed_endpoint,
+      source,
+      target,
     );
     const targetOffer = this.offerMessage(
       session,
       session.source_node_id,
-      target.observed_endpoint,
-      source.observed_endpoint,
+      target,
+      source,
     );
     session.offers_emitted = true;
     return [sourceOffer, targetOffer];
@@ -473,8 +542,8 @@ export class VoidUdpSwarmRelayCoordinatorV1 {
   private offerMessage(
     session: MutableSessionV1,
     peerNodeId: string,
-    localObservedEndpoint: string,
-    peerObservedEndpoint: string,
+    localObservation: VoidUdpRendezvousObservationV1,
+    peerObservation: VoidUdpRendezvousObservationV1,
   ): VoidUdpSwarmUpgradeOfferV1 {
     const message: VoidUdpSwarmUpgradeOfferV1 = {
       type: "UDP_SWARM_UPGRADE_OFFER",
@@ -483,8 +552,10 @@ export class VoidUdpSwarmRelayCoordinatorV1 {
       session_id: session.session_id,
       stream_id: session.stream_id,
       peer_node_id: peerNodeId,
-      local_observed_endpoint: localObservedEndpoint,
-      peer_observed_endpoint: peerObservedEndpoint,
+      local_observed_endpoint: localObservation.observed_endpoint,
+      peer_observed_endpoint: peerObservation.observed_endpoint,
+      local_observation: localObservation,
+      peer_observation: peerObservation,
       start_delay_ms: VOID_P2P_UDP_SWARM_CONTROL_DEFAULT_START_DELAY_MS_V1,
       attempt_timeout_ms: VOID_P2P_UDP_SWARM_CONTROL_DEFAULT_ATTEMPT_TIMEOUT_MS_V1,
     };
