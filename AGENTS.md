@@ -134,6 +134,42 @@ Repository Node.js work must respect the canonical `package.json` and
 (`^22.0.0 || ^24.0.0 || ^26.0.0`), with Node.js 24 LTS as the repository
 default. Do not silently narrow this contract to Node.js 22-only.
 
+## Architecture and dependency principles
+
+- Design subsystems as narrow, independently testable capabilities with explicit
+  typed or closed contracts. Consumers should depend on the contract rather than
+  another subsystem's internal state or implementation details.
+- Make cross-boundary outcomes deterministic and machine-readable. Missing
+  handlers, malformed responses, ambiguous results, timeouts, and state drift
+  must not become implicit success; return an explicit hold, rejection, or error
+  state that callers can reason about.
+- Treat asynchronous and network behavior as an architectural concern. Separate
+  relevant connection, operation/inactivity, and total deadlines; bound retries
+  and timers; and do not let one timeout class silently stand in for another.
+- Keep dangerous primitives behind minimal, least-authority interfaces. Crypto,
+  signing, wallet/signer access, consensus mutation, treasury/economic mutation,
+  and other high-impact capabilities must not be casually exposed to ordinary
+  application code.
+- Prefer one coherent quality gate for a change where practical: type/compile
+  checks, lint/build checks, focused deterministic or adversarial proof, and
+  diff hygiene should compose into one reviewable acceptance story. Passing one
+  check never implies the others passed.
+- State negative evidence explicitly. Documentation and receipts should say what
+  they do not prove: a digest is not a signature, source-green is not deployed,
+  synthetic proof is not external acceptance, and economic equivalence is not
+  bit-identical historical continuity.
+- Prefer open, portable, replaceable dependencies and protocols. Avoid critical
+  reliance on one vendor, hosted platform, narrow language ecosystem, or opaque
+  service when an auditable fallback or migration path can reasonably exist.
+- Treat maintainability, operator usability, outside-agent usability, adoption,
+  network activity, and real economic value as architecture constraints alongside
+  technical elegance and performance. A clean design that cannot be operated,
+  adopted, or sustained is not a complete success.
+- Stable subsystem contracts should allow concurrent workers to operate on
+  separate bounded areas without every worker needing full-repository knowledge.
+  Coordination must still detect path, semantic, authority, and dependency
+  collisions before mutation.
+
 ## Validation
 
 Every code or contract lane should include focused verification proportionate to
