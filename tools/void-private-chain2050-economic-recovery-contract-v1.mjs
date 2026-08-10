@@ -53,8 +53,6 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const DATA = /^0x(?:[0-9a-f]{2})*$/;
 const UINT256_MAX = (1n << 256n) - 1n;
 const REQUIRED_37369_MISSING_FIELDS = Object.freeze([
-  "mix_hash",
-  "parent_header",
   "timestamp",
 ]);
 

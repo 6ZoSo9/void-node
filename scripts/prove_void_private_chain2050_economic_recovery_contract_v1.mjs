@@ -117,7 +117,7 @@ const evidence = {
       block_number: 37369,
       status: "missing",
       known_block_hash: `0x${"b".repeat(64)}`,
-      missing_fields: ["timestamp", "mix_hash", "parent_header"],
+      missing_fields: ["timestamp"],
       guessed_values: false,
     },
     completeHeader(37370),
