@@ -1,4 +1,4 @@
-name: VOID Active Lane Coordination Registry V1 + Decision V2
+name: VOID Active Lane Coordination Registry V1
 
 on:
   pull_request:
@@ -7,9 +7,7 @@ on:
       - "docs/operations/void-active-lane-coordination-registry-v1.md"
       - "ops/coordination/active-lane-reservations-v1.json"
       - "scripts/prove_void_active_lane_coordination_registry_v1.mjs"
-      - "scripts/prove_void_coordination_decision_v2.mjs"
       - "tools/void-active-lane-registry-v1.mjs"
-      - "tools/void-coordination-decision-v2.mjs"
   push:
     branches:
       - main
@@ -18,9 +16,7 @@ on:
       - "docs/operations/void-active-lane-coordination-registry-v1.md"
       - "ops/coordination/active-lane-reservations-v1.json"
       - "scripts/prove_void_active_lane_coordination_registry_v1.mjs"
-      - "scripts/prove_void_coordination_decision_v2.mjs"
       - "tools/void-active-lane-registry-v1.mjs"
-      - "tools/void-coordination-decision-v2.mjs"
 
 permissions:
   contents: read
@@ -41,8 +37,6 @@ jobs:
           node-version: "22"
       - name: Prove active-lane registry
         run: node scripts/prove_void_active_lane_coordination_registry_v1.mjs
-      - name: Prove risk-weighted coordination decision
-        run: node scripts/prove_void_coordination_decision_v2.mjs
       - name: Capture read-only registry
         run: |
           node tools/void-active-lane-registry-v1.mjs capture \
