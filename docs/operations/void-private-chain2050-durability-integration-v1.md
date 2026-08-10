@@ -212,11 +212,13 @@ It:
 
 Dry run does not create a derived state file, load Anvil state, start a process, replay a transaction, or mutate a service.
 
-### Dump-state materialization
+### Selected-state materialization
 
 Anvil `anvil_dumpState` bytes are stored by #1177 exactly as returned.
 
-When #1180 selects an `anvil_dump_state_hex` checkpoint, apply may convert the gzip-encoded dump to a private canonical CLI-state JSON file under:
+Before materialization, apply re-reads the selector-chosen source file and requires its SHA-256 to exactly equal the selector-approved `selected_state_sha256`. Any post-selection source-byte change fails closed before a derived path is created.
+
+The launcher never passes the selector's source path directly to Anvil. A selected `anvil_cli_state_json` baseline is copied byte-for-byte into a private content-addressed CLI-state file. A selected `anvil_dump_state_hex` checkpoint is converted only from the already hash-reverified source bytes into a private canonical CLI-state JSON file under:
 
 ```text
 ~/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1
@@ -226,7 +228,7 @@ or an explicitly configured private derived root.
 
 The derived directory is mode `0700`; the content-addressed state file is mode `0600` and create-only/idempotent.
 
-Materialization occurs only **after** the exact apply confirmation:
+In the startup apply path, selected-state digest revalidation and materialization occur only **after** the exact apply confirmation:
 
 ```text
 startPrivateChain2050FromSelectedDurableState
