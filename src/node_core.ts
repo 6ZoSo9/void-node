@@ -81,6 +81,9 @@ import {
   type VoidUdpSwarmProbeActionV1,
   type VoidUdpSwarmDirectUpgradeOfferActionV1,
 } from "./p2p/udp_swarm_authenticated_control_adapter_v1.js";
+import type { VoidUdpPeerSocketAdapterV1 } from "./p2p/udp_peer_socket_adapter_v1.js";
+import { VoidUdpSwarmAuthenticatedDirectCandidateV1 } from "./p2p/udp_swarm_authenticated_direct_candidate_v1.js";
+import { evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1 } from "./p2p/udp_swarm_relay_preserving_takeover_policy_v1.js";
 import {
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1,
@@ -284,6 +287,14 @@ type DirectUpgradeLocalSessionV1 = {
   started: boolean;
 };
 
+type UdpSwarmAuthenticatedDirectCandidateContextV1 = Readonly<{
+  session_id: string;
+  expected_peer_node_id: string;
+  relay_node_id: string;
+  relay_stream_id: string;
+  candidate: VoidUdpSwarmAuthenticatedDirectCandidateV1;
+}>;
+
 type ReachabilityProbeContext = {
   role: "outgoing" | "incoming";
   requestId: string;
@@ -318,6 +329,7 @@ type Peer = {
   persistDirectEvidence: boolean;
   punchCapable: boolean;
   directUpgradeSessionId?: string;
+  udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1;
 };
 
 /** ================================================================= */
@@ -395,6 +407,7 @@ export class Node {
   private relayStreams = new Map<string, RelayLocalStreamV1>();
   private readonly udpSwarmAllowNonPublicEndpoint: boolean;
   private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;
+  private readonly udpSwarmDirectCandidates = new Map<string, Peer>();
 
   private readonly directUpgradeEnabled: boolean;
   private readonly directUpgradeAllowNonPublicCandidates: boolean;
@@ -655,6 +668,10 @@ export class Node {
     this.relayStreams.clear();
     this.directUpgradePendingRequests.clear();
     this.directUpgradeLocalSessions.clear();
+    for (const peer of this.udpSwarmDirectCandidates.values()) {
+      peer.udpSwarmDirectCandidate?.candidate.discard("node_stopping");
+    }
+    this.udpSwarmDirectCandidates.clear();
     for (const p of this.peers.values()) {
       p.suppressReconnect = true;
       p.socket.destroy();
@@ -1367,9 +1384,126 @@ export class Node {
     peer.socket.destroy();
   }
 
-  private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
+  private liveRelayPeerForUdpSwarmCandidateV1(
+  expectedPeerNodeId: string,
+  relayNodeId: string,
+  relayStreamId: string,
+): Peer | undefined {
+  const relayPeer = this.peers.get(expectedPeerNodeId);
+  if (
+    !relayPeer ||
+    !relayPeer.handshakeDone ||
+    relayPeer.id !== expectedPeerNodeId ||
+    relayPeer.transport !== "relay" ||
+    relayPeer.relayViaNodeId !== relayNodeId ||
+    relayPeer.relayStreamId !== relayStreamId
+  ) return;
+
+  const stream = this.relayStreams.get(
+    this.relayStreamKey(relayNodeId, relayStreamId),
+  );
+  if (
+    !stream ||
+    !stream.started ||
+    stream.remote_node_id !== expectedPeerNodeId ||
+    stream.socket !== relayPeer.socket
+  ) return;
+  return relayPeer;
+}
+
+private sweepUdpSwarmAuthenticatedDirectCandidatesV1(
+  reason = "relay_fallback_lost",
+): void {
+  for (const [sessionId, peer] of [...this.udpSwarmDirectCandidates]) {
+    const context = peer.udpSwarmDirectCandidate;
+    if (!context) {
+      this.udpSwarmDirectCandidates.delete(sessionId);
+      continue;
+    }
+    if (
+      this.liveRelayPeerForUdpSwarmCandidateV1(
+        context.expected_peer_node_id,
+        context.relay_node_id,
+        context.relay_stream_id,
+      )
+    ) continue;
+    this.udpSwarmDirectCandidates.delete(sessionId);
+    context.candidate.discard(reason);
+  }
+}
+
+private finishUdpSwarmAuthenticatedDirectCandidateV1(
+  peer: Peer,
+  auth: VoidPeerAuthV1,
+): boolean {
+  const context = peer.udpSwarmDirectCandidate;
+  if (!context) return false;
+  if (
+    this.udpSwarmDirectCandidates.get(context.session_id) !== peer ||
+    peer.transport !== "direct" ||
+    peer.persistDirectEvidence ||
+    peer.expectedNodeId !== context.expected_peer_node_id
+  ) {
+    this.udpSwarmDirectCandidates.delete(context.session_id);
+    context.candidate.discard("candidate Node mount binding mismatch");
+    return false;
+  }
+
+  if (!context.candidate.acceptNormalVoidAuthentication(auth.id, auth.pubkey)) {
+    this.udpSwarmDirectCandidates.delete(context.session_id);
+    return false;
+  }
+
+  const candidateSnapshot = context.candidate.snapshot();
+  const existingRoute = this.peers.get(context.expected_peer_node_id);
+  const takeoverDecision =
+    evaluateVoidUdpSwarmRelayPreservingTakeoverPolicyV1({
+      candidate_phase: candidateSnapshot.phase,
+      expected_peer_node_id: context.expected_peer_node_id,
+      authenticated_peer_node_id:
+        candidateSnapshot.authenticated_peer_node_id,
+      existing_authenticated_route:
+        existingRoute &&
+        existingRoute.handshakeDone &&
+        existingRoute.id === context.expected_peer_node_id
+          ? {
+              peer_node_id: existingRoute.id,
+              transport: existingRoute.transport,
+              relay_node_id: existingRoute.relayViaNodeId ?? null,
+              relay_stream_id: existingRoute.relayStreamId ?? null,
+            }
+          : null,
+      relay_fallback_live:
+        !!this.liveRelayPeerForUdpSwarmCandidateV1(
+          context.expected_peer_node_id,
+          context.relay_node_id,
+          context.relay_stream_id,
+        ),
+    });
+  if (takeoverDecision.action !== "stage_authenticated_candidate") {
+    this.udpSwarmDirectCandidates.delete(context.session_id);
+    context.candidate.discard(
+      `relay-preserving takeover policy rejected candidate: ${takeoverDecision.reason}`,
+    );
+    return false;
+  }
+
+  if (peer.authTimer) {
+    clearTimeout(peer.authTimer);
+    peer.authTimer = null;
+  }
+  peer.authenticatedPublicPem = auth.pubkey;
+  peer.listens = [...auth.listen];
+  peer.remoteHello = undefined;
+  return true;
+}
+
+private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     if (peer.probe) {
       return this.finishReachabilityProbeAuthentication(peer, auth);
+    }
+    if (peer.udpSwarmDirectCandidate) {
+      return this.finishUdpSwarmAuthenticatedDirectCandidateV1(peer, auth);
     }
 
     if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
@@ -1510,7 +1644,121 @@ export class Node {
     return true;
   }
 
-  attachEphemeralDirectTransportV1(
+  stageUdpSwarmAuthenticatedDirectCandidateV1(
+  options: Readonly<{
+    sessionId: string;
+    expectedPeerNodeId: string;
+    relayNodeId: string;
+    relayStreamId: string;
+    transportHint: string;
+    socket: VoidUdpPeerSocketAdapterV1;
+  }>,
+): boolean {
+  const reject = (reason: string): false => {
+    if (!options.socket.destroyed) options.socket.destroy(new Error(reason));
+    return false;
+  };
+  if (this.stopping) return reject("node is stopping");
+  if (this.udpSwarmDirectCandidates.has(options.sessionId)) {
+    return reject("UDP swarm candidate session already staged");
+  }
+  if (
+    !this.liveRelayPeerForUdpSwarmCandidateV1(
+      options.expectedPeerNodeId,
+      options.relayNodeId,
+      options.relayStreamId,
+    )
+  ) {
+    return reject("exact live relay fallback is required before UDP candidate staging");
+  }
+
+  let candidate: VoidUdpSwarmAuthenticatedDirectCandidateV1;
+  try {
+    candidate = new VoidUdpSwarmAuthenticatedDirectCandidateV1({
+      sessionId: options.sessionId,
+      expectedPeerNodeId: options.expectedPeerNodeId,
+      relayNodeId: options.relayNodeId,
+      relayStreamId: options.relayStreamId,
+      transportHint: options.transportHint,
+      socket: options.socket,
+      isRelayFallbackLive: () =>
+        !!this.liveRelayPeerForUdpSwarmCandidateV1(
+          options.expectedPeerNodeId,
+          options.relayNodeId,
+          options.relayStreamId,
+        ),
+    });
+  } catch (error) {
+    return reject(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  const context: UdpSwarmAuthenticatedDirectCandidateContextV1 =
+    Object.freeze({
+      session_id: options.sessionId,
+      expected_peer_node_id: options.expectedPeerNodeId,
+      relay_node_id: options.relayNodeId,
+      relay_stream_id: options.relayStreamId,
+      candidate,
+    });
+  try {
+    this.attachSocket(
+      options.socket,
+      options.transportHint,
+      true,
+      options.expectedPeerNodeId,
+      undefined,
+      "direct",
+      undefined,
+      undefined,
+      false,
+      false,
+      undefined,
+      undefined,
+      context,
+    );
+    return true;
+  } catch (error) {
+    candidate.discard(
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  }
+}
+
+udpSwarmAuthenticatedDirectCandidateSnapshotV1() {
+  const candidates = [...this.udpSwarmDirectCandidates.entries()]
+    .map(([sessionId, peer]) => {
+      const context = peer.udpSwarmDirectCandidate;
+      if (!context) return;
+      const routedPeer = this.peers.get(context.expected_peer_node_id);
+      return {
+        ...context.candidate.snapshot(),
+        session_id: sessionId,
+        relay_fallback_live:
+          !!this.liveRelayPeerForUdpSwarmCandidateV1(
+            context.expected_peer_node_id,
+            context.relay_node_id,
+            context.relay_stream_id,
+          ),
+        candidate_is_normal_peer_route: routedPeer === peer,
+        routed_peer_transport: routedPeer?.transport ?? null,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => !!entry)
+    .sort((a, b) => a.session_id.localeCompare(b.session_id));
+  return {
+    candidate_count: candidates.length,
+    candidates,
+    normal_peer_routing_promotion_performed: candidates.some(
+      (entry) => entry.candidate_is_normal_peer_route,
+    ),
+    relay_retirement_performed: false,
+  };
+}
+
+attachEphemeralDirectTransportV1(
     socket: PeerSocketV1,
     expectedNodeId: string,
     transportHint: string,
@@ -1552,6 +1800,7 @@ export class Node {
     punchCapable = false,
     directUpgradeSessionId?: string,
     reachabilityProbe?: ReachabilityProbeContext,
+    udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1,
   ) {
     const peer: Peer = {
       id: `?-${crypto.randomBytes(4).toString("hex")}`,
@@ -1575,6 +1824,7 @@ export class Node {
       persistDirectEvidence,
       punchCapable,
       directUpgradeSessionId,
+      udpSwarmDirectCandidate,
     };
 
     peer.framer = new Framer(
@@ -1586,6 +1836,16 @@ export class Node {
       if (peer.authTimer) {
         clearTimeout(peer.authTimer);
         peer.authTimer = null;
+      }
+      if (peer.udpSwarmDirectCandidate) {
+        const current = this.udpSwarmDirectCandidates.get(
+          peer.udpSwarmDirectCandidate.session_id,
+        );
+        if (current === peer) {
+          this.udpSwarmDirectCandidates.delete(
+            peer.udpSwarmDirectCandidate.session_id,
+          );
+        }
       }
       if (
         peer.probe?.role === "outgoing" &&
@@ -1613,6 +1873,12 @@ export class Node {
     });
 
     this.peers.set(peer.id, peer);
+    if (udpSwarmDirectCandidate) {
+      this.udpSwarmDirectCandidates.set(
+        udpSwarmDirectCandidate.session_id,
+        peer,
+      );
+    }
     peer.authTimer = setTimeout(() => {
       if (!peer.handshakeDone) this.rejectUnauthenticatedPeer(peer, "authentication timeout");
     }, VOID_P2P_AUTH_TIMEOUT_MS_V1);
@@ -2143,6 +2409,9 @@ export class Node {
     this.relayStreams.delete(key);
     entry.socket.remoteClose(reason);
     this.udpSwarmControl.sweep();
+    this.sweepUdpSwarmAuthenticatedDirectCandidatesV1(
+      "relay_fallback_stream_closed",
+    );
   }
 
   private sendRelayCloseToNode(nodeId: string, streamId: string, reason: string): void {
@@ -2197,6 +2466,9 @@ export class Node {
           this.udpSwarmControl.sweep();
         }
       }
+      this.sweepUdpSwarmAuthenticatedDirectCandidatesV1(
+        "relay_fallback_transport_closed",
+      );
       return;
     }
 

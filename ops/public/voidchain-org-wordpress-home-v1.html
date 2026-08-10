@@ -207,7 +207,9 @@ body.page-id-243945 .entry-content.wp-block-post-content {
         verifiable data, and open network coordination.
       </p>
       <div class="actions">
-        <a class="button" href="https://voidchain.org/app" rel="noopener">ENTER VOID</a>
+        <a class="button"
+           href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/"
+           rel="noopener">ENTER VOID</a>
         <a class="button secondary"
            href="https://github.com/6ZoSo9/void-node"
            rel="noopener">VIEW SOURCE</a>
@@ -359,11 +361,15 @@ body.page-id-243945 .entry-content.wp-block-post-content {
   const numberFrom = (obj, keys) => {
     for (const key of keys) {
       const value = obj[key];
-      if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
+      if (typeof value === "number") {
+        if (Number.isFinite(value)) {
+          return value;
+        }
       }
-      if (typeof value === "string" && /^\d+$/.test(value)) {
-        return Number(value);
+      if (typeof value === "string") {
+        if (/^\d+$/.test(value)) {
+          return Number(value);
+        }
       }
     }
     return null;
@@ -375,7 +381,7 @@ body.page-id-243945 .entry-content.wp-block-post-content {
     mode.dataset.state = "fallback";
     detail.textContent =
       "Live browser read unavailable; embedded snapshot remains visible. " +
-      String(error && error.message ? error.message : error);
+      String(error ? (error.message ? error.message : error) : error);
   };
 
   const refresh = async () => {
@@ -406,8 +412,11 @@ body.page-id-243945 .entry-content.wp-block-post-content {
       const txrootRaw = ready.txroot_live;
       const txrootValue =
         txrootRaw === true ? 1 : txrootRaw === false ? 0 : txrootRaw;
-      const exactGreen =
-        readyFlag && gapValue === 0 && (txrootRaw === 1 || txrootRaw === true);
+      const exactGreen = [
+        readyFlag,
+        gapValue === 0,
+        txrootRaw === 1 || txrootRaw === true
+      ].every(Boolean);
 
       reachable.textContent = readyFlag ? "YES" : "NO";
       head.textContent = String(headValue);

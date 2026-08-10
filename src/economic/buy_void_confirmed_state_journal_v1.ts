@@ -78,6 +78,7 @@ export type BuyVoidConfirmedStateV1 = {
     delivery_chain_id: string;
     void_delivery_tx_hash: string;
     delivery_block_number: string;
+    delivery_block_hash?: string;
     delivery_confirmation_count: string;
     fulfillment_wallet: string;
     delivery_address: string;
@@ -456,12 +457,22 @@ function validateAndBuildState(
   const deliveryAddress = normalizeAddress(record.delivery_address);
   const amountUnits = parseNonNegativeInteger(record.void_amount_units);
   const blockNumber = parseNonNegativeInteger(record.delivery_block_number);
+  const deliveryBlockHashSupplied =
+    record.delivery_block_hash !== undefined &&
+    record.delivery_block_hash !== null &&
+    String(record.delivery_block_hash).trim() !== "";
+  const deliveryBlockHash = deliveryBlockHashSupplied
+    ? normalizeHash(record.delivery_block_hash)
+    : "";
   const confirmations = parseNonNegativeInteger(record.delivery_confirmation_count);
   const deliveryChainId = parseNonNegativeInteger(record.delivery_chain_id);
   const paymentLogIndex = parseNonNegativeInteger(record.payment_log_index);
 
   if (!deliveryTx || !paymentTx || deliveryTx === paymentTx) {
     return { ok: false, reason: "invalid_delivery_payment_hash_binding" };
+  }
+  if (deliveryBlockHashSupplied && !deliveryBlockHash) {
+    return { ok: false, reason: "invalid_delivery_block_hash_binding" };
   }
   if (!fulfillmentWallet || !deliveryAddress) {
     return { ok: false, reason: "invalid_delivery_address_binding" };
@@ -532,6 +543,9 @@ function validateAndBuildState(
     delivery_chain_id: deliveryChainId.toString(),
     void_delivery_tx_hash: deliveryTx,
     delivery_block_number: blockNumber.toString(),
+    ...(deliveryBlockHash
+      ? { delivery_block_hash: deliveryBlockHash }
+      : {}),
     fulfillment_wallet: fulfillmentWallet,
     delivery_address: deliveryAddress,
     void_amount_units: amountUnits.toString(),
@@ -573,6 +587,9 @@ function validateAndBuildState(
     delivery_chain_id: deliveryChainId.toString(),
     void_delivery_tx_hash: deliveryTx,
     delivery_block_number: blockNumber.toString(),
+    ...(deliveryBlockHash
+      ? { delivery_block_hash: deliveryBlockHash }
+      : {}),
     delivery_confirmation_count: confirmations.toString(),
     fulfillment_wallet: fulfillmentWallet,
     delivery_address: deliveryAddress,
@@ -588,6 +605,9 @@ function validateAndBuildState(
     delivery_address: deliveryAddress,
     void_amount_units: amountUnits.toString(),
     delivery_block_number: blockNumber.toString(),
+    ...(deliveryBlockHash
+      ? { delivery_block_hash: deliveryBlockHash }
+      : {}),
     delivery_chain_id: deliveryChainId.toString(),
   });
 

@@ -537,6 +537,7 @@ assert.equal(postCount, 3);
 
 async function observeAppliedEnvelope(
   envelope: Record<string, unknown>,
+  appliedHttpStatus = 200,
 ) {
   let calls = 0;
   const result = await runBuyVoidProductionBroadcastReconciliationV1({
@@ -558,14 +559,28 @@ async function observeAppliedEnvelope(
       calls += 1;
       return calls <= 2
         ? { status: 200, json: dryFixture() }
-        : { status: 200, json: envelope };
+        : { status: appliedHttpStatus, json: envelope };
     },
   });
   assert.equal(calls, 3);
   return result;
 }
 
-const exactHeld = await observeAppliedEnvelope(heldFixture());
+for (const heldHttpStatus of [409, 422, 428, 503]) {
+  const heldByRuntimeStatus = await observeAppliedEnvelope(
+    heldFixture(),
+    heldHttpStatus,
+  );
+  assert.equal(heldByRuntimeStatus.ok, false, String(heldHttpStatus));
+  assert.equal(heldByRuntimeStatus.status, "held", String(heldHttpStatus));
+  assert.equal(
+    heldByRuntimeStatus.side_effect_state_known,
+    true,
+    String(heldHttpStatus),
+  );
+}
+
+const exactHeld = await observeAppliedEnvelope(heldFixture(), 422);
 assert.equal(exactHeld.ok, false);
 assert.equal(exactHeld.status, "held");
 assert.equal(exactHeld.reason, "synthetic_reconciliation_hold");
@@ -573,6 +588,42 @@ assert.equal(exactHeld.side_effect_state_known, true);
 assert.equal(exactHeld.mutation_performed, false);
 assert.equal(exactHeld.broadcaster_inspection_performed, true);
 assert.equal(exactHeld.reconciliation_required, true);
+
+for (const mismatchedHeldHttpStatus of [200, 500]) {
+  const mismatchedHeld = await observeAppliedEnvelope(
+    heldFixture(),
+    mismatchedHeldHttpStatus,
+  );
+  assert.equal(mismatchedHeld.ok, false, String(mismatchedHeldHttpStatus));
+  assert.equal(
+    mismatchedHeld.status,
+    "reconciliation_unknown",
+    String(mismatchedHeldHttpStatus),
+  );
+  assert.equal(
+    mismatchedHeld.side_effect_state_known,
+    false,
+    String(mismatchedHeldHttpStatus),
+  );
+}
+
+const successOnHeldHttpStatus = await observeAppliedEnvelope(
+  appliedFixture({ outcome: "confirmed" }),
+  422,
+);
+assert.equal(successOnHeldHttpStatus.ok, false);
+assert.equal(successOnHeldHttpStatus.status, "reconciliation_unknown");
+assert.equal(successOnHeldHttpStatus.side_effect_state_known, false);
+
+const malformedHeldOnExpectedHttpStatus = heldFixture() as any;
+malformedHeldOnExpectedHttpStatus.decision.mutation_performed = "false";
+const malformedHeldUnknown = await observeAppliedEnvelope(
+  malformedHeldOnExpectedHttpStatus,
+  422,
+);
+assert.equal(malformedHeldUnknown.ok, false);
+assert.equal(malformedHeldUnknown.status, "reconciliation_unknown");
+assert.equal(malformedHeldUnknown.side_effect_state_known, false);
 
 const falseMutationSuccess = await observeAppliedEnvelope(
   appliedFixture({ outcome: "confirmed", mutation: false }),
@@ -867,6 +918,10 @@ assert.equal(
   true,
 );
 assert.equal(
+  VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_AUTHORITY_V1.applied_http_status_bound_to_decision,
+  true,
+);
+assert.equal(
   VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_AUTHORITY_V1.automatic_retry,
   false,
 );
@@ -898,6 +953,18 @@ assert.match(source, /127\.0\.0\.1/);
 assert.match(source, /operator_reconciliation_apply_transport_unknown/);
 assert.match(source, /operator_reconciliation_plan_changed/);
 
+const childRuntimeSource = fs.readFileSync(
+  new URL(
+    "../src/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+assert.match(
+  childRuntimeSource,
+  /function decisionHttpStatus[\s\S]*return 428;[\s\S]*return 409;[\s\S]*return 503;[\s\S]*return 422;/,
+);
+
 process.stdout.write(`${JSON.stringify({
   marker: "VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_V1_PROOF_GREEN",
   runtime_route_reused: true,
@@ -914,6 +981,7 @@ process.stdout.write(`${JSON.stringify({
   applied_envelope_exact_boolean_schema: true,
   malformed_side_effect_truth_reconciliation_unknown: true,
   held_envelope_exact_scalar_schema: true,
+  applied_held_http_status_contract_bound: true,
   successful_reconciliation_mutation_truth_bound: true,
   child_runtime_authority_exact_schema: true,
   submit_once_runtime_adapter: false,

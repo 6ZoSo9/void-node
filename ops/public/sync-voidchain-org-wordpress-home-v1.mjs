@@ -10,6 +10,13 @@ import { fileURLToPath } from "node:url";
 const MARKER = "VOIDCHAIN_ORG_WORDPRESS_HOME_SYNC_V1";
 const PAGE_ID = 243945;
 const PAGE_ENDPOINT = `https://voidchain.org/wp-json/wp/v2/pages/${PAGE_ID}`;
+const ENTER_VOID_URL =
+  "https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/";
+const PUBLIC_APP_REQUIRED_TOKENS = [
+  "<title>VOID App — Read-only Home, Wallet & Earn</title>",
+  "window.__VOID_PUBLIC_APP_MODE__=true",
+  'id="app-shell"',
+];
 const WORDPRESS_HTML_BLOCK_OPEN = "<!-- wp:html -->";
 const WORDPRESS_HTML_BLOCK_CLOSE = "<!-- /wp:html -->";
 const CONTENT_PATH = path.resolve(
@@ -118,6 +125,47 @@ const requestJson = async (url, options = {}) => {
   return value;
 };
 
+const validatePublicAppDocument = ({ status, contentType, content }) => {
+  if (status !== 200) {
+    throw new Error(`primary CTA returned HTTP ${String(status)}`);
+  }
+  if (!String(contentType || "").toLowerCase().includes("text/html")) {
+    throw new Error("primary CTA returned non-HTML content");
+  }
+  if (typeof content !== "string") {
+    throw new Error("primary CTA returned invalid content");
+  }
+  for (const token of PUBLIC_APP_REQUIRED_TOKENS) {
+    if (!content.includes(token)) {
+      throw new Error(`primary CTA response is missing ${token}`);
+    }
+  }
+};
+
+const requestPublicAppEntrypoint = async () => {
+  const response = await fetch(ENTER_VOID_URL, {
+    method: "GET",
+    headers: { accept: "text/html" },
+    redirect: "error",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  const contentLength = Number(response.headers.get("content-length") || "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
+    throw new Error("primary CTA response exceeds size limit");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
+    throw new Error("primary CTA response exceeds size limit");
+  }
+  validatePublicAppDocument({
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    content: new TextDecoder().decode(bytes),
+  });
+  return response.status;
+};
+
 const validatePage = (page) => {
   if (page.id !== PAGE_ID) {
     throw new Error("page id mismatch");
@@ -155,7 +203,7 @@ const validateCanonical = (content) => {
     "max-width:none !important",
     "width:100vw",
     "background:#050506 !important",
-    'href="https://voidchain.org/app"',
+    `href="${ENTER_VOID_URL}"`,
     'method: "GET"',
     'credentials: "omit"',
     'fetchJson("/__void/ready.json")',
@@ -169,6 +217,19 @@ const validateCanonical = (content) => {
   if (content.includes("https://voidchain.io")) {
     throw new Error("canonical content contains the retired public-domain link");
   }
+  if (/href=["']https:\/\/voidchain\.org\/app\/?["']/i.test(content)) {
+    throw new Error("canonical content contains the dead primary CTA");
+  }
+
+  const script = elementPayload(
+    content,
+    "script",
+    "voidchain-org-node-live-client-v1",
+  );
+  if (script.includes("&")) {
+    throw new Error("canonical live client must be ampersand-free");
+  }
+  new Function(script);
 };
 
 const elementPayload = (content, tag, id) => {
@@ -188,7 +249,7 @@ const validateRenderedIntegrity = (content) => {
     "VOIDCHAIN_ORG_WORDPRESS_HOME_V1",
     "VOIDCHAIN_ORG_NODE_LIVE_V2",
     "VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1",
-    'href="https://voidchain.org/app"',
+    `href="${ENTER_VOID_URL}"`,
   ];
   for (const token of required) {
     if (!content.includes(token)) {
@@ -210,6 +271,9 @@ const validateRenderedIntegrity = (content) => {
     if (/<\/?p(?:\s|>)/i.test(payload) || /<br\s*\/?>/i.test(payload)) {
       throw new Error(`WordPress paragraph formatting contaminated the ${label}`);
     }
+  }
+  if (/&(?:#(?:x[0-9a-f]+|\d+)|amp|lt|gt|quot|apos);/i.test(script)) {
+    throw new Error("WordPress entity encoding contaminated the script");
   }
   if (
     !/#voidchain-org-node-mirror-v1\s*\{[^}]*width:100vw;[^}]*max-width:none !important;/s.test(
@@ -252,7 +316,12 @@ const editableRawContent = async (authorization) => {
   return { page, content: raw };
 };
 
-export { validateCanonical, validateRenderedIntegrity };
+export {
+  ENTER_VOID_URL,
+  validateCanonical,
+  validatePublicAppDocument,
+  validateRenderedIntegrity,
+};
 
 const isDirectRun =
   Boolean(process.argv[1]) &&
@@ -274,6 +343,7 @@ if (args) {
     validateCanonical(canonical);
     const canonicalSha256 = sha256(canonical);
     const authorization = credentials();
+    const primaryCtaHttpStatus = await requestPublicAppEntrypoint();
 
     if (args.mode === "inspect") {
       const rendered = await publicRenderedContent();
@@ -290,6 +360,9 @@ if (args) {
         modified_gmt: current.page.modified_gmt,
         current_content_sha256: contentSha256,
         canonical_content_sha256: canonicalSha256,
+        primary_cta_url: ENTER_VOID_URL,
+        primary_cta_http_status: primaryCtaHttpStatus,
+        primary_cta_live_verified: true,
         layout_v1_deployed: hasLayoutV1(rendered.content),
         rendered_integrity_verified: hasLayoutV1(rendered.content),
         raw_content_equivalent: authorization
@@ -343,6 +416,9 @@ if (args) {
         modified_gmt: updated.modified_gmt,
         previous_content_sha256: currentSha256,
         canonical_content_sha256: canonicalSha256,
+        primary_cta_url: ENTER_VOID_URL,
+        primary_cta_http_status: primaryCtaHttpStatus,
+        primary_cta_live_verified: true,
         raw_content_equivalent: true,
         live_layout_verified: true,
       })}\n`);

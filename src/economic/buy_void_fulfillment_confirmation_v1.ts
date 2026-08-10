@@ -27,6 +27,7 @@ export type BuyVoidDeliveryObservationV1 = {
   transaction_hash?: unknown;
   transaction_status?: unknown;
   block_number?: unknown;
+  block_hash?: unknown;
   current_block_number?: unknown;
   from_address?: unknown;
   to_address?: unknown;
@@ -53,6 +54,7 @@ export type BuyVoidConfirmedFulfillmentRecordV1 = {
   delivery_chain_id: string;
   void_delivery_tx_hash: string;
   delivery_block_number: string;
+  delivery_block_hash?: string;
   delivery_confirmation_count: string;
   fulfillment_wallet: string;
   delivery_address: string;
@@ -271,6 +273,14 @@ export function confirmBuyVoidFulfillmentV1(
   }
 
   const deliveryBlockNumber = parseNonNegativeInteger(observation.block_number);
+  const deliveryBlockHash = normalizeHash(observation.block_hash);
+  const deliveryBlockHashSupplied =
+    observation.block_hash !== undefined &&
+    observation.block_hash !== null &&
+    String(observation.block_hash).trim() !== "";
+  if (deliveryBlockHashSupplied && !deliveryBlockHash) {
+    return held("invalid_delivery_block_hash");
+  }
   const currentBlockNumber = parseNonNegativeInteger(
     observation.current_block_number,
   );
@@ -337,6 +347,9 @@ export function confirmBuyVoidFulfillmentV1(
     delivery_chain_id: expectedChainId.toString(),
     void_delivery_tx_hash: transactionHash,
     delivery_block_number: deliveryBlockNumber.toString(),
+    ...(deliveryBlockHash
+      ? { delivery_block_hash: deliveryBlockHash }
+      : {}),
     delivery_confirmation_count: confirmations.toString(),
     fulfillment_wallet: fulfillmentWallet,
     delivery_address: deliveryAddress,
@@ -348,6 +361,9 @@ export function confirmBuyVoidFulfillmentV1(
       delivery_chain_id: expectedChainId.toString(),
       void_delivery_tx_hash: transactionHash,
       delivery_block_number: deliveryBlockNumber.toString(),
+      ...(deliveryBlockHash
+        ? { delivery_block_hash: deliveryBlockHash }
+        : {}),
       fulfillment_wallet: fulfillmentWallet,
       delivery_address: deliveryAddress,
       void_amount_units: amountUnits.toString(),
