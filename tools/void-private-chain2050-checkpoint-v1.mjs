@@ -287,15 +287,16 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   const manifestPath = path.join(outputRoot, `${stem}.manifest.json`);
 
   const stateWrite = writeCreateOnly(statePath, dumpedState);
-  const manifest = {
+  const candidateManifest = {
     ...checkpointMaterial,
     captured_at: String(capturedAt),
     checkpoint_id_sha256: checkpointIdSha256,
     state_file: path.basename(statePath),
   };
-  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  const manifestText = `${JSON.stringify(candidateManifest, null, 2)}\n`;
 
   let manifestWrite;
+  let persistedManifest;
   if (fs.existsSync(manifestPath)) {
     const existing = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     if (
@@ -312,12 +313,14 @@ export async function captureVoidPrivateChain2050CheckpointV1({
       hold("checkpoint_existing_manifest_unsafe");
     }
     manifestWrite = "existing_exact_identity";
+    persistedManifest = existing;
   } else {
     manifestWrite = writeCreateOnly(manifestPath, manifestText);
+    persistedManifest = candidateManifest;
   }
 
   return Object.freeze({
-    ...manifest,
+    ...persistedManifest,
     state_path: statePath,
     manifest_path: manifestPath,
     state_write: stateWrite,
