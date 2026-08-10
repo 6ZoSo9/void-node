@@ -163,7 +163,7 @@ Before apply, the operator performs:
 5. terminal-policy fingerprint continuity check; and
 6. a fresh dry replan requiring the same operator plan fingerprint.
 
-Only then may it send the exact eight-key apply command.
+Only then may it send the exact nine-key apply command, including the exact server-derived terminal plan fingerprint.
 
 ## Mutation and crash truth
 
@@ -224,3 +224,17 @@ This operator never:
 A source merge, PR review transition, or CI run performs no live terminal
 closeout. A real production `--apply` remains a separate explicit accounting and
 state-mutation authorization after canonical confirmed-chain evidence exists.
+
+
+## Post-append verification truth
+
+A rare final verification-read mismatch can occur after the saga supervisor has already durably appended `closeout_committed`. In that case the terminal-closeout runtime reports a held/recovery-required result with `saga_closeout_appended=true`; the production operator preserves that exact persisted-effect flag rather than relabeling the closeout as not appended. Automatic retry remains disabled.
+
+
+## Server-enforced terminal plan binding
+
+The final apply request echoes the exact `terminal_plan_fingerprint_sha256` from the fresh reviewed dry run. The loopback runtime requires that fingerprint and passes it to the terminal-closeout core as `expected_plan_fingerprint_sha256`.
+
+The core independently reconstructs the current terminal plan and rejects any mismatch before inventory consumption, public fulfilled projection, or saga append. The supervisor adapter performs a second equality check immediately before `applyTerminalCloseoutArtifactsV1(...)`, closing the race between the core's outer reconstruction and the lease-protected inner reconstruction.
+
+A plan mismatch or an inner reconstruction drift is a held closeout-plan decision with automatic retry disabled and all terminal accounting mutation flags false. The fingerprint is an execution/accounting binding, not additional wallet, RPC, signing, transaction-broadcast, or money-movement authority.

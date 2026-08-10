@@ -22,6 +22,7 @@ const ATTEMPT = "a".repeat(64);
 const POLICY_FP = "b".repeat(64);
 const RPC_FP = "c".repeat(64);
 const BOUNDED_PLAN = "d".repeat(64);
+const PLAN_FP = "7".repeat(64);
 const IDEMPOTENCY = "e".repeat(64);
 const TX_HASH = `0x${"f".repeat(64)}`;
 const WALLET = `0x${"1".repeat(40)}`;
@@ -52,6 +53,8 @@ function runtimeAuthority() {
     attempt_id_only_selector: true,
     journal_reconstruction_required: true,
     exact_confirmation_required_before_apply_io: true,
+    exact_policy_fingerprint_required_before_apply_planning: true,
+    exact_plan_fingerprint_required_before_signing: true,
     injected_dependencies_required_before_apply_io: true,
     read_only_nonce_fee_planning: true,
     public_request_journal_write: false,
@@ -119,6 +122,8 @@ function dryRuntime(options: {
     status: "dry_run",
     attempt_id: ATTEMPT,
     reconstructed_from_server_journals: true,
+    plan_fingerprint_sha256: PLAN_FP,
+    runtime_policy_fingerprint_sha256: POLICY_FP,
     planner: {
       ok: true,
       marker: VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_PLANNER_MARKER_V1,
@@ -342,6 +347,7 @@ assert.equal(planned.signing_performed, false);
 assert.equal(planned.transaction_broadcast_performed, false);
 assert.equal(planned.submission_may_have_occurred, false);
 assert.equal(planned.runtime_policy_fingerprint_sha256, POLICY_FP);
+assert.equal(planned.plan_fingerprint_sha256, PLAN_FP);
 assert.equal(planned.rpc_url_fingerprint_sha256, RPC_FP);
 assert.equal(planned.execution_preview.delivery_address, DELIVERY);
 assert.equal(planned.execution_preview.void_amount_units, "400");
@@ -467,8 +473,10 @@ assert.deepEqual(acceptedIo.posts[1].body, {
   apply: true,
   confirmation: VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_CONFIRMATION_V1,
   submission_idempotency_key: IDEMPOTENCY,
+  expected_plan_fingerprint_sha256: PLAN_FP,
+  policy_fingerprint_sha256: POLICY_FP,
 });
-assert.equal(Object.keys(acceptedIo.posts[1].body).length, 4);
+assert.equal(Object.keys(acceptedIo.posts[1].body).length, 6);
 assert.equal(accepted.expected_transaction_hash, TX_HASH);
 assert.equal(accepted.transaction_hash, TX_HASH);
 assert.equal(accepted.reconciliation_required, false);
@@ -515,6 +523,10 @@ assert.equal(transportLoss.ok, false);
 assert.equal(transportLoss.status, "operator_transport_unknown");
 assert.equal(transportLoss.submission_may_have_occurred, true);
 assert.equal(transportLoss.reconciliation_required, true);
+assert.equal(transportLoss.mutation_performed, null);
+assert.equal(transportLoss.signing_performed, null);
+assert.equal(transportLoss.transaction_broadcast_performed, null);
+assert.equal(transportLoss.side_effect_state_known, false);
 assert.equal(transportLoss.automatic_retry_allowed, false);
 
 const malformedIo = transport({ statusValue: readyStatus, applyValue: { nope: true } });
@@ -527,6 +539,10 @@ assert.equal(malformed.ok, false);
 assert.equal(malformed.status, "operator_transport_unknown");
 assert.equal(malformed.submission_may_have_occurred, true);
 assert.equal(malformed.reconciliation_required, true);
+assert.equal(malformed.mutation_performed, null);
+assert.equal(malformed.signing_performed, null);
+assert.equal(malformed.transaction_broadcast_performed, null);
+assert.equal(malformed.side_effect_state_known, false);
 
 assert.equal(
   VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.duplicate_execution_engine,
@@ -577,7 +593,8 @@ assert.match(operatorSource, /body: \{ attempt_id: attemptId, apply: false \}/);
 assert.match(operatorSource, /submission_idempotency_key: input\.args\.submission_idempotency_key/);
 assert.match(runtimeSource, /\/__void\/operator\/buy-void-native-execution-v1\/status/);
 assert.match(runtimeSource, /\/__void\/operator\/buy-void-native-execution-v1\/command/);
-assert.match(runtimeSource, /"attempt_id",\s*\n\s*"apply",\s*\n\s*"confirmation",\s*\n\s*"submission_idempotency_key"/);
+assert.match(runtimeSource, /"attempt_id",\s*\n\s*"apply",\s*\n\s*"confirmation",\s*\n\s*"submission_idempotency_key",\s*\n\s*"expected_plan_fingerprint_sha256",\s*\n\s*"policy_fingerprint_sha256"/);
+assert.match(runtimeSource, /native_execution_plan_fingerprint_mismatch/);
 assert.match(workerSource, /buyVoidNativeExecuteReservedPlan/);
 assert.match(guardSource, /if \(!HEX64\.test\(submissionKey\)\)/);
 assert.match(plannerSource, /"eth_chainId"[\s\S]*"eth_getTransactionCount"[\s\S]*"eth_gasPrice"[\s\S]*"eth_getBalance"/);
@@ -595,7 +612,10 @@ process.stdout.write(`${JSON.stringify({
   exact_confirmation_required: true,
   exact_submission_idempotency_key_required: true,
   submission_idempotency_key_synthesized: false,
-  apply_command_key_count: 4,
+  apply_command_key_count: 6,
+  runtime_plan_fingerprint_validation: true,
+  runtime_policy_fingerprint_validation: true,
+  ambiguous_side_effect_state_known: false,
   broadcast_unknown_reconciliation_required: true,
   apply_transport_unknown_reconciliation_required: true,
   automatic_retry: false,
