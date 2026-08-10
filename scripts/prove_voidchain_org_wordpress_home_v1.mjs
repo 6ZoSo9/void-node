@@ -84,6 +84,20 @@ assert.throws(
   /WordPress paragraph formatting contaminated/,
   "production rendered validator must reject WordPress paragraph injection",
 );
+const wordpressEntityFixture = customHtmlRendered.replace(
+  "const readyFlag = ready.ready === true;",
+  "const readyFlag = ready.ready === true &#038;&#038; true;",
+);
+assert.notEqual(
+  wordpressEntityFixture,
+  customHtmlRendered,
+  "fixture must reproduce WordPress entity encoding in JavaScript",
+);
+assert.throws(
+  () => validateRenderedIntegrity(wordpressEntityFixture),
+  /WordPress entity encoding contaminated the script/,
+  "production rendered validator must reject WordPress entity encoding",
+);
 assert.throws(
   () => validateRenderedIntegrity(
     customHtmlRendered.replace(
@@ -163,6 +177,11 @@ assert.doesNotMatch(
   /<\/?p(?:\s|>)|<br\s*\/?>/i,
   "canonical live client must not contain WordPress paragraph markup",
 );
+assert.doesNotMatch(
+  liveClient,
+  /&/,
+  "canonical live client must remain ampersand-free across WordPress rendering",
+);
 new Function(liveClient);
 
 for (const token of [
@@ -224,6 +243,8 @@ for (const token of [
   "validateRenderedIntegrity",
   "rendered_integrity_verified",
   "WordPress paragraph formatting contaminated",
+  "canonical live client must be ampersand-free",
+  "WordPress entity encoding contaminated the script",
   "WordPress raw content does not match canonical after apply",
 ]) {
   assert.ok(sync.includes(token), `sync tool must contain ${token}`);
@@ -241,6 +262,7 @@ process.stdout.write(`${JSON.stringify({
   repaired_width_px: repairedRenderedWidth,
   wordpress_custom_html_block: true,
   wpautop_contamination_reproduced: true,
+  wordpress_entity_encoding_reproduced: true,
   rendered_integrity_guard: true,
   canonical_domain: "https://voidchain.org",
   page_path: path.relative(repo, pagePath),
