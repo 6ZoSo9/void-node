@@ -32,8 +32,11 @@ operator lane.
 1. Read current `main`, open pull requests, and the files relevant to the task.
 2. Select one narrow outcome with an explicit changed-path boundary.
 3. Check that the planned paths do not overlap another active branch or open PR.
-4. Reuse an existing matching branch or PR instead of creating a duplicate.
-5. Record assumptions and fail closed when required repository or runtime state
+4. Classify any detected coordination collision by severity. Red collisions are
+   hard stops; Amber collisions are advisory and require a bounded
+   reconciliation plan.
+5. Reuse an existing matching branch or PR instead of creating a duplicate.
+6. Record assumptions and fail closed when required repository or runtime state
    cannot be verified.
 
 Do not use a different branch name to disguise a path collision. Do not advance
@@ -50,8 +53,11 @@ and re-evaluation triggers are repository-wide coordination requirements.
 
 - Prefer closing an existing P0/P1 capability loop over opening another
   source-only proof, closeout, documentation, or architecture layer.
-- Do not open a parallel implementation for a semantic area that #1182 assigns
-  to an existing canonical branch or pull request. Repair or extend that lane.
+- Do not open a duplicate implementation for a semantic area that #1182 assigns
+  to an existing canonical branch or pull request. Disjoint supporting work may
+  proceed under the coordination-severity rules below.
+- If the highest useful priority is already occupied by a primary worker or a
+  Red collision, fall through to the next useful priority instead of idling.
 - Treat `merged`, `deployed`, and `externally accepted` as distinct states and
   stop at the highest state actually proven.
 - If #1182 is closed, superseded, explicitly replaced, or its assumptions no
@@ -63,6 +69,82 @@ and re-evaluation triggers are repository-wide coordination requirements.
 The coordination issue grants no service, deployment, credential, wallet,
 signer, payment, Work Credit, validator, treasury, transaction, or fund
 movement authority. Separate operation-bound authorization remains required.
+
+## Coordination severity, priority fall-through, and exploration
+
+Marker: `VOID_COORDINATION_PRIORITY_FALLTHROUGH_V2`
+
+Coordination is risk-weighted. The V1 active-lane registry remains collision
+evidence; when a candidate check is available, the V2 coordination decision is
+the final source-work classification for whether that evidence is blocking.
+
+### Red — hard stop
+
+A Red collision blocks competing work until the collision is removed, explicitly
+overridden, or the active sensitive operation ends. Red includes:
+
+- the same branch or worktree being used for competing work;
+- collisions involving production Chain-2050 state, consensus/chain source,
+  `src/node_core.ts`, contracts, wallets/signers, treasury/economic mutation,
+  Work Credit mutation, validators, deployment/restart operations, or other
+  explicitly sensitive authority;
+- incomplete collision evidence when the candidate itself touches a sensitive
+  path or sensitive semantic lane; and
+- any operation that could mutate the same live service, durable state, signer,
+  wallet, treasury, validator, or irreversible/shared authority concurrently.
+
+Recent activity in a Red lane is a real exclusion boundary. Do not work around it
+by renaming a branch, moving to another chat, or choosing a neighboring file.
+
+### Amber — advisory collision
+
+An Amber collision warns of likely reconciliation cost but does not by itself
+block bounded source work. Examples include a static family reservation, nearby
+ordinary subsystem work, non-sensitive path overlap, or incomplete path metadata
+for an otherwise non-sensitive source lane.
+
+Amber work may proceed only when:
+
+- the outcome is independently useful and not a duplicate implementation;
+- no Red authority or shared mutable state is inherited;
+- the worker keeps the changed-path scope narrow and records the collision; and
+- later reconciliation is expected before merge if the overlap remains.
+
+The prior-30-minute activity window is advisory for Amber work. Ordinary source
+traffic must not freeze an entire subsystem merely because another worker was
+recently active nearby.
+
+### Green — clear concurrency
+
+Green work is disjoint from active sensitive state and has no material collision.
+Proceed normally under the repository quality and authority rules.
+
+### Primary workers are not exclusive owners
+
+A worker named in #1182 is the primary worker for that lane, not the exclusive
+owner of an entire subsystem. Other workers must not duplicate the canonical
+implementation or enter a Red boundary, but they may take disjoint prerequisites,
+fall through to another priority, or explore elsewhere.
+
+### Priority fall-through
+
+Workers should attempt the highest-value useful priority first. If that work is
+already adequately occupied, blocked by a Red collision, or requires authority
+the worker does not have, continue down the repository priority order. Do not
+stop merely because the first attractive lane is taken.
+
+### Exploration mode
+
+If the named high-priority lanes are occupied or no safe bounded task is obvious,
+exploration is explicitly allowed. Scan the repository broadly for capability
+gaps, stale assumptions, brittle tests, correctness debt, security/recovery
+weaknesses, operator friction, missing automation, performance opportunities, or
+useful integrations. Exclude Red collisions, rank the remaining candidates by
+value and risk, and execute the best bounded Green or Amber improvement.
+
+Exploration is not permission for decorative churn. Prefer work that closes a
+real capability, removes recurring friction, reduces risk, or creates measurable
+usage/economic value.
 
 ## Authority boundaries
 
@@ -206,17 +288,19 @@ funds moved unless separately captured evidence proves that event.
 
 ## Priority order
 
-When several non-colliding lanes are available, prefer work that measurably
-improves:
+When several useful lanes are available, prefer work that measurably improves:
 
 1. customer revenue, automatic fulfillment readiness, or verifiable receipts;
 2. outside AI-agent discovery, authentication, capability negotiation, and
    bounded paid-work participation;
 3. network reliability, recovery, security, and independent operation;
 4. public usability and honest discoverability of already working capabilities;
-5. reusable intellectual assets, integrations, and evidence quality.
+5. reusable intellectual assets, integrations, and evidence quality;
+6. bounded exploration that discovers and closes the best remaining Green or
+   Amber capability/reliability/correctness gap when higher priorities are taken.
 
-Money-related work remains high priority, but no urgency converts source-edit
+Prefer the highest useful non-Red lane, not merely the first named lane. Money-
+related work remains high priority, but no urgency converts source-edit
 authorization into wallet, payment, treasury, or fund-movement authority.
 
 ## Completion rule
