@@ -93,7 +93,7 @@ const verified = buildBuyVoidVerifiedPaymentEventV2({
     current_block_number_by_chain: { base: 105 },
   },
 });
-if (!verified.ok) throw new Error(verified.reason);
+if (verified.ok === false) throw new Error(verified.reason);
 const verifiedEvent = verified.event;
 
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {

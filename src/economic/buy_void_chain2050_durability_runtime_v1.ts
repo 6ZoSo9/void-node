@@ -547,7 +547,7 @@ async function handleCommand(req: any, res: any): Promise<unknown> {
     confirmation: (body as any).confirmation,
   });
   let status = 200;
-  if (!decision.ok) {
+  if (decision.ok === false) {
     if (decision.reason === "explicit_confirmation_required") {
       status = 428;
     } else if (
