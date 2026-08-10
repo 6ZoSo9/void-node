@@ -288,8 +288,11 @@ function parseUtc(value: string): number {
 }
 
 function canonicalize(value: unknown): JsonValue {
+  if (value === null) {
+    return null;
+  }
+
   if (
-    value === null ||
     typeof value === "string" ||
     typeof value === "boolean"
   ) {
