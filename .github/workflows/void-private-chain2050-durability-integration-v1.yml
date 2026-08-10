@@ -9,6 +9,9 @@ on:
       - "tools/void-private-chain2050-startup-integration-v1.mjs"
       - "scripts/prove_buy_void_chain2050_durability_integration_v1.ts"
       - "scripts/prove_void_private_chain2050_startup_integration_v1.mjs"
+      - "scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs"
+      - "ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh"
+      - "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh"
       - "docs/operations/void-private-chain2050-durability-integration-v1.md"
       - "ops/systemd/void-node-live.service.d/81-buy-void-native-execution-runtime-v1.conf.example"
       - ".github/workflows/void-private-chain2050-durability-integration-v1.yml"
@@ -58,6 +61,9 @@ jobs:
         run: |
           node --check tools/void-private-chain2050-startup-integration-v1.mjs
           node --check scripts/prove_void_private_chain2050_startup_integration_v1.mjs
+          node --check scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs
+          bash -n ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh
+          bash -n ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh
 
       - name: Repository TypeScript baseline
         run: bash tools/check_tsc_noemit_baseline.sh
@@ -82,6 +88,9 @@ jobs:
 
       - name: Prove selector-driven startup integration
         run: node scripts/prove_void_private_chain2050_startup_integration_v1.mjs
+
+      - name: Prove fixed 8545 restore retirement
+        run: node scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs
 
       - name: Re-prove merged durability primitives
         run: |
