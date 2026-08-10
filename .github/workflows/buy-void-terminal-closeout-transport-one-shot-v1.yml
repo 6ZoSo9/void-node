@@ -32,7 +32,7 @@ jobs:
       - name: Verify exact child and parent authority
         shell: bash
         env:
-          EXPECTED_OLD_CHILD: 50c780f2f3aae81a007a18eb10566fea77d38ccb
+          EXPECTED_OLD_CHILD: fb5f1ce00361e5f5b9f2b991d005977fd985df1d
           EXPECTED_PARENT: 3ec97675449b76383557d2e5a198b91fc4e6b7e3
           CHILD_BRANCH: fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809
           PARENT_BRANCH: fix/buy-void-terminal-closeout-plan-binding-v1-20260809
