@@ -1,4 +1,4 @@
-name: Buy VOID terminal closeout transport hardening bootstrap v4
+name: Buy VOID terminal closeout transport hardening bootstrap v5
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: buy-void-terminal-closeout-transport-hardening-v4-${{ github.event.pull_request.number }}
+  group: buy-void-terminal-closeout-transport-hardening-v5-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
@@ -60,7 +60,33 @@ jobs:
           test "$proof_blob" = "$EXPECTED_PROOF_BLOB"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --no-ff "$live_parent" -m 'Merge exact #1159 terminal plan binding parent'
+
+          printf '%s\n' \
+            .github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml \
+            .github/workflows/buy-void-terminal-closeout-transport-one-shot-v1.yml \
+            scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py \
+            | sort > /tmp/allowed-carrier-conflicts.txt
+
+          set +e
+          git merge --no-ff --no-commit "$live_parent"
+          merge_rc=$?
+          set -e
+          if [ "$merge_rc" -ne 0 ]; then
+            git diff --name-only --diff-filter=U | sort > /tmp/unmerged.txt
+            test -s /tmp/unmerged.txt
+            comm -23 /tmp/unmerged.txt /tmp/allowed-carrier-conflicts.txt > /tmp/unexpected-unmerged.txt
+            test ! -s /tmp/unexpected-unmerged.txt
+            while IFS= read -r path; do
+              git checkout --ours -- "$path"
+              git add -- "$path"
+            done < /tmp/unmerged.txt
+          fi
+
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git diff --name-only "$live_parent" -- | sort > /tmp/reconciled-parent-diff.txt
+          diff -u /tmp/allowed-carrier-conflicts.txt /tmp/reconciled-parent-diff.txt
+          git diff --check "$live_parent" --
+          git commit -m 'Merge exact #1159 terminal plan binding parent'
           test -z "$(git status --porcelain)"
           echo "parent=$live_parent" >> "$GITHUB_OUTPUT"
 
@@ -178,7 +204,7 @@ jobs:
           diff -u /tmp/expected-final-commit.txt /tmp/actual-final-commit.txt
           git diff --check "$EXPECTED_PARENT"...HEAD
           git push origin "HEAD:refs/heads/$CHILD_BRANCH"
-          echo 'VOID_BUY_VOID_TERMINAL_CLOSEOUT_TRANSPORT_HARDENING_V4_GREEN'
+          echo 'VOID_BUY_VOID_TERMINAL_CLOSEOUT_TRANSPORT_HARDENING_V5_GREEN'
           echo 'live_terminal_closeout_performed=false'
           echo 'inventory_consumption_performed=false'
           echo 'public_fulfillment_mutation_performed=false'
