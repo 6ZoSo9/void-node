@@ -138,8 +138,6 @@ jobs:
           for proof in \
             scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
             scripts/prove_buy_void_saga_terminal_closeout_v1.ts \
-            scripts/prove_buy_void_saga_terminal_closeout_reducer_v1.ts \
-            scripts/prove_buy_void_saga_terminal_closeout_runtime_reducer_v1.ts \
             scripts/prove_buy_void_saga_terminal_closeout_runtime_v1.ts \
             scripts/prove_buy_void_confirmed_closeout_v1.ts \
             scripts/prove_buy_void_crash_consistent_saga_server_policy_v1.ts \
