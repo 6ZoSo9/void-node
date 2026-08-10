@@ -37,6 +37,9 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   chain_id_reverified_after_load: true,
   anvil_generated_accounts_disabled: true,
   zero_unlocked_accounts_reverified_after_load: true,
+  transaction_automining_default: true,
+  interval_mining_opt_in_only: true,
+  no_mining_default: false,
   transaction_replay: false,
   wallet_access: false,
   credential_access: false,
@@ -385,7 +388,7 @@ export function buildVoidPrivateChain2050AnvilArgsV1(
   blockTime,
   gasLimit,
 ) {
-  return [
+  const args = [
     "--host",
     rpc.hostname,
     "--port",
@@ -394,13 +397,17 @@ export function buildVoidPrivateChain2050AnvilArgsV1(
     String(VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1),
     "--accounts",
     "0",
-    "--block-time",
-    String(blockTime),
+  ];
+  if (blockTime !== null && blockTime !== undefined) {
+    args.push("--block-time", String(blockTime));
+  }
+  args.push(
     "--gas-limit",
     String(gasLimit),
     "--load-state",
     cliState.state_file,
-  ];
+  );
+  return args;
 }
 
 export function assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(args) {
@@ -427,6 +434,45 @@ export function assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(args) {
   return true;
 }
 
+export function assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+  args,
+  miningMode,
+  blockTime,
+) {
+  if (!Array.isArray(args)) hold("startup_anvil_args_invalid");
+  for (const forbidden of ["--no-mining", "--no-mine"]) {
+    if (args.includes(forbidden)) {
+      hold("startup_anvil_no_mining_forbidden");
+    }
+  }
+  const blockTimeIndexes = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--block-time") blockTimeIndexes.push(index);
+  }
+
+  if (miningMode === "auto") {
+    if (blockTime !== null || blockTimeIndexes.length !== 0) {
+      hold("startup_anvil_transaction_automining_required");
+    }
+    return true;
+  }
+
+  if (miningMode === "interval") {
+    if (
+      !Number.isSafeInteger(blockTime) ||
+      blockTime < 1 ||
+      blockTime > 3_600 ||
+      blockTimeIndexes.length !== 1 ||
+      args[blockTimeIndexes[0] + 1] !== String(blockTime)
+    ) {
+      hold("startup_anvil_interval_mining_binding_invalid");
+    }
+    return true;
+  }
+
+  hold("startup_mining_mode_invalid");
+}
+
 export function buildVoidPrivateChain2050StartupPlanV1(input) {
   const rpc = loopbackRpc(input.rpc_url || "http://127.0.0.1:8545/");
   const baselineBlock = safeInteger(
@@ -438,11 +484,15 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     "startup_minimum_block_number_invalid",
     { minimum: 1 },
   );
-  const blockTime = safeInteger(
-    input.block_time ?? 2,
-    "startup_block_time_invalid",
-    { minimum: 1, maximum: 3_600 },
-  );
+  const blockTime =
+    input.block_time === undefined || input.block_time === null
+      ? null
+      : safeInteger(
+          input.block_time,
+          "startup_block_time_invalid",
+          { minimum: 1, maximum: 3_600 },
+        );
+  const miningMode = blockTime === null ? "auto" : "interval";
   const gasLimit = safeInteger(
     input.gas_limit ?? 200_000_000,
     "startup_gas_limit_invalid",
@@ -467,7 +517,9 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     apply: false,
     rpc_url: rpc.toString(),
     minimum_block_number: minimumBlock,
+    mining_mode: miningMode,
     block_time: blockTime,
+    no_mining: false,
     gas_limit: gasLimit,
     selection,
     selected_state_materialization_required: true,
@@ -520,6 +572,11 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
     plan.gas_limit,
   );
   assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(anvilArgs);
+  assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+    anvilArgs,
+    plan.mining_mode,
+    plan.block_time,
+  );
   const child = spawn("anvil", anvilArgs, {
     stdio: ["ignore", "inherit", "inherit"],
     env: process.env,
