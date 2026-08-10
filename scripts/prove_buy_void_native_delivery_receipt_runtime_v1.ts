@@ -184,6 +184,7 @@ function transport(options: {
       transactionHash: deliveryTx,
       status: options.status ?? "0x1",
       blockNumber: "0x1f4",
+      blockHash: `0x${"c".repeat(64)}`,
       from: wallet,
       to: delivery,
     };

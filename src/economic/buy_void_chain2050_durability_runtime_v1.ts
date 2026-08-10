@@ -7,6 +7,9 @@ import {
   readBuyVoidExecutionAttemptV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
+  readBuyVoidSagaBroadcastEvidenceStateV1,
+} from "./buy_void_saga_broadcast_evidence_journal_v1.js";
+import {
   VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_AUTHORITY_V1,
   VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_V1,
   VoidBuyVoidChain2050DurabilityHoldV1,
@@ -34,8 +37,12 @@ export const VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_AUTHORITY_V1 = {
   server_controlled_durability_root: true,
   server_controlled_buy_void_runtime_root: true,
   confirmed_execution_attempt_required: true,
+  confirmed_receipt_block_hash_required: true,
+  prepared_terminal_receipt_evidence_cross_checked_when_present: true,
+  exact_delivery_block_hash_required: true,
   exact_confirmation_required_before_checkpoint_io: true,
   checkpoint_minimum_bound_to_confirmed_delivery_block: true,
+  checkpoint_bound_to_confirmed_delivery_block_hash: true,
   finalized_checkpoint_required_before_debt_satisfaction: true,
   raw_signed_transaction_input: false,
   raw_signed_transaction_persistence: false,
@@ -65,6 +72,9 @@ export type BuyVoidChain2050CheckpointSummaryV1 = {
   chain_id: 2050;
   block_number: number;
   block_hash: string;
+  delivery_block_number: number;
+  delivery_block_hash: string;
+  delivery_block_hash_verified: true;
   checkpoint_finalized: true;
   checkpoint_directory_fsync_performed: true;
 };
@@ -72,6 +82,8 @@ export type BuyVoidChain2050CheckpointSummaryV1 = {
 export type BuyVoidChain2050CheckpointCaptureV1 = (input: {
   rpc_url: string;
   minimum_block_number: number;
+  expected_delivery_block_number: number;
+  expected_delivery_block_hash: string;
   output_root?: string;
 }) => Promise<BuyVoidChain2050CheckpointSummaryV1>;
 
@@ -85,6 +97,7 @@ export type BuyVoidChain2050DurabilityRuntimeDecisionV1 =
       attempt_id: string;
       transaction_hash: string;
       delivery_block_number: string;
+      delivery_block_hash: string;
       required_confirmation:
         typeof VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1;
       checkpoint_capture_performed: false;
@@ -101,6 +114,7 @@ export type BuyVoidChain2050DurabilityRuntimeDecisionV1 =
       attempt_id: string;
       transaction_hash: string;
       delivery_block_number: string;
+      delivery_block_hash: string;
       checkpoint: BuyVoidChain2050CheckpointSummaryV1;
       satisfaction: BuyVoidChain2050DurabilitySatisfactionV1;
       checkpoint_capture_performed: true;
@@ -117,6 +131,7 @@ export type BuyVoidChain2050DurabilityRuntimeDecisionV1 =
         | "runtime_policy"
         | "durability_debt"
         | "confirmed_attempt"
+        | "confirmed_receipt"
         | "checkpoint_capture"
         | "debt_satisfaction";
       reason: string;
@@ -214,6 +229,8 @@ function held(
 export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
   rpc_url: string;
   minimum_block_number: number;
+  expected_delivery_block_number: number;
+  expected_delivery_block_hash: string;
   output_root?: string;
 }): Promise<BuyVoidChain2050CheckpointSummaryV1> {
   const tool = path.resolve(
@@ -227,6 +244,10 @@ export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
     input.rpc_url,
     "--minimum-block-number",
     String(input.minimum_block_number),
+    "--expected-delivery-block-number",
+    String(input.expected_delivery_block_number),
+    "--expected-delivery-block-hash",
+    input.expected_delivery_block_hash,
   ];
   if (input.output_root) {
     args.push("--output-root", input.output_root);
@@ -253,6 +274,10 @@ export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
     Number(parsed.block_number) <= 0 ||
     typeof parsed.block_hash !== "string" ||
     !HASH.test(parsed.block_hash) ||
+    Number(parsed.delivery_block_number) !==
+      input.expected_delivery_block_number ||
+    parsed.delivery_block_hash !== input.expected_delivery_block_hash ||
+    parsed.delivery_block_hash_verified !== true ||
     parsed.checkpoint_finalized !== true ||
     parsed.checkpoint_directory_fsync_performed !== true
   ) {
@@ -264,6 +289,9 @@ export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
     chain_id: 2050,
     block_number: Number(parsed.block_number),
     block_hash: parsed.block_hash,
+    delivery_block_number: Number(parsed.delivery_block_number),
+    delivery_block_hash: parsed.delivery_block_hash,
+    delivery_block_hash_verified: true,
     checkpoint_finalized: true,
     checkpoint_directory_fsync_performed: true,
   };
@@ -369,6 +397,61 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     });
   }
 
+  let receiptEvidence;
+  try {
+    receiptEvidence = readBuyVoidSagaBroadcastEvidenceStateV1({
+      root_dir: runtimeRoot,
+      attempt_id: attemptId,
+    });
+  } catch (error) {
+    return held("confirmed_receipt", "confirmed_receipt_evidence_read_failed", {
+      attempt_id: attemptId,
+      transaction_hash: transactionHash,
+      detail: {
+        error_class: String((error as Error)?.name || "Error").slice(0, 80),
+      },
+    });
+  }
+  const confirmedRecordBlockHash = String(
+    confirmed.delivery_block_hash || "",
+  ).toLowerCase();
+  const evidenceReceipt = receiptEvidence?.latest.receipt;
+  const evidenceBlockHash = String(
+    evidenceReceipt?.block_hash || "",
+  ).toLowerCase();
+  const evidenceBindingValid = Boolean(
+    receiptEvidence &&
+    receiptEvidence.attempt_id === attemptId &&
+    receiptEvidence.transaction_hash === transactionHash &&
+    receiptEvidence.latest.outcome === "confirmed" &&
+    evidenceReceipt?.chain_id === "2050" &&
+    evidenceReceipt.transaction_hash === transactionHash &&
+    evidenceReceipt.transaction_status === 1 &&
+    parsePositiveBlock(evidenceReceipt.block_number) === deliveryBlock &&
+    HASH.test(evidenceBlockHash),
+  );
+  const deliveryBlockHash = HASH.test(confirmedRecordBlockHash)
+    ? confirmedRecordBlockHash
+    : evidenceBindingValid
+      ? evidenceBlockHash
+      : "";
+  if (
+    !deliveryBlockHash ||
+    (receiptEvidence !== null && !evidenceBindingValid) ||
+    (evidenceBindingValid &&
+      HASH.test(confirmedRecordBlockHash) &&
+      evidenceBlockHash !== confirmedRecordBlockHash)
+  ) {
+    return held(
+      "confirmed_receipt",
+      "confirmed_receipt_durability_binding_invalid",
+      {
+        attempt_id: attemptId,
+        transaction_hash: transactionHash,
+      },
+    );
+  }
+
   if (!apply) {
     return {
       ok: true,
@@ -379,6 +462,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
       attempt_id: attemptId,
       transaction_hash: transactionHash,
       delivery_block_number: String(deliveryBlock),
+      delivery_block_hash: deliveryBlockHash,
       required_confirmation:
         VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
       checkpoint_capture_performed: false,
@@ -401,6 +485,8 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     checkpoint = await capture({
       rpc_url: rpc || "http://127.0.0.1:8545/",
       minimum_block_number: deliveryBlock,
+      expected_delivery_block_number: deliveryBlock,
+      expected_delivery_block_hash: deliveryBlockHash,
       output_root: checkpointRoot(),
     });
   } catch (error) {
@@ -416,6 +502,9 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     checkpoint.chain_id !== 2050 ||
     checkpoint.block_number < deliveryBlock ||
     !HASH.test(checkpoint.block_hash) ||
+    checkpoint.delivery_block_number !== deliveryBlock ||
+    checkpoint.delivery_block_hash !== deliveryBlockHash ||
+    checkpoint.delivery_block_hash_verified !== true ||
     !SHA256.test(checkpoint.checkpoint_id_sha256) ||
     checkpoint.checkpoint_finalized !== true ||
     checkpoint.checkpoint_directory_fsync_performed !== true
@@ -434,6 +523,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
       transaction_hash: transactionHash,
       attempt_id: attemptId,
       delivery_block_number: String(deliveryBlock),
+      delivery_block_hash: deliveryBlockHash,
       checkpoint,
       now_ms: input.now_ms,
     });
@@ -463,6 +553,7 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     attempt_id: attemptId,
     transaction_hash: transactionHash,
     delivery_block_number: String(deliveryBlock),
+    delivery_block_hash: deliveryBlockHash,
     checkpoint,
     satisfaction,
     checkpoint_capture_performed: true,

@@ -44,6 +44,9 @@ import {
 import {
   initializeBuyVoidNativeDeliveryRuntimeDependenciesFromProcessV1,
 } from "../src/economic/buy_void_native_delivery_runtime_dependencies_v1.js";
+import {
+  recordBuyVoidSagaBroadcastEvidenceV1,
+} from "../src/economic/buy_void_saga_broadcast_evidence_journal_v1.js";
 
 const delivery = "0x1111111111111111111111111111111111111111";
 const receive = "0x3333333333333333333333333333333333333333";
@@ -51,6 +54,7 @@ const usdc = "0x4444444444444444444444444444444444444444";
 const wallet = "0x5555555555555555555555555555555555555555";
 const paymentTx = `0x${"a".repeat(64)}`;
 const deliveryTx = `0x${"b".repeat(64)}`;
+const deliveryBlockHash = `0x${"c".repeat(64)}`;
 const transferTopic =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
@@ -176,6 +180,38 @@ function receiptPolicy(
   };
 }
 
+function recordConfirmedReceiptEvidence(root: string, attemptId: string) {
+  return recordBuyVoidSagaBroadcastEvidenceV1({
+    root_dir: root,
+    saga_id: `voidbvfsg1_${"d".repeat(64)}`,
+    attempt_id: attemptId,
+    broadcast_intent_id: `voidbvbci1_${"e".repeat(64)}`,
+    transaction_hash: deliveryTx,
+    outcome: {
+      ok: true,
+      status: "confirmed",
+      transaction_hash: deliveryTx,
+      provider_submission_id: "durability-proof-submit-1",
+      definitive_not_submitted: false,
+      submission_call_performed: true,
+      submission_may_have_occurred: true,
+      receipt: {
+        chain_id: "2050",
+        transaction_hash: deliveryTx,
+        transaction_status: 1,
+        block_number: "500",
+        block_hash: deliveryBlockHash,
+        current_block_number: "504",
+        confirmation_count: "5",
+        from_address: wallet,
+        to_address: delivery,
+        amount_units: "50000000",
+      },
+    },
+    now_ms: 1_700_702_050_000,
+  });
+}
+
 function transport(calls: BuyVoidNativeDeliveryReceiptRpcMethodV1[]) {
   return async (call: {
     method: BuyVoidNativeDeliveryReceiptRpcMethodV1;
@@ -189,6 +225,7 @@ function transport(calls: BuyVoidNativeDeliveryReceiptRpcMethodV1[]) {
       transactionHash: deliveryTx,
       status: "0x1",
       blockNumber: "0x1f4",
+      blockHash: deliveryBlockHash,
       from: wallet,
       to: delivery,
     };
@@ -303,11 +340,15 @@ try {
       transaction_hash: expectedHash,
       attempt_id: "1".repeat(64),
       delivery_block_number: "10",
+      delivery_block_hash: `0x${"4".repeat(64)}`,
       checkpoint: {
         checkpoint_id_sha256: "2".repeat(64),
         chain_id: 2050,
         block_number: 10,
         block_hash: `0x${"3".repeat(64)}`,
+        delivery_block_number: 10,
+        delivery_block_hash: `0x${"4".repeat(64)}`,
+        delivery_block_hash_verified: true,
         checkpoint_finalized: false,
         checkpoint_directory_fsync_performed: true,
       },
@@ -318,16 +359,46 @@ try {
       error.reason === "chain2050_durability_checkpoint_not_finalized",
   );
   assert.equal(inspectBuyVoidChain2050DurabilityV1(gateRoot).unresolved_debt_count, 1);
+  assert.throws(
+    () => satisfyBuyVoidChain2050DurabilityDebtV1({
+      root_dir: gateRoot,
+      transaction_hash: expectedHash,
+      attempt_id: "1".repeat(64),
+      delivery_block_number: "10",
+      delivery_block_hash: `0x${"4".repeat(64)}`,
+      checkpoint: {
+        checkpoint_id_sha256: "2".repeat(64),
+        chain_id: 2050,
+        block_number: 10,
+        block_hash: `0x${"3".repeat(64)}`,
+        delivery_block_number: 10,
+        delivery_block_hash: `0x${"5".repeat(64)}`,
+        delivery_block_hash_verified: true,
+        checkpoint_finalized: true,
+        checkpoint_directory_fsync_performed: true,
+      },
+      now_ms: 1_700_701_175_000,
+    }),
+    (error: unknown) =>
+      error instanceof VoidBuyVoidChain2050DurabilityHoldV1 &&
+      error.reason ===
+        "chain2050_durability_delivery_block_continuity_invalid",
+  );
+  assert.equal(inspectBuyVoidChain2050DurabilityV1(gateRoot).unresolved_debt_count, 1);
   satisfyBuyVoidChain2050DurabilityDebtV1({
     root_dir: gateRoot,
     transaction_hash: expectedHash,
     attempt_id: "1".repeat(64),
     delivery_block_number: "10",
+    delivery_block_hash: `0x${"4".repeat(64)}`,
     checkpoint: {
       checkpoint_id_sha256: "2".repeat(64),
       chain_id: 2050,
       block_number: 10,
       block_hash: `0x${"3".repeat(64)}`,
+      delivery_block_number: 10,
+      delivery_block_hash: `0x${"4".repeat(64)}`,
+      delivery_block_hash_verified: true,
       checkpoint_finalized: true,
       checkpoint_directory_fsync_performed: true,
     },
@@ -390,7 +461,6 @@ try {
     "eth_getTransactionReceipt",
     "eth_blockNumber",
   ]);
-
   const durabilityRoot = path.join(
     runtimeFixture.root,
     "chain2050-durability-v1",
@@ -411,7 +481,20 @@ try {
     throw new Error("planned_expected");
   }
   assert.equal(planned.delivery_block_number, "500");
+  assert.equal(planned.delivery_block_hash, deliveryBlockHash);
   assert.equal(planned.checkpoint_capture_performed, false);
+  const receiptEvidence = recordConfirmedReceiptEvidence(
+    runtimeFixture.root,
+    runtimeFixture.attemptId,
+  );
+  assert.equal(receiptEvidence.ok, true);
+  assert.equal(receiptEvidence.status, "recorded");
+  const duplicateReceiptEvidence = recordConfirmedReceiptEvidence(
+    runtimeFixture.root,
+    runtimeFixture.attemptId,
+  );
+  assert.equal(duplicateReceiptEvidence.ok, true);
+  assert.equal(duplicateReceiptEvidence.status, "duplicate");
 
   let capturedMinimum = 0;
   const satisfied = await runBuyVoidChain2050DurabilityRuntimeCommandV1({
@@ -420,14 +503,23 @@ try {
     buy_void_runtime_root_dir: runtimeFixture.root,
     apply: true,
     confirmation: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
-    checkpoint_capture: async ({ minimum_block_number }) => {
+    checkpoint_capture: async ({
+      minimum_block_number,
+      expected_delivery_block_number,
+      expected_delivery_block_hash,
+    }) => {
       capturedMinimum = minimum_block_number;
+      assert.equal(expected_delivery_block_number, 500);
+      assert.equal(expected_delivery_block_hash, deliveryBlockHash);
       return {
         marker: "VOID_PRIVATE_CHAIN2050_CHECKPOINT_V1",
         checkpoint_id_sha256: "4".repeat(64),
         chain_id: 2050,
         block_number: 501,
         block_hash: `0x${"5".repeat(64)}`,
+        delivery_block_number: 500,
+        delivery_block_hash: deliveryBlockHash,
+        delivery_block_hash_verified: true,
         checkpoint_finalized: true,
         checkpoint_directory_fsync_performed: true,
       };
@@ -458,6 +550,13 @@ try {
       now_ms: 1_700_702_300_000,
     });
   assert.equal(unfinalizedConfirmed.ok, true);
+  assert.equal(
+    recordConfirmedReceiptEvidence(
+      unfinalizedFixture.root,
+      unfinalizedFixture.attemptId,
+    ).ok,
+    true,
+  );
   const unfinalizedDurabilityRoot = path.join(
     unfinalizedFixture.root,
     "chain2050-durability-v1",
@@ -480,6 +579,9 @@ try {
         chain_id: 2050,
         block_number: 501,
         block_hash: `0x${"7".repeat(64)}`,
+        delivery_block_number: 500,
+        delivery_block_hash: deliveryBlockHash,
+        delivery_block_hash_verified: true,
         checkpoint_finalized: false,
         checkpoint_directory_fsync_performed: true,
       }) as any,
@@ -492,6 +594,40 @@ try {
   assert.equal(unfinalizedCheckpoint.stage, "checkpoint_capture");
   assert.equal(
     unfinalizedCheckpoint.reason,
+    "chain2050_checkpoint_capture_boundary_invalid",
+  );
+  assert.equal(
+    inspectBuyVoidChain2050DurabilityV1(unfinalizedDurabilityRoot)
+      .unresolved_debt_count,
+    1,
+  );
+  const resetOrReorgCheckpoint =
+    await runBuyVoidChain2050DurabilityRuntimeCommandV1({
+      attempt_id: unfinalizedFixture.attemptId,
+      durability_root_dir: unfinalizedDurabilityRoot,
+      buy_void_runtime_root_dir: unfinalizedFixture.root,
+      apply: true,
+      confirmation: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
+      checkpoint_capture: async () => ({
+        marker: "VOID_PRIVATE_CHAIN2050_CHECKPOINT_V1",
+        checkpoint_id_sha256: "a".repeat(64),
+        chain_id: 2050,
+        block_number: 503,
+        block_hash: `0x${"1".repeat(64)}`,
+        delivery_block_number: 500,
+        delivery_block_hash: `0x${"2".repeat(64)}`,
+        delivery_block_hash_verified: true,
+        checkpoint_finalized: true,
+        checkpoint_directory_fsync_performed: true,
+      }),
+    });
+  assert.equal(resetOrReorgCheckpoint.ok, false);
+  if (resetOrReorgCheckpoint.ok) {
+    throw new Error("reset_or_reorg_checkpoint_hold_expected");
+  }
+  assert.equal(resetOrReorgCheckpoint.stage, "checkpoint_capture");
+  assert.equal(
+    resetOrReorgCheckpoint.reason,
     "chain2050_checkpoint_capture_boundary_invalid",
   );
   assert.equal(
@@ -515,6 +651,13 @@ try {
     now_ms: 1_700_703_000_000,
   });
   assert.equal(failureConfirmed.ok, true);
+  assert.equal(
+    recordConfirmedReceiptEvidence(
+      failureFixture.root,
+      failureFixture.attemptId,
+    ).ok,
+    true,
+  );
   const failureDurabilityRoot = path.join(
     failureFixture.root,
     "chain2050-durability-v1",
@@ -542,6 +685,28 @@ try {
     inspectBuyVoidChain2050DurabilityV1(failureDurabilityRoot).unresolved_debt_count,
     1,
   );
+  const recoveredAfterCheckpointFailure =
+    await runBuyVoidChain2050DurabilityRuntimeCommandV1({
+      attempt_id: failureFixture.attemptId,
+      durability_root_dir: failureDurabilityRoot,
+      buy_void_runtime_root_dir: failureFixture.root,
+      apply: true,
+      confirmation: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
+      checkpoint_capture: async () => ({
+        marker: "VOID_PRIVATE_CHAIN2050_CHECKPOINT_V1",
+        checkpoint_id_sha256: "8".repeat(64),
+        chain_id: 2050,
+        block_number: 502,
+        block_hash: `0x${"9".repeat(64)}`,
+        delivery_block_number: 500,
+        delivery_block_hash: deliveryBlockHash,
+        delivery_block_hash_verified: true,
+        checkpoint_finalized: true,
+        checkpoint_directory_fsync_performed: true,
+      }),
+    });
+  assert.equal(recoveredAfterCheckpointFailure.ok, true);
+  assert.equal(recoveredAfterCheckpointFailure.status, "checkpoint_satisfied");
 
   const previousInjector =
     process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED;
@@ -587,8 +752,14 @@ try {
   console.log("transport_unknown_preserves_debt=1");
   console.log("low_level_unfinalized_checkpoint_preserves_debt=1");
   console.log("confirmed_delivery_block_bound_to_checkpoint_minimum=1");
+  console.log("confirmed_receipt_delivery_block_hash_required=1");
+  console.log("native_confirmed_record_delivery_block_hash_recoverable=1");
+  console.log("delivery_block_hash_bound_to_checkpoint=1");
+  console.log("reset_or_reorg_checkpoint_rejected=1");
+  console.log("duplicate_confirmed_receipt_evidence_idempotent=1");
   console.log("unfinalized_checkpoint_preserves_debt=1");
   console.log("checkpoint_failure_preserves_debt=1");
+  console.log("checkpoint_failure_recovery_satisfies_debt=1");
   console.log("finalized_checkpoint_satisfies_debt=1");
   console.log("production_dependency_injector_requires_gate=1");
   console.log("VOID_BUY_VOID_CHAIN2050_DURABILITY_INTEGRATION_V1_PROOF_GREEN");

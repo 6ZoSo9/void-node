@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { Transaction, Wallet } from "ethers";
 import {
   VOID_BUY_VOID_PREPARED_TRANSACTION_CHAIN2050_TRANSPORT_AUTHORITY_V1,
@@ -11,6 +14,9 @@ import type {
   BuyVoidNativeChain2050JsonRpcCallResultV1,
   BuyVoidNativeChain2050JsonRpcTransportV1,
 } from "../src/economic/buy_void_native_chain2050_broadcaster_v1.js";
+import {
+  inspectBuyVoidChain2050DurabilityV1,
+} from "../src/economic/buy_void_chain2050_durability_gate_v1.js";
 
 const MARKER =
   "VOID_BUY_VOID_PREPARED_TRANSACTION_CHAIN2050_TRANSPORT_V1_PROOF_GREEN";
@@ -41,9 +47,11 @@ async function main(): Promise<void> {
   const sagaId = `voidbvfsg1_${sha256("proof-saga")}`;
   const attemptId = sha256("proof-attempt");
   const intentId = `voidbvbci1_${sha256("proof-intent")}`;
+  const durabilityRoots: string[] = [];
 
   let submitSendCalls = 0;
   let submitChainCalls = 0;
+  let activeDurabilityRoot = "";
   let sendMode: "accepted" | "definite_failure" | "ambiguous_failure" =
     "accepted";
 
@@ -64,6 +72,12 @@ async function main(): Promise<void> {
         };
       }
       assert.equal(call.method, "eth_sendRawTransaction");
+      assert.ok(activeDurabilityRoot);
+      assert.equal(
+        inspectBuyVoidChain2050DurabilityV1(activeDurabilityRoot)
+          .unresolved_debt_count,
+        1,
+      );
       submitSendCalls += 1;
       assert.equal(call.params.length, 1);
       assert.equal(call.params[0], raw);
@@ -141,18 +155,30 @@ async function main(): Promise<void> {
     return "0x6f";
   };
 
-  const created = await createBuyVoidPreparedTransactionChain2050TransportV1(
-    {
-      rpc_url: "http://127.0.0.1:8545/",
-      expected_chain_id: 2050,
-      request_timeout_ms: 5000,
-      max_response_bytes: 65536,
-    },
-    {
-      submit_rpc_transport: submitRpcTransport,
-      read_transport: readTransport,
-    },
-  );
+  const createTransport = async (label: string) => {
+    const durabilityRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-prepared-chain2050-${label}-`),
+    );
+    durabilityRoots.push(durabilityRoot);
+    const decision =
+      await createBuyVoidPreparedTransactionChain2050TransportV1(
+        {
+          rpc_url: "http://127.0.0.1:8545/",
+          expected_chain_id: 2050,
+          request_timeout_ms: 5000,
+          max_response_bytes: 65536,
+        },
+        {
+          submit_rpc_transport: submitRpcTransport,
+          read_transport: readTransport,
+          durability_root_dir: durabilityRoot,
+        },
+      );
+    return { decision, durabilityRoot };
+  };
+
+  const initial = await createTransport("accepted");
+  const created = initial.decision;
   if (!created.ok) throw new Error("chain2050_transport_should_be_ready");
   assert.equal(created.ok, true);
 
@@ -169,6 +195,7 @@ async function main(): Promise<void> {
     raw_signed_transaction: raw,
   };
 
+  activeDurabilityRoot = initial.durabilityRoot;
   const accepted = await created.transport.submit_once(privateSubmit);
   if (!accepted.ok) throw new Error("accepted_submit_result_expected");
   assert.equal(accepted.ok, true);
@@ -177,6 +204,15 @@ async function main(): Promise<void> {
   const stableProvider = accepted.provider_submission_id;
   assert.equal(submitSendCalls, 1);
   assert.equal(submitChainCalls, 2);
+  assert.equal(
+    inspectBuyVoidChain2050DurabilityV1(initial.durabilityRoot)
+      .unresolved_debt_count,
+    1,
+  );
+  const duplicateWhileDebtActive =
+    await created.transport.submit_once(privateSubmit);
+  assert.equal(duplicateWhileDebtActive.ok, false);
+  assert.equal(submitSendCalls, 1);
 
   const publicInspect = {
     submission_idempotency_key_sha256: sha256("submission-key"),
@@ -260,15 +296,36 @@ async function main(): Promise<void> {
   );
 
   sendMode = "definite_failure";
+  const definiteTransport = await createTransport("definite-failure");
+  if (!definiteTransport.decision.ok) {
+    throw new Error("definite_failure_transport_should_be_ready");
+  }
+  activeDurabilityRoot = definiteTransport.durabilityRoot;
   const definitelyNotSubmitted =
-    await created.transport.submit_once(privateSubmit);
+    await definiteTransport.decision.transport.submit_once(privateSubmit);
   assert.equal(definitelyNotSubmitted.ok, true);
   assert.equal(definitelyNotSubmitted.status, "not_submitted");
+  assert.equal(
+    inspectBuyVoidChain2050DurabilityV1(definiteTransport.durabilityRoot)
+      .unresolved_debt_count,
+    0,
+  );
 
   sendMode = "ambiguous_failure";
-  const ambiguous = await created.transport.submit_once(privateSubmit);
+  const ambiguousTransport = await createTransport("ambiguous-failure");
+  if (!ambiguousTransport.decision.ok) {
+    throw new Error("ambiguous_failure_transport_should_be_ready");
+  }
+  activeDurabilityRoot = ambiguousTransport.durabilityRoot;
+  const ambiguous =
+    await ambiguousTransport.decision.transport.submit_once(privateSubmit);
   assert.equal(ambiguous.ok, true);
   assert.equal(ambiguous.status, "unknown");
+  assert.equal(
+    inspectBuyVoidChain2050DurabilityV1(ambiguousTransport.durabilityRoot)
+      .unresolved_debt_count,
+    1,
+  );
 
   const mismatchedRaw = {
     ...privateSubmit,
@@ -299,6 +356,8 @@ async function main(): Promise<void> {
       expected_chain_id: 2050,
       loopback_http_only: true,
       existing_chain2050_broadcaster_reused_for_submit: true,
+      durability_gate_required_before_submit_rpc: true,
+      debt_armed_before_eth_send_raw_transaction: true,
       submit_rpc_mutation_method: "eth_sendRawTransaction",
       inspection_rpc_methods: [
         "eth_chainId",
@@ -325,6 +384,10 @@ async function main(): Promise<void> {
   console.log(MARKER);
   console.log("existing_chain2050_broadcaster_reused_for_submit=true");
   console.log("submit_rpc_mutation_method=eth_sendRawTransaction");
+  console.log("durability_gate_required_before_submit_rpc=true");
+  console.log("debt_armed_before_eth_send_raw_transaction=true");
+  console.log("durability_debt_observed_during_submit_rpc=true");
+  console.log("duplicate_submit_while_debt_active=held");
   console.log("inspection_rpc_is_read_only=true");
   console.log("stable_provider_submission_identity=true");
   console.log("rpc_transaction_hash_self_consistency=true");
@@ -341,6 +404,9 @@ async function main(): Promise<void> {
   console.log("real_rpc_calls=0");
   console.log("real_transaction_broadcast=false");
   console.log("runtime_route_mount=false");
+  for (const root of durabilityRoots) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {

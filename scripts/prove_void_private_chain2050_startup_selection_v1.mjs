@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_VERSION_V1,
@@ -44,12 +45,20 @@ const baseline = {
 };
 
 function checkpointMaterial(manifest) {
+  const deliveryBound = manifest.delivery_block_hash_verified === true;
   return {
     marker: manifest.marker,
     version: manifest.version,
     chain_id: manifest.chain_id,
     block_number: manifest.block_number,
     block_hash: manifest.block_hash,
+    ...(deliveryBound
+      ? {
+          delivery_block_number: manifest.delivery_block_number,
+          delivery_block_hash: manifest.delivery_block_hash,
+          delivery_block_hash_verified: true,
+        }
+      : {}),
     state_sha256: manifest.state_sha256,
     state_bytes: manifest.state_bytes,
     rpc_methods_used: manifest.rpc_methods_used,
@@ -62,16 +71,34 @@ function checkpointMaterial(manifest) {
   };
 }
 
-function writeCheckpoint({ blockNumber, blockHash, dumpState }) {
+function writeCheckpoint({
+  blockNumber,
+  blockHash,
+  dumpState,
+  deliveryBlockNumber,
+  deliveryBlockHash,
+}) {
+  const deliveryBound = deliveryBlockNumber !== undefined;
   const manifest = {
     marker: VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1,
     version: VOID_PRIVATE_CHAIN2050_CHECKPOINT_VERSION_V1,
     chain_id: VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1,
     block_number: blockNumber,
     block_hash: blockHash,
+    ...(deliveryBound
+      ? {
+          delivery_block_number: deliveryBlockNumber,
+          delivery_block_hash: deliveryBlockHash,
+          delivery_block_hash_verified: true,
+        }
+      : {}),
     state_sha256: sha256Text(dumpState),
     state_bytes: Buffer.byteLength(dumpState, "utf8"),
-    rpc_methods_used: [...VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1],
+    rpc_methods_used: [
+      ...(deliveryBound
+        ? VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1
+        : VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1),
+    ],
     rpc_unlocked_account_count: 0,
     chain_mutation_performed: false,
     transaction_broadcast_performed: false,
@@ -197,6 +224,8 @@ try {
     blockNumber: 37371,
     blockHash: `0x${"22".repeat(32)}`,
     dumpState: "0x1234abcd",
+    deliveryBlockNumber: 37369,
+    deliveryBlockHash: `0x${"44".repeat(32)}`,
   });
   assert.equal(fs.readFileSync(first.statePath, "utf8"), "0x1234abcd");
   const selected = selectVoidPrivateChain2050StartupStateV1({
@@ -208,6 +237,7 @@ try {
   assert.equal(selected.selected_block_number, 37371);
   assert.equal(selected.selected_block_hash, `0x${"22".repeat(32)}`);
   assert.equal(selected.selected_state_file, first.statePath);
+  assert.equal(first.manifest.delivery_block_hash_verified, true);
   assert.equal(selected.incomplete_checkpoint_group_count, 0);
   assert.equal(
     selected.selected_checkpoint_id_sha256,
@@ -387,6 +417,7 @@ try {
   console.log("unmarked_crash_debris_ignored=1");
   console.log("unmarked_crash_debris_cannot_satisfy_minimum=1");
   console.log("checkpoint_selection=1");
+  console.log("delivery_bound_checkpoint_selection=1");
   console.log("checkpoint_tamper_hold=1");
   console.log("wrong_chain_hold=1");
   console.log("same_height_conflict_hold=1");

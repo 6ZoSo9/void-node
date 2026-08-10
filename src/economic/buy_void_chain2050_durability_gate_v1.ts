@@ -20,6 +20,8 @@ export const VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_AUTHORITY_V1 = {
   definitive_not_broadcast_can_resolve_debt: true,
   broadcast_unknown_keeps_debt: true,
   finalized_checkpoint_required_to_satisfy_confirmed_debt: true,
+  confirmed_delivery_block_hash_required_to_satisfy_debt: true,
+  checkpoint_delivery_block_continuity_required: true,
   raw_signed_transaction_persistence: false,
   wallet_access: false,
   credential_access: false,
@@ -79,11 +81,13 @@ export type BuyVoidChain2050DurabilitySatisfactionV1 = {
   transaction_hash: string;
   attempt_id: string;
   delivery_block_number: string;
+  delivery_block_hash: string;
   checkpoint_id_sha256: string;
   checkpoint_block_number: number;
   checkpoint_block_hash: string;
   satisfied_at_ms: number;
   finalized_checkpoint_verified: true;
+  delivery_block_hash_checkpoint_verified: true;
   automatic_retry_allowed: false;
 };
 
@@ -328,11 +332,13 @@ function satisfactionFromFile(file: string): BuyVoidChain2050DurabilitySatisfact
       "transaction_hash",
       "attempt_id",
       "delivery_block_number",
+      "delivery_block_hash",
       "checkpoint_id_sha256",
       "checkpoint_block_number",
       "checkpoint_block_hash",
       "satisfied_at_ms",
       "finalized_checkpoint_verified",
+      "delivery_block_hash_checkpoint_verified",
       "automatic_retry_allowed",
     ],
     "chain2050_durability_satisfaction_record_schema_invalid",
@@ -342,11 +348,14 @@ function satisfactionFromFile(file: string): BuyVoidChain2050DurabilitySatisfact
     value.marker !== VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_V1 ||
     value.version !== 1 ||
     value.finalized_checkpoint_verified !== true ||
+    value.delivery_block_hash_checkpoint_verified !== true ||
     value.automatic_retry_allowed !== false ||
     typeof value.checkpoint_id_sha256 !== "string" ||
     !SHA256.test(value.checkpoint_id_sha256) ||
     typeof value.checkpoint_block_hash !== "string" ||
-    !HASH.test(value.checkpoint_block_hash)
+    !HASH.test(value.checkpoint_block_hash) ||
+    typeof value.delivery_block_hash !== "string" ||
+    !HASH.test(value.delivery_block_hash)
   ) hold("chain2050_durability_satisfaction_record_invalid");
   const transactionHash = safeTransactionHash(value.transaction_hash);
   safeAttemptId(value.attempt_id);
@@ -603,11 +612,15 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
   transaction_hash: unknown;
   attempt_id: unknown;
   delivery_block_number: unknown;
+  delivery_block_hash: unknown;
   checkpoint: {
     checkpoint_id_sha256: unknown;
     chain_id: unknown;
     block_number: unknown;
     block_hash: unknown;
+    delivery_block_number: unknown;
+    delivery_block_hash: unknown;
+    delivery_block_hash_verified: unknown;
     checkpoint_finalized: unknown;
     checkpoint_directory_fsync_performed: unknown;
   };
@@ -621,6 +634,7 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     input.delivery_block_number,
     "chain2050_durability_delivery_block_invalid",
   );
+  const deliveryBlockHash = safeTransactionHash(input.delivery_block_hash);
   if (
     input.checkpoint?.checkpoint_finalized !== true ||
     input.checkpoint?.checkpoint_directory_fsync_performed !== true
@@ -640,6 +654,20 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     hold("chain2050_durability_checkpoint_below_delivery_block");
   }
   const checkpointHash = safeTransactionHash(input.checkpoint?.block_hash);
+  const checkpointDeliveryBlock = positiveBlock(
+    input.checkpoint?.delivery_block_number,
+    "chain2050_durability_checkpoint_delivery_block_invalid",
+  );
+  const checkpointDeliveryHash = safeTransactionHash(
+    input.checkpoint?.delivery_block_hash,
+  );
+  if (
+    input.checkpoint?.delivery_block_hash_verified !== true ||
+    checkpointDeliveryBlock !== deliveryBlock ||
+    checkpointDeliveryHash !== deliveryBlockHash
+  ) {
+    hold("chain2050_durability_delivery_block_continuity_invalid");
+  }
   const state = inspectBuyVoidChain2050DurabilityV1(root);
   if (!state.unresolved_transaction_hashes.includes(transactionHash)) {
     hold("chain2050_durability_unresolved_debt_not_found");
@@ -651,11 +679,13 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     transaction_hash: transactionHash,
     attempt_id: attemptId,
     delivery_block_number: deliveryBlock.toString(),
+    delivery_block_hash: deliveryBlockHash,
     checkpoint_id_sha256: checkpointId,
     checkpoint_block_number: Number(checkpointBlock),
     checkpoint_block_hash: checkpointHash,
     satisfied_at_ms: nowMs(input.now_ms),
     finalized_checkpoint_verified: true,
+    delivery_block_hash_checkpoint_verified: true,
     automatic_retry_allowed: false,
   };
   writeCreateOnly(

@@ -890,6 +890,9 @@ function confirmationFingerprint(record: BuyVoidConfirmedFulfillmentRecordV1): s
     request_id: String(record.request_id || ""),
     instruction_id: String(record.instruction_id || ""),
     void_delivery_tx_hash: String(record.void_delivery_tx_hash || ""),
+    ...(record.delivery_block_hash
+      ? { delivery_block_hash: String(record.delivery_block_hash) }
+      : {}),
     fulfillment_wallet: String(record.fulfillment_wallet || ""),
     delivery_address: String(record.delivery_address || ""),
     void_amount_units: String(record.void_amount_units || ""),
