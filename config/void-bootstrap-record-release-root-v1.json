@@ -1,0 +1,19 @@
+{
+  "schema": "void_bootstrap_record_release_root_v1",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "status": "hold_no_signing_keys",
+  "signature_domain": "void:mainnet-0:bootstrap-record-v2-release-v1",
+  "threshold": 0,
+  "keys": [],
+  "authority": {
+    "private_routes_exposed": false,
+    "wallet_authority": false,
+    "signer_authority": false,
+    "validator_authority": false,
+    "treasury_authority": false,
+    "work_credit_authority": false,
+    "money_movement_authority": false
+  },
+  "root_id": "voidbrr1_14a3c746a2f35a15920808a9f3237dd2248ba5d2cbe5c2bc7353fcbeabcc1052"
+}
