@@ -1,0 +1,59 @@
+name: saveblock-periodic-rewriters-retirement-v1
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/index.ts'
+      - 'tsconfig*.json'
+      - 'scripts/copy_void_runtime_js_v1.mjs'
+      - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
+      - 'scripts/prove_saveblock_periodic_rewriters_retirement_v1.mjs'
+      - '.github/workflows/saveblock-periodic-rewriters-retirement-v1.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/index.ts'
+      - 'tsconfig*.json'
+      - 'scripts/copy_void_runtime_js_v1.mjs'
+      - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
+      - 'scripts/prove_saveblock_periodic_rewriters_retirement_v1.mjs'
+      - '.github/workflows/saveblock-periodic-rewriters-retirement-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove-retirement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build emitted runtime with retirement postbuild
+        run: npm run build
+
+      - name: Prove retirement transform is idempotent
+        run: node scripts/retire_saveblock_periodic_rewriters_v1.mjs
+
+      - name: Check emitted runtime syntax
+        run: node --check dist/index.js
+
+      - name: Prove periodic saveBlock rewriters are dead
+        run: node scripts/prove_saveblock_periodic_rewriters_retirement_v1.mjs
