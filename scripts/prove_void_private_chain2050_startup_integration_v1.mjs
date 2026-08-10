@@ -17,6 +17,7 @@ import {
   VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
   VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_MARKER_V1,
   VoidPrivateChain2050StartupIntegrationHoldV1,
+  assertVoidPrivateChain2050MiningModeAnvilArgsV1,
   assertVoidPrivateChain2050ZeroAccountAnvilArgsV1,
   buildVoidPrivateChain2050AnvilArgsV1,
   buildVoidPrivateChain2050StartupPlanV1,
@@ -103,6 +104,20 @@ try {
     true,
   );
   assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .transaction_automining_default,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .interval_mining_opt_in_only,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1.no_mining_default,
+    false,
+  );
+  assert.equal(
     VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1.transaction_replay,
     false,
   );
@@ -123,6 +138,9 @@ try {
   assert.equal(baselinePlan.selected_state_materialization_required, true);
   assert.equal(baselinePlan.anvil_generated_accounts, 0);
   assert.equal(baselinePlan.post_load_zero_unlocked_accounts_required, true);
+  assert.equal(baselinePlan.mining_mode, "auto");
+  assert.equal(baselinePlan.block_time, null);
+  assert.equal(baselinePlan.no_mining, false);
   assert.equal(baselinePlan.state_materialization_performed, false);
   assert.equal(baselinePlan.state_load_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
@@ -203,6 +221,9 @@ try {
   assert.equal(checkpointPlan.selection.selected_block_number, CHECKPOINT_BLOCK);
   assert.equal(checkpointPlan.selection.selected_block_hash, CHECKPOINT_HASH);
   assert.equal(checkpointPlan.selected_state_materialization_required, true);
+  assert.equal(checkpointPlan.mining_mode, "auto");
+  assert.equal(checkpointPlan.block_time, null);
+  assert.equal(checkpointPlan.no_mining, false);
   assert.equal(checkpointPlan.state_materialization_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
 
@@ -218,10 +239,82 @@ try {
   );
   const accountsIndex = startupArgs.indexOf("--accounts");
   assert.equal(startupArgs[accountsIndex + 1], "0");
+  assert.equal(startupArgs.includes("--block-time"), false);
+  assert.equal(startupArgs.includes("--no-mining"), false);
+  assert.equal(startupArgs.includes("--no-mine"), false);
   assert.equal(
     assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(startupArgs),
     true,
   );
+  assert.equal(
+    assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+      startupArgs,
+      checkpointPlan.mining_mode,
+      checkpointPlan.block_time,
+    ),
+    true,
+  );
+
+  assert.throws(
+    () => assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+      [...startupArgs, "--block-time", "2"],
+      "auto",
+      null,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_transaction_automining_required",
+  );
+  assert.throws(
+    () => assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+      [...startupArgs, "--no-mining"],
+      "auto",
+      null,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_no_mining_forbidden",
+  );
+
+  const intervalPlan = buildVoidPrivateChain2050StartupPlanV1({
+    baseline_state: baselineState,
+    baseline_state_sha256: baselineSha,
+    baseline_state_format: "anvil_cli_state_json",
+    baseline_block_number: BASELINE_BLOCK,
+    baseline_block_hash: BASELINE_HASH,
+    checkpoint_root: checkpointRoot,
+    minimum_block_number: CHECKPOINT_BLOCK,
+    derived_root: derivedRoot,
+    rpc_url: "http://127.0.0.1:8545/",
+    block_time: 2,
+  });
+  assert.equal(intervalPlan.mining_mode, "interval");
+  assert.equal(intervalPlan.block_time, 2);
+  assert.equal(intervalPlan.no_mining, false);
+
+  const intervalArgs = buildVoidPrivateChain2050AnvilArgsV1(
+    new URL("http://127.0.0.1:18545/"),
+    { state_file: "/private/selected-state.json" },
+    intervalPlan.block_time,
+    intervalPlan.gas_limit,
+  );
+  assert.equal(
+    intervalArgs.filter((value) => value === "--block-time").length,
+    1,
+  );
+  const blockTimeIndex = intervalArgs.indexOf("--block-time");
+  assert.equal(intervalArgs[blockTimeIndex + 1], "2");
+  assert.equal(intervalArgs.includes("--no-mining"), false);
+  assert.equal(intervalArgs.includes("--no-mine"), false);
+  assert.equal(
+    assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+      intervalArgs,
+      intervalPlan.mining_mode,
+      intervalPlan.block_time,
+    ),
+    true,
+  );
+
   const alteredAccounts = [...startupArgs];
   alteredAccounts[accountsIndex + 1] = "10";
   assert.throws(
@@ -382,6 +475,11 @@ try {
   console.log("anvil_account_generator_options_forbidden=1");
   console.log("post_load_eth_accounts_empty_required=1");
   console.log("nonempty_post_load_accounts_rejected=1");
+  console.log("default_transaction_automining=1");
+  console.log("default_interval_mining=0");
+  console.log("default_no_mining=0");
+  console.log("interval_mining_explicit_opt_in=1");
+  console.log("mining_mode_tamper_rejected=1");
   console.log("transaction_replay=0");
   console.log("transaction_broadcast=0");
   console.log("wallet_access=0");
