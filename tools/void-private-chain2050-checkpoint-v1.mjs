@@ -26,6 +26,7 @@ export const VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1 = Object.freeze([
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const BLOCK_HASH_RE = /^0x[0-9a-f]{64}$/;
 const DEFAULT_MAX_STATE_BYTES = 768 * 1024 * 1024;
+const DEFAULT_MAX_MANIFEST_BYTES = 64 * 1024;
 
 export class VoidPrivateChain2050CheckpointHoldV1 extends Error {
   constructor(reason) {
@@ -87,6 +88,48 @@ function validateDumpState(value, maxStateBytes) {
   const stateBytes = Buffer.byteLength(value, "utf8");
   if (stateBytes > maxStateBytes) hold("anvil_dump_state_too_large");
   return { stateBytes, stateSha256: sha256Text(value) };
+}
+
+function canonicalIsoTimestamp(value) {
+  if (typeof value !== "string") hold("captured_at_invalid");
+  const time = Date.parse(value);
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== value) {
+    hold("captured_at_invalid");
+  }
+  return value;
+}
+
+function assertNoSymlinkComponents(pathname) {
+  const resolved = path.resolve(pathname);
+  const parsed = path.parse(resolved);
+  let current = parsed.root;
+  for (const part of resolved.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    if (!fs.existsSync(current)) continue;
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) hold("checkpoint_path_symlink_component");
+  }
+}
+
+function assertOwned(stat, reason) {
+  if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
+    hold(reason);
+  }
+}
+
+function fsyncDirectory(directory) {
+  const descriptor = fs.openSync(directory, "r");
+  try {
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function readBoundedUtf8(pathname, maxBytes, tooLargeReason) {
+  const stat = fs.lstatSync(pathname);
+  if (stat.size > maxBytes) hold(tooLargeReason);
+  return fs.readFileSync(pathname, "utf8");
 }
 
 export function validateVoidPrivateChain2050RpcUrlV1(value) {
@@ -169,13 +212,23 @@ export async function voidPrivateChain2050HttpRpcCallV1(
 }
 
 function ensurePrivateDirectory(root) {
+  if (!path.isAbsolute(root)) hold("checkpoint_root_not_absolute");
+  assertNoSymlinkComponents(root);
+  const existed = fs.existsSync(root);
   fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+  assertNoSymlinkComponents(root);
   const stat = fs.lstatSync(root);
   if (!stat.isDirectory() || stat.isSymbolicLink()) hold("checkpoint_root_unsafe");
+  assertOwned(stat, "checkpoint_root_owner_invalid");
   fs.chmodSync(root, 0o700);
+  fsyncDirectory(root);
+  if (!existed) {
+    const parent = path.dirname(root);
+    if (fs.existsSync(parent)) fsyncDirectory(parent);
+  }
 }
 
-function writeCreateOnly(pathname, text) {
+function writeCreateOnly(pathname, text, maxExistingBytes) {
   try {
     const descriptor = fs.openSync(pathname, "wx", 0o600);
     try {
@@ -184,17 +237,52 @@ function writeCreateOnly(pathname, text) {
     } finally {
       fs.closeSync(descriptor);
     }
-    fs.chmodSync(pathname, 0o600);
     return "created";
   } catch (error) {
     if (error?.code !== "EEXIST") throw error;
     const stat = fs.lstatSync(pathname);
     if (!stat.isFile() || stat.isSymbolicLink()) hold("checkpoint_existing_path_unsafe");
+    assertOwned(stat, "checkpoint_existing_owner_invalid");
+    if ((stat.mode & 0o777) !== 0o600) hold("checkpoint_existing_mode_invalid");
+    if (stat.size > maxExistingBytes) hold("checkpoint_existing_content_too_large");
     const existing = fs.readFileSync(pathname, "utf8");
     if (existing !== text) hold("checkpoint_existing_content_mismatch");
-    if ((stat.mode & 0o777) !== 0o600) hold("checkpoint_existing_mode_invalid");
     return "existing_exact";
   }
+}
+
+function validateExistingManifest(manifestPath, candidateManifest) {
+  const stat = fs.lstatSync(manifestPath);
+  if (!stat.isFile() || stat.isSymbolicLink()) hold("checkpoint_existing_manifest_unsafe");
+  assertOwned(stat, "checkpoint_existing_manifest_owner_invalid");
+  if ((stat.mode & 0o777) !== 0o600) hold("checkpoint_existing_manifest_unsafe");
+  const text = readBoundedUtf8(
+    manifestPath,
+    DEFAULT_MAX_MANIFEST_BYTES,
+    "checkpoint_existing_manifest_too_large",
+  );
+  let existing;
+  try {
+    existing = JSON.parse(text);
+  } catch {
+    hold("checkpoint_existing_manifest_json_invalid");
+  }
+  if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+    hold("checkpoint_existing_manifest_mismatch");
+  }
+  const expectedKeys = Object.keys(candidateManifest).sort();
+  const observedKeys = Object.keys(existing).sort();
+  if (JSON.stringify(expectedKeys) !== JSON.stringify(observedKeys)) {
+    hold("checkpoint_existing_manifest_mismatch");
+  }
+  for (const key of expectedKeys) {
+    if (key === "captured_at") continue;
+    if (canonical(existing[key]) !== canonical(candidateManifest[key])) {
+      hold("checkpoint_existing_manifest_mismatch");
+    }
+  }
+  canonicalIsoTimestamp(existing.captured_at);
+  return existing;
 }
 
 export async function captureVoidPrivateChain2050CheckpointV1({
@@ -212,6 +300,7 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   if (!Number.isSafeInteger(maxStateBytes) || maxStateBytes < 1024) {
     hold("max_state_bytes_invalid");
   }
+  const capturedAtCanonical = canonicalIsoTimestamp(String(capturedAt));
 
   const methods = [];
   const call = async (method, params) => {
@@ -286,10 +375,10 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   const statePath = path.join(outputRoot, `${stem}.anvil-dump-state.hex`);
   const manifestPath = path.join(outputRoot, `${stem}.manifest.json`);
 
-  const stateWrite = writeCreateOnly(statePath, dumpedState);
+  const stateWrite = writeCreateOnly(statePath, dumpedState, maxStateBytes);
   const candidateManifest = {
     ...checkpointMaterial,
-    captured_at: String(capturedAt),
+    captured_at: capturedAtCanonical,
     checkpoint_id_sha256: checkpointIdSha256,
     state_file: path.basename(statePath),
   };
@@ -298,26 +387,22 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   let manifestWrite;
   let persistedManifest;
   if (fs.existsSync(manifestPath)) {
-    const existing = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    if (
-      existing?.checkpoint_id_sha256 !== checkpointIdSha256 ||
-      existing?.state_sha256 !== stateSha256 ||
-      existing?.block_number !== before.number ||
-      existing?.block_hash !== before.hash ||
-      existing?.state_file !== path.basename(statePath)
-    ) {
-      hold("checkpoint_existing_manifest_mismatch");
-    }
-    const stat = fs.lstatSync(manifestPath);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600) {
-      hold("checkpoint_existing_manifest_unsafe");
-    }
+    persistedManifest = validateExistingManifest(manifestPath, candidateManifest);
     manifestWrite = "existing_exact_identity";
-    persistedManifest = existing;
   } else {
-    manifestWrite = writeCreateOnly(manifestPath, manifestText);
+    manifestWrite = writeCreateOnly(
+      manifestPath,
+      manifestText,
+      DEFAULT_MAX_MANIFEST_BYTES,
+    );
     persistedManifest = candidateManifest;
   }
+
+  // File fsync alone is not enough: the directory entries must be durable before
+  // a successful capture is reported. A crash before the manifest exists may
+  // still leave an incomplete state-only artifact; startup selection treats such
+  // exact-name incomplete pairs as non-authoritative and never as a checkpoint.
+  fsyncDirectory(outputRoot);
 
   return Object.freeze({
     ...persistedManifest,
@@ -325,6 +410,7 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     manifest_path: manifestPath,
     state_write: stateWrite,
     manifest_write: manifestWrite,
+    checkpoint_directory_fsync_performed: true,
   });
 }
 
@@ -396,6 +482,8 @@ async function main() {
         state_bytes: result.state_bytes,
         state_path: result.state_path,
         manifest_path: result.manifest_path,
+        checkpoint_directory_fsync_performed:
+          result.checkpoint_directory_fsync_performed,
         chain_mutation_performed: result.chain_mutation_performed,
         transaction_broadcast_performed: result.transaction_broadcast_performed,
         wallet_access_performed: result.wallet_access_performed,
