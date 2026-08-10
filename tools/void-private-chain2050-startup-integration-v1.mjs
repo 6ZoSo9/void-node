@@ -485,7 +485,7 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     { minimum: 1 },
   );
   const blockTime =
-    input.block_time === undefined
+    input.block_time === undefined || input.block_time === null
       ? null
       : safeInteger(
           input.block_time,
