@@ -17,9 +17,12 @@ import {
   VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
   VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_MARKER_V1,
   VoidPrivateChain2050StartupIntegrationHoldV1,
+  assertVoidPrivateChain2050ZeroAccountAnvilArgsV1,
+  buildVoidPrivateChain2050AnvilArgsV1,
   buildVoidPrivateChain2050StartupPlanV1,
   materializeVoidPrivateChain2050CliStateV1,
   runVoidPrivateChain2050StartupIntegrationV1,
+  verifyVoidPrivateChain2050StartedStateV1,
 } from "../tools/void-private-chain2050-startup-integration-v1.mjs";
 
 const BASELINE_BLOCK = 100;
@@ -90,6 +93,16 @@ try {
     false,
   );
   assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .anvil_generated_accounts_disabled,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .zero_unlocked_accounts_reverified_after_load,
+    true,
+  );
+  assert.equal(
     VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1.transaction_replay,
     false,
   );
@@ -108,6 +121,8 @@ try {
   assert.equal(baselinePlan.status, "planned");
   assert.equal(baselinePlan.selection.selected_kind, "baseline");
   assert.equal(baselinePlan.selected_state_materialization_required, true);
+  assert.equal(baselinePlan.anvil_generated_accounts, 0);
+  assert.equal(baselinePlan.post_load_zero_unlocked_accounts_required, true);
   assert.equal(baselinePlan.state_materialization_performed, false);
   assert.equal(baselinePlan.state_load_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
@@ -190,6 +205,87 @@ try {
   assert.equal(checkpointPlan.selected_state_materialization_required, true);
   assert.equal(checkpointPlan.state_materialization_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
+
+  const startupArgs = buildVoidPrivateChain2050AnvilArgsV1(
+    new URL("http://127.0.0.1:18545/"),
+    { state_file: "/private/selected-state.json" },
+    checkpointPlan.block_time,
+    checkpointPlan.gas_limit,
+  );
+  assert.equal(
+    startupArgs.filter((value) => value === "--accounts").length,
+    1,
+  );
+  const accountsIndex = startupArgs.indexOf("--accounts");
+  assert.equal(startupArgs[accountsIndex + 1], "0");
+  assert.equal(
+    assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(startupArgs),
+    true,
+  );
+  const alteredAccounts = [...startupArgs];
+  alteredAccounts[accountsIndex + 1] = "10";
+  assert.throws(
+    () => assertVoidPrivateChain2050ZeroAccountAnvilArgsV1(alteredAccounts),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_zero_accounts_required",
+  );
+  assert.throws(
+    () => assertVoidPrivateChain2050ZeroAccountAnvilArgsV1([
+      ...startupArgs,
+      "--mnemonic-random",
+      "12",
+    ]),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_account_generator_option_forbidden",
+  );
+
+  const postLoadCalls = [];
+  const postLoadVerification = await verifyVoidPrivateChain2050StartedStateV1(
+    new URL("http://127.0.0.1:18545/"),
+    checkpointPlan.selection,
+    1_000,
+    async (_url, method, params) => {
+      postLoadCalls.push({ method, params });
+      if (method === "eth_chainId") return "0x802";
+      if (method === "eth_getBlockByNumber") {
+        assert.deepEqual(params, [hex(CHECKPOINT_BLOCK), false]);
+        return { number: hex(CHECKPOINT_BLOCK), hash: CHECKPOINT_HASH };
+      }
+      if (method === "eth_blockNumber") return hex(CHECKPOINT_BLOCK);
+      if (method === "eth_accounts") return [];
+      throw new Error(`unexpected_postload_method:${method}`);
+    },
+  );
+  assert.equal(postLoadVerification.unlocked_account_count, 0);
+  assert.equal(postLoadVerification.zero_unlocked_accounts_verified, true);
+  assert.deepEqual(
+    postLoadCalls.map((call) => call.method),
+    ["eth_chainId", "eth_getBlockByNumber", "eth_blockNumber", "eth_accounts"],
+  );
+
+  await assert.rejects(
+    () => verifyVoidPrivateChain2050StartedStateV1(
+      new URL("http://127.0.0.1:18545/"),
+      checkpointPlan.selection,
+      1_000,
+      async (_url, method) => {
+        if (method === "eth_chainId") return "0x802";
+        if (method === "eth_getBlockByNumber") {
+          return { number: hex(CHECKPOINT_BLOCK), hash: CHECKPOINT_HASH };
+        }
+        if (method === "eth_blockNumber") return hex(CHECKPOINT_BLOCK);
+        if (method === "eth_accounts") {
+          return ["0x0000000000000000000000000000000000000001"];
+        }
+        throw new Error(`unexpected_nonempty_accounts_method:${method}`);
+      },
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_loaded_accounts_not_empty",
+  );
 
   await assert.rejects(
     () => runVoidPrivateChain2050StartupIntegrationV1({
@@ -282,6 +378,10 @@ try {
   console.log("baseline_private_content_addressed_copy=1");
   console.log("selected_state_sha256_reverified_before_materialization=1");
   console.log("post_selection_state_tamper_rejected=1");
+  console.log("anvil_accounts_zero_enforced=1");
+  console.log("anvil_account_generator_options_forbidden=1");
+  console.log("post_load_eth_accounts_empty_required=1");
+  console.log("nonempty_post_load_accounts_rejected=1");
   console.log("transaction_replay=0");
   console.log("transaction_broadcast=0");
   console.log("wallet_access=0");
