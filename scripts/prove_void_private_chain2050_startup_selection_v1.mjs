@@ -93,7 +93,7 @@ function writeCheckpoint({ blockNumber, blockHash, dumpState, suffix = "" }) {
   });
   const statePath = path.join(checkpointRoot, stateFile);
   const manifestPath = path.join(checkpointRoot, `${stem}.manifest.json`);
-  fs.writeFileSync(statePath, `${dumpState}\n`, { mode: 0o600 });
+  fs.writeFileSync(statePath, dumpState, { mode: 0o600 });
   fs.chmodSync(statePath, 0o600);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
     mode: 0o600,
@@ -149,6 +149,7 @@ try {
     blockHash: `0x${"22".repeat(32)}`,
     dumpState: "0x1234abcd",
   });
+  assert.equal(fs.readFileSync(first.statePath, "utf8"), "0x1234abcd");
   const selected = selectVoidPrivateChain2050StartupStateV1({
     baseline,
     checkpointRoot,
@@ -176,7 +177,7 @@ try {
   }
 
   const originalState = fs.readFileSync(first.statePath, "utf8");
-  fs.writeFileSync(first.statePath, "0x9999\n", { mode: 0o600 });
+  fs.writeFileSync(first.statePath, "0x9999", { mode: 0o600 });
   expectHold(
     "checkpoint state tamper",
     () =>
@@ -238,6 +239,7 @@ try {
 
   console.log("baseline_exact_selection=1");
   console.log("stale_baseline_minimum_hold=1");
+  console.log("parent_state_byte_format_exact=1");
   console.log("checkpoint_selection=1");
   console.log("checkpoint_tamper_hold=1");
   console.log("wrong_chain_hold=1");
