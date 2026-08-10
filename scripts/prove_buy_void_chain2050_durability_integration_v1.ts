@@ -93,7 +93,8 @@ const verified = buildBuyVoidVerifiedPaymentEventV2({
     current_block_number_by_chain: { base: 105 },
   },
 });
-if ("reason" in verified) throw new Error(verified.reason);
+if (!verified.ok) throw new Error(verified.reason);
+const verifiedEvent = verified.event;
 
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   automatic_fulfillment_enabled: true,
@@ -120,7 +121,7 @@ function makeBroadcastAttempt() {
   const claimed = claimBuyVoidFulfillmentJournalV1({
     root_dir: root,
     request,
-    verified_payment_event: verified.event,
+    verified_payment_event: verifiedEvent,
     policy: fulfillmentPolicy,
     now_ms: 1_700_700_000_000,
   });
