@@ -1,0 +1,108 @@
+name: VOID P2P UDP swarm authenticated control adapter v1
+
+on:
+  pull_request:
+    paths:
+      - 'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'src/p2p/udp_swarm_relay_bridge_v1.ts'
+      - 'src/p2p/udp_swarm_control_v1.ts'
+      - 'src/p2p/udp_rendezvous_v1.ts'
+      - 'src/p2p/relay_v1.ts'
+      - 'src/node_core.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_control_v1.ts'
+      - 'scripts/prove_void_p2p_relay_reservation_v1.ts'
+      - 'scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts'
+      - 'scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-authenticated-control-adapter-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-authenticated-control-adapter-v1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'src/p2p/udp_swarm_relay_bridge_v1.ts'
+      - 'src/p2p/udp_swarm_control_v1.ts'
+      - 'src/p2p/udp_rendezvous_v1.ts'
+      - 'src/p2p/relay_v1.ts'
+      - 'src/node_core.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_control_v1.ts'
+      - 'scripts/prove_void_p2p_relay_reservation_v1.ts'
+      - 'scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts'
+      - 'scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-authenticated-control-adapter-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-authenticated-control-adapter-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-udp-swarm-authenticated-control-adapter-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove UDP swarm authenticated control adapter
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+
+      - name: Re-prove authenticated relay UDP rendezvous bridge
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_relay_udp_rendezvous_bridge_v1.ts
+
+      - name: Re-prove UDP swarm control
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_control_v1.ts
+
+      - name: Re-prove relay reservation runtime
+        run: npx --no-install tsx scripts/prove_void_p2p_relay_reservation_v1.ts
+
+      - name: Re-prove authenticated peer public-key retention
+        run: npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_public_key_retention_v1.ts
+
+      - name: Preserve raw-empty-catch terminal zero
+        run: npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [ "${{ github.event_name }}" = "push" ] && [ -n "$PUSH_BEFORE_SHA" ] && [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

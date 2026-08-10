@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 export const VOID_NODE_FLEET_DRIFT_CONFIG_V1 = "VOID_NODE_FLEET_DRIFT_CONFIG_V1";
 export const VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1 = "VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1";
+export const VOID_NODE_PROCESS_SOURCE_IDENTITY_V1 = "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA_PREFIX_RE = /^[0-9a-f]{7,40}$/;
@@ -158,6 +159,7 @@ entrypoint_absolute="$repo_real/$entrypoint"
 preflight_absolute="$repo_real/node_modules/tsx/dist/preflight.cjs"
 loader_url="file://$repo_real/node_modules/tsx/dist/loader.mjs"
 head_before="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
+tree_before="$(git -C "$repo" rev-parse 'HEAD^{tree}' 2>/dev/null || true)"
 branch_before="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
 status_readable=0
 status_before=""
@@ -188,6 +190,13 @@ process_present=0
 cwd_match=0
 entrypoint_match=0
 executable_node=0
+process_source_argv_exact=0
+process_source_marker=""
+process_source_commit=""
+process_source_tree=""
+process_source_branch=""
+process_source_git_object_valid=0
+process_source_ancestor_of_current=0
 if printf '%s' "$main_pid" | grep -Eq '^[1-9][0-9]*$' && test -d "/proc/$main_pid"; then
   process_present=1
   process_cwd="$(readlink -f -- "/proc/$main_pid/cwd" 2>/dev/null || true)"
@@ -196,14 +205,38 @@ if printf '%s' "$main_pid" | grep -Eq '^[1-9][0-9]*$' && test -d "/proc/$main_pi
   executable_base="\${executable##*/}"
   test "$executable_base" = "node" -o "$executable_base" = "nodejs" && executable_node=1
   process_argv="$(tr '\\0' '\\n' < "/proc/$main_pid/cmdline" 2>/dev/null || true)"
+  process_source_marker_arg="$(printf '%s\\n' "$process_argv" | sed -n '2p')"
+  process_source_commit_arg="$(printf '%s\\n' "$process_argv" | sed -n '3p')"
+  process_source_tree_arg="$(printf '%s\\n' "$process_argv" | sed -n '4p')"
+  process_source_branch_arg="$(printf '%s\\n' "$process_argv" | sed -n '5p')"
+  if test "$process_source_marker_arg" = "--conditions=void-process-source-identity-v1" &&
+     printf '%s' "$process_source_commit_arg" | grep -Eq '^--conditions=void-process-source-commit-[0-9a-f]{40}$' &&
+     printf '%s' "$process_source_tree_arg" | grep -Eq '^--conditions=void-process-source-tree-[0-9a-f]{40}$' &&
+     test "$process_source_branch_arg" = "--conditions=void-process-source-branch-main"; then
+    process_source_argv_exact=1
+    process_source_marker="VOID_NODE_PROCESS_SOURCE_IDENTITY_V1"
+    process_source_commit="\${process_source_commit_arg#--conditions=void-process-source-commit-}"
+    process_source_tree="\${process_source_tree_arg#--conditions=void-process-source-tree-}"
+    process_source_branch="main"
+    process_source_resolved_tree="$(git -C "$repo" rev-parse "$process_source_commit^{tree}" 2>/dev/null || true)"
+    test "$process_source_resolved_tree" = "$process_source_tree" && process_source_git_object_valid=1
+    if git -C "$repo" merge-base --is-ancestor "$process_source_commit" "$head_before" 2>/dev/null; then
+      process_source_ancestor_of_current=1
+    fi
+  fi
   expected_process_argv="$(printf '%s\\n' \
     "$executable" \
+    --conditions=void-process-source-identity-v1 \
+    "--conditions=void-process-source-commit-$process_source_commit" \
+    "--conditions=void-process-source-tree-$process_source_tree" \
+    --conditions=void-process-source-branch-main \
     --require \
     "$preflight_absolute" \
     --import \
     "$loader_url" \
     "$entrypoint_absolute")"
-  test "$process_argv" = "$expected_process_argv" && entrypoint_match=1
+  test "$process_source_argv_exact" = 1 &&
+    test "$process_argv" = "$expected_process_argv" && entrypoint_match=1
 fi
 
 health="$(curl -fsS --max-time 4 "$http_base/health" 2>/dev/null || true)"
@@ -211,6 +244,7 @@ ready="$(curl -fsS --max-time 4 "$http_base/__void/ready.json" 2>/dev/null || tr
 version="$(curl -fsS --max-time 4 "$http_base/version" 2>/dev/null || true)"
 
 head_after="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
+tree_after="$(git -C "$repo" rev-parse 'HEAD^{tree}' 2>/dev/null || true)"
 branch_after="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
 status_after_readable=0
 status_after=""
@@ -225,7 +259,8 @@ if test -n "$head_log" && test -f "$head_log"; then
 fi
 source_stable=0
 if test "$status_readable" = 1 && test "$status_after_readable" = 1 &&
-   test "$head_before" = "$head_after" && test "$branch_before" = "$branch_after" &&
+   test "$head_before" = "$head_after" && test "$tree_before" = "$tree_after" &&
+   test "$branch_before" = "$branch_after" &&
    test "$status_before" = "$status_after" &&
    test "$head_transition_epoch" = "$head_transition_epoch_after" &&
    test "$head_log_size" = "$head_log_size_after"; then
@@ -238,6 +273,7 @@ process_identity_stable=0
 test "$service_show_before" = "$service_show_after" && process_identity_stable=1
 
 printf 'head\\t%s\\n' "$head_before"
+printf 'tree\\t%s\\n' "$tree_before"
 printf 'branch\\t%s\\n' "$branch_before"
 printf 'dirty_count\\t%s\\n' "$dirty_count"
 printf 'worktree_status_readable\\t%s\\n' "$status_readable"
@@ -252,6 +288,13 @@ printf 'process_cwd_matches_repo\\t%s\\n' "$cwd_match"
 printf 'process_entrypoint_matches\\t%s\\n' "$entrypoint_match"
 printf 'process_executable_node\\t%s\\n' "$executable_node"
 printf 'process_identity_stable\\t%s\\n' "$process_identity_stable"
+printf 'process_source_argv_exact\\t%s\\n' "$process_source_argv_exact"
+printf 'process_source_marker\\t%s\\n' "$process_source_marker"
+printf 'process_source_commit\\t%s\\n' "$process_source_commit"
+printf 'process_source_tree\\t%s\\n' "$process_source_tree"
+printf 'process_source_branch\\t%s\\n' "$process_source_branch"
+printf 'process_source_git_object_valid\\t%s\\n' "$process_source_git_object_valid"
+printf 'process_source_ancestor_of_current\\t%s\\n' "$process_source_ancestor_of_current"
 printf 'health_b64\\t%s\\n' "$(printf '%s' "$health" | base64 -w0 2>/dev/null || true)"
 printf 'readiness_b64\\t%s\\n' "$(printf '%s' "$ready" | base64 -w0 2>/dev/null || true)"
 printf 'version_b64\\t%s\\n' "$(printf '%s' "$version" | base64 -w0 2>/dev/null || true)"
@@ -274,6 +317,7 @@ export function parseProcessFreshnessCollectorOutputV1(stdout) {
   return {
     repo_ok: fields.get("repo_ok") === "1",
     source_head: fields.get("head") ?? "",
+    source_tree: fields.get("tree") ?? "",
     source_branch: fields.get("branch") ?? "",
     dirty_count: integer("dirty_count"),
     worktree_status_readable: fields.get("worktree_status_readable") === "1",
@@ -288,6 +332,13 @@ export function parseProcessFreshnessCollectorOutputV1(stdout) {
     process_entrypoint_matches: fields.get("process_entrypoint_matches") === "1",
     process_executable_node: fields.get("process_executable_node") === "1",
     process_identity_stable: fields.get("process_identity_stable") === "1",
+    process_source_argv_exact: fields.get("process_source_argv_exact") === "1",
+    process_source_marker: fields.get("process_source_marker") ?? "",
+    process_source_commit: fields.get("process_source_commit") ?? "",
+    process_source_tree: fields.get("process_source_tree") ?? "",
+    process_source_branch: fields.get("process_source_branch") ?? "",
+    process_source_git_object_valid: fields.get("process_source_git_object_valid") === "1",
+    process_source_ancestor_of_current: fields.get("process_source_ancestor_of_current") === "1",
     health_json_ok: health.ok,
     health: health.value,
     readiness_json_ok: readiness.ok,
@@ -305,10 +356,51 @@ function readinessGreen(snapshot) {
   );
 }
 
+function processSourceIdentity(snapshot) {
+  const argvValid = Boolean(
+    snapshot.process_source_argv_exact === true &&
+    snapshot.process_source_marker === VOID_NODE_PROCESS_SOURCE_IDENTITY_V1 &&
+    SHA40_RE.test(snapshot.process_source_commit ?? "") &&
+    SHA40_RE.test(snapshot.process_source_tree ?? "") &&
+    snapshot.process_source_branch === "main"
+  );
+  const gitObjectValid = Boolean(argvValid && snapshot.process_source_git_object_valid === true);
+  const ancestorOfCurrent = Boolean(argvValid && snapshot.process_source_ancestor_of_current === true);
+  const endpoint = snapshot.version?.process_source;
+  const endpointValid = Boolean(
+    snapshot.version_json_ok && endpoint && typeof endpoint === "object" && !Array.isArray(endpoint) &&
+    stableJson(Object.keys(endpoint).sort()) ===
+      stableJson(["branch", "commit", "immutable", "marker", "tree"].sort()) &&
+    endpoint.marker === VOID_NODE_PROCESS_SOURCE_IDENTITY_V1 &&
+    SHA40_RE.test(endpoint.commit ?? "") && SHA40_RE.test(endpoint.tree ?? "") &&
+    endpoint.branch === "main" && endpoint.immutable === true
+  );
+  const endpointMatchesArgv = Boolean(
+    argvValid && endpointValid &&
+    endpoint.marker === snapshot.process_source_marker &&
+    endpoint.commit === snapshot.process_source_commit &&
+    endpoint.tree === snapshot.process_source_tree &&
+    endpoint.branch === snapshot.process_source_branch
+  );
+  return {
+    argv_valid: argvValid,
+    endpoint_valid: endpointValid,
+    endpoint_matches_argv: endpointMatchesArgv,
+    git_object_valid: gitObjectValid,
+    ancestor_of_current: ancestorOfCurrent,
+    bound: argvValid && gitObjectValid && ancestorOfCurrent && endpointValid && endpointMatchesArgv,
+    commit: argvValid ? snapshot.process_source_commit : null,
+    tree: argvValid ? snapshot.process_source_tree : null,
+    branch: argvValid ? snapshot.process_source_branch : null,
+  };
+}
+
 export function classifyProcessFreshnessV1(snapshot) {
   const reasons = [];
+  const processSource = processSourceIdentity(snapshot);
   if (!snapshot.repo_ok) reasons.push("repo_unavailable");
   if (!SHA40_RE.test(snapshot.source_head ?? "")) reasons.push("invalid_source_head");
+  if (!SHA40_RE.test(snapshot.source_tree ?? "")) reasons.push("invalid_source_tree");
   if (snapshot.source_branch !== "main") reasons.push("source_branch_not_main");
   if (!snapshot.worktree_status_readable) reasons.push("worktree_status_unreadable");
   if (snapshot.worktree_status_readable && snapshot.dirty_count !== 0) reasons.push("worktree_dirty");
@@ -322,6 +414,18 @@ export function classifyProcessFreshnessV1(snapshot) {
   if (!snapshot.process_entrypoint_matches) reasons.push("process_entrypoint_mismatch");
   if (!snapshot.process_executable_node) reasons.push("process_executable_not_node");
   if (!snapshot.process_identity_stable) reasons.push("process_changed_during_collection");
+  if (!processSource.argv_valid) reasons.push("process_source_argv_unavailable");
+  if (processSource.argv_valid && !processSource.git_object_valid) {
+    reasons.push("process_source_git_object_invalid");
+  }
+  if (processSource.argv_valid && processSource.git_object_valid && !processSource.ancestor_of_current) {
+    reasons.push("process_source_not_ancestor_of_current");
+  }
+  if (!processSource.endpoint_valid) reasons.push("process_source_endpoint_unavailable");
+  if (processSource.argv_valid && processSource.endpoint_valid &&
+      !processSource.endpoint_matches_argv) {
+    reasons.push("process_source_endpoint_argv_mismatch");
+  }
   if (!snapshot.health_json_ok || snapshot.health?.ok !== true) reasons.push("health_not_green");
   if (!readinessGreen(snapshot)) reasons.push("readiness_not_green");
   if (Number.isSafeInteger(snapshot.observed_at_epoch) && Number.isSafeInteger(snapshot.process_start_epoch) &&
@@ -331,13 +435,26 @@ export function classifyProcessFreshnessV1(snapshot) {
 
   let classification = "HOLD";
   let delta = null;
+  let processSourceMatchesCurrent = false;
   if (reasons.length === 0) {
     delta = snapshot.process_start_epoch - snapshot.head_transition_epoch;
-    if (delta >= 1) classification = "PROCESS_SOURCE_ALIGNED";
-    else if (delta <= -1) classification = "STALE_SOURCE_AFTER_PROCESS_START";
-    else reasons.push("timestamp_order_ambiguous");
+    processSourceMatchesCurrent =
+      processSource.commit === snapshot.source_head &&
+      processSource.tree === snapshot.source_tree &&
+      processSource.branch === snapshot.source_branch;
+    if (delta >= 1 && processSourceMatchesCurrent) {
+      classification = "PROCESS_SOURCE_ALIGNED";
+    } else if (delta <= -1 && processSource.commit !== snapshot.source_head) {
+      classification = "STALE_SOURCE_AFTER_PROCESS_START";
+    } else if (delta > -1 && delta < 1) {
+      reasons.push("timestamp_order_ambiguous");
+    } else {
+      reasons.push("process_source_timeline_inconsistent");
+    }
   }
-  const versionCommit = typeof snapshot.version?.git_commit === "string" ? snapshot.version.git_commit : "";
+  const versionCommit = typeof snapshot.version?.git_commit === "string"
+    ? snapshot.version.git_commit
+    : typeof snapshot.version?.git?.commit === "string" ? snapshot.version.git.commit : "";
   const diagnosticMatches = Boolean(
     SHA_PREFIX_RE.test(versionCommit) && SHA40_RE.test(snapshot.source_head ?? "") &&
     snapshot.source_head.startsWith(versionCommit)
@@ -346,6 +463,10 @@ export function classifyProcessFreshnessV1(snapshot) {
     classification,
     reasons: [...new Set(reasons)].sort(),
     source_to_process_start_seconds: delta,
+    process_source_identity_bound: processSource.bound,
+    process_source_commit: processSource.commit,
+    process_source_tree: processSource.tree,
+    process_source_matches_current: processSourceMatchesCurrent,
     version_git_commit_matches_source_head_diagnostic_only: diagnosticMatches,
   };
 }
@@ -360,9 +481,14 @@ export function buildFleetProcessFreshnessDecisionV1(nodes) {
     nodes: nodes.map((node) => ({
       name: node.name,
       source_head: node.source_head,
+      source_tree: node.source_tree,
       classification: node.classification,
       reasons: node.reasons,
       source_to_process_start_seconds: node.source_to_process_start_seconds,
+      process_source_identity_bound: node.process_source_identity_bound,
+      process_source_commit: node.process_source_commit,
+      process_source_tree: node.process_source_tree,
+      process_source_matches_current: node.process_source_matches_current,
       version_git_commit_matches_source_head_diagnostic_only:
         node.version_git_commit_matches_source_head_diagnostic_only,
     })),
@@ -388,7 +514,12 @@ export function collectNodeProcessFreshnessV1(node) {
       classification: "HOLD",
       reasons: ["collector_transport_failed"],
       source_head: null,
+      source_tree: null,
       source_to_process_start_seconds: null,
+      process_source_identity_bound: false,
+      process_source_commit: null,
+      process_source_tree: null,
+      process_source_matches_current: false,
       version_git_commit_matches_source_head_diagnostic_only: false,
     };
   }
@@ -399,6 +530,7 @@ export function collectNodeProcessFreshnessV1(node) {
     transport: node.transport,
     reachable: true,
     source_head: SHA40_RE.test(snapshot.source_head) ? snapshot.source_head : null,
+    source_tree: SHA40_RE.test(snapshot.source_tree) ? snapshot.source_tree : null,
     source_branch: snapshot.source_branch || null,
     dirty_count: snapshot.dirty_count,
     worktree_status_readable: snapshot.worktree_status_readable,
@@ -418,6 +550,10 @@ export function collectNodeProcessFreshnessV1(node) {
     classification: assessment.classification,
     reasons: assessment.reasons,
     source_to_process_start_seconds: assessment.source_to_process_start_seconds,
+    process_source_identity_bound: assessment.process_source_identity_bound,
+    process_source_commit: assessment.process_source_commit,
+    process_source_tree: assessment.process_source_tree,
+    process_source_matches_current: assessment.process_source_matches_current,
     version_git_commit_matches_source_head_diagnostic_only:
       assessment.version_git_commit_matches_source_head_diagnostic_only,
   };
@@ -463,6 +599,7 @@ function main() {
     audit_id_sha256: fleet.audit_id_sha256,
     expected_process_entrypoint: PROCESS_ENTRYPOINT_V1,
     nodes,
+    process_source_identity_required: true,
     version_git_commit_is_process_identity: false,
     mutation_attempted: false,
     authority: {

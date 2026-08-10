@@ -1,0 +1,102 @@
+name: VOID P2P UDP swarm observation evidence v1
+
+on:
+  pull_request:
+    paths:
+      - 'src/p2p/udp_swarm_control_v1.ts'
+      - 'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'src/p2p/udp_swarm_upgrade_v1.ts'
+      - 'src/p2p/udp_swarm_relay_bridge_v1.ts'
+      - 'src/p2p/udp_rendezvous_v1.ts'
+      - 'src/node_core.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_observation_evidence_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_control_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_upgrade_v1.ts'
+      - 'scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts'
+      - 'scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-observation-evidence-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-observation-evidence-v1.yml'
+  push:
+    branches:
+      - 'feat/p2p-udp-swarm-observation-evidence-v1-20260807'
+    paths:
+      - 'src/p2p/udp_swarm_control_v1.ts'
+      - 'src/p2p/udp_swarm_authenticated_control_adapter_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_observation_evidence_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts'
+      - 'scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-observation-evidence-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-observation-evidence-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove exact UDP swarm observation evidence
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_observation_evidence_v1.ts
+
+      - name: Re-prove real Node control mount
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_control_mount_v1.ts
+
+      - name: Preserve learned-peer public redial filter
+        run: npx --no-install tsx scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts
+
+      - name: Re-prove authenticated control adapter
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_control_adapter_v1.ts
+
+      - name: Re-prove UDP swarm control
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_control_v1.ts
+
+      - name: Re-prove UDP swarm upgrade orchestrator
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_upgrade_v1.ts
+
+      - name: Preserve raw-empty-catch terminal zero
+        run: npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

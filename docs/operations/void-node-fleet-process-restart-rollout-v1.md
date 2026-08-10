@@ -22,8 +22,10 @@ Initialize from one fresh, full-fleet
 - contain no `HOLD` node;
 - reproduce its fleet decision and `audit_id_sha256`;
 - prove the same exact source SHA on every node;
+- prove the same exact source tree on every node;
 - prove exact `main`, clean and stable source, active service, complete checked-in
-  launcher identity, green health, and green readiness on every node;
+  launcher identity, immutable process-source commit/tree binding, green health,
+  and green readiness on every node;
 - contain only `PROCESS_SOURCE_ALIGNED` or
   `STALE_SOURCE_AFTER_PROCESS_START`; and
 - be no older than 300 seconds by file time and embedded observation time by
@@ -51,18 +53,19 @@ Success returns `NEXT_RESTART_READY` and names exactly one `next_node`, or
 Each later inspection requires a fresh full-fleet audit at the original source
 SHA. The coordinator requires:
 
-- every initially aligned process to retain its exact baseline process-start
-  and source-transition epochs;
+- every initially aligned process to retain its exact baseline process-start,
+  source-transition, and process-source commit/tree identity;
 - every completed node to remain aligned at the exact process-start epoch
-  recorded when its restart receipt was appended;
-- every pending node to retain its exact baseline stale process and source
-  transition; and
+  and exact new process-source commit/tree recorded when its restart receipt was
+  appended;
+- every pending node to retain its exact baseline stale process-source
+  commit/tree, process start, and source transition; and
 - the fleet decision to agree with the number of completed restart candidates.
 
-An unreceipted process restart, crash recovery, source transition, node-order
-change, missing node, stale observation, `HOLD`, or source-SHA drift stops the
-rollout. The operator must collect a new baseline rather than silently adopting
-the changed state.
+An unreceipted process restart, crash recovery, process-source identity change,
+source transition, node-order change, missing node, stale observation, `HOLD`,
+or source commit/tree drift stops the rollout. The operator must collect a new
+baseline rather than silently adopting the changed state.
 
 ## Evidence-only advance
 
@@ -91,7 +94,8 @@ The coordinator reproduces:
 3. the restart-only Git transition against current canonical `main`;
 4. the complete deterministic restart plan;
 5. the successful, non-retried restart receipt and exact authority object; and
-6. the new aligned process in the current fleet audit.
+6. the new aligned process's exact current commit/tree identity in the current
+   fleet audit.
 
 Completed entries must be the exact prefix of the baseline stale-node order.
 Skipping a node, appending a failed or ambiguous receipt, changing a plan or

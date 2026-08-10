@@ -6,7 +6,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { Node } from "../src/node_core.js";
-import { VOID_P2P_AUTH_TIMEOUT_MS_V1 } from "../src/p2p/auth_v1.js";
+import {
+  deriveVoidNodeIdFromPublicPemV1,
+  VOID_P2P_AUTH_TIMEOUT_MS_V1,
+} from "../src/p2p/auth_v1.js";
 import {
   isPublicLearnedPeerAddressV1,
 } from "../src/types/p2p.js";
@@ -46,7 +49,7 @@ function keypair() {
     privateKey,
     publicKey,
     pubPEM,
-    nodeId: crypto.randomBytes(16).toString("hex"),
+    nodeId: deriveVoidNodeIdFromPublicPemV1(pubPEM),
   };
 }
 

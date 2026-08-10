@@ -231,8 +231,9 @@ export function validateProcessFreshnessAuditV1(audit, selectedNode, expectedSou
     fail(`freshness marker/version must be ${VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1}/1`);
   }
   if (audit.decision !== "RESTART_REQUIRED" || audit.mutation_attempted !== false ||
+      audit.process_source_identity_required !== true ||
       audit.expected_process_entrypoint !== PROCESS_ENTRYPOINT_V1 || audit.version_git_commit_is_process_identity !== false) {
-    fail("freshness audit must be read-only RESTART_REQUIRED evidence for src/index.ts");
+    fail("freshness audit must be read-only identity-bound RESTART_REQUIRED evidence for src/index.ts");
   }
   authorityOnlyFalse(audit.authority, "freshness authority");
   const auditId = assertSha64(audit.audit_id_sha256, "freshness audit ID");
@@ -253,12 +254,17 @@ export function validateProcessFreshnessAuditV1(audit, selectedNode, expectedSou
   const node = audit.nodes.find((entry) => entry.name === selectedNode);
   if (!node || node.classification !== "STALE_SOURCE_AFTER_PROCESS_START") fail("selected node is not exact stale-process evidence");
   const sourceSha = assertSha40(node.source_head, "freshness source SHA");
+  const sourceTree = assertSha40(node.source_tree, "freshness source tree");
+  const staleProcessCommit = assertSha40(node.process_source_commit, "freshness stale process commit");
+  const staleProcessTree = assertSha40(node.process_source_tree, "freshness stale process tree");
   if (sourceSha !== expectedSourceSha) fail("freshness source SHA does not match converged target");
+  if (staleProcessCommit === sourceSha) fail("freshness stale process commit must differ from converged target");
   if (node.reachable !== true || node.source_branch !== "main" || node.dirty_count !== 0 ||
       node.worktree_status_readable !== true || node.source_stable !== true || node.service_active !== true ||
       node.process_present !== true || node.process_cwd_matches_repo !== true ||
       node.process_entrypoint !== PROCESS_ENTRYPOINT_V1 || node.process_entrypoint_matches !== true ||
       node.process_executable_node !== true || node.process_identity_stable !== true ||
+      node.process_source_identity_bound !== true || node.process_source_matches_current !== false ||
       node.health_ok !== true || node.readiness_ok !== true) {
     fail("selected freshness node is not exact green stale-process evidence");
   }
@@ -274,6 +280,9 @@ export function validateProcessFreshnessAuditV1(audit, selectedNode, expectedSou
   return {
     freshness_audit_id_sha256: auditId,
     source_sha: sourceSha,
+    source_tree: sourceTree,
+    stale_process_commit: staleProcessCommit,
+    stale_process_tree: staleProcessTree,
     old_process_start_epoch: node.process_start_epoch,
     head_transition_epoch: node.head_transition_epoch,
     observed_at_epoch: node.observed_at_epoch,
@@ -408,6 +417,9 @@ export function buildRestartPlanV1(sourceReceipt, freshness, transition, config)
     branch: config.canonical_branch,
     from_sha: sourceReceipt.from_sha,
     source_sha: freshness.source_sha,
+    source_tree: freshness.source_tree,
+    stale_process_commit: freshness.stale_process_commit,
+    stale_process_tree: freshness.stale_process_tree,
     old_process_start_epoch: freshness.old_process_start_epoch,
     head_transition_epoch: freshness.head_transition_epoch,
     changed_paths_sha256: transition.changed_paths_sha256,
@@ -424,6 +436,9 @@ export function buildRestartPlanV1(sourceReceipt, freshness, transition, config)
     branch: config.canonical_branch,
     from_sha: sourceReceipt.from_sha,
     source_sha: freshness.source_sha,
+    source_tree: freshness.source_tree,
+    stale_process_commit: freshness.stale_process_commit,
+    stale_process_tree: freshness.stale_process_tree,
     old_process_start_epoch: freshness.old_process_start_epoch,
     head_transition_epoch: freshness.head_transition_epoch,
     changed_paths_sha256: transition.changed_paths_sha256,
@@ -478,6 +493,10 @@ export function parseRestartCollectorOutputV1(stdout) {
     classification: assessment.classification,
     reasons: assessment.reasons,
     source_to_process_start_seconds: assessment.source_to_process_start_seconds,
+    process_source_identity_bound: assessment.process_source_identity_bound,
+    process_source_commit: assessment.process_source_commit,
+    process_source_tree: assessment.process_source_tree,
+    process_source_matches_current: assessment.process_source_matches_current,
     remote_url: fields.get("remote_url") ?? "",
     shallow: fields.get("shallow") === "true",
     git_operation_in_progress: fields.get("git_operation_in_progress") === "1",
@@ -499,6 +518,7 @@ function exactGreenProcessEvidence(snapshot, config, plan) {
   if (!snapshot.reachable) reasons.push("node_unreachable");
   if (!snapshot.repo_ok) reasons.push("repo_unavailable");
   if (snapshot.source_head !== plan.source_sha) reasons.push("source_head_drift");
+  if (snapshot.source_tree !== plan.source_tree) reasons.push("source_tree_drift");
   if (snapshot.source_branch !== "main") reasons.push("source_branch_not_main");
   if (!snapshot.worktree_status_readable || snapshot.dirty_count !== 0) reasons.push("worktree_not_exact_clean");
   if (!snapshot.source_stable) reasons.push("source_changed_during_collection");
@@ -522,6 +542,12 @@ export function assessPreRestartV1(snapshot, config, plan) {
     reasons.push("process_no_longer_exact_stale");
   }
   if (snapshot.process_start_epoch !== plan.old_process_start_epoch) reasons.push("process_identity_advanced");
+  if (snapshot.process_source_identity_bound !== true ||
+      snapshot.process_source_commit !== plan.stale_process_commit ||
+      snapshot.process_source_tree !== plan.stale_process_tree ||
+      snapshot.process_source_matches_current !== false) {
+    reasons.push("stale_process_source_identity_drift");
+  }
   if (snapshot.head_transition_epoch !== plan.head_transition_epoch) reasons.push("source_transition_epoch_drift");
   return { ok: reasons.length === 0, reasons: [...new Set(reasons)].sort() };
 }
@@ -533,6 +559,12 @@ export function assessPostRestartV1(snapshot, config, plan) {
   }
   if (!Number.isSafeInteger(snapshot.process_start_epoch) || snapshot.process_start_epoch <= plan.old_process_start_epoch) {
     reasons.push("new_process_start_not_proven");
+  }
+  if (snapshot.process_source_identity_bound !== true ||
+      snapshot.process_source_commit !== plan.source_sha ||
+      snapshot.process_source_tree !== plan.source_tree ||
+      snapshot.process_source_matches_current !== true) {
+    reasons.push("new_process_source_identity_not_current");
   }
   if (snapshot.head_transition_epoch !== plan.head_transition_epoch) reasons.push("source_transition_epoch_drift");
   return { ok: reasons.length === 0, reasons: [...new Set(reasons)].sort() };
@@ -547,6 +579,9 @@ service=${bashLiteral(config.node.service)}
 remote=${bashLiteral(config.node.git_remote)}
 expected_remote_url=${bashLiteral(config.node.expected_remote_url)}
 source_sha=${bashLiteral(plan.source_sha)}
+source_tree=${bashLiteral(plan.source_tree)}
+stale_process_commit=${bashLiteral(plan.stale_process_commit)}
+stale_process_tree=${bashLiteral(plan.stale_process_tree)}
 old_process_start_epoch=${bashLiteral(String(plan.old_process_start_epoch))}
 head_transition_epoch=${bashLiteral(String(plan.head_transition_epoch))}
 entrypoint=${bashLiteral(PROCESS_ENTRYPOINT_V1)}
@@ -559,6 +594,10 @@ preflight_absolute="$repo_real/node_modules/tsx/dist/preflight.cjs"
 loader_url="file://$repo_real/node_modules/tsx/dist/loader.mjs"
 git_dir="$(git -C "$repo" rev-parse --absolute-git-dir)"
 test "$(git -C "$repo" rev-parse HEAD)" = "$source_sha"
+test "$(git -C "$repo" rev-parse 'HEAD^{tree}')" = "$source_tree"
+test "$(git -C "$repo" rev-parse "$stale_process_commit^{tree}")" = "$stale_process_tree"
+test "$(git -C "$repo" rev-list --count "$source_sha..$stale_process_commit")" = 0
+test "$stale_process_commit" != "$source_sha"
 test "$(git -C "$repo" symbolic-ref --short -q HEAD)" = main
 test -z "$(git -C "$repo" status --porcelain=v1)"
 test "$(git -C "$repo" remote get-url "$remote")" = "$expected_remote_url"
@@ -584,6 +623,10 @@ test "$process_exe_base" = node -o "$process_exe_base" = nodejs
 process_argv="$(tr '\\0' '\\n' < "/proc/$main_pid/cmdline")"
 expected_process_argv="$(printf '%s\\n' \
   "$process_exe" \
+  --conditions=void-process-source-identity-v1 \
+  "--conditions=void-process-source-commit-$stale_process_commit" \
+  "--conditions=void-process-source-tree-$stale_process_tree" \
+  --conditions=void-process-source-branch-main \
   --require \
   "$preflight_absolute" \
   --import \
@@ -593,13 +636,16 @@ test "$process_argv" = "$expected_process_argv"
 
 health="$(curl -fsS --max-time 4 "$http_base/health")"
 ready="$(curl -fsS --max-time 4 "$http_base/__void/ready.json")"
+version="$(curl -fsS --max-time 4 "$http_base/version")"
 peers="$(curl -fsS --max-time 4 "$http_base/p2p/peers" 2>/dev/null || curl -fsS --max-time 4 "$http_base/peers")"
 printf '%s' "$health" | "$process_exe" -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const v=JSON.parse(s);if(v?.ok!==true)process.exit(1)})'
 printf '%s' "$ready" | "$process_exe" -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const v=JSON.parse(s);if(v?.ready!==true||(Object.hasOwn(v,"gap")&&Number(v.gap)!==0))process.exit(1)})'
+printf '%s' "$version" | "$process_exe" -e 'const [commit,tree]=process.argv.slice(1);let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const p=JSON.parse(s)?.process_source;if(!p||JSON.stringify(Object.keys(p).sort())!==JSON.stringify(["branch","commit","immutable","marker","tree"])||p.marker!=="VOID_NODE_PROCESS_SOURCE_IDENTITY_V1"||p.commit!==commit||p.tree!==tree||p.branch!=="main"||p.immutable!==true)process.exit(1)})' "$stale_process_commit" "$stale_process_tree"
 printf '%s' "$peers" | "$process_exe" -e 'const min=Number(process.argv[1]);let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const v=JSON.parse(s);const n=Array.isArray(v)?v.length:Array.isArray(v?.connected)?v.connected.length:Array.isArray(v?.peers)?v.peers.length:0;if(n<min)process.exit(1)})' "$min_peers"
 
 test "$(systemctl --user show "$service" --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp)" = "$service_show_before"
 test "$(git -C "$repo" rev-parse HEAD)" = "$source_sha"
+test "$(git -C "$repo" rev-parse 'HEAD^{tree}')" = "$source_tree"
 test -z "$(git -C "$repo" status --porcelain=v1)"
 test "$(git -C "$repo" remote get-url "$remote")" = "$expected_remote_url"
 test "$(git -C "$repo" rev-parse --is-shallow-repository)" = false
