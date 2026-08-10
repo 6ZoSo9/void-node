@@ -76,6 +76,16 @@ try {
     false,
   );
   assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .selected_state_sha256_reverified_before_materialization,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .selected_state_private_content_addressed_copy,
+    true,
+  );
+  assert.equal(
     VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1.stale_baseline_fallback,
     false,
   );
@@ -97,9 +107,32 @@ try {
   });
   assert.equal(baselinePlan.status, "planned");
   assert.equal(baselinePlan.selection.selected_kind, "baseline");
+  assert.equal(baselinePlan.selected_state_materialization_required, true);
   assert.equal(baselinePlan.state_materialization_performed, false);
   assert.equal(baselinePlan.state_load_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
+
+  const baselineMaterializedRoot = path.join(root, "baseline-materialized");
+  const baselineMaterialized =
+    materializeVoidPrivateChain2050CliStateV1(
+      baselinePlan.selection,
+      { derived_root: baselineMaterializedRoot },
+    );
+  assert.equal(baselineMaterialized.derived, true);
+  assert.equal(baselineMaterialized.derived_write, "created");
+  assert.notEqual(baselineMaterialized.state_file, baselineState);
+  assert.equal(
+    sha256Buffer(fs.readFileSync(baselineMaterialized.state_file)),
+    baselineSha,
+  );
+  assert.equal(
+    fs.statSync(baselineMaterializedRoot).mode & 0o777,
+    0o700,
+  );
+  assert.equal(
+    fs.statSync(baselineMaterialized.state_file).mode & 0o777,
+    0o600,
+  );
 
   assert.throws(
     () => buildVoidPrivateChain2050StartupPlanV1({
@@ -197,6 +230,45 @@ try {
   assert.equal(materializedAgain.state_file, materialized.state_file);
   assert.equal(materializedAgain.derived_write, "existing_exact");
 
+  const baselineTamperDerivedRoot = path.join(
+    root,
+    "baseline-tamper-derived",
+  );
+  fs.writeFileSync(
+    baselineState,
+    Buffer.from('{"baseline":"tampered-after-selection"}\n', "utf8"),
+  );
+  assert.throws(
+    () => materializeVoidPrivateChain2050CliStateV1(
+      baselinePlan.selection,
+      { derived_root: baselineTamperDerivedRoot },
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_selected_state_sha256_mismatch",
+  );
+  assert.equal(fs.existsSync(baselineTamperDerivedRoot), false);
+
+  const checkpointTamperDerivedRoot = path.join(
+    root,
+    "checkpoint-tamper-derived",
+  );
+  fs.writeFileSync(
+    checkpointPlan.selection.selected_state_file,
+    "0x00",
+    { encoding: "utf8" },
+  );
+  assert.throws(
+    () => materializeVoidPrivateChain2050CliStateV1(
+      checkpointPlan.selection,
+      { derived_root: checkpointTamperDerivedRoot },
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_selected_state_sha256_mismatch",
+  );
+  assert.equal(fs.existsSync(checkpointTamperDerivedRoot), false);
+
   assert.equal(
     VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
     "startPrivateChain2050FromSelectedDurableState",
@@ -207,6 +279,9 @@ try {
   console.log("wrong_confirmation_materialization=0");
   console.log("finalized_checkpoint_selected=1");
   console.log("dump_state_materialization_mode_0600=1");
+  console.log("baseline_private_content_addressed_copy=1");
+  console.log("selected_state_sha256_reverified_before_materialization=1");
+  console.log("post_selection_state_tamper_rejected=1");
   console.log("transaction_replay=0");
   console.log("transaction_broadcast=0");
   console.log("wallet_access=0");

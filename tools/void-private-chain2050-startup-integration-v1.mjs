@@ -30,6 +30,8 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   exact_confirmation_required_before_process_start: true,
   startup_selector_required: true,
   selected_state_only: true,
+  selected_state_sha256_reverified_before_materialization: true,
+  selected_state_private_content_addressed_copy: true,
   stale_baseline_fallback: false,
   selected_block_hash_reverified_after_load: true,
   chain_id_reverified_after_load: true,
@@ -179,24 +181,50 @@ function writeCreateOnly(file, bytes) {
 export function materializeVoidPrivateChain2050CliStateV1(selection, options = {}) {
   const stateFile = path.resolve(selection.selected_state_file);
   exactRegularFile(stateFile);
-  if (selection.selected_state_format === "anvil_cli_state_json") {
-    const bytes = fs.readFileSync(stateFile);
+  const selectedStateFormat = String(selection.selected_state_format || "");
+  if (
+    selectedStateFormat !== "anvil_cli_state_json" &&
+    selectedStateFormat !== "anvil_dump_state_hex"
+  ) {
+    hold("startup_selected_state_format_invalid");
+  }
+  const selectedStateSha256 = String(
+    selection.selected_state_sha256 || "",
+  ).trim();
+  if (!SHA256.test(selectedStateSha256)) {
+    hold("startup_selected_state_sha256_invalid");
+  }
+  const selectedBytes = fs.readFileSync(stateFile);
+  if (sha256Buffer(selectedBytes) !== selectedStateSha256) {
+    hold("startup_selected_state_sha256_mismatch");
+  }
+
+  if (selectedStateFormat === "anvil_cli_state_json") {
     try {
-      JSON.parse(bytes.toString("utf8"));
+      JSON.parse(selectedBytes.toString("utf8"));
     } catch {
       hold("startup_selected_cli_state_json_invalid");
     }
+    const derivedRoot = ensurePrivateDirectory(
+      options.derived_root || path.join(
+        os.homedir(),
+        ".local/state/void-private-chain2050-rpc-v1/startup-derived-v1",
+      ),
+    );
+    const derivedFile = path.join(
+      derivedRoot,
+      `${selectedStateSha256}.cli-state.json`,
+    );
+    const derivedWrite = writeCreateOnly(derivedFile, selectedBytes);
     return Object.freeze({
-      state_file: stateFile,
+      state_file: derivedFile,
       state_format: "anvil_cli_state_json",
-      derived: false,
-      derived_write: "not_required",
+      derived: true,
+      derived_write: derivedWrite,
     });
   }
-  if (selection.selected_state_format !== "anvil_dump_state_hex") {
-    hold("startup_selected_state_format_invalid");
-  }
-  const encoded = fs.readFileSync(stateFile, "utf8");
+
+  const encoded = selectedBytes.toString("utf8");
   if (!/^0x[0-9a-fA-F]+$/.test(encoded) || encoded.length % 2 !== 0) {
     hold("startup_selected_dump_state_invalid");
   }
@@ -395,8 +423,7 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     block_time: blockTime,
     gas_limit: gasLimit,
     selection,
-    selected_state_materialization_required:
-      selection.selected_state_format === "anvil_dump_state_hex",
+    selected_state_materialization_required: true,
     derived_root: input.derived_root ? path.resolve(input.derived_root) : null,
     anvil_command: "anvil",
     required_confirmation:

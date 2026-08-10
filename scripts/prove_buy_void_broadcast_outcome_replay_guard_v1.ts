@@ -241,6 +241,7 @@ const execConfirmed = recordBuyVoidExecutionConfirmedV1({
   root_dir: confirmCase.root,
   attempt_id: confirmCase.attemptId,
   confirmed_record: confirmedTruth.record,
+  delivery_block_hash: `0x${"9".repeat(64)}`,
 });
 if ("reason" in execConfirmed) throw new Error(execConfirmed.reason);
 const altered = { ...confirmedTruth.record, request_id: "different_request" };

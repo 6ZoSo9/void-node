@@ -171,6 +171,7 @@ function transport(options: {
       transactionHash: deliveryTx,
       status: options.status ?? "0x1",
       blockNumber: "0x1f4",
+      blockHash: `0x${"c".repeat(64)}`,
       from: wallet,
       to: delivery,
     };
@@ -317,6 +318,7 @@ try {
     transport: transport({ calls }),
     now_ms: 1_700_400_400_000,
   });
+  if (!applied.ok) throw new Error(JSON.stringify(applied));
   assert.equal(applied.ok, true);
   assert.equal(applied.status, "confirmed");
   assert.equal(applied.mutation_performed, true);

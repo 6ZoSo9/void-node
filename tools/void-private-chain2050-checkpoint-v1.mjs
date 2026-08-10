@@ -22,6 +22,18 @@ export const VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1 = Object.freeze([
   "eth_blockNumber",
   "eth_getBlockByNumber",
 ]);
+export const VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1 =
+  Object.freeze([
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getBlockByNumber",
+    "eth_accounts",
+    "anvil_dumpState",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getBlockByNumber",
+  ]);
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const BLOCK_HASH_RE = /^0x[0-9a-f]{64}$/;
@@ -290,6 +302,8 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   rpcCall,
   outputRoot,
   minimumBlockNumber = 0,
+  expectedDeliveryBlockNumber,
+  expectedDeliveryBlockHash,
   capturedAt = new Date().toISOString(),
   maxStateBytes = DEFAULT_MAX_STATE_BYTES,
 }) {
@@ -297,6 +311,25 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   if (!path.isAbsolute(outputRoot)) hold("checkpoint_root_not_absolute");
   if (!Number.isSafeInteger(minimumBlockNumber) || minimumBlockNumber < 0) {
     hold("minimum_block_number_invalid");
+  }
+  const deliveryNumberProvided = expectedDeliveryBlockNumber !== undefined;
+  const deliveryHashProvided = expectedDeliveryBlockHash !== undefined;
+  if (deliveryNumberProvided !== deliveryHashProvided) {
+    hold("delivery_block_binding_incomplete");
+  }
+  const deliveryBinding = deliveryNumberProvided
+    ? {
+        number: Number(expectedDeliveryBlockNumber),
+        hash: String(expectedDeliveryBlockHash || "").toLowerCase(),
+      }
+    : null;
+  if (
+    deliveryBinding &&
+    (!Number.isSafeInteger(deliveryBinding.number) ||
+      deliveryBinding.number <= 0 ||
+      !BLOCK_HASH_RE.test(deliveryBinding.hash))
+  ) {
+    hold("delivery_block_binding_invalid");
   }
   if (!Number.isSafeInteger(maxStateBytes) || maxStateBytes < 1024) {
     hold("max_state_bytes_invalid");
@@ -323,6 +356,21 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     await call("eth_getBlockByNumber", [`0x${beforeNumber.toString(16)}`, false]),
     beforeNumber,
   );
+  if (deliveryBinding && deliveryBinding.number > before.number) {
+    hold("delivery_block_above_checkpoint_head");
+  }
+  const deliveryBefore = deliveryBinding
+    ? exactBlock(
+        await call("eth_getBlockByNumber", [
+          `0x${deliveryBinding.number.toString(16)}`,
+          false,
+        ]),
+        deliveryBinding.number,
+      )
+    : null;
+  if (deliveryBefore && deliveryBefore.hash !== deliveryBinding.hash) {
+    hold("delivery_block_hash_mismatch_before_checkpoint");
+  }
 
   const accounts = await call("eth_accounts", []);
   if (!Array.isArray(accounts)) hold("eth_accounts_shape_invalid");
@@ -342,12 +390,27 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     await call("eth_getBlockByNumber", [`0x${afterNumber.toString(16)}`, false]),
     afterNumber,
   );
+  const deliveryAfter = deliveryBinding
+    ? exactBlock(
+        await call("eth_getBlockByNumber", [
+          `0x${deliveryBinding.number.toString(16)}`,
+          false,
+        ]),
+        deliveryBinding.number,
+      )
+    : null;
 
   if (after.number !== before.number || after.hash !== before.hash) {
     hold("chain_changed_during_checkpoint_capture");
   }
+  if (deliveryAfter && deliveryAfter.hash !== deliveryBinding.hash) {
+    hold("delivery_block_hash_changed_during_checkpoint_capture");
+  }
+  const expectedMethods = deliveryBinding
+    ? VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1
+    : VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1;
   if (
-    canonical(methods) !== canonical(VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1)
+    canonical(methods) !== canonical(expectedMethods)
   ) {
     hold("rpc_method_contract_changed");
   }
@@ -358,6 +421,13 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     chain_id: chainId,
     block_number: before.number,
     block_hash: before.hash,
+    ...(deliveryBinding
+      ? {
+          delivery_block_number: deliveryBinding.number,
+          delivery_block_hash: deliveryBinding.hash,
+          delivery_block_hash_verified: true,
+        }
+      : {}),
     state_sha256: stateSha256,
     state_bytes: stateBytes,
     rpc_methods_used: [...methods],
@@ -437,6 +507,8 @@ function parseArgs(argv) {
       ".local/state/void-private-chain2050-rpc-v1/checkpoints-v1",
     ),
     minimumBlockNumber: 0,
+    expectedDeliveryBlockNumber: undefined,
+    expectedDeliveryBlockHash: undefined,
     maxStateBytes: DEFAULT_MAX_STATE_BYTES,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -453,6 +525,18 @@ function parseArgs(argv) {
     } else if (key === "--minimum-block-number") {
       if (!value || !/^\d+$/.test(value)) hold("minimum_block_number_invalid");
       args.minimumBlockNumber = Number(value);
+      index += 1;
+    } else if (key === "--expected-delivery-block-number") {
+      if (!value || !/^[1-9]\d*$/.test(value)) {
+        hold("expected_delivery_block_number_invalid");
+      }
+      args.expectedDeliveryBlockNumber = Number(value);
+      index += 1;
+    } else if (key === "--expected-delivery-block-hash") {
+      if (!value || !BLOCK_HASH_RE.test(value.toLowerCase())) {
+        hold("expected_delivery_block_hash_invalid");
+      }
+      args.expectedDeliveryBlockHash = value.toLowerCase();
       index += 1;
     } else if (key === "--max-state-bytes") {
       if (!value || !/^\d+$/.test(value)) hold("max_state_bytes_invalid");
@@ -471,7 +555,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     process.stdout.write(
-      "Usage: node tools/void-private-chain2050-checkpoint-v1.mjs [--rpc-url http://127.0.0.1:8545/] [--output-root ABSOLUTE_PATH] [--minimum-block-number N] [--max-state-bytes N]\n",
+      "Usage: node tools/void-private-chain2050-checkpoint-v1.mjs [--rpc-url http://127.0.0.1:8545/] [--output-root ABSOLUTE_PATH] [--minimum-block-number N] [--expected-delivery-block-number N --expected-delivery-block-hash 0xHASH] [--max-state-bytes N]\n",
     );
     return;
   }
@@ -483,6 +567,8 @@ async function main() {
       }),
     outputRoot: args.outputRoot,
     minimumBlockNumber: args.minimumBlockNumber,
+    expectedDeliveryBlockNumber: args.expectedDeliveryBlockNumber,
+    expectedDeliveryBlockHash: args.expectedDeliveryBlockHash,
     maxStateBytes: args.maxStateBytes,
   });
   process.stdout.write(
@@ -493,6 +579,13 @@ async function main() {
         chain_id: result.chain_id,
         block_number: result.block_number,
         block_hash: result.block_hash,
+        ...(result.delivery_block_hash_verified === true
+          ? {
+              delivery_block_number: result.delivery_block_number,
+              delivery_block_hash: result.delivery_block_hash,
+              delivery_block_hash_verified: true,
+            }
+          : {}),
         state_sha256: result.state_sha256,
         state_bytes: result.state_bytes,
         state_path: result.state_path,

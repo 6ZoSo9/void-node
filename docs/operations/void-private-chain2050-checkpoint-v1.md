@@ -18,11 +18,14 @@ A checkpoint is eligible only when all of the following are true:
 - `eth_chainId` is exactly `2050`;
 - the live block number is at least the caller-supplied minimum;
 - the exact head block has a canonical 32-byte hash;
+- when the caller supplies a confirmed delivery binding, that exact historical block number has the caller-pinned 32-byte receipt block hash both before and after export;
 - `eth_accounts` is exactly an empty array;
 - `anvil_dumpState` returns a bounded `0x` hexadecimal state payload; and
 - the exact block number and hash are unchanged after the dump completes.
 
 The head is bracketed around state export. A transaction, manual mining event, reset, reorg-like replacement, or other head transition during capture returns `HOLD` and writes no successful checkpoint receipt.
+
+The optional confirmed-delivery binding is all-or-nothing: both `expectedDeliveryBlockNumber` and `expectedDeliveryBlockHash` are required. A missing half, a delivery block above the checkpoint head, an initial hash mismatch, or a hash change during export returns `HOLD`.
 
 ## RPC authority boundary
 
@@ -37,6 +40,8 @@ The V1 RPC method sequence is closed and exact:
 7. `eth_getBlockByNumber`
 
 No signing, transaction submission, mining, impersonation, balance mutation, nonce mutation, account unlocking, snapshot loading, reset, or other chain mutation method is present.
+
+When a confirmed delivery binding is requested, the sequence adds `eth_getBlockByNumber` for the exact delivery height immediately after each head read. The resulting nine-call sequence is also closed and exact.
 
 The checkpoint manifest fixes:
 
@@ -58,7 +63,7 @@ The default private checkpoint root is:
 
 The root is mode `0700`. State, manifest, and finalization-marker files are mode `0600` and must be owned by the current operator account. Existing symlink path components are rejected.
 
-The state payload is written byte-for-byte as returned by `anvil_dumpState`. Its SHA-256 digest, byte length, block number, block hash, exact RPC method sequence, and no-authority fields are bound into `checkpoint_id_sha256`.
+The state payload is written byte-for-byte as returned by `anvil_dumpState`. Its SHA-256 digest, byte length, block number, block hash, exact RPC method sequence, and no-authority fields are bound into `checkpoint_id_sha256`. A delivery-bound checkpoint additionally binds `delivery_block_number`, `delivery_block_hash`, and `delivery_block_hash_verified=true` into that identity and finalized manifest.
 
 Checkpoint publication is two-phase. State and manifest files are individually fsynced, then the checkpoint root is fsynced so that pair is durable. Only after that first directory fsync does the writer create and fsync an exact content-addressed `.complete-v1` finalization marker. The root is fsynced a second time before capture may return success.
 
@@ -105,7 +110,9 @@ Example capture against the local private RPC:
 ```bash
 node tools/void-private-chain2050-checkpoint-v1.mjs \
   --rpc-url http://127.0.0.1:8545/ \
-  --minimum-block-number 37371
+  --minimum-block-number 37371 \
+  --expected-delivery-block-number 37369 \
+  --expected-delivery-block-hash 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
 The command prints only a sanitized manifest summary and local checkpoint paths. It does not print the state dump.
@@ -118,7 +125,7 @@ Run:
 node scripts/prove_void_private_chain2050_checkpoint_v1.mjs
 ```
 
-The synthetic proof covers stable capture, content addressing, exact file modes, two-phase checkpoint-root directory fsync and finalization-marker publication, exact idempotency, complete existing-manifest rebinding, symlink-path rejection, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, canonical timestamp enforcement, and the closed no-mutation RPC method set.
+The synthetic proof covers stable capture, confirmed-delivery hash bracketing, reset/reorg hash rejection, content addressing, exact file modes, two-phase checkpoint-root directory fsync and finalization-marker publication, exact idempotency, complete existing-manifest rebinding, symlink-path rejection, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, canonical timestamp enforcement, and both closed no-mutation RPC method sets.
 
 Expected marker:
 
