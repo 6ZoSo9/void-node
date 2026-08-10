@@ -1,0 +1,119 @@
+name: VOID PR Path Collision Audit V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-pr-path-collision-audit-v1.yml"
+      - "docs/operations/void-pr-path-collision-audit-v1.md"
+      - "scripts/prove_void_pr_path_collision_audit_v1.mjs"
+      - "tools/void-pr-path-collision-audit-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-pr-path-collision-audit-v1.yml"
+      - "docs/operations/void-pr-path-collision-audit-v1.md"
+      - "scripts/prove_void_pr_path_collision_audit_v1.mjs"
+      - "tools/void-pr-path-collision-audit-v1.mjs"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Optional exact open PR number to audit"
+        required: false
+        type: string
+      expected_head:
+        description: "Optional exact 40-hex head SHA for PR mode"
+        required: false
+        type: string
+      candidate_paths_json:
+        description: "Optional JSON array of proposed repository paths"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check tool syntax
+        run: node --check tools/void-pr-path-collision-audit-v1.mjs
+      - name: Check proof syntax
+        run: node --check scripts/prove_void_pr_path_collision_audit_v1.mjs
+      - name: Prove path collision audit
+        run: node scripts/prove_void_pr_path_collision_audit_v1.mjs
+
+  live-pr-self-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_PR: ${{ github.event.pull_request.number }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit this exact PR against other open PRs
+        run: |
+          node tools/void-pr-path-collision-audit-v1.mjs \
+            --repo "${{ github.repository }}" \
+            --pr-number "$TARGET_PR" \
+            --expected-head "$EXPECTED_HEAD" \
+            --output "$RUNNER_TEMP/void-pr-path-collision-self-audit.json"
+
+  dispatched-audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_PR: ${{ inputs.pr_number }}
+      EXPECTED_HEAD: ${{ inputs.expected_head }}
+      CANDIDATE_PATHS_JSON: ${{ inputs.candidate_paths_json }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit selected PR or proposed paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${{ github.repository }}"
+            --output "$RUNNER_TEMP/void-pr-path-collision-dispatch.json"
+          )
+
+          if [ -n "$TARGET_PR" ] && [ -z "$CANDIDATE_PATHS_JSON" ]; then
+            args+=(--pr-number "$TARGET_PR")
+            if [ -n "$EXPECTED_HEAD" ]; then
+              args+=(--expected-head "$EXPECTED_HEAD")
+            fi
+          elif [ -z "$TARGET_PR" ] && [ -n "$CANDIDATE_PATHS_JSON" ] && [ -z "$EXPECTED_HEAD" ]; then
+            args+=(--candidate-paths-json "$CANDIDATE_PATHS_JSON")
+          else
+            echo "HOLD: select exactly one of pr_number or candidate_paths_json; expected_head is PR-only" >&2
+            exit 1
+          fi
+
+          node tools/void-pr-path-collision-audit-v1.mjs "${args[@]}"
