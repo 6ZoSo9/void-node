@@ -1,6 +1,6 @@
 import http from "node:http"
 import url from "node:url"
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4300)
 const DATA_DIR  = process.env.DATA_DIR || "data"
@@ -46,7 +46,9 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "application/json" })
     res.write("[")
     let first = true
-    for await (const b of store.findRange(from, to)) {
+    for (let n = from; n <= to; n += 1) {
+      const b = store.loadBlock(n)
+      if (b === null) continue
       if (!first) res.write(",")
       first = false
       res.write(JSON.stringify(b))

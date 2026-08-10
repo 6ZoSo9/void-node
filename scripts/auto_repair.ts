@@ -1,4 +1,4 @@
-import { autoRepairDataDir } from '../src/chain/auto_repair'
+import { autoRepairDataDir } from '../src/chain/auto_repair.js'
 
 // Inputs from env (what the HTTP endpoint already sets)
 const DATA_DIR = process.env.DATA_DIR || 'data'

@@ -92,4 +92,4 @@ async function install(){
   attachDiag();
 }
 await install();
-await import("./dev_proposer.ts");
+await import("./dev_proposer.js");
