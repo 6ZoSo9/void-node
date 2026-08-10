@@ -207,11 +207,13 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
   "cmp -s src/wal/wal_v1.js dist/wal/wal_v1.js",
   "curl -fsS http://127.0.0.1:4100/__void/ready.json",
   "VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN",
+  "sleep 70",
+  "[terminal-saveblock-v2] rewrapped live store.saveBlock",
+  "Cannot assign to read only property",
 ]);
 if (!workflow.includes("timeout-minutes:")) fail("workflow lacks a timeout");
 if (!workflow.includes('kill -0 "$PID"')) fail("workflow lacks a post-readiness process liveness check");
-if (!workflow.includes("sleep 5")) fail("workflow lacks the bounded post-readiness grace period");
-pass("workflow-host-fallback-wal-bootstrap-and-sustained-runtime-matrix");
+pass("workflow-host-fallback-wal-bootstrap-and-saveblock-stability-matrix");
 
 console.log(
   JSON.stringify(
@@ -230,6 +232,7 @@ console.log(
       runtime_safety_defaults: RUNTIME_SAFETY_DEFAULTS,
       runtime_safety_defaults_aligned_with_live_quarantine: true,
       sustained_runtime_probe: true,
+      saveblock_storm_window_probe: true,
       invalid_v22_23_2_removed: true,
       status: "GREEN",
     },
