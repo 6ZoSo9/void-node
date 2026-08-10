@@ -100,6 +100,31 @@
       "pattern": "^void-network-release"
     }
   ],
+  "coordination_severity": {
+    "marker": "VOID_COORDINATION_SEVERITY_V2",
+    "version": 2,
+    "default_overlap": "advisory",
+    "default_reservation": "advisory",
+    "hard_reason_prefixes": [
+      "canonical_main_forbidden",
+      "branch_checked_out",
+      "local_branch_exists",
+      "open_pr_exists:",
+      "origin_branch_exists",
+      "worktree_path_exists"
+    ],
+    "sensitive_path_patterns": [
+      "^contracts/",
+      "^src/chain/",
+      "^src/consensus/",
+      "^src/node_core\\.ts$",
+      "^ops/(?!coordination/)",
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc)([/._-]|$)"
+    ],
+    "sensitive_branch_patterns": [
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc|deployment|restart)([/._-]|$)"
+    ]
+  },
   "runtime_evidence_pattern": "(^|[/._-])(?:runtime|proof|canary|live|release|deployment|receipt|seal|checkpoint|smoke|forensic|evidence)([/._-]|$)",
   "version": 1
 }
