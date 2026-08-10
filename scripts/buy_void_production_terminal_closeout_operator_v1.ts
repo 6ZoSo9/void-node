@@ -424,8 +424,8 @@ function validateStatus(
   ) {
     return cleanHeld(sagaId, "operator_runtime_status_boundary_invalid");
   }
-  const policyFp = text(child.terminal_policy_fingerprint_sha256).toLowerCase();
-  if (!SHA256.test(policyFp)) {
+  const policyFp = child.terminal_policy_fingerprint_sha256;
+  if (typeof policyFp !== "string" || !SHA256.test(policyFp)) {
     return cleanHeld(sagaId, "operator_terminal_policy_fingerprint_invalid");
   }
   if (forApply && child.apply_enabled !== true) {
@@ -457,10 +457,10 @@ function safePlan(
     plan.schema !== "void_buy_void_saga_terminal_closeout_plan_v1" ||
     plan.marker !== TERMINAL_MARKER ||
     plan.version !== 1 ||
-    text(plan.saga_id).toLowerCase() !== sagaId ||
-    text(plan.attempt_id).toLowerCase() !== attemptId ||
-    text(plan.closeout_id).toLowerCase() !== closeoutId ||
-    text(plan.server_policy_fingerprint_sha256).toLowerCase() !== policyFp ||
+    plan.saga_id !== sagaId ||
+    plan.attempt_id !== attemptId ||
+    plan.closeout_id !== closeoutId ||
+    plan.server_policy_fingerprint_sha256 !== policyFp ||
     plan.inventory_decrement_required !== true ||
     plan.public_request_fulfilled_required !== true ||
     plan.public_request_base_record_mutation_authorized !== false ||
@@ -472,10 +472,20 @@ function safePlan(
     plan.money_movement_authorized !== false
   ) return null;
 
-  const transactionHash = text(plan.transaction_hash).toLowerCase();
-  const canonicalId = text(plan.canonical_confirmed_state_id).toLowerCase();
-  const canonicalFp = text(plan.canonical_confirmed_state_fingerprint).toLowerCase();
-  const planFp = text(plan.plan_fingerprint_sha256).toLowerCase();
+  const transactionHash =
+    typeof plan.transaction_hash === "string" ? plan.transaction_hash : "";
+  const canonicalId =
+    typeof plan.canonical_confirmed_state_id === "string"
+      ? plan.canonical_confirmed_state_id
+      : "";
+  const canonicalFp =
+    typeof plan.canonical_confirmed_state_fingerprint === "string"
+      ? plan.canonical_confirmed_state_fingerprint
+      : "";
+  const planFp =
+    typeof plan.plan_fingerprint_sha256 === "string"
+      ? plan.plan_fingerprint_sha256
+      : "";
   if (
     !TX_HASH.test(transactionHash) ||
     !SHA256.test(canonicalId) ||
@@ -509,7 +519,7 @@ function parseDuplicate(
     response.status !== "duplicate" ||
     response.applied !== true ||
     response.already_closed !== true ||
-    text(response.saga_id).toLowerCase() !== sagaId ||
+    response.saga_id !== sagaId ||
     response.inventory_consumption_performed !== false ||
     response.public_request_fulfilled !== true ||
     response.saga_closeout_appended !== false ||
@@ -525,11 +535,13 @@ function parseDuplicate(
     decision.saga_closeout_appended !== false ||
     decision.automatic_retry_allowed !== false ||
     decision.money_movement_performed !== false ||
-    text(decision.saga_id).toLowerCase() !== sagaId
+    decision.saga_id !== sagaId
   ) return null;
 
-  const attemptId = text(decision.attempt_id).toLowerCase();
-  const closeoutId = text(decision.closeout_id).toLowerCase();
+  const attemptId =
+    typeof decision.attempt_id === "string" ? decision.attempt_id : "";
+  const closeoutId =
+    typeof decision.closeout_id === "string" ? decision.closeout_id : "";
   if (!SHA256.test(attemptId) || !SHA256.test(closeoutId)) return null;
   const plan = safePlan(decision.plan, sagaId, attemptId, closeoutId, policyFp);
   if (!plan) return null;
@@ -570,7 +582,7 @@ function parseDry(
     response.ok !== true ||
     response.status !== "dry_run" ||
     response.applied !== false ||
-    text(response.saga_id).toLowerCase() !== sagaId ||
+    response.saga_id !== sagaId ||
     response.inventory_consumption_performed !== false ||
     response.public_request_fulfilled !== false ||
     response.saga_closeout_appended !== false ||
@@ -586,16 +598,33 @@ function parseDry(
     decision.saga_closeout_appended !== false ||
     decision.automatic_retry_allowed !== false ||
     decision.money_movement_performed !== false ||
-    text(decision.saga_id).toLowerCase() !== sagaId
+    decision.saga_id !== sagaId
   ) return null;
 
-  const attemptId = text(decision.attempt_id).toLowerCase();
-  const closeoutId = text(decision.closeout_id).toLowerCase();
-  const runtimeConfirmation = text(response.required_runtime_confirmation);
-  const terminalConfirmation = text(response.required_terminal_closeout_confirmation);
-  const policyFp = text(response.required_policy_fingerprint_sha256).toLowerCase();
-  const sagaConfirmation = text(response.required_saga_confirmation);
-  const actionConfirmation = text(response.required_saga_action_confirmation);
+  const attemptId =
+    typeof decision.attempt_id === "string" ? decision.attempt_id : "";
+  const closeoutId =
+    typeof decision.closeout_id === "string" ? decision.closeout_id : "";
+  const runtimeConfirmation =
+    typeof response.required_runtime_confirmation === "string"
+      ? response.required_runtime_confirmation
+      : "";
+  const terminalConfirmation =
+    typeof response.required_terminal_closeout_confirmation === "string"
+      ? response.required_terminal_closeout_confirmation
+      : "";
+  const policyFp =
+    typeof response.required_policy_fingerprint_sha256 === "string"
+      ? response.required_policy_fingerprint_sha256
+      : "";
+  const sagaConfirmation =
+    typeof response.required_saga_confirmation === "string"
+      ? response.required_saga_confirmation
+      : "";
+  const actionConfirmation =
+    typeof response.required_saga_action_confirmation === "string"
+      ? response.required_saga_action_confirmation
+      : "";
   if (
     !SHA256.test(attemptId) ||
     !SHA256.test(closeoutId) ||
@@ -604,10 +633,10 @@ function parseDry(
     policyFp !== statusPolicyFp ||
     !SAFE_TOKEN.test(sagaConfirmation) ||
     !SAFE_TOKEN.test(actionConfirmation) ||
-    text(decision.required_confirmation) !== terminalConfirmation ||
-    text(decision.required_policy_fingerprint_sha256).toLowerCase() !== policyFp ||
-    text(decision.required_saga_confirmation) !== sagaConfirmation ||
-    text(decision.required_saga_action_confirmation) !== actionConfirmation
+    decision.required_confirmation !== terminalConfirmation ||
+    decision.required_policy_fingerprint_sha256 !== policyFp ||
+    decision.required_saga_confirmation !== sagaConfirmation ||
+    decision.required_saga_action_confirmation !== actionConfirmation
   ) return null;
 
   const plan = safePlan(decision.plan, sagaId, attemptId, closeoutId, policyFp);
@@ -708,6 +737,11 @@ async function runDry(input: {
       error_class: text((error as Error)?.name || "Error").slice(0, 80),
     });
   }
+  if (response.status !== 200) {
+    return cleanHeld(input.saga_id, "operator_runtime_dry_run_http_invalid", {
+      http_status: response.status,
+    });
+  }
   const parsed = parseDry(
     response.json,
     input.saga_id,
@@ -780,7 +814,7 @@ function parseAppliedEnvelope(
     response.ok !== decision.ok ||
     response.status !== decision.status ||
     response.applied !== decision.applied ||
-    text(response.saga_id).toLowerCase() !== sagaId ||
+    response.saga_id !== sagaId ||
     response.mutation_performed !== decision.mutation_performed ||
     response.inventory_consumption_performed !== decision.inventory_consumption_performed ||
     response.public_request_fulfilled !== decision.public_request_fulfilled ||
@@ -795,8 +829,11 @@ function parseAppliedEnvelope(
   if (decision.ok === true) {
     const outcome = text(decision.status);
     if (!["closed", "recovered_partial", "duplicate"].includes(outcome)) return null;
-    const attemptId = text(decision.attempt_id).toLowerCase();
-    const closeoutId = text(decision.closeout_id).toLowerCase();
+    if (decision.saga_id !== sagaId) return null;
+    const attemptId =
+      typeof decision.attempt_id === "string" ? decision.attempt_id : "";
+    const closeoutId =
+      typeof decision.closeout_id === "string" ? decision.closeout_id : "";
     if (!SHA256.test(attemptId) || !SHA256.test(closeoutId)) return null;
     if (outcome === "duplicate") {
       if (
@@ -1005,11 +1042,21 @@ export async function runBuyVoidProductionTerminalCloseoutV1(input: {
     );
   }
   const parsed = parseAppliedEnvelope(response.json, sagaId);
-  if (parsed) return parsed;
+  if (response.status === 200 && parsed?.ok === true) return parsed;
+  if (
+    response.status === 500 &&
+    parsed?.ok === false &&
+    parsed.status === "held" &&
+    parsed.mutation_performed === true
+  ) {
+    return parsed;
+  }
   return closeoutUnknown(
     sagaId,
-    "applied_closeout_response_boundary_unknown",
-    "InvalidRuntimeEnvelope",
+    response.status === 200
+      ? "applied_closeout_response_boundary_unknown"
+      : "applied_closeout_http_unknown",
+    response.status === 200 ? "InvalidRuntimeEnvelope" : `HTTP${response.status}`,
   );
 }
 
