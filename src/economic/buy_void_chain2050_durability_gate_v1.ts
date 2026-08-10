@@ -608,6 +608,8 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     chain_id: unknown;
     block_number: unknown;
     block_hash: unknown;
+    checkpoint_finalized: unknown;
+    checkpoint_directory_fsync_performed: unknown;
   };
   now_ms?: number;
 }): BuyVoidChain2050DurabilitySatisfactionV1 {
@@ -619,6 +621,12 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     input.delivery_block_number,
     "chain2050_durability_delivery_block_invalid",
   );
+  if (
+    input.checkpoint?.checkpoint_finalized !== true ||
+    input.checkpoint?.checkpoint_directory_fsync_performed !== true
+  ) {
+    hold("chain2050_durability_checkpoint_not_finalized");
+  }
   const checkpointId = String(input.checkpoint?.checkpoint_id_sha256 || "");
   if (!SHA256.test(checkpointId)) hold("chain2050_durability_checkpoint_id_invalid");
   if (Number(input.checkpoint?.chain_id) !== 2050) {
