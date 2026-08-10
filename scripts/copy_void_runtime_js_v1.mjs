@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "./retire_terminal_saveblock_v2_runtime_v1.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
