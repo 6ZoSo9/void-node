@@ -23,7 +23,7 @@
       "id": "runtime.storage-readiness",
       "area": "runtime",
       "purpose": "Startup storage readiness and repair gate.",
-      "anchor": "/* ---------- startup storage readiness gate v1 ---------- */",
+      "anchor": "function requireStorageRepairGreen",
       "expected_occurrences": 1
     },
     {
