@@ -12,6 +12,7 @@ const RETIREMENTS = [
   {
     id: "txroot_counters_watchdog",
     section: "// ---------------- [ADD] TxRoot counters: periodic last-wins wrapper ----------------",
+    endSection: "// ---------------- [ADD] TxRoot counters: clean-room last-wins wrapper + /metrics/txroot2 ----------------",
     functionName: "installTxRootCountersWatchdog",
     timer: "setInterval(wrapOnce, 500);",
     marker: "VOID_LEGACY_TXROOT_COUNTERS_WATCHDOG_RETIRED_V1",
@@ -19,6 +20,7 @@ const RETIREMENTS = [
   {
     id: "v7_saveblock_repair_loop",
     section: "// ===== [ADD] V7 recursion fix: de-proxy + stable saveBlock rebind (v1) =====",
+    endSection: "// [saveblock.finalize.v1] stamp SegStore.prototype.saveBlock to avoid wrap storms / recursion loops",
     functionName: "v7RecursionFixSaveBlockV1",
     timer: "setInterval(tick, 1000);",
     marker: "VOID_LEGACY_V7_SAVEBLOCK_REPAIR_LOOP_RETIRED_V1",
@@ -69,33 +71,42 @@ function retireOne(source, spec) {
   if (count(source, spec.section) !== 1) {
     fail(`${spec.id}: expected exactly one section marker`);
   }
-  if (count(source, spec.functionName) !== 1) {
-    fail(`${spec.id}: expected exactly one function name`);
+  if (count(source, spec.endSection) !== 1) {
+    fail(`${spec.id}: expected exactly one end-section marker`);
   }
-  if (count(source, spec.timer) !== 1) {
-    fail(`${spec.id}: expected exactly one legacy polling timer`);
+
+  const sectionAt = source.indexOf(spec.section);
+  const endSectionAt = source.indexOf(spec.endSection, sectionAt + spec.section.length);
+  if (endSectionAt < 0) {
+    fail(`${spec.id}: reviewed end-section marker is not after its section marker`);
+  }
+  const sectionBody = source.slice(sectionAt, endSectionAt);
+  if (count(sectionBody, spec.functionName) !== 1) {
+    fail(`${spec.id}: expected exactly one function name inside reviewed section`);
+  }
+  if (count(sectionBody, spec.timer) !== 1) {
+    fail(`${spec.id}: expected exactly one legacy polling timer inside reviewed section`);
   }
 
   const markerCount = count(source, spec.marker);
-  const sectionAt = source.indexOf(spec.section);
   const functionAt = source.indexOf(`function ${spec.functionName}`, sectionAt + spec.section.length);
-  if (functionAt < 0) {
-    fail(`${spec.id}: function is not located after its section marker`);
+  if (functionAt < 0 || functionAt >= endSectionAt) {
+    fail(`${spec.id}: function is not located inside its reviewed section`);
   }
   if (functionAt - sectionAt > 512) {
     fail(`${spec.id}: function moved too far from its reviewed section marker`);
   }
 
   const braceAt = source.indexOf("{", functionAt);
-  if (braceAt < 0 || braceAt - functionAt > 256) {
+  if (braceAt < 0 || braceAt >= endSectionAt || braceAt - functionAt > 256) {
     fail(`${spec.id}: could not isolate reviewed function entry`);
   }
 
   const guard = entryGuard(spec.marker);
-  const bodyPrefix = source.slice(braceAt + 1, Math.min(source.length, braceAt + 1 + guard.length + 96));
+  const bodyPrefix = source.slice(braceAt + 1, Math.min(endSectionAt, braceAt + 1 + guard.length + 96));
 
   if (markerCount === 1) {
-    if (!bodyPrefix.includes(guard)) {
+    if (!bodyPrefix.trimStart().startsWith(guard)) {
       fail(`${spec.id}: retirement marker exists away from the function entry`);
     }
     return source;
