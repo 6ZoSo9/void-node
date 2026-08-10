@@ -20,6 +20,7 @@ export const VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_AUTHORIT
   server_controlled_broadcaster_socket: true,
   submit_once_runtime_adapter: false,
   inspect_submission_runtime_adapter: true,
+  applied_http_status_bound_to_decision: true,
   automatic_retry: false,
   raw_signed_transaction_input: false,
   raw_signed_transaction_output: false,
@@ -38,6 +39,7 @@ const PORT_ENV = "VOID_BUY_VOID_PRODUCTION_BROADCAST_RECONCILIATION_OPERATOR_POR
 const SAGA_ID = /^voidbvfsg1_[0-9a-f]{64}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const SAFE_TOKEN = /^[A-Za-z0-9._:-]{1,240}$/;
+const APPLIED_HELD_HTTP_STATUSES = new Set([409, 422, 428, 503]);
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const TIMEOUT_MS = 10_000;
 
@@ -851,6 +853,24 @@ export async function runBuyVoidProductionBroadcastReconciliationV1(input: {
       text((error as Error)?.name || "Error"),
     );
   }
+  const parsed = parseAppliedEnvelope(response.json, sagaId);
+  if (
+    response.status === 200 &&
+    ((parsed?.ok === true && parsed.status === "reconciled") ||
+      (parsed?.ok === false &&
+        parsed.reason ===
+          "operator_reconciliation_authority_boundary_violation" &&
+        parsed.side_effect_state_known === false))
+  ) {
+    return parsed;
+  }
+  if (
+    APPLIED_HELD_HTTP_STATUSES.has(response.status) &&
+    parsed?.ok === false &&
+    parsed.status === "held"
+  ) {
+    return parsed;
+  }
   if (response.status !== 200) {
     return transportUnknown(
       sagaId,
@@ -858,15 +878,11 @@ export async function runBuyVoidProductionBroadcastReconciliationV1(input: {
       `HTTP${response.status}`,
     );
   }
-  const parsed = parseAppliedEnvelope(response.json, sagaId);
-  if (!parsed) {
-    return transportUnknown(
-      sagaId,
-      "operator_reconciliation_apply_result_unknown",
-      "BoundaryError",
-    );
-  }
-  return parsed;
+  return transportUnknown(
+    sagaId,
+    "operator_reconciliation_apply_result_unknown",
+    "BoundaryError",
+  );
 }
 
 function usage(): string {
