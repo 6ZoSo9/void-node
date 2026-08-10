@@ -66,8 +66,8 @@ async function expectHold(options, expectedReason) {
       () =>
         captureVoidPrivateChain2050CheckpointV1({
           ...options,
-          outputRoot: root,
-          capturedAt: FIXED_TIME,
+          outputRoot: options.outputRoot || root,
+          capturedAt: options.capturedAt || FIXED_TIME,
         }),
       (error) => {
         assert(error instanceof VoidPrivateChain2050CheckpointHoldV1);
@@ -113,13 +113,42 @@ assert.throws(
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-checkpoint-"));
 try {
+  const originalOpenSync = fs.openSync;
+  const originalFsyncSync = fs.fsyncSync;
+  const originalCloseSync = fs.closeSync;
+  const fdPaths = new Map();
+  let rootDirectoryFsyncCount = 0;
+  fs.openSync = function patchedOpenSync(pathname, ...args) {
+    const fd = originalOpenSync.call(fs, pathname, ...args);
+    if (typeof pathname === "string") fdPaths.set(fd, path.resolve(pathname));
+    return fd;
+  };
+  fs.fsyncSync = function patchedFsyncSync(fd) {
+    if (fdPaths.get(fd) === path.resolve(root)) rootDirectoryFsyncCount += 1;
+    return originalFsyncSync.call(fs, fd);
+  };
+  fs.closeSync = function patchedCloseSync(fd) {
+    try {
+      return originalCloseSync.call(fs, fd);
+    } finally {
+      fdPaths.delete(fd);
+    }
+  };
+
+  let first;
   const firstFixture = fixture();
-  const first = await captureVoidPrivateChain2050CheckpointV1({
-    rpcCall: firstFixture.rpcCall,
-    outputRoot: root,
-    minimumBlockNumber: HEAD,
-    capturedAt: FIXED_TIME,
-  });
+  try {
+    first = await captureVoidPrivateChain2050CheckpointV1({
+      rpcCall: firstFixture.rpcCall,
+      outputRoot: root,
+      minimumBlockNumber: HEAD,
+      capturedAt: FIXED_TIME,
+    });
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.fsyncSync = originalFsyncSync;
+    fs.closeSync = originalCloseSync;
+  }
 
   assert.equal(first.marker, VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1);
   assert.equal(first.chain_id, 2050);
@@ -133,6 +162,8 @@ try {
   assert.equal(first.money_movement_performed, false);
   assert.equal(first.state_write, "created");
   assert.equal(first.manifest_write, "created");
+  assert.equal(first.checkpoint_directory_fsync_performed, true);
+  assert(rootDirectoryFsyncCount >= 1);
   assert.deepEqual(firstFixture.methods, VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1);
   assert.equal(
     firstFixture.methods.some((method) =>
@@ -166,6 +197,49 @@ try {
   assert.equal(second.manifest_write, "existing_exact_identity");
   assert.equal(second.captured_at, FIXED_TIME);
   assert.deepEqual(secondFixture.methods, VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1);
+
+  const originalManifestText = fs.readFileSync(first.manifest_path, "utf8");
+  const tamperedManifest = JSON.parse(originalManifestText);
+  tamperedManifest.money_movement_performed = true;
+  fs.writeFileSync(first.manifest_path, `${JSON.stringify(tamperedManifest, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  await assert.rejects(
+    () =>
+      captureVoidPrivateChain2050CheckpointV1({
+        rpcCall: fixture().rpcCall,
+        outputRoot: root,
+        minimumBlockNumber: HEAD,
+        capturedAt: FIXED_TIME,
+      }),
+    (error) => {
+      assert(error instanceof VoidPrivateChain2050CheckpointHoldV1);
+      assert.equal(error.reason, "checkpoint_existing_manifest_mismatch");
+      return true;
+    },
+  );
+  fs.writeFileSync(first.manifest_path, originalManifestText, { mode: 0o600 });
+  fs.chmodSync(first.manifest_path, 0o600);
+
+  const manifestBackup = `${first.manifest_path}.backup`;
+  fs.renameSync(first.manifest_path, manifestBackup);
+  fs.symlinkSync(path.basename(manifestBackup), first.manifest_path);
+  await assert.rejects(
+    () =>
+      captureVoidPrivateChain2050CheckpointV1({
+        rpcCall: fixture().rpcCall,
+        outputRoot: root,
+        minimumBlockNumber: HEAD,
+        capturedAt: FIXED_TIME,
+      }),
+    (error) => {
+      assert(error instanceof VoidPrivateChain2050CheckpointHoldV1);
+      assert.equal(error.reason, "checkpoint_existing_manifest_unsafe");
+      return true;
+    },
+  );
+  fs.unlinkSync(first.manifest_path);
+  fs.renameSync(manifestBackup, first.manifest_path);
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
@@ -195,6 +269,34 @@ await expectHold(
   { rpcCall: fixture({ dumpState: `0x${"ab".repeat(600)}` }).rpcCall, maxStateBytes: 1024 },
   "anvil_dump_state_too_large",
 );
+await expectHold(
+  { rpcCall: fixture().rpcCall, capturedAt: "not-a-time" },
+  "captured_at_invalid",
+);
+
+const symlinkParent = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-symlink-parent-"));
+try {
+  const realRoot = path.join(symlinkParent, "real");
+  fs.mkdirSync(realRoot, { mode: 0o700 });
+  const linkedRoot = path.join(symlinkParent, "linked");
+  fs.symlinkSync(realRoot, linkedRoot);
+  await assert.rejects(
+    () =>
+      captureVoidPrivateChain2050CheckpointV1({
+        rpcCall: fixture().rpcCall,
+        outputRoot: linkedRoot,
+        minimumBlockNumber: HEAD,
+        capturedAt: FIXED_TIME,
+      }),
+    (error) => {
+      assert(error instanceof VoidPrivateChain2050CheckpointHoldV1);
+      assert.equal(error.reason, "checkpoint_path_symlink_component");
+      return true;
+    },
+  );
+} finally {
+  fs.rmSync(symlinkParent, { recursive: true, force: true });
+}
 
 console.log("VOID_PRIVATE_CHAIN2050_CHECKPOINT_V1_PROOF_GREEN");
 console.log("chain_id_exact=2050");
@@ -204,7 +306,10 @@ console.log("unlocked_accounts_required_zero=1");
 console.log("anvil_dump_state_content_addressed=1");
 console.log("checkpoint_files_mode_0600=1");
 console.log("checkpoint_directory_mode_0700=1");
+console.log("checkpoint_directory_fsync=1");
 console.log("idempotent_exact_checkpoint=1");
+console.log("existing_manifest_fully_rebound=1");
+console.log("symlink_path_components_rejected=1");
 console.log("chain_mutation=0");
 console.log("transaction_broadcast=0");
 console.log("wallet_access=0");
