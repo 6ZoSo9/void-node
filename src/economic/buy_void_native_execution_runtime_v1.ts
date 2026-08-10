@@ -59,6 +59,7 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1 = {
   exact_plan_fingerprint_required_before_signing: true,
   injected_dependencies_required_before_apply_io: true,
   read_only_nonce_fee_planning: true,
+  http_response_bigint_decimal_projection: true,
   public_request_journal_write: false,
   inventory_decrement: false,
   inventory_release: false,
@@ -914,6 +915,20 @@ function responseStatus(
   return 400;
 }
 
+export function buyVoidNativeExecutionRuntimeHttpJsonV1(
+  decision: BuyVoidNativeExecutionRuntimeDecisionV1,
+): Record<string, unknown> {
+  const encoded = JSON.stringify(
+    decision,
+    (_key, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+  );
+  if (typeof encoded !== "string") {
+    throw new Error("native_execution_http_json_projection_failed");
+  }
+  return JSON.parse(encoded) as Record<string, unknown>;
+}
+
 export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
   req: any,
   res: any,
@@ -995,7 +1010,9 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
     dependencies: externalDependencies(),
   });
 
-  return res.status(responseStatus(decision)).json(decision);
+  return res.status(responseStatus(decision)).json(
+    buyVoidNativeExecutionRuntimeHttpJsonV1(decision),
+  );
 }
 
 function mount(): void {
