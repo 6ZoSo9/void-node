@@ -1,0 +1,442 @@
+<!-- wp:html -->
+<!-- VOIDCHAIN_ORG_WORDPRESS_HOME_V1 -->
+<style id="voidchain-org-node-mirror-v1-css">
+/*
+ * The WordPress blank template constrains direct page children to 800px.
+ * This page is intentionally a full-viewport public entrypoint, so clear that
+ * inherited max-width and make the surrounding theme canvas match the page.
+ */
+body.page-id-243945 {
+  background:#050506 !important;
+  overflow-x:hidden;
+}
+body.page-id-243945 .wp-site-blocks,
+body.page-id-243945 .entry-content.wp-block-post-content {
+  width:100%; max-width:none !important; margin:0 !important; padding:0 !important;
+}
+
+#voidchain-org-node-mirror-v1,
+#voidchain-org-node-mirror-v1 * { box-sizing:border-box; }
+
+#voidchain-org-node-mirror-v1 {
+  --bg:#050506; --panel:#0b0b0e; --line:#2a2a31;
+  --text:#f2f2f4; --muted:#9898a3; --max:1120px;
+  position:relative; left:50%; width:100vw; max-width:none !important;
+  min-height:100vh; margin:0 0 0 -50vw !important; padding:0;
+  overflow:hidden;
+  background:
+    linear-gradient(rgba(255,255,255,.027) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.027) 1px,transparent 1px),
+    var(--bg);
+  background-size:32px 32px; color:var(--text);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,
+              "Liberation Mono","Courier New",monospace;
+  line-height:1.6;
+}
+#voidchain-org-node-mirror-v1 a { color:inherit; }
+#voidchain-org-node-mirror-v1 .shell {
+  width:min(calc(100% - 40px),var(--max)); margin:0 auto;
+}
+#voidchain-org-node-mirror-v1 .top { border-bottom:1px solid var(--line); }
+#voidchain-org-node-mirror-v1 .top .shell {
+  min-height:72px; display:flex; align-items:center;
+  justify-content:space-between; gap:20px;
+}
+#voidchain-org-node-mirror-v1 .brand {
+  margin:0; font-size:.88rem; font-weight:800; letter-spacing:.16em;
+}
+#voidchain-org-node-mirror-v1 .status {
+  margin:0; color:var(--muted); font-size:.76rem; letter-spacing:.08em;
+}
+#voidchain-org-node-mirror-v1 .status:before {
+  content:"●"; margin-right:8px; color:var(--text);
+}
+#voidchain-org-node-mirror-v1 .hero {
+  padding:clamp(72px,12vw,154px) 0 76px;
+}
+#voidchain-org-node-mirror-v1 .kicker {
+  margin:0; color:var(--muted); font-size:.78rem;
+  letter-spacing:.13em; text-transform:uppercase;
+}
+#voidchain-org-node-mirror-v1 h1 {
+  max-width:980px; margin:20px 0 28px; color:var(--text);
+  font-family:inherit; font-size:clamp(3.6rem,11vw,8.2rem);
+  font-weight:800; letter-spacing:-.07em; line-height:.86;
+}
+#voidchain-org-node-mirror-v1 .lede {
+  max-width:790px; margin:0; color:#c8c8cf;
+  font-size:clamp(1.02rem,2vw,1.3rem);
+}
+#voidchain-org-node-mirror-v1 .actions {
+  display:flex; flex-wrap:wrap; gap:12px; margin-top:34px;
+}
+#voidchain-org-node-mirror-v1 .button {
+  min-height:48px; display:inline-flex; align-items:center;
+  justify-content:center; padding:0 18px; border:1px solid #efeff1;
+  background:#efeff1; color:#080809; text-decoration:none;
+  font-weight:800; letter-spacing:.03em;
+}
+#voidchain-org-node-mirror-v1 .button.secondary {
+  border-color:#50505a; background:transparent; color:var(--text);
+}
+#voidchain-org-node-mirror-v1 .mirror { padding:0 0 84px; }
+#voidchain-org-node-mirror-v1 .mirror-box {
+  border:1px solid var(--line); background:rgba(11,11,14,.9);
+}
+#voidchain-org-node-mirror-v1 .mirror-head {
+  padding:22px 26px; border-bottom:1px solid var(--line);
+  display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap;
+}
+#voidchain-org-node-mirror-v1 .mirror-head h2 {
+  margin:0; color:var(--text); font-family:inherit; font-size:1.18rem;
+}
+#voidchain-org-node-mirror-v1 .captured {
+  color:var(--muted); font-size:.76rem;
+}
+#voidchain-org-node-mirror-v1 .metrics {
+  display:grid; grid-template-columns:repeat(5,1fr);
+}
+#voidchain-org-node-mirror-v1 .metric {
+  padding:22px; border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+#voidchain-org-node-mirror-v1 .metric b {
+  display:block; margin-top:8px; font-size:1.35rem; color:var(--text);
+}
+#voidchain-org-node-mirror-v1 .label {
+  color:var(--muted); font-size:.72rem; letter-spacing:.08em;
+}
+#voidchain-org-node-mirror-v1 .mirror-body { padding:26px; }
+#voidchain-org-node-mirror-v1 .mirror-body p {
+  margin:0 0 14px; color:var(--muted);
+}
+#voidchain-org-node-mirror-v1 .mirror-links {
+  display:flex; flex-wrap:wrap; gap:14px; margin-top:20px;
+}
+#voidchain-org-node-mirror-v1 .mirror-links a { text-underline-offset:4px; }
+#voidchain-org-node-mirror-v1 .hash {
+  display:block; overflow-x:auto; margin-top:10px; padding:12px;
+  border:1px solid var(--line); background:#030304;
+  color:#cfcfd5; white-space:nowrap; font-size:.72rem;
+}
+#voidchain-org-node-mirror-v1 .version-row {
+  display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;
+}
+#voidchain-org-node-mirror-v1 .void-mini {
+  border:1px solid var(--line); padding:7px 9px; color:var(--muted);
+  font-size:.72rem;
+}
+#voidchain-org-node-mirror-v1 .grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--line); border-left:1px solid var(--line);
+}
+#voidchain-org-node-mirror-v1 .card {
+  min-height:250px; padding:28px; border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line); background:rgba(11,11,14,.84);
+}
+#voidchain-org-node-mirror-v1 .num {
+  color:var(--muted); font-size:.75rem; letter-spacing:.08em;
+}
+#voidchain-org-node-mirror-v1 .card h2 {
+  margin:48px 0 12px; color:var(--text); font-family:inherit;
+  font-size:1.22rem;
+}
+#voidchain-org-node-mirror-v1 .card p {
+  margin:0 0 20px; color:var(--muted);
+}
+#voidchain-org-node-mirror-v1 .card a {
+  font-weight:700; text-underline-offset:4px;
+}
+#voidchain-org-node-mirror-v1 .footer {
+  padding:32px 0 46px; border-top:1px solid var(--line);
+  color:var(--muted); font-size:.78rem;
+}
+#voidchain-org-node-mirror-v1 .footer-row {
+  display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;
+}
+#voidchain-org-node-mirror-v1 .footer-links {
+  display:flex; gap:18px; flex-wrap:wrap;
+}
+#voidchain-org-node-mirror-v1 .live-badge {
+  display:inline-flex; align-items:center; min-height:28px;
+  padding:3px 9px; border:1px solid var(--line);
+  color:var(--muted); font-size:.68rem; letter-spacing:.08em;
+}
+#voidchain-org-node-mirror-v1 .live-badge[data-state="live"] {
+  color:var(--text); border-color:#777783;
+}
+#voidchain-org-node-mirror-v1 .live-badge[data-state="degraded"] {
+  color:#d7d7dc;
+}
+#voidchain-org-node-mirror-v1 #voidchain-live-detail-v2 {
+  margin-top:18px;
+}
+@media(max-width:900px) {
+  #voidchain-org-node-mirror-v1 .metrics {
+    grid-template-columns:repeat(2,1fr);
+  }
+}
+@media(max-width:820px) {
+  #voidchain-org-node-mirror-v1 .grid { grid-template-columns:1fr; }
+  #voidchain-org-node-mirror-v1 .card { min-height:auto; }
+  #voidchain-org-node-mirror-v1 .card h2 { margin-top:24px; }
+}
+@media(max-width:520px) {
+  #voidchain-org-node-mirror-v1 .metrics { grid-template-columns:1fr; }
+  #voidchain-org-node-mirror-v1 .top .shell { align-items:flex-start; flex-direction:column; justify-content:center; gap:4px; }
+  #voidchain-org-node-mirror-v1 .hero { padding-top:64px; }
+}
+</style>
+
+<div id="voidchain-org-node-mirror-v1"
+     data-void-marker="VOIDCHAIN_ORG_NODE_LIVE_V2" data-live-state="fallback"
+     data-mirror-source="https://zoso-alienware-aurora-r7.taila47fd.ts.net">
+  <header class="top">
+    <div class="shell">
+      <p class="brand">VOIDCHAIN.ORG</p>
+      <p class="status">NODE-BACKED PUBLIC ENTRYPOINT</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="shell hero">
+      <p class="kicker">VOID NETWORK / CHAIN ID 2050</p>
+      <h1>VOID<br>NETWORK</h1>
+      <p class="lede">
+        Decentralized infrastructure for AI agents, peer-to-peer discovery,
+        verifiable data, and open network coordination.
+      </p>
+      <div class="actions">
+        <a class="button" href="https://voidchain.org/app" rel="noopener">ENTER VOID</a>
+        <a class="button secondary"
+           href="https://github.com/6ZoSo9/void-node"
+           rel="noopener">VIEW SOURCE</a>
+      </div>
+    </section>
+
+    <section class="shell mirror" aria-label="Mirrored VOID node status">
+      <div class="mirror-box">
+        <div class="mirror-head">
+          <h2 id="voidchain-live-title-v2">NODE MIRROR / READ-ONLY SNAPSHOT</h2>
+          <span class="captured" id="voidchain-live-captured-v2">static snapshot 2026-08-07T16:28:07Z</span>
+        </div>
+        <span class="live-badge" id="voidchain-live-mode-v2" data-state="fallback" aria-live="polite">STATIC FALLBACK</span>
+
+        <div class="metrics">
+          <div class="metric"><span class="label">REACHABLE</span><b id="voidchain-live-reachable-v2">YES</b></div>
+          <div class="metric"><span class="label">HEAD</span><b id="voidchain-live-head-v2">1856587</b></div>
+          <div class="metric"><span class="label">GAP</span><b id="voidchain-live-gap-v2">0</b></div>
+          <div class="metric"><span class="label">TXROOT LIVE</span><b id="voidchain-live-txroot-v2">0</b></div>
+          <div class="metric"><span class="label">EXACT-GREEN HINT</span><b id="voidchain-live-exact-v2">NO</b></div>
+        </div>
+
+        <div class="mirror-body">
+          <p><b>Mirror source:</b> https://zoso-alienware-aurora-r7.taila47fd.ts.net</p>
+          <p><b>Bootstrap truth:</b> HOLD — no stable public bootstrap seed is published in the canonical manifest.</p>
+          <p>
+            This page mirrors bounded public GET data only. The node remains
+            authoritative for node-hosted content; this page stays an
+            independent discovery doorway.
+          </p>
+
+          <p id="voidchain-live-detail-v2" aria-live="polite"><b>Browser link:</b> Static snapshot is embedded. A read-only browser fetch will replace the metrics when the public node is reachable.</p>
+
+          <div class="mirror-links">
+            <a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node" rel="noopener">PUBLIC NODE →</a>
+            <a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/.well-known/void-public-node.json"
+               rel="noopener">AGENT DISCOVERY →</a>
+            <a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node/route-index.json"
+               rel="noopener">ROUTE INDEX →</a>
+          </div>
+
+          <div class="version-row"><span class="void-mini"><b>version</b> 0.1.0</span> <span class="void-mini"><b>git_commit</b> c5596f1d7b11</span></div>
+
+          <code class="hash">discovery sha256 0a88fec1f6c127e36900a8f855a7e0b8b1f6aaed467e4d220d8079700a159248</code>
+          <code class="hash">route-index sha256 1d42ce6b20339a7f617d2a74a67999ce6f028b77ad419ada116d2f5deb7c55a1</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell grid" aria-label="VOID entry points">
+      <article class="card">
+        <span class="num">01 / DISCOVER</span>
+        <h2>Join the network.</h2>
+        <p>
+          Start from the public node and source quickstart. Discovery remains
+          node-native rather than dependent on this website.
+        </p>
+        <a href="https://github.com/6ZoSo9/void-node/blob/main/docs/public/run-a-node.md"
+           rel="noopener">RUN A NODE →</a>
+      </article>
+
+      <article class="card">
+        <span class="num">02 / AGENTS</span>
+        <h2>Machine-readable entry.</h2>
+        <p>
+          The mirrored source publishes a well-known JSON discovery document
+          for autonomous agents, testers, and interfaces.
+        </p>
+        <a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/.well-known/void-public-node.json"
+           rel="noopener">DISCOVERY JSON →</a>
+      </article>
+
+      <article class="card">
+        <span class="num">03 / VERIFY</span>
+        <h2>Verify instead of trust.</h2>
+        <p>
+          Inspect the public routes and the open-source node implementation
+          directly rather than relying on marketing claims.
+        </p>
+        <a href="https://github.com/6ZoSo9/void-node"
+           rel="noopener">GITHUB →</a>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-row">
+      <span>VOID NETWORK / OPEN INFRASTRUCTURE</span>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://voidchain.org/" rel="noopener">Network</a>
+        <a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node" rel="noopener">Public Node</a>
+        <a href="https://github.com/6ZoSo9/void-node" rel="noopener">Source</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+
+<script id="voidchain-org-node-live-client-v1">
+/* VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1 */
+(() => {
+  "use strict";
+
+  const MARKER = "VOIDCHAIN_ORG_NODE_LIVE_CLIENT_V1";
+  const NODE_BASE = "https://zoso-alienware-aurora-r7.taila47fd.ts.net";
+  const REFRESH_MS = 60000;
+
+  const root = document.getElementById("voidchain-org-node-mirror-v1");
+  const mode = document.getElementById("voidchain-live-mode-v2");
+  const captured = document.getElementById("voidchain-live-captured-v2");
+  const detail = document.getElementById("voidchain-live-detail-v2");
+  const reachable = document.getElementById("voidchain-live-reachable-v2");
+  const head = document.getElementById("voidchain-live-head-v2");
+  const gap = document.getElementById("voidchain-live-gap-v2");
+  const txroot = document.getElementById("voidchain-live-txroot-v2");
+  const exact = document.getElementById("voidchain-live-exact-v2");
+
+  if (!root || !mode || !captured || !detail || !reachable ||
+      !head || !gap || !txroot || !exact) {
+    return;
+  }
+
+  root.dataset.liveClient = MARKER;
+
+  const fetchJson = async (path) => {
+    const response = await fetch(NODE_BASE + path, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      redirect: "follow",
+      referrerPolicy: "no-referrer"
+    });
+
+    if (!response.ok) {
+      throw new Error(path + " HTTP " + response.status);
+    }
+
+    const contentType = String(response.headers.get("content-type") || "");
+    if (!contentType.toLowerCase().includes("application/json")) {
+      throw new Error(path + " returned non-JSON content");
+    }
+
+    const value = await response.json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(path + " returned invalid JSON shape");
+    }
+    return value;
+  };
+
+  const numberFrom = (obj, keys) => {
+    for (const key of keys) {
+      const value = obj[key];
+      if (typeof value === "number") {
+        if (Number.isFinite(value)) {
+          return value;
+        }
+      }
+      if (typeof value === "string") {
+        if (/^\d+$/.test(value)) {
+          return Number(value);
+        }
+      }
+    }
+    return null;
+  };
+
+  const renderFallback = (error) => {
+    root.dataset.liveState = "fallback";
+    mode.textContent = "STATIC FALLBACK";
+    mode.dataset.state = "fallback";
+    detail.textContent =
+      "Live browser read unavailable; embedded snapshot remains visible. " +
+      String(error ? (error.message ? error.message : error) : error);
+  };
+
+  const refresh = async () => {
+    if (document.hidden) {
+      return;
+    }
+
+    try {
+      const [ready, latest] = await Promise.all([
+        fetchJson("/__void/ready.json"),
+        fetchJson("/blocks/latest/number2.json")
+      ]);
+
+      const readyFlag = ready.ready === true;
+      const gapValue = numberFrom(ready, ["gap"]);
+      const headValue = numberFrom(
+        latest,
+        ["number", "number2", "head", "height", "block_number", "blockNumber"]
+      );
+
+      if (gapValue === null) {
+        throw new Error("readiness gap is not numeric");
+      }
+      if (headValue === null || headValue <= 0) {
+        throw new Error("latest chain head is invalid");
+      }
+
+      const txrootRaw = ready.txroot_live;
+      const txrootValue =
+        txrootRaw === true ? 1 : txrootRaw === false ? 0 : txrootRaw;
+      const exactGreen = [
+        readyFlag,
+        gapValue === 0,
+        txrootRaw === 1 || txrootRaw === true
+      ].every(Boolean);
+
+      reachable.textContent = readyFlag ? "YES" : "NO";
+      head.textContent = String(headValue);
+      gap.textContent = String(gapValue);
+      txroot.textContent = String(txrootValue);
+      exact.textContent = exactGreen ? "YES" : "NO";
+
+      const readAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+      captured.textContent = "live read " + readAt;
+      mode.textContent = readyFlag ? "LIVE / BROWSER" : "LIVE / DEGRADED";
+      mode.dataset.state = readyFlag ? "live" : "degraded";
+      root.dataset.liveState = readyFlag ? "live" : "degraded";
+      detail.textContent =
+        "Live read-only status fetched directly from the public VOID node. " +
+        "The embedded snapshot remains available as fallback.";
+    } catch (error) {
+      renderFallback(error);
+    }
+  };
+
+  refresh();
+  window.setInterval(refresh, REFRESH_MS);
+})();
+</script>
+<!-- /wp:html -->
