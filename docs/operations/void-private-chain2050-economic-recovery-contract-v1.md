@@ -29,9 +29,11 @@ The verifier requires one exact v1 manifest. It binds:
 
 For every signed transaction, the verifier rebuilds the raw serialized bytes in memory with the repository's existing `ethers` dependency, calculates the Ethereum transaction hash, reparses the bytes, and requires exact hash, chain, type, and recovered-sender agreement. Output contains only the transaction hash, raw-byte count, and SHA-256 digest. Raw signed bytes are neither printed nor persisted.
 
-A block header may be `complete` only when its block hash, parent hash, timestamp, mix hash, and parent-header digest are supplied with `guessed_values=false`. Incomplete block 37369 evidence must explicitly name all currently missing fields: `timestamp`, `mix_hash`, and `parent_header`. Guessed values are rejected.
+A block header may be `complete` only when its block hash, parent hash, timestamp, mix hash, and parent-header digest are supplied with `guessed_values=false`. Those normalized values are retained in the plan and therefore bound by its SHA-256 identifier. Incomplete block 37369 evidence must explicitly name all currently missing fields: `timestamp`, `mix_hash`, and `parent_header`. Guessed values are rejected.
 
-If any header context is missing, the result is only `ECONOMIC_STATE_CANDIDATE_PLAN_READY` and sets `exact_historical_branch_reproduction=false`. An economically equivalent candidate must never be described as reproduction of the original branch.
+Complete header-shaped input does not prove historical reproduction. When all header inputs are present, the result is only `HISTORICAL_REPLAY_INPUTS_READY`, with `historical_replay_inputs_complete=true`, `bit_identical_replay_verified=false`, and `exact_historical_branch_reproduction=false`. Exact reproduction may be claimed only after a separately authorized isolated replay reproduces every original transaction hash, successful receipt, parent link, and block hash bit-identically.
+
+If any header context is missing, the result is only `ECONOMIC_STATE_CANDIDATE_PLAN_READY` and marks the plan as an economically equivalent candidate only. Such a candidate must never be described as reproduction of the original branch.
 
 ## Isolation contract
 
@@ -66,7 +68,7 @@ This reads the evidence file and prints a sanitized plan. It does not create the
 The following remain separately gated by ZoSo:
 
 1. supplying or approving the complete incident evidence;
-2. creating and executing an isolated candidate from a copy of block 37367 state;
+2. creating and executing the isolated bit-identical replay experiment from a copy of block 37367 state;
 3. choosing exact-history recovery, economically equivalent recovery, or explicit non-restoration;
 4. promoting any recovered state or checkpoint;
 5. selecting/restarting any live Chain-2050 service; and

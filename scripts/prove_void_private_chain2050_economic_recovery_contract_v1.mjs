@@ -136,6 +136,8 @@ const request = {
 const plan = buildEconomicRecoveryCandidatePlanForPolicyV1(request, incident);
 assert.equal(plan.marker, VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_CONTRACT_V1);
 assert.equal(plan.outcome, "ECONOMIC_STATE_CANDIDATE_PLAN_READY");
+assert.equal(plan.historical_replay_inputs_complete, false);
+assert.equal(plan.bit_identical_replay_verified, false);
 assert.equal(plan.exact_historical_branch_reproduction, false);
 assert.equal(plan.economically_equivalent_candidate_only, true);
 assert.equal(plan.execution_authorized, false);
@@ -153,10 +155,27 @@ const exactPlan = buildEconomicRecoveryCandidatePlanForPolicyV1(
   { ...request, evidence: exactEvidence },
   incident,
 );
-assert.equal(exactPlan.outcome, "EXACT_HISTORY_CANDIDATE_PLAN_READY");
-assert.equal(exactPlan.exact_historical_branch_reproduction, true);
+assert.equal(exactPlan.outcome, "HISTORICAL_REPLAY_INPUTS_READY");
+assert.equal(exactPlan.historical_replay_inputs_complete, true);
+assert.equal(exactPlan.bit_identical_replay_verified, false);
+assert.equal(exactPlan.exact_historical_branch_reproduction, false);
 assert.equal(exactPlan.economically_equivalent_candidate_only, false);
 assert.equal(exactPlan.execution_authorized, false);
+assert.equal(exactPlan.headers[1].block_hash, exactEvidence.headers[1].block_hash);
+assert.equal(exactPlan.headers[1].timestamp, exactEvidence.headers[1].timestamp);
+
+const changedCompleteHeader = clone(exactEvidence);
+changedCompleteHeader.headers[1].timestamp = String(
+  Number(changedCompleteHeader.headers[1].timestamp) + 1,
+);
+const changedCompleteHeaderPlan = buildEconomicRecoveryCandidatePlanForPolicyV1(
+  { ...request, evidence: changedCompleteHeader },
+  incident,
+);
+assert.notEqual(
+  changedCompleteHeaderPlan.recovery_plan_id_sha256,
+  exactPlan.recovery_plan_id_sha256,
+);
 
 const reconstructed = reconstructSignedType2TransactionV1(transactions[0]);
 assert.equal(reconstructed.transaction_hash, transactions[0].expected_transaction_hash);
@@ -260,7 +279,8 @@ for (const forbidden of [
 console.log(JSON.stringify({
   marker: PROOF,
   signed_transaction_hash_binding: true,
-  exact_header_claim_fails_closed: true,
+  complete_header_values_bound_to_plan: true,
+  exact_reproduction_claim_requires_replay: true,
   missing_37369_context_explicit: true,
   confirmed_delivery_retry_forbidden: true,
   production_8545_forbidden: true,

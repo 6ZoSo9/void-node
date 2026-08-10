@@ -30,7 +30,8 @@ export const VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_AUTHORITY_V1 = Object.free
   raw_signed_transaction_persistence: false,
   candidate_root_must_be_disposable_os_temp: true,
   candidate_port_must_not_be_8545: true,
-  exact_historical_branch_claim_requires_complete_headers: true,
+  complete_headers_only_prepare_historical_replay_inputs: true,
+  exact_historical_branch_claim_requires_bit_identical_replay: true,
   confirmed_delivery_must_never_be_fulfilled_again: true,
   production_rpc_call: false,
   production_state_mutation: false,
@@ -253,12 +254,19 @@ function validateHeaderContext(input, expectedBlockNumber) {
     if (safeNumber(header.block_number, "header_block_number") !== expectedBlockNumber) {
       hold("header_block_number_mismatch");
     }
-    hash(header.block_hash, "header_block_hash");
-    hash(header.parent_hash, "header_parent_hash");
-    hash(header.mix_hash, "header_mix_hash");
-    sha256Value(header.parent_header_sha256, "header_parent_header_sha256");
-    decimal(header.timestamp, "header_timestamp", { allowZero: false });
-    return Object.freeze({ block_number: expectedBlockNumber, status: "complete" });
+    return Object.freeze({
+      block_number: expectedBlockNumber,
+      status: "complete",
+      block_hash: hash(header.block_hash, "header_block_hash"),
+      parent_hash: hash(header.parent_hash, "header_parent_hash"),
+      timestamp: decimal(header.timestamp, "header_timestamp", { allowZero: false }).toString(),
+      mix_hash: hash(header.mix_hash, "header_mix_hash"),
+      parent_header_sha256: sha256Value(
+        header.parent_header_sha256,
+        "header_parent_header_sha256",
+      ),
+      guessed_values: false,
+    });
   }
   if (header.status === "missing") {
     exactKeys(header, [
@@ -284,7 +292,9 @@ function validateHeaderContext(input, expectedBlockNumber) {
     return Object.freeze({
       block_number: expectedBlockNumber,
       status: "missing",
+      known_block_hash: hash(header.known_block_hash, "header_known_block_hash"),
       missing_fields: Object.freeze(missingFields),
+      guessed_values: false,
     });
   }
   hold("header_status_invalid");
@@ -370,7 +380,7 @@ export function buildEconomicRecoveryCandidatePlanForPolicyV1(input, incidentInp
   }
   const headers = evidence.headers.map((header, index) =>
     validateHeaderContext(header, incident.transaction_block_numbers[index]));
-  const exactHistoricalBranchReproduction = headers.every((header) => header.status === "complete");
+  const historicalReplayInputsComplete = headers.every((header) => header.status === "complete");
 
   const candidate = plainObject(request.candidate, "candidate");
   exactKeys(candidate, ["candidate_port", "candidate_root", "state_copy_sha256"], "candidate");
@@ -394,8 +404,8 @@ export function buildEconomicRecoveryCandidatePlanForPolicyV1(input, incidentInp
   const planCore = {
     marker: VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_CONTRACT_V1,
     version: 1,
-    outcome: exactHistoricalBranchReproduction
-      ? "EXACT_HISTORY_CANDIDATE_PLAN_READY"
+    outcome: historicalReplayInputsComplete
+      ? "HISTORICAL_REPLAY_INPUTS_READY"
       : "ECONOMIC_STATE_CANDIDATE_PLAN_READY",
     chain_id: String(incident.chain_id),
     durable_ancestor: {
@@ -417,8 +427,10 @@ export function buildEconomicRecoveryCandidatePlanForPolicyV1(input, incidentInp
       disposable: true,
       production_8545: false,
     },
-    exact_historical_branch_reproduction: exactHistoricalBranchReproduction,
-    economically_equivalent_candidate_only: !exactHistoricalBranchReproduction,
+    historical_replay_inputs_complete: historicalReplayInputsComplete,
+    bit_identical_replay_verified: false,
+    exact_historical_branch_reproduction: false,
+    economically_equivalent_candidate_only: !historicalReplayInputsComplete,
     execution_authorized: false,
     execution_performed: false,
     authority: VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_AUTHORITY_V1,
