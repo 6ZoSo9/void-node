@@ -71,6 +71,17 @@ import {
   type VoidRelayStreamRecordV1,
 } from "./p2p/relay_v1.js";
 import {
+  normalizeVoidUdpSwarmControlMessageV1,
+  type VoidUdpSwarmControlMessageV1,
+} from "./p2p/udp_swarm_control_v1.js";
+import { VoidUdpSwarmRelayBridgeV1 } from "./p2p/udp_swarm_relay_bridge_v1.js";
+import {
+  VoidUdpSwarmAuthenticatedControlAdapterV1,
+  type VoidUdpSwarmControlDeliveryV1,
+  type VoidUdpSwarmProbeActionV1,
+  type VoidUdpSwarmDirectUpgradeOfferActionV1,
+} from "./p2p/udp_swarm_authenticated_control_adapter_v1.js";
+import {
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MAX_V1,
   VOID_P2P_DIRECT_UPGRADE_EPHEMERAL_PORT_MIN_V1,
   VOID_P2P_DIRECT_UPGRADE_LOCAL_BIND_ATTEMPTS_V1,
@@ -189,6 +200,7 @@ type Msg =
   | { type: "REACHABILITY_PROBE_COMPLETE"; request_id: string }
   | { type: "REACHABILITY_DIALBACK_RESULT"; request_id: string; observation: VoidP2PReachabilityObservationV1 }
   | VoidRelayControlMessageV1
+  | VoidUdpSwarmControlMessageV1
   | VoidDirectUpgradeControlMessageV1;
 
 function encode(m: Msg): Buffer {
@@ -292,6 +304,7 @@ type Peer = {
   handshakeDone: boolean;
   localChallenge: string;
   remoteHello?: VoidPeerHelloV1;
+  authenticatedPublicPem?: string;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -314,6 +327,8 @@ type NodeOpts = {
   allowEmptyBlocks?: boolean;
   reachabilityTestAllowNonPublicProbe?: boolean;
   relayServer?: boolean;
+  udpSwarmRelayEndpoint?: string;
+  udpSwarmAllowNonPublicEndpoint?: boolean;
   directUpgradeEnabled?: boolean;
   directUpgradeAllowNonPublicCandidates?: boolean;
 };
@@ -378,6 +393,8 @@ export class Node {
     { relay_node_id: string; reservation_id: string; expires_at_ms: number }
   >();
   private relayStreams = new Map<string, RelayLocalStreamV1>();
+  private readonly udpSwarmAllowNonPublicEndpoint: boolean;
+  private readonly udpSwarmControl: VoidUdpSwarmAuthenticatedControlAdapterV1;
 
   private readonly directUpgradeEnabled: boolean;
   private readonly directUpgradeAllowNonPublicCandidates: boolean;
@@ -443,6 +460,38 @@ export class Node {
     this.reachabilityTestAllowNonPublicProbe =
       opts?.reachabilityTestAllowNonPublicProbe === true;
     this.relayServerEnabled = !!opts?.relayServer;
+    this.udpSwarmAllowNonPublicEndpoint =
+      opts?.udpSwarmAllowNonPublicEndpoint === true;
+    const udpSwarmRelayEndpoint = String(
+      opts?.udpSwarmRelayEndpoint || "",
+    ).trim();
+    if (udpSwarmRelayEndpoint && !this.relayServerEnabled) {
+      throw new Error(
+        "UDP swarm relay endpoint requires relayServer=true",
+      );
+    }
+    const udpSwarmRelayBridge = udpSwarmRelayEndpoint
+      ? new VoidUdpSwarmRelayBridgeV1(
+          this.relayServerState,
+          udpSwarmRelayEndpoint,
+          (nodeId) =>
+            this.authenticatedDirectPeer(nodeId)?.authenticatedPublicPem,
+          this.udpSwarmAllowNonPublicEndpoint,
+        )
+      : undefined;
+    this.udpSwarmControl = new VoidUdpSwarmAuthenticatedControlAdapterV1({
+      localNodeId: this.id,
+      localPublicPem: this.pubPEM,
+      localPrivateKey: this.priv,
+      isStartedRelayClientStream: (relayNodeId, peerNodeId, streamId) => {
+        const entry = this.relayStreams.get(
+          this.relayStreamKey(relayNodeId, streamId),
+        );
+        return !!entry && entry.started && entry.remote_node_id === peerNodeId;
+      },
+      relayBridge: udpSwarmRelayBridge,
+      allowNonPublicEndpoint: this.udpSwarmAllowNonPublicEndpoint,
+    });
     this.directUpgradeEnabled = !!opts?.directUpgradeEnabled;
     this.directUpgradeAllowNonPublicCandidates =
       !!opts?.directUpgradeAllowNonPublicCandidates;
@@ -458,6 +507,10 @@ export class Node {
       | "remote_dialback_result";
     observation: VoidP2PReachabilityObservationV1;
   }) => void;
+  onUdpSwarmProbeAction?: (action: VoidUdpSwarmProbeActionV1) => void;
+  onUdpSwarmDirectUpgradeOffer?: (
+    action: VoidUdpSwarmDirectUpgradeOfferActionV1,
+  ) => void;
   onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook
 
   server = net.createServer((sock) => this.onIncoming(sock));
@@ -560,6 +613,7 @@ export class Node {
         if (!this.stopping) {
           this.sweepRelayClientState();
           this.sweepRelayServerState();
+          this.udpSwarmControl.sweep();
           this.sweepDirectUpgradeState();
         }
       }, 1_000);
@@ -745,6 +799,7 @@ export class Node {
     if (
       peer.probe ||
       peer.transport !== "direct" ||
+      !peer.persistDirectEvidence ||
       peer.outbound ||
       peer.outboundSeenEmitted ||
       !peer.handshakeDone ||
@@ -1333,6 +1388,13 @@ export class Node {
           authenticated_node_id: auth.id,
         });
         this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");
+      } else if (!peer.persistDirectEvidence) {
+        console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+          transport_hint: peer.addr,
+        });
+        this.rejectUnauthenticatedPeer(peer, "ephemeral direct peer identity mismatch");
       } else {
         console.warn("VOID_P2P_VERIFIED_PEER_CACHE_IDENTITY_MISMATCH_V1", {
           address: peer.reconnectAddr || peer.addr,
@@ -1409,6 +1471,7 @@ export class Node {
     this.peers.delete(temporaryId);
     peer.id = auth.id;
     peer.handshakeDone = true;
+    peer.authenticatedPublicPem = auth.pubkey;
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (
@@ -1447,6 +1510,35 @@ export class Node {
     return true;
   }
 
+  attachEphemeralDirectTransportV1(
+    socket: PeerSocketV1,
+    expectedNodeId: string,
+    transportHint: string,
+  ): boolean {
+    if (
+      this.stopping ||
+      !/^[0-9a-f]{32}$/.test(expectedNodeId) ||
+      expectedNodeId === this.id ||
+      typeof transportHint !== "string" ||
+      transportHint.length < 1 ||
+      transportHint.length > 256 ||
+      /[\s\u0000-\u001f\u007f]/.test(transportHint)
+    ) return false;
+
+    this.attachSocket(
+      socket,
+      transportHint,
+      true,
+      expectedNodeId,
+      undefined,
+      "direct",
+      undefined,
+      undefined,
+      false,
+    );
+    return true;
+  }
+
   private attachSocket(
     socket: PeerSocketV1,
     peerAddr: string,
@@ -1473,7 +1565,7 @@ export class Node {
       authTimer: null,
       expectedNodeId,
       reconnectAddr,
-      suppressReconnect: !!reachabilityProbe,
+      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,
       attachedAtMs: Date.now(),
       outboundSeenEmitted: false,
       probe: reachabilityProbe,
@@ -1617,6 +1709,15 @@ export class Node {
       return;
     }
 
+    const udpSwarmMessage = normalizeVoidUdpSwarmControlMessageV1(
+      msg,
+      this.udpSwarmAllowNonPublicEndpoint,
+    );
+    if (udpSwarmMessage) {
+      this.handleUdpSwarmAuthenticatedControl(peer, udpSwarmMessage);
+      return;
+    }
+
     if (isVoidRelayControlTypeV1((msg as any)?.type)) {
       const relayMessage = normalizeVoidRelayControlMessageV1(msg);
       if (!relayMessage) {
@@ -1746,6 +1847,128 @@ export class Node {
     // cannot race the same address into multiple pre-authentication attempts.
     this.learnedPeerDialAttemptsV1.add(canonical);
     return true;
+  }
+
+  private sendUdpSwarmControlDeliveries(
+    deliveries: readonly VoidUdpSwarmControlDeliveryV1[],
+  ): number {
+    let sent = 0;
+    for (const delivery of deliveries) {
+      const recipient = this.authenticatedDirectPeer(delivery.recipient_node_id);
+      if (!recipient) {
+        console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_DELIVERY_HOLD", {
+          recipient_node_id: delivery.recipient_node_id,
+          reason: "authenticated direct control peer unavailable",
+        });
+        continue;
+      }
+      this.sendRaw(recipient, delivery.message);
+      sent += 1;
+    }
+    return sent;
+  }
+
+  private handleUdpSwarmAuthenticatedControl(
+    peer: Peer,
+    message: VoidUdpSwarmControlMessageV1,
+  ): void {
+    if (peer.transport !== "direct") {
+      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {
+        peer_id: peer.id,
+        reason: "UDP swarm control requires authenticated direct control peer",
+      });
+      return;
+    }
+    try {
+      const result = this.udpSwarmControl.handleAuthenticatedControl({
+        fromNodeId: peer.id,
+        message,
+      });
+      this.sendUdpSwarmControlDeliveries(result.control_deliveries);
+      for (const action of result.udp_probe_actions) {
+        this.onUdpSwarmProbeAction?.(action);
+      }
+      if (result.direct_upgrade_offer) {
+        this.onUdpSwarmDirectUpgradeOffer?.(result.direct_upgrade_offer);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn("VOID_P2P_UDP_SWARM_NODE_CONTROL_V1_REJECT", {
+        peer_id: peer.id,
+        message_type: message.type,
+        reason,
+      });
+      if (message.type === "UDP_SWARM_UPGRADE_REQUEST") {
+        const rejection = normalizeVoidUdpSwarmControlMessageV1({
+          type: "UDP_SWARM_UPGRADE_REJECT",
+          protocol: 1,
+          request_id: message.request_id,
+          reason: "udp_swarm_upgrade_unavailable",
+        });
+        if (rejection?.type === "UDP_SWARM_UPGRADE_REJECT") {
+          this.sendRaw(peer, rejection);
+        }
+      }
+    }
+  }
+
+  requestUdpSwarmUpgradeV1(
+    relayNodeId: string,
+    targetNodeId: string,
+    streamId: string,
+  ): { ok: true; request_id: string } | { ok: false; error: string } {
+    const relayPeer = this.authenticatedDirectPeer(relayNodeId);
+    if (!relayPeer) return { ok: false, error: "relay_not_authenticated_direct" };
+    try {
+      const started = this.udpSwarmControl.beginUpgrade({
+        relayNodeId,
+        targetNodeId,
+        streamId,
+      });
+      if (started.control_delivery.recipient_node_id !== relayNodeId) {
+        throw new Error("UDP swarm request delivery relay mismatch");
+      }
+      this.sendRaw(relayPeer, started.control_delivery.message);
+      return { ok: true, request_id: started.request_id };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  ingestUdpSwarmRendezvousProbeV1(
+    packet: unknown,
+    remoteAddress: string,
+    remotePort: number,
+  ):
+    | { ok: true; control_deliveries_sent: number; observation: unknown }
+    | { ok: false; error: string } {
+    try {
+      const result = this.udpSwarmControl.handleRelayUdpProbe({
+        packet,
+        remoteAddress,
+        remotePort,
+      });
+      const sent = this.sendUdpSwarmControlDeliveries(
+        result.control_deliveries,
+      );
+      return {
+        ok: true,
+        control_deliveries_sent: sent,
+        observation: structuredClone(result.observation),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  udpSwarmControlSnapshot() {
+    return this.udpSwarmControl.snapshot();
   }
 
   private relayStreamKey(relayNodeId: string, streamId: string): string {
@@ -1919,6 +2142,7 @@ export class Node {
     if (!entry) return;
     this.relayStreams.delete(key);
     entry.socket.remoteClose(reason);
+    this.udpSwarmControl.sweep();
   }
 
   private sendRelayCloseToNode(nodeId: string, streamId: string, reason: string): void {
@@ -1968,12 +2192,17 @@ export class Node {
       if (peer.relayViaNodeId && peer.relayStreamId) {
         const key = this.relayStreamKey(peer.relayViaNodeId, peer.relayStreamId);
         const entry = this.relayStreams.get(key);
-        if (entry?.socket === peer.socket) this.relayStreams.delete(key);
+        if (entry?.socket === peer.socket) {
+          this.relayStreams.delete(key);
+          this.udpSwarmControl.sweep();
+        }
       }
       return;
     }
 
     if (!peer.handshakeDone || peer.id.startsWith("?-")) return;
+
+    this.udpSwarmControl.removeAuthenticatedPeer(peer.id);
 
     this.directUpgradeRelayState.removePeer(peer.id);
     for (const [requestId, pending] of this.directUpgradePendingRequests) {
