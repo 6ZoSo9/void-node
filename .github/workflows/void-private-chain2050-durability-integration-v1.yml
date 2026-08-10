@@ -5,27 +5,56 @@ on:
     paths:
       - "src/economic/buy_void_chain2050_durability_gate_v1.ts"
       - "src/economic/buy_void_chain2050_durability_runtime_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
       - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/void-private-chain2050-checkpoint-v1.mjs"
+      - "tools/void-private-chain2050-startup-selection-v1.mjs"
       - "tools/void-private-chain2050-startup-integration-v1.mjs"
-      - "scripts/prove_buy_void_chain2050_durability_integration_v1.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "scripts/prove_void_private_chain2050_checkpoint_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_selection_v1.mjs"
       - "scripts/prove_void_private_chain2050_startup_integration_v1.mjs"
       - "scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs"
       - "ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh"
       - "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh"
       - "docs/operations/void-private-chain2050-durability-integration-v1.md"
+      - "docs/operations/void-private-chain2050-checkpoint-v1.md"
+      - "docs/operations/void-private-chain2050-startup-selection-v1.md"
       - "ops/systemd/void-node-live.service.d/81-buy-void-native-execution-runtime-v1.conf.example"
       - ".github/workflows/void-private-chain2050-durability-integration-v1.yml"
   push:
     branches:
       - "feat/private-chain2050-durability-integration-v1-20260810"
+      - "fix/private-chain2050-startup-selected-state-binding-v1-20260810"
     paths:
       - "src/economic/buy_void_chain2050_durability_gate_v1.ts"
       - "src/economic/buy_void_chain2050_durability_runtime_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
       - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/void-private-chain2050-checkpoint-v1.mjs"
+      - "tools/void-private-chain2050-startup-selection-v1.mjs"
       - "tools/void-private-chain2050-startup-integration-v1.mjs"
-      - "scripts/prove_buy_void_chain2050_durability_integration_v1.ts"
+      - "scripts/prove_buy_void_*.ts"
+      - "scripts/prove_void_private_chain2050_checkpoint_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_selection_v1.mjs"
       - "scripts/prove_void_private_chain2050_startup_integration_v1.mjs"
       - "docs/operations/void-private-chain2050-durability-integration-v1.md"
+      - "docs/operations/void-private-chain2050-checkpoint-v1.md"
+      - "docs/operations/void-private-chain2050-startup-selection-v1.md"
       - "ops/systemd/void-node-live.service.d/81-buy-void-native-execution-runtime-v1.conf.example"
       - ".github/workflows/void-private-chain2050-durability-integration-v1.yml"
 
@@ -84,7 +113,9 @@ jobs:
             scripts/prove_buy_void_*.ts
 
       - name: Prove mutation durability gate and discharge
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_chain2050_durability_integration_v1.ts
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_chain2050_durability_integration_v1.ts
 
       - name: Prove selector-driven startup integration
         run: node scripts/prove_void_private_chain2050_startup_integration_v1.mjs

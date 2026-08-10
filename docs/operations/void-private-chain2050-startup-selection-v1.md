@@ -73,6 +73,8 @@ VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 <checkpoint-id>
 
 Only after the marker is validated does the selector parse and rebind the paired manifest and state file. The manifest and state reads are size-bounded before loading into memory.
 
+The selector accepts exactly two checkpoint-manifest shapes from the parent primitive: the original stable-head capture and the delivery-bound capture that additionally contains `delivery_block_number`, `delivery_block_hash`, and `delivery_block_hash_verified=true`. The delivery-bound shape must use the exact nine-call read-only RPC contract, must bind a delivery height at or below the checkpoint head, and includes those fields in `checkpoint_id_sha256`.
+
 A finalization marker without its exact state/manifest pair fails closed as `checkpoint_finalized_pair_incomplete`. Because the parent fsyncs the pair before creating the marker, this shape indicates later corruption or tamper rather than a normal interrupted capture.
 
 ## Interrupted-capture debris

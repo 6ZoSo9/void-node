@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1,
   VoidPrivateChain2050CheckpointHoldV1,
@@ -17,8 +18,10 @@ import {
 } from "../tools/void-private-chain2050-checkpoint-v1.mjs";
 
 const HEAD = 37371;
+const DELIVERY_BLOCK = 37369;
 const HASH_A = `0x${"a1".repeat(32)}`;
 const HASH_B = `0x${"b2".repeat(32)}`;
+const DELIVERY_HASH = `0x${"d4".repeat(32)}`;
 const DUMP = `0x${"c3".repeat(128)}`;
 const FIXED_TIME = "2026-08-10T07:00:00.000Z";
 
@@ -32,12 +35,16 @@ function fixture({
   afterNumber = beforeNumber,
   beforeHash = HASH_A,
   afterHash = beforeHash,
+  deliveryBlockNumber = DELIVERY_BLOCK,
+  deliveryBeforeHash = DELIVERY_HASH,
+  deliveryAfterHash = deliveryBeforeHash,
   accounts = [],
   dumpState = DUMP,
 } = {}) {
   const methods = [];
   let blockNumberCalls = 0;
-  let blockCalls = 0;
+  let headBlockCalls = 0;
+  let deliveryBlockCalls = 0;
   const rpcCall = async (method, params) => {
     methods.push(method);
     if (method === "eth_chainId") return hex(chainId);
@@ -46,10 +53,21 @@ function fixture({
       return hex(blockNumberCalls === 1 ? beforeNumber : afterNumber);
     }
     if (method === "eth_getBlockByNumber") {
-      blockCalls += 1;
-      const number = blockCalls === 1 ? beforeNumber : afterNumber;
-      const hash = blockCalls === 1 ? beforeHash : afterHash;
-      assert.deepEqual(params, [hex(number), false]);
+      const requested = Number.parseInt(String(params[0]).slice(2), 16);
+      assert.equal(params[1], false);
+      if (requested === deliveryBlockNumber && requested !== beforeNumber) {
+        deliveryBlockCalls += 1;
+        return {
+          number: hex(deliveryBlockNumber),
+          hash: deliveryBlockCalls === 1
+            ? deliveryBeforeHash
+            : deliveryAfterHash,
+        };
+      }
+      headBlockCalls += 1;
+      const number = headBlockCalls === 1 ? beforeNumber : afterNumber;
+      const hash = headBlockCalls === 1 ? beforeHash : afterHash;
+      assert.equal(requested, number);
       return { number: hex(number), hash };
     }
     if (method === "eth_accounts") return accounts;
@@ -93,6 +111,20 @@ assert.deepEqual(VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1, [
   "eth_blockNumber",
   "eth_getBlockByNumber",
 ]);
+assert.deepEqual(
+  VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
+  [
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getBlockByNumber",
+    "eth_accounts",
+    "anvil_dumpState",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getBlockByNumber",
+  ],
+);
 
 assert.equal(
   validateVoidPrivateChain2050RpcUrlV1("http://127.0.0.1:8545/").hostname,
@@ -253,6 +285,40 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+const deliveryBoundRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-chain2050-delivery-bound-checkpoint-"),
+);
+try {
+  const deliveryFixture = fixture();
+  const deliveryBound = await captureVoidPrivateChain2050CheckpointV1({
+    rpcCall: deliveryFixture.rpcCall,
+    outputRoot: deliveryBoundRoot,
+    minimumBlockNumber: DELIVERY_BLOCK,
+    expectedDeliveryBlockNumber: DELIVERY_BLOCK,
+    expectedDeliveryBlockHash: DELIVERY_HASH,
+    capturedAt: FIXED_TIME,
+  });
+  assert.equal(deliveryBound.delivery_block_number, DELIVERY_BLOCK);
+  assert.equal(deliveryBound.delivery_block_hash, DELIVERY_HASH);
+  assert.equal(deliveryBound.delivery_block_hash_verified, true);
+  assert.deepEqual(
+    deliveryBound.rpc_methods_used,
+    VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
+  );
+  assert.deepEqual(
+    deliveryFixture.methods,
+    VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
+  );
+  const manifest = JSON.parse(
+    fs.readFileSync(deliveryBound.manifest_path, "utf8"),
+  );
+  assert.equal(manifest.delivery_block_number, DELIVERY_BLOCK);
+  assert.equal(manifest.delivery_block_hash, DELIVERY_HASH);
+  assert.equal(manifest.delivery_block_hash_verified, true);
+} finally {
+  fs.rmSync(deliveryBoundRoot, { recursive: true, force: true });
+}
+
 await expectHold({ rpcCall: fixture({ chainId: 1 }).rpcCall }, "chain_id_mismatch");
 await expectHold(
   { rpcCall: fixture({ beforeNumber: HEAD - 1, afterNumber: HEAD - 1 }).rpcCall, minimumBlockNumber: HEAD },
@@ -269,6 +335,29 @@ await expectHold(
 await expectHold(
   { rpcCall: fixture({ afterHash: HASH_B }).rpcCall },
   "chain_changed_during_checkpoint_capture",
+);
+await expectHold(
+  {
+    rpcCall: fixture({ deliveryBeforeHash: HASH_B }).rpcCall,
+    expectedDeliveryBlockNumber: DELIVERY_BLOCK,
+    expectedDeliveryBlockHash: DELIVERY_HASH,
+  },
+  "delivery_block_hash_mismatch_before_checkpoint",
+);
+await expectHold(
+  {
+    rpcCall: fixture({ deliveryAfterHash: HASH_B }).rpcCall,
+    expectedDeliveryBlockNumber: DELIVERY_BLOCK,
+    expectedDeliveryBlockHash: DELIVERY_HASH,
+  },
+  "delivery_block_hash_changed_during_checkpoint_capture",
+);
+await expectHold(
+  {
+    rpcCall: fixture().rpcCall,
+    expectedDeliveryBlockNumber: DELIVERY_BLOCK,
+  },
+  "delivery_block_binding_incomplete",
 );
 await expectHold(
   { rpcCall: fixture({ dumpState: "not-a-dump" }).rpcCall },
@@ -311,6 +400,8 @@ console.log("VOID_PRIVATE_CHAIN2050_CHECKPOINT_V1_PROOF_GREEN");
 console.log("chain_id_exact=2050");
 console.log(`minimum_block_number_proven=${HEAD}`);
 console.log("stable_head_bracketing=1");
+console.log("confirmed_delivery_block_hash_bracketing=1");
+console.log("reset_or_reorg_delivery_hash_mismatch_rejected=1");
 console.log("unlocked_accounts_required_zero=1");
 console.log("anvil_dump_state_content_addressed=1");
 console.log("checkpoint_files_mode_0600=1");
