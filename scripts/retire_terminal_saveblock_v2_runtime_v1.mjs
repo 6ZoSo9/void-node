@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_LEGACY_TERMINAL_SAVEBLOCK_V2_RETIRED_V1";
-const TARGET = path.resolve("dist/index.js");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const TARGET = path.join(ROOT, "dist", "index.js");
 const SECTION = "// === void terminal saveBlock inject+txroot v2 ===";
 const FUNCTION = "voidTerminalSaveBlockInjectAndTxrootV2";
 const LEGACY_GATES = [
@@ -29,10 +31,10 @@ if (!fs.existsSync(TARGET)) {
 let source = fs.readFileSync(TARGET, "utf8");
 
 if (count(source, SECTION) !== 1) {
-  fail(`expected exactly one terminal saveBlock v2 section marker`);
+  fail("expected exactly one terminal saveBlock v2 section marker");
 }
 if (count(source, FUNCTION) !== 1) {
-  fail(`expected exactly one terminal saveBlock v2 function`);
+  fail("expected exactly one terminal saveBlock v2 function");
 }
 
 const existingRetirementCount = count(source, MARKER);
@@ -86,7 +88,7 @@ fs.renameSync(temporary, TARGET);
 console.log(
   `${MARKER}_GREEN`,
   JSON.stringify({
-    target: path.relative(process.cwd(), TARGET),
+    target: path.relative(ROOT, TARGET),
     section_count: 1,
     function_count: 1,
     legacy_guard_retired: true,
