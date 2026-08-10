@@ -29,6 +29,12 @@ const selectedText = fs.readFileSync(selectedStart, "utf8");
 const makeText = fs.readFileSync(makefile, "utf8");
 const workflowText = fs.readFileSync(workflow, "utf8");
 
+assert.equal(
+  fs.statSync(selectedStart).mode & 0o777,
+  0o755,
+  "replacement startup entrypoint must be directly executable",
+);
+
 assert.match(legacyText, /fixed_epoch125_restore_retired/);
 assert.match(legacyText, /mainnet0-start-8545-selected-durable-state\.sh/);
 for (const forbidden of [
@@ -96,19 +102,25 @@ try {
     VOID_MAINNET0_8545_RPC_URL: "http://127.0.0.1:8545/",
   };
 
-  const run = (script, extraEnv = {}) =>
-    spawnSync("bash", [script], {
+  const runLegacy = () =>
+    spawnSync("bash", [legacyRestore], {
+      cwd: repoRoot,
+      env: baseEnv,
+      encoding: "utf8",
+    });
+  const runSelected = (extraEnv = {}) =>
+    spawnSync(selectedStart, [], {
       cwd: repoRoot,
       env: { ...baseEnv, ...extraEnv },
       encoding: "utf8",
     });
 
-  const retired = run(legacyRestore);
+  const retired = runLegacy();
   assert.equal(retired.status, 2);
   assert.match(retired.stderr, /VOID_MAINNET0_8545_EPOCH125_RESTORE_RETIRED_V1_HOLD/);
   assert.equal(fs.existsSync(capture), false, "retired restore must not invoke startup");
 
-  const plan = run(selectedStart);
+  const plan = runSelected();
   assert.equal(plan.status, 0, plan.stderr);
   const planArgs = fs.readFileSync(capture, "utf8").trim().split("\n");
   assert.ok(
@@ -120,7 +132,7 @@ try {
   assert.equal(planArgs.includes("--confirmation"), false);
 
   fs.rmSync(capture, { force: true });
-  const missingConfirmation = run(selectedStart, {
+  const missingConfirmation = runSelected({
     VOID_MAINNET0_8545_START_MODE: "apply",
     VOID_MAINNET0_8545_CONFIRMATION: "wrong",
   });
@@ -128,14 +140,14 @@ try {
   assert.match(missingConfirmation.stderr, /selector_start_confirmation_required/);
   assert.equal(fs.existsSync(capture), false);
 
-  const invalidMinimum = run(selectedStart, {
+  const invalidMinimum = runSelected({
     VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER: "0",
   });
   assert.equal(invalidMinimum.status, 2);
   assert.match(invalidMinimum.stderr, /minimum_block_number_invalid/);
   assert.equal(fs.existsSync(capture), false);
 
-  const apply = run(selectedStart, {
+  const apply = runSelected({
     VOID_MAINNET0_8545_START_MODE: "apply",
     VOID_MAINNET0_8545_CONFIRMATION:
       "startPrivateChain2050FromSelectedDurableState",
@@ -158,6 +170,7 @@ try {
 
   console.log("legacy_fixed_restore_mutation_authority=0");
   console.log("legacy_make_target_fails_closed=1");
+  console.log("selector_wrapper_directly_executable=1");
   console.log("selector_wrapper_default_read_only_plan=1");
   console.log("independent_minimum_block_required=1");
   console.log("apply_exact_confirmation_required=1");
