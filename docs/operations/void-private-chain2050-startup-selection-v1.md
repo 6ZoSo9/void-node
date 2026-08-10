@@ -8,9 +8,13 @@ This lane is read-only. It selects which already-existing durable state artifact
 
 ## Relationship to the checkpoint primitive
 
-The parent checkpoint lane creates content-addressed private `anvil_dumpState` artifacts and manifests.
+The parent checkpoint lane creates content-addressed private `anvil_dumpState` artifacts and manifests with a two-phase durability boundary:
 
-This startup-selection lane consumes those manifests plus one explicitly pinned immutable baseline. The selector validates every durable artifact before choosing the highest unambiguous state that satisfies the operator's minimum required block.
+1. state and manifest files are fsynced and the checkpoint root is fsynced;
+2. an exact `.complete-v1` finalization marker is created and fsynced; and
+3. the checkpoint root is fsynced again before capture returns success.
+
+This selector consumes only checkpoints carrying that exact finalization marker. Unmarked exact-name state/manifest artifacts are crash debris, not durable authority.
 
 ## Fail-closed minimum durable head
 
@@ -23,19 +27,19 @@ Example:
 ```text
 baseline block = 100
 required minimum = 104
-validated checkpoints = none
+validated finalized checkpoints = none
 => HOLD durable_state_below_required_minimum
 ```
 
-This is the core restart-safety rule. An older baseline cannot silently become the effective current chain after a restart when the operator has already established that later state must be durably available.
+An unmarked incomplete checkpoint at block 104 does not satisfy the minimum. This is the core restart-safety rule.
 
 ## Baseline contract
 
 The caller pins:
 
 - chain ID;
+- canonical lowercase block hash;
 - block number;
-- block hash;
 - complete state-file SHA-256;
 - absolute state-file path; and
 - explicit state format.
@@ -45,27 +49,52 @@ Supported V1 baseline formats are:
 - `anvil_cli_state_json`
 - `anvil_dump_state_hex`
 
-The baseline must be a regular non-symlink file owned by the current operator account and must hash exactly to the pinned digest.
+The baseline must be a regular non-symlink file owned by the current operator account, must not be group/other writable, must remain under the configured size bound, and must hash exactly to the pinned digest. Existing symlink path components are rejected.
 
-## Checkpoint contract
+The file bytes must also match the declared format: JSON must parse and dump-state hex must be a valid even-length `0x` hex payload.
 
-The checkpoint directory is private mode `0700`.
+## Finalized checkpoint contract
 
-Every entry must be either:
+The checkpoint directory is private mode `0700`, owned by the current operator account, and bounded in entry count. Existing symlink path components are rejected.
 
-- a V1 checkpoint manifest; or
-- its corresponding V1 `anvil_dumpState` state file.
+Recognized direct-child names are only content-addressed V1:
 
-Symlinks, non-files, unrecognized entries, orphan state files, malformed manifests, wrong chain ID, authority-contaminated manifests, invalid content IDs, invalid filenames, unsafe modes, malformed hex state, byte-count mismatch, or SHA mismatch fail closed.
+- `chain2050-block-N-ID.manifest.json`
+- `chain2050-block-N-ID.anvil-dump-state.hex`
+- `chain2050-block-N-ID.complete-v1`
 
-Each checkpoint is independently rebound to the parent checkpoint primitive's exact method/authority contract before it is eligible.
+A startup-eligible checkpoint requires all three exact files.
+
+The finalization marker is mode `0600`, owner-bound, size-bounded, and must contain exactly:
+
+```text
+VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 <checkpoint-id>
+```
+
+Only after the marker is validated does the selector parse and rebind the paired manifest and state file. The manifest and state reads are size-bounded before loading into memory.
+
+A finalization marker without its exact state/manifest pair fails closed as `checkpoint_finalized_pair_incomplete`. Because the parent fsyncs the pair before creating the marker, this shape indicates later corruption or tamper rather than a normal interrupted capture.
+
+## Interrupted-capture debris
+
+An interrupted parent capture may leave:
+
+- a state file without a manifest;
+- a manifest without a state file; or
+- a state/manifest pair without a `.complete-v1` marker.
+
+When every present file has an exact valid content-addressed filename, safe type, owner, mode, and bounded size, an **unmarked** group is ignored as non-authoritative crash debris and counted in `incomplete_checkpoint_group_count`.
+
+It is never parsed as a checkpoint, never selected, and never satisfies `minimum_block_number`.
+
+Unknown names, symlinks, unsafe modes/ownership, oversized incomplete artifacts, malformed finalized checkpoints, wrong-chain state, finalization-marker mismatch, tamper, and ambiguous highest durable state fail closed.
 
 ## Selection
 
 The selector combines:
 
 1. the validated immutable baseline; and
-2. every validated content-addressed checkpoint.
+2. every validated **finalized** checkpoint.
 
 Candidates below `minimum_block_number` are ineligible.
 
@@ -80,7 +109,9 @@ A successful selection binds:
 - selected kind (`baseline` or `checkpoint`);
 - selected block number/hash;
 - selected state SHA-256 and format;
-- number of observed checkpoint/durable candidates; and
+- validated checkpoint candidate count;
+- ignored incomplete checkpoint-group count;
+- total durable candidate count; and
 - a content-addressed selection ID.
 
 It also fixes these fields false:
@@ -111,6 +142,28 @@ node tools/void-private-chain2050-startup-selection-v1.mjs \
 Success exits zero with one JSON selection result.
 
 A policy/data hold exits `2` with structured hold JSON. The hold path never loads state or mutates a service.
+
+## Proof
+
+The focused proof re-proves the parent checkpoint contract and additionally covers:
+
+- exact baseline selection and stale-baseline minimum rejection;
+- baseline format, permissions, and canonical hash validation;
+- finalized checkpoint selection;
+- unmarked crash-debris tolerance without authority promotion;
+- proof that unmarked debris cannot satisfy the durable minimum;
+- marker-without-pair rejection;
+- marker-content binding;
+- bounded manifest reads;
+- checkpoint state tamper and wrong-chain rejection;
+- unknown root-entry rejection; and
+- same-height durable ambiguity rejection.
+
+Expected marker:
+
+```text
+VOID_PRIVATE_CHAIN2050_STARTUP_SELECTION_V1_PROOF_GREEN
+```
 
 ## Integration boundary
 
