@@ -400,6 +400,9 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     persistedManifest = candidateManifest;
   }
 
+  // Phase 1 durably commits the state+manifest pair before any finalization
+  // marker can become visible. If power is lost before finalization, startup
+  // selection treats the unmarked exact-name pair as non-authoritative debris.
   fsyncDirectory(outputRoot);
 
   const completeWrite = writeCreateOnly(
@@ -408,6 +411,9 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     256,
   );
 
+  // Phase 2 durably commits the finalization marker. A surviving marker without
+  // its already-fsynced pair therefore indicates later tamper/corruption, not a
+  // normal interrupted capture, and the startup selector may fail closed on it.
   fsyncDirectory(outputRoot);
 
   return Object.freeze({
