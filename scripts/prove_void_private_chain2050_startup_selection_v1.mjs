@@ -62,7 +62,7 @@ function checkpointMaterial(manifest) {
   };
 }
 
-function writeCheckpoint({ blockNumber, blockHash, dumpState, suffix = "" }) {
+function writeCheckpoint({ blockNumber, blockHash, dumpState }) {
   const manifest = {
     marker: VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1,
     version: VOID_PRIVATE_CHAIN2050_CHECKPOINT_VERSION_V1,
@@ -87,19 +87,26 @@ function writeCheckpoint({ blockNumber, blockHash, dumpState, suffix = "" }) {
   const stem = `chain2050-block-${blockNumber}-${checkpointId}`;
   const stateFile = `${stem}.anvil-dump-state.hex`;
   Object.assign(manifest, {
-    captured_at: `2026-08-10T07:00:00.000Z${suffix}`,
+    captured_at: "2026-08-10T07:00:00.000Z",
     checkpoint_id_sha256: checkpointId,
     state_file: stateFile,
   });
   const statePath = path.join(checkpointRoot, stateFile);
   const manifestPath = path.join(checkpointRoot, `${stem}.manifest.json`);
+  const completePath = path.join(checkpointRoot, `${stem}.complete-v1`);
   fs.writeFileSync(statePath, dumpState, { mode: 0o600 });
   fs.chmodSync(statePath, 0o600);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
     mode: 0o600,
   });
   fs.chmodSync(manifestPath, 0o600);
-  return { statePath, manifestPath, manifest };
+  fs.writeFileSync(
+    completePath,
+    `VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 ${checkpointId}\n`,
+    { mode: 0o600 },
+  );
+  fs.chmodSync(completePath, 0o600);
+  return { statePath, manifestPath, completePath, manifest, stem };
 }
 
 function expectHold(label, fn, reason) {
@@ -130,6 +137,7 @@ try {
   );
   assert.equal(baselineOnly.selected_kind, "baseline");
   assert.equal(baselineOnly.selected_block_number, 37367);
+  assert.equal(baselineOnly.incomplete_checkpoint_group_count, 0);
   assert.equal(baselineOnly.state_load_performed, false);
   assert.equal(baselineOnly.service_mutation_performed, false);
 
@@ -143,6 +151,47 @@ try {
       }),
     "durable_state_below_required_minimum",
   );
+
+  expectHold(
+    "uppercase baseline hash rejected",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline: { ...baseline, block_hash: baseline.block_hash.toUpperCase() },
+        checkpointRoot: baselineOnlyRoot,
+        minimumBlockNumber: 37367,
+      }),
+    "baseline_block_hash_invalid",
+  );
+
+  const invalidBaselinePath = path.join(root, "invalid-baseline.json");
+  fs.writeFileSync(invalidBaselinePath, "not-json", { mode: 0o600 });
+  expectHold(
+    "baseline format content validated",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline: {
+          ...baseline,
+          state_file: invalidBaselinePath,
+          state_sha256: sha256Buffer(fs.readFileSync(invalidBaselinePath)),
+        },
+        checkpointRoot: baselineOnlyRoot,
+        minimumBlockNumber: 37367,
+      }),
+    "baseline_state_format_content_invalid",
+  );
+
+  fs.chmodSync(baselinePath, 0o660);
+  expectHold(
+    "baseline writable by group rejected",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot: baselineOnlyRoot,
+        minimumBlockNumber: 37367,
+      }),
+    "baseline_state_file_writable",
+  );
+  fs.chmodSync(baselinePath, 0o600);
 
   const first = writeCheckpoint({
     blockNumber: 37371,
@@ -159,6 +208,7 @@ try {
   assert.equal(selected.selected_block_number, 37371);
   assert.equal(selected.selected_block_hash, `0x${"22".repeat(32)}`);
   assert.equal(selected.selected_state_file, first.statePath);
+  assert.equal(selected.incomplete_checkpoint_group_count, 0);
   assert.equal(
     selected.selected_checkpoint_id_sha256,
     first.manifest.checkpoint_id_sha256,
@@ -176,6 +226,68 @@ try {
     assert.equal(selected[key], false, key);
   }
 
+  const incompleteStem = `chain2050-block-37372-${"aa".repeat(32)}`;
+  const incompleteState = path.join(
+    checkpointRoot,
+    `${incompleteStem}.anvil-dump-state.hex`,
+  );
+  const incompleteManifest = path.join(
+    checkpointRoot,
+    `${incompleteStem}.manifest.json`,
+  );
+  fs.writeFileSync(incompleteState, "0x1234", { mode: 0o600 });
+  fs.writeFileSync(incompleteManifest, "not-authoritative-unmarked", { mode: 0o600 });
+  const withIncomplete = selectVoidPrivateChain2050StartupStateV1({
+    baseline,
+    checkpointRoot,
+    minimumBlockNumber: 37371,
+  });
+  assert.equal(withIncomplete.selected_block_number, 37371);
+  assert.equal(withIncomplete.incomplete_checkpoint_group_count, 1);
+  expectHold(
+    "unmarked crash debris cannot satisfy durable minimum",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot,
+        minimumBlockNumber: 37372,
+      }),
+    "durable_state_below_required_minimum",
+  );
+  fs.rmSync(incompleteState);
+  fs.rmSync(incompleteManifest);
+
+  const brokenStem = `chain2050-block-37372-${"bb".repeat(32)}`;
+  const brokenComplete = path.join(checkpointRoot, `${brokenStem}.complete-v1`);
+  fs.writeFileSync(
+    brokenComplete,
+    `VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 ${"bb".repeat(32)}\n`,
+    { mode: 0o600 },
+  );
+  expectHold(
+    "finalization marker without durable pair holds",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot,
+        minimumBlockNumber: 37371,
+      }),
+    "checkpoint_finalized_pair_incomplete",
+  );
+  fs.rmSync(brokenComplete);
+
+  expectHold(
+    "bounded manifest read",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot,
+        minimumBlockNumber: 37371,
+        maxManifestBytes: 256,
+      }),
+    "checkpoint_manifest_too_large",
+  );
+
   const originalState = fs.readFileSync(first.statePath, "utf8");
   fs.writeFileSync(first.statePath, "0x9999", { mode: 0o600 });
   expectHold(
@@ -190,6 +302,21 @@ try {
   );
   fs.writeFileSync(first.statePath, originalState, { mode: 0o600 });
   fs.chmodSync(first.statePath, 0o600);
+
+  const completeOriginal = fs.readFileSync(first.completePath, "utf8");
+  fs.writeFileSync(first.completePath, "wrong-marker\n", { mode: 0o600 });
+  expectHold(
+    "finalization marker content bound",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot,
+        minimumBlockNumber: 37371,
+      }),
+    "checkpoint_complete_content_invalid",
+  );
+  fs.writeFileSync(first.completePath, completeOriginal, { mode: 0o600 });
+  fs.chmodSync(first.completePath, 0o600);
 
   const manifestOriginal = JSON.parse(
     fs.readFileSync(first.manifestPath, "utf8"),
@@ -216,11 +343,24 @@ try {
   );
   fs.chmodSync(first.manifestPath, 0o600);
 
+  const unrecognized = path.join(checkpointRoot, "surprise.txt");
+  fs.writeFileSync(unrecognized, "x", { mode: 0o600 });
+  expectHold(
+    "unrecognized root entry",
+    () =>
+      selectVoidPrivateChain2050StartupStateV1({
+        baseline,
+        checkpointRoot,
+        minimumBlockNumber: 37371,
+      }),
+    "checkpoint_root_unrecognized_entry",
+  );
+  fs.rmSync(unrecognized);
+
   writeCheckpoint({
     blockNumber: 37371,
     blockHash: `0x${"33".repeat(32)}`,
     dumpState: "0x5678abcd",
-    suffix: "-conflict",
   });
   expectHold(
     "same-height conflicting durable states",
@@ -235,15 +375,22 @@ try {
 
   assert.equal(fs.statSync(first.statePath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(first.manifestPath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(first.completePath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(checkpointRoot).mode & 0o777, 0o700);
 
   console.log("baseline_exact_selection=1");
+  console.log("baseline_format_content_validated=1");
+  console.log("baseline_writable_rejected=1");
   console.log("stale_baseline_minimum_hold=1");
   console.log("parent_state_byte_format_exact=1");
+  console.log("finalization_marker_required=1");
+  console.log("unmarked_crash_debris_ignored=1");
+  console.log("unmarked_crash_debris_cannot_satisfy_minimum=1");
   console.log("checkpoint_selection=1");
   console.log("checkpoint_tamper_hold=1");
   console.log("wrong_chain_hold=1");
   console.log("same_height_conflict_hold=1");
+  console.log("bounded_manifest_read=1");
   console.log("state_load_performed=0");
   console.log("service_mutation_performed=0");
   console.log("transaction_replay_performed=0");
