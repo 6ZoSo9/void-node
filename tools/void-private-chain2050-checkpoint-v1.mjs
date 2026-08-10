@@ -286,7 +286,7 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   const statePath = path.join(outputRoot, `${stem}.anvil-dump-state.hex`);
   const manifestPath = path.join(outputRoot, `${stem}.manifest.json`);
 
-  const stateWrite = writeCreateOnly(statePath, `${dumpedState}\n`);
+  const stateWrite = writeCreateOnly(statePath, dumpedState);
   const manifest = {
     ...checkpointMaterial,
     captured_at: String(capturedAt),
