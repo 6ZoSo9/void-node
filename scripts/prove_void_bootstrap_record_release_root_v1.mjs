@@ -278,6 +278,85 @@ assert.throws(
   /sorted by key ID/,
 );
 
+const reorderedSignatures = structuredClone(envelope);
+reorderedSignatures.signatures.reverse();
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(reorderedSignatures, validatedRoot),
+  /sorted by key ID/,
+);
+
+const duplicateRootKey = structuredClone(root);
+duplicateRootKey.keys = [duplicateRootKey.keys[0], duplicateRootKey.keys[0]];
+duplicateRootKey.threshold = 1;
+duplicateRootKey.root_id = voidBootstrapRecordReleaseRootIdV1(duplicateRootKey);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(duplicateRootKey),
+  /duplicate key ID/,
+);
+
+const invalidZeroThreshold = structuredClone(root);
+invalidZeroThreshold.threshold = 0;
+invalidZeroThreshold.root_id = voidBootstrapRecordReleaseRootIdV1(invalidZeroThreshold);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(invalidZeroThreshold),
+  /threshold is invalid/,
+);
+
+const invalidHighThreshold = structuredClone(root);
+invalidHighThreshold.threshold = invalidHighThreshold.keys.length + 1;
+invalidHighThreshold.root_id = voidBootstrapRecordReleaseRootIdV1(invalidHighThreshold);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(invalidHighThreshold),
+  /threshold is invalid/,
+);
+
+const rootUnknownField = structuredClone(root);
+rootUnknownField.unexpected = false;
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(rootUnknownField),
+  /keys mismatch/,
+);
+
+const keyUnknownField = structuredClone(root);
+keyUnknownField.keys[0].unexpected = false;
+keyUnknownField.root_id = voidBootstrapRecordReleaseRootIdV1(keyUnknownField);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(keyUnknownField),
+  /keys mismatch/,
+);
+
+const envelopeUnknownField = structuredClone(envelope);
+envelopeUnknownField.unexpected = false;
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(envelopeUnknownField, validatedRoot),
+  /keys mismatch/,
+);
+
+const signatureUnknownField = structuredClone(envelope);
+signatureUnknownField.signatures[0].unexpected = false;
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(signatureUnknownField, validatedRoot),
+  /keys mismatch/,
+);
+
+const malformedPublicKey = structuredClone(root);
+const malformedDer = Buffer.from("not-an-ed25519-spki", "utf8");
+malformedPublicKey.keys[0].public_key_spki_base64 = malformedDer.toString("base64");
+malformedPublicKey.keys[0].key_id = `${VOID_BOOTSTRAP_RECORD_RELEASE_KEY_PREFIX_V1}${sha256(malformedDer)}`;
+malformedPublicKey.keys.sort((a, b) => a.key_id.localeCompare(b.key_id));
+malformedPublicKey.root_id = voidBootstrapRecordReleaseRootIdV1(malformedPublicKey);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(malformedPublicKey),
+  /public key is invalid|not Ed25519/,
+);
+
+const malformedSignature = structuredClone(envelope);
+malformedSignature.signatures[0].signature_base64 = Buffer.alloc(63).toString("base64");
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(malformedSignature, validatedRoot),
+  /invalid byte length/,
+);
+
 const authorityEscalation = structuredClone(root);
 authorityEscalation.authority.wallet_authority = true;
 authorityEscalation.root_id = voidBootstrapRecordReleaseRootIdV1(
@@ -313,6 +392,11 @@ console.log("duplicate_signature_key_accepted=false");
 console.log("unknown_signature_key_accepted=false");
 console.log("release_root_key_order_canonical=true");
 console.log("signature_order_canonical=true");
+console.log("unknown_schema_fields_rejected=true");
+console.log("malformed_public_key_rejected=true");
+console.log("malformed_signature_rejected=true");
+console.log("duplicate_release_root_key_rejected=true");
+console.log("invalid_active_threshold_rejected=true");
 console.log("locator_mirror_is_trust_authority=false");
 console.log("production_release_root_status=hold_no_signing_keys");
 console.log("production_release_root_threshold=0");
