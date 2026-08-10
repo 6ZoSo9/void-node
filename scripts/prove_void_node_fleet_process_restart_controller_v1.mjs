@@ -184,12 +184,20 @@ function buildSourceReceipt(config, fromSha, toSha) {
   };
 }
 
-function buildFreshnessAudit(sourceSha, processStartEpoch = 1_700_000_000, headTransitionEpoch = 1_700_000_010) {
+function buildFreshnessAudit(
+  sourceSha,
+  staleProcessCommit,
+  sourceTree = "4".repeat(40),
+  staleProcessTree = "3".repeat(40),
+  processStartEpoch = 1_700_000_000,
+  headTransitionEpoch = 1_700_000_010,
+) {
   const node = {
     name: "nimo",
     transport: "local",
     reachable: true,
     source_head: sourceSha,
+    source_tree: sourceTree,
     source_branch: "main",
     dirty_count: 0,
     worktree_status_readable: true,
@@ -209,6 +217,10 @@ function buildFreshnessAudit(sourceSha, processStartEpoch = 1_700_000_000, headT
     classification: "STALE_SOURCE_AFTER_PROCESS_START",
     reasons: [],
     source_to_process_start_seconds: processStartEpoch - headTransitionEpoch,
+    process_source_identity_bound: true,
+    process_source_commit: staleProcessCommit,
+    process_source_tree: staleProcessTree,
+    process_source_matches_current: false,
     version_git_commit_matches_source_head_diagnostic_only: true,
   };
   const fleet = buildFleetProcessFreshnessDecisionV1([node]);
@@ -219,6 +231,7 @@ function buildFreshnessAudit(sourceSha, processStartEpoch = 1_700_000_000, headT
     audit_id_sha256: fleet.audit_id_sha256,
     expected_process_entrypoint: "src/index.ts",
     nodes: [node],
+    process_source_identity_required: true,
     version_git_commit_is_process_identity: false,
     mutation_attempted: false,
     authority: {
@@ -241,7 +254,7 @@ const fixedTo = "2".repeat(40);
 const fixedConfig = validateFleetConfigV1(baseConfig("/tmp/coordinator", "/tmp/node", "/tmp/origin.git"), "nimo");
 const fixedReceipt = buildSourceReceipt(fixedConfig, fixedFrom, fixedTo);
 const validatedReceipt = validateSourceConvergenceReceiptV1(fixedReceipt, fixedConfig, "nimo");
-const fixedFreshnessAudit = buildFreshnessAudit(fixedTo);
+const fixedFreshnessAudit = buildFreshnessAudit(fixedTo, fixedFrom);
 const validatedFreshness = validateProcessFreshnessAuditV1(fixedFreshnessAudit, "nimo", fixedTo);
 
 assert.equal(validatedReceipt.from_sha, fixedFrom);
@@ -254,6 +267,22 @@ assert.throws(
 const tamperedFreshness = structuredClone(fixedFreshnessAudit);
 tamperedFreshness.nodes[0].process_start_epoch -= 1;
 assert.throws(() => validateProcessFreshnessAuditV1(tamperedFreshness, "nimo", fixedTo), /ID|timestamp/);
+const missingIdentityRequirement = structuredClone(fixedFreshnessAudit);
+delete missingIdentityRequirement.process_source_identity_required;
+assert.throws(() => validateProcessFreshnessAuditV1(missingIdentityRequirement, "nimo", fixedTo), /identity-bound/);
+const unboundProcessIdentity = structuredClone(fixedFreshnessAudit);
+unboundProcessIdentity.nodes[0].process_source_identity_bound = false;
+unboundProcessIdentity.audit_id_sha256 = buildFleetProcessFreshnessDecisionV1(unboundProcessIdentity.nodes).audit_id_sha256;
+assert.throws(() => validateProcessFreshnessAuditV1(unboundProcessIdentity, "nimo", fixedTo), /exact green/);
+const currentHeadSubstitution = structuredClone(fixedFreshnessAudit);
+currentHeadSubstitution.nodes[0].process_source_commit = fixedTo;
+currentHeadSubstitution.audit_id_sha256 = buildFleetProcessFreshnessDecisionV1(currentHeadSubstitution.nodes).audit_id_sha256;
+assert.throws(() => validateProcessFreshnessAuditV1(currentHeadSubstitution, "nimo", fixedTo), /must differ/);
+for (const field of ["process_source_commit", "process_source_tree"]) {
+  const tamperedIdentity = structuredClone(fixedFreshnessAudit);
+  tamperedIdentity.nodes[0][field] = "5".repeat(40);
+  assert.throws(() => validateProcessFreshnessAuditV1(tamperedIdentity, "nimo", fixedTo), /ID/);
+}
 const heldFreshness = structuredClone(fixedFreshnessAudit);
 heldFreshness.nodes[0].classification = "HOLD";
 assert.throws(() => validateProcessFreshnessAuditV1(heldFreshness, "nimo", fixedTo), /HOLD/);
@@ -302,6 +331,9 @@ const fixedTransition = {
 };
 const fixedPlan = buildRestartPlanV1(validatedReceipt, validatedFreshness, fixedTransition, fixedConfig);
 assert.match(fixedPlan.plan_id_sha256, /^[0-9a-f]{64}$/);
+assert.equal(fixedPlan.source_tree, "4".repeat(40));
+assert.equal(fixedPlan.stale_process_commit, fixedFrom);
+assert.equal(fixedPlan.stale_process_tree, "3".repeat(40));
 assert.deepEqual(buildRestartPlanV1(validatedReceipt, validatedFreshness, fixedTransition, fixedConfig), fixedPlan);
 assert.equal("repo" in fixedPlan, false);
 assert.equal("ssh_target" in fixedPlan, false);
@@ -327,6 +359,7 @@ const greenSnapshot = {
   reachable: true,
   repo_ok: true,
   source_head: fixedPlan.source_sha,
+  source_tree: fixedPlan.source_tree,
   source_branch: "main",
   dirty_count: 0,
   worktree_status_readable: true,
@@ -348,6 +381,10 @@ const greenSnapshot = {
   peer_count: 1,
   classification: "STALE_SOURCE_AFTER_PROCESS_START",
   reasons: [],
+  process_source_identity_bound: true,
+  process_source_commit: fixedPlan.stale_process_commit,
+  process_source_tree: fixedPlan.stale_process_tree,
+  process_source_matches_current: false,
   process_start_epoch: fixedPlan.old_process_start_epoch,
   head_transition_epoch: fixedPlan.head_transition_epoch,
 };
@@ -359,6 +396,9 @@ assert.deepEqual(
 const postSnapshot = {
   ...greenSnapshot,
   classification: "PROCESS_SOURCE_ALIGNED",
+  process_source_commit: fixedPlan.source_sha,
+  process_source_tree: fixedPlan.source_tree,
+  process_source_matches_current: true,
   process_start_epoch: fixedPlan.head_transition_epoch + 5,
 };
 assert.equal(assessPostRestartV1(postSnapshot, fixedConfig, fixedPlan).ok, true);
@@ -455,6 +495,7 @@ const proofEnvironmentKeys = [
   "VOID_PROOF_REAL_TR",
   "VOID_PROOF_CMDLINE_MODE",
   "VOID_PROOF_DECOY_ENTRY",
+  "VOID_PROOF_STATE",
   "VOID_PROOF_PROC_VISIBLE",
   "VOID_PROOF_MAIN_PID_OVERRIDE",
 ];
@@ -484,12 +525,22 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 const loaded = readFileSync(new URL("./payload.txt", import.meta.url), "utf8").trim();
+const processSource = Object.freeze({
+  marker: process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER,
+  commit: process.env.VOID_PROCESS_SOURCE_COMMIT,
+  tree: process.env.VOID_PROCESS_SOURCE_TREE,
+  branch: process.env.VOID_PROCESS_SOURCE_BRANCH,
+  immutable: true,
+});
 const json = (res, value) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(value)); };
 const server = createServer((req, res) => {
   if (req.url === "/health") return json(res, { ok: true });
   if (req.url === "/__void/ready.json") return json(res, { ready: true, gap: 0 });
   if (req.url === "/p2p/peers") return json(res, { connected: [{ id: "proof-peer" }] });
-  if (req.url === "/version") return json(res, { git_commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim() });
+  if (req.url === "/version") return json(res, {
+    git_commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    process_source: processSource,
+  });
   if (req.url === "/loaded") return json(res, { loaded });
   res.statusCode = 404; res.end();
 });
@@ -499,6 +550,7 @@ for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => server.clos
   git(repo, "add", "--", ".gitignore", "package.json", "src/payload.txt", "src/index.ts");
   git(repo, "commit", "-m", "live v1");
   const fromSha = git(repo, "rev-parse", "HEAD");
+  const fromTree = git(repo, "rev-parse", "HEAD^{tree}");
   git(repo, "push", "-u", "origin", "main");
 
   const tsxDist = join(repo, "node_modules", "tsx", "dist");
@@ -514,16 +566,29 @@ for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => server.clos
   const entrypoint = join(repo, "src", "index.ts");
   const oldStartEpoch = Math.floor(Date.now() / 1000);
   oldChild = spawn(process.execPath, [
+    "--conditions=void-process-source-identity-v1",
+    `--conditions=void-process-source-commit-${fromSha}`,
+    `--conditions=void-process-source-tree-${fromTree}`,
+    "--conditions=void-process-source-branch-main",
     "--require", preflightPath,
     "--import", pathToFileURL(loaderPath).href,
     entrypoint,
   ], {
     cwd: repo,
-    env: { ...process.env, VOID_PROOF_PORT: String(port) },
+    env: {
+      ...process.env,
+      VOID_PROOF_PORT: String(port),
+      VOID_PROCESS_SOURCE_IDENTITY_MARKER: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+      VOID_PROCESS_SOURCE_COMMIT: fromSha,
+      VOID_PROCESS_SOURCE_TREE: fromTree,
+      VOID_PROCESS_SOURCE_BRANCH: "main",
+    },
     stdio: ["ignore", "ignore", "ignore"],
   });
   writeFileSync(join(state, "pid"), `${oldChild.pid}\n`);
   writeFileSync(join(state, "start_epoch"), `${oldStartEpoch}\n`);
+  writeFileSync(join(state, "source_commit"), `${fromSha}\n`);
+  writeFileSync(join(state, "source_tree"), `${fromTree}\n`);
   await waitForJson(`http://127.0.0.1:${port}/loaded`, (value) => value.loaded === "one");
 
   const fakeSystemctl = join(fakeBin, "systemctl");
@@ -558,14 +623,27 @@ case "$command" in
       sleep 0.02
     done
     cd ${shellLiteral(repo)}
-    VOID_PROOF_PORT=${shellLiteral(String(port))} nohup \
+    process_source_commit="$(git rev-parse HEAD)"
+    process_source_tree="$(git rev-parse 'HEAD^{tree}')"
+    VOID_PROOF_PORT=${shellLiteral(String(port))} \
+      VOID_PROCESS_SOURCE_IDENTITY_MARKER=VOID_NODE_PROCESS_SOURCE_IDENTITY_V1 \
+      VOID_PROCESS_SOURCE_COMMIT="$process_source_commit" \
+      VOID_PROCESS_SOURCE_TREE="$process_source_tree" \
+      VOID_PROCESS_SOURCE_BRANCH=main \
+      nohup \
       ${shellLiteral(process.execPath)} \
+      --conditions=void-process-source-identity-v1 \
+      --conditions="void-process-source-commit-$process_source_commit" \
+      --conditions="void-process-source-tree-$process_source_tree" \
+      --conditions=void-process-source-branch-main \
       --require ${shellLiteral(preflightPath)} \
       --import ${shellLiteral(pathToFileURL(loaderPath).href)} \
       ${shellLiteral(entrypoint)} >>${shellLiteral(log)} 2>&1 &
     new_pid=$!
     printf '%s\\n' "$new_pid" > "$pid_file"
     date +%s > "$epoch_file"
+    printf '%s\\n' "$process_source_commit" > ${shellLiteral(join(state, "source_commit"))}
+    printf '%s\\n' "$process_source_tree" > ${shellLiteral(join(state, "source_tree"))}
     ;;
   *) exit 64 ;;
 esac
@@ -597,6 +675,10 @@ if test "$#" -eq 2 && test "$1" = '\\0' && test "$2" = '\\n'; then
   else
     printf '%s\\n' \
       "$VOID_PROOF_NODE_EXE" \
+      --conditions=void-process-source-identity-v1 \
+      "--conditions=void-process-source-commit-$(cat "$VOID_PROOF_STATE/source_commit")" \
+      "--conditions=void-process-source-tree-$(cat "$VOID_PROOF_STATE/source_tree")" \
+      --conditions=void-process-source-branch-main \
       --require \
       "$VOID_PROOF_REPO/node_modules/tsx/dist/preflight.cjs" \
       --import \
@@ -614,6 +696,7 @@ fi
     process.env.VOID_PROOF_REAL_READLINK = realReadlink;
     process.env.VOID_PROOF_REAL_TR = realTr;
   }
+  process.env.VOID_PROOF_STATE = state;
   process.env.VOID_PROOF_MAIN_PID = String(collectorPid);
   process.env.VOID_PROOF_PROC_VISIBLE = procVisible ? "1" : "0";
   process.env.PATH = `${fakeBin}:${priorPath}`;
@@ -623,6 +706,7 @@ fi
   git(repo, "add", "--", "src/payload.txt");
   git(repo, "commit", "-m", "live v2");
   const sourceSha = git(repo, "rev-parse", "HEAD");
+  const sourceTree = git(repo, "rev-parse", "HEAD^{tree}");
   git(repo, "push", "origin", "main");
   const headLog = git(repo, "rev-parse", "--path-format=absolute", "--git-path", "logs/HEAD");
   const headTransitionEpoch = Math.floor(statSync(headLog).mtimeMs / 1000);
@@ -633,7 +717,14 @@ fi
   const before = collectRestartSnapshotV1(config);
   assert.equal(before.classification, "STALE_SOURCE_AFTER_PROCESS_START", JSON.stringify(before));
   const sourceReceipt = buildSourceReceipt(config, fromSha, sourceSha);
-  const freshnessAudit = buildFreshnessAudit(sourceSha, oldStartEpoch, headTransitionEpoch);
+  const freshnessAudit = buildFreshnessAudit(
+    sourceSha,
+    fromSha,
+    sourceTree,
+    fromTree,
+    oldStartEpoch,
+    headTransitionEpoch,
+  );
   const configPath = join(liveRoot, "fleet-config.json");
   const sourceReceiptPath = join(liveRoot, "source-receipt.json");
   const freshnessPath = join(liveRoot, "freshness.json");

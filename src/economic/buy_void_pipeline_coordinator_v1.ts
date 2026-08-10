@@ -190,7 +190,7 @@ export type BuyVoidPipelineCoordinatorDecisionV1 =
       status: "held";
       action: BuyVoidPipelineActionV1 | "invalid";
       applied: boolean;
-      mutation_performed: false;
+      mutation_performed: boolean;
       reason: string;
       detail?: Record<string, unknown>;
     };
@@ -200,13 +200,14 @@ function held(
   applied: boolean,
   reason: string,
   detail?: Record<string, unknown>,
+  mutationPerformed = false,
 ): BuyVoidPipelineCoordinatorDecisionV1 {
   return {
     ok: false,
     status: "held",
     action,
     applied,
-    mutation_performed: false,
+    mutation_performed: mutationPerformed,
     reason,
     ...(detail ? { detail } : {}),
   };
@@ -306,7 +307,13 @@ function applyVerifyAndClaim(
     now_ms: command.now_ms,
   });
   if ("reason" in claim) {
-    return held(command.action, true, claim.reason, claim.detail);
+    return held(
+      command.action,
+      true,
+      claim.reason,
+      claim.detail,
+      claim.new_claim,
+    );
   }
   return {
     ok: true,
@@ -387,7 +394,13 @@ function applyNotBroadcast(
     now_ms: command.now_ms,
   });
   if ("reason" in attempt) {
-    return held(command.action, true, attempt.reason, attempt.detail);
+    return held(
+      command.action,
+      true,
+      attempt.reason,
+      attempt.detail,
+      outcome.status === "recorded",
+    );
   }
   return {
     ok: true,
@@ -434,7 +447,14 @@ function recordExternalBroadcast(
         });
 
   if ("reason" in outcome) {
-    return held(command.action, true, outcome.reason, outcome.detail);
+    return held(
+      command.action,
+      true,
+      outcome.reason,
+      outcome.detail,
+      attempt.status === "recorded" ||
+        attempt.recovered_delivery_index,
+    );
   }
   return {
     ok: true,
@@ -470,7 +490,13 @@ function applyReverted(
     now_ms: command.now_ms,
   });
   if ("reason" in attempt) {
-    return held(command.action, true, attempt.reason, attempt.detail);
+    return held(
+      command.action,
+      true,
+      attempt.reason,
+      attempt.detail,
+      outcome.status === "recorded",
+    );
   }
   return {
     ok: true,
@@ -513,7 +539,14 @@ function applyConfirmed(
     now_ms: command.now_ms,
   });
   if ("reason" in outcome) {
-    return held(command.action, true, outcome.reason, outcome.detail);
+    return held(
+      command.action,
+      true,
+      outcome.reason,
+      outcome.detail,
+      attempt.status === "recorded" ||
+        attempt.recovered_delivery_index,
+    );
   }
 
   const finalState = persistBuyVoidConfirmedStateV1({
@@ -523,7 +556,17 @@ function applyConfirmed(
     now_ms: command.now_ms,
   });
   if ("reason" in finalState) {
-    return held(command.action, true, finalState.reason, finalState.detail);
+    return held(
+      command.action,
+      true,
+      finalState.reason,
+      finalState.detail,
+      attempt.status === "recorded" ||
+        attempt.recovered_delivery_index ||
+        outcome.status === "recorded" ||
+        finalState.new_state ||
+        finalState.recovered_indexes.length > 0,
+    );
   }
 
   return {

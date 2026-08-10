@@ -22,7 +22,7 @@ const SAGA_ID = `voidbvfsg1_${"1".repeat(64)}`;
 const ATTEMPT_ID = "2".repeat(64);
 const CLOSEOUT_ID = "3".repeat(64);
 const POLICY_FP = "a4".repeat(32);
-const TERMINAL_PLAN_FP = "5".repeat(64);
+const TERMINAL_PLAN_FP = "5a".repeat(32);
 const CANONICAL_ID = "6".repeat(64);
 const CANONICAL_FP = "7".repeat(64);
 const TX_HASH = `0x${"8".repeat(64)}`;
@@ -75,6 +75,8 @@ function terminalAuthority(): Record<string, unknown> {
     request_scoped_crash_recoverable_lock: true,
     deterministic_closeout_plan_persistence: true,
     exact_terminal_plan_fingerprint_required_before_mutation: true,
+    terminal_plan_revalidation_inside_request_lock: true,
+    shared_operator_event_writer_lock: true,
     append_only_inventory_consumption: true,
     atomic_public_operator_journal_projection: true,
     saga_closeout_committed_append: true,
@@ -422,6 +424,22 @@ assert.equal(duplicatePlan.already_closed, true);
 assert.equal(duplicatePlan.public_request_fulfilled, true);
 assert.equal(duplicatePlan.mutation_performed, false);
 
+const non200Dry = await planBuyVoidProductionTerminalCloseoutV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 500, json: dryFixture() }),
+});
+assert.equal(non200Dry.ok, false);
+assert.equal(non200Dry.reason, "operator_runtime_dry_run_http_invalid");
+
+const non200Duplicate = await planBuyVoidProductionTerminalCloseoutV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 500, json: duplicateFixture() }),
+});
+assert.equal(non200Duplicate.ok, false);
+assert.equal(non200Duplicate.reason, "operator_runtime_dry_run_http_invalid");
+
 const childDisabled = await planBuyVoidProductionTerminalCloseoutV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture({ childEnabled: false }) }),
@@ -452,6 +470,37 @@ const wrongPolicyDry = await planBuyVoidProductionTerminalCloseoutV1({
 });
 assert.equal(wrongPolicyDry.ok, false);
 assert.equal(wrongPolicyDry.reason, "operator_runtime_dry_run_boundary_invalid");
+
+const uppercaseStatusPolicy = await planBuyVoidProductionTerminalCloseoutV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({
+    status: 200,
+    json: statusFixture({ policyFingerprint: POLICY_FP.toUpperCase() }),
+  }),
+  http_post: async () => { throw new Error("must not post"); },
+});
+assert.equal(uppercaseStatusPolicy.ok, false);
+assert.equal(uppercaseStatusPolicy.reason, "operator_terminal_policy_fingerprint_invalid");
+
+const paddedDryRuntime = dryFixture() as any;
+paddedDryRuntime.required_runtime_confirmation = `${RUNTIME_CONFIRMATION} `;
+const paddedDryRuntimeResult = await planBuyVoidProductionTerminalCloseoutV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 200, json: paddedDryRuntime }),
+});
+assert.equal(paddedDryRuntimeResult.ok, false);
+assert.equal(paddedDryRuntimeResult.reason, "operator_runtime_dry_run_boundary_invalid");
+
+const uppercaseTerminalPlan = dryFixture() as any;
+uppercaseTerminalPlan.decision.plan.plan_fingerprint_sha256 = TERMINAL_PLAN_FP.toUpperCase();
+const uppercaseTerminalPlanResult = await planBuyVoidProductionTerminalCloseoutV1({
+  saga_id: SAGA_ID,
+  http_get: async () => ({ status: 200, json: statusFixture() }),
+  http_post: async () => ({ status: 200, json: uppercaseTerminalPlan }),
+});
+assert.equal(uppercaseTerminalPlanResult.ok, false);
+assert.equal(uppercaseTerminalPlanResult.reason, "operator_runtime_dry_run_boundary_invalid");
 
 let wrongPlanPosts = 0;
 const wrongPlan = await runBuyVoidProductionTerminalCloseoutV1({
@@ -581,6 +630,38 @@ assert.equal(recovered.ok, true);
 assert.equal(recovered.status, "closed");
 assert.equal(recovered.closeout_outcome, "recovered_partial");
 assert.equal(recovered.automatic_retry_allowed, false);
+
+let successOn500Posts = 0;
+const successOn500 = await runBuyVoidProductionTerminalCloseoutV1({
+  args: applyArgs(plan.plan_fingerprint_sha256),
+  http_get: async () => ({ status: 200, json: statusFixture({ applyEnabled: true }) }),
+  http_post: async () => {
+    successOn500Posts += 1;
+    return successOn500Posts <= 2
+      ? { status: 200, json: dryFixture() }
+      : { status: 500, json: appliedFixture({ outcome: "closed" }) };
+  },
+});
+assert.equal(successOn500.ok, false);
+assert.equal(successOn500.status, "closeout_unknown");
+assert.equal(successOn500.side_effect_state_known, false);
+assert.equal(successOn500.mutation_performed, null);
+
+let heldOn200Posts = 0;
+const heldOn200 = await runBuyVoidProductionTerminalCloseoutV1({
+  args: applyArgs(plan.plan_fingerprint_sha256),
+  http_get: async () => ({ status: 200, json: statusFixture({ applyEnabled: true }) }),
+  http_post: async () => {
+    heldOn200Posts += 1;
+    return heldOn200Posts <= 2
+      ? { status: 200, json: dryFixture() }
+      : { status: 200, json: partialHeldFixture() };
+  },
+});
+assert.equal(heldOn200.ok, false);
+assert.equal(heldOn200.status, "closeout_unknown");
+assert.equal(heldOn200.side_effect_state_known, false);
+assert.equal(heldOn200.mutation_performed, null);
 
 let partialPosts = 0;
 const partial = await runBuyVoidProductionTerminalCloseoutV1({
@@ -715,6 +796,9 @@ console.log(JSON.stringify({
   recovered_partial_truth_preserved: true,
   partial_mutation_truth_preserved: true,
   post_append_verification_mismatch_saga_truth_preserved: true,
+  dry_http_status_bound: true,
+  canonical_authority_bytes_required: true,
+  applied_http_status_bound: true,
   applied_transport_unknown_preserved: true,
   malformed_applied_envelope_unknown: true,
   automatic_retry: false,
