@@ -343,7 +343,7 @@ assert.equal(paddedDryRuntimeResult.ok, false);
 assert.equal(paddedDryRuntimeResult.reason, "operator_runtime_dry_run_boundary_invalid");
 
 const uppercaseTerminalPlan = dryFixture() as any;
-uppercaseTerminalPlan.decision.plan.plan_fingerprint_sha256 = TERMINAL_PLAN_FP.toUpperCase();
+uppercaseTerminalPlan.decision.plan.plan_fingerprint_sha256 = "A".repeat(64);
 const uppercaseTerminalPlanResult = await planBuyVoidProductionTerminalCloseoutV1({
   saga_id: SAGA_ID,
   http_get: async () => ({ status: 200, json: statusFixture() }),
