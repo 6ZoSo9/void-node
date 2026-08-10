@@ -39,6 +39,7 @@ const usdc = "0x4444444444444444444444444444444444444444";
 const wallet = "0x5555555555555555555555555555555555555555";
 const paymentTx = `0x${"a".repeat(64)}`;
 const deliveryTx = `0x${"b".repeat(64)}`;
+const deliveryBlockHash = `0x${"9".repeat(64)}`;
 const transferTopic =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
@@ -184,7 +185,7 @@ function transport(options: {
       transactionHash: deliveryTx,
       status: options.status ?? "0x1",
       blockNumber: "0x1f4",
-      blockHash: `0x${"c".repeat(64)}`,
+      blockHash: deliveryBlockHash,
       from: wallet,
       to: delivery,
     };

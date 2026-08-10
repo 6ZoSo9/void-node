@@ -20,6 +20,8 @@ export const VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_AUTHORITY_V1 = {
   definitive_not_broadcast_can_resolve_debt: true,
   broadcast_unknown_keeps_debt: true,
   finalized_checkpoint_required_to_satisfy_confirmed_debt: true,
+  confirmed_receipt_block_hash_required_for_satisfaction: true,
+  canonical_delivery_block_continuity_required_for_satisfaction: true,
   confirmed_delivery_block_hash_required_to_satisfy_debt: true,
   checkpoint_delivery_block_continuity_required: true,
   raw_signed_transaction_persistence: false,
@@ -87,8 +89,21 @@ export type BuyVoidChain2050DurabilitySatisfactionV1 = {
   checkpoint_block_hash: string;
   satisfied_at_ms: number;
   finalized_checkpoint_verified: true;
+  confirmed_receipt_continuity_verified: true;
+  canonical_delivery_block_continuity_verified: true;
   delivery_block_hash_checkpoint_verified: true;
   automatic_retry_allowed: false;
+};
+
+export type BuyVoidChain2050ReceiptContinuityProofV1 = {
+  chain_id: 2050;
+  transaction_hash: string;
+  transaction_status: 1;
+  delivery_block_number: number;
+  delivery_block_hash: string;
+  canonical_block_hash: string;
+  receipt_block_hash_matches_confirmation: true;
+  canonical_block_hash_matches_receipt: true;
 };
 
 export type BuyVoidChain2050DurabilityStateV1 = {
@@ -338,6 +353,8 @@ function satisfactionFromFile(file: string): BuyVoidChain2050DurabilitySatisfact
       "checkpoint_block_hash",
       "satisfied_at_ms",
       "finalized_checkpoint_verified",
+      "confirmed_receipt_continuity_verified",
+      "canonical_delivery_block_continuity_verified",
       "delivery_block_hash_checkpoint_verified",
       "automatic_retry_allowed",
     ],
@@ -348,6 +365,8 @@ function satisfactionFromFile(file: string): BuyVoidChain2050DurabilitySatisfact
     value.marker !== VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_V1 ||
     value.version !== 1 ||
     value.finalized_checkpoint_verified !== true ||
+    value.confirmed_receipt_continuity_verified !== true ||
+    value.canonical_delivery_block_continuity_verified !== true ||
     value.delivery_block_hash_checkpoint_verified !== true ||
     value.automatic_retry_allowed !== false ||
     typeof value.checkpoint_id_sha256 !== "string" ||
@@ -613,6 +632,7 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
   attempt_id: unknown;
   delivery_block_number: unknown;
   delivery_block_hash: unknown;
+  receipt_continuity: BuyVoidChain2050ReceiptContinuityProofV1;
   checkpoint: {
     checkpoint_id_sha256: unknown;
     chain_id: unknown;
@@ -635,6 +655,23 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     "chain2050_durability_delivery_block_invalid",
   );
   const deliveryBlockHash = safeTransactionHash(input.delivery_block_hash);
+  const continuity = input.receipt_continuity;
+  if (
+    !continuity ||
+    continuity.chain_id !== 2050 ||
+    safeTransactionHash(continuity.transaction_hash) !== transactionHash ||
+    continuity.transaction_status !== 1 ||
+    positiveBlock(
+      continuity.delivery_block_number,
+      "chain2050_durability_receipt_continuity_block_invalid",
+    ) !== deliveryBlock ||
+    safeTransactionHash(continuity.delivery_block_hash) !== deliveryBlockHash ||
+    safeTransactionHash(continuity.canonical_block_hash) !== deliveryBlockHash ||
+    continuity.receipt_block_hash_matches_confirmation !== true ||
+    continuity.canonical_block_hash_matches_receipt !== true
+  ) {
+    hold("chain2050_durability_receipt_continuity_invalid");
+  }
   if (
     input.checkpoint?.checkpoint_finalized !== true ||
     input.checkpoint?.checkpoint_directory_fsync_performed !== true
@@ -654,6 +691,12 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     hold("chain2050_durability_checkpoint_below_delivery_block");
   }
   const checkpointHash = safeTransactionHash(input.checkpoint?.block_hash);
+  if (
+    checkpointBlock === deliveryBlock &&
+    checkpointHash !== deliveryBlockHash
+  ) {
+    hold("chain2050_durability_checkpoint_delivery_block_hash_mismatch");
+  }
   const checkpointDeliveryBlock = positiveBlock(
     input.checkpoint?.delivery_block_number,
     "chain2050_durability_checkpoint_delivery_block_invalid",
@@ -685,6 +728,8 @@ export function satisfyBuyVoidChain2050DurabilityDebtV1(input: {
     checkpoint_block_hash: checkpointHash,
     satisfied_at_ms: nowMs(input.now_ms),
     finalized_checkpoint_verified: true,
+    confirmed_receipt_continuity_verified: true,
+    canonical_delivery_block_continuity_verified: true,
     delivery_block_hash_checkpoint_verified: true,
     automatic_retry_allowed: false,
   };

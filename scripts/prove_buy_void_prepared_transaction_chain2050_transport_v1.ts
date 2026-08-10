@@ -383,6 +383,9 @@ async function main(): Promise<void> {
 
   console.log(MARKER);
   console.log("existing_chain2050_broadcaster_reused_for_submit=true");
+  console.log("prepared_transport_durability_gate_required=true");
+  console.log("prepared_transport_duplicate_submit_blocked=true");
+  console.log("prepared_transport_ambiguous_submit_preserves_debt=true");
   console.log("submit_rpc_mutation_method=eth_sendRawTransaction");
   console.log("durability_gate_required_before_submit_rpc=true");
   console.log("debt_armed_before_eth_send_raw_transaction=true");

@@ -209,6 +209,7 @@ const executionConfirmed = recordBuyVoidExecutionConfirmedV1({
   root_dir: uncertain.root,
   attempt_id: uncertain.attemptId,
   confirmed_record: confirmedTruth.record,
+  delivery_block_hash: `0x${"9".repeat(64)}`,
 });
 if ("reason" in executionConfirmed) throw new Error(executionConfirmed.reason);
 

@@ -143,6 +143,8 @@ export type BuyVoidExecutionAttemptConfirmationV1 = {
   attempt_id: string;
   confirmed_at_ms: number;
   void_delivery_tx_hash: string;
+  /** Absent only on historical V1 records written before receipt continuity binding. */
+  delivery_block_hash?: string;
   confirmation_fingerprint: string;
   confirmed_record: BuyVoidConfirmedFulfillmentRecordV1;
 };
@@ -254,6 +256,7 @@ export type RecordBuyVoidExecutionConfirmedInputV1 = {
   root_dir: string;
   attempt_id: string;
   confirmed_record: BuyVoidConfirmedFulfillmentRecordV1;
+  delivery_block_hash: unknown;
   now_ms?: number;
 };
 
@@ -635,6 +638,8 @@ function parseConfirmation(raw: Record<string, any>): BuyVoidExecutionAttemptCon
     raw.marker !== VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
     !SHA256.test(String(raw.attempt_id || "")) ||
     !normalizeHash(raw.void_delivery_tx_hash) ||
+    (raw.delivery_block_hash !== undefined &&
+      !normalizeHash(raw.delivery_block_hash)) ||
     !SHA256.test(String(raw.confirmation_fingerprint || ""))
   ) {
     throw new Error("invalid_execution_attempt_confirmation");
@@ -1388,16 +1393,21 @@ export function recordBuyVoidExecutionPostbroadcastFailureV1(
   }
 }
 
-function confirmationFingerprint(record: BuyVoidConfirmedFulfillmentRecordV1): string {
+function confirmationFingerprint(
+  record: BuyVoidConfirmedFulfillmentRecordV1,
+  deliveryBlockHash: string,
+): string {
   return stableFingerprint({
     marker: String(record.marker || ""),
     canonical_payment_identity: String(record.canonical_payment_identity || ""),
     request_id: String(record.request_id || ""),
     instruction_id: String(record.instruction_id || ""),
     void_delivery_tx_hash: String(record.void_delivery_tx_hash || ""),
-    ...(record.delivery_block_hash
-      ? { delivery_block_hash: String(record.delivery_block_hash) }
-      : {}),
+    delivery_block_number: String(record.delivery_block_number || ""),
+    delivery_block_hash: deliveryBlockHash,
+    delivery_binding_fingerprint: String(
+      record.delivery_binding_fingerprint || "",
+    ),
     fulfillment_wallet: String(record.fulfillment_wallet || ""),
     delivery_address: String(record.delivery_address || ""),
     void_amount_units: String(record.void_amount_units || ""),
@@ -1417,12 +1427,14 @@ export function recordBuyVoidExecutionConfirmedV1(
   }
 
   const record = input.confirmed_record;
+  const deliveryBlockHash = normalizeHash(input.delivery_block_hash);
   if (
     !record ||
     record.marker !== VOID_BUY_VOID_FULFILLMENT_CONFIRMATION_V1 ||
     record.status !== "fulfilled_confirmed" ||
     record.buyer_fulfilled !== true ||
-    record.automatic_fulfillment_completed !== true
+    record.automatic_fulfillment_completed !== true ||
+    !deliveryBlockHash
   ) {
     return heldMutation("invalid_confirmed_fulfillment_record");
   }
@@ -1433,6 +1445,8 @@ export function recordBuyVoidExecutionConfirmedV1(
     record.instruction_id !== found.state.reservation.instruction_id ||
     normalizeHash(record.void_delivery_tx_hash) !==
       found.state.prepared.void_delivery_tx_hash ||
+    (record.delivery_block_hash !== undefined &&
+      normalizeHash(record.delivery_block_hash) !== deliveryBlockHash) ||
     normalizeAddress(record.fulfillment_wallet) !==
       found.state.prepared.fulfillment_wallet ||
     normalizeAddress(record.delivery_address) !==
@@ -1449,7 +1463,11 @@ export function recordBuyVoidExecutionConfirmedV1(
     attempt_id: found.state.reservation.attempt_id,
     confirmed_at_ms: safeNow(input.now_ms),
     void_delivery_tx_hash: found.state.prepared.void_delivery_tx_hash,
-    confirmation_fingerprint: confirmationFingerprint(record),
+    delivery_block_hash: deliveryBlockHash,
+    confirmation_fingerprint: confirmationFingerprint(
+      record,
+      deliveryBlockHash,
+    ),
     confirmed_record: record,
   };
 
