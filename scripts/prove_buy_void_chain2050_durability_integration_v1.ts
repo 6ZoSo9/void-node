@@ -297,6 +297,27 @@ try {
     ).mode & 0o777,
     0o600,
   );
+  assert.throws(
+    () => satisfyBuyVoidChain2050DurabilityDebtV1({
+      root_dir: gateRoot,
+      transaction_hash: expectedHash,
+      attempt_id: "1".repeat(64),
+      delivery_block_number: "10",
+      checkpoint: {
+        checkpoint_id_sha256: "2".repeat(64),
+        chain_id: 2050,
+        block_number: 10,
+        block_hash: `0x${"3".repeat(64)}`,
+        checkpoint_finalized: false,
+        checkpoint_directory_fsync_performed: true,
+      },
+      now_ms: 1_700_701_150_000,
+    }),
+    (error: unknown) =>
+      error instanceof VoidBuyVoidChain2050DurabilityHoldV1 &&
+      error.reason === "chain2050_durability_checkpoint_not_finalized",
+  );
+  assert.equal(inspectBuyVoidChain2050DurabilityV1(gateRoot).unresolved_debt_count, 1);
   satisfyBuyVoidChain2050DurabilityDebtV1({
     root_dir: gateRoot,
     transaction_hash: expectedHash,
@@ -307,6 +328,8 @@ try {
       chain_id: 2050,
       block_number: 10,
       block_hash: `0x${"3".repeat(64)}`,
+      checkpoint_finalized: true,
+      checkpoint_directory_fsync_performed: true,
     },
     now_ms: 1_700_701_200_000,
   });
@@ -562,6 +585,7 @@ try {
   console.log("raw_signed_transaction_persisted=0");
   console.log("definitive_not_broadcast_resolves_debt=1");
   console.log("transport_unknown_preserves_debt=1");
+  console.log("low_level_unfinalized_checkpoint_preserves_debt=1");
   console.log("confirmed_delivery_block_bound_to_checkpoint_minimum=1");
   console.log("unfinalized_checkpoint_preserves_debt=1");
   console.log("checkpoint_failure_preserves_debt=1");
