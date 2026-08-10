@@ -437,10 +437,12 @@ function releaseActiveSlotBestEffort(paths: GatePathsV1, transactionHash: string
     fs.unlinkSync(paths.active);
     try {
       fsyncDirectory(paths.root);
-    } catch {
+    } catch (error) {
+      void error;
       // A stale active hard link is safe because resolution/satisfaction is authoritative.
     }
-  } catch {
+  } catch (error) {
+    void error;
     // A stale active hard link is fail-closed and cleaned before any future claim.
   }
 }
