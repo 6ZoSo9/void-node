@@ -52,6 +52,7 @@ function held(
     mutation_performed?: boolean;
     inventory_consumption_performed?: boolean;
     public_request_fulfilled?: boolean;
+    saga_closeout_appended?: boolean;
   } = {},
 ): Extract<BuyVoidSagaTerminalCloseoutDecisionV1, { ok: false }> {
   return {
@@ -66,7 +67,8 @@ function held(
       options.inventory_consumption_performed === true,
     public_request_fulfilled:
       options.public_request_fulfilled === true,
-    saga_closeout_appended: false,
+    saga_closeout_appended:
+      options.saga_closeout_appended === true,
     automatic_retry_allowed: false,
     money_movement_performed: false,
   };
@@ -240,6 +242,8 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       required_confirmation:
         VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_CONFIRMATION_V1,
       required_policy_fingerprint_sha256: policy.fingerprint_sha256,
+      required_plan_fingerprint_sha256:
+        reconstructed.plan.plan_fingerprint_sha256,
       required_saga_confirmation: requiredSagaConfirmation,
       required_saga_action_confirmation: requiredActionConfirmation,
       inventory_consumption_performed: false,
@@ -248,6 +252,24 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       automatic_retry_allowed: false,
       money_movement_performed: false,
     };
+  }
+
+  if (
+    typeof input.expected_plan_fingerprint_sha256 !== "string" ||
+    input.expected_plan_fingerprint_sha256 !==
+      reconstructed.plan.plan_fingerprint_sha256
+  ) {
+    return held(
+      true,
+      "closeout_plan",
+      "terminal_closeout_plan_fingerprint_mismatch",
+      {
+        detail: {
+          required_plan_fingerprint_sha256:
+            reconstructed.plan.plan_fingerprint_sha256,
+        },
+      },
+    );
   }
 
   if (
@@ -293,24 +315,24 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       action_confirmation: requiredActionConfirmation,
       adapters: {
         closeout_confirmed_delivery: async ({ record }: any) => {
-          const current = reconstructTerminalCloseoutV1({
-            root_dir: rootDir,
-            saga_module: sagaModule,
-            saga_store: sagaStore,
-            saga_record: record,
-            policy,
-            dependencies,
-          });
           artifacts = applyTerminalCloseoutArtifactsV1(
-            current,
+            reconstructed,
             dependencies,
             progress,
+            () => reconstructTerminalCloseoutV1({
+              root_dir: rootDir,
+              saga_module: sagaModule,
+              saga_store: sagaStore,
+              saga_record: record,
+              policy,
+              dependencies,
+            }),
           );
           return {
             payload: {
-              attempt_id: current.plan.attempt_id,
-              transaction_hash: current.plan.transaction_hash,
-              closeout_id: current.plan.closeout_id,
+              attempt_id: reconstructed.plan.attempt_id,
+              transaction_hash: reconstructed.plan.transaction_hash,
+              closeout_id: reconstructed.plan.closeout_id,
               inventory_decremented: true,
               public_request_fulfilled: true,
             },
@@ -356,6 +378,7 @@ export async function runBuyVoidSagaTerminalCloseoutV1(
       mutation_performed: true,
       inventory_consumption_performed: progress.inventory_committed,
       public_request_fulfilled: progress.public_committed,
+      saga_closeout_appended: true,
     });
   }
 
