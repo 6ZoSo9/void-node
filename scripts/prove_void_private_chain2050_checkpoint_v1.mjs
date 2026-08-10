@@ -162,8 +162,10 @@ try {
   assert.equal(first.money_movement_performed, false);
   assert.equal(first.state_write, "created");
   assert.equal(first.manifest_write, "created");
+  assert.equal(first.complete_write, "created");
+  assert.equal(first.checkpoint_finalized, true);
   assert.equal(first.checkpoint_directory_fsync_performed, true);
-  assert(rootDirectoryFsyncCount >= 1);
+  assert(rootDirectoryFsyncCount >= 2);
   assert.deepEqual(firstFixture.methods, VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1);
   assert.equal(
     firstFixture.methods.some((method) =>
@@ -177,6 +179,11 @@ try {
   assert.equal(fs.readFileSync(first.state_path, "utf8"), DUMP);
   assert.equal(fs.statSync(first.state_path).mode & 0o777, 0o600);
   assert.equal(fs.statSync(first.manifest_path).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(first.complete_path).mode & 0o777, 0o600);
+  assert.equal(
+    fs.readFileSync(first.complete_path, "utf8"),
+    `VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 ${first.checkpoint_id_sha256}\n`,
+  );
   assert.equal(fs.statSync(root).mode & 0o777, 0o700);
 
   const persisted = JSON.parse(fs.readFileSync(first.manifest_path, "utf8"));
@@ -195,6 +202,8 @@ try {
   assert.equal(second.checkpoint_id_sha256, first.checkpoint_id_sha256);
   assert.equal(second.state_write, "existing_exact");
   assert.equal(second.manifest_write, "existing_exact_identity");
+  assert.equal(second.complete_write, "existing_exact");
+  assert.equal(second.checkpoint_finalized, true);
   assert.equal(second.captured_at, FIXED_TIME);
   assert.deepEqual(secondFixture.methods, VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1);
 
@@ -306,7 +315,8 @@ console.log("unlocked_accounts_required_zero=1");
 console.log("anvil_dump_state_content_addressed=1");
 console.log("checkpoint_files_mode_0600=1");
 console.log("checkpoint_directory_mode_0700=1");
-console.log("checkpoint_directory_fsync=1");
+console.log("checkpoint_directory_two_phase_fsync=1");
+console.log("checkpoint_finalization_marker=1");
 console.log("idempotent_exact_checkpoint=1");
 console.log("existing_manifest_fully_rebound=1");
 console.log("symlink_path_components_rejected=1");
