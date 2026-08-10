@@ -65,6 +65,8 @@ export type BuyVoidChain2050CheckpointSummaryV1 = {
   chain_id: 2050;
   block_number: number;
   block_hash: string;
+  checkpoint_finalized: true;
+  checkpoint_directory_fsync_performed: true;
 };
 
 export type BuyVoidChain2050CheckpointCaptureV1 = (input: {
@@ -250,7 +252,9 @@ export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
     !Number.isSafeInteger(Number(parsed.block_number)) ||
     Number(parsed.block_number) <= 0 ||
     typeof parsed.block_hash !== "string" ||
-    !HASH.test(parsed.block_hash)
+    !HASH.test(parsed.block_hash) ||
+    parsed.checkpoint_finalized !== true ||
+    parsed.checkpoint_directory_fsync_performed !== true
   ) {
     throw new Error("chain2050_checkpoint_tool_boundary_invalid");
   }
@@ -260,6 +264,8 @@ export async function captureBuyVoidChain2050CheckpointViaToolV1(input: {
     chain_id: 2050,
     block_number: Number(parsed.block_number),
     block_hash: parsed.block_hash,
+    checkpoint_finalized: true,
+    checkpoint_directory_fsync_performed: true,
   };
 }
 
@@ -410,7 +416,9 @@ export async function runBuyVoidChain2050DurabilityRuntimeCommandV1(input: {
     checkpoint.chain_id !== 2050 ||
     checkpoint.block_number < deliveryBlock ||
     !HASH.test(checkpoint.block_hash) ||
-    !SHA256.test(checkpoint.checkpoint_id_sha256)
+    !SHA256.test(checkpoint.checkpoint_id_sha256) ||
+    checkpoint.checkpoint_finalized !== true ||
+    checkpoint.checkpoint_directory_fsync_performed !== true
   ) {
     return held("checkpoint_capture", "chain2050_checkpoint_capture_boundary_invalid", {
       attempt_id: attemptId,
