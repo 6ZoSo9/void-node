@@ -136,8 +136,9 @@ try {
   assert.equal(captured.chain_id, 2050);
   assert.equal(captured.block_number, CHECKPOINT_BLOCK);
   assert.equal(captured.block_hash, CHECKPOINT_HASH);
-  assert.equal(captured.finalization_write, "created");
-  assert.equal(captured.root_fsync_count, 2);
+  assert.equal(captured.complete_write, "created");
+  assert.equal(captured.checkpoint_finalized, true);
+  assert.equal(captured.checkpoint_directory_fsync_performed, true);
 
   const checkpointPlan = buildVoidPrivateChain2050StartupPlanV1({
     baseline_state: baselineState,
