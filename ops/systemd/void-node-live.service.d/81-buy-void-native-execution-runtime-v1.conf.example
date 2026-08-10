@@ -1,7 +1,13 @@
 # Example only. Do not install without replacing every operator placeholder.
 #
-# This drop-in leaves both the existing signer/broadcaster injector and the
-# new one-request native execution runtime disabled.
+# This drop-in leaves the signer/broadcaster injector, one-request native
+# execution runtime, and Chain-2050 durability checkpoint runtime disabled.
+#
+# Production dependency injection now fails closed unless the Chain-2050
+# durability gate is enabled. That gate arms durable checkpoint debt before a
+# broadcast call and blocks later broadcasts until confirmed state is sealed in
+# a finalized private Chain-2050 checkpoint (or a definitive no-broadcast result
+# resolves the debt).
 #
 # The credential source must remain outside the repository and contain only
 # the dedicated balance-capped Buy VOID fulfillment wallet private key.
@@ -10,6 +16,11 @@ LoadCredential=buy-void-native-fulfillment-wallet-v1:/ABSOLUTE/OPERATOR/PRIVATE/
 
 Environment=VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED=0
 Environment=VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED=0
+Environment=VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED=0
+Environment=VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_ENABLED=0
+
+Environment=VOID_BUY_VOID_CHAIN2050_DURABILITY_ROOT=/ABSOLUTE/OPERATOR/PRIVATE/PATH/buy-void-chain2050-durability-v1
+Environment=VOID_PRIVATE_CHAIN2050_CHECKPOINT_ROOT=/ABSOLUTE/OPERATOR/PRIVATE/PATH/private-chain2050-checkpoints-v1
 
 Environment=VOID_BUY_VOID_INVENTORY_POOL_ID=void-presale-mainnet0-v1
 Environment=VOID_BUY_VOID_NATIVE_DELIVERY_ASSET_MODE=native_void
