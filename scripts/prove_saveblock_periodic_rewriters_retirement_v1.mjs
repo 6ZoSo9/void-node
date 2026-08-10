@@ -9,7 +9,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "dist", "index.js");
 const RETIRE = path.join(ROOT, "scripts", "retire_saveblock_periodic_rewriters_v1.mjs");
 const PACKAGE = path.join(ROOT, "package.json");
-const EXPECTED_POSTBUILD = "node scripts/retire_saveblock_periodic_rewriters_v1.mjs";
+const EXPECTED_BUILD =
+  "tsc -p tsconfig.build.json && node scripts/copy_void_runtime_js_v1.mjs && node scripts/retire_saveblock_periodic_rewriters_v1.mjs";
 
 const RETIREMENTS = [
   {
@@ -57,8 +58,8 @@ try {
 } catch (error) {
   fail(`package.json is not valid JSON: ${error.message}`);
 }
-if (pkg?.scripts?.postbuild !== EXPECTED_POSTBUILD) {
-  fail(`postbuild must be exactly: ${EXPECTED_POSTBUILD}`);
+if (pkg?.scripts?.build !== EXPECTED_BUILD) {
+  fail(`build must be exactly: ${EXPECTED_BUILD}`);
 }
 
 const retireSource = read(RETIRE);
@@ -127,8 +128,8 @@ console.log(
   JSON.stringify({
     emitted_runtime_retired: true,
     fail_closed_transform: true,
-    build_hook: "postbuild",
-    build_contract_preserved: true,
+    build_hook: "build",
+    canonical_build_bound: true,
     idempotent_transform_supported: true,
     retired: RETIREMENTS.map(({ id, marker }) => ({ id, marker })),
   }),
