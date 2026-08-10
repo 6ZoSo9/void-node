@@ -9,6 +9,22 @@ const PINNED_NODE = "v24.18.0";
 const PINNED_SHA = "783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8";
 const EXPECTED_BUILD =
   "tsc -p tsconfig.build.json && node scripts/copy_void_runtime_js_v1.mjs";
+const RUNTIME_SAFETY_DEFAULTS = [
+  "VOID_QUARANTINE_HOT_RUNTIME",
+  "VOID_DISABLE_WRAPPER_STORM",
+  "VOID_DISABLE_TERMINAL_SAVEBLOCK",
+  "VOID_DISABLE_TERMINAL_SAVEBLOCK_V2",
+  "VOID_DISABLE_TXROOT_CORE_BUCKET",
+  "VOID_DISABLE_TXROOT_HEADER_NOOP",
+  "VOID_DISABLE_EARLY_WRAPPER_FAMILY",
+  "VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS",
+  "VOID_DISABLE_SAVEBLOCK_TAIL",
+  "VOID_DISABLE_FINALIZE_WAL_COMMIT",
+  "VOID_TXROOT_OBSERVER_DISABLE",
+  "VOID_TXROOT_FORENSICS_STICKY_DISABLE",
+  "VOID_DISABLE_DRIFT",
+  "VOID_DRIFT_DISABLE",
+];
 
 function fail(message) {
   console.error(`[FAIL] ${message}`);
@@ -118,6 +134,7 @@ const envExample = requireText(".env.example", [
   "Set one or more trusted reachable host:port peers, separated by commas.",
   "The public clone default is intentionally empty",
   "BOOTSTRAP_ADDRS=",
+  "# Public clone runtime safety",
 ]);
 const bootstrapAssignments = envExample
   .split(/\r?\n/)
@@ -126,6 +143,22 @@ if (bootstrapAssignments.length !== 1 || bootstrapAssignments[0] !== "BOOTSTRAP_
   fail("public clone bootstrap must be one explicit empty assignment");
 }
 pass("explicit-empty-public-bootstrap-default");
+
+const quarantineInstaller = read(
+  "ops/mainnet0/public-node-live-runtime-quarantine-install.sh",
+);
+const envLines = envExample.split(/\r?\n/);
+for (const name of RUNTIME_SAFETY_DEFAULTS) {
+  const assignment = `${name}=1`;
+  const count = envLines.filter((line) => line === assignment).length;
+  if (count !== 1) {
+    fail(`.env.example must contain exactly one ${assignment}; found ${count}`);
+  }
+  if (!quarantineInstaller.includes(`Environment=${assignment}`)) {
+    fail(`public clone safety default is not backed by live quarantine: ${name}`);
+  }
+}
+pass("public-clone-runtime-safety-defaults-aligned-with-live-quarantine");
 
 requireText("docs/public/clone-and-run-v1.md", [
   "git clone https://github.com/6ZoSo9/void-node.git",
@@ -194,6 +227,8 @@ console.log(
       wal_runtime_byte_equality: true,
       loopback_bootstrap_default_removed: true,
       explicit_bootstrap_required: true,
+      runtime_safety_defaults: RUNTIME_SAFETY_DEFAULTS,
+      runtime_safety_defaults_aligned_with_live_quarantine: true,
       sustained_runtime_probe: true,
       invalid_v22_23_2_removed: true,
       status: "GREEN",
