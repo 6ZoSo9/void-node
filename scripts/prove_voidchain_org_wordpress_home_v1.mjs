@@ -6,7 +6,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {
+  ENTER_VOID_URL,
   validateCanonical,
+  validatePublicAppDocument,
   validateRenderedIntegrity,
 } from "../ops/public/sync-voidchain-org-wordpress-home-v1.mjs";
 
@@ -42,6 +44,7 @@ one(page, WORDPRESS_HTML_BLOCK_CLOSE, "WordPress Custom HTML block close");
 one(page, 'id="voidchain-org-node-mirror-v1"', "page root id");
 one(page, 'id="voidchain-org-node-mirror-v1-css"', "page style id");
 one(page, 'id="voidchain-org-node-live-client-v1"', "live client id");
+one(page, `href="${ENTER_VOID_URL}"`, "primary ENTER VOID CTA");
 
 const customHtmlPrefix = `${WORDPRESS_HTML_BLOCK_OPEN}\n`;
 const customHtmlSuffix = `\n${WORDPRESS_HTML_BLOCK_CLOSE}\n`;
@@ -201,9 +204,38 @@ assert.doesNotMatch(
   "browser client must remain read-only",
 );
 
+assert.equal(
+  ENTER_VOID_URL,
+  "https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/",
+  "primary CTA must target the verified public VOID app",
+);
 assert.ok(
-  page.includes('href="https://voidchain.org/app"'),
-  "primary CTA must stay on the canonical public domain",
+  page.includes(`href="${ENTER_VOID_URL}"`),
+  "primary CTA must target the verified public VOID app",
+);
+assert.doesNotMatch(
+  page,
+  /href=["']https:\/\/voidchain\.org\/app\/?["']/i,
+  "primary CTA must not target the dead WordPress /app route",
+);
+const deadPrimaryCtaPage = page.replace(
+  `href="${ENTER_VOID_URL}"`,
+  'href="https://voidchain.org/app"',
+);
+assert.throws(
+  () => validateCanonical(deadPrimaryCtaPage),
+  /canonical content is missing|dead primary CTA/,
+  "production canonical validator must reject the dead WordPress /app route",
+);
+assert.throws(
+  () => validateRenderedIntegrity(
+    deadPrimaryCtaPage.slice(
+      customHtmlPrefix.length,
+      -customHtmlSuffix.length,
+    ),
+  ),
+  /rendered page is missing/,
+  "production rendered validator must reject the dead WordPress /app route",
 );
 assert.ok(
   page.includes('href="https://voidchain.org/"'),
@@ -225,12 +257,69 @@ for (const href of [...page.matchAll(/href="([^"]+)"/g)].map(
   );
 }
 
+const publicAppDocument = [
+  "<!doctype html>",
+  "<html><head>",
+  "<title>VOID App — Read-only Home, Wallet & Earn</title>",
+  "<script>window.__VOID_PUBLIC_APP_MODE__=true;</script>",
+  "</head><body>",
+  '<div class="app-shell" id="app-shell"></div>',
+  "</body></html>",
+].join("");
+assert.doesNotThrow(
+  () => validatePublicAppDocument({
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    content: publicAppDocument,
+  }),
+  "primary CTA validator must accept the public VOID app contract",
+);
+assert.throws(
+  () => validatePublicAppDocument({
+    status: 404,
+    contentType: "text/html",
+    content: publicAppDocument,
+  }),
+  /primary CTA returned HTTP 404/,
+  "primary CTA validator must reject the broken route that triggered this fix",
+);
+assert.throws(
+  () => validatePublicAppDocument({
+    status: 200,
+    contentType: "application/json",
+    content: publicAppDocument,
+  }),
+  /primary CTA returned non-HTML content/,
+  "primary CTA validator must reject a non-HTML response",
+);
+assert.throws(
+  () => validatePublicAppDocument({
+    status: 200,
+    contentType: "text/html",
+    content: publicAppDocument.replace(
+      "window.__VOID_PUBLIC_APP_MODE__=true",
+      "window.__VOID_PUBLIC_APP_MODE__=false",
+    ),
+  }),
+  /primary CTA response is missing/,
+  "primary CTA validator must reject the wrong application surface",
+);
+assert.match(
+  sync,
+  /const requestPublicAppEntrypoint = async \(\) => \{[\s\S]*method: "GET",[\s\S]*headers: \{ accept: "text\/html" \},[\s\S]*redirect: "error",[\s\S]*AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/,
+  "primary CTA live check must remain bounded, read-only, and redirect rejecting",
+);
+
 for (const token of [
   "VOIDCHAIN_ORG_WORDPRESS_HOME_SYNC_V1",
   "https://voidchain.org/wp-json/wp/v2/pages/${PAGE_ID}",
   'redirect: "error"',
   "MAX_RESPONSE_BYTES",
   "REQUEST_TIMEOUT_MS",
+  "requestPublicAppEntrypoint",
+  "validatePublicAppDocument",
+  "primary CTA returned HTTP",
+  "primary_cta_live_verified",
   "VOIDCHAIN_WORDPRESS_USERNAME",
   "VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD",
   "WordPress credentials are only partially configured",
@@ -264,6 +353,9 @@ process.stdout.write(`${JSON.stringify({
   wpautop_contamination_reproduced: true,
   wordpress_entity_encoding_reproduced: true,
   rendered_integrity_guard: true,
+  primary_cta_url: ENTER_VOID_URL,
+  primary_cta_404_reproduced: true,
+  primary_cta_contract_guard: true,
   canonical_domain: "https://voidchain.org",
   page_path: path.relative(repo, pagePath),
   sync_path: path.relative(repo, syncPath),
