@@ -28,6 +28,36 @@ const legacyText = fs.readFileSync(legacyRestore, "utf8");
 const selectedText = fs.readFileSync(selectedStart, "utf8");
 const makeText = fs.readFileSync(makefile, "utf8");
 const workflowText = fs.readFileSync(workflow, "utf8");
+const selectedRelativePath = path
+  .relative(repoRoot, selectedStart)
+  .split(path.sep)
+  .join("/");
+const selectedGitIndex = spawnSync(
+  "git",
+  ["ls-files", "-s", "--", selectedRelativePath],
+  { cwd: repoRoot, encoding: "utf8" },
+);
+
+assert.equal(selectedGitIndex.status, 0, selectedGitIndex.stderr);
+const selectedGitIndexMode = selectedGitIndex.stdout.trim().split(/\s+/, 1)[0];
+if (selectedGitIndexMode !== "100755") {
+  const proposedMode = spawnSync(
+    "git",
+    ["diff", "--summary", "--", selectedRelativePath],
+    { cwd: repoRoot, encoding: "utf8" },
+  );
+  assert.equal(proposedMode.status, 0, proposedMode.stderr);
+  assert.match(
+    proposedMode.stdout,
+    /mode change 100644 => 100755/,
+    "selector replacement must be tracked or proposed as executable mode 100755",
+  );
+}
+assert.equal(
+  fs.statSync(selectedStart).mode & 0o777,
+  0o755,
+  "selector replacement must be executable in the checked-out worktree",
+);
 
 assert.match(legacyText, /fixed_epoch125_restore_retired/);
 assert.match(legacyText, /mainnet0-start-8545-selected-durable-state\.sh/);
@@ -96,19 +126,26 @@ try {
     VOID_MAINNET0_8545_RPC_URL: "http://127.0.0.1:8545/",
   };
 
-  const run = (script, extraEnv = {}) =>
+  const runViaBash = (script, extraEnv = {}) =>
     spawnSync("bash", [script], {
       cwd: repoRoot,
       env: { ...baseEnv, ...extraEnv },
       encoding: "utf8",
     });
 
-  const retired = run(legacyRestore);
+  const runDirect = (script, extraEnv = {}) =>
+    spawnSync(script, [], {
+      cwd: repoRoot,
+      env: { ...baseEnv, ...extraEnv },
+      encoding: "utf8",
+    });
+
+  const retired = runViaBash(legacyRestore);
   assert.equal(retired.status, 2);
   assert.match(retired.stderr, /VOID_MAINNET0_8545_EPOCH125_RESTORE_RETIRED_V1_HOLD/);
   assert.equal(fs.existsSync(capture), false, "retired restore must not invoke startup");
 
-  const plan = run(selectedStart);
+  const plan = runDirect(selectedStart);
   assert.equal(plan.status, 0, plan.stderr);
   const planArgs = fs.readFileSync(capture, "utf8").trim().split("\n");
   assert.ok(
@@ -120,7 +157,7 @@ try {
   assert.equal(planArgs.includes("--confirmation"), false);
 
   fs.rmSync(capture, { force: true });
-  const missingConfirmation = run(selectedStart, {
+  const missingConfirmation = runDirect(selectedStart, {
     VOID_MAINNET0_8545_START_MODE: "apply",
     VOID_MAINNET0_8545_CONFIRMATION: "wrong",
   });
@@ -128,14 +165,14 @@ try {
   assert.match(missingConfirmation.stderr, /selector_start_confirmation_required/);
   assert.equal(fs.existsSync(capture), false);
 
-  const invalidMinimum = run(selectedStart, {
+  const invalidMinimum = runDirect(selectedStart, {
     VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER: "0",
   });
   assert.equal(invalidMinimum.status, 2);
   assert.match(invalidMinimum.stderr, /minimum_block_number_invalid/);
   assert.equal(fs.existsSync(capture), false);
 
-  const apply = run(selectedStart, {
+  const apply = runDirect(selectedStart, {
     VOID_MAINNET0_8545_START_MODE: "apply",
     VOID_MAINNET0_8545_CONFIRMATION:
       "startPrivateChain2050FromSelectedDurableState",
@@ -159,6 +196,8 @@ try {
   console.log("legacy_fixed_restore_mutation_authority=0");
   console.log("legacy_make_target_fails_closed=1");
   console.log("selector_wrapper_default_read_only_plan=1");
+  console.log("selector_entrypoint_git_mode_100755=1");
+  console.log("selector_entrypoint_direct_invocation=1");
   console.log("independent_minimum_block_required=1");
   console.log("apply_exact_confirmation_required=1");
   console.log("manual_catchup_removed=1");
