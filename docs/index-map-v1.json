@@ -86,7 +86,7 @@
       "id": "participant.dashboard",
       "area": "participant",
       "purpose": "Main participant dashboard route.",
-      "anchor": "app.get(\"/participant\", (req:any, res:any) => {",
+      "anchor": "VOID_PARTICIPANT_RESPONSIVE_POLISH_V1",
       "expected_occurrences": 1
     },
     {
