@@ -227,6 +227,39 @@ try {
   assert.equal(checkpointPlan.state_materialization_performed, false);
   assert.equal(fs.existsSync(derivedRoot), false);
 
+  const explicitNullPlan = buildVoidPrivateChain2050StartupPlanV1({
+    baseline_state: baselineState,
+    baseline_state_sha256: baselineSha,
+    baseline_state_format: "anvil_cli_state_json",
+    baseline_block_number: BASELINE_BLOCK,
+    baseline_block_hash: BASELINE_HASH,
+    checkpoint_root: checkpointRoot,
+    minimum_block_number: CHECKPOINT_BLOCK,
+    derived_root: derivedRoot,
+    rpc_url: "http://127.0.0.1:8545/",
+    block_time: null,
+  });
+  assert.equal(explicitNullPlan.mining_mode, "auto");
+  assert.equal(explicitNullPlan.block_time, null);
+  assert.equal(explicitNullPlan.no_mining, false);
+  const explicitNullArgs = buildVoidPrivateChain2050AnvilArgsV1(
+    new URL("http://127.0.0.1:18545/"),
+    { state_file: "/private/selected-state.json" },
+    explicitNullPlan.block_time,
+    explicitNullPlan.gas_limit,
+  );
+  assert.equal(explicitNullArgs.includes("--block-time"), false);
+  assert.equal(explicitNullArgs.includes("--no-mining"), false);
+  assert.equal(explicitNullArgs.includes("--no-mine"), false);
+  assert.equal(
+    assertVoidPrivateChain2050MiningModeAnvilArgsV1(
+      explicitNullArgs,
+      explicitNullPlan.mining_mode,
+      explicitNullPlan.block_time,
+    ),
+    true,
+  );
+
   const startupArgs = buildVoidPrivateChain2050AnvilArgsV1(
     new URL("http://127.0.0.1:18545/"),
     { state_file: "/private/selected-state.json" },
@@ -476,6 +509,7 @@ try {
   console.log("post_load_eth_accounts_empty_required=1");
   console.log("nonempty_post_load_accounts_rejected=1");
   console.log("default_transaction_automining=1");
+  console.log("explicit_null_transaction_automining=1");
   console.log("default_interval_mining=0");
   console.log("default_no_mining=0");
   console.log("interval_mining_explicit_opt_in=1");
