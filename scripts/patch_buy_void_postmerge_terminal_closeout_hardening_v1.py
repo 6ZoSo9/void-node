@@ -68,10 +68,16 @@ text = one(
 
 text = one(
     text,
-    '''    text(response.saga_id).toLowerCase() !== sagaId ||
+    '''    response.status !== "duplicate" ||
+    response.applied !== true ||
+    response.already_closed !== true ||
+    text(response.saga_id).toLowerCase() !== sagaId ||
     response.inventory_consumption_performed !== false ||
 ''',
-    '''    response.saga_id !== sagaId ||
+    '''    response.status !== "duplicate" ||
+    response.applied !== true ||
+    response.already_closed !== true ||
+    response.saga_id !== sagaId ||
     response.inventory_consumption_performed !== false ||
 ''',
     "duplicate response saga exactness",
@@ -79,14 +85,28 @@ text = one(
 
 text = one(
     text,
-    '''    decision.money_movement_performed !== false ||
+    '''    decision.status !== "duplicate" ||
+    decision.applied !== true ||
+    decision.mutation_performed !== false ||
+    decision.inventory_consumption_performed !== false ||
+    decision.public_request_fulfilled !== true ||
+    decision.saga_closeout_appended !== false ||
+    decision.automatic_retry_allowed !== false ||
+    decision.money_movement_performed !== false ||
     text(decision.saga_id).toLowerCase() !== sagaId
   ) return null;
 
   const attemptId = text(decision.attempt_id).toLowerCase();
   const closeoutId = text(decision.closeout_id).toLowerCase();
 ''',
-    '''    decision.money_movement_performed !== false ||
+    '''    decision.status !== "duplicate" ||
+    decision.applied !== true ||
+    decision.mutation_performed !== false ||
+    decision.inventory_consumption_performed !== false ||
+    decision.public_request_fulfilled !== true ||
+    decision.saga_closeout_appended !== false ||
+    decision.automatic_retry_allowed !== false ||
+    decision.money_movement_performed !== false ||
     decision.saga_id !== sagaId
   ) return null;
 
