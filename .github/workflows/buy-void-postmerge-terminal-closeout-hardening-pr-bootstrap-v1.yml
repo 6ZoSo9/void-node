@@ -1,4 +1,4 @@
-name: Buy VOID terminal closeout transport hardening bootstrap v3
+name: Buy VOID terminal closeout transport hardening bootstrap v4
 
 on:
   pull_request:
@@ -6,21 +6,26 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - ".github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml"
+      - ".github/workflows/buy-void-terminal-closeout-transport-one-shot-v1.yml"
       - "scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py"
+      - "scripts/buy_void_production_terminal_closeout_operator_v1.ts"
+      - "scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts"
 
 permissions:
   contents: write
 
 concurrency:
-  group: buy-void-terminal-closeout-transport-hardening-v3-${{ github.event.pull_request.number }}
+  group: buy-void-terminal-closeout-transport-hardening-v4-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   repair:
     if: >-
       github.repository == '6ZoSo9/void-node' &&
+      github.event.pull_request.number == 1158 &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.head_ref == 'fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809'
+      github.head_ref == 'fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809' &&
+      github.base_ref == 'fix/buy-void-terminal-closeout-plan-binding-v1-20260809'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -31,19 +36,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Reconcile exact #1159 parent
+      - name: Guard exact live child and reconcile exact #1159 parent
         id: guard
         shell: bash
         env:
-          EXPECTED_PARENT: 0663c20fd06c4cb886f20490fa03a7029f3407b9
+          EXPECTED_PARENT: 3ec97675449b76383557d2e5a198b91fc4e6b7e3
           EXPECTED_OPERATOR_BLOB: 8a9b8a58a66d538c41034b3527fe96a19d134a75
           EXPECTED_PROOF_BLOB: 8b67f3ddf5e16ce1a269f8ae2b1228eaac641e14
           PARENT_BRANCH: fix/buy-void-terminal-closeout-plan-binding-v1-20260809
+          CHILD_BRANCH: fix/buy-void-postmerge-terminal-closeout-hardening-v1-20260809
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
-          test '${{ github.event.pull_request.base.sha }}' = "$EXPECTED_PARENT"
+          live_child="$(git ls-remote origin "refs/heads/$CHILD_BRANCH" | awk '{print $1}')"
+          test "$live_child" = "$PR_HEAD_SHA"
           git fetch --no-tags origin "$PARENT_BRANCH"
           live_parent="$(git rev-parse FETCH_HEAD)"
           test "$live_parent" = "$EXPECTED_PARENT"
@@ -126,39 +133,30 @@ jobs:
       - name: Build repository
         run: npm run build
 
-      - name: Commit proven semantic delta
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add -- \
-            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
-            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
-          git diff --cached --check
-          printf '%s\n' \
-            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
-            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
-            > /tmp/expected-staged.txt
-          git diff --cached --name-only | sort > /tmp/actual-staged.txt
-          diff -u /tmp/expected-staged.txt /tmp/actual-staged.txt
-          git commit -m 'fix: harden Buy VOID terminal closeout transport boundary'
-
-      - name: Verify exact child delta
+      - name: Retire temporary carriers and verify final parent-relative scope
         shell: bash
         env:
           PARENT: ${{ steps.guard.outputs.parent }}
         run: |
           set -euo pipefail
-          git diff --check "$PARENT"...HEAD
-          printf '%s\n' \
+          git rm -- \
             .github/workflows/buy-void-postmerge-terminal-closeout-hardening-pr-bootstrap-v1.yml \
+            .github/workflows/buy-void-terminal-closeout-transport-one-shot-v1.yml \
+            scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py
+          git add -- \
             scripts/buy_void_production_terminal_closeout_operator_v1.ts \
-            scripts/patch_buy_void_postmerge_terminal_closeout_hardening_v1.py \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts
+          git diff --check "$PARENT" --
+          printf '%s\n' \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
             scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
-            > /tmp/expected-child.txt
-          git diff --name-only "$PARENT"...HEAD | sort > /tmp/actual-child.txt
-          diff -u /tmp/expected-child.txt /tmp/actual-child.txt
+            > /tmp/expected-final.txt
+          git diff --name-only "$PARENT" -- | sort > /tmp/actual-final.txt
+          diff -u /tmp/expected-final.txt /tmp/actual-final.txt
+          test -z "$(git ls-files --others --exclude-standard)"
+          git diff --cached --check
 
-      - name: Guard live refs then publish non-force
+      - name: Guard live refs, commit proven final semantic delta, and publish non-force
         shell: bash
         env:
           EXPECTED_PARENT: ${{ steps.guard.outputs.parent }}
@@ -171,8 +169,16 @@ jobs:
           live_child="$(git ls-remote origin "refs/heads/$CHILD_BRANCH" | awk '{print $1}')"
           test "$live_parent" = "$EXPECTED_PARENT"
           test "$live_child" = "$EXPECTED_CHILD"
+          git commit -m 'fix: harden Buy VOID terminal closeout transport boundary'
+          printf '%s\n' \
+            scripts/buy_void_production_terminal_closeout_operator_v1.ts \
+            scripts/prove_buy_void_production_terminal_closeout_operator_v1.ts \
+            > /tmp/expected-final-commit.txt
+          git diff --name-only "$EXPECTED_PARENT"...HEAD | sort > /tmp/actual-final-commit.txt
+          diff -u /tmp/expected-final-commit.txt /tmp/actual-final-commit.txt
+          git diff --check "$EXPECTED_PARENT"...HEAD
           git push origin "HEAD:refs/heads/$CHILD_BRANCH"
-          echo 'VOID_BUY_VOID_TERMINAL_CLOSEOUT_TRANSPORT_HARDENING_V3_GREEN'
+          echo 'VOID_BUY_VOID_TERMINAL_CLOSEOUT_TRANSPORT_HARDENING_V4_GREEN'
           echo 'live_terminal_closeout_performed=false'
           echo 'inventory_consumption_performed=false'
           echo 'public_fulfillment_mutation_performed=false'
