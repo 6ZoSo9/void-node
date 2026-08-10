@@ -11,6 +11,11 @@ import type {
   BuyVoidNativeDeliveryBroadcasterV1,
   BuyVoidNativeDeliverySignerV1,
 } from "./buy_void_native_delivery_sign_broadcast_adapter_v1.js";
+import {
+  buyVoidChain2050DurabilityRootDirV1,
+  wrapBuyVoidChain2050DurabilityBroadcasterV1,
+} from "./buy_void_chain2050_durability_gate_v1.js";
+import "./buy_void_chain2050_durability_runtime_v1.js";
 
 export const VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_DEPENDENCIES_V1 =
   "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_DEPENDENCIES_V1";
@@ -52,6 +57,9 @@ export const VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_DEPENDENCY_ENVS_V1 = {
   rpc_url: "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
 } as const;
 
+const DURABILITY_GATE_ENABLE_ENV =
+  "VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED";
+
 export type BuyVoidNativeDeliveryRuntimeDependenciesV1 = {
   signer: BuyVoidNativeDeliverySignerV1;
   broadcaster: BuyVoidNativeDeliveryBroadcasterV1;
@@ -63,6 +71,10 @@ export type ConfigureBuyVoidNativeDeliveryRuntimeDependenciesInputV1 = {
   expected_wallet_address: string;
   rpc_url: string;
   target_global?: Record<string, any>;
+  durability_gate?: {
+    enabled: boolean;
+    root_dir: string;
+  };
 };
 
 export type BuyVoidNativeDeliveryRuntimeDependenciesReadyV1 = {
@@ -258,9 +270,32 @@ export async function configureBuyVoidNativeDeliveryRuntimeDependenciesV1(
     return decision;
   }
 
+  let broadcaster: BuyVoidNativeDeliveryBroadcasterV1 =
+    broadcasterDecision.broadcaster;
+  if (input.durability_gate?.enabled === true) {
+    try {
+      broadcaster = wrapBuyVoidChain2050DurabilityBroadcasterV1({
+        broadcaster,
+        root_dir: pathResolveDurabilityRoot(input.durability_gate.root_dir),
+      });
+    } catch (error) {
+      const decision = held("chain2050_durability_gate_initialization_failed", {
+        wallet_address_fingerprint_sha256:
+          signerDecision.wallet_address_fingerprint_sha256,
+        rpc_url_fingerprint_sha256:
+          broadcasterDecision.rpc_url_fingerprint_sha256,
+        detail: {
+          error_class: String((error as Error)?.name || "Error").slice(0, 80),
+        },
+      });
+      installStatus(destination, decision);
+      return decision;
+    }
+  }
+
   const dependencies: BuyVoidNativeDeliveryRuntimeDependenciesV1 = {
     signer: signerDecision.signer,
-    broadcaster: broadcasterDecision.broadcaster,
+    broadcaster,
   };
 
   destination[
@@ -290,17 +325,35 @@ export async function configureBuyVoidNativeDeliveryRuntimeDependenciesV1(
   return decision;
 }
 
+function pathResolveDurabilityRoot(value: string): string {
+  const raw = String(value || "").trim();
+  return raw ? path.resolve(raw) : buyVoidChain2050DurabilityRootDirV1();
+}
+
 export async function initializeBuyVoidNativeDeliveryRuntimeDependenciesFromProcessV1():
   Promise<BuyVoidNativeDeliveryRuntimeDependenciesDecisionV1> {
   const env =
     VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_DEPENDENCY_ENVS_V1;
+  const injectorEnabled =
+    String(process.env[env.injector_enabled] || "") === "1";
+  const durabilityGateEnabled =
+    String(process.env[DURABILITY_GATE_ENABLE_ENV] || "") === "1";
+  if (injectorEnabled && !durabilityGateEnabled) {
+    const decision = held("chain2050_durability_gate_required");
+    installStatus(globalThis as any, decision);
+    return decision;
+  }
   return await configureBuyVoidNativeDeliveryRuntimeDependenciesV1({
-    enabled: String(process.env[env.injector_enabled] || "") === "1",
+    enabled: injectorEnabled,
     credentials_directory:
       String(process.env[env.credentials_directory] || "").trim(),
     expected_wallet_address:
       String(process.env[env.expected_wallet_address] || "").trim(),
     rpc_url: String(process.env[env.rpc_url] || "").trim(),
+    durability_gate: {
+      enabled: durabilityGateEnabled,
+      root_dir: buyVoidChain2050DurabilityRootDirV1(),
+    },
   });
 }
 
