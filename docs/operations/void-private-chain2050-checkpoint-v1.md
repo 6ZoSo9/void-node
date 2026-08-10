@@ -56,15 +56,17 @@ The default private checkpoint root is:
 ~/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1
 ```
 
-The root is mode `0700`. State and manifest files are mode `0600` and must be owned by the current operator account. Existing symlink path components are rejected.
+The root is mode `0700`. State, manifest, and finalization-marker files are mode `0600` and must be owned by the current operator account. Existing symlink path components are rejected.
 
 The state payload is written byte-for-byte as returned by `anvil_dumpState`. Its SHA-256 digest, byte length, block number, block hash, exact RPC method sequence, and no-authority fields are bound into `checkpoint_id_sha256`.
 
-Both state and manifest files are individually fsynced. After both durable file writes are present, the checkpoint root directory itself is fsynced before capture may return success. Failure to fsync the directory is therefore a capture failure rather than a successful checkpoint claim.
+Checkpoint publication is two-phase. State and manifest files are individually fsynced, then the checkpoint root is fsynced so that pair is durable. Only after that first directory fsync does the writer create and fsync an exact content-addressed `.complete-v1` finalization marker. The root is fsynced a second time before capture may return success.
 
-A power loss can still occur between the create-only state write and the manifest write. That may leave an exact-name state-only artifact. Such an incomplete pair is **not** a checkpoint and grants no startup authority. The paired startup selector treats exact-name incomplete state/manifest artifacts as non-authoritative crash debris, reports their count, and never uses them to satisfy a required durable head. Unknown or malformed root entries still fail closed.
+A power loss before finalization may leave a state-only artifact or an unmarked state/manifest pair. Those artifacts are **not** checkpoints and grant no startup authority. The paired startup selector treats exact-name unmarked artifacts as non-authoritative crash debris, reports their count, and never uses them to satisfy a required durable head.
 
-This preserves the key property: a successful capture has durable directory entries, while an interrupted capture cannot become a partially trusted checkpoint.
+Because the state/manifest pair is directory-fsynced before the marker is created, a surviving finalization marker without its exact pair is not a normal interrupted-capture state; it indicates later tamper/corruption and fails closed. Unknown or malformed root entries also fail closed.
+
+This preserves the key property: only a fully finalized checkpoint becomes startup-eligible, while an interrupted capture cannot become partially trusted.
 
 ## Idempotency and existing-state validation
 
@@ -116,7 +118,7 @@ Run:
 node scripts/prove_void_private_chain2050_checkpoint_v1.mjs
 ```
 
-The synthetic proof covers stable capture, content addressing, exact file modes, checkpoint-root directory fsync, exact idempotency, complete existing-manifest rebinding, symlink-path rejection, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, canonical timestamp enforcement, and the closed no-mutation RPC method set.
+The synthetic proof covers stable capture, content addressing, exact file modes, two-phase checkpoint-root directory fsync and finalization-marker publication, exact idempotency, complete existing-manifest rebinding, symlink-path rejection, minimum-head enforcement, wrong-chain rejection, unlocked-account rejection, head-number/hash races, malformed/oversized state rejection, canonical timestamp enforcement, and the closed no-mutation RPC method set.
 
 Expected marker:
 
