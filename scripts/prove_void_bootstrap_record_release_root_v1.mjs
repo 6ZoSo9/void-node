@@ -109,7 +109,7 @@ function proveReleaseEmbedding() {
     const version = `record-root-proof-${commit.slice(0, 12)}`;
     const out = path.join(temp, "release");
     run(
-      "node",
+      process.execPath,
       [
         "tools/build-public-release-v1.mjs",
         "--out",
