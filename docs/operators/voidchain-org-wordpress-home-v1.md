@@ -21,7 +21,9 @@ The canonical page source now:
 - removes theme padding and gives the page canvas the VOID background;
 - retains the static node snapshot and read-only live browser refresh;
 - preserves responsive metric, card, and mobile-header layouts; and
-- keeps the primary network links on `voidchain.org`.
+- sends the primary `ENTER VOID` CTA to the verified public app at
+  `https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/` instead of the
+  nonexistent WordPress `/app` route.
 
 ## Source and proof
 
@@ -44,6 +46,27 @@ the responsive CSS, unique element IDs, canonical links, live-client syntax,
 GET-only browser behavior, fallback retention, the Custom HTML block boundary,
 the prior paragraph-injection failure fixture, the HTML-entity mutation
 fixture, and the guarded sync contract.
+
+The proof also reproduces the dead `https://voidchain.org/app` response as an
+HTTP 404 contract failure. It requires exactly one primary CTA with the
+reviewed public-app URL and deterministically rejects a non-200 response,
+non-HTML content, or an HTML document without the VOID public-app title,
+public-mode marker, and app-shell root.
+
+## Primary CTA availability boundary
+
+The WordPress domain does not currently serve `/app`; that route returns 404.
+The live read-only VOID app is served by the public node at the exact URL above.
+The canonical and rendered-content validators therefore bind the primary CTA
+to that URL and explicitly reject either spelling of the dead WordPress route.
+
+Every direct sync-tool inspection or apply performs a bounded, read-only GET to
+the primary CTA before any WordPress mutation. Redirects are rejected, the
+20-second request timeout and 2 MiB response limit apply, and the response must
+be HTTP 200 HTML containing the expected public-app identity markers. Inspect
+and apply receipts report `primary_cta_url`, `primary_cta_http_status`, and
+`primary_cta_live_verified`. The deterministic pull-request proof uses local
+fixtures and does not depend on public-network availability.
 
 ## WordPress rendering boundary
 
@@ -107,7 +130,8 @@ node service, or any economic/network state. It then re-reads the editable
 content, requires exact canonical SHA-256 equivalence, reads the public
 rendered page, and rejects paragraph contamination, a missing full-width rule,
 HTML-entity mutation, or invalid live-client JavaScript before reporting
-`APPLIED`.
+`APPLIED`. It also verifies the public app before the write, so a dead or
+misidentified primary destination holds before WordPress content changes.
 
 The GitHub workflow exposes the same inspect/apply split through
 `workflow_dispatch`. Store the two credentials as secrets in the
