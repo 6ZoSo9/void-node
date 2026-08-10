@@ -546,14 +546,19 @@ async function handleCommand(req: any, res: any): Promise<unknown> {
     apply: (body as any).apply === true,
     confirmation: (body as any).confirmation,
   });
-  const status = decision.ok
-    ? 200
-    : decision.reason === "explicit_confirmation_required"
-      ? 428
-      : decision.stage === "checkpoint_capture" ||
-          decision.stage === "debt_satisfaction"
-        ? 500
-        : 409;
+  let status = 200;
+  if (!decision.ok) {
+    if (decision.reason === "explicit_confirmation_required") {
+      status = 428;
+    } else if (
+      decision.stage === "checkpoint_capture" ||
+      decision.stage === "debt_satisfaction"
+    ) {
+      status = 500;
+    } else {
+      status = 409;
+    }
+  }
   return res.status(status).json(decision);
 }
 
