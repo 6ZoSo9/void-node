@@ -40,6 +40,26 @@ function sha256(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function transactionPlanFingerprint(expectedHash = TX_HASH): string {
+  return sha256(JSON.stringify({
+    asset_mode: "native_void",
+    attempt_id: ATTEMPT,
+    calldata: "0x",
+    chain_id: "2050",
+    delivery_address: DELIVERY,
+    expected_transaction_hash: expectedHash,
+    fulfillment_unit_decimals: "6",
+    gas_limit: "21000",
+    max_fee_per_gas_wei: "2000000000",
+    max_priority_fee_per_gas_wei: "1000000000",
+    native_unit_decimals: "18",
+    native_value_wei: "400000000000000",
+    nonce: "7",
+    type: "2",
+    void_amount_units: "400",
+  }));
+}
+
 function runtimeAuthority() {
   return {
     operator_loopback_only: true,
@@ -207,17 +227,31 @@ function acceptedRuntime() {
     status: "broadcast_accepted",
     attempt_id: ATTEMPT,
     reconstructed_from_server_journals: true,
+    plan_fingerprint_sha256: PLAN_FP,
+    runtime_policy_fingerprint_sha256: POLICY_FP,
     worker: {
       ok: true,
       status: "broadcast_accepted",
       applied: true,
       mutation_performed: true,
       adapter_decision: {
+        marker: "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+        version: 1,
         ok: true,
         status: "broadcast_accepted",
+        attempt_id: ATTEMPT,
         expected_transaction_hash: TX_HASH,
+        transaction_plan_fingerprint_sha256: transactionPlanFingerprint(),
+        submission_guard_claimed: true,
+        submission_guard_released: false,
+        signing_performed: true,
+        broadcast_call_performed: true,
+        transaction_broadcast_accepted: true,
         transaction_hash: TX_HASH,
         provider_submission_id: "proof-provider/native-1",
+        raw_signed_transaction_persisted: false,
+        raw_signed_transaction_returned: false,
+        automatic_retry_allowed: false,
       },
       signing_performed: true,
       transaction_broadcast_performed: true,
@@ -234,7 +268,7 @@ function acceptedRuntime() {
 }
 
 function heldRuntime(
-  kind: "not_broadcast" | "broadcast_unknown",
+  kind: "held" | "not_broadcast" | "broadcast_unknown",
 ) {
   const unknown = kind === "broadcast_unknown";
   const reason = unknown
@@ -297,6 +331,54 @@ function transport(options: {
     return { status: httpStatus, json: value };
   };
   return { get, post, gets, posts };
+}
+
+async function observeAppliedEnvelope(envelope: Record<string, unknown>) {
+  const io = transport({
+    statusValue: status({ enabled: true, signer: true, broadcaster: true }),
+    applyValue: envelope,
+  });
+  const result = await runBuyVoidProductionNativeExecutionOperatorV1({
+    args: {
+      attempt_id: ATTEMPT,
+      apply: true,
+      expected_plan_fingerprint_sha256: PLAN_FP,
+      policy_fingerprint_sha256: POLICY_FP,
+      confirmation: VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_CONFIRMATION_V1,
+      submission_idempotency_key: IDEMPOTENCY,
+    },
+    http_get: io.get,
+    http_post: io.post,
+  });
+  assert.equal(io.posts.length, 2);
+  return result;
+}
+
+function assertAmbiguousAppliedEnvelope(
+  result: Record<string, any>,
+  label: string,
+) {
+  assert.equal(result.ok, false, label);
+  assert.equal(result.status, "operator_transport_unknown", label);
+  assert.equal(result.submission_may_have_occurred, true, label);
+  assert.equal(result.reconciliation_required, true, label);
+  assert.equal(result.mutation_performed, null, label);
+  assert.equal(result.signing_performed, null, label);
+  assert.equal(result.transaction_broadcast_performed, null, label);
+  assert.equal(result.side_effect_state_known, false, label);
+  assert.equal(result.automatic_retry_allowed, false, label);
+}
+
+function mutatePath(
+  value: Record<string, any>,
+  path: readonly string[],
+  replacement: unknown,
+) {
+  let target: Record<string, any> = value;
+  for (const part of path.slice(0, -1)) target = target[part];
+  const final = path[path.length - 1];
+  if (replacement === undefined) delete target[final];
+  else target[final] = replacement;
 }
 
 assert.equal(
@@ -513,6 +595,161 @@ assert.equal(unknown.submission_may_have_occurred, true);
 assert.equal(unknown.reconciliation_required, true);
 assert.equal(unknown.automatic_retry_allowed, false);
 
+const exactHeld = await observeAppliedEnvelope(heldRuntime("held"));
+assert.equal(exactHeld.ok, false);
+assert.equal(exactHeld.status, "held");
+assert.equal(exactHeld.mutation_performed, true);
+assert.equal(exactHeld.signing_performed, true);
+assert.equal(exactHeld.transaction_broadcast_performed, false);
+assert.equal(exactHeld.reconciliation_required, false);
+
+const nullIdentityHeldEnvelope = heldRuntime("held") as any;
+nullIdentityHeldEnvelope.worker.attempt_id = null;
+nullIdentityHeldEnvelope.worker.expected_transaction_hash = null;
+const nullIdentityHeld = await observeAppliedEnvelope(nullIdentityHeldEnvelope);
+assert.equal(nullIdentityHeld.ok, false);
+assert.equal(nullIdentityHeld.status, "held");
+assert.equal(nullIdentityHeld.expected_transaction_hash, null);
+
+const malformedBooleanValues = [
+  { label: "missing", value: undefined },
+  { label: "null", value: null },
+  { label: "string", value: "false" },
+  { label: "number", value: 0 },
+] as const;
+const nonSuccessEnvelopeFactories = [
+  { label: "held", create: () => heldRuntime("held") },
+  { label: "not_broadcast", create: () => heldRuntime("not_broadcast") },
+  { label: "broadcast_unknown", create: () => heldRuntime("broadcast_unknown") },
+] as const;
+const nonSuccessExactBooleanPaths = [
+  ["mutation_performed"],
+  ["signing_performed"],
+  ["transaction_broadcast_performed"],
+  ["reconciliation_required"],
+  ["automatic_retry_allowed"],
+  ["raw_signed_transaction_persisted"],
+  ["raw_signed_transaction_returned"],
+  ["worker", "applied"],
+  ["worker", "mutation_performed"],
+  ["worker", "signing_performed"],
+  ["worker", "transaction_broadcast_performed"],
+  ["worker", "reconciliation_required"],
+  ["worker", "automatic_retry_allowed"],
+  ["worker", "raw_signed_transaction_persisted"],
+  ["worker", "raw_signed_transaction_returned"],
+] as const;
+
+for (const factory of nonSuccessEnvelopeFactories) {
+  for (const path of nonSuccessExactBooleanPaths) {
+    for (const malformed of malformedBooleanValues) {
+      const envelope = factory.create() as any;
+      mutatePath(envelope, path, malformed.value);
+      const label = `${factory.label}:${path.join(".")}:${malformed.label}`;
+      assertAmbiguousAppliedEnvelope(
+        await observeAppliedEnvelope(envelope),
+        label,
+      );
+    }
+  }
+}
+
+for (const factory of nonSuccessEnvelopeFactories) {
+  for (const field of [
+    "mutation_performed",
+    "signing_performed",
+    "transaction_broadcast_performed",
+    "reconciliation_required",
+  ] as const) {
+    const envelope = factory.create() as any;
+    envelope.worker[field] = !envelope[field];
+    assertAmbiguousAppliedEnvelope(
+      await observeAppliedEnvelope(envelope),
+      `${factory.label}:contradictory:${field}`,
+    );
+  }
+}
+
+for (const factory of nonSuccessEnvelopeFactories) {
+  for (const path of [
+    ["attempt_id"],
+    ["status"],
+    ["stage"],
+    ["reason"],
+    ["worker", "status"],
+    ["worker", "stage"],
+    ["worker", "reason"],
+    ["worker", "attempt_id"],
+    ["worker", "expected_transaction_hash"],
+  ] as const) {
+    const envelope = factory.create() as any;
+    let target: any = envelope;
+    for (const part of path) target = target[part];
+    mutatePath(envelope, path, [target]);
+    assertAmbiguousAppliedEnvelope(
+      await observeAppliedEnvelope(envelope),
+      `${factory.label}:scalar:${path.join(".")}`,
+    );
+  }
+}
+
+const acceptedAdapterExactBooleanFields = [
+  "ok",
+  "submission_guard_claimed",
+  "submission_guard_released",
+  "signing_performed",
+  "broadcast_call_performed",
+  "transaction_broadcast_accepted",
+  "raw_signed_transaction_persisted",
+  "raw_signed_transaction_returned",
+  "automatic_retry_allowed",
+] as const;
+for (const field of acceptedAdapterExactBooleanFields) {
+  for (const malformed of malformedBooleanValues) {
+    const envelope = acceptedRuntime() as any;
+    mutatePath(envelope, ["worker", "adapter_decision", field], malformed.value);
+    assertAmbiguousAppliedEnvelope(
+      await observeAppliedEnvelope(envelope),
+      `accepted:adapter_decision.${field}:${malformed.label}`,
+    );
+  }
+}
+
+for (const field of [
+  "marker",
+  "version",
+  "status",
+  "attempt_id",
+  "transaction_plan_fingerprint_sha256",
+  "expected_transaction_hash",
+  "transaction_hash",
+  "provider_submission_id",
+] as const) {
+  const envelope = acceptedRuntime() as any;
+  const prior = envelope.worker.adapter_decision[field];
+  envelope.worker.adapter_decision[field] = [prior];
+  assertAmbiguousAppliedEnvelope(
+    await observeAppliedEnvelope(envelope),
+    `accepted:adapter_scalar:${field}`,
+  );
+}
+
+for (const [label, mutate] of [
+  ["runtime_plan", (value: any) => { value.plan_fingerprint_sha256 = "8".repeat(64); }],
+  ["runtime_policy", (value: any) => { value.runtime_policy_fingerprint_sha256 = "9".repeat(64); }],
+  ["adapter_transaction_plan", (value: any) => {
+    value.worker.adapter_decision.transaction_plan_fingerprint_sha256 =
+      "6".repeat(64);
+  }],
+] as const) {
+  const envelope = acceptedRuntime() as any;
+  mutate(envelope);
+  assertAmbiguousAppliedEnvelope(
+    await observeAppliedEnvelope(envelope),
+    `accepted:stale_plan_binding:${label}`,
+  );
+}
+
 const transportLossIo = transport({ statusValue: readyStatus, throwApply: true });
 const transportLoss = await runBuyVoidProductionNativeExecutionOperatorV1({
   args: exactArgs,
@@ -558,6 +795,22 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.apply_transport_ambiguity_is_reconciliation_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.applied_runtime_exact_scalar_schema,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.applied_runtime_exact_boolean_schema,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.applied_runtime_worker_truth_binding,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1.accepted_adapter_success_truth_binding,
   true,
 );
 assert.equal(
@@ -615,6 +868,10 @@ process.stdout.write(`${JSON.stringify({
   apply_command_key_count: 6,
   runtime_plan_fingerprint_validation: true,
   runtime_policy_fingerprint_validation: true,
+  applied_envelope_exact_boolean_schema: true,
+  native_execution_child_truth_bound: true,
+  accepted_adapter_success_truth_exact: true,
+  malformed_applied_envelope_transport_unknown: true,
   ambiguous_side_effect_state_known: false,
   broadcast_unknown_reconciliation_required: true,
   apply_transport_unknown_reconciliation_required: true,

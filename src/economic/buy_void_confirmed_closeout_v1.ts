@@ -7,6 +7,9 @@ import {
 import {
   listBuyVoidExecutionAttemptsV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
+import {
+  withBuyVoidTerminalCloseoutRequestLockV1,
+} from "./buy_void_terminal_closeout_request_lock_v1.js";
 
 export const VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1 =
   "VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1";
@@ -22,6 +25,7 @@ export const VOID_BUY_VOID_CONFIRMED_CLOSEOUT_AUTHORITY_V1 = {
   confirmed_execution_attempt_required: true,
   append_only_inventory_consumption_journal: true,
   append_only_public_operator_event: true,
+  shared_terminal_closeout_request_lock: true,
   duplicate_safe: true,
   partial_recovery_safe: true,
   server_controlled_root_dir: true,
@@ -930,104 +934,109 @@ export function writeBuyVoidPublicFulfillmentCloseoutV1(input: {
   );
 
   try {
-    const current = readJsonLines(journal);
-    const fulfilled = current.filter((candidate) =>
-      String(candidate.request_id || "") === event.request_id &&
-      String(candidate.operator_status || "") === "fulfilled");
+    return withBuyVoidTerminalCloseoutRequestLockV1(
+      { request_dir: requestDir, request_id: event.request_id },
+      () => {
+        const current = readJsonLines(journal);
+        const fulfilled = current.filter((candidate) =>
+          String(candidate.request_id || "") === event.request_id &&
+          String(candidate.operator_status || "") === "fulfilled");
 
-    const conflict = fulfilled.find((candidate) =>
-      normalizeHash(candidate.void_delivery_tx_hash) !==
-        event.void_delivery_tx_hash);
-    if (conflict) {
-      return {
-        ok: false,
-        status: "held",
-        mutation_performed: false,
-        duplicate: false,
-        recovered_partial: true,
-        reason: "public_fulfillment_closeout_conflict",
-        detail: {
-          observed_transaction_hash:
-            normalizeHash(conflict.void_delivery_tx_hash),
-          expected_transaction_hash:
-            event.void_delivery_tx_hash,
-        },
-      };
-    }
+        const conflict = fulfilled.find((candidate) =>
+          normalizeHash(candidate.void_delivery_tx_hash) !==
+            event.void_delivery_tx_hash);
+        if (conflict) {
+          return {
+            ok: false,
+            status: "held",
+            mutation_performed: false,
+            duplicate: false,
+            recovered_partial: true,
+            reason: "public_fulfillment_closeout_conflict",
+            detail: {
+              observed_transaction_hash:
+                normalizeHash(conflict.void_delivery_tx_hash),
+              expected_transaction_hash:
+                event.void_delivery_tx_hash,
+            },
+          };
+        }
 
-    const consumptionConflict = fulfilled.find(
-      (candidate) => {
-        const candidateConsumptionId = String(
-          candidate.inventory_consumption_id || "",
+        const consumptionConflict = fulfilled.find(
+          (candidate) => {
+            const candidateConsumptionId = String(
+              candidate.inventory_consumption_id || "",
+            );
+            return (
+              normalizeHash(candidate.void_delivery_tx_hash) ===
+                event.void_delivery_tx_hash &&
+              Boolean(candidateConsumptionId) &&
+              candidateConsumptionId !==
+                event.inventory_consumption_id
+            );
+          },
         );
-        return (
-          normalizeHash(candidate.void_delivery_tx_hash) ===
-            event.void_delivery_tx_hash &&
-          Boolean(candidateConsumptionId) &&
-          candidateConsumptionId !==
-            event.inventory_consumption_id
-        );
+        if (consumptionConflict) {
+          return {
+            ok: false,
+            status: "held",
+            mutation_performed: false,
+            duplicate: false,
+            recovered_partial: true,
+            reason:
+              "public_fulfillment_inventory_consumption_conflict",
+            detail: {
+              observed_inventory_consumption_id:
+                String(
+                  consumptionConflict
+                    .inventory_consumption_id || "",
+                ),
+              expected_inventory_consumption_id:
+                event.inventory_consumption_id,
+            },
+          };
+        }
+
+        const existing = fulfilled.find((candidate) =>
+          sameCloseout(candidate, event));
+        let mutationPerformed = false;
+        let recoveredPartial = false;
+
+        if (!existing) {
+          appendJsonLineDurable(journal, event as any);
+          mutationPerformed = true;
+        }
+
+        const sidecarState = atomicCreateJson(sidecar, event as any);
+        if (sidecarState === "created") {
+          mutationPerformed = true;
+          recoveredPartial = Boolean(existing);
+        } else {
+          const existingSidecar = readJsonObject(sidecar);
+          if (!existingSidecar || !sameCloseout(existingSidecar, event)) {
+            return {
+              ok: false,
+              status: "held",
+              mutation_performed: mutationPerformed,
+              duplicate: false,
+              recovered_partial: true,
+              reason: "public_fulfillment_sidecar_conflict",
+              detail: { path: sidecar },
+            };
+          }
+        }
+
+        return {
+          ok: true,
+          status: existing ? "duplicate" : "created",
+          mutation_performed: mutationPerformed,
+          duplicate: Boolean(existing),
+          recovered_partial: recoveredPartial,
+          path: sidecar,
+          record: existing || event,
+        };
       },
     );
-    if (consumptionConflict) {
-      return {
-        ok: false,
-        status: "held",
-        mutation_performed: false,
-        duplicate: false,
-        recovered_partial: true,
-        reason:
-          "public_fulfillment_inventory_consumption_conflict",
-        detail: {
-          observed_inventory_consumption_id:
-            String(
-              consumptionConflict
-                .inventory_consumption_id || "",
-            ),
-          expected_inventory_consumption_id:
-            event.inventory_consumption_id,
-        },
-      };
-    }
-
-    const existing = fulfilled.find((candidate) =>
-      sameCloseout(candidate, event));
-    let mutationPerformed = false;
-    let recoveredPartial = false;
-
-    if (!existing) {
-      appendJsonLineDurable(journal, event as any);
-      mutationPerformed = true;
-    }
-
-    const sidecarState = atomicCreateJson(sidecar, event as any);
-    if (sidecarState === "created") {
-      mutationPerformed = true;
-      recoveredPartial = Boolean(existing);
-    } else {
-      const existingSidecar = readJsonObject(sidecar);
-      if (!existingSidecar || !sameCloseout(existingSidecar, event)) {
-        return {
-          ok: false,
-          status: "held",
-          mutation_performed: mutationPerformed,
-          duplicate: false,
-          recovered_partial: true,
-          reason: "public_fulfillment_sidecar_conflict",
-          detail: { path: sidecar },
-        };
-      }
-    }
-
-    return {
-      ok: true,
-      status: existing ? "duplicate" : "created",
-      mutation_performed: mutationPerformed,
-      duplicate: Boolean(existing),
-      recovered_partial: recoveredPartial,
-      path: sidecar,
-      record: existing || event,
-    };
   } catch (error) {
     return {
       ok: false,

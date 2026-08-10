@@ -39,6 +39,31 @@ operator lane.
 Do not use a different branch name to disguise a path collision. Do not advance
 an unrelated lane merely because it is convenient.
 
+## Active repository-wide execution plan
+
+Marker: `VOID_CAPABILITY_CLOSURE_PLAN_COORDINATION_V1`
+
+While GitHub issue #1182 is open and explicitly designated as the current VOID
+capability-closure plan, every worker must read it before starting or extending a
+lane. Its priority order, canonical-lane assignments, anti-duplication rules,
+and re-evaluation triggers are repository-wide coordination requirements.
+
+- Prefer closing an existing P0/P1 capability loop over opening another
+  source-only proof, closeout, documentation, or architecture layer.
+- Do not open a parallel implementation for a semantic area that #1182 assigns
+  to an existing canonical branch or pull request. Repair or extend that lane.
+- Treat `merged`, `deployed`, and `externally accepted` as distinct states and
+  stop at the highest state actually proven.
+- If #1182 is closed, superseded, explicitly replaced, or its assumptions no
+  longer match repository/runtime reality, emit `HOLD`, perform a fresh repo
+  scan, and use the newly reviewed plan rather than mechanically continuing it.
+- Issue #1182 is temporary execution coordination, not a permanent
+  constitutional rule and not authority to bypass this working agreement.
+
+The coordination issue grants no service, deployment, credential, wallet,
+signer, payment, Work Credit, validator, treasury, transaction, or fund
+movement authority. Separate operation-bound authorization remains required.
+
 ## Authority boundaries
 
 Without separate, explicit authorization, agents must not:
