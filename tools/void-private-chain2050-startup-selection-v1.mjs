@@ -287,11 +287,7 @@ function validateCheckpointManifest(checkpointRoot, manifestPath) {
     mode: 0o600,
     reason: "checkpoint_state",
   });
-  const stateText = fs.readFileSync(statePath, "utf8");
-  if (!stateText.endsWith("\n") || stateText.endsWith("\n\n")) {
-    hold("checkpoint_state_terminator_invalid");
-  }
-  const dumpedState = stateText.slice(0, -1);
+  const dumpedState = fs.readFileSync(statePath, "utf8");
   if (!HEX_DUMP_RE.test(dumpedState) || dumpedState.length % 2 !== 0) {
     hold("checkpoint_state_hex_invalid");
   }
