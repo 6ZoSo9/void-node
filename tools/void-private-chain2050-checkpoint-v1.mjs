@@ -27,6 +27,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 const BLOCK_HASH_RE = /^0x[0-9a-f]{64}$/;
 const DEFAULT_MAX_STATE_BYTES = 768 * 1024 * 1024;
 const DEFAULT_MAX_MANIFEST_BYTES = 64 * 1024;
+const CHECKPOINT_COMPLETE_SUFFIX = ".complete-v1";
 
 export class VoidPrivateChain2050CheckpointHoldV1 extends Error {
   constructor(reason) {
@@ -374,6 +375,7 @@ export async function captureVoidPrivateChain2050CheckpointV1({
   const stem = `chain2050-block-${before.number}-${checkpointIdSha256}`;
   const statePath = path.join(outputRoot, `${stem}.anvil-dump-state.hex`);
   const manifestPath = path.join(outputRoot, `${stem}.manifest.json`);
+  const completePath = path.join(outputRoot, `${stem}${CHECKPOINT_COMPLETE_SUFFIX}`);
 
   const stateWrite = writeCreateOnly(statePath, dumpedState, maxStateBytes);
   const candidateManifest = {
@@ -398,18 +400,31 @@ export async function captureVoidPrivateChain2050CheckpointV1({
     persistedManifest = candidateManifest;
   }
 
-  // File fsync alone is not enough: the directory entries must be durable before
-  // a successful capture is reported. A crash before the manifest exists may
-  // still leave an incomplete state-only artifact; startup selection treats such
-  // exact-name incomplete pairs as non-authoritative and never as a checkpoint.
+  // Phase 1 durably commits the state+manifest pair before any finalization
+  // marker can become visible. If power is lost before finalization, startup
+  // selection treats the unmarked exact-name pair as non-authoritative debris.
+  fsyncDirectory(outputRoot);
+
+  const completeWrite = writeCreateOnly(
+    completePath,
+    `VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 ${checkpointIdSha256}\n`,
+    256,
+  );
+
+  // Phase 2 durably commits the finalization marker. A surviving marker without
+  // its already-fsynced pair therefore indicates later tamper/corruption, not a
+  // normal interrupted capture, and the startup selector may fail closed on it.
   fsyncDirectory(outputRoot);
 
   return Object.freeze({
     ...persistedManifest,
     state_path: statePath,
     manifest_path: manifestPath,
+    complete_path: completePath,
     state_write: stateWrite,
     manifest_write: manifestWrite,
+    complete_write: completeWrite,
+    checkpoint_finalized: true,
     checkpoint_directory_fsync_performed: true,
   });
 }
@@ -482,6 +497,8 @@ async function main() {
         state_bytes: result.state_bytes,
         state_path: result.state_path,
         manifest_path: result.manifest_path,
+        complete_path: result.complete_path,
+        checkpoint_finalized: result.checkpoint_finalized,
         checkpoint_directory_fsync_performed:
           result.checkpoint_directory_fsync_performed,
         chain_mutation_performed: result.chain_mutation_performed,
