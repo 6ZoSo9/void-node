@@ -25,6 +25,8 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1 =
 
 export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.freeze({
   dry_run_default: true,
+  dry_run_filesystem_write: false,
+  exact_confirmation_required_before_materialization: true,
   exact_confirmation_required_before_process_start: true,
   startup_selector_required: true,
   selected_state_only: true,
@@ -63,11 +65,17 @@ function sha256Buffer(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-function safeInteger(value, reason, { minimum = 0, maximum = Number.MAX_SAFE_INTEGER } = {}) {
+function safeInteger(
+  value,
+  reason,
+  { minimum = 0, maximum = Number.MAX_SAFE_INTEGER } = {},
+) {
   const raw = String(value ?? "").trim();
   if (!/^[0-9]+$/.test(raw)) hold(reason);
   const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) hold(reason);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    hold(reason);
+  }
   return parsed;
 }
 
@@ -86,13 +94,15 @@ function loopbackRpc(value) {
     url.hash ||
     url.pathname !== "/" ||
     !LOOPBACK_HOSTS.has(url.hostname)
-  ) hold("startup_rpc_url_not_numeric_loopback");
+  ) {
+    hold("startup_rpc_url_not_numeric_loopback");
+  }
   if (!url.port) hold("startup_rpc_port_required");
   return url;
 }
 
-function ensurePrivateDirectory(dir) {
-  const absolute = path.resolve(dir);
+function assertNoSymlinkComponents(target) {
+  const absolute = path.resolve(target);
   const parsed = path.parse(absolute);
   let current = parsed.root;
   for (const part of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
@@ -101,9 +111,16 @@ function ensurePrivateDirectory(dir) {
     const stat = fs.lstatSync(current);
     if (stat.isSymbolicLink()) hold("startup_private_path_symlink_forbidden");
   }
+}
+
+function ensurePrivateDirectory(dir) {
+  const absolute = path.resolve(dir);
+  assertNoSymlinkComponents(absolute);
   fs.mkdirSync(absolute, { recursive: true, mode: 0o700 });
   const stat = fs.lstatSync(absolute);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) hold("startup_private_directory_unsafe");
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    hold("startup_private_directory_unsafe");
+  }
   if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
     hold("startup_private_directory_owner_invalid");
   }
@@ -120,13 +137,19 @@ function fsyncDirectory(dir) {
   }
 }
 
-function exactRegularFile(file, { mode = null, maxBytes = MAX_DERIVED_STATE_BYTES } = {}) {
+function exactRegularFile(
+  file,
+  { mode = null, maxBytes = MAX_DERIVED_STATE_BYTES } = {},
+) {
+  assertNoSymlinkComponents(file);
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink()) hold("startup_state_file_unsafe");
   if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
     hold("startup_state_file_owner_invalid");
   }
-  if (mode !== null && (stat.mode & 0o777) !== mode) hold("startup_state_file_mode_invalid");
+  if (mode !== null && (stat.mode & 0o777) !== mode) {
+    hold("startup_state_file_mode_invalid");
+  }
   if (stat.size <= 0 || stat.size > maxBytes) hold("startup_state_file_size_invalid");
   return stat;
 }
@@ -212,7 +235,10 @@ export function materializeVoidPrivateChain2050CliStateV1(selection, options = {
 }
 
 function rpcCall(url, method, params, timeoutMs = 5_000) {
-  const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), "utf8");
+  const body = Buffer.from(
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    "utf8",
+  );
   return new Promise((resolve, reject) => {
     const request = http.request(
       {
@@ -249,7 +275,9 @@ function rpcCall(url, method, params, timeoutMs = 5_000) {
               payload.id !== 1 ||
               payload.error ||
               !("result" in payload)
-            ) hold("startup_rpc_envelope_invalid");
+            ) {
+              hold("startup_rpc_envelope_invalid");
+            }
             resolve(payload.result);
           } catch (error) {
             reject(error);
@@ -269,12 +297,22 @@ async function verifyStartedState(url, selection, timeoutMs) {
   while (Date.now() < deadline) {
     try {
       const chainRaw = await rpcCall(url, "eth_chainId", []);
-      if (BigInt(String(chainRaw)) !== BigInt(VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1)) {
+      if (
+        BigInt(String(chainRaw)) !==
+        BigInt(VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1)
+      ) {
         hold("startup_loaded_chain_id_mismatch");
       }
-      const selectedNumberHex = `0x${Number(selection.selected_block_number).toString(16)}`;
-      const block = await rpcCall(url, "eth_getBlockByNumber", [selectedNumberHex, false]);
-      if (!block || typeof block !== "object") hold("startup_selected_block_missing_after_load");
+      const selectedNumberHex =
+        `0x${Number(selection.selected_block_number).toString(16)}`;
+      const block = await rpcCall(
+        url,
+        "eth_getBlockByNumber",
+        [selectedNumberHex, false],
+      );
+      if (!block || typeof block !== "object") {
+        hold("startup_selected_block_missing_after_load");
+      }
       if (String(block.hash || "").toLowerCase() !== selection.selected_block_hash) {
         hold("startup_selected_block_hash_mismatch_after_load");
       }
@@ -297,33 +335,8 @@ async function verifyStartedState(url, selection, timeoutMs) {
   hold("startup_postload_verification_timeout", { last_reason: lastReason });
 }
 
-export function buildVoidPrivateChain2050StartupPlanV1(input) {
-  const rpc = loopbackRpc(input.rpc_url || "http://127.0.0.1:8545/");
-  const baselineBlock = safeInteger(input.baseline_block_number, "startup_baseline_block_number_invalid");
-  const minimumBlock = safeInteger(input.minimum_block_number, "startup_minimum_block_number_invalid", { minimum: 1 });
-  const selection = selectVoidPrivateChain2050StartupStateV1({
-    baseline: {
-      chain_id: VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1,
-      block_number: baselineBlock,
-      block_hash: input.baseline_block_hash,
-      state_sha256: input.baseline_state_sha256,
-      state_file: path.resolve(input.baseline_state),
-      state_format: input.baseline_state_format,
-    },
-    checkpointRoot: path.resolve(input.checkpoint_root),
-    minimumBlockNumber: minimumBlock,
-  });
-  const cliState = materializeVoidPrivateChain2050CliStateV1(selection, {
-    derived_root: input.derived_root,
-  });
-  const blockTime = safeInteger(input.block_time ?? 2, "startup_block_time_invalid", {
-    minimum: 1,
-    maximum: 3_600,
-  });
-  const gasLimit = safeInteger(input.gas_limit ?? 200_000_000, "startup_gas_limit_invalid", {
-    minimum: 21_000,
-  });
-  const anvilArgs = [
+function buildAnvilArgs(rpc, cliState, blockTime, gasLimit) {
+  return [
     "--host",
     rpc.hostname,
     "--port",
@@ -337,6 +350,41 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     "--load-state",
     cliState.state_file,
   ];
+}
+
+export function buildVoidPrivateChain2050StartupPlanV1(input) {
+  const rpc = loopbackRpc(input.rpc_url || "http://127.0.0.1:8545/");
+  const baselineBlock = safeInteger(
+    input.baseline_block_number,
+    "startup_baseline_block_number_invalid",
+  );
+  const minimumBlock = safeInteger(
+    input.minimum_block_number,
+    "startup_minimum_block_number_invalid",
+    { minimum: 1 },
+  );
+  const blockTime = safeInteger(
+    input.block_time ?? 2,
+    "startup_block_time_invalid",
+    { minimum: 1, maximum: 3_600 },
+  );
+  const gasLimit = safeInteger(
+    input.gas_limit ?? 200_000_000,
+    "startup_gas_limit_invalid",
+    { minimum: 21_000 },
+  );
+  const selection = selectVoidPrivateChain2050StartupStateV1({
+    baseline: {
+      chain_id: VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1,
+      block_number: baselineBlock,
+      block_hash: input.baseline_block_hash,
+      state_sha256: input.baseline_state_sha256,
+      state_file: path.resolve(input.baseline_state),
+      state_format: input.baseline_state_format,
+    },
+    checkpointRoot: path.resolve(input.checkpoint_root),
+    minimumBlockNumber: minimumBlock,
+  });
   return Object.freeze({
     marker: VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_MARKER_V1,
     version: 1,
@@ -344,12 +392,16 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     apply: false,
     rpc_url: rpc.toString(),
     minimum_block_number: minimumBlock,
+    block_time: blockTime,
+    gas_limit: gasLimit,
     selection,
-    cli_state: cliState,
+    selected_state_materialization_required:
+      selection.selected_state_format === "anvil_dump_state_hex",
+    derived_root: input.derived_root ? path.resolve(input.derived_root) : null,
     anvil_command: "anvil",
-    anvil_args: anvilArgs,
     required_confirmation:
       VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
+    state_materialization_performed: false,
     state_load_performed: false,
     service_mutation_performed: false,
     transaction_replay_performed: false,
@@ -364,9 +416,13 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
 export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
   const plan = buildVoidPrivateChain2050StartupPlanV1(input);
   if (input.apply !== true) return plan;
-  if (String(input.confirmation || "") !== VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1) {
+  if (
+    String(input.confirmation || "") !==
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1
+  ) {
     hold("startup_explicit_confirmation_required", {
-      required_confirmation: VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
+      required_confirmation:
+        VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
     });
   }
   const timeoutMs = safeInteger(
@@ -374,7 +430,20 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
     "startup_timeout_invalid",
     { minimum: 1_000, maximum: 120_000 },
   );
-  const child = spawn("anvil", plan.anvil_args, {
+  const cliState = materializeVoidPrivateChain2050CliStateV1(
+    plan.selection,
+    {
+      ...(plan.derived_root ? { derived_root: plan.derived_root } : {}),
+    },
+  );
+  const rpc = loopbackRpc(plan.rpc_url);
+  const anvilArgs = buildAnvilArgs(
+    rpc,
+    cliState,
+    plan.block_time,
+    plan.gas_limit,
+  );
+  const child = spawn("anvil", anvilArgs, {
     stdio: ["ignore", "inherit", "inherit"],
     env: process.env,
   });
@@ -398,16 +467,22 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
   };
   try {
     const verification = await verifyStartedState(
-      loopbackRpc(plan.rpc_url),
+      rpc,
       plan.selection,
       timeoutMs,
     );
-    if (exited) hold("startup_anvil_exited_before_verification", { exit_code: exitCode });
+    if (exited) {
+      hold("startup_anvil_exited_before_verification", { exit_code: exitCode });
+    }
     const receipt = Object.freeze({
       ...plan,
       status: "started_verified",
       apply: true,
+      cli_state: cliState,
+      anvil_args: anvilArgs,
       verification,
+      state_materialization_performed:
+        cliState.derived === true,
       state_load_performed: true,
       service_mutation_performed: true,
     });
@@ -487,9 +562,10 @@ const invoked = process.argv[1]
   : false;
 if (invoked) {
   main().catch((error) => {
-    const reason = error instanceof VoidPrivateChain2050StartupIntegrationHoldV1
-      ? error.reason
-      : String(error?.message || error);
+    const reason =
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1
+        ? error.reason
+        : String(error?.message || error);
     process.stderr.write(
       `VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_V1_HOLD reason=${reason}\n`,
     );
