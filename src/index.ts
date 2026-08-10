@@ -43222,6 +43222,18 @@ try {
     return g.__void_http_app || g.app || null;
   }
 
+  function processSourceIdentity(){
+    const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+    const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+    const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+    const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
+    const bound = marker === "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1" &&
+      /^[0-9a-f]{40}$/.test(commit) && /^[0-9a-f]{40}$/.test(tree) && branch === "main";
+    return bound
+      ? { marker, commit, tree, branch, immutable: true }
+      : { marker: "", commit: "", tree: "", branch: "", immutable: false };
+  }
+
   function localVersion(){
     try{
       const cp = require("child_process");
@@ -43244,7 +43256,8 @@ try {
         protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
         channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
         build_time: String(process.env.VOID_BUILD_TIME || ""),
-        git_commit: String(process.env.VOID_GIT_COMMIT || sh("git rev-parse --short=12 HEAD") || "")
+        git_commit: String(process.env.VOID_GIT_COMMIT || sh("git rev-parse --short=12 HEAD") || ""),
+        process_source: processSourceIdentity()
       };
     }catch{
       return {
@@ -43252,7 +43265,8 @@ try {
         protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
         channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
         build_time: String(process.env.VOID_BUILD_TIME || ""),
-        git_commit: String(process.env.VOID_GIT_COMMIT || "")
+        git_commit: String(process.env.VOID_GIT_COMMIT || ""),
+        process_source: processSourceIdentity()
       };
     }
   }
@@ -76363,6 +76377,18 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       };
 
+      const processSourceIdentity = () => {
+        const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+        const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+        const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+        const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
+        const bound = marker === "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1" &&
+          /^[0-9a-f]{40}$/.test(commit) && /^[0-9a-f]{40}$/.test(tree) && branch === "main";
+        return bound
+          ? { marker, commit, tree, branch, immutable: true }
+          : { marker: "", commit: "", tree: "", branch: "", immutable: false };
+      };
+
       const versionInfo = () => {
         const pkg = readJson(path.join(process.cwd(), "package.json")) || {};
         const protocol = Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1);
@@ -76381,6 +76407,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             platform: process.platform,
             arch: process.arch,
           },
+          process_source: processSourceIdentity(),
           p2p: {
             advertiseHost:
               process.env.VOID_P2P_ADVERTISE_HOST ||
