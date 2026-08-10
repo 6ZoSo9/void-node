@@ -169,6 +169,16 @@ const validateCanonical = (content) => {
   if (content.includes("https://voidchain.io")) {
     throw new Error("canonical content contains the retired public-domain link");
   }
+
+  const script = elementPayload(
+    content,
+    "script",
+    "voidchain-org-node-live-client-v1",
+  );
+  if (script.includes("&")) {
+    throw new Error("canonical live client must be ampersand-free");
+  }
+  new Function(script);
 };
 
 const elementPayload = (content, tag, id) => {
@@ -210,6 +220,9 @@ const validateRenderedIntegrity = (content) => {
     if (/<\/?p(?:\s|>)/i.test(payload) || /<br\s*\/?>/i.test(payload)) {
       throw new Error(`WordPress paragraph formatting contaminated the ${label}`);
     }
+  }
+  if (/&(?:#(?:x[0-9a-f]+|\d+)|amp|lt|gt|quot|apos);/i.test(script)) {
+    throw new Error("WordPress entity encoding contaminated the script");
   }
   if (
     !/#voidchain-org-node-mirror-v1\s*\{[^}]*width:100vw;[^}]*max-width:none !important;/s.test(

@@ -15,6 +15,8 @@ The canonical page source now:
 - packages the entire page as one WordPress Custom HTML block so server-side
   paragraph formatting cannot inject `<p>` or `<br>` markup into CSS or
   JavaScript;
+- keeps the inline live client ampersand-free so WordPress cannot rewrite
+  JavaScript logical operators as HTML entities;
 - clears the WordPress wrapper and root `max-width` constraints;
 - removes theme padding and gives the page canvas the VOID background;
 - retains the static node snapshot and read-only live browser refresh;
@@ -40,7 +42,8 @@ The proof reproduces the 800px constraint with a 1920px viewport fixture and
 requires the repaired root to resolve to the full 1920px width. It also checks
 the responsive CSS, unique element IDs, canonical links, live-client syntax,
 GET-only browser behavior, fallback retention, the Custom HTML block boundary,
-the prior paragraph-injection failure fixture, and the guarded sync contract.
+the prior paragraph-injection failure fixture, the HTML-entity mutation
+fixture, and the guarded sync contract.
 
 ## WordPress rendering boundary
 
@@ -56,6 +59,14 @@ block. The sync tool validates both the editable raw content and the public
 rendered content. It holds if WordPress contaminates either scoped element,
 if the full-width root rule is missing, or if the rendered live-client source
 does not compile.
+
+The next guarded apply confirmed a second WordPress boundary: the Custom HTML
+block preserved the CSS and script structure, but the rendered content filter
+rewrote two JavaScript `&&` operators as `&#038;&#038;`. The page write landed and
+the full-width layout became live, while the post-write validator correctly
+held because the browser client no longer compiled. The canonical live client
+is now ampersand-free, canonical validation enforces that property before any
+write, and rendered validation reports entity mutation explicitly.
 
 ## Read-only inspection
 
@@ -95,7 +106,8 @@ publication status, template, site theme, plugins, users, DNS, CORS, gateway,
 node service, or any economic/network state. It then re-reads the editable
 content, requires exact canonical SHA-256 equivalence, reads the public
 rendered page, and rejects paragraph contamination, a missing full-width rule,
-or invalid live-client JavaScript before reporting `APPLIED`.
+HTML-entity mutation, or invalid live-client JavaScript before reporting
+`APPLIED`.
 
 The GitHub workflow exposes the same inspect/apply split through
 `workflow_dispatch`. Store the two credentials as secrets in the
