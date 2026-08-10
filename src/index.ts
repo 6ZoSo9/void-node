@@ -18550,11 +18550,19 @@ small{color:#94a3b8}
     async function __voidWriteBuyVoidOperatorEventV1(event:any){
       const fs = await import("node:fs");
       const path = await import("node:path");
+      const { withBuyVoidTerminalCloseoutRequestLockV1 } = await import(
+        "./economic/buy_void_terminal_closeout_request_lock_v1.js"
+      );
       const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
       fs.mkdirSync(dir, { recursive: true });
-      fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
-      fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
-      return { ok:true, dir };
+      return withBuyVoidTerminalCloseoutRequestLockV1(
+        { request_dir: dir, request_id: String(event?.request_id || "") },
+        () => {
+          fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
+          fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
+          return { ok:true, dir };
+        },
+      );
     }
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
@@ -38260,26 +38268,6 @@ try {
         }
       });
 
-      // steal: move our newest GET handler for PATH to the front
-      try{
-        const stack:any[] = app?._router?.stack;
-        if (Array.isArray(stack)) {
-          let idx = -1;
-          for (let i=stack.length-1; i>=0; i--){
-            const layer:any = stack[i];
-            const route:any = layer?.route;
-            if (!route) continue;
-            if (route?.path !== PATH) continue;
-            const methods = route?.methods || {};
-            if (methods.get || methods["get"]) { idx = i; break; }
-          }
-          if (idx >= 0) {
-            const layer = stack.splice(idx, 1)[0];
-            stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5b stole route (moved to front)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37350:24", err); }
-          }
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37353:25", err); }
     })();
   }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37355:26", err); }
 })();
@@ -38358,26 +38346,6 @@ try {
         }
       });
 
-      // steal: move newest handler for PATH to front
-      try{
-        const stack:any[] = app?._router?.stack;
-        if (Array.isArray(stack)) {
-          let idx=-1;
-          for (let i=stack.length-1; i>=0; i--){
-            const layer:any = stack[i];
-            const route:any = layer?.route;
-            if (!route) continue;
-            if (route?.path !== PATH) continue;
-            const methods = route?.methods || {};
-            if (methods.get || methods["get"]) { idx=i; break; }
-          }
-          if (idx>=0) {
-            const layer = stack.splice(idx,1)[0];
-            stack.unshift(layer);
-            try{ console.log("[compat] number2.json v5c stole route (disk-first)"); }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37448:33", err); }
-          }
-        }
-      }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37451:34", err); }
     })();
   }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37453:35", err); }
 })();

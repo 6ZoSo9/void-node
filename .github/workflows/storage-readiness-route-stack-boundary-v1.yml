@@ -1,0 +1,95 @@
+name: VOID storage readiness route stack boundary v1
+
+on:
+  pull_request:
+    paths:
+      - "src/index.ts"
+      - "src/diag/patch_latest_number2_shim_v3.cjs"
+      - "scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs"
+      - ".github/workflows/storage-readiness-route-stack-boundary-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/index.ts"
+      - "src/diag/patch_latest_number2_shim_v3.cjs"
+      - "scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs"
+      - ".github/workflows/storage-readiness-route-stack-boundary-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storage-readiness-route-stack-boundary-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Check proof syntax
+        run: node --check scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build runtime artifacts
+        run: npm run build
+
+      - name: Prove storage-readiness route stack boundary
+        run: node scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git diff --check "$PR_BASE_SHA...HEAD"
+              ;;
+            push)
+              [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              [[ "$CURRENT_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+              ;;
+            workflow_dispatch)
+              test -n "$DEFAULT_BRANCH"
+              git fetch --no-tags origin "$DEFAULT_BRANCH"
+              BASE_SHA="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+              [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git diff --check "$BASE_SHA...HEAD"
+              ;;
+            *)
+              echo "unsupported event: $EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
