@@ -28,6 +28,7 @@ import {
   type BuyVoidNativeDeliveryReceiptRuntimePolicyV1,
 } from "../src/economic/buy_void_native_delivery_receipt_runtime_v1.js";
 import {
+  VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_AUTHORITY_V1,
   VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_V1,
   VoidBuyVoidChain2050DurabilityHoldV1,
   armBuyVoidChain2050DurabilityDebtV1,
@@ -113,7 +114,9 @@ const executionPolicy = {
 };
 
 function makeBroadcastAttempt() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-durability-attempt-"));
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-chain2050-durability-attempt-"),
+  );
   const claimed = claimBuyVoidFulfillmentJournalV1({
     root_dir: root,
     request,
@@ -153,10 +156,12 @@ function makeBroadcastAttempt() {
     now_ms: 1_700_700_300_000,
   });
   if ("reason" in broadcast) throw new Error(broadcast.reason);
-  return { root, attemptId, intent: claimed.intent };
+  return { root, attemptId };
 }
 
-function receiptPolicy(root: string): BuyVoidNativeDeliveryReceiptRuntimePolicyV1 {
+function receiptPolicy(
+  root: string,
+): BuyVoidNativeDeliveryReceiptRuntimePolicyV1 {
   return {
     enabled: true,
     root_dir: root,
@@ -197,9 +202,39 @@ assert.equal(
   VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_V1,
   "VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_V1",
 );
+assert.equal(
+  VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_AUTHORITY_V1.atomic_active_debt_claim_required,
+  true,
+);
 
 const roots: string[] = [];
 try {
+  const preclaimRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-chain2050-preclaim-"),
+  );
+  roots.push(preclaimRoot);
+  const preclaimHash = `0x${"d".repeat(64)}`;
+  const preclaimDebtDir = path.join(preclaimRoot, "debts");
+  fs.mkdirSync(preclaimDebtDir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(preclaimDebtDir, 0o700);
+  fs.writeFileSync(
+    path.join(preclaimDebtDir, `${preclaimHash.slice(2)}.json`),
+    `${JSON.stringify({
+      schema: "void_buy_void_chain2050_durability_debt_v1",
+      marker: VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_V1,
+      version: 1,
+      transaction_hash: preclaimHash,
+      armed_at_ms: 1_700_700_900_000,
+      raw_signed_transaction_persisted: false,
+      automatic_retry_allowed: false,
+    }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  const preclaimState = inspectBuyVoidChain2050DurabilityV1(preclaimRoot);
+  assert.equal(preclaimState.preclaim_debt_count, 1);
+  assert.equal(preclaimState.unresolved_debt_count, 0);
+  assert.equal(preclaimState.active_debt_transaction_hash, null);
+
   const gateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-gate-"));
   roots.push(gateRoot);
   let underlyingCalls = 0;
@@ -213,7 +248,18 @@ try {
         underlyingCalls += 1;
         const during = inspectBuyVoidChain2050DurabilityV1(gateRoot);
         assert.equal(during.unresolved_debt_count, 1);
+        assert.equal(during.active_debt_transaction_hash, expectedHash);
         assert.deepEqual(during.unresolved_transaction_hashes, [expectedHash]);
+        const debtPath = path.join(
+          gateRoot,
+          "debts",
+          `${expectedHash.slice(2)}.json`,
+        );
+        const activePath = path.join(gateRoot, "active-debt-v1.json");
+        const debtStat = fs.statSync(debtPath);
+        const activeStat = fs.statSync(activePath);
+        assert.equal(activeStat.dev, debtStat.dev);
+        assert.equal(activeStat.ino, debtStat.ino);
         return {
           accepted: true,
           transaction_hash: expectedHash,
@@ -245,7 +291,9 @@ try {
   assert.equal(debtText.includes(raw), false);
   assert.equal(fs.statSync(path.join(gateRoot, "debts")).mode & 0o777, 0o700);
   assert.equal(
-    fs.statSync(path.join(gateRoot, "debts", `${expectedHash.slice(2)}.json`)).mode & 0o777,
+    fs.statSync(
+      path.join(gateRoot, "debts", `${expectedHash.slice(2)}.json`),
+    ).mode & 0o777,
     0o600,
   );
   satisfyBuyVoidChain2050DurabilityDebtV1({
@@ -263,7 +311,9 @@ try {
   });
   assert.equal(inspectBuyVoidChain2050DurabilityV1(gateRoot).unresolved_debt_count, 0);
 
-  const noBroadcastRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-no-broadcast-"));
+  const noBroadcastRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-chain2050-no-broadcast-"),
+  );
   roots.push(noBroadcastRoot);
   const noBroadcast = wrapBuyVoidChain2050DurabilityBroadcasterV1({
     root_dir: noBroadcastRoot,
@@ -280,7 +330,9 @@ try {
     0,
   );
 
-  const unknownRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-chain2050-unknown-"));
+  const unknownRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-chain2050-unknown-"),
+  );
   roots.push(unknownRoot);
   const unknown = wrapBuyVoidChain2050DurabilityBroadcasterV1({
     root_dir: unknownRoot,
@@ -315,7 +367,10 @@ try {
     "eth_blockNumber",
   ]);
 
-  const durabilityRoot = path.join(runtimeFixture.root, "chain2050-durability-v1");
+  const durabilityRoot = path.join(
+    runtimeFixture.root,
+    "chain2050-durability-v1",
+  );
   armBuyVoidChain2050DurabilityDebtV1({
     root_dir: durabilityRoot,
     transaction_hash: deliveryTx,
@@ -323,18 +378,22 @@ try {
   });
   const planned = await runBuyVoidChain2050DurabilityRuntimeCommandV1({
     attempt_id: runtimeFixture.attemptId,
-    root_dir: durabilityRoot,
+    durability_root_dir: durabilityRoot,
+    buy_void_runtime_root_dir: runtimeFixture.root,
   });
   assert.equal(planned.ok, true);
   assert.equal(planned.status, "planned");
-  if (!planned.ok || planned.status !== "planned") throw new Error("planned_expected");
+  if (!planned.ok || planned.status !== "planned") {
+    throw new Error("planned_expected");
+  }
   assert.equal(planned.delivery_block_number, "500");
   assert.equal(planned.checkpoint_capture_performed, false);
 
   let capturedMinimum = 0;
   const satisfied = await runBuyVoidChain2050DurabilityRuntimeCommandV1({
     attempt_id: runtimeFixture.attemptId,
-    root_dir: durabilityRoot,
+    durability_root_dir: durabilityRoot,
+    buy_void_runtime_root_dir: runtimeFixture.root,
     apply: true,
     confirmation: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
     checkpoint_capture: async ({ minimum_block_number }) => {
@@ -352,7 +411,10 @@ try {
   assert.equal(capturedMinimum, 500);
   assert.equal(satisfied.ok, true);
   assert.equal(satisfied.status, "checkpoint_satisfied");
-  assert.equal(inspectBuyVoidChain2050DurabilityV1(durabilityRoot).unresolved_debt_count, 0);
+  assert.equal(
+    inspectBuyVoidChain2050DurabilityV1(durabilityRoot).unresolved_debt_count,
+    0,
+  );
 
   const failureFixture = makeBroadcastAttempt();
   roots.push(failureFixture.root);
@@ -369,7 +431,10 @@ try {
     now_ms: 1_700_703_000_000,
   });
   assert.equal(failureConfirmed.ok, true);
-  const failureDurabilityRoot = path.join(failureFixture.root, "chain2050-durability-v1");
+  const failureDurabilityRoot = path.join(
+    failureFixture.root,
+    "chain2050-durability-v1",
+  );
   armBuyVoidChain2050DurabilityDebtV1({
     root_dir: failureDurabilityRoot,
     transaction_hash: deliveryTx,
@@ -377,7 +442,8 @@ try {
   });
   const checkpointFailure = await runBuyVoidChain2050DurabilityRuntimeCommandV1({
     attempt_id: failureFixture.attemptId,
-    root_dir: failureDurabilityRoot,
+    durability_root_dir: failureDurabilityRoot,
+    buy_void_runtime_root_dir: failureFixture.root,
     apply: true,
     confirmation: VOID_BUY_VOID_CHAIN2050_DURABILITY_RUNTIME_CONFIRMATION_V1,
     checkpoint_capture: async () => {
@@ -393,8 +459,10 @@ try {
     1,
   );
 
-  const previousInjector = process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED;
-  const previousGate = process.env.VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED;
+  const previousInjector =
+    process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED;
+  const previousGate =
+    process.env.VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED;
   const previousCreds = process.env.CREDENTIALS_DIRECTORY;
   try {
     process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED = "1";
@@ -404,20 +472,30 @@ try {
       await initializeBuyVoidNativeDeliveryRuntimeDependenciesFromProcessV1();
     assert.equal(blockedInitializer.ok, false);
     if (blockedInitializer.ok) throw new Error("gate_required_expected");
-    assert.equal(blockedInitializer.reason, "chain2050_durability_gate_required");
+    assert.equal(
+      blockedInitializer.reason,
+      "chain2050_durability_gate_required",
+    );
     assert.equal(blockedInitializer.signer_configured, false);
     assert.equal(blockedInitializer.broadcaster_configured, false);
   } finally {
     if (previousInjector === undefined) {
       delete process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED;
-    } else process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED = previousInjector;
+    } else {
+      process.env.VOID_BUY_VOID_NATIVE_DELIVERY_DEPENDENCY_INJECTOR_ENABLED =
+        previousInjector;
+    }
     if (previousGate === undefined) {
       delete process.env.VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED;
-    } else process.env.VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED = previousGate;
+    } else {
+      process.env.VOID_BUY_VOID_CHAIN2050_DURABILITY_GATE_ENABLED = previousGate;
+    }
     if (previousCreds === undefined) delete process.env.CREDENTIALS_DIRECTORY;
     else process.env.CREDENTIALS_DIRECTORY = previousCreds;
   }
 
+  console.log("preclaim_crash_debt_authority=0");
+  console.log("atomic_active_debt_hardlink=1");
   console.log("debt_armed_before_broadcast=1");
   console.log("unresolved_debt_blocks_later_mutation=1");
   console.log("raw_signed_transaction_persisted=0");
