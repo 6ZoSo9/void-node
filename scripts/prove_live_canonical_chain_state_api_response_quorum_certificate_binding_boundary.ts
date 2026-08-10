@@ -8,7 +8,7 @@ import {
   type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingCertificateV1,
   type VoidLiveCanonicalChainStateApiResponseQuorumCertificateBindingResponseV1,
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyQuorumPolicyV1,
-} from "../src/chain/block";
+} from "../src/chain/block.js";
 
 const GREEN = "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_BINDING_BOUNDARY_AUDIT_V1_GREEN";
 

@@ -883,16 +883,31 @@ export function recordBuyVoidBroadcastRevertedV1(
   }
 }
 
-function confirmationFingerprint(record: BuyVoidConfirmedFulfillmentRecordV1): string {
-  return stableFingerprint({
+function confirmationFingerprint(
+  record: BuyVoidConfirmedFulfillmentRecordV1,
+  deliveryBlockHash?: string,
+): string {
+  const legacy = {
     marker: String(record.marker || ""),
     canonical_payment_identity: String(record.canonical_payment_identity || ""),
     request_id: String(record.request_id || ""),
     instruction_id: String(record.instruction_id || ""),
     void_delivery_tx_hash: String(record.void_delivery_tx_hash || ""),
+    ...(record.delivery_block_hash
+      ? { delivery_block_hash: String(record.delivery_block_hash) }
+      : {}),
     fulfillment_wallet: String(record.fulfillment_wallet || ""),
     delivery_address: String(record.delivery_address || ""),
     void_amount_units: String(record.void_amount_units || ""),
+  };
+  if (!deliveryBlockHash) return stableFingerprint(legacy);
+  return stableFingerprint({
+    ...legacy,
+    delivery_block_number: String(record.delivery_block_number || ""),
+    delivery_block_hash: deliveryBlockHash,
+    delivery_binding_fingerprint: String(
+      record.delivery_binding_fingerprint || "",
+    ),
   });
 }
 
@@ -919,7 +934,10 @@ export function recordBuyVoidBroadcastConfirmedV1(
   ) {
     return held("confirmed_record_attempt_mismatch");
   }
-  const fingerprint = confirmationFingerprint(record);
+  const fingerprint = confirmationFingerprint(
+    record,
+    found.attempt.confirmation.delivery_block_hash,
+  );
   if (found.attempt.confirmation.confirmation_fingerprint !== fingerprint) {
     return held("execution_confirmation_fingerprint_mismatch");
   }

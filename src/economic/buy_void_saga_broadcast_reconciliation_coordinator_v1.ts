@@ -964,6 +964,7 @@ async function persistProjections(
           transaction_hash: receipt.transaction_hash,
           transaction_status: "1",
           block_number: receipt.block_number,
+          block_hash: receipt.block_hash,
           current_block_number: receipt.current_block_number,
           from_address: receipt.from_address,
           to_address: receipt.to_address,

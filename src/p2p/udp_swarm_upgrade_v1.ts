@@ -36,6 +36,7 @@ export const VOID_P2P_UDP_SWARM_UPGRADE_AUTHORITY_V1 = Object.freeze({
   normal_void_peer_auth_required_after_secure_socket: true,
   relay_retirement_before_normal_void_peer_auth_allowed: false,
   relay_fallback_preserved_on_direct_failure: true,
+  bounded_offer_punch_timing_supported: true,
   runtime_node_core_mount_performed: false,
   verified_direct_cache_mutation_performed: false,
   router_configuration_required: false,
@@ -65,6 +66,8 @@ export type VoidUdpSwarmUpgradeOptionsV1 = Readonly<{
   localPrivateKey: VoidUdpSecureSessionBootstrapOptionsV1["localPrivateKey"];
   localObservation: VoidUdpRendezvousObservationV1;
   remoteObservation: VoidUdpRendezvousObservationV1;
+  startDelayMs?: number;
+  attemptTimeoutMs?: number;
   verifyAuthenticatedRendezvousObservation: VoidUdpAuthenticatedRendezvousObservationVerifierV1;
   transmitSecurePacket: (packet: VoidUdpSecurePacketV1) => void | Promise<void>;
   allowNonPublicEndpoints?: boolean;
@@ -178,6 +181,8 @@ export class VoidUdpSwarmUpgradeV1 {
       localNodeId: this.options.localNodeId,
       peerNodeId: this.options.remoteNodeId,
       peerObservedEndpoint: this.options.remoteObservation.observed_endpoint,
+      startDelayMs: this.options.startDelayMs,
+      attemptTimeoutMs: this.options.attemptTimeoutMs,
       allowNonPublicObservedEndpoint: this.options.allowNonPublicEndpoints === true,
     });
     this.phaseValue = "punch_planned";

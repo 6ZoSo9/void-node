@@ -25,6 +25,7 @@ export const VOID_P2P_UDP_PEER_SOCKET_ADAPTER_AUTHORITY_V1 = Object.freeze({
   plaintext_udp_payload_allowed: false,
   bounded_write_queue_required: true,
   bounded_retransmission_required: true,
+  configurable_secure_payload_chunk_bytes: true,
   transport_exhaustion_fails_closed: true,
   runtime_node_core_mount_performed: false,
   runtime_peer_promotion_performed: false,
@@ -44,6 +45,7 @@ export type VoidUdpPeerSocketAdapterOptionsV1 = Readonly<{
   retransmitPollMs?: number;
   highWaterBytes?: number;
   maxQueuedBytes?: number;
+  maxPayloadBytes?: number;
 }>;
 
 type QueuedChunkV1 = {
@@ -84,6 +86,7 @@ export class VoidUdpPeerSocketAdapterV1 extends EventEmitter {
   private backpressured = false;
   private readonly highWaterBytes: number;
   private readonly maxQueuedBytes: number;
+  private readonly maxPayloadBytes: number;
   private readonly pollMs: number;
   private timer: NodeJS.Timeout | null = null;
 
@@ -105,6 +108,12 @@ export class VoidUdpPeerSocketAdapterV1 extends EventEmitter {
       VOID_P2P_UDP_PEER_SOCKET_ADAPTER_DEFAULT_MAX_QUEUED_BYTES_V1,
       this.highWaterBytes,
       32 * 1024 * 1024,
+    );
+    this.maxPayloadBytes = boundedInteger(
+      options.maxPayloadBytes,
+      VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,
+      1,
+      VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,
     );
     this.pollMs = boundedInteger(
       options.retransmitPollMs,
@@ -222,14 +231,14 @@ export class VoidUdpPeerSocketAdapterV1 extends EventEmitter {
     for (
       let offset = 0;
       offset < bytes.length;
-      offset += VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1
+      offset += this.maxPayloadBytes
     ) {
       const chunk = Buffer.from(
         bytes.subarray(
           offset,
           Math.min(
             bytes.length,
-            offset + VOID_P2P_UDP_SECURE_RELIABLE_MAX_PAYLOAD_BYTES_V1,
+            offset + this.maxPayloadBytes,
           ),
         ),
       );
