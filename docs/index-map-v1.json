@@ -1,0 +1,128 @@
+{
+  "marker": "VOID_INDEX_CARTOGRAPHY_V1",
+  "version": 1,
+  "source_path": "src/index.ts",
+  "managed_landmark_prefix": "// VOID-INDEX-LANDMARK:",
+  "contract": {
+    "stable_identity_is_landmark_id": true,
+    "line_numbers_are_generated": true,
+    "source_mutation_performed_by_generator": false,
+    "missing_anchor_fails_closed": true,
+    "duplicate_anchor_fails_closed": true,
+    "unregistered_managed_marker_fails_closed": true
+  },
+  "landmarks": [
+    {
+      "id": "runtime.main",
+      "area": "runtime",
+      "purpose": "Top-level node startup and route composition.",
+      "anchor": "async function __main__() {",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.storage-readiness",
+      "area": "runtime",
+      "purpose": "Startup storage readiness and repair gate.",
+      "anchor": "function requireStorageRepairGreen",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "chain.txroot-watchdog",
+      "area": "chain",
+      "purpose": "Historical TxRoot counters periodic wrapper landmark.",
+      "anchor": "(function installTxRootCountersWatchdog(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "chain.saveblock-v7-recursion-fix",
+      "area": "chain",
+      "purpose": "Historical V7 saveBlock recursion-fix/rebind landmark.",
+      "anchor": ";(function v7RecursionFixSaveBlockV1(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "buy-void.legacy-page",
+      "area": "buy-void",
+      "purpose": "Legacy Buy VOID page route inside the monolith.",
+      "anchor": "app.get(\"/buy-void\", (_req:any,res:any)=>{",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "wc.public-proof-generate",
+      "area": "work-credits",
+      "purpose": "Participant-facing Work Credit public-proof generation route.",
+      "anchor": "APP.post(\"/wc-proof-demo/generate\", (req:any, res:any) => { // VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_ROUTE_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "wc.public-proof-success-ui",
+      "area": "work-credits",
+      "purpose": "Successful public Work Credit proof UI action landmark.",
+      "anchor": "<!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_COPY_LINK_V1 -->Copy public proof link</button>",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "datanet.public-explorer",
+      "area": "datanet",
+      "purpose": "Public DataNet Explorer route.",
+      "anchor": "APP.get(\"/public-node/datanet/explorer-v1\", (_req:any, res:any) => { // VOID_DATANET_EXPLORER_ROUTE_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "public-node.route-index",
+      "area": "public-node",
+      "purpose": "Machine-readable public-node route index.",
+      "anchor": "APP.get(\"/public-node/route-index.json\", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_INDEX_ROUTE_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "public-node.self-check-ui",
+      "area": "public-node",
+      "purpose": "Participant-visible public-node self-check card.",
+      "anchor": "<!-- VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_UI_V1 -->",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "participant.dashboard",
+      "area": "participant",
+      "purpose": "Main participant dashboard route.",
+      "anchor": "VOID_PARTICIPANT_RESPONSIVE_POLISH_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "integration.participant-wallet-native",
+      "area": "integration",
+      "purpose": "Native participant-wallet integration import boundary.",
+      "anchor": "import \"./http/participant_wallet_native_v1.js\"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "integration.wc-public-capability",
+      "area": "integration",
+      "purpose": "Work Credit public-capability integration import boundary.",
+      "anchor": "import \"./economic/wc_public_capability_v1.js\"; // VOID_WC_PUBLIC_CAPABILITY_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "integration.buy-void",
+      "area": "integration",
+      "purpose": "Buy VOID runtime integration import boundary.",
+      "anchor": "import \"./economic/buy_void_runtime_integration_v1.js\"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "integration.validator-submit-intent",
+      "area": "integration",
+      "purpose": "Validator submit-intent runtime integration import boundary.",
+      "anchor": "import { ValidatorSubmitIntentRuntimeIntegrationV1 } from \"./validator/validator_submit_intent_runtime_integration_v1.js\"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "integration.public-agent-service-acceptance",
+      "area": "integration",
+      "purpose": "Public agent service-acceptance persistence/bootstrap integration import boundary.",
+      "anchor": "// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT",
+      "expected_occurrences": 1
+    }
+  ]
+}

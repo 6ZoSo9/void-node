@@ -9,6 +9,9 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { TextDecoder } from "node:util";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -22,6 +25,16 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_MARKER_V1 =
   "VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_V1";
 export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1 =
   "startPrivateChain2050FromSelectedDurableState";
+export const VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1 =
+  4 * 1024 * 1024 * 1024;
+
+const BLOCK_HASH = /^0x[0-9a-f]{64}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
+const MAX_SELECTED_STATE_BYTES = 1024 * 1024 * 1024;
+const MAX_RPC_RESPONSE_BYTES = 1024 * 1024;
+const DEFAULT_START_TIMEOUT_MS = 30_000;
+const STREAM_READ_CHUNK_BYTES = 1024 * 1024;
 
 export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.freeze({
   dry_run_default: true,
@@ -31,7 +44,13 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   startup_selector_required: true,
   selected_state_only: true,
   selected_state_sha256_reverified_before_materialization: true,
+  selected_state_sha256_reverified_during_materialization: true,
+  selected_state_sha256_reverified_before_publication: true,
   selected_state_private_content_addressed_copy: true,
+  streaming_dump_state_materialization: true,
+  whole_dump_state_memory_materialization: false,
+  whole_dump_state_json_parse_required: false,
+  max_derived_state_bytes: VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
   stale_baseline_fallback: false,
   selected_block_hash_reverified_after_load: true,
   chain_id_reverified_after_load: true,
@@ -48,13 +67,6 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   money_movement: false,
 });
 
-const BLOCK_HASH = /^0x[0-9a-f]{64}$/;
-const SHA256 = /^[0-9a-f]{64}$/;
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
-const MAX_DERIVED_STATE_BYTES = 1024 * 1024 * 1024;
-const MAX_RPC_RESPONSE_BYTES = 1024 * 1024;
-const DEFAULT_START_TIMEOUT_MS = 30_000;
-
 export class VoidPrivateChain2050StartupIntegrationHoldV1 extends Error {
   constructor(reason, detail) {
     super(reason);
@@ -70,6 +82,22 @@ function hold(reason, detail) {
 
 function sha256Buffer(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function sha256File(file) {
+  const hash = crypto.createHash("sha256");
+  const fd = fs.openSync(file, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(STREAM_READ_CHUNK_BYTES);
+    while (true) {
+      const read = fs.readSync(fd, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest("hex");
 }
 
 function safeInteger(
@@ -146,7 +174,7 @@ function fsyncDirectory(dir) {
 
 function exactRegularFile(
   file,
-  { mode = null, maxBytes = MAX_DERIVED_STATE_BYTES } = {},
+  { mode = null, maxBytes = MAX_SELECTED_STATE_BYTES } = {},
 ) {
   assertNoSymlinkComponents(file);
   const stat = fs.lstatSync(file);
@@ -176,16 +204,301 @@ function writeCreateOnly(file, bytes) {
     return "created";
   } catch (error) {
     if (error?.code !== "EEXIST") throw error;
-    exactRegularFile(file, { mode: 0o600 });
+    exactRegularFile(file, {
+      mode: 0o600,
+      maxBytes: VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
+    });
     const existing = fs.readFileSync(file);
     if (!existing.equals(bytes)) hold("startup_derived_state_existing_mismatch");
     return "existing_exact";
   }
 }
 
-export function materializeVoidPrivateChain2050CliStateV1(selection, options = {}) {
+class SourceDigestTransformV1 extends Transform {
+  constructor() {
+    super();
+    this.hash = crypto.createHash("sha256");
+  }
+
+  _transform(chunk, _encoding, callback) {
+    try {
+      this.hash.update(chunk);
+      callback(null, chunk);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  digestHex() {
+    return this.hash.digest("hex");
+  }
+}
+
+class HexAsciiDecodeTransformV1 extends Transform {
+  constructor() {
+    super();
+    this.started = false;
+    this.pending = "";
+  }
+
+  _transform(chunk, _encoding, callback) {
+    try {
+      let text = this.pending + chunk.toString("ascii");
+      if (!this.started) {
+        if (text.length < 2) {
+          this.pending = text;
+          callback();
+          return;
+        }
+        if (!text.startsWith("0x")) {
+          hold("startup_selected_dump_state_invalid");
+        }
+        text = text.slice(2);
+        this.started = true;
+      }
+      if (!/^[0-9a-fA-F]*$/.test(text)) {
+        hold("startup_selected_dump_state_invalid");
+      }
+      if (text.length % 2 === 1) {
+        this.pending = text.slice(-1);
+        text = text.slice(0, -1);
+      } else {
+        this.pending = "";
+      }
+      callback(null, text.length ? Buffer.from(text, "hex") : undefined);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  _flush(callback) {
+    try {
+      if (!this.started || this.pending.length !== 0) {
+        hold("startup_selected_dump_state_invalid");
+      }
+      callback();
+    } catch (error) {
+      callback(error);
+    }
+  }
+}
+
+class JsonObjectIntegrityTransformV1 extends Transform {
+  constructor(maxBytes) {
+    super();
+    this.maxBytes = maxBytes;
+    this.totalBytes = 0;
+    this.hash = crypto.createHash("sha256");
+    this.decoder = new TextDecoder("utf-8", { fatal: true });
+    this.firstNonWhitespace = null;
+    this.lastNonWhitespace = null;
+  }
+
+  _transform(chunk, _encoding, callback) {
+    try {
+      this.totalBytes += chunk.length;
+      if (this.totalBytes > this.maxBytes) {
+        hold("startup_derived_state_too_large");
+      }
+      try {
+        this.decoder.decode(chunk, { stream: true });
+      } catch {
+        hold("startup_selected_dump_state_utf8_invalid");
+      }
+      this.hash.update(chunk);
+      for (const byte of chunk) {
+        if (
+          this.firstNonWhitespace === null &&
+          byte !== 0x20 &&
+          byte !== 0x09 &&
+          byte !== 0x0a &&
+          byte !== 0x0d
+        ) {
+          this.firstNonWhitespace = byte;
+        }
+        if (
+          byte !== 0x20 &&
+          byte !== 0x09 &&
+          byte !== 0x0a &&
+          byte !== 0x0d
+        ) {
+          this.lastNonWhitespace = byte;
+        }
+      }
+      callback(null, chunk);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  _flush(callback) {
+    try {
+      try {
+        this.decoder.decode();
+      } catch {
+        hold("startup_selected_dump_state_utf8_invalid");
+      }
+      if (this.firstNonWhitespace !== 0x7b || this.lastNonWhitespace !== 0x7d) {
+        hold("startup_selected_dump_state_json_object_required");
+      }
+      callback();
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  digestHex() {
+    return this.hash.digest("hex");
+  }
+}
+
+function isZlibFailure(error) {
+  const code = String(error?.code || "");
+  return code.startsWith("Z_") || code.startsWith("ERR_ZLIB_");
+}
+
+function removePrivateTempIfPresent(file, parent) {
+  if (!file || !fs.existsSync(file)) return;
+  try {
+    fs.unlinkSync(file);
+    if (parent && fs.existsSync(parent)) fsyncDirectory(parent);
+  } catch {
+    hold("startup_derived_state_temp_cleanup_failed");
+  }
+}
+
+async function streamDumpStateToPrivateCliStateV1({
+  stateFile,
+  selectedStateSha256,
+  derivedRoot,
+  maxDerivedStateBytes,
+}) {
+  const privateRoot = ensurePrivateDirectory(derivedRoot);
+  const tempFile = path.join(
+    privateRoot,
+    `.stream-${process.pid}-${crypto.randomBytes(16).toString("hex")}.tmp`,
+  );
+  const sourceDigest = new SourceDigestTransformV1();
+  const hexDecoder = new HexAsciiDecodeTransformV1();
+  const jsonIntegrity = new JsonObjectIntegrityTransformV1(maxDerivedStateBytes);
+  let tempCreated = false;
+
+  try {
+    tempCreated = true;
+    await pipeline(
+      fs.createReadStream(stateFile, { highWaterMark: STREAM_READ_CHUNK_BYTES }),
+      sourceDigest,
+      hexDecoder,
+      zlib.createGunzip(),
+      jsonIntegrity,
+      fs.createWriteStream(tempFile, { flags: "wx", mode: 0o600 }),
+    );
+
+    if (sourceDigest.digestHex() !== selectedStateSha256) {
+      hold("startup_selected_state_sha256_changed_during_materialization");
+    }
+    if (jsonIntegrity.totalBytes <= 0) {
+      hold("startup_selected_dump_state_json_invalid");
+    }
+
+    fs.chmodSync(tempFile, 0o600);
+    const tempStat = exactRegularFile(tempFile, {
+      mode: 0o600,
+      maxBytes: maxDerivedStateBytes,
+    });
+    if (tempStat.size !== jsonIntegrity.totalBytes) {
+      hold("startup_derived_state_size_mismatch");
+    }
+    const tempFd = fs.openSync(tempFile, "r");
+    try {
+      fs.fsyncSync(tempFd);
+    } finally {
+      fs.closeSync(tempFd);
+    }
+
+    const derivedSha256 = jsonIntegrity.digestHex();
+    if (!SHA256.test(derivedSha256)) {
+      hold("startup_derived_state_digest_invalid");
+    }
+    const derivedFile = path.join(
+      privateRoot,
+      `${derivedSha256}.cli-state.json`,
+    );
+
+    if (sha256File(stateFile) !== selectedStateSha256) {
+      hold("startup_selected_state_sha256_changed_before_publication");
+    }
+
+    let derivedWrite;
+    try {
+      fs.linkSync(tempFile, derivedFile);
+      fs.chmodSync(derivedFile, 0o600);
+      fsyncDirectory(privateRoot);
+      derivedWrite = "created";
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const existingStat = exactRegularFile(derivedFile, {
+        mode: 0o600,
+        maxBytes: maxDerivedStateBytes,
+      });
+      if (
+        existingStat.size !== tempStat.size ||
+        sha256File(derivedFile) !== derivedSha256
+      ) {
+        hold("startup_derived_state_existing_mismatch");
+      }
+      derivedWrite = "existing_exact";
+    }
+
+    fs.unlinkSync(tempFile);
+    tempCreated = false;
+    fsyncDirectory(privateRoot);
+
+    return Object.freeze({
+      state_file: derivedFile,
+      state_format: "anvil_cli_state_json",
+      state_sha256: derivedSha256,
+      state_bytes: tempStat.size,
+      source_state_sha256: selectedStateSha256,
+      source_state_sha256_reverified_during_materialization: true,
+      source_state_sha256_reverified_before_publication: true,
+      streaming_materialization: true,
+      json_object_framing_verified: true,
+      derived: true,
+      derived_write: derivedWrite,
+    });
+  } catch (error) {
+    if (tempCreated && fs.existsSync(tempFile)) {
+      removePrivateTempIfPresent(tempFile, privateRoot);
+    }
+    if (error instanceof VoidPrivateChain2050StartupIntegrationHoldV1) {
+      throw error;
+    }
+    if (isZlibFailure(error)) {
+      hold("startup_selected_dump_state_decode_failed", {
+        code: String(error?.code || "zlib_error"),
+      });
+    }
+    if (
+      new Set(["ENOSPC", "EDQUOT", "EFBIG", "EACCES", "EPERM", "EROFS"])
+        .has(String(error?.code || ""))
+    ) {
+      hold("startup_derived_state_write_failed", {
+        code: String(error?.code || "write_error"),
+      });
+    }
+    hold("startup_selected_dump_state_decode_failed", {
+      message: String(error?.message || error).slice(0, 160),
+    });
+  }
+}
+
+export async function materializeVoidPrivateChain2050CliStateV1(
+  selection,
+  options = {},
+) {
   const stateFile = path.resolve(selection.selected_state_file);
-  exactRegularFile(stateFile);
+  exactRegularFile(stateFile, { maxBytes: MAX_SELECTED_STATE_BYTES });
   const selectedStateFormat = String(selection.selected_state_format || "");
   if (
     selectedStateFormat !== "anvil_cli_state_json" &&
@@ -199,12 +512,19 @@ export function materializeVoidPrivateChain2050CliStateV1(selection, options = {
   if (!SHA256.test(selectedStateSha256)) {
     hold("startup_selected_state_sha256_invalid");
   }
-  const selectedBytes = fs.readFileSync(stateFile);
-  if (sha256Buffer(selectedBytes) !== selectedStateSha256) {
+
+  // This pass is deliberately complete and occurs before derivedRoot creation.
+  // A second digest is taken over the bytes actually decoded; checkpoint state
+  // is then hashed once more synchronously immediately before final publication.
+  if (sha256File(stateFile) !== selectedStateSha256) {
     hold("startup_selected_state_sha256_mismatch");
   }
 
   if (selectedStateFormat === "anvil_cli_state_json") {
+    const selectedBytes = fs.readFileSync(stateFile);
+    if (sha256Buffer(selectedBytes) !== selectedStateSha256) {
+      hold("startup_selected_state_sha256_changed_during_materialization");
+    }
     try {
       JSON.parse(selectedBytes.toString("utf8"));
     } catch {
@@ -224,46 +544,38 @@ export function materializeVoidPrivateChain2050CliStateV1(selection, options = {
     return Object.freeze({
       state_file: derivedFile,
       state_format: "anvil_cli_state_json",
+      state_sha256: selectedStateSha256,
+      state_bytes: selectedBytes.length,
+      source_state_sha256: selectedStateSha256,
+      source_state_sha256_reverified_during_materialization: true,
+      streaming_materialization: false,
       derived: true,
       derived_write: derivedWrite,
     });
   }
 
-  const encoded = selectedBytes.toString("utf8");
-  if (!/^0x[0-9a-fA-F]+$/.test(encoded) || encoded.length % 2 !== 0) {
-    hold("startup_selected_dump_state_invalid");
-  }
-  let decoded;
-  try {
-    decoded = zlib.gunzipSync(Buffer.from(encoded.slice(2), "hex"), {
-      maxOutputLength: MAX_DERIVED_STATE_BYTES,
-    });
-  } catch {
-    hold("startup_selected_dump_state_decode_failed");
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(decoded.toString("utf8"));
-  } catch {
-    hold("startup_selected_dump_state_json_invalid");
-  }
-  const canonical = Buffer.from(`${JSON.stringify(parsed)}\n`, "utf8");
-  if (canonical.length > MAX_DERIVED_STATE_BYTES) hold("startup_derived_state_too_large");
-  const derivedRoot = ensurePrivateDirectory(
+  const maxDerivedStateBytes =
+    options.max_derived_state_bytes === undefined
+      ? VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1
+      : safeInteger(
+          options.max_derived_state_bytes,
+          "startup_max_derived_state_bytes_invalid",
+          {
+            minimum: 1024,
+            maximum: VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
+          },
+        );
+  const derivedRoot =
     options.derived_root || path.join(
       os.homedir(),
       ".local/state/void-private-chain2050-rpc-v1/startup-derived-v1",
-    ),
-  );
-  const digest = sha256Buffer(canonical);
-  if (!SHA256.test(digest)) hold("startup_derived_state_digest_invalid");
-  const derivedFile = path.join(derivedRoot, `${digest}.cli-state.json`);
-  const derivedWrite = writeCreateOnly(derivedFile, canonical);
-  return Object.freeze({
-    state_file: derivedFile,
-    state_format: "anvil_cli_state_json",
-    derived: true,
-    derived_write: derivedWrite,
+    );
+
+  return await streamDumpStateToPrivateCliStateV1({
+    stateFile,
+    selectedStateSha256,
+    derivedRoot,
+    maxDerivedStateBytes,
   });
 }
 
@@ -523,6 +835,8 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     gas_limit: gasLimit,
     selection,
     selected_state_materialization_required: true,
+    selected_dump_state_streaming_required: true,
+    max_derived_state_bytes: VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
     derived_root: input.derived_root ? path.resolve(input.derived_root) : null,
     anvil_command: "anvil",
     anvil_generated_accounts: 0,
@@ -558,7 +872,7 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
     "startup_timeout_invalid",
     { minimum: 1_000, maximum: 120_000 },
   );
-  const cliState = materializeVoidPrivateChain2050CliStateV1(
+  const cliState = await materializeVoidPrivateChain2050CliStateV1(
     plan.selection,
     {
       ...(plan.derived_root ? { derived_root: plan.derived_root } : {}),
