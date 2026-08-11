@@ -57,9 +57,14 @@ A stable public HTTPS proxy may point to `http://127.0.0.1:4111` only after its 
 
 ## Qualify a stable candidate
 
-The qualifier requires a credential-free HTTPS origin with a fully qualified DNS hostname and no path, query, or fragment. It rejects known temporary tunnel providers and any hostname that resolves to loopback, LAN, link-local, documentation, benchmark, multicast, reserved, CGNAT, or Tailnet address space.
+The qualifier requires a credential-free HTTPS origin with no path, query, or fragment. The origin may use either:
 
-Each request is pinned to a prevalidated public DNS address. The receipt records both DNS answers and the actual connected addresses, preventing a DNS-rebinding race from silently reaching a private address.
+- a fully qualified DNS hostname; or
+- a public IPv4 or IPv6 literal covered by a publicly trusted certificate.
+
+DNS candidates reject known temporary tunnel providers and any hostname that resolves to loopback, LAN, link-local, documentation, benchmark, multicast, reserved, CGNAT, or Tailnet address space. Every request is pinned to a prevalidated public DNS address, and the receipt records DNS answers plus actual connected addresses to prevent DNS rebinding.
+
+IP-literal candidates reject every non-public address range before connection. Every request is pinned directly to the exact endpoint IP; the receipt records `address_source=ip_literal`, the exact endpoint address, and the actual connected addresses. Every connected address must equal the endpoint literal. DNS evidence and IP-literal evidence cannot be mixed.
 
 Run three observations over at least 60 seconds:
 
@@ -70,6 +75,18 @@ node scripts/qualify_void_public_seed_v1.mjs \
   --interval-ms 30000 \
   --output /tmp/void-public-seed-qualification-v1.json
 ```
+
+A domain-free VPS may instead use a publicly trusted IP-address certificate:
+
+```bash
+node scripts/qualify_void_public_seed_v1.mjs \
+  --endpoint https://PUBLIC_VPS_IP \
+  --samples 3 \
+  --interval-ms 30000 \
+  --output /tmp/void-public-seed-qualification-v1.json
+```
+
+IP-address certificates must be renewed and reloaded automatically. Qualification proves the currently served certificate and endpoint behavior; it does not authorize certificate issuance, installation, renewal, or deployment.
 
 Every observation verifies:
 
@@ -86,7 +103,7 @@ Every observation verifies:
 - JSON-only responses; and
 - public DNS before and after the sample, with actual connections pinned to those answers.
 
-A successful receipt is content-addressed as `voidpsq1_<sha256>` and explicitly records that all private and economic authority flags are false.
+A successful receipt is content-addressed as `voidpsq1_<sha256>`, identifies its address source as `dns` or `ip_literal`, binds actual connections to the selected address evidence, and explicitly records that all private and economic authority flags are false.
 
 ## Build a candidate manifest
 
@@ -112,4 +129,4 @@ Building a file under `/tmp` is not publication. Committing or replacing `public
 
 ## Acceptance boundary
 
-This source lane proves the qualification contract; it does not claim that a stable seed currently exists. Issue #1005 still requires an ordinary machine outside the operator Tailnet to use exact merged source and the normal clone/run path, advance above head zero, reach `gap=0` with `txroot_live=1`, and demonstrate that no private or economic authority is exposed.
+This source lane proves the qualification contract; it does not claim that a stable seed currently exists. A qualified raw-IP HTTPS endpoint may satisfy the first stable-seed gate without a domain, but certificate automation, VPS deployment, manifest publication, and outside-machine acceptance remain separate reviewed actions. Issue #1005 still requires an ordinary machine outside the operator Tailnet to use exact merged source and the normal clone/run path, advance above head zero, reach `gap=0` with `txroot_live=1`, and demonstrate that no private or economic authority is exposed.

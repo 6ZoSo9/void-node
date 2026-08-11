@@ -227,17 +227,34 @@ Dry run does not create a derived state file, load Anvil state, start a process,
 
 Anvil `anvil_dumpState` bytes are stored by #1177 exactly as returned.
 
-Before materialization, apply re-reads the selector-chosen source file and requires its SHA-256 to exactly equal the selector-approved `selected_state_sha256`. Any post-selection source-byte change fails closed before a derived path is created.
+Before materialization, apply performs a complete bounded read of the selector-chosen source file and requires its SHA-256 to exactly equal the selector-approved `selected_state_sha256`. Any post-selection source-byte change fails closed before a derived path is created.
 
-The launcher never passes the selector's source path directly to Anvil. A selected `anvil_cli_state_json` baseline is copied byte-for-byte into a private content-addressed CLI-state file. A selected `anvil_dump_state_hex` checkpoint is converted only from the already hash-reverified source bytes into a private canonical CLI-state JSON file under:
+The launcher never passes the selector's source path directly to Anvil. A selected `anvil_cli_state_json` baseline keeps the existing byte-for-byte private content-addressed copy behavior. A selected `anvil_dump_state_hex` checkpoint is materialized without a whole-state compressed buffer, whole-state decompressed buffer, or whole-object `JSON.parse` / `JSON.stringify` round trip.
+
+Checkpoint materialization is a bounded stream:
+
+1. read the selected source in bounded chunks while computing a second source SHA-256 over the exact bytes consumed;
+2. require the `0x` prefix and strict hexadecimal payload while converting ASCII hex to binary incrementally;
+3. stream through gzip decompression;
+4. enforce fatal UTF-8 validation, JSON-object outer framing, a derived-state byte count, and a derived SHA-256 while bytes pass;
+5. write only to a random mode-`0600` temporary file under the private mode-`0700` derived root;
+6. enforce the fixed `4 GiB` maximum decoded-state ceiling; the CLI exposes no option to raise or disable this bound;
+7. require the streamed source SHA-256 to remain equal to the selector-approved source digest and revalidate the source again immediately before publication;
+8. fsync the completed temporary file;
+9. publish atomically as `<derived-sha256>.cli-state.json` using a create-only hard link, or require an existing content-addressed file to match the exact size and SHA-256; and
+10. remove the temporary name and fsync the directory before returning success.
+
+Malformed hex, gzip failure, invalid UTF-8, non-object framing, decoded-size overflow, source-digest drift, unsafe paths/modes, write failure, or mismatched existing output returns `HOLD`. Temporary materialization debris is removed on success and on failure.
+
+The derived root defaults to:
 
 ```text
 ~/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1
 ```
 
-or an explicitly configured private derived root.
+or an explicitly configured private derived root. The derived directory is mode `0700`; the content-addressed state file is mode `0600` and create-only/idempotent.
 
-The derived directory is mode `0700`; the content-addressed state file is mode `0600` and create-only/idempotent.
+The real finalized recovery checkpoint that exposed the prior synchronous limit expands to `1532472409` decoded JSON bytes. The streaming path is deliberately bounded above that observed size without making decoded state unbounded or requiring it to coexist in memory as compressed bytes, decoded bytes, a parsed object, and a reserialized copy.
 
 In the startup apply path, selected-state digest revalidation and materialization occur only **after** the exact apply confirmation:
 
@@ -247,20 +264,21 @@ startPrivateChain2050FromSelectedDurableState
 
 ### Apply and post-load truth
 
-Apply starts only:
+Apply starts only a numeric-loopback Anvil process with the selected materialized state. The generated argument contract requires:
 
 ```text
-anvil --chain-id 2050 --load-state <exact selected/materialized state>
+anvil --chain-id 2050 --accounts 0 --load-state <exact selected/materialized state>
 ```
 
-on a numeric loopback RPC address.
+Normal transaction automining is the default, so `--block-time` is absent unless an explicit bounded interval was requested. `--no-mining` / `--no-mine` and mnemonic/account-generator options remain forbidden.
 
 Before the wrapper considers startup verified, it independently requires:
 
 - `eth_chainId == 2050`;
 - the exact selected block number to exist;
-- that block's hash to equal the selector's pinned block hash; and
-- the live head to be at or above the selected block.
+- that block's hash to equal the selector's pinned block hash;
+- the live head to be at or above the selected block; and
+- `eth_accounts == []`.
 
 If verification fails, the newly started Anvil child is terminated.
 
@@ -285,6 +303,7 @@ The startup integration performs no transaction replay or historical reconstruct
 | restart with only stale baseline below required minimum | startup HOLD | n/a |
 | restart with safe unfinalized checkpoint debris | debris ignored; cannot satisfy minimum | n/a |
 | restart with finalized checkpoint at/above minimum | exact state selected and post-load verified | n/a |
+| selected dump state exceeds decoded ceiling or fails stream integrity | startup HOLD; temporary derived debris removed | n/a |
 
 ## Source verification
 
@@ -318,7 +337,9 @@ Expected marker:
 VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_V1_PROOF_GREEN
 ```
 
-The focused workflow also re-runs the prepared-transaction transport, checkpoint, and startup-selector proofs plus existing native delivery dependency and receipt-runtime regressions. The adversarial coverage includes bypass attempts, reset/reorg hash changes, duplicate receipt evidence, terminal-evidence recovery, and checkpoint-failure recovery.
+The startup proof covers streaming materialization, private modes, content-addressed idempotence, finite decoded-size rejection, malformed hex/gzip, invalid UTF-8/non-object framing, temporary-file cleanup, source-digest tamper rejection, selector behavior, zero-account enforcement, post-load verification, and mining-mode regressions.
+
+The focused workflow also re-runs the prepared-transaction transport, checkpoint, and startup-selector proofs plus existing native delivery dependency and receipt-runtime regressions. The adversarial coverage includes bypass attempts, reset/reorg hash changes, duplicate receipt evidence, terminal-evidence recovery, checkpoint-failure recovery, and selected-state materialization failure.
 
 ## Deployment boundary
 
