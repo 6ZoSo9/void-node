@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 function recordScriptsEmptyHandlerVisibilityFailure_scripts_compact_rewrite_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
