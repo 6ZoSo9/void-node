@@ -5,15 +5,14 @@ import {
   writeBuyVoidInventoryConsumptionV1,
 } from "./buy_void_confirmed_closeout_v1.js";
 import {
-  withBuyVoidFilesystemBakeryLockV1,
-} from "./buy_void_filesystem_bakery_lock_v1.js";
+  withBuyVoidTerminalCloseoutRequestLockV1,
+} from "./buy_void_terminal_closeout_request_lock_v1.js";
 import {
   TERMINAL_CLOSEOUT_ROOT,
   TERMINAL_CLOSEOUT_SHA256,
   VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
   terminalFingerprint,
   terminalHash,
-  terminalSha256,
   terminalText,
   type BuyVoidSagaTerminalCloseoutDependenciesV1,
   type BuyVoidSagaTerminalCloseoutPlanV1,
@@ -452,16 +451,6 @@ function writeTerminalPublicCloseoutV1(
   };
 }
 
-function requestLockPath(requestDir: string, requestId: string): string {
-  const locks = ensurePrivateDirectory(
-    path.join(requestDir, ".terminal-closeout-locks-v1"),
-  );
-  return path.join(
-    locks,
-    terminalSha256(`void-buy-terminal-closeout-request-v1\n${requestId}`),
-  );
-}
-
 function verifyInventoryWrite(
   decision: any,
   plan: BuyVoidSagaTerminalCloseoutPlanV1,
@@ -493,16 +482,30 @@ export function applyTerminalCloseoutArtifactsV1(
   reconstructed: ReconstructedTerminalCloseoutV1,
   dependencies: BuyVoidSagaTerminalCloseoutDependenciesV1,
   progress: TerminalCloseoutApplyProgressV1,
+  reconstructLocked: () => ReconstructedTerminalCloseoutV1,
 ): TerminalCloseoutArtifactResultV1 {
-  return withBuyVoidFilesystemBakeryLockV1(
-    requestLockPath(
-      reconstructed.policy.request_dir,
-      reconstructed.plan.request_id,
-    ),
+  return withBuyVoidTerminalCloseoutRequestLockV1(
+    {
+      request_dir: reconstructed.policy.request_dir,
+      request_id: reconstructed.plan.request_id,
+    },
     () => {
+      dependencies.fault_inject?.(
+        "after_request_lock_before_plan_revalidation",
+      );
+      const current = reconstructLocked();
+      if (
+        current.root_dir !== reconstructed.root_dir ||
+        current.policy.request_dir !== reconstructed.policy.request_dir ||
+        current.plan.request_id !== reconstructed.plan.request_id ||
+        current.plan.plan_fingerprint_sha256 !==
+          reconstructed.plan.plan_fingerprint_sha256
+      ) {
+        throw new Error("terminal_closeout_plan_changed_during_apply");
+      }
       const planState = persistTerminalCloseoutPlanV1(
-        reconstructed.root_dir,
-        reconstructed.plan,
+        current.root_dir,
+        current.plan,
       );
       progress.plan_persisted = true;
       dependencies.fault_inject?.("after_plan_before_inventory");
@@ -512,17 +515,17 @@ export function applyTerminalCloseoutArtifactsV1(
         writeBuyVoidInventoryConsumptionV1;
       const inventory = verifyInventoryWrite(
         writeInventory({
-          root_dir: reconstructed.root_dir,
-          record: reconstructed.plan.inventory_consumption,
+          root_dir: current.root_dir,
+          record: current.plan.inventory_consumption,
         }),
-        reconstructed.plan,
+        current.plan,
       );
       progress.inventory_committed = true;
       dependencies.fault_inject?.("after_inventory_before_public");
 
       const publicResult = writeTerminalPublicCloseoutV1(
-        reconstructed.policy.request_dir,
-        reconstructed.plan.public_closeout_event,
+        current.policy.request_dir,
+        current.plan.public_closeout_event,
       );
       progress.public_committed = true;
       dependencies.fault_inject?.("after_public_before_saga");

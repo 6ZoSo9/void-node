@@ -218,6 +218,7 @@ const dryConfirmed = runBuyVoidPipelineCommandV1({
     transaction_hash: deliveryTx,
     transaction_status: 1,
     block_number: 500,
+    block_hash: `0x${"9".repeat(64)}`,
     current_block_number: 505,
     from_address: wallet,
     to_address: delivery,
@@ -251,6 +252,7 @@ const confirmed = runBuyVoidPipelineCommandV1({
     transaction_hash: deliveryTx,
     transaction_status: 1,
     block_number: 500,
+    block_hash: `0x${"9".repeat(64)}`,
     current_block_number: 505,
     from_address: wallet,
     to_address: delivery,
@@ -300,6 +302,7 @@ const duplicate = runBuyVoidPipelineCommandV1({
     transaction_hash: deliveryTx,
     transaction_status: 1,
     block_number: 500,
+    block_hash: `0x${"9".repeat(64)}`,
     current_block_number: 510,
     from_address: wallet,
     to_address: delivery,
@@ -316,4 +319,92 @@ const duplicate = runBuyVoidPipelineCommandV1({
 if ("reason" in duplicate) throw new Error(duplicate.reason);
 assert.equal(appliedResult(duplicate).final_state.status, "duplicate");
 
+const partialRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-buy-pipeline-partial-v1-"),
+);
+const partialRequest = {
+  ...request,
+  request_id: "buyvoid_pipeline_partial_mutation_v1",
+};
+const partialClaim = runBuyVoidPipelineCommandV1({
+  action: "verify_and_claim",
+  apply: true,
+  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
+  root_dir: partialRoot,
+  request: partialRequest,
+  receipt,
+  verification_policy: verificationPolicy,
+  fulfillment_policy: fulfillmentPolicy,
+  now_ms: 1_701_000_100_000,
+});
+const partialIntent = appliedResult(partialClaim).claim.intent;
+const partialReserve = runBuyVoidPipelineCommandV1({
+  action: "reserve_execution",
+  apply: true,
+  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.reserve_execution,
+  root_dir: partialRoot,
+  intent: partialIntent,
+  execution_policy: executionPolicy,
+  now_ms: 1_701_000_110_000,
+});
+const partialAttemptId = appliedResult(partialReserve).attempt.reservation
+  .attempt_id as string;
+const partialPrepare = runBuyVoidPipelineCommandV1({
+  action: "prepare_execution",
+  apply: true,
+  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.prepare_execution,
+  root_dir: partialRoot,
+  attempt_id: partialAttemptId,
+  intent: partialIntent,
+  execution_policy: executionPolicy,
+  transaction: {
+    chain_id: 2050,
+    transaction_hash: deliveryTx,
+    from_address: wallet,
+    to_address: delivery,
+    amount_units: "50000000",
+  },
+  now_ms: 1_701_000_120_000,
+});
+if ("reason" in partialPrepare) throw new Error(partialPrepare.reason);
+
+fs.writeFileSync(
+  path.join(partialRoot, "buy-void-broadcast-outcomes-v1"),
+  "blocked-by-proof\n",
+  { mode: 0o600 },
+);
+const partialMutation = runBuyVoidPipelineCommandV1({
+  action: "record_broadcast_unknown",
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.record_broadcast_unknown,
+  root_dir: partialRoot,
+  attempt_id: partialAttemptId,
+  transaction_hash: deliveryTx,
+  reason_code: "synthetic_outcome_journal_fault",
+  provider_submission_id: "provider-partial-1",
+  now_ms: 1_701_000_130_000,
+});
+assert.equal(partialMutation.ok, false);
+assert.equal(partialMutation.status, "held");
+assert.equal(partialMutation.applied, true);
+assert.equal(partialMutation.mutation_performed, true);
+assert.equal(
+  "reason" in partialMutation && partialMutation.reason,
+  "broadcast_outcome_state_invalid",
+);
+const partiallyMutatedAttempt = readBuyVoidExecutionAttemptV1({
+  root_dir: partialRoot,
+  attempt_id: partialAttemptId,
+});
+assert.ok(partiallyMutatedAttempt?.broadcast);
+assert.equal(
+  partiallyMutatedAttempt.broadcast.void_delivery_tx_hash,
+  deliveryTx,
+);
+
+fs.rmSync(partialRoot, { recursive: true, force: true });
+fs.rmSync(root, { recursive: true, force: true });
+
 console.log("VOID_BUY_VOID_PIPELINE_COORDINATOR_V1_GREEN");
+console.log("partial_mutation_truth_preserved=1");
