@@ -29,6 +29,7 @@ import {
 } from "../tools/void-node-fleet-process-freshness-audit-v1.mjs";
 import {
   VOID_NODE_FLEET_PROCESS_RESTART_CONTROLLER_V1,
+  VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
   buildRestartPlanV1,
   inspectRestartTransitionV1,
   validateProcessFreshnessAuditV1,
@@ -92,6 +93,7 @@ function processNode(
   const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
   return {
     name,
+    transport: "local",
     reachable: true,
     source_head: sourceSha,
     source_tree: sourceTree,
@@ -212,7 +214,7 @@ function sourceReceipt(configInput, nodeName, fromSha, toSha) {
   };
 }
 
-function restartReceipt(configInput, baseline, nodeName, source) {
+function restartReceipt(configInput, baseline, nodeName, source, postRestartNode) {
   const config = validateFleetConfigV1(configInput, nodeName);
   const validatedSource = validateSourceConvergenceReceiptV1(source, config, nodeName);
   const validatedFreshness = validateProcessFreshnessAuditV1(baseline, nodeName, validatedSource.to_sha);
@@ -231,6 +233,12 @@ function restartReceipt(configInput, baseline, nodeName, source) {
     automatic_retry: false,
     fresh_evidence_required_before_retry: false,
     runtime_transition_proven: true,
+    post_restart_identity: {
+      marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+      process_start_epoch: postRestartNode.process_start_epoch,
+      process_source_commit: postRestartNode.process_source_commit,
+      process_source_tree: postRestartNode.process_source_tree,
+    },
     authority: {
       git_mutation: false,
       package_install: false,
@@ -314,6 +322,13 @@ try {
     /not exact green process evidence/,
     "unbound process identity",
   );
+  const transportMismatch = clone(baseline);
+  transportMismatch.nodes[1].transport = "ssh";
+  expectThrow(
+    () => validateFullFreshnessAuditV1(transportMismatch, config),
+    /transport does not match the exact fleet config/,
+    "producer transport/config mismatch",
+  );
 
   const state0 = createRolloutStateV1(baseline, config);
   const validatedState0 = validateRolloutStateV1(state0, config);
@@ -329,7 +344,7 @@ try {
   ]);
   const validatedCurrentNimo = validateFullFreshnessAuditV1(currentNimo, config);
   const nimoSource = sourceReceipt(config, "nimo", fromSha, sourceSha);
-  const nimoRestart = restartReceipt(config, baseline, "nimo", nimoSource);
+  const nimoRestart = restartReceipt(config, baseline, "nimo", nimoSource, currentNimo.nodes[1]);
   const advanceAssessment = assessRolloutStateV1(validatedState0, validatedCurrentNimo, { advancingNode: "nimo" });
   assert.equal(advanceAssessment.ok, true);
   assert.equal(advanceAssessment.next_node, "alienware");
@@ -341,6 +356,7 @@ try {
     "nimo",
   );
   assert.equal(validatedReceipt.plan.node, "nimo");
+  assert.deepEqual(validatedReceipt.post_restart_identity, nimoRestart.post_restart_identity);
   const advancedNimo = advanceRolloutStateV1(
     validatedState0,
     validatedCurrentNimo,
@@ -364,7 +380,7 @@ try {
   ]);
   const validatedCurrentAll = validateFullFreshnessAuditV1(currentAll, config);
   const alienSource = sourceReceipt(config, "alienware", fromSha, sourceSha);
-  const alienRestart = restartReceipt(config, baseline, "alienware", alienSource);
+  const alienRestart = restartReceipt(config, baseline, "alienware", alienSource, currentAll.nodes[2]);
   const advancedAll = advanceRolloutStateV1(
     validatedState1,
     validatedCurrentAll,
@@ -453,6 +469,48 @@ try {
     () => validateSuccessfulRestartReceiptV1(ambiguousReceipt, nimoSource, validatedState0, config, "nimo"),
     /does not prove/,
     "ambiguous restart receipt",
+  );
+  const missingPostRestartIdentity = clone(nimoRestart);
+  delete missingPostRestartIdentity.post_restart_identity;
+  expectThrow(
+    () => validateSuccessfulRestartReceiptV1(
+      missingPostRestartIdentity,
+      nimoSource,
+      validatedState0,
+      config,
+      "nimo",
+    ),
+    /restart receipt keys/,
+    "post-restart identity omission",
+  );
+  const tamperedPostRestartIdentity = clone(nimoRestart);
+  tamperedPostRestartIdentity.post_restart_identity.process_source_commit = fromSha;
+  tamperedPostRestartIdentity.post_restart_identity.process_source_tree = fromTree;
+  expectThrow(
+    () => validateSuccessfulRestartReceiptV1(
+      tamperedPostRestartIdentity,
+      nimoSource,
+      validatedState0,
+      config,
+      "nimo",
+    ),
+    /does not match the exact rollout source/,
+    "post-restart identity tamper",
+  );
+  const unreceiptedRestart = clone(currentNimo);
+  unreceiptedRestart.nodes[1].process_start_epoch += 1;
+  unreceiptedRestart.nodes[1].source_to_process_start_seconds += 1;
+  Object.assign(unreceiptedRestart, freshnessAudit(unreceiptedRestart.nodes));
+  expectThrow(
+    () => advanceRolloutStateV1(
+      validatedState0,
+      validateFullFreshnessAuditV1(unreceiptedRestart, config),
+      nimoSource,
+      nimoRestart,
+      config,
+    ),
+    /current process identity does not match the receipted post-restart identity/,
+    "unreceipted post-controller restart",
   );
   const sourceTamper = clone(nimoSource);
   sourceTamper.plan.to_sha = fromSha;
