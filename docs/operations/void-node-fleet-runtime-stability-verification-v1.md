@@ -55,11 +55,12 @@ For every configured node, both audits must prove:
 - green health and readiness; and
 - a fresh observation.
 
-The second observation must retain the exact process-start epoch and
-source-transition epoch from the final audit, while both exact audits continue
-to bind every aligned process to the shared source commit/tree. Its observation
-epoch must be at least the configured interval later for every node. The minimum
-is 30 seconds and the default is 30 seconds.
+The second observation must retain the exact process-start epoch,
+source-transition epoch, source commit, and source tree from the final audit,
+while both exact audits continue to bind every aligned process to that shared
+source commit/tree. Its observation epoch must be at least the configured
+interval later for every node. The minimum is 30 seconds and the default is 30
+seconds.
 
 Any crash recovery, manual restart, source checkout, process replacement,
 health/readiness failure, stale evidence, future timestamp, or schema/digest
@@ -92,7 +93,7 @@ Success returns `FLEET_RUNTIME_STABLE` with:
 - a reproducible `stability_id_sha256`;
 - the exact final rollout receipt and rollout state digests;
 - normalized IDs and full-receipt digests for both audits;
-- the exact source SHA and node order;
+- the exact source SHA, source tree, and node order;
 - the required stability interval; and
 - per-node process, source-transition, and observation epochs.
 

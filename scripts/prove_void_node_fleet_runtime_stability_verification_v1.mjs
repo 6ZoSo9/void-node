@@ -294,6 +294,8 @@ try {
     receipt.verification_audit_receipt_sha256,
   );
   assert.equal(receipt.rollout_state_id_sha256, state.state_id_sha256);
+  assert.equal(receipt.source_sha, sourceSha);
+  assert.equal(receipt.source_tree, sourceTree);
   assert.deepEqual(receipt.node_order, ["precision", "nimo", "alienware"]);
   assert.ok(receipt.node_evidence.every((entry) => entry.observed_stability_seconds === 45));
   assert.equal(receipt.authority.evidence_file_create_only, true);
@@ -425,6 +427,21 @@ try {
     }),
     /source SHA changed/,
     "source SHA movement",
+  );
+
+  const sourceTreeTamper = clone(verificationAudit);
+  for (const node of sourceTreeTamper.nodes) {
+    node.source_tree = "f".repeat(40);
+    node.process_source_tree = node.source_tree;
+    node.process_source_matches_current = true;
+  }
+  expectThrow(
+    () => buildRuntimeStabilityVerificationV1({
+      ...input,
+      verificationAudit: resealAudit(sourceTreeTamper),
+    }),
+    /source tree changed/,
+    "source tree movement",
   );
 
   const tooSoon = clone(verificationAudit);

@@ -198,6 +198,7 @@ function stabilityDigestPayload(receipt) {
     verification_audit_id_sha256: receipt.verification_audit_id_sha256,
     verification_audit_receipt_sha256: receipt.verification_audit_receipt_sha256,
     source_sha: receipt.source_sha,
+    source_tree: receipt.source_tree,
     node_order: receipt.node_order,
     minimum_stability_seconds: receipt.minimum_stability_seconds,
     node_evidence: receipt.node_evidence,
@@ -214,7 +215,7 @@ export function validateRuntimeStabilityVerificationV1(receipt) {
     "marker", "version", "outcome", "stability_id_sha256", "final_rollout_receipt_sha256",
     "rollout_state_id_sha256", "final_audit_id_sha256", "final_audit_receipt_sha256",
     "verification_audit_id_sha256", "verification_audit_receipt_sha256",
-    "source_sha", "node_order", "minimum_stability_seconds", "node_evidence",
+    "source_sha", "source_tree", "node_order", "minimum_stability_seconds", "node_evidence",
     "mutation_attempted", "automatic_retry", "audit_command_invoked", "restart_command_invoked",
     "authority",
   ], "stability receipt");
@@ -234,6 +235,7 @@ export function validateRuntimeStabilityVerificationV1(receipt) {
     [receipt.verification_audit_receipt_sha256, "verification audit receipt digest"],
   ]) assertSha64(value, label);
   assertSha40(receipt.source_sha, "stability source SHA");
+  assertSha40(receipt.source_tree, "stability source tree");
   assertBoundedInteger(
     receipt.minimum_stability_seconds,
     DEFAULT_MIN_STABILITY_SECONDS,
@@ -316,6 +318,9 @@ export function buildRuntimeStabilityVerificationV1(input) {
   if (verification.source_sha !== completed.final.source_sha) {
     fail("verification audit source SHA changed after rollout completion");
   }
+  if (verification.source_tree !== completed.final.source_tree) {
+    fail("verification audit source tree changed after rollout completion");
+  }
   if (stableJson(verification.node_order) !== stableJson(completed.final.node_order)) {
     fail("verification audit node order changed after rollout completion");
   }
@@ -356,6 +361,7 @@ export function buildRuntimeStabilityVerificationV1(input) {
     verification_audit_id_sha256: verification.audit_id_sha256,
     verification_audit_receipt_sha256: verificationAuditReceiptSha256,
     source_sha: verification.source_sha,
+    source_tree: verification.source_tree,
     node_order: verification.node_order,
     minimum_stability_seconds: minimumStabilitySeconds,
     node_evidence: nodeEvidence,
