@@ -1,0 +1,52 @@
+# VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1
+# SOURCE-ONLY TEMPLATE. DO NOT INSTALL DIRECTLY.
+# P0-C3 must replace __SEALED_NODE_BIN__ with an absolute, SHA-256-pinned
+# operator Node binary and prove this exact unit against the sealed deployment
+# before any P0-D service or checkpoint mutation. Anvil is already bound below
+# to the staged absolute path and reviewed SHA-256; the launcher revalidates both.
+[Unit]
+Description=VOID private Chain-2050 RPC — selector-driven durable state v1
+After=network.target
+Before=void-wc-relayer.service void-workcredits-devnet-http.service
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-startup-integration-v1.mjs
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-startup-selection-v1.mjs
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-checkpoint-v1.mjs
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex
+ConditionPathExists=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1/chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.anvil-dump-state.hex
+ConditionPathExists=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1/chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.manifest.json
+ConditionPathExists=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1/chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.complete-v1
+
+[Service]
+Type=simple
+WorkingDirectory=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1
+ExecStart=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitNOFILE=65536
+
+Environment=VOID_REPO=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1
+Environment=VOID_NODE_BIN=__SEALED_NODE_BIN__
+Environment=VOID_MAINNET0_8545_ANVIL_EXECUTABLE=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
+Environment=VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256=b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738
+Environment=VOID_MAINNET0_8545_BASELINE_STATE=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex
+Environment=VOID_MAINNET0_8545_BASELINE_STATE_SHA256=02afeb49a6eced1c1f3889d62f308f07df099c0c75699226e89d60fdb434ede7
+Environment=VOID_MAINNET0_8545_BASELINE_STATE_FORMAT=anvil_dump_state_hex
+Environment=VOID_MAINNET0_8545_BASELINE_BLOCK_NUMBER=37367
+Environment=VOID_MAINNET0_8545_BASELINE_BLOCK_HASH=0x97b6cc60e4f909d2ecfbe62c506cb8e921368a35abcac987be97ad067fed48f3
+Environment=VOID_MAINNET0_8545_CHECKPOINT_ROOT=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1
+Environment=VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER=37371
+Environment=VOID_MAINNET0_8545_DERIVED_ROOT=/home/zoso/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1
+Environment=VOID_MAINNET0_8545_RPC_URL=http://127.0.0.1:8545/
+Environment=VOID_MAINNET0_8545_START_MODE=apply
+Environment=VOID_MAINNET0_8545_CONFIRMATION=startPrivateChain2050FromSelectedDurableState
+
+[Install]
+WantedBy=default.target

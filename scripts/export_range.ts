@@ -1,5 +1,5 @@
 import fs from "node:fs"
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const FROM = Number(process.env.FROM ?? 0)
@@ -16,7 +16,9 @@ if (!Number.isFinite(FROM) || !Number.isFinite(to) || FROM < 0 || to < FROM) {
 const fd = fs.openSync(OUT, "w")
 let wrote = 0
 ;(async () => {
-  for await (const b of store.findRange(FROM, to)) {
+  for (let n = FROM; n <= to; n += 1) {
+    const b = store.loadBlock(n)
+    if (b === null) continue
     fs.writeSync(fd, JSON.stringify(b) + "\n")
     wrote++
   }
