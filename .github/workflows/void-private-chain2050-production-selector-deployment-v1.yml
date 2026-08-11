@@ -8,6 +8,7 @@ on:
       - "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json"
       - "ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example"
       - "scripts/prove_void_private_chain2050_production_selector_deployment_v1.mjs"
+      - "scripts/prove_void_private_chain2050_anvil_executable_binding_v1.mjs"
       - "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh"
       - "tools/void-private-chain2050-startup-integration-v1.mjs"
       - "tools/void-private-chain2050-startup-selection-v1.mjs"
@@ -21,6 +22,7 @@ on:
       - "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json"
       - "ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example"
       - "scripts/prove_void_private_chain2050_production_selector_deployment_v1.mjs"
+      - "scripts/prove_void_private_chain2050_anvil_executable_binding_v1.mjs"
       - "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh"
       - "tools/void-private-chain2050-startup-integration-v1.mjs"
       - "tools/void-private-chain2050-startup-selection-v1.mjs"
@@ -49,14 +51,19 @@ jobs:
       - name: Syntax
         run: |
           node --check scripts/prove_void_private_chain2050_production_selector_deployment_v1.mjs
+          node --check scripts/prove_void_private_chain2050_anvil_executable_binding_v1.mjs
           node --check scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs
           node --check scripts/prove_void_private_chain2050_startup_integration_v1.mjs
           node --check scripts/prove_void_private_chain2050_startup_selection_v1.mjs
           node --check scripts/prove_void_private_chain2050_checkpoint_v1.mjs
+          node --check tools/void-private-chain2050-startup-integration-v1.mjs
           bash -n ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh
 
       - name: Production deployment-shape proof
         run: node scripts/prove_void_private_chain2050_production_selector_deployment_v1.mjs
+
+      - name: Exact Anvil executable binding proof
+        run: node scripts/prove_void_private_chain2050_anvil_executable_binding_v1.mjs
 
       - name: Selector/startup regressions
         run: |
