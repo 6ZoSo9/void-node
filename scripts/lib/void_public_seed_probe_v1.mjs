@@ -217,10 +217,9 @@ function requireGatewayHeader(result, label) {
 function containsBlockNumber(value, expected, depth = 0) {
   if (depth > 8 || value === null || value === undefined) return false;
   if (typeof value === "number") return value === expected;
-  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value) === expected;
   if (Array.isArray(value)) return value.some((entry) => containsBlockNumber(entry, expected, depth + 1));
   if (typeof value === "object") {
-    if (Object.hasOwn(value, "number") && Number(value.number) === expected) return true;
+    if (Object.hasOwn(value, "number") && value.number === expected) return true;
     return Object.values(value).some((entry) => containsBlockNumber(entry, expected, depth + 1));
   }
   return false;
@@ -255,7 +254,7 @@ export async function probePublicSeedSample(
   const gatewayHeader = requireGatewayHeader(ready, "seed readiness");
   assertPlainObject(ready.json, "seed readiness body");
   const readyHead = assertSafeInteger(ready.json.head, "seed readiness head", { min: 1 });
-  if (ready.json.ready !== true || Number(ready.json.gap) !== 0 || Number(ready.json.txroot_live) !== 1) {
+  if (ready.json.ready !== true || ready.json.gap !== 0 || ready.json.txroot_live !== 1) {
     throw new Error("seed readiness is not exact-green");
   }
 
@@ -314,6 +313,7 @@ export async function probePublicSeedSample(
   requireGatewayHeader(headOnly, "seed readiness HEAD");
 
   const dnsAfter = await resolvePublicDns(normalized.hostname, { lookup, allowLoopbackFixture });
+  const resolvedAddresses = sortedUnion(dnsBefore, dnsAfter);
   const finishedAt = now();
 
   return Object.freeze({
@@ -330,7 +330,14 @@ export async function probePublicSeedSample(
     private_route_error: admin.json.error,
     mutation_status: mutation.status,
     mutation_error: mutation.json.error,
-    dns_addresses: sortedUnion(dnsBefore, dnsAfter),
+    address_source: normalized.address_source,
+    dns_addresses:
+      normalized.address_source === "dns" ||
+      normalized.address_source === "loopback_fixture"
+        ? resolvedAddresses
+        : [],
+    endpoint_addresses:
+      normalized.address_source === "ip_literal" ? resolvedAddresses : [],
     connected_addresses: sortedUnion(
       [ready.remote_address, head.remote_address, range.remote_address],
       [admin.remote_address, mutation.remote_address, headOnly.remote_address],

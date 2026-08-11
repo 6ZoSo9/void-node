@@ -6,7 +6,7 @@ import {
   evaluateLiveCanonicalChainStateApiResponseSignerAuthorityBoundaryV1,
   type VoidLiveCanonicalChainStateApiResponseSignerAuthorityEnvelopeV1,
   type VoidLiveCanonicalChainStateApiResponseSignerAuthorityPolicyV1,
-} from '../src/chain/block';
+} from '../src/chain/block.js';
 
 const policy: VoidLiveCanonicalChainStateApiResponseSignerAuthorityPolicyV1 = {
   boundary: VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_V1,
@@ -83,4 +83,3 @@ assert.equal(duplicateAllowedPolicy.accepted, false);
 assert.equal(duplicateAllowedPolicy.reason, 'allowed_signer_key_ids_must_be_non_empty_and_unique');
 
 console.log(VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_AUTHORITY_BOUNDARY_AUDIT_V1_GREEN);
-
