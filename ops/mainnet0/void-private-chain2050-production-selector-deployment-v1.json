@@ -9,20 +9,20 @@
   "wallet_signer_credential_access": false,
   "transaction_submission_performed": false,
   "money_movement_performed": false,
-  "reviewed_source_anchor": "1b3429b9e938b4c590ecc1601677394d8d7081cb",
+  "reviewed_source_anchor": "b7e77da1bb540c242e59e18191972aca8d717293",
   "deployment_root": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1",
   "service_name": "void-private-chain2050-rpc-v1.service",
   "unit_template_path": "ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example",
   "source_files": [
     {
       "path": "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
-      "git_blob_sha": "ea0868a02bb8f9c06fe006fbadb66fb24d287729",
+      "git_blob_sha": "ca41638af03cbf361d89d578c9426e59c5b6beeb",
       "deployment_relative_path": "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
       "mode": "0755"
     },
     {
       "path": "tools/void-private-chain2050-startup-integration-v1.mjs",
-      "git_blob_sha": "8d00ec0c80a361bbfa71f18ab9c381d8060717a2",
+      "git_blob_sha": "f56a6fd6eb6fd80c0e34f3b751610275b0004d15",
       "deployment_relative_path": "tools/void-private-chain2050-startup-integration-v1.mjs",
       "mode": "0600"
     },
@@ -43,6 +43,10 @@
     "node_binary_absolute_path_required": true,
     "node_binary_sha256_required": true,
     "node_binary_unit_sentinel": "__SEALED_NODE_BIN__",
+    "anvil_binary_absolute_path_required": true,
+    "anvil_binary_sha256_required": true,
+    "anvil_binary_reverified_before_spawn": true,
+    "ambient_path_anvil_resolution_allowed": false,
     "pinned_anvil_source_path": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/anvil-v1.5.1-epoch127-20260723T210919Z/bin/anvil",
     "pinned_anvil_sha256": "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738",
     "pinned_anvil_deployment_relative_path": "bin/anvil",
@@ -101,6 +105,8 @@
   "future_unit_environment": {
     "VOID_REPO": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1",
     "VOID_NODE_BIN": "__SEALED_NODE_BIN__",
+    "VOID_MAINNET0_8545_ANVIL_BIN": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil",
+    "VOID_MAINNET0_8545_ANVIL_SHA256": "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738",
     "VOID_MAINNET0_8545_BASELINE_STATE": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex",
     "VOID_MAINNET0_8545_BASELINE_STATE_SHA256": "02afeb49a6eced1c1f3889d62f308f07df099c0c75699226e89d60fdb434ede7",
     "VOID_MAINNET0_8545_BASELINE_STATE_FORMAT": "anvil_dump_state_hex",
