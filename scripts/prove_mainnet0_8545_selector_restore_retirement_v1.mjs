@@ -65,6 +65,22 @@ assert.match(
 );
 assert.match(
   selectedText,
+  /VOID_MAINNET0_8545_ANVIL_BIN/,
+);
+assert.match(
+  selectedText,
+  /VOID_MAINNET0_8545_ANVIL_SHA256/,
+);
+assert.match(
+  selectedText,
+  /--anvil-bin/,
+);
+assert.match(
+  selectedText,
+  /--anvil-sha256/,
+);
+assert.match(
+  selectedText,
   /VOID_MAINNET0_8545_START_MODE:-plan/,
 );
 assert.match(
@@ -79,6 +95,7 @@ const tempRoot = fs.mkdtempSync(
 );
 try {
   const fakeNode = path.join(tempRoot, "fake-node");
+  const fakeAnvil = path.join(tempRoot, "fake-anvil");
   const capture = path.join(tempRoot, "captured-args.txt");
   fs.writeFileSync(
     fakeNode,
@@ -86,6 +103,8 @@ try {
     { mode: 0o755 },
   );
   fs.chmodSync(fakeNode, 0o755);
+  fs.writeFileSync(fakeAnvil, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
+  fs.chmodSync(fakeAnvil, 0o700);
 
   const baseEnv = {
     ...process.env,
@@ -99,6 +118,8 @@ try {
     VOID_MAINNET0_8545_BASELINE_BLOCK_HASH: `0x${"b".repeat(64)}`,
     VOID_MAINNET0_8545_CHECKPOINT_ROOT: "/operator/private/chain2050-checkpoints-v1",
     VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER: "125",
+    VOID_MAINNET0_8545_ANVIL_BIN: fakeAnvil,
+    VOID_MAINNET0_8545_ANVIL_SHA256: "c".repeat(64),
     VOID_MAINNET0_8545_RPC_URL: "http://127.0.0.1:8545/",
   };
 
@@ -128,10 +149,31 @@ try {
   );
   assert.ok(planArgs.includes("--minimum-block-number"));
   assert.ok(planArgs.includes("125"));
+  const anvilBinIndex = planArgs.indexOf("--anvil-bin");
+  const anvilShaIndex = planArgs.indexOf("--anvil-sha256");
+  assert.ok(anvilBinIndex >= 0);
+  assert.ok(anvilShaIndex >= 0);
+  assert.equal(planArgs[anvilBinIndex + 1], fakeAnvil);
+  assert.equal(planArgs[anvilShaIndex + 1], "c".repeat(64));
   assert.equal(planArgs.includes("--apply"), false);
   assert.equal(planArgs.includes("--confirmation"), false);
 
   fs.rmSync(capture, { force: true });
+  const missingAnvil = runSelected({ VOID_MAINNET0_8545_ANVIL_BIN: "" });
+  assert.equal(missingAnvil.status, 2);
+  assert.match(missingAnvil.stderr, /missing_env:VOID_MAINNET0_8545_ANVIL_BIN/);
+  assert.equal(fs.existsSync(capture), false);
+
+  const relativeAnvil = runSelected({ VOID_MAINNET0_8545_ANVIL_BIN: "./anvil" });
+  assert.equal(relativeAnvil.status, 2);
+  assert.match(relativeAnvil.stderr, /anvil_bin_not_absolute/);
+  assert.equal(fs.existsSync(capture), false);
+
+  const invalidAnvilSha = runSelected({ VOID_MAINNET0_8545_ANVIL_SHA256: "bad" });
+  assert.equal(invalidAnvilSha.status, 2);
+  assert.match(invalidAnvilSha.stderr, /anvil_sha256_invalid/);
+  assert.equal(fs.existsSync(capture), false);
+
   const missingConfirmation = runSelected({
     VOID_MAINNET0_8545_START_MODE: "apply",
     VOID_MAINNET0_8545_CONFIRMATION: "wrong",
@@ -173,6 +215,7 @@ try {
   console.log("selector_wrapper_directly_executable=1");
   console.log("selector_wrapper_default_read_only_plan=1");
   console.log("independent_minimum_block_required=1");
+  console.log("explicit_anvil_path_and_sha_required=1");
   console.log("apply_exact_confirmation_required=1");
   console.log("manual_catchup_removed=1");
   console.log("VOID_MAINNET0_8545_SELECTOR_RESTORE_RETIREMENT_V1_PROOF_GREEN");
