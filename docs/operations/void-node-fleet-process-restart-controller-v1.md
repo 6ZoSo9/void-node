@@ -172,6 +172,13 @@ source commit/tree and reflog transition, `PROCESS_SOURCE_ALIGNED`, a new
 process identity envelope bound to that current source, clean source, exact
 launcher identity, green health/readiness, and restored connected-peer floor.
 
+Every successful applied receipt includes a closed
+`VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1` object containing the
+exact process start epoch and process-source commit/tree observed by that
+postcheck. Downstream rollout evidence must match all three fields exactly; a
+later crash recovery or unreceipted restart cannot be substituted for the
+controller-observed transition.
+
 ## Outcomes and ambiguity
 
 - `PROCESS_RESTARTED` — the command returned success and fresh evidence proves
