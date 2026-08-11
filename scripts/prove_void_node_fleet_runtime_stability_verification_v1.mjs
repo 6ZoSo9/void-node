@@ -78,6 +78,7 @@ function processNode(
   const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
   return {
     name,
+    transport: "local",
     reachable: true,
     source_head: sourceSha,
     source_tree: sourceTree,
