@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import readline from "node:readline"
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 function recordScriptsEmptyHandlerVisibilityFailure_scripts_import_file_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
