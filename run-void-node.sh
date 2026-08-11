@@ -282,6 +282,7 @@ resolve_https_public_bootstrap_v1() {
 
   if test "$verify_rc" -eq 3 && \
      test "$manifest_override" = 0 && \
+     test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1 && \
      grep -Fq 'manifest request returned HTTP 404' "$verify_log" && \
      test -f "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST"; then
     set +e
@@ -554,6 +555,12 @@ resolve_public_bootstrap() {
     say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
     say "https_bootstrap=$HTTPS_BOOTSTRAP_STATE"
     say "tor_bootstrap=$TOR_BOOTSTRAP_STATE"
+    if test "$HTTPS_BOOTSTRAP_STATE" = "local_hold_no_stable_seed"; then
+      say "canonical_manifest_published=false"
+      say "local_hold_manifest_verified=true"
+    else
+      say "canonical_manifest_published=true"
+    fi
     say "public_sync_active=false"
     say "tailnet_required=false"
     return
