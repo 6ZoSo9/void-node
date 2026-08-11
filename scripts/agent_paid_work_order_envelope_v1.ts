@@ -385,8 +385,11 @@ function validateDraftShape(value: unknown, includeId: boolean): AgentPaidWorkOr
 }
 
 function toJsonValue(value: unknown, label = "value"): JsonValue {
+  if (value === null) {
+    return null;
+  }
+
   if (
-    value === null ||
     typeof value === "boolean" ||
     typeof value === "string"
   ) {

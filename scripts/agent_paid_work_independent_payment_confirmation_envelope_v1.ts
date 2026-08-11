@@ -99,7 +99,8 @@ function utc(value: string, label: string): number {
   return ms / 1000;
 }
 function canonicalize(value: unknown): JsonValue {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (value === null) return null;
+  if (typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") {
     assertCondition(Number.isFinite(value) && Number.isSafeInteger(value), "canonical numbers must be finite safe integers");
     return value;

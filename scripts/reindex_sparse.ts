@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const EVERY = Number(process.env.SPARSE_EVERY || 16)
