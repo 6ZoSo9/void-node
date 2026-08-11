@@ -63,6 +63,10 @@ jobs:
           node scripts/prove_void_public_seed_pinned_lookup_node_compat_v1.mjs
 
   prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -71,10 +75,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Use Node.js 24 LTS
+      - name: Use supported Node.js major
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: ${{ matrix.node }}
 
       - name: Syntax-check qualification tools
         run: |
@@ -96,3 +100,9 @@ jobs:
 
       - name: Typecheck repository
         run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
