@@ -164,8 +164,15 @@ function semanticMatch(receipt, bundle) {
 
   const receiptObservedAt = Date.parse(receipt.observed_at);
   if (!Number.isFinite(receiptObservedAt)) return false;
+  let previousObservedAt = -Infinity;
   for (const kind of KINDS) {
-    if (Date.parse(bundle[kind].observed_at) > receiptObservedAt) return false;
+    const observedAt = Date.parse(bundle[kind].observed_at);
+    if (
+      !Number.isFinite(observedAt) ||
+      observedAt < previousObservedAt ||
+      observedAt > receiptObservedAt
+    ) return false;
+    previousObservedAt = observedAt;
   }
 
   if (!equalUnordered(
