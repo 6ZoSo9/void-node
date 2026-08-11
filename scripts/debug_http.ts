@@ -4,6 +4,7 @@ import { SegStore } from "../src/chain/seg_store.js"
 
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4300)
 const DATA_DIR  = process.env.DATA_DIR || "data"
+const MAX_BLOCK_RANGE = 999
 const store = new SegStore(DATA_DIR, { segmentMaxBytes: 1024*1024, sparseEvery: 5 })
 
 function json(res: http.ServerResponse, code: number, obj: any) {
@@ -38,7 +39,13 @@ const server = http.createServer(async (req, res) => {
   if (u.pathname === "/blocks/range") {
     const from = Number(u.query.from ?? -1)
     const to   = Number(u.query.to   ?? -2)
-    if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    if (
+      !Number.isSafeInteger(from)
+      || !Number.isSafeInteger(to)
+      || from < 0
+      || to < from
+      || to - from >= MAX_BLOCK_RANGE
+    ) {
       return json(res, 400, { ok:false, err:"invalid range" })
     }
 
