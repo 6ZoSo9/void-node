@@ -307,6 +307,24 @@ const tamperedVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
 });
 assert.equal(tamperedVerifier(receipt), false);
 
+const semanticTamperedBundle = structuredClone(bundle);
+semanticTamperedBundle.first_ready_after_sync.payload.head = 99;
+const semanticTamperedBody = structuredClone(body);
+semanticTamperedBody.evidence.first_ready_after_sync_sha256 =
+  hashVoidBootstrapExternalObservationV1(
+    semanticTamperedBundle.first_ready_after_sync,
+  );
+const semanticTamperedVerifier =
+  createVoidBootstrapExternalEvidenceVerifierV1({
+    evidenceBundle: semanticTamperedBundle,
+    verifyCaptureProvenance: reviewedProvenance,
+  });
+assert.throws(() =>
+  buildVoidBootstrapExternalAcceptanceReceiptV1(semanticTamperedBody, {
+    verifyExternalEvidence: semanticTamperedVerifier,
+  }),
+);
+
 const provenanceTamperedBundle = structuredClone(bundle);
 provenanceTamperedBundle.second_peers.provenance.source_sha256 = "f".repeat(64);
 const provenanceTamperedVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
@@ -317,11 +335,18 @@ assert.equal(provenanceTamperedVerifier(receipt), false);
 
 const futureBundle = structuredClone(bundle);
 futureBundle.second_peers.observed_at = "2026-08-11T14:05:00.000Z";
+const futureBody = structuredClone(body);
+futureBody.evidence.second_peers_sha256 =
+  hashVoidBootstrapExternalObservationV1(futureBundle.second_peers);
 const futureVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
   evidenceBundle: futureBundle,
   verifyCaptureProvenance: reviewedProvenance,
 });
-assert.equal(futureVerifier(receipt), false);
+assert.throws(() =>
+  buildVoidBootstrapExternalAcceptanceReceiptV1(futureBody, {
+    verifyExternalEvidence: futureVerifier,
+  }),
+);
 
 const outOfOrderBundle = structuredClone(bundle);
 outOfOrderBundle.first_ready_after_removal.observed_at = "2026-08-11T14:00:30.000Z";
