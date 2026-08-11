@@ -712,7 +712,7 @@ export async function verifyVoidPrivateChain2050StartedStateV1(
 ) {
   const deadline = Date.now() + timeoutMs;
   let lastReason = "startup_rpc_not_ready";
-  while (Date.now() < timeoutMs + Date.now()) {
+  while (Date.now() < deadline) {
     try {
       const chainRaw = await rpcClient(url, "eth_chainId", []);
       if (
@@ -758,7 +758,6 @@ export async function verifyVoidPrivateChain2050StartedStateV1(
       lastReason = String(error?.message || error).slice(0, 160);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-    if (Date.now() >= deadline) break;
   }
   hold("startup_postload_verification_timeout", { last_reason: lastReason });
 }
