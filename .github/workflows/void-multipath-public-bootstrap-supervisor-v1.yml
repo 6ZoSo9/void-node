@@ -1,0 +1,65 @@
+name: VOID multipath public bootstrap supervisor v1
+
+on:
+  pull_request:
+    paths:
+      - 'run-void-node.sh'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_multipath_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/prove_void_multipath_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs'
+      - 'scripts/run_void_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs'
+      - 'tools/void-public-seed-client-adapter-v1.mjs'
+      - 'tools/void-tor-public-seed-client-adapter-v1.mjs'
+      - 'src/http/follower_routes.ts'
+      - 'docs/public/void-multipath-public-bootstrap-supervisor-v1.md'
+      - '.github/workflows/void-multipath-public-bootstrap-supervisor-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-multipath-public-bootstrap-supervisor-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '${{ matrix.node }}'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax-check launcher and multipath source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n run-void-node.sh
+          node --check scripts/resolve_void_public_bootstrap_v1.mjs
+          node --check scripts/lib/void_multipath_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/prove_void_multipath_public_bootstrap_supervisor_v1.mjs
+      - name: Prove multipath launcher contract
+        run: node scripts/prove_void_multipath_public_bootstrap_supervisor_v1.mjs
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        shell: bash
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
