@@ -19,8 +19,10 @@ import {
 } from "../tools/void-node-fleet-process-freshness-audit-v1.mjs";
 import {
   VOID_NODE_FLEET_PROCESS_RESTART_APPLY_V1,
+  VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
   assessPostRestartV1,
   assessPreRestartV1,
+  buildPostRestartIdentityV1,
   buildRestartApplyScriptV1,
   buildRestartCollectorScriptV1,
   buildRestartPlanV1,
@@ -403,6 +405,20 @@ const postSnapshot = {
 };
 assert.equal(assessPostRestartV1(postSnapshot, fixedConfig, fixedPlan).ok, true);
 assert.equal(assessPostRestartV1({ ...postSnapshot, readiness: { ready: false } }, fixedConfig, fixedPlan).ok, false);
+assert.deepEqual(buildPostRestartIdentityV1(postSnapshot, fixedConfig, fixedPlan), {
+  marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+  process_start_epoch: postSnapshot.process_start_epoch,
+  process_source_commit: fixedPlan.source_sha,
+  process_source_tree: fixedPlan.source_tree,
+});
+assert.throws(
+  () => buildPostRestartIdentityV1(
+    { ...postSnapshot, process_start_epoch: fixedPlan.old_process_start_epoch },
+    fixedConfig,
+    fixedPlan,
+  ),
+  /post-restart identity is not exact/,
+);
 
 const collectorScript = buildRestartCollectorScriptV1(fixedConfig.node);
 assert.ok(collectorScript.indexOf("peers=") < collectorScript.indexOf("head_after="), "peer evidence must be inside source/process bracketing");
@@ -649,7 +665,12 @@ case "$command" in
 esac
 `);
   chmodSync(fakeSystemctl, 0o755);
-  const procVisible = run("bash", ["-c", `test -d /proc/${oldChild.pid}`], { allowFailure: true }).status === 0;
+  const procVisible = run("bash", ["-c", [
+    `test -d /proc/${oldChild.pid}`,
+    `test "$(readlink -f -- /proc/${oldChild.pid}/cwd 2>/dev/null)" = ${shellLiteral(repo)}`,
+    `test -n "$(readlink -f -- /proc/${oldChild.pid}/exe 2>/dev/null)"`,
+    `test -r /proc/${oldChild.pid}/cmdline`,
+  ].join(" && ")], { allowFailure: true }).status === 0;
   const collectorPid = procVisible ? oldChild.pid : 1;
   if (!procVisible) {
     const realReadlink = run("sh", ["-c", "command -v readlink"]);
@@ -810,6 +831,13 @@ fi
   assert.equal(appliedRun.mutation_attempted, true);
   assert.equal(appliedRun.mutation_succeeded, true);
   assert.equal(appliedRun.runtime_transition_proven, true);
+  assert.equal(
+    appliedRun.post_restart_identity.marker,
+    VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+  );
+  assert.ok(appliedRun.post_restart_identity.process_start_epoch > dryRun.plan.old_process_start_epoch);
+  assert.equal(appliedRun.post_restart_identity.process_source_commit, dryRun.plan.source_sha);
+  assert.equal(appliedRun.post_restart_identity.process_source_tree, dryRun.plan.source_tree);
   assert.equal(appliedRun.authority.service_start_or_restart_attempted, true);
   assert.equal(appliedRun.authority.service_restart_proven, true);
   assert.equal(appliedRun.authority.git_mutation, false);
@@ -823,6 +851,10 @@ fi
     afterAssessment = assessPostRestartV1(after, config, dryRun.plan);
   }
   assert.deepEqual(afterAssessment.reasons, []);
+  assert.deepEqual(
+    appliedRun.post_restart_identity,
+    buildPostRestartIdentityV1(after, config, dryRun.plan),
+  );
   assert.ok(after.process_start_epoch > oldStartEpoch);
   assert.deepEqual(await waitForJson(`http://127.0.0.1:${port}/loaded`, (value) => value.loaded === "two"), { loaded: "two" });
   assert.equal(git(repo, "rev-parse", "HEAD"), sourceSha);

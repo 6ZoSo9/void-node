@@ -21,6 +21,8 @@ import {
 export const VOID_NODE_FLEET_PROCESS_RESTART_CONTROLLER_V1 = "VOID_NODE_FLEET_PROCESS_RESTART_CONTROLLER_V1";
 export const VOID_NODE_FLEET_PROCESS_RESTART_PLAN_V1 = "VOID_NODE_FLEET_PROCESS_RESTART_PLAN_V1";
 export const VOID_NODE_FLEET_PROCESS_RESTART_APPLY_V1 = "VOID_NODE_FLEET_PROCESS_RESTART_APPLY_V1";
+export const VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1 =
+  "VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1";
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA64_RE = /^[0-9a-f]{64}$/;
@@ -570,6 +572,19 @@ export function assessPostRestartV1(snapshot, config, plan) {
   return { ok: reasons.length === 0, reasons: [...new Set(reasons)].sort() };
 }
 
+export function buildPostRestartIdentityV1(snapshot, config, plan) {
+  const assessment = assessPostRestartV1(snapshot, config, plan);
+  if (!assessment.ok) {
+    fail(`post-restart identity is not exact: ${assessment.reasons.join(",")}`);
+  }
+  return {
+    marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+    process_start_epoch: snapshot.process_start_epoch,
+    process_source_commit: snapshot.process_source_commit,
+    process_source_tree: snapshot.process_source_tree,
+  };
+}
+
 export function buildRestartApplyScriptV1(config, plan) {
   const repo = bashPathExpression(config.node.repo);
   return `set -euo pipefail
@@ -849,6 +864,9 @@ function main() {
     outcomeReasons = [applied.ok ? "restart_returned_without_process_transition" : "restart_command_failed_before_process_transition"];
   }
   const succeeded = outcome.startsWith("PROCESS_RESTARTED");
+  const postRestartIdentity = succeeded
+    ? buildPostRestartIdentityV1(after.snapshot, config, plan)
+    : null;
   emit({
     marker: VOID_NODE_FLEET_PROCESS_RESTART_CONTROLLER_V1,
     version: 1,
@@ -861,6 +879,7 @@ function main() {
     automatic_retry: false,
     fresh_evidence_required_before_retry: !succeeded,
     runtime_transition_proven: succeeded,
+    post_restart_identity: postRestartIdentity,
     authority: authorityState({
       service_start_or_restart_attempted: true,
       service_restart_proven: succeeded,
