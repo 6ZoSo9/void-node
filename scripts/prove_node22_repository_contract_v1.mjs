@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const MARKER = "VOID_NODE_COMPATIBILITY_REPOSITORY_CONTRACT_V2";
@@ -56,8 +56,9 @@ const coreActionWorkflows = [
   ".github/workflows/public-release-qualification-v1.yml",
   ".github/workflows/public-repo-hygiene.yml",
   ".github/workflows/secret-check.yml",
-  ".github/workflows/self-hosted-beta-proof.yml",
 ];
+
+const retiredSelfHostedBetaWorkflow = ".github/workflows/self-hosted-beta-proof.yml";
 
 function read(path) {
   return readFileSync(join(ROOT, path), "utf8");
@@ -88,6 +89,12 @@ const nvmVersion = read(".nvmrc").trim();
 const dockerfile = read("Dockerfile");
 const launcher = read("run-void-node.sh");
 const participant = read("void-participant.sh");
+
+assert.equal(
+  existsSync(join(ROOT, retiredSelfHostedBetaWorkflow)),
+  false,
+  `${retiredSelfHostedBetaWorkflow} must remain retired`,
+);
 
 assert.equal(rootPackage.engines?.node, EXPECTED_ENGINE);
 assert.equal(rootLock.packages?.[""]?.engines?.node, EXPECTED_ENGINE);
@@ -170,6 +177,7 @@ console.log(
       workflow_count: workflowPaths.length,
       migrated_workflow_count: migratedWorkflows.length,
       core_action_workflow_count: coreActionWorkflows.length,
+      retired_self_hosted_beta_workflow_absent: true,
       unsupported_static_node_workflow_count: unsupportedStaticNodeVersions.length,
       invalid_fallback_pin_removed: true,
       status: "GREEN",

@@ -18,11 +18,6 @@ ALLOWED_STANDARD_RUNNERS = frozenset(
         "ubuntu-24.04",
     }
 )
-ALLOWED_SELF_HOSTED_LABELS = (
-    "self-hosted",
-    "void-node",
-    "beta-proof",
-)
 QUALIFICATION_WORKFLOW = ".github/workflows/public-release-qualification-v1.yml"
 ALLOWED_DYNAMIC_EXPRESSION = "${{ matrix.os }}"
 ALLOWED_QUALIFICATION_MATRIX = frozenset({"ubuntu-22.04", "ubuntu-24.04"})
@@ -72,12 +67,9 @@ def inspect_workflow(relative_path: str, text: str) -> list[str]:
             continue
         labels = parse_inline_list(value)
         if labels is not None:
-            if labels != ALLOWED_SELF_HOSTED_LABELS:
-                raise BoundaryError(
-                    f"{relative_path}:{line_number}: unreviewed self-hosted labels: {labels}"
-                )
-            assignments.append("self-hosted:" + ",".join(labels))
-            continue
+            raise BoundaryError(
+                f"{relative_path}:{line_number}: self-hosted or inline runner labels are not allowed: {labels}"
+            )
         if value == ALLOWED_DYNAMIC_EXPRESSION:
             if relative_path != QUALIFICATION_WORKFLOW:
                 raise BoundaryError(
@@ -145,10 +137,10 @@ def self_test() -> None:
     assert inspect_workflow(".github/workflows/ok.yml", "jobs:\n  check:\n    runs-on: ubuntu-latest\n") == [
         "standard:ubuntu-latest"
     ]
-    assert inspect_workflow(
+    require_rejected(
         ".github/workflows/self-hosted-beta-proof.yml",
         "jobs:\n  check:\n    runs-on: [self-hosted, void-node, beta-proof]\n",
-    ) == ["self-hosted:self-hosted,void-node,beta-proof"]
+    )
     assert inspect_workflow(
         QUALIFICATION_WORKFLOW,
         "jobs:\n  check:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        include:\n"

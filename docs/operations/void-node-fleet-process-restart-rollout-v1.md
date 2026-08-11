@@ -19,6 +19,8 @@ Initialize from one fresh, full-fleet
 `VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1` result. The audit must:
 
 - cover every configured node exactly once and in config order;
+- carry each producer-emitted `transport` value and match it exactly to the
+  corresponding fleet-config node;
 - contain no `HOLD` node;
 - reproduce its fleet decision and `audit_id_sha256`;
 - prove the same exact source SHA on every node;
@@ -93,9 +95,10 @@ The coordinator reproduces:
 2. the selected node's exact stale evidence from the baseline audit;
 3. the restart-only Git transition against current canonical `main`;
 4. the complete deterministic restart plan;
-5. the successful, non-retried restart receipt and exact authority object; and
-6. the new aligned process's exact current commit/tree identity in the current
-   fleet audit.
+5. the successful, non-retried restart receipt, exact authority object, and
+   controller-observed post-restart process epoch/commit/tree; and
+6. an exact match between that receipted post-restart identity and the new
+   aligned process in the current fleet audit.
 
 Completed entries must be the exact prefix of the baseline stale-node order.
 Skipping a node, appending a failed or ambiguous receipt, changing a plan or

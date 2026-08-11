@@ -11,6 +11,7 @@ import {
 } from "./void-node-fleet-process-freshness-audit-v1.mjs";
 import {
   VOID_NODE_FLEET_PROCESS_RESTART_CONTROLLER_V1,
+  VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
   buildRestartPlanV1,
   inspectRestartTransitionV1,
   validateProcessFreshnessAuditV1,
@@ -127,10 +128,10 @@ function extractState(input) {
   fail(`state input must contain ${VOID_NODE_FLEET_PROCESS_RESTART_ROLLOUT_STATE_V1}`);
 }
 
-function validateGreenNode(node, label) {
+function validateGreenNode(node, label, expectedTransport) {
   if (!node || typeof node !== "object") fail(`${label} must be an object`);
   exactKeys(node, [
-    "name", "reachable", "source_head", "source_tree", "source_branch", "dirty_count", "worktree_status_readable",
+    "name", "transport", "reachable", "source_head", "source_tree", "source_branch", "dirty_count", "worktree_status_readable",
     "source_stable", "service_active", "process_present", "process_cwd_matches_repo", "process_entrypoint",
     "process_entrypoint_matches", "process_executable_node", "process_identity_stable", "head_transition_epoch",
     "process_start_epoch", "observed_at_epoch", "health_ok", "readiness_ok", "classification", "reasons",
@@ -141,6 +142,7 @@ function validateGreenNode(node, label) {
   if (!new Set(["PROCESS_SOURCE_ALIGNED", "STALE_SOURCE_AFTER_PROCESS_START"]).has(node.classification)) {
     fail(`${label} classification must be aligned or stale`);
   }
+  if (node.transport !== expectedTransport) fail(`${label}.transport does not match the exact fleet config`);
   if (!Array.isArray(node.reasons) || node.reasons.length !== 0) fail(`${label} must have no reasons`);
   if (node.reachable !== true || node.source_branch !== "main" || node.dirty_count !== 0 ||
       node.worktree_status_readable !== true || node.source_stable !== true || node.service_active !== true ||
@@ -213,7 +215,7 @@ export function validateFullFreshnessAuditV1(audit, configInput, options = {}) {
   for (let index = 0; index < audit.nodes.length; index += 1) {
     const node = audit.nodes[index];
     if (node?.name !== configNodes[index].name) fail("freshness audit node order must exactly match config order");
-    const validated = validateGreenNode(node, `freshness.nodes[${index}]`);
+    const validated = validateGreenNode(node, `freshness.nodes[${index}]`, configNodes[index].transport);
     if (!sourceSha) sourceSha = validated.sourceSha;
     if (!sourceTree) sourceTree = validated.sourceTree;
     if (validated.sourceSha !== sourceSha) fail("freshness audit nodes do not share one exact source SHA");
@@ -406,7 +408,7 @@ export function validateSuccessfulRestartReceiptV1(receipt, sourceReceipt, state
   exactKeys(receipt, [
     "marker", "version", "outcome", "plan", "reasons", "mutation_attempted", "mutation_succeeded",
     "transport_exit_code", "automatic_retry", "fresh_evidence_required_before_retry",
-    "runtime_transition_proven", "authority",
+    "runtime_transition_proven", "post_restart_identity", "authority",
   ], "restart receipt");
   if (!Number.isInteger(receipt.transport_exit_code) && receipt.transport_exit_code !== null) {
     fail("restart receipt transport exit code is invalid");
@@ -432,9 +434,31 @@ export function validateSuccessfulRestartReceiptV1(receipt, sourceReceipt, state
   if (!transition.ok) fail(`restart source transition is no longer exact: ${transition.reasons.join(",")}`);
   const expectedPlan = buildRestartPlanV1(source, freshness, transition, config);
   if (stableJson(receipt.plan) !== stableJson(expectedPlan)) fail("restart receipt plan does not match reproduced exact plan");
+  exactKeys(receipt.post_restart_identity, [
+    "marker", "process_start_epoch", "process_source_commit", "process_source_tree",
+  ], "restart receipt post-restart identity");
+  if (receipt.post_restart_identity.marker !== VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1) {
+    fail("restart receipt post-restart identity marker is invalid");
+  }
+  if (!Number.isSafeInteger(receipt.post_restart_identity.process_start_epoch) ||
+      receipt.post_restart_identity.process_start_epoch <= expectedPlan.old_process_start_epoch) {
+    fail("restart receipt post-restart process epoch is invalid");
+  }
+  const postRestartCommit = assertSha40(
+    receipt.post_restart_identity.process_source_commit,
+    "restart receipt post-restart process commit",
+  );
+  const postRestartTree = assertSha40(
+    receipt.post_restart_identity.process_source_tree,
+    "restart receipt post-restart process tree",
+  );
+  if (postRestartCommit !== expectedPlan.source_sha || postRestartTree !== expectedPlan.source_tree) {
+    fail("restart receipt post-restart process identity does not match the exact rollout source");
+  }
   return {
     source,
     plan: expectedPlan,
+    post_restart_identity: receipt.post_restart_identity,
     source_receipt_sha256: sha256(sourceReceipt),
     restart_receipt_sha256: sha256(receipt),
   };
@@ -453,6 +477,11 @@ export function advanceRolloutStateV1(stateValidated, currentValidated, sourceRe
     expectedNode,
   );
   const currentNode = nodeByName(currentValidated.audit, expectedNode);
+  if (currentNode.process_start_epoch !== receipt.post_restart_identity.process_start_epoch ||
+      currentNode.process_source_commit !== receipt.post_restart_identity.process_source_commit ||
+      currentNode.process_source_tree !== receipt.post_restart_identity.process_source_tree) {
+    fail("current process identity does not match the receipted post-restart identity");
+  }
   const completion = {
     sequence: stateValidated.state.completed.length + 1,
     node: expectedNode,
@@ -464,10 +493,10 @@ export function advanceRolloutStateV1(stateValidated, currentValidated, sourceRe
     source_sha: receipt.source.to_sha,
     old_process_commit: receipt.plan.stale_process_commit,
     old_process_tree: receipt.plan.stale_process_tree,
-    new_process_commit: currentNode.process_source_commit,
-    new_process_tree: currentNode.process_source_tree,
+    new_process_commit: receipt.post_restart_identity.process_source_commit,
+    new_process_tree: receipt.post_restart_identity.process_source_tree,
     old_process_start_epoch: receipt.plan.old_process_start_epoch,
-    new_process_start_epoch: currentNode.process_start_epoch,
+    new_process_start_epoch: receipt.post_restart_identity.process_start_epoch,
   };
   const nextState = sealState({ ...stateValidated.state, completed: [...stateValidated.state.completed, completion] });
   return { state: nextState, assessment, completion };
