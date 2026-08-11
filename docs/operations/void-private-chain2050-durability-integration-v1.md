@@ -206,7 +206,9 @@ The updated systemd example keeps all three explicit and remains disabled by def
 
 `tools/void-private-chain2050-startup-integration-v1.mjs` is the source-side canonical routine-start launcher for private Chain-2050 state.
 
-It requires the operator to pin the immutable baseline identity and provide the checkpoint root plus independently required minimum block.
+It requires the operator to pin the immutable baseline identity, the absolute
+Anvil executable path and SHA-256, and provide the checkpoint root plus
+independently required minimum block.
 
 The launcher delegates selection to merged #1180. It therefore cannot silently choose a valid state below the required minimum and cannot treat unfinalized checkpoint debris as authority.
 
@@ -217,6 +219,7 @@ Dry run is the default.
 It:
 
 - validates the pinned baseline;
+- validates the pinned Anvil executable identity without resolving `PATH`;
 - validates finalized checkpoints;
 - selects the highest unambiguous durable state meeting the minimum; and
 - returns the selection and required apply confirmation.
@@ -264,11 +267,21 @@ startPrivateChain2050FromSelectedDurableState
 
 ### Apply and post-load truth
 
-Apply starts only a numeric-loopback Anvil process with the selected materialized state. The generated argument contract requires:
+Apply revalidates the planned executable path and SHA-256 immediately before
+process creation, then starts only that exact absolute Anvil executable on a
+numeric-loopback address with the selected materialized state. The generated
+argument contract requires:
 
 ```text
-anvil --chain-id 2050 --accounts 0 --load-state <exact selected/materialized state>
+<absolute SHA-256-pinned anvil> --chain-id 2050 --accounts 0 --load-state <exact selected/materialized state>
 ```
+
+The path must be absolute and normalized, every existing path component must be
+non-symlink, and the target must be a non-empty owner-safe regular executable
+with no special or group/other-write mode bits. A missing file, non-executable
+file, unsafe mode, symlink substitution, digest mismatch, or post-plan binary
+change returns `HOLD` before spawn. Bare `anvil` and ambient `PATH` resolution
+are forbidden.
 
 Normal transaction automining is the default, so `--block-time` is absent unless an explicit bounded interval was requested. `--no-mining` / `--no-mine` and mnemonic/account-generator options remain forbidden.
 
