@@ -34,6 +34,9 @@ const ALLOW_LOOPBACK_FIXTURE =
 const ALLOW_HOLD =
   process.argv.includes("--allow-hold") ||
   process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_HOLD === "1";
+const VERIFY_ONLY = process.argv.includes("--verify-only");
+const EXIT_TRUST_INVALID = 2;
+const EXIT_TRANSPORT_UNAVAILABLE = 3;
 
 const AUTHORITY_KEYS = Object.freeze([
   "private_routes_exposed",
@@ -72,9 +75,29 @@ const ENDPOINT_KEYS = Object.freeze([
   "qualified_head",
 ]);
 
-function fail(message) {
+function fail(message, exitCode = 1) {
   console.error(`${MARKER}_FAIL: ${message}`);
-  process.exit(1);
+  process.exit(exitCode);
+}
+
+function classifiedError(message, exitCode) {
+  const error = new Error(message);
+  error.exitCode = exitCode;
+  return error;
+}
+
+function trustInvalid(message) {
+  return classifiedError(message, EXIT_TRUST_INVALID);
+}
+
+function transportUnavailable(message) {
+  return classifiedError(message, EXIT_TRANSPORT_UNAVAILABLE);
+}
+
+function classificationOf(error) {
+  return error?.exitCode === EXIT_TRANSPORT_UNAVAILABLE
+    ? EXIT_TRANSPORT_UNAVAILABLE
+    : EXIT_TRUST_INVALID;
 }
 
 function normalizeConnectedAddress(address) {
@@ -105,8 +128,10 @@ function exactKeys(value, expected, label) {
   return object;
 }
 
-function terminalManifestError(message) {
-  const error = new Error(message);
+function terminalManifestError(message, { unavailable = false } = {}) {
+  const error = unavailable
+    ? transportUnavailable(message)
+    : trustInvalid(message);
   error.terminalManifestResponse = true;
   return error;
 }
@@ -194,7 +219,11 @@ async function requestManifestOne(normalized, address) {
     const failOnce = (error) => {
       if (settled) return;
       settled = true;
-      reject(error instanceof Error ? error : new Error(String(error)));
+      if (error?.exitCode === EXIT_TRUST_INVALID || error?.exitCode === EXIT_TRANSPORT_UNAVAILABLE) {
+        reject(error);
+        return;
+      }
+      reject(transportUnavailable(error?.message || String(error)));
     };
 
     const request = transport.request(
@@ -222,7 +251,7 @@ async function requestManifestOne(normalized, address) {
         if (!connected || connected !== expected) {
           response.destroy();
           failOnce(
-            new Error(
+            trustInvalid(
               `manifest request connected to unexpected address ${connected || "unknown"}; expected ${expected}`,
             ),
           );
@@ -230,7 +259,7 @@ async function requestManifestOne(normalized, address) {
         }
         if (!normalized.loopbackFixture && !isPublicIpAddress(connected)) {
           response.destroy();
-          failOnce(new Error(`manifest request connected to non-public address ${connected}`));
+          failOnce(trustInvalid(`manifest request connected to non-public address ${connected}`));
           return;
         }
 
@@ -242,7 +271,11 @@ async function requestManifestOne(normalized, address) {
         }
         if (status !== 200) {
           response.destroy();
-          failOnce(terminalManifestError(`manifest request returned HTTP ${status}`));
+          const unavailable =
+            status === 404 || status === 408 || status === 425 || status === 429 || status >= 500;
+          failOnce(
+            terminalManifestError(`manifest request returned HTTP ${status}`, { unavailable }),
+          );
           return;
         }
         const mediaDecision =
@@ -301,20 +334,38 @@ async function requestManifestOne(normalized, address) {
 }
 
 async function fetchManifest(rawUrl) {
-  const normalized = normalizeManifestUrl(rawUrl);
-  const addresses = await resolvePublicDns(normalized.hostname, {
-    allowLoopbackFixture: normalized.loopbackFixture,
-  });
+  let normalized;
+  try {
+    normalized = normalizeManifestUrl(rawUrl);
+  } catch (error) {
+    throw trustInvalid(error?.message || String(error));
+  }
+
+  let addresses;
+  try {
+    addresses = await resolvePublicDns(normalized.hostname, {
+      allowLoopbackFixture: normalized.loopbackFixture,
+    });
+  } catch (error) {
+    const detail = error?.message || String(error);
+    if (/non-public|private|local|invalid/i.test(detail)) throw trustInvalid(detail);
+    throw transportUnavailable(detail);
+  }
+
   const errors = [];
+  let sawTrustInvalid = false;
   for (const address of addresses) {
     try {
       return await requestManifestOne(normalized, address);
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
+      if (classificationOf(error) === EXIT_TRUST_INVALID) sawTrustInvalid = true;
       if (error?.terminalManifestResponse === true) throw error;
     }
   }
-  throw new Error(`manifest failed on every pinned address: ${errors.join(" | ")}`);
+  const detail = `manifest failed on every pinned address: ${errors.join(" | ")}`;
+  if (sawTrustInvalid) throw trustInvalid(detail);
+  throw transportUnavailable(detail);
 }
 
 function assertAuthorityBoundary(rawAuthority, label) {
@@ -538,7 +589,21 @@ async function main() {
           manifestId: validated.manifest.manifest_id,
         });
         if (ALLOW_HOLD) return;
-        throw new Error("manifest is in hold_no_stable_seed state");
+        throw trustInvalid("manifest is in hold_no_stable_seed state");
+      }
+
+      if (VERIFY_ONLY) {
+        console.error(`marker=${MARKER}`);
+        console.error("manifest_source=remote_https");
+        console.error(`manifest=${manifestUrl}`);
+        console.error(`manifest_id=${validated.manifest.manifest_id}`);
+        console.error("status=stable_https_seed");
+        console.error("trust_material_verified=true");
+        console.error("live_seed_probe_performed=false");
+        console.error("tailnet_required=false");
+        console.error(`${MARKER}_VERIFY_GREEN`);
+        process.stdout.write(`${validated.endpoints.map((endpoint) => endpoint.base).join(",")}\n`);
+        return;
       }
 
       const live = [];
@@ -567,7 +632,7 @@ async function main() {
         }
       }
       if (live.length === 0) {
-        throw new Error(
+        throw transportUnavailable(
           "no qualified manifest endpoint is currently exact-green",
         );
       }
@@ -584,12 +649,17 @@ async function main() {
       return;
     } catch (error) {
       errors.push(`${manifestUrl}: ${error?.message || String(error)}`);
+      if (classificationOf(error) === EXIT_TRUST_INVALID) {
+        errors.sawTrustInvalid = true;
+      }
     }
   }
 
-  throw new Error(errors.join(" | "));
+  const detail = errors.join(" | ");
+  if (errors.sawTrustInvalid) throw trustInvalid(detail);
+  throw transportUnavailable(detail);
 }
 
 main().catch((error) => {
-  fail(error?.stack || String(error));
+  fail(error?.stack || String(error), error?.exitCode || EXIT_TRUST_INVALID);
 });
