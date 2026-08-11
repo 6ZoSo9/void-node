@@ -5,6 +5,7 @@ set +o histexpand
 
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 need_file(){ [ -f "$1" ] || fail "missing file: $1"; }
+need_absent(){ [ ! -e "$1" ] || fail "retired path present: $1"; }
 need_exec(){ [ -x "$1" ] || fail "not executable: $1"; }
 
 echo "=== beta-proof guards: files ==="
@@ -20,8 +21,7 @@ for f in \
   ops/install-devbox-ubuntu.sh \
   ops/first-run-smoke.sh \
   ops/BETA_BASELINE_2026-03-23.md \
-  ops/SELF_HOSTED_BETA_CI_PLAN.md \
-  .github/workflows/self-hosted-beta-proof.yml
+  ops/SELF_HOSTED_BETA_CI_PLAN.md
 do
   need_file "$f"
 done
@@ -82,13 +82,10 @@ grep -q 'make public-beta-status' ops/BETA_BASELINE_2026-03-23.md || fail "basel
 grep -q 'make public-beta-preflight' ops/BETA_BASELINE_2026-03-23.md || fail "baseline doc missing preflight command"
 grep -q 'make wc-wallet-proof' ops/BETA_BASELINE_2026-03-23.md || fail "baseline doc missing wallet proof command"
 
-echo "=== beta-proof guards: self-hosted workflow wiring ==="
-grep -q 'runs-on: \[self-hosted, void-node, beta-proof\]' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing expected runs-on labels"
-grep -q 'make beta-help' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing beta-help"
-grep -q 'make public-beta-status' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing public-beta-status"
-grep -q 'make wc-wallet-proof' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing wc-wallet-proof"
-grep -q 'make public-beta-preflight' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing public-beta-preflight"
-grep -q 'SELF_HOSTED_BETA_CI_PLAN.md' README.md || fail "README missing self-hosted beta CI plan mention"
-grep -q 'workflow_dispatch' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing workflow_dispatch"
+echo "=== beta-proof guards: retired self-hosted workflow ==="
+need_absent .github/workflows/self-hosted-beta-proof.yml
+grep -q 'VOID_SELF_HOSTED_BETA_CI_RETIRED_V1' ops/SELF_HOSTED_BETA_CI_PLAN.md || fail "self-hosted beta retirement record missing marker"
+grep -q '^Status: retired$' ops/SELF_HOSTED_BETA_CI_PLAN.md || fail "self-hosted beta retirement record missing status"
+grep -q 'SELF_HOSTED_BETA_CI_PLAN.md' README.md || fail "README missing retired self-hosted beta CI record"
 
 echo "PASS beta-proof-guards"
