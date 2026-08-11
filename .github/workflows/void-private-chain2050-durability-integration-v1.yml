@@ -1,0 +1,157 @@
+name: VOID private Chain-2050 durability integration v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_chain2050_durability_gate_v1.ts"
+      - "src/economic/buy_void_chain2050_durability_runtime_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/void-private-chain2050-checkpoint-v1.mjs"
+      - "tools/void-private-chain2050-startup-selection-v1.mjs"
+      - "tools/void-private-chain2050-startup-integration-v1.mjs"
+      - "scripts/prove_buy_void_*.ts"
+      - "scripts/prove_void_private_chain2050_checkpoint_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_selection_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_integration_v1.mjs"
+      - "scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs"
+      - "ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh"
+      - "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh"
+      - "docs/operations/void-private-chain2050-durability-integration-v1.md"
+      - "docs/operations/void-private-chain2050-checkpoint-v1.md"
+      - "docs/operations/void-private-chain2050-startup-selection-v1.md"
+      - "ops/systemd/void-node-live.service.d/81-buy-void-native-execution-runtime-v1.conf.example"
+      - ".github/workflows/void-private-chain2050-durability-integration-v1.yml"
+  push:
+    branches:
+      - "feat/private-chain2050-durability-integration-v1-20260810"
+      - "fix/private-chain2050-startup-selected-state-binding-v1-20260810"
+    paths:
+      - "src/economic/buy_void_chain2050_durability_gate_v1.ts"
+      - "src/economic/buy_void_chain2050_durability_runtime_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_chain2050_transport_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "tools/void-private-chain2050-checkpoint-v1.mjs"
+      - "tools/void-private-chain2050-startup-selection-v1.mjs"
+      - "tools/void-private-chain2050-startup-integration-v1.mjs"
+      - "scripts/prove_buy_void_*.ts"
+      - "scripts/prove_void_private_chain2050_checkpoint_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_selection_v1.mjs"
+      - "scripts/prove_void_private_chain2050_startup_integration_v1.mjs"
+      - "docs/operations/void-private-chain2050-durability-integration-v1.md"
+      - "docs/operations/void-private-chain2050-checkpoint-v1.md"
+      - "docs/operations/void-private-chain2050-startup-selection-v1.md"
+      - "ops/systemd/void-node-live.service.d/81-buy-void-native-execution-runtime-v1.conf.example"
+      - ".github/workflows/void-private-chain2050-durability-integration-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Syntax check startup integration
+        run: |
+          node --check tools/void-private-chain2050-startup-integration-v1.mjs
+          node --check scripts/prove_void_private_chain2050_startup_integration_v1.mjs
+          node --check scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs
+          bash -n ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh
+          bash -n ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh
+
+      - name: Repository TypeScript baseline
+        run: bash tools/check_tsc_noemit_baseline.sh
+
+      - name: Focused Buy VOID TypeScript
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_*.ts
+
+      - name: Prove mutation durability gate and discharge
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_prepared_transaction_chain2050_transport_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_chain2050_durability_integration_v1.ts
+
+      - name: Prove selector-driven startup integration
+        run: node scripts/prove_void_private_chain2050_startup_integration_v1.mjs
+
+      - name: Prove fixed 8545 restore retirement
+        run: node scripts/prove_mainnet0_8545_selector_restore_retirement_v1.mjs
+
+      - name: Re-prove merged durability primitives
+        run: |
+          node scripts/prove_void_private_chain2050_checkpoint_v1.mjs
+          node scripts/prove_void_private_chain2050_startup_selection_v1.mjs
+
+      - name: Buy VOID dependency and receipt regressions
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_runtime_dependencies_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_runtime_dependencies_guard_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_receipt_runtime_v1.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_native_execution_runtime_v1.ts
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

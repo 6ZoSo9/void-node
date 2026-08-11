@@ -64,12 +64,23 @@ function writeJson(path, value) {
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
 
-function processNode(name, sourceSha, headTransitionEpoch, processStartEpoch, observedAtEpoch) {
+function processNode(
+  name,
+  sourceSha,
+  sourceTree,
+  processCommit,
+  processTree,
+  headTransitionEpoch,
+  processStartEpoch,
+  observedAtEpoch,
+) {
   const delta = processStartEpoch - headTransitionEpoch;
+  const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
   return {
     name,
     reachable: true,
     source_head: sourceSha,
+    source_tree: sourceTree,
     source_branch: "main",
     dirty_count: 0,
     worktree_status_readable: true,
@@ -89,6 +100,10 @@ function processNode(name, sourceSha, headTransitionEpoch, processStartEpoch, ob
     classification: delta >= 1 ? "PROCESS_SOURCE_ALIGNED" : "STALE_SOURCE_AFTER_PROCESS_START",
     reasons: [],
     source_to_process_start_seconds: delta,
+    process_source_identity_bound: true,
+    process_source_commit: processCommit,
+    process_source_tree: processTree,
+    process_source_matches_current: processMatchesCurrent,
     version_git_commit_matches_source_head_diagnostic_only: true,
   };
 }
@@ -102,6 +117,7 @@ function freshnessAudit(nodes) {
     audit_id_sha256: fleet.audit_id_sha256,
     expected_process_entrypoint: "src/index.ts",
     nodes,
+    process_source_identity_required: true,
     version_git_commit_is_process_identity: false,
     mutation_attempted: false,
     authority: {
@@ -136,6 +152,10 @@ function rolloutState(baseline, finalAudit, sourceSha, fromSha) {
       restart_plan_id_sha256: sha256("restart-plan:" + name),
       from_sha: fromSha,
       source_sha: sourceSha,
+      old_process_commit: before.process_source_commit,
+      old_process_tree: before.process_source_tree,
+      new_process_commit: after.process_source_commit,
+      new_process_tree: after.process_source_tree,
       old_process_start_epoch: before.process_start_epoch,
       new_process_start_epoch: after.process_start_epoch,
     };
@@ -146,6 +166,7 @@ function rolloutState(baseline, finalAudit, sourceSha, fromSha) {
     baseline_audit: baseline,
     baseline_audit_id_sha256: baseline.audit_id_sha256,
     source_sha: sourceSha,
+    source_tree: finalAudit.nodes[0].source_tree,
     node_order: nodeOrder,
     stale_order: staleOrder,
     completed,
@@ -200,6 +221,8 @@ const root = mkdtempSync(join(tmpdir(), "void-runtime-stability-v1-"));
 try {
   const sourceSha = "b".repeat(40);
   const fromSha = "a".repeat(40);
+  const sourceTree = "d".repeat(40);
+  const fromTree = "c".repeat(40);
   const now = Math.floor(Date.now() / 1000);
   const transition = now - 120;
   const finalObserved = now - 45;
@@ -220,24 +243,30 @@ try {
     })),
   };
   const baseline = freshnessAudit([
-    processNode("precision", sourceSha, transition, transition + 10, now - 100),
-    processNode("nimo", sourceSha, transition, transition - 20, now - 100),
-    processNode("alienware", sourceSha, transition, transition - 10, now - 100),
+    processNode("precision", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 10, now - 100),
+    processNode("nimo", sourceSha, sourceTree, fromSha, fromTree, transition, transition - 20, now - 100),
+    processNode("alienware", sourceSha, sourceTree, fromSha, fromTree, transition, transition - 10, now - 100),
   ]);
   const finalAudit = freshnessAudit([
-    processNode("precision", sourceSha, transition, transition + 10, finalObserved),
-    processNode("nimo", sourceSha, transition, transition + 30, finalObserved),
-    processNode("alienware", sourceSha, transition, transition + 40, finalObserved),
+    processNode("precision", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 10, finalObserved),
+    processNode("nimo", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 30, finalObserved),
+    processNode("alienware", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 40, finalObserved),
   ]);
   const verificationAudit = freshnessAudit([
-    processNode("precision", sourceSha, transition, transition + 10, verificationObserved),
-    processNode("nimo", sourceSha, transition, transition + 30, verificationObserved),
-    processNode("alienware", sourceSha, transition, transition + 40, verificationObserved),
+    processNode("precision", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 10, verificationObserved),
+    processNode("nimo", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 30, verificationObserved),
+    processNode("alienware", sourceSha, sourceTree, sourceSha, sourceTree, transition, transition + 40, verificationObserved),
   ]);
   const state = rolloutState(baseline, finalAudit, sourceSha, fromSha);
   const rollout = finalRollout(state, finalAudit);
 
   assert.equal(validateRolloutStateV1(state, config).state.completed.length, 2);
+  assert.equal(state.source_tree, sourceTree);
+  assert.equal(state.completed[0].old_process_commit, fromSha);
+  assert.equal(state.completed[0].old_process_tree, fromTree);
+  assert.equal(state.completed[0].new_process_commit, sourceSha);
+  assert.equal(state.completed[0].new_process_tree, sourceTree);
+  assert.equal(finalAudit.process_source_identity_required, true);
   assert.equal(validateFullFreshnessAuditV1(finalAudit, config).decision, "PROCESS_FRESH");
   const completed = validateCompletedRolloutV1(rollout, finalAudit, config);
   assert.equal(completed.state.state_id_sha256, state.state_id_sha256);
@@ -299,6 +328,17 @@ try {
     "rollout extra field",
   );
 
+  const identityRequirementTamper = clone(verificationAudit);
+  identityRequirementTamper.process_source_identity_required = false;
+  expectThrow(
+    () => buildRuntimeStabilityVerificationV1({
+      ...input,
+      verificationAudit: identityRequirementTamper,
+    }),
+    /process\/runtime truth is invalid/,
+    "process-source identity requirement tamper",
+  );
+
   const incompleteState = clone(state);
   incompleteState.completed.pop();
   const incompleteRollout = finalRollout(resealState(incompleteState), finalAudit);
@@ -312,6 +352,9 @@ try {
   finalProcessTamper.nodes[1] = processNode(
     "nimo",
     sourceSha,
+    sourceTree,
+    sourceSha,
+    sourceTree,
     transition,
     transition + 31,
     finalObserved,
@@ -332,6 +375,9 @@ try {
   restartedVerification.nodes[2] = processNode(
     "alienware",
     sourceSha,
+    sourceTree,
+    sourceSha,
+    sourceTree,
     transition,
     transition + 41,
     verificationObserved,
@@ -349,6 +395,9 @@ try {
   transitionTamper.nodes[0] = processNode(
     "precision",
     sourceSha,
+    sourceTree,
+    sourceSha,
+    sourceTree,
     transition + 1,
     transition + 10,
     verificationObserved,
@@ -363,7 +412,11 @@ try {
   );
 
   const sourceTamper = clone(verificationAudit);
-  for (const node of sourceTamper.nodes) node.source_head = "c".repeat(40);
+  for (const node of sourceTamper.nodes) {
+    node.source_head = "e".repeat(40);
+    node.process_source_commit = node.source_head;
+    node.process_source_matches_current = true;
+  }
   expectThrow(
     () => buildRuntimeStabilityVerificationV1({
       ...input,

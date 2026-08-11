@@ -130,11 +130,13 @@ function extractState(input) {
 function validateGreenNode(node, label) {
   if (!node || typeof node !== "object") fail(`${label} must be an object`);
   exactKeys(node, [
-    "name", "reachable", "source_head", "source_branch", "dirty_count", "worktree_status_readable",
+    "name", "reachable", "source_head", "source_tree", "source_branch", "dirty_count", "worktree_status_readable",
     "source_stable", "service_active", "process_present", "process_cwd_matches_repo", "process_entrypoint",
     "process_entrypoint_matches", "process_executable_node", "process_identity_stable", "head_transition_epoch",
     "process_start_epoch", "observed_at_epoch", "health_ok", "readiness_ok", "classification", "reasons",
-    "source_to_process_start_seconds", "version_git_commit_matches_source_head_diagnostic_only",
+    "source_to_process_start_seconds", "process_source_identity_bound", "process_source_commit",
+    "process_source_tree", "process_source_matches_current",
+    "version_git_commit_matches_source_head_diagnostic_only",
   ], label);
   if (!new Set(["PROCESS_SOURCE_ALIGNED", "STALE_SOURCE_AFTER_PROCESS_START"]).has(node.classification)) {
     fail(`${label} classification must be aligned or stale`);
@@ -145,10 +147,14 @@ function validateGreenNode(node, label) {
       node.process_present !== true || node.process_cwd_matches_repo !== true ||
       node.process_entrypoint !== PROCESS_ENTRYPOINT_V1 || node.process_entrypoint_matches !== true ||
       node.process_executable_node !== true || node.process_identity_stable !== true ||
+      node.process_source_identity_bound !== true ||
       node.health_ok !== true || node.readiness_ok !== true) {
     fail(`${label} is not exact green process evidence`);
   }
   const sourceSha = assertSha40(node.source_head, `${label}.source_head`);
+  const sourceTree = assertSha40(node.source_tree, `${label}.source_tree`);
+  const processCommit = assertSha40(node.process_source_commit, `${label}.process_source_commit`);
+  const processTree = assertSha40(node.process_source_tree, `${label}.process_source_tree`);
   for (const [value, field] of [
     [node.head_transition_epoch, "head_transition_epoch"],
     [node.process_start_epoch, "process_start_epoch"],
@@ -165,7 +171,17 @@ function validateGreenNode(node, label) {
   }
   if (node.classification === "PROCESS_SOURCE_ALIGNED" && delta < 1) fail(`${label} aligned ordering is not proven`);
   if (node.classification === "STALE_SOURCE_AFTER_PROCESS_START" && delta > -1) fail(`${label} stale ordering is not proven`);
-  return { sourceSha, delta };
+  const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
+  if (node.process_source_matches_current !== processMatchesCurrent) {
+    fail(`${label} process-source current binding is inconsistent`);
+  }
+  if (node.classification === "PROCESS_SOURCE_ALIGNED" && !processMatchesCurrent) {
+    fail(`${label} aligned process source identity does not match current source`);
+  }
+  if (node.classification === "STALE_SOURCE_AFTER_PROCESS_START" && processMatchesCurrent) {
+    fail(`${label} stale process source identity unexpectedly matches current source`);
+  }
+  return { sourceSha, sourceTree, processCommit, processTree, delta };
 }
 
 export function validateFullFreshnessAuditV1(audit, configInput, options = {}) {
@@ -177,9 +193,10 @@ export function validateFullFreshnessAuditV1(audit, configInput, options = {}) {
   }
   exactKeys(audit, [
     "marker", "version", "decision", "audit_id_sha256", "expected_process_entrypoint", "nodes",
-    "version_git_commit_is_process_identity", "mutation_attempted", "authority",
+    "process_source_identity_required", "version_git_commit_is_process_identity", "mutation_attempted", "authority",
   ], "freshness audit");
   if (audit.expected_process_entrypoint !== PROCESS_ENTRYPOINT_V1 ||
+      audit.process_source_identity_required !== true ||
       audit.version_git_commit_is_process_identity !== false || audit.mutation_attempted !== false) {
     fail("freshness audit process/runtime truth is invalid");
   }
@@ -192,12 +209,15 @@ export function validateFullFreshnessAuditV1(audit, configInput, options = {}) {
   const enforceAge = options.enforceAge !== false;
   const maxAgeSeconds = options.maxAgeSeconds ?? DEFAULT_MAX_CURRENT_AUDIT_AGE_SECONDS;
   let sourceSha = "";
+  let sourceTree = "";
   for (let index = 0; index < audit.nodes.length; index += 1) {
     const node = audit.nodes[index];
     if (node?.name !== configNodes[index].name) fail("freshness audit node order must exactly match config order");
     const validated = validateGreenNode(node, `freshness.nodes[${index}]`);
     if (!sourceSha) sourceSha = validated.sourceSha;
+    if (!sourceTree) sourceTree = validated.sourceTree;
     if (validated.sourceSha !== sourceSha) fail("freshness audit nodes do not share one exact source SHA");
+    if (validated.sourceTree !== sourceTree) fail("freshness audit nodes do not share one exact source tree");
     if (enforceAge) {
       const age = nowSeconds - node.observed_at_epoch;
       if (age < -5) fail(`${node.name} freshness observation is in the future`);
@@ -214,6 +234,7 @@ export function validateFullFreshnessAuditV1(audit, configInput, options = {}) {
     audit_id_sha256: auditId,
     decision: audit.decision,
     source_sha: sourceSha,
+    source_tree: sourceTree,
     node_order: configNodes.map((node) => node.name),
     stale_order: audit.nodes.filter((node) => node.classification === "STALE_SOURCE_AFTER_PROCESS_START").map((node) => node.name),
   };
@@ -226,6 +247,7 @@ function stateDigestPayload(state) {
     baseline_audit: state.baseline_audit,
     baseline_audit_id_sha256: state.baseline_audit_id_sha256,
     source_sha: state.source_sha,
+    source_tree: state.source_tree,
     node_order: state.node_order,
     stale_order: state.stale_order,
     completed: state.completed,
@@ -245,6 +267,7 @@ export function createRolloutStateV1(baselineAudit, configInput, options = {}) {
     baseline_audit: baseline.audit,
     baseline_audit_id_sha256: baseline.audit_id_sha256,
     source_sha: baseline.source_sha,
+    source_tree: baseline.source_tree,
     node_order: baseline.node_order,
     stale_order: baseline.stale_order,
     completed: [],
@@ -254,12 +277,13 @@ export function createRolloutStateV1(baselineAudit, configInput, options = {}) {
 export function validateRolloutStateV1(stateInput, configInput) {
   const state = extractState(stateInput);
   exactKeys(state, [
-    "marker", "version", "baseline_audit", "baseline_audit_id_sha256", "source_sha", "node_order",
+    "marker", "version", "baseline_audit", "baseline_audit_id_sha256", "source_sha", "source_tree", "node_order",
     "stale_order", "completed", "state_id_sha256",
   ], "rollout state");
   if (state.version !== 1) fail("rollout state version must be 1");
   const baseline = validateFullFreshnessAuditV1(state.baseline_audit, configInput, { enforceAge: false });
   if (state.baseline_audit_id_sha256 !== baseline.audit_id_sha256 || state.source_sha !== baseline.source_sha ||
+      state.source_tree !== baseline.source_tree ||
       stableJson(state.node_order) !== stableJson(baseline.node_order) ||
       stableJson(state.stale_order) !== stableJson(baseline.stale_order)) {
     fail("rollout state baseline bindings are inconsistent");
@@ -275,7 +299,8 @@ export function validateRolloutStateV1(stateInput, configInput) {
     }
     exactKeys(entry, [
       "sequence", "node", "source_receipt_sha256", "restart_receipt_sha256", "source_plan_id_sha256",
-      "restart_plan_id_sha256", "from_sha", "source_sha", "old_process_start_epoch", "new_process_start_epoch",
+      "restart_plan_id_sha256", "from_sha", "source_sha", "old_process_commit", "old_process_tree",
+      "new_process_commit", "new_process_tree", "old_process_start_epoch", "new_process_start_epoch",
     ], `rollout completed[${index}]`);
     for (const [value, label] of [
       [entry.source_receipt_sha256, "source receipt digest"],
@@ -285,6 +310,11 @@ export function validateRolloutStateV1(stateInput, configInput) {
     ]) assertSha64(value, label);
     assertSha40(entry.from_sha, "completed from SHA");
     if (entry.source_sha !== baseline.source_sha) fail("completed source SHA does not match rollout source");
+    assertSha40(entry.old_process_commit, "completed old process commit");
+    assertSha40(entry.old_process_tree, "completed old process tree");
+    if (entry.new_process_commit !== baseline.source_sha || entry.new_process_tree !== baseline.source_tree) {
+      fail("completed new process identity does not match rollout source");
+    }
     for (const [value, label] of [
       [entry.old_process_start_epoch, "completed old process start"],
       [entry.new_process_start_epoch, "completed new process start"],
@@ -309,6 +339,7 @@ export function assessRolloutStateV1(validatedState, currentValidated, options =
   const current = currentValidated;
   const reasons = [];
   if (current.source_sha !== state.source_sha) reasons.push("fleet_source_sha_changed");
+  if (current.source_tree !== state.source_tree) reasons.push("fleet_source_tree_changed");
   if (stableJson(current.node_order) !== stableJson(state.node_order)) reasons.push("fleet_node_order_changed");
   const advancingNode = options.advancingNode ?? "";
   const expectedNext = state.stale_order[state.completed.length] ?? "";
@@ -322,22 +353,31 @@ export function assessRolloutStateV1(validatedState, currentValidated, options =
     const completed = completedByName.get(name);
     if (completed) {
       if (now.classification !== "PROCESS_SOURCE_ALIGNED") reasons.push(`${name}:completed_node_not_aligned`);
-      if (now.process_start_epoch !== completed.new_process_start_epoch) reasons.push(`${name}:completed_process_identity_changed`);
+      if (now.process_start_epoch !== completed.new_process_start_epoch ||
+          now.process_source_commit !== completed.new_process_commit ||
+          now.process_source_tree !== completed.new_process_tree) {
+        reasons.push(`${name}:completed_process_identity_changed`);
+      }
       continue;
     }
     if (!baselineStale.has(name)) {
-      if (now.classification !== "PROCESS_SOURCE_ALIGNED" || now.process_start_epoch !== before.process_start_epoch) {
+      if (now.classification !== "PROCESS_SOURCE_ALIGNED" || now.process_start_epoch !== before.process_start_epoch ||
+          now.process_source_commit !== before.process_source_commit ||
+          now.process_source_tree !== before.process_source_tree) {
         reasons.push(`${name}:initially_aligned_process_changed`);
       }
       continue;
     }
     if (name === advancingNode) {
-      if (now.classification !== "PROCESS_SOURCE_ALIGNED" || now.process_start_epoch <= before.process_start_epoch) {
+      if (now.classification !== "PROCESS_SOURCE_ALIGNED" || now.process_start_epoch <= before.process_start_epoch ||
+          now.process_source_commit !== state.source_sha || now.process_source_tree !== state.source_tree) {
         reasons.push(`${name}:advanced_restart_not_proven`);
       }
       continue;
     }
-    if (now.classification !== "STALE_SOURCE_AFTER_PROCESS_START" || now.process_start_epoch !== before.process_start_epoch) {
+    if (now.classification !== "STALE_SOURCE_AFTER_PROCESS_START" || now.process_start_epoch !== before.process_start_epoch ||
+        now.process_source_commit !== before.process_source_commit ||
+        now.process_source_tree !== before.process_source_tree) {
       reasons.push(`${name}:pending_process_changed_without_receipt`);
     }
   }
@@ -422,6 +462,10 @@ export function advanceRolloutStateV1(stateValidated, currentValidated, sourceRe
     restart_plan_id_sha256: receipt.plan.plan_id_sha256,
     from_sha: receipt.source.from_sha,
     source_sha: receipt.source.to_sha,
+    old_process_commit: receipt.plan.stale_process_commit,
+    old_process_tree: receipt.plan.stale_process_tree,
+    new_process_commit: currentNode.process_source_commit,
+    new_process_tree: currentNode.process_source_tree,
     old_process_start_epoch: receipt.plan.old_process_start_epoch,
     new_process_start_epoch: currentNode.process_start_epoch,
   };

@@ -1,4 +1,4 @@
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 const DATA_DIR = process.env.DATA_DIR || "data"
 const INTERVAL_MS = Number(process.env.INTERVAL_MS || 500)

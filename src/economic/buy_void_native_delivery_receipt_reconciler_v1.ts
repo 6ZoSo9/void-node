@@ -626,6 +626,7 @@ export async function runBuyVoidNativeDeliveryReceiptReconcilerV1(
   const receiptHash = normalizeHash(receipt.transactionHash);
   const receiptStatus = parseHexQuantity(receipt.status);
   const receiptBlock = parseHexQuantity(receipt.blockNumber);
+  const receiptBlockHash = normalizeHash(receipt.blockHash);
   const currentBlock = parseHexQuantity(currentBlockRaw);
   const from = normalizeAddress(receipt.from);
   const to = normalizeAddress(receipt.to);
@@ -634,6 +635,7 @@ export async function runBuyVoidNativeDeliveryReceiptReconcilerV1(
     (receiptStatus !== 0n && receiptStatus !== 1n) ||
     receiptBlock === null ||
     receiptBlock <= 0n ||
+    !receiptBlockHash ||
     currentBlock === null ||
     currentBlock < receiptBlock ||
     from !== prepared.fulfillment_wallet ||
@@ -677,6 +679,7 @@ export async function runBuyVoidNativeDeliveryReceiptReconcilerV1(
           transaction_hash: transactionHash,
           transaction_status: "1",
           block_number: receiptBlock.toString(),
+          block_hash: receiptBlockHash,
           current_block_number: currentBlock.toString(),
           from_address: prepared.fulfillment_wallet,
           to_address: prepared.delivery_address,

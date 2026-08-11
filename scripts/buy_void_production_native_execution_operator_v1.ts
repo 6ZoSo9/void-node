@@ -42,6 +42,10 @@ export const VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_OPERATOR_AUTHORITY_V1 = {
   submission_idempotency_key_synthesized: false,
   apply_ready_status_required: true,
   apply_transport_ambiguity_is_reconciliation_required: true,
+  applied_runtime_exact_scalar_schema: true,
+  applied_runtime_exact_boolean_schema: true,
+  applied_runtime_worker_truth_binding: true,
+  accepted_adapter_success_truth_binding: true,
   automatic_retry: false,
   raw_signed_transaction_input: false,
   raw_signed_transaction_persistence: false,
@@ -60,6 +64,17 @@ const EXPECTED_RPC_METHODS = [
   "eth_getTransactionCount",
   "eth_gasPrice",
   "eth_getBalance",
+] as const;
+const NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_MARKER_V1 =
+  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1";
+const NATIVE_EXECUTION_WORKER_HELD_STAGES_V1 = [
+  "worker_policy",
+  "reservation_binding",
+  "execution_attempt",
+  "signing",
+  "preparation",
+  "sign_broadcast",
+  "outcome_recording",
 ] as const;
 
 const FORBIDDEN_RUNTIME_MATERIAL_KEYS = new Set([
@@ -674,6 +689,9 @@ function parseValidAppliedRuntime(
   value: unknown,
   httpStatus: number,
   attemptId: string,
+  expectedPlanFingerprint: string,
+  expectedPolicyFingerprint: string,
+  expectedPublicPlan: Readonly<Record<string, unknown>>,
 ): {
   kind: "broadcast_accepted" | "not_broadcast" | "broadcast_unknown" | "held";
   mutation_performed: boolean;
@@ -692,7 +710,7 @@ function parseValidAppliedRuntime(
     !runtime ||
     runtime.marker !== VOID_BUY_VOID_PRODUCTION_NATIVE_EXECUTION_RUNTIME_MARKER_V1 ||
     runtime.version !== 1 ||
-    text(runtime.attempt_id) !== attemptId ||
+    runtime.attempt_id !== attemptId ||
     runtime.raw_signed_transaction_persisted !== false ||
     runtime.raw_signed_transaction_returned !== false ||
     !bool(runtime.mutation_performed) ||
@@ -706,6 +724,8 @@ function parseValidAppliedRuntime(
     const adapter = object(worker?.adapter_decision);
     if (
       httpStatus !== 200 ||
+      runtime.plan_fingerprint_sha256 !== expectedPlanFingerprint ||
+      runtime.runtime_policy_fingerprint_sha256 !== expectedPolicyFingerprint ||
       runtime.reconstructed_from_server_journals !== true ||
       runtime.mutation_performed !== true ||
       runtime.signing_performed !== true ||
@@ -720,14 +740,56 @@ function parseValidAppliedRuntime(
       worker.raw_signed_transaction_persisted !== false ||
       worker.raw_signed_transaction_returned !== false ||
       worker.automatic_retry_allowed !== false ||
-      !adapter
+      !adapter ||
+      adapter.marker !== NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_MARKER_V1 ||
+      adapter.version !== 1 ||
+      adapter.ok !== true ||
+      adapter.status !== "broadcast_accepted" ||
+      adapter.attempt_id !== attemptId ||
+      typeof adapter.transaction_plan_fingerprint_sha256 !== "string" ||
+      !SHA256.test(adapter.transaction_plan_fingerprint_sha256) ||
+      adapter.submission_guard_claimed !== true ||
+      adapter.submission_guard_released !== false ||
+      adapter.signing_performed !== true ||
+      adapter.broadcast_call_performed !== true ||
+      adapter.transaction_broadcast_accepted !== true ||
+      adapter.raw_signed_transaction_persisted !== false ||
+      adapter.raw_signed_transaction_returned !== false ||
+      adapter.automatic_retry_allowed !== false
     ) {
       return null;
     }
-    const expectedHash = text(adapter.expected_transaction_hash).toLowerCase();
-    const txHash = text(adapter.transaction_hash).toLowerCase();
+    if (
+      typeof adapter.expected_transaction_hash !== "string" ||
+      typeof adapter.transaction_hash !== "string" ||
+      typeof adapter.provider_submission_id !== "string"
+    ) return null;
+    const expectedHash = adapter.expected_transaction_hash.toLowerCase();
+    const txHash = adapter.transaction_hash.toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(expectedHash) || txHash !== expectedHash) return null;
-    const provider = text(adapter.provider_submission_id);
+    const expectedTransactionPlanFingerprint = sha256Hex(canonical({
+      attempt_id: attemptId,
+      expected_transaction_hash: expectedHash,
+      asset_mode: "native_void",
+      type: "2",
+      chain_id: text(expectedPublicPlan.chain_id),
+      nonce: text(expectedPublicPlan.nonce),
+      gas_limit: text(expectedPublicPlan.gas_limit),
+      max_fee_per_gas_wei: text(expectedPublicPlan.max_fee_per_gas_wei),
+      max_priority_fee_per_gas_wei:
+        text(expectedPublicPlan.max_priority_fee_per_gas_wei),
+      delivery_address: text(expectedPublicPlan.delivery_address),
+      void_amount_units: text(expectedPublicPlan.void_amount_units),
+      fulfillment_unit_decimals: "6",
+      native_unit_decimals: "18",
+      native_value_wei: text(expectedPublicPlan.native_value_wei),
+      calldata: "0x",
+    }));
+    if (
+      adapter.transaction_plan_fingerprint_sha256 !==
+        expectedTransactionPlanFingerprint
+    ) return null;
+    const provider = adapter.provider_submission_id;
     if (!/^[A-Za-z0-9._:@/-]{0,200}$/.test(provider)) return null;
     return {
       kind: "broadcast_accepted",
@@ -743,15 +805,45 @@ function parseValidAppliedRuntime(
   }
 
   if (runtime.ok !== false || !worker || worker.ok !== false) return null;
-  if (worker.automatic_retry_allowed !== false || runtime.automatic_retry_allowed !== false) {
+  if (
+    typeof runtime.status !== "string" ||
+    runtime.stage !== "native_execution" ||
+    typeof runtime.reason !== "string" ||
+    !SAFE_ID.test(runtime.reason) ||
+    !bool(runtime.reconciliation_required) ||
+    worker.applied !== true ||
+    !bool(worker.mutation_performed) ||
+    !bool(worker.signing_performed) ||
+    !bool(worker.transaction_broadcast_performed) ||
+    !bool(worker.reconciliation_required) ||
+    worker.automatic_retry_allowed !== false ||
+    worker.raw_signed_transaction_persisted !== false ||
+    worker.raw_signed_transaction_returned !== false ||
+    typeof worker.status !== "string" ||
+    !NATIVE_EXECUTION_WORKER_HELD_STAGES_V1.includes(worker.stage) ||
+    typeof worker.reason !== "string" ||
+    !SAFE_ID.test(worker.reason) ||
+    (worker.attempt_id !== null && worker.attempt_id !== attemptId) ||
+    runtime.automatic_retry_allowed !== false ||
+    runtime.status !== worker.status ||
+    runtime.reason !== worker.reason ||
+    runtime.mutation_performed !== worker.mutation_performed ||
+    runtime.signing_performed !== worker.signing_performed ||
+    runtime.transaction_broadcast_performed !==
+      worker.transaction_broadcast_performed ||
+    runtime.reconciliation_required !== worker.reconciliation_required
+  ) {
     return null;
   }
-  const kind = text(runtime.status);
-  if (kind !== text(worker.status)) return null;
-  const reason = text(runtime.reason);
-  const workerReason = text(worker.reason);
-  if (!reason || !workerReason || reason !== workerReason) return null;
-  const expectedHashRaw = text(worker.expected_transaction_hash).toLowerCase();
+  const kind = runtime.status;
+  const reason = runtime.reason;
+  if (
+    worker.expected_transaction_hash !== null &&
+    typeof worker.expected_transaction_hash !== "string"
+  ) return null;
+  const expectedHashRaw = worker.expected_transaction_hash === null
+    ? ""
+    : worker.expected_transaction_hash.toLowerCase();
   const expectedHash = /^0x[0-9a-f]{64}$/.test(expectedHashRaw)
     ? expectedHashRaw
     : null;
@@ -768,8 +860,8 @@ function parseValidAppliedRuntime(
     }
     return {
       kind,
-      mutation_performed: runtime.mutation_performed === true,
-      signing_performed: runtime.signing_performed === true,
+      mutation_performed: runtime.mutation_performed,
+      signing_performed: runtime.signing_performed,
       transaction_broadcast_performed: false,
       reconciliation_required: false,
       expected_transaction_hash: expectedHash,
@@ -788,9 +880,9 @@ function parseValidAppliedRuntime(
     }
     return {
       kind,
-      mutation_performed: runtime.mutation_performed === true,
-      signing_performed: runtime.signing_performed === true,
-      transaction_broadcast_performed: runtime.transaction_broadcast_performed === true,
+      mutation_performed: runtime.mutation_performed,
+      signing_performed: runtime.signing_performed,
+      transaction_broadcast_performed: runtime.transaction_broadcast_performed,
       reconciliation_required: true,
       expected_transaction_hash: expectedHash,
       transaction_hash: null,
@@ -802,10 +894,10 @@ function parseValidAppliedRuntime(
     if (![400, 409, 428, 503].includes(httpStatus)) return null;
     return {
       kind,
-      mutation_performed: runtime.mutation_performed === true,
-      signing_performed: runtime.signing_performed === true,
-      transaction_broadcast_performed: runtime.transaction_broadcast_performed === true,
-      reconciliation_required: runtime.reconciliation_required === true,
+      mutation_performed: runtime.mutation_performed,
+      signing_performed: runtime.signing_performed,
+      transaction_broadcast_performed: runtime.transaction_broadcast_performed,
+      reconciliation_required: runtime.reconciliation_required,
       expected_transaction_hash: expectedHash,
       transaction_hash: null,
       provider_submission_id: null,
@@ -900,7 +992,14 @@ export async function runBuyVoidProductionNativeExecutionOperatorV1(input: {
     );
   }
 
-  const parsed = parseValidAppliedRuntime(response.json, response.status, attemptId);
+  const parsed = parseValidAppliedRuntime(
+    response.json,
+    response.status,
+    attemptId,
+    plan.plan_fingerprint_sha256,
+    plan.runtime_policy_fingerprint_sha256,
+    plan.execution_preview,
+  );
   if (!parsed) {
     return ambiguousApply(
       attemptId,

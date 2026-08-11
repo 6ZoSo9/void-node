@@ -4,7 +4,7 @@ import {
   evaluateLiveCanonicalChainStateApiResponseDomainSeparationBoundaryV1,
   type LiveCanonicalChainStateApiResponseDomainSeparationCandidateV1,
   type LiveCanonicalChainStateApiResponseDomainSeparationPolicyV1,
-} from '../src/chain/block';
+} from '../src/chain/block.js';
 
 const policy: LiveCanonicalChainStateApiResponseDomainSeparationPolicyV1 = {
   enabled: true,

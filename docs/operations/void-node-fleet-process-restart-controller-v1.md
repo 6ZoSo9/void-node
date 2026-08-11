@@ -19,7 +19,9 @@ V1 consumes two fresh receipts for the same selected node:
 1. a successful `VOID_NODE_FLEET_SOURCE_CONVERGENCE_V1` applied receipt; and
 2. a read-only `VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1` result whose fleet
    decision is `RESTART_REQUIRED` and whose selected node is
-   `STALE_SOURCE_AFTER_PROCESS_START` at the converged target SHA.
+   `STALE_SOURCE_AFTER_PROCESS_START` at the converged target SHA, with
+   `process_source_identity_required: true` and an exact bound stale-process
+   commit/tree identity.
 
 The controller reproduces both receipt digests. It also reproduces the private
 source-convergence plan binding from the fleet config, including transport,
@@ -69,8 +71,12 @@ For the selected node, the controller brackets and requires:
 - active configured user-systemd service;
 - MainPID cwd at the configured repository;
 - Node/Node.js executable and the complete checked-in launcher argv tuple:
+  the identity marker plus exact stale commit/tree/main condition arguments,
   repo-local TSX preflight, repo-local TSX loader URL, and absolute
   `src/index.ts`, with no extra application arguments;
+- the stale process commit resolves to its claimed tree, is an ancestor of the
+  converged source, differs from that source, and exactly matches both the
+  freshness receipt and the immutable `/version.process_source` envelope;
 - the same stale process start epoch and source transition epoch recorded by
   the freshness audit;
 - green numeric-loopback health and readiness with zero readiness gap; and
@@ -109,7 +115,9 @@ Success emits `READY_TO_APPLY`, marker
 `VOID_NODE_FLEET_PROCESS_RESTART_APPLY_V1`, and a deterministic
 `plan_id_sha256`. The public plan does not serialize repository paths, SSH
 targets, service names, loopback endpoints, or remote URLs. The output file is
-created with mode `0600`.
+created with mode `0600`. Its digest binds the current source commit/tree and
+the stale process commit/tree so an old, current-head-substituted, or tampered
+identity cannot authorize the restart.
 
 ## Applied restart
 
@@ -160,8 +168,9 @@ mutation, package command, build command, cleanup, or fallback restart.
 After the command, the controller performs bounded read-only polling for up to
 30 seconds by default (`--postcheck-seconds`, range 5..120). This is not an
 operation retry. Success requires a new process start epoch, the same exact
-source/reflog transition, `PROCESS_SOURCE_ALIGNED`, clean source, exact process
-identity, green health/readiness, and restored connected-peer floor.
+source commit/tree and reflog transition, `PROCESS_SOURCE_ALIGNED`, a new
+process identity envelope bound to that current source, clean source, exact
+launcher identity, green health/readiness, and restored connected-peer floor.
 
 ## Outcomes and ambiguity
 

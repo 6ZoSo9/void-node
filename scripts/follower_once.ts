@@ -1,4 +1,4 @@
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 function recordScriptsEmptyHandlerVisibilityFailure_scripts_follower_once_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);

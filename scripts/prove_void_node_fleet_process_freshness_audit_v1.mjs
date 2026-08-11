@@ -5,10 +5,10 @@ import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writ
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 import {
   VOID_NODE_FLEET_DRIFT_CONFIG_V1,
   VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1,
+  VOID_NODE_PROCESS_SOURCE_IDENTITY_V1,
   buildFleetProcessFreshnessDecisionV1,
   buildProcessFreshnessCollectorScriptV1,
   classifyProcessFreshnessV1,
@@ -74,6 +74,7 @@ function baseSnapshot(overrides = {}) {
   return {
     repo_ok: true,
     source_head: "1".repeat(40),
+    source_tree: "a".repeat(40),
     source_branch: "main",
     dirty_count: 0,
     worktree_status_readable: true,
@@ -88,12 +89,28 @@ function baseSnapshot(overrides = {}) {
     process_entrypoint_matches: true,
     process_executable_node: true,
     process_identity_stable: true,
+    process_source_argv_exact: true,
+    process_source_marker: VOID_NODE_PROCESS_SOURCE_IDENTITY_V1,
+    process_source_commit: "1".repeat(40),
+    process_source_tree: "a".repeat(40),
+    process_source_branch: "main",
+    process_source_git_object_valid: true,
+    process_source_ancestor_of_current: true,
     health_json_ok: true,
     health: { ok: true },
     readiness_json_ok: true,
     readiness: { ready: true, gap: 0 },
     version_json_ok: true,
-    version: { git_commit: "1".repeat(12) },
+    version: {
+      git_commit: "1".repeat(12),
+      process_source: {
+        marker: VOID_NODE_PROCESS_SOURCE_IDENTITY_V1,
+        commit: "1".repeat(40),
+        tree: "a".repeat(40),
+        branch: "main",
+        immutable: true,
+      },
+    },
     ...overrides,
   };
 }
@@ -101,13 +118,23 @@ function baseSnapshot(overrides = {}) {
 const aligned = classifyProcessFreshnessV1(baseSnapshot());
 assert.equal(aligned.classification, "PROCESS_SOURCE_ALIGNED");
 assert.equal(aligned.source_to_process_start_seconds, 5);
+assert.equal(aligned.process_source_identity_bound, true);
+assert.equal(aligned.process_source_matches_current, true);
 assert.equal(aligned.version_git_commit_matches_source_head_diagnostic_only, true);
-assert.equal(classifyProcessFreshnessV1(baseSnapshot({ version: { git_commit: "1" } }))
+assert.equal(classifyProcessFreshnessV1(baseSnapshot({
+  version: { ...baseSnapshot().version, git_commit: "1" },
+}))
   .version_git_commit_matches_source_head_diagnostic_only, false, "short diagnostic prefixes must be rejected");
 
-const stale = classifyProcessFreshnessV1(baseSnapshot({ process_start_epoch: 90 }));
+const stale = classifyProcessFreshnessV1(baseSnapshot({
+  source_head: "2".repeat(40),
+  source_tree: "b".repeat(40),
+  process_start_epoch: 90,
+  version: { ...baseSnapshot().version, git_commit: "2".repeat(12) },
+}));
 assert.equal(stale.classification, "STALE_SOURCE_AFTER_PROCESS_START");
 assert.equal(stale.source_to_process_start_seconds, -10);
+assert.equal(stale.process_source_matches_current, false);
 
 const ambiguous = classifyProcessFreshnessV1(baseSnapshot({ process_start_epoch: 100 }));
 assert.equal(ambiguous.classification, "HOLD");
@@ -132,8 +159,50 @@ const unreadableStatus = classifyProcessFreshnessV1(baseSnapshot({ worktree_stat
 assert.equal(unreadableStatus.classification, "HOLD");
 assert.deepEqual(unreadableStatus.reasons, ["worktree_status_unreadable"]);
 
-const alignedNode = { name: "nimo", source_head: "1".repeat(40), ...aligned };
-const staleNode = { name: "precision", source_head: "2".repeat(40), ...stale };
+const unboundSource = classifyProcessFreshnessV1(baseSnapshot({
+  process_source_argv_exact: false,
+}));
+assert.equal(unboundSource.classification, "HOLD");
+assert.deepEqual(unboundSource.reasons, ["process_source_argv_unavailable"]);
+
+const endpointMismatch = classifyProcessFreshnessV1(baseSnapshot({
+  version: {
+    ...baseSnapshot().version,
+    process_source: { ...baseSnapshot().version.process_source, tree: "b".repeat(40) },
+  },
+}));
+assert.equal(endpointMismatch.classification, "HOLD");
+assert.deepEqual(endpointMismatch.reasons, ["process_source_endpoint_argv_mismatch"]);
+
+const invalidProcessObject = classifyProcessFreshnessV1(baseSnapshot({
+  process_source_git_object_valid: false,
+}));
+assert.equal(invalidProcessObject.classification, "HOLD");
+assert.deepEqual(invalidProcessObject.reasons, ["process_source_git_object_invalid"]);
+
+const divergentProcessObject = classifyProcessFreshnessV1(baseSnapshot({
+  process_source_ancestor_of_current: false,
+}));
+assert.equal(divergentProcessObject.classification, "HOLD");
+assert.deepEqual(divergentProcessObject.reasons, ["process_source_not_ancestor_of_current"]);
+
+const inconsistentTimeline = classifyProcessFreshnessV1(baseSnapshot({
+  process_source_commit: "2".repeat(40),
+  process_source_tree: "b".repeat(40),
+  version: {
+    ...baseSnapshot().version,
+    process_source: {
+      ...baseSnapshot().version.process_source,
+      commit: "2".repeat(40),
+      tree: "b".repeat(40),
+    },
+  },
+}));
+assert.equal(inconsistentTimeline.classification, "HOLD");
+assert.deepEqual(inconsistentTimeline.reasons, ["process_source_timeline_inconsistent"]);
+
+const alignedNode = { name: "nimo", source_head: "1".repeat(40), source_tree: "a".repeat(40), ...aligned };
+const staleNode = { name: "precision", source_head: "2".repeat(40), source_tree: "b".repeat(40), ...stale };
 const fleet = buildFleetProcessFreshnessDecisionV1([alignedNode, staleNode]);
 assert.equal(fleet.decision, "RESTART_REQUIRED");
 assert.match(fleet.audit_id_sha256, /^[0-9a-f]{64}$/);
@@ -156,12 +225,37 @@ const sampleConfig = {
 };
 const [sampleNode] = validateProcessFreshnessConfigV1(sampleConfig, "nimo");
 const collectorScript = buildProcessFreshnessCollectorScriptV1(sampleNode);
+const liveLauncherSource = readFileSync("ops/run-void-node-live-v1.sh", "utf8");
+const indexSource = readFileSync("src/index.ts", "utf8");
+for (const needle of [
+  "VOID_PROCESS_SOURCE_IDENTITY_MARKER",
+  "VOID_PROCESS_SOURCE_COMMIT",
+  "VOID_PROCESS_SOURCE_TREE",
+  "VOID_PROCESS_SOURCE_BRANCH",
+  "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+  "--conditions=void-process-source-identity-v1",
+  "--conditions=\"void-process-source-commit-$VOID_PROCESS_SOURCE_COMMIT\"",
+  "--conditions=\"void-process-source-tree-$VOID_PROCESS_SOURCE_TREE\"",
+  "--conditions=void-process-source-branch-main",
+]) assert.match(liveLauncherSource, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+assert.match(liveLauncherSource, /git status --porcelain=v1/);
+assert.match(liveLauncherSource, /test "\$source_branch_before" = main/);
+assert.match(liveLauncherSource, /test -z "\$source_status_before"/);
+assert.doesNotMatch(liveLauncherSource, /ROOT="\$\(pwd\)"/);
+assert.equal(Array.from(indexSource.matchAll(/process_source: processSourceIdentity\(\)/g)).length, 3,
+  "both /version implementations and the v0 fallback must expose immutable process source identity");
 assert.match(collectorScript, /systemctl --user show/);
 assert.equal(Array.from(collectorScript.matchAll(/systemctl --user show/g)).length, 2,
   "collector must bracket process evidence with two service snapshots");
 assert.match(collectorScript, /ExecMainStartTimestamp/);
 assert.match(collectorScript, /\/proc\/\$main_pid\/cmdline/);
+assert.doesNotMatch(collectorScript, /\/proc\/\$main_pid\/environ/,
+  "the collector must not read the process environment or risk credential exposure");
 assert.match(collectorScript, /expected_process_argv/);
+assert.match(collectorScript, /void-process-source-identity-v1/);
+assert.match(collectorScript, /void-process-source-commit-/);
+assert.match(collectorScript, /void-process-source-tree-/);
+assert.match(collectorScript, /void-process-source-branch-main/);
 assert.match(collectorScript, /node_modules\/tsx\/dist\/preflight\.cjs/);
 assert.match(collectorScript, /node_modules\/tsx\/dist\/loader\.mjs/);
 assert.doesNotMatch(collectorScript, /grep -Fxq -e "\$entrypoint"/,
@@ -169,7 +263,7 @@ assert.doesNotMatch(collectorScript, /grep -Fxq -e "\$entrypoint"/,
 for (const forbidden of [
   /\bgit[^\n]*\bfetch\b/,
   /\bgit[^\n]*\bpull\b/,
-  /\bgit[^\n]*\bmerge\b/,
+  /\bgit[^\n]*\bmerge(?!-base)\b/,
   /\bgit[^\n]*\breset\b/,
   /\bgit[^\n]*\bcheckout\b/,
   /\bsystemctl[^\n]*\b(?:start|stop|restart|reload)\b/,
@@ -198,6 +292,8 @@ const preservedEnvironment = new Map([
   "VOID_PROOF_REAL_TR",
   "VOID_PROOF_CMDLINE_MODE",
   "VOID_PROOF_DECOY_ENTRY",
+  "VOID_PROOF_SOURCE_COMMIT",
+  "VOID_PROOF_SOURCE_TREE",
 ].map((name) => [name, process.env[name]]));
 const originalPath = process.env.PATH;
 try {
@@ -205,6 +301,7 @@ try {
   const bin = join(root, "bin");
   mkdirSync(repo);
   mkdirSync(join(repo, "src"));
+  mkdirSync(join(repo, "ops"));
   mkdirSync(bin);
   git(repo, "init", "-b", "main");
   git(repo, "config", "user.name", "VOID Proof");
@@ -216,22 +313,38 @@ try {
   writeFileSync(join(repo, "src", "index.ts"), `const http = require("node:http");
 const { execFileSync } = require("node:child_process");
 const port = Number(process.env.VOID_PROOF_PORT);
+const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
+const immutable = marker === "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1" &&
+  /^[0-9a-f]{40}$/.test(commit) && /^[0-9a-f]{40}$/.test(tree) && branch === "main";
 http.createServer((request, response) => {
   response.setHeader("content-type", "application/json");
   if (request.url === "/health") return response.end(JSON.stringify({ ok: true }));
   if (request.url === "/__void/ready.json") return response.end(JSON.stringify({ ready: true, gap: 0 }));
   if (request.url === "/version") {
     const git_commit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
-    return response.end(JSON.stringify({ git_commit }));
+    return response.end(JSON.stringify({
+      git_commit,
+      process_source: { marker, commit, tree, branch, immutable },
+    }));
   }
   response.statusCode = 404;
   response.end(JSON.stringify({ ok: false }));
 }).listen(port, "127.0.0.1");
 `);
-  git(repo, "add", "--", ".gitignore", "package.json", "src/index.ts");
+  const fixtureLauncher = join(repo, "ops", "run-void-node-live-v1.sh");
+  writeFileSync(
+    fixtureLauncher,
+    readFileSync(join(process.cwd(), "ops", "run-void-node-live-v1.sh"), "utf8"),
+    { mode: 0o700 },
+  );
+  chmodSync(fixtureLauncher, 0o700);
+  git(repo, "add", "--", ".gitignore", "package.json", "src/index.ts", "ops/run-void-node-live-v1.sh");
   git(repo, "commit", "-m", "fixture source v1");
   const firstHead = git(repo, "rev-parse", "HEAD");
-  const firstTransition = Number(run("stat", ["-c", "%Y", join(repo, ".git", "logs", "HEAD")]));
+  const firstTree = git(repo, "rev-parse", "HEAD^{tree}");
 
   const tsxDist = join(repo, "node_modules", "tsx", "dist");
   mkdirSync(join(repo, "node_modules"));
@@ -242,15 +355,39 @@ http.createServer((request, response) => {
   writeFileSync(preflightPath, "module.exports = {};\n");
   writeFileSync(loaderPath, "export {};\n");
 
+  const launcherEnvironment = {
+    ...process.env,
+    NODE_PRIVKEY_PATH: join(root, "unused-proof-key"),
+    VOID_PROOF_PORT: String(port),
+  };
+  const dirtyPath = join(repo, "dirty-source.txt");
+  writeFileSync(dirtyPath, "dirty\n");
+  const dirtyLaunch = run(fixtureLauncher, [], {
+    cwd: repo,
+    env: launcherEnvironment,
+    allowFailure: true,
+    timeoutMs: 2_000,
+  });
+  assert.notEqual(dirtyLaunch.status, 0, "live launcher must reject a dirty source checkout");
+  rmSync(dirtyPath);
+
+  git(repo, "checkout", "-b", "proof-non-main");
+  const wrongBranchLaunch = run(fixtureLauncher, [], {
+    cwd: repo,
+    env: launcherEnvironment,
+    allowFailure: true,
+    timeoutMs: 2_000,
+  });
+  assert.notEqual(wrongBranchLaunch.status, 0, "live launcher must reject a non-main branch");
+  git(repo, "checkout", "main");
+  git(repo, "branch", "-D", "proof-non-main");
+  const firstTransition = Number(run("stat", ["-c", "%Y", join(repo, ".git", "logs", "HEAD")]));
+
   await waitUntilEpochAtLeast(firstTransition + 2);
   const processStartEpoch = Math.floor(Date.now() / 1000);
-  child = spawn(process.execPath, [
-    "--require", preflightPath,
-    "--import", pathToFileURL(loaderPath).href,
-    join(repo, "src", "index.ts"),
-  ], {
+  child = spawn(fixtureLauncher, [], {
     cwd: repo,
-    env: { ...process.env, VOID_PROOF_PORT: String(port) },
+    env: launcherEnvironment,
     stdio: "ignore",
   });
   await waitForHealth(port, child);
@@ -290,11 +427,19 @@ if test "$#" -eq 2 && test "$1" = '\\0' && test "$2" = '\\n'; then
   if test "\${VOID_PROOF_CMDLINE_MODE:-exact}" = decoy; then
     printf '%s\\n' \
       "$VOID_PROOF_NODE_EXE" \
+      --conditions=void-process-source-identity-v1 \
+      "--conditions=void-process-source-commit-$VOID_PROOF_SOURCE_COMMIT" \
+      "--conditions=void-process-source-tree-$VOID_PROOF_SOURCE_TREE" \
+      --conditions=void-process-source-branch-main \
       "$VOID_PROOF_DECOY_ENTRY" \
       "$VOID_PROOF_REPO/src/index.ts"
   else
     printf '%s\\n' \
       "$VOID_PROOF_NODE_EXE" \
+      --conditions=void-process-source-identity-v1 \
+      "--conditions=void-process-source-commit-$VOID_PROOF_SOURCE_COMMIT" \
+      "--conditions=void-process-source-tree-$VOID_PROOF_SOURCE_TREE" \
+      --conditions=void-process-source-branch-main \
       --require \
       "$VOID_PROOF_REPO/node_modules/tsx/dist/preflight.cjs" \
       --import \
@@ -315,6 +460,8 @@ fi
   process.env.PATH = `${bin}:${originalPath}`;
   process.env.VOID_PROOF_MAIN_PID = String(collectorPid);
   process.env.VOID_PROOF_START_EPOCH = String(processStartEpoch);
+  process.env.VOID_PROOF_SOURCE_COMMIT = firstHead;
+  process.env.VOID_PROOF_SOURCE_TREE = firstTree;
   assert.equal(
     run(fakeSystemctl, ["--user", "show", "void-node-proof.service", "--property=MainPID", "--value"]),
     String(collectorPid),
@@ -343,11 +490,17 @@ fi
   assert.match(rawFreshCollector, /process_present\t1/, rawFreshCollector);
   assert.match(rawFreshCollector, /source_stable\t1/, rawFreshCollector);
   assert.match(rawFreshCollector, /process_identity_stable\t1/, rawFreshCollector);
+  assert.match(rawFreshCollector, /process_source_argv_exact\t1/, rawFreshCollector);
   const freshResult = collectNodeProcessFreshnessV1(liveNode);
   assert.equal(freshResult.source_head, firstHead);
+  assert.equal(freshResult.source_tree, firstTree);
   assert.equal(freshResult.classification, "PROCESS_SOURCE_ALIGNED", JSON.stringify(freshResult));
   assert.equal(freshResult.source_stable, true);
   assert.equal(freshResult.process_identity_stable, true);
+  assert.equal(freshResult.process_source_identity_bound, true);
+  assert.equal(freshResult.process_source_commit, firstHead);
+  assert.equal(freshResult.process_source_tree, firstTree);
+  assert.equal(freshResult.process_source_matches_current, true);
   assert.equal(freshResult.version_git_commit_matches_source_head_diagnostic_only, true);
 
   const configPath = join(root, "fleet-config.json");
@@ -361,6 +514,7 @@ fi
   ]));
   assert.equal(freshCli.marker, VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1);
   assert.equal(freshCli.decision, "PROCESS_FRESH");
+  assert.equal(freshCli.process_source_identity_required, true);
   assert.equal(freshCli.version_git_commit_is_process_identity, false);
   assert.deepEqual(Object.values(freshCli.authority), Object.values(freshCli.authority).map(() => false));
   assert.equal(statSync(outputPath).mode & 0o777, 0o600);
@@ -374,11 +528,17 @@ fi
   git(repo, "add", "--", "source-version.txt");
   git(repo, "commit", "-m", "fixture source v2 without restart");
   const secondHead = git(repo, "rev-parse", "HEAD");
+  const secondTree = git(repo, "rev-parse", "HEAD^{tree}");
   assert.notEqual(secondHead, firstHead);
+  assert.notEqual(secondTree, firstTree);
 
   const staleResult = collectNodeProcessFreshnessV1(liveNode);
   assert.equal(staleResult.source_head, secondHead);
+  assert.equal(staleResult.source_tree, secondTree);
   assert.equal(staleResult.classification, "STALE_SOURCE_AFTER_PROCESS_START");
+  assert.equal(staleResult.process_source_commit, firstHead);
+  assert.equal(staleResult.process_source_tree, firstTree);
+  assert.equal(staleResult.process_source_matches_current, false);
   assert.equal(staleResult.version_git_commit_matches_source_head_diagnostic_only, true,
     "dynamic /version may match new source while the old process is still running");
   assert.equal(buildFleetProcessFreshnessDecisionV1([staleResult]).decision, "RESTART_REQUIRED");
@@ -393,22 +553,43 @@ fi
   writeFileSync(decoyPath, `const http = require("node:http");
 const { execFileSync } = require("node:child_process");
 const port = Number(process.env.VOID_PROOF_PORT);
+const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
 http.createServer((request, response) => {
   response.setHeader("content-type", "application/json");
   if (request.url === "/health") return response.end(JSON.stringify({ ok: true }));
   if (request.url === "/__void/ready.json") return response.end(JSON.stringify({ ready: true, gap: 0 }));
   if (request.url === "/version") {
     const git_commit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
-    return response.end(JSON.stringify({ git_commit }));
+    return response.end(JSON.stringify({
+      git_commit,
+      process_source: { marker, commit, tree, branch, immutable: true },
+    }));
   }
   response.statusCode = 404;
   response.end(JSON.stringify({ ok: false }));
 }).listen(port, "127.0.0.1");
 `);
   const decoyStartEpoch = Math.floor(Date.now() / 1000);
-  decoyChild = spawn(process.execPath, [decoyPath, join(repo, "src", "index.ts")], {
+  decoyChild = spawn(process.execPath, [
+    "--conditions=void-process-source-identity-v1",
+    `--conditions=void-process-source-commit-${secondHead}`,
+    `--conditions=void-process-source-tree-${secondTree}`,
+    "--conditions=void-process-source-branch-main",
+    decoyPath,
+    join(repo, "src", "index.ts"),
+  ], {
     cwd: repo,
-    env: { ...process.env, VOID_PROOF_PORT: String(decoyPort) },
+    env: {
+      ...process.env,
+      VOID_PROOF_PORT: String(decoyPort),
+      VOID_PROCESS_SOURCE_IDENTITY_MARKER: VOID_NODE_PROCESS_SOURCE_IDENTITY_V1,
+      VOID_PROCESS_SOURCE_COMMIT: secondHead,
+      VOID_PROCESS_SOURCE_TREE: secondTree,
+      VOID_PROCESS_SOURCE_BRANCH: "main",
+    },
     stdio: "ignore",
   });
   await waitForHealth(decoyPort, decoyChild);
@@ -416,6 +597,8 @@ http.createServer((request, response) => {
   process.env.VOID_PROOF_START_EPOCH = String(decoyStartEpoch);
   process.env.VOID_PROOF_CMDLINE_MODE = "decoy";
   process.env.VOID_PROOF_DECOY_ENTRY = decoyPath;
+  process.env.VOID_PROOF_SOURCE_COMMIT = secondHead;
+  process.env.VOID_PROOF_SOURCE_TREE = secondTree;
   const [decoyNode] = validateProcessFreshnessConfigV1({
     ...liveConfig,
     nodes: [{ ...liveConfig.nodes[0], http_base: `http://127.0.0.1:${decoyPort}` }],

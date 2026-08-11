@@ -14,6 +14,13 @@ Node process retains modules loaded from the old source. This audit detects that
 state without restarting, reloading, building, installing, fetching, or changing
 anything.
 
+The checked-in live launcher now captures the exact clean `main` commit and Git
+tree immediately before `exec`. It binds those immutable values into both the
+Node command line and the process environment. `/version.process_source`
+self-reports the same closed identity object for the lifetime of that process.
+The launcher refuses a detached, non-`main`, dirty, or concurrently changing
+source checkout instead of starting with ambiguous identity.
+
 ## Why `/version.git_commit` is diagnostic only
 
 The current `/version` handler derives `git_commit` when the request arrives. A
@@ -29,8 +36,13 @@ that match as process identity. The receipt always includes:
 ```
 
 Process freshness is instead bounded to evidence from the service MainPID, its
-start timestamp, the repository HEAD reflog transition timestamp, its working
-directory and command line, and current clean-source/runtime health checks.
+start timestamp, the repository HEAD/tree and reflog transition timestamp, its
+working directory and complete command line, the immutable
+`/version.process_source` object, and current clean-source/runtime health checks.
+The collector requires the exact commit/tree identity encoded in the process
+argv to resolve to a real Git object, reproduce that commit's tree, remain an
+ancestor of current HEAD, and match the endpoint. It never reads
+`/proc/<pid>/environ`.
 Source and service identity are sampled at both edges of collection; either
 changing while health/readiness evidence is gathered forces `HOLD`.
 
@@ -76,25 +88,30 @@ service start text, credentials, or HTTP response bodies.
 
 For each node, the collector reads:
 
-- matching before/after Git HEAD, exact branch, readable porcelain status, and
-  modification epoch of that worktree's absolute `logs/HEAD` reflog path;
+- matching before/after Git HEAD and tree, exact branch, readable porcelain
+  status, and modification epoch of that worktree's absolute `logs/HEAD`
+  reflog path;
 - matching before/after `ActiveState`, `MainPID`, and
   `ExecMainStartTimestamp` snapshots from read-only `systemctl --user show`
   calls;
 - boolean checks that the MainPID working directory is the configured repo, its
   executable is Node, and its complete argv exactly matches the checked-in
-  launcher shape: executable, `--require` with the repo-local TSX preflight,
-  `--import` with the repo-local TSX loader URL, and the absolute
-  `<repo>/src/index.ts`, with no extra application arguments; and
+  launcher shape: exact immutable source marker/commit/tree/branch conditions,
+  `--require` with the repo-local TSX preflight, `--import` with the repo-local
+  TSX loader URL, and the absolute `<repo>/src/index.ts`, with no extra
+  application arguments;
+- an exact closed `/version.process_source` object whose immutable commit/tree
+  values equal the command-line identity; and
 - loopback `/health`, `/__void/ready.json`, and `/version` responses.
 
 The tool emits one of three node classifications:
 
 - `PROCESS_SOURCE_ALIGNED` — exact `main`, clean source, active matching Node
-  process, green health/readiness, and the process started at least one whole
-  second after the latest HEAD transition;
-- `STALE_SOURCE_AFTER_PROCESS_START` — all other gates are green, but HEAD
-  transitioned at least one whole second after process start; or
+  process, green health/readiness, exact current commit/tree identity, and the
+  process started at least one whole second after the latest HEAD transition;
+- `STALE_SOURCE_AFTER_PROCESS_START` — all other gates are green, the immutable
+  process commit differs from current HEAD, and HEAD transitioned at least one
+  whole second after process start; or
 - `HOLD` — identity, source, health, timestamp, transport, or parsing evidence is
   missing, changes during collection, or is ambiguous.
 
@@ -122,7 +139,8 @@ authorized build/deployment/restart, run this audit again and require
 - The repository must have a readable HEAD reflog. Missing or unreadable reflog
   timing is `HOLD`, never inferred from commit author or committer timestamps.
 - The current runtime contract is the checked-in `ops/run-void-node-live-v1.sh`
-  shape: Node/Node.js executing `src/index.ts` from the configured repo.
+  shape: Node/Node.js executing `src/index.ts` from an exact clean `main`
+  commit/tree captured by the launcher.
 - V1 does not follow child processes or accept a different entrypoint. A changed
   service topology fails closed until a reviewed audit version supports it.
 - An unavailable SSH node, inactive service, dirty worktree, detached/wrong

@@ -47,17 +47,19 @@ snapshots as well as their normalized audit IDs.
 
 For every configured node, both audits must prove:
 
-- exact config order and one shared source SHA;
+- exact config order and one shared source commit/tree;
 - `main`, clean and stable source;
 - active service and a stable checked-in Node entrypoint;
+- an immutable process-source commit/tree binding equal to that shared source;
 - exact `PROCESS_SOURCE_ALIGNED`;
 - green health and readiness; and
 - a fresh observation.
 
 The second observation must retain the exact process-start epoch and
-source-transition epoch from the final audit. Its observation epoch must be at
-least the configured interval later for every node. The minimum is 30 seconds
-and the default is 30 seconds.
+source-transition epoch from the final audit, while both exact audits continue
+to bind every aligned process to the shared source commit/tree. Its observation
+epoch must be at least the configured interval later for every node. The minimum
+is 30 seconds and the default is 30 seconds.
 
 Any crash recovery, manual restart, source checkout, process replacement,
 health/readiness failure, stale evidence, future timestamp, or schema/digest

@@ -78,12 +78,23 @@ function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }
 
-function processNode(name, sourceSha, headTransitionEpoch, processStartEpoch, observedAtEpoch) {
+function processNode(
+  name,
+  sourceSha,
+  sourceTree,
+  processCommit,
+  processTree,
+  headTransitionEpoch,
+  processStartEpoch,
+  observedAtEpoch,
+) {
   const delta = processStartEpoch - headTransitionEpoch;
+  const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
   return {
     name,
     reachable: true,
     source_head: sourceSha,
+    source_tree: sourceTree,
     source_branch: "main",
     dirty_count: 0,
     worktree_status_readable: true,
@@ -103,6 +114,10 @@ function processNode(name, sourceSha, headTransitionEpoch, processStartEpoch, ob
     classification: delta >= 1 ? "PROCESS_SOURCE_ALIGNED" : "STALE_SOURCE_AFTER_PROCESS_START",
     reasons: [],
     source_to_process_start_seconds: delta,
+    process_source_identity_bound: true,
+    process_source_commit: processCommit,
+    process_source_tree: processTree,
+    process_source_matches_current: processMatchesCurrent,
     version_git_commit_matches_source_head_diagnostic_only: true,
   };
 }
@@ -116,6 +131,7 @@ function freshnessAudit(nodes) {
     audit_id_sha256: fleet.audit_id_sha256,
     expected_process_entrypoint: "src/index.ts",
     nodes,
+    process_source_identity_required: true,
     version_git_commit_is_process_identity: false,
     mutation_attempted: false,
     authority: {
@@ -247,11 +263,13 @@ try {
   git(repo, "add", "README.md");
   git(repo, "commit", "-m", "one");
   const fromSha = git(repo, "rev-parse", "HEAD");
+  const fromTree = git(repo, "rev-parse", "HEAD^{tree}");
   mkdirSync(join(repo, "src"));
   writeFileSync(join(repo, "src", "proof.ts"), "export const proof = 2;\n");
   git(repo, "add", "src/proof.ts");
   git(repo, "commit", "-m", "two");
   const sourceSha = git(repo, "rev-parse", "HEAD");
+  const sourceTree = git(repo, "rev-parse", "HEAD^{tree}");
   git(repo, "remote", "add", "origin", remote);
   git(repo, "push", "origin", "main");
 
@@ -273,13 +291,29 @@ try {
   const observed = Math.floor(Date.now() / 1000);
   const transitionEpoch = observed - 40;
   const baseline = freshnessAudit([
-    processNode("precision", sourceSha, transitionEpoch, transitionEpoch + 5, observed),
-    processNode("nimo", sourceSha, transitionEpoch, transitionEpoch - 8, observed),
-    processNode("alienware", sourceSha, transitionEpoch, transitionEpoch - 7, observed),
+    processNode("precision", sourceSha, sourceTree, sourceSha, sourceTree, transitionEpoch, transitionEpoch + 5, observed),
+    processNode("nimo", sourceSha, sourceTree, fromSha, fromTree, transitionEpoch, transitionEpoch - 8, observed),
+    processNode("alienware", sourceSha, sourceTree, fromSha, fromTree, transitionEpoch, transitionEpoch - 7, observed),
   ]);
   const validatedBaseline = validateFullFreshnessAuditV1(baseline, config);
   assert.equal(validatedBaseline.decision, "RESTART_REQUIRED");
   assert.deepEqual(validatedBaseline.stale_order, ["nimo", "alienware"]);
+  assert.equal(validatedBaseline.source_tree, sourceTree);
+
+  const missingIdentityRequirement = clone(baseline);
+  delete missingIdentityRequirement.process_source_identity_required;
+  expectThrow(
+    () => validateFullFreshnessAuditV1(missingIdentityRequirement, config),
+    /freshness audit keys/,
+    "identity requirement omission",
+  );
+  const unboundProcessIdentity = clone(baseline);
+  unboundProcessIdentity.nodes[1].process_source_identity_bound = false;
+  expectThrow(
+    () => validateFullFreshnessAuditV1(unboundProcessIdentity, config),
+    /not exact green process evidence/,
+    "unbound process identity",
+  );
 
   const state0 = createRolloutStateV1(baseline, config);
   const validatedState0 = validateRolloutStateV1(state0, config);
@@ -290,7 +324,7 @@ try {
 
   const currentNimo = freshnessAudit([
     clone(baseline.nodes[0]),
-    processNode("nimo", sourceSha, transitionEpoch, transitionEpoch + 20, observed),
+    processNode("nimo", sourceSha, sourceTree, sourceSha, sourceTree, transitionEpoch, transitionEpoch + 20, observed),
     clone(baseline.nodes[2]),
   ]);
   const validatedCurrentNimo = validateFullFreshnessAuditV1(currentNimo, config);
@@ -316,13 +350,17 @@ try {
   );
   assert.equal(advancedNimo.state.completed.length, 1);
   assert.equal(advancedNimo.state.completed[0].node, "nimo");
+  assert.equal(advancedNimo.state.completed[0].old_process_commit, fromSha);
+  assert.equal(advancedNimo.state.completed[0].old_process_tree, fromTree);
+  assert.equal(advancedNimo.state.completed[0].new_process_commit, sourceSha);
+  assert.equal(advancedNimo.state.completed[0].new_process_tree, sourceTree);
   const validatedState1 = validateRolloutStateV1(advancedNimo.state, config);
   assert.equal(assessRolloutStateV1(validatedState1, validatedCurrentNimo).next_node, "alienware");
 
   const currentAll = freshnessAudit([
     clone(baseline.nodes[0]),
     clone(currentNimo.nodes[1]),
-    processNode("alienware", sourceSha, transitionEpoch, transitionEpoch + 30, observed),
+    processNode("alienware", sourceSha, sourceTree, sourceSha, sourceTree, transitionEpoch, transitionEpoch + 30, observed),
   ]);
   const validatedCurrentAll = validateFullFreshnessAuditV1(currentAll, config);
   const alienSource = sourceReceipt(config, "alienware", fromSha, sourceSha);
@@ -341,7 +379,16 @@ try {
   assert.equal(finalAssessment.next_node, null);
 
   const changedAligned = clone(baseline);
-  changedAligned.nodes[0] = processNode("precision", sourceSha, transitionEpoch, transitionEpoch + 6, observed);
+  changedAligned.nodes[0] = processNode(
+    "precision",
+    sourceSha,
+    sourceTree,
+    sourceSha,
+    sourceTree,
+    transitionEpoch,
+    transitionEpoch + 6,
+    observed,
+  );
   Object.assign(changedAligned, freshnessAudit(changedAligned.nodes));
   const changedAlignedAssessment = assessRolloutStateV1(
     validatedState0,
@@ -353,7 +400,7 @@ try {
   const skippedNimo = freshnessAudit([
     clone(baseline.nodes[0]),
     clone(baseline.nodes[1]),
-    processNode("alienware", sourceSha, transitionEpoch, transitionEpoch + 30, observed),
+    processNode("alienware", sourceSha, sourceTree, sourceSha, sourceTree, transitionEpoch, transitionEpoch + 30, observed),
   ]);
   const skippedAssessment = assessRolloutStateV1(
     validatedState0,
@@ -361,6 +408,26 @@ try {
   );
   assert.equal(skippedAssessment.ok, false);
   assert.ok(skippedAssessment.reasons.includes("alienware:pending_process_changed_without_receipt"));
+
+  const changedPendingIdentity = clone(baseline);
+  changedPendingIdentity.nodes[1].process_source_commit = "1".repeat(40);
+  changedPendingIdentity.nodes[1].process_source_tree = "2".repeat(40);
+  Object.assign(changedPendingIdentity, freshnessAudit(changedPendingIdentity.nodes));
+  const changedPendingIdentityAssessment = assessRolloutStateV1(
+    validatedState0,
+    validateFullFreshnessAuditV1(changedPendingIdentity, config),
+  );
+  assert.equal(changedPendingIdentityAssessment.ok, false);
+  assert.ok(changedPendingIdentityAssessment.reasons.includes("nimo:pending_process_changed_without_receipt"));
+
+  const currentTreeTamper = clone(currentNimo);
+  currentTreeTamper.nodes[0].source_tree = "3".repeat(40);
+  Object.assign(currentTreeTamper, freshnessAudit(currentTreeTamper.nodes));
+  expectThrow(
+    () => validateFullFreshnessAuditV1(currentTreeTamper, config),
+    /one exact source tree|current binding is inconsistent/,
+    "fleet source tree divergence",
+  );
 
   const tamperedState = clone(state0);
   tamperedState.stale_order.reverse();
