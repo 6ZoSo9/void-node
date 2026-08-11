@@ -23,7 +23,7 @@ const workflowFile = path.join(
   ".github/workflows/void-private-chain2050-production-selector-deployment-v1.yml",
 );
 
-const ANCHOR = "1b3429b9e938b4c590ecc1601677394d8d7081cb";
+const ANCHOR = "b7e77da1bb540c242e59e18191972aca8d717293";
 const DEPLOY =
   "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/" +
   "selector-37371-main-1b3429b9-v1";
@@ -40,6 +40,8 @@ const DURABILITY = `${BUY}/chain2050-durability-v1`;
 const CID =
   "99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2";
 const STEM = `chain2050-block-37371-${CID}`;
+const ANVIL_SHA =
+  "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738";
 
 function git(args) {
   return execFileSync("git", args, {
@@ -98,9 +100,9 @@ assert.equal(manifest.service_name, "void-private-chain2050-rpc-v1.service");
 
 const expectedSources = new Map([
   ["ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
-   ["ea0868a02bb8f9c06fe006fbadb66fb24d287729", "0755"]],
+   ["ca41638af03cbf361d89d578c9426e59c5b6beeb", "0755"]],
   ["tools/void-private-chain2050-startup-integration-v1.mjs",
-   ["8d00ec0c80a361bbfa71f18ab9c381d8060717a2", "0600"]],
+   ["f56a6fd6eb6fd80c0e34f3b751610275b0004d15", "0600"]],
   ["tools/void-private-chain2050-startup-selection-v1.mjs",
    ["074e4429d9b3f534f38e9a0535a123a062b9e37d", "0600"]],
   ["tools/void-private-chain2050-checkpoint-v1.mjs",
@@ -123,8 +125,12 @@ const seal = manifest.runtime_seal_requirements;
 assert.equal(seal.node_binary_absolute_path_required, true);
 assert.equal(seal.node_binary_sha256_required, true);
 assert.equal(seal.node_binary_unit_sentinel, "__SEALED_NODE_BIN__");
-assert.equal(seal.pinned_anvil_sha256,
-  "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738");
+assert.equal(seal.anvil_binary_absolute_path_required, true);
+assert.equal(seal.anvil_binary_sha256_required, true);
+assert.equal(seal.anvil_binary_reverified_before_spawn, true);
+assert.equal(seal.ambient_path_anvil_resolution_allowed, false);
+assert.equal(seal.pinned_anvil_sha256, ANVIL_SHA);
+assert.equal(seal.pinned_anvil_deployment_relative_path, "bin/anvil");
 assert.equal(seal.pinned_anvil_mode, "0700");
 
 const baseline = manifest.baseline;
@@ -190,6 +196,8 @@ assert.equal(new Set(roots).size, roots.length, "roots must remain distinct");
 const env = manifest.future_unit_environment;
 assert.equal(env.VOID_REPO, DEPLOY);
 assert.equal(env.VOID_NODE_BIN, "__SEALED_NODE_BIN__");
+assert.equal(env.VOID_MAINNET0_8545_ANVIL_BIN, `${DEPLOY}/bin/anvil`);
+assert.equal(env.VOID_MAINNET0_8545_ANVIL_SHA256, ANVIL_SHA);
 assert.equal(env.VOID_MAINNET0_8545_BASELINE_STATE,
   `${DEPLOY}/state/epoch127.baseline.anvil-dump-state.hex`);
 assert.equal(env.VOID_MAINNET0_8545_BASELINE_STATE_SHA256,
@@ -225,6 +233,10 @@ assert.match(unit, new RegExp(
   `^ExecStart=${esc(DEPLOY)}/ops/mainnet0/` +
   "mainnet0-start-8545-selected-durable-state\\.sh$", "m"));
 assert.match(unit, /^Environment=VOID_NODE_BIN=__SEALED_NODE_BIN__$/m);
+assert.match(
+  unit,
+  new RegExp(`^ConditionPathExists=${esc(DEPLOY)}/bin/anvil$`, "m"),
+);
 for (const [key, value] of Object.entries(env)) {
   assert.match(unit, new RegExp(`^Environment=${key}=${esc(value)}$`, "m"));
 }
@@ -248,6 +260,7 @@ assert.match(unit, /^NoNewPrivileges=true$/m);
 
 for (const required of [
   "prove_void_private_chain2050_production_selector_deployment_v1.mjs",
+  "prove_void_private_chain2050_anvil_executable_binding_v1.mjs",
   "prove_mainnet0_8545_selector_restore_retirement_v1.mjs",
   "prove_void_private_chain2050_startup_integration_v1.mjs",
   "prove_void_private_chain2050_startup_selection_v1.mjs",
@@ -263,6 +276,9 @@ console.log("checkpoint_copy_shape_green=true");
 console.log("root_separation_green=true");
 console.log("selector_service_template_green=true");
 console.log("runtime_specific_node_pin_deferred_to_operator_seal=true");
+console.log("anvil_absolute_path_and_sha_bound=true");
+console.log("anvil_pre_spawn_revalidation_required=true");
+console.log("ambient_path_anvil_resolution=false");
 console.log("stale_fallback_and_automatic_rollback_disabled=true");
 console.log("economic_reentry_remains_separate=true");
 console.log("source_lane_authority_all_false_green=true");
