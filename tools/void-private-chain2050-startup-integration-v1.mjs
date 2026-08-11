@@ -32,6 +32,7 @@ const BLOCK_HASH = /^0x[0-9a-f]{64}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 const MAX_SELECTED_STATE_BYTES = 1024 * 1024 * 1024;
+const MAX_ANVIL_EXECUTABLE_BYTES = 512 * 1024 * 1024;
 const MAX_RPC_RESPONSE_BYTES = 1024 * 1024;
 const DEFAULT_START_TIMEOUT_MS = 30_000;
 const STREAM_READ_CHUNK_BYTES = 1024 * 1024;
@@ -59,6 +60,10 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   transaction_automining_default: true,
   interval_mining_opt_in_only: true,
   no_mining_default: false,
+  anvil_executable_binding_supported: true,
+  anvil_executable_binding_required_before_process_start: true,
+  anvil_executable_sha256_reverified_before_process_start: true,
+  ambient_path_anvil_resolution: false,
   transaction_replay: false,
   wallet_access: false,
   credential_access: false,
@@ -136,7 +141,10 @@ function loopbackRpc(value) {
   return url;
 }
 
-function assertNoSymlinkComponents(target) {
+function assertNoSymlinkComponents(
+  target,
+  reason = "startup_private_path_symlink_forbidden",
+) {
   const absolute = path.resolve(target);
   const parsed = path.parse(absolute);
   let current = parsed.root;
@@ -144,8 +152,68 @@ function assertNoSymlinkComponents(target) {
     current = path.join(current, part);
     if (!fs.existsSync(current)) continue;
     const stat = fs.lstatSync(current);
-    if (stat.isSymbolicLink()) hold("startup_private_path_symlink_forbidden");
+    if (stat.isSymbolicLink()) hold(reason);
   }
+}
+
+export function validateVoidPrivateChain2050AnvilExecutableV1(
+  executable,
+  expectedSha256,
+) {
+  const raw = String(executable ?? "").trim();
+  if (!raw || !path.isAbsolute(raw)) {
+    hold("startup_anvil_executable_not_absolute");
+  }
+  const absolute = path.resolve(raw);
+  if (absolute !== raw) {
+    hold("startup_anvil_executable_not_canonical");
+  }
+  const expected = String(expectedSha256 ?? "").trim().toLowerCase();
+  if (!SHA256.test(expected)) {
+    hold("startup_anvil_executable_sha256_invalid");
+  }
+  assertNoSymlinkComponents(
+    absolute,
+    "startup_anvil_executable_symlink_forbidden",
+  );
+  let stat;
+  try {
+    stat = fs.lstatSync(absolute);
+  } catch (error) {
+    if (error?.code === "ENOENT") hold("startup_anvil_executable_missing");
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    hold("startup_anvil_executable_unsafe");
+  }
+  if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
+    hold("startup_anvil_executable_owner_invalid");
+  }
+  const mode = stat.mode & 0o7777;
+  if ((mode & 0o100) === 0) {
+    hold("startup_anvil_executable_not_executable");
+  }
+  if ((mode & 0o022) !== 0 || (mode & 0o6000) !== 0) {
+    hold("startup_anvil_executable_mode_unsafe");
+  }
+  if (stat.size <= 0 || stat.size > MAX_ANVIL_EXECUTABLE_BYTES) {
+    hold("startup_anvil_executable_size_invalid");
+  }
+  try {
+    fs.accessSync(absolute, fs.constants.X_OK);
+  } catch {
+    hold("startup_anvil_executable_not_executable");
+  }
+  const observedSha256 = sha256File(absolute);
+  if (observedSha256 !== expected) {
+    hold("startup_anvil_executable_sha256_mismatch");
+  }
+  return Object.freeze({
+    path: absolute,
+    sha256: observedSha256,
+    mode_octal: (mode & 0o777).toString(8).padStart(4, "0"),
+    owner_uid: typeof process.getuid === "function" ? stat.uid : null,
+  });
 }
 
 function ensurePrivateDirectory(dir) {
@@ -644,7 +712,7 @@ export async function verifyVoidPrivateChain2050StartedStateV1(
 ) {
   const deadline = Date.now() + timeoutMs;
   let lastReason = "startup_rpc_not_ready";
-  while (Date.now() < deadline) {
+  while (Date.now() < timeoutMs + Date.now()) {
     try {
       const chainRaw = await rpcClient(url, "eth_chainId", []);
       if (
@@ -690,6 +758,7 @@ export async function verifyVoidPrivateChain2050StartedStateV1(
       lastReason = String(error?.message || error).slice(0, 160);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
+    if (Date.now() >= deadline) break;
   }
   hold("startup_postload_verification_timeout", { last_reason: lastReason });
 }
@@ -810,6 +879,17 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     "startup_gas_limit_invalid",
     { minimum: 21_000 },
   );
+  const anvilPathSupplied = input.anvil_bin !== undefined && input.anvil_bin !== null;
+  const anvilShaSupplied = input.anvil_sha256 !== undefined && input.anvil_sha256 !== null;
+  if (anvilPathSupplied !== anvilShaSupplied) {
+    hold("startup_anvil_executable_binding_incomplete");
+  }
+  const anvilBinding = anvilPathSupplied
+    ? validateVoidPrivateChain2050AnvilExecutableV1(
+        input.anvil_bin,
+        input.anvil_sha256,
+      )
+    : null;
   const selection = selectVoidPrivateChain2050StartupStateV1({
     baseline: {
       chain_id: VOID_PRIVATE_CHAIN2050_EXPECTED_CHAIN_ID_V1,
@@ -838,7 +918,11 @@ export function buildVoidPrivateChain2050StartupPlanV1(input) {
     selected_dump_state_streaming_required: true,
     max_derived_state_bytes: VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
     derived_root: input.derived_root ? path.resolve(input.derived_root) : null,
-    anvil_command: "anvil",
+    anvil_command: anvilBinding?.path ?? null,
+    anvil_executable: anvilBinding?.path ?? null,
+    anvil_executable_sha256: anvilBinding?.sha256 ?? null,
+    anvil_executable_mode_octal: anvilBinding?.mode_octal ?? null,
+    anvil_executable_binding_required_for_apply: true,
     anvil_generated_accounts: 0,
     post_load_zero_unlocked_accounts_required: true,
     required_confirmation:
@@ -867,6 +951,9 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
         VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_CONFIRMATION_V1,
     });
   }
+  if (!plan.anvil_executable || !plan.anvil_executable_sha256) {
+    hold("startup_anvil_executable_binding_required");
+  }
   const timeoutMs = safeInteger(
     input.start_timeout_ms ?? DEFAULT_START_TIMEOUT_MS,
     "startup_timeout_invalid",
@@ -891,7 +978,11 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
     plan.mining_mode,
     plan.block_time,
   );
-  const child = spawn("anvil", anvilArgs, {
+  const anvilBinding = validateVoidPrivateChain2050AnvilExecutableV1(
+    plan.anvil_executable,
+    plan.anvil_executable_sha256,
+  );
+  const child = spawn(anvilBinding.path, anvilArgs, {
     stdio: ["ignore", "inherit", "inherit"],
     env: process.env,
   });
@@ -928,6 +1019,7 @@ export async function runVoidPrivateChain2050StartupIntegrationV1(input) {
       apply: true,
       cli_state: cliState,
       anvil_args: anvilArgs,
+      anvil_executable_reverified_before_start: true,
       verification,
       state_materialization_performed:
         cliState.derived === true,
@@ -976,6 +1068,8 @@ function parseArgs(argv) {
       else if (key === "--block-time") args.block_time = value;
       else if (key === "--gas-limit") args.gas_limit = value;
       else if (key === "--start-timeout-ms") args.start_timeout_ms = value;
+      else if (key === "--anvil-bin") args.anvil_bin = value;
+      else if (key === "--anvil-sha256") args.anvil_sha256 = value;
       else hold(`startup_unknown_argument:${key}`);
     }
   }
@@ -986,7 +1080,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     process.stdout.write(
-      "Usage: node tools/void-private-chain2050-startup-integration-v1.mjs --baseline-state ABS --baseline-state-sha256 SHA256 --baseline-state-format anvil_cli_state_json|anvil_dump_state_hex --baseline-block-number N --baseline-block-hash 0xHASH --checkpoint-root ABS --minimum-block-number N [--rpc-url http://127.0.0.1:8545/] [--derived-root ABS] [--block-time N] [--gas-limit N] [--apply --confirmation startPrivateChain2050FromSelectedDurableState]\n",
+      "Usage: node tools/void-private-chain2050-startup-integration-v1.mjs --baseline-state ABS --baseline-state-sha256 SHA256 --baseline-state-format anvil_cli_state_json|anvil_dump_state_hex --baseline-block-number N --baseline-block-hash 0xHASH --checkpoint-root ABS --minimum-block-number N --anvil-bin ABS --anvil-sha256 SHA256 [--rpc-url http://127.0.0.1:8545/] [--derived-root ABS] [--block-time N] [--gas-limit N] [--apply --confirmation startPrivateChain2050FromSelectedDurableState]\n",
     );
     return;
   }
@@ -998,6 +1092,8 @@ async function main() {
     "baseline_block_hash",
     "checkpoint_root",
     "minimum_block_number",
+    "anvil_bin",
+    "anvil_sha256",
   ]) {
     if (args[key] === undefined) hold(`startup_required_argument_missing:${key}`);
   }
