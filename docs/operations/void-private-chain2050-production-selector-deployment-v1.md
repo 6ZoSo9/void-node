@@ -4,9 +4,8 @@ Marker: `VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1`
 
 ## Purpose
 
-This source-only lane closes the V10 preflight blocker
-`production_selector_driven_launcher_not_deployed` without exercising production
-authority.
+This source-only lane closes the production selector-deployment gap without
+exercising production authority.
 
 The existing selector, checkpoint, startup integration, durability gate, and
 Mainnet-0 wrapper remain canonical. This lane does **not** create another startup
@@ -14,9 +13,9 @@ implementation. It seals the exact shape that a later, separately authorized
 operator preparation must materialize before ZoSo can make the P0-D production
 promotion decision.
 
-## V10 truth being closed
+## Recovery and preflight truth
 
-The read-only V10 preflight established:
+The read-only production preflight established:
 
 - production `8545` is healthy but still runs the pinned epoch127 deployment
   runner at block `37367`;
@@ -28,9 +27,11 @@ The read-only V10 preflight established:
   is zero; and
 - no production mutation occurred.
 
-Therefore the remaining pre-promotion source gap is not another recovery or
-selector primitive. It is an immutable production deployment binding for the
-already-reviewed selector wrapper.
+The first P0-C3 seal attempt then found a source-contract blocker before staging:
+the deployment packet SHA-pinned Anvil v1.5.1, but the startup tool still used
+bare `spawn("anvil", ...)`, leaving the executable selected by ambient `PATH`.
+
+The V13 repair closes that mismatch in the existing canonical startup path.
 
 ## Source packet
 
@@ -39,18 +40,66 @@ The packet consists of:
 - `ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json`
 - `ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example`
 
-The deployment contract is anchored to source commit
-`1b3429b9e938b4c590ecc1601677394d8d7081cb`.
+The deployment contract now anchors its selector/startup source files to commit
+`b7e77da1bb540c242e59e18191972aca8d717293`, the first exact commit containing
+the V13 fixed wrapper/tool bytes. Each staged source path is also pinned by its
+exact Git blob.
 
-The future immutable deployment root is:
+The future immutable deployment root remains:
 
 ```text
 /home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1
 ```
 
-The source packet copies only reviewed selector/startup artifacts into that root.
-The manifest pins each repository path to its exact Git blob at the reviewed
-anchor. It also pins the existing Foundry v1.5.1 Anvil binary by SHA-256.
+The packet also pins the existing Foundry v1.5.1 Anvil binary by SHA-256:
+
+```text
+b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738
+```
+
+and requires it at the exact staged path:
+
+```text
+/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
+```
+
+## Exact Anvil executable binding
+
+The canonical startup integration now accepts:
+
+```text
+--anvil-bin ABSOLUTE_PATH
+--anvil-sha256 SHA256
+```
+
+The Mainnet-0 wrapper requires the corresponding closed operator inputs:
+
+```text
+VOID_MAINNET0_8545_ANVIL_BIN
+VOID_MAINNET0_8545_ANVIL_SHA256
+```
+
+A supplied Anvil executable must be:
+
+- an absolute canonical path;
+- free of symlink components;
+- a regular file owned by the current operator uid;
+- owner-executable;
+- free of group/other write permission and setuid/setgid bits;
+- bounded in size; and
+- byte-exact to the expected SHA-256.
+
+Dry-run plans supplied with a binding expose the exact absolute executable path,
+SHA-256, and observed mode. Apply with the correct existing startup confirmation
+still fails closed if the Anvil binding is absent.
+
+After selected-state materialization and Anvil-argument validation, the startup
+tool revalidates the exact executable path and SHA-256 immediately before process
+creation and calls `spawn()` with that absolute path. It never falls back to a
+bare `anvil` command or ambient `PATH` resolution.
+
+This revalidation closes the plan-to-start drift case: changing the executable
+after planning causes a digest HOLD before spawn.
 
 ## Baseline normalization
 
@@ -86,9 +135,8 @@ The canonical production checkpoint root remains:
 
 The future P0-D checkpoint step is create-only and content-preserving for the
 exact block-37371 state, manifest, and finalization marker named in the manifest.
-The state SHA-256 is fixed at
+The state SHA-256 remains
 `88937f269bfadb150821794cae874ea312b6b5525b8b81b40bb0b7102b3aa248`.
-The marker text is fixed exactly.
 
 The source lane does not perform this copy. P0-C3 must additionally pin the
 recovery manifest file SHA-256 before P0-D, because that digest is runtime
@@ -99,19 +147,20 @@ evidence rather than repository source.
 The service template points `ExecStart` only at the copied immutable
 `mainnet0-start-8545-selected-durable-state.sh`. Its environment fixes:
 
+- exact staged Anvil path and SHA-256;
 - baseline block/hash: `37367` / exact ancestor hash;
 - production checkpoint root: `/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1`;
 - independent minimum: `37371`;
 - derived root: `/home/zoso/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1`;
 - RPC: `http://127.0.0.1:8545/`;
-- mode: `apply`;
+- mode: `apply`; and
 - confirmation: `startPrivateChain2050FromSelectedDurableState`.
 
-The production checkpoint trio is also expressed as `ConditionPathExists`
-requirements, so an installed future unit cannot silently start from the stale
-baseline when the required promoted checkpoint is absent.
+The staged Anvil path and the production checkpoint trio are expressed as
+`ConditionPathExists` requirements. Missing checkpoint authority therefore cannot
+silently downgrade startup to the stale baseline.
 
-The template deliberately contains one unresolved sentinel:
+The template deliberately retains one unresolved sentinel:
 
 ```text
 __SEALED_NODE_BIN__
@@ -120,9 +169,27 @@ __SEALED_NODE_BIN__
 P0-C3 must replace it only after resolving an absolute Node executable and
 pinning its SHA-256. Source review does not guess that operator runtime value.
 
+## Proof wall
+
+`prove_void_private_chain2050_anvil_executable_binding_v1.mjs` covers:
+
+- non-absolute and non-canonical path rejection;
+- missing executable rejection;
+- symlink rejection;
+- non-executable and unsafe-mode rejection;
+- wrong SHA-256 rejection;
+- exact plan binding;
+- apply-without-binding HOLD before materialization;
+- post-plan binary-change rejection;
+- absolute-path spawn source contract; and
+- removal of ambient `PATH` Anvil resolution.
+
+The production deployment workflow runs this proof and the existing selector,
+startup, checkpoint, and Mainnet-0 wrapper regressions on Node.js 22, 24, and 26.
+
 ## Fail-closed semantics
 
-The deployment contract requires:
+The deployment contract continues to require:
 
 - minimum block `37371`;
 - zero generated/unlocked accounts through the inherited startup contract;
@@ -155,12 +222,13 @@ It does **not**:
 
 ## Next gate
 
-After review and merge, P0-C3 is a separate operator-seal/preparation gate. It
-may create a private staging deployment, pin the Node executable, normalize the
-baseline, and prove the candidate unit/checkpoint-copy plan while still leaving
-the installed production unit, production checkpoint root, and `8545` untouched.
+After review and merge, P0-C3 is retried as a separate operator-seal/preparation
+gate. It may create the private staging deployment, pin Node, copy the exact
+pinned Anvil binary, normalize the baseline, seal the recovery-manifest digest,
+and prove the candidate unit/checkpoint-copy plan while still leaving the
+installed production unit, production checkpoint root, and `8545` untouched.
 
 Only after P0-C3 is exact green does the sovereign P0-D production-promotion
 decision become eligible.
 
-Refs #1182, #1185, #1186.
+Refs #1182, #1185, #1186, #1209.
