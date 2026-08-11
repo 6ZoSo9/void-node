@@ -45,6 +45,7 @@ export const VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1 = Object.fr
   selected_state_only: true,
   selected_state_sha256_reverified_before_materialization: true,
   selected_state_sha256_reverified_during_materialization: true,
+  selected_state_sha256_reverified_before_publication: true,
   selected_state_private_content_addressed_copy: true,
   streaming_dump_state_materialization: true,
   whole_dump_state_memory_materialization: false,
@@ -424,6 +425,10 @@ async function streamDumpStateToPrivateCliStateV1({
       `${derivedSha256}.cli-state.json`,
     );
 
+    if (sha256File(stateFile) !== selectedStateSha256) {
+      hold("startup_selected_state_sha256_changed_before_publication");
+    }
+
     let derivedWrite;
     try {
       fs.linkSync(tempFile, derivedFile);
@@ -456,6 +461,7 @@ async function streamDumpStateToPrivateCliStateV1({
       state_bytes: tempStat.size,
       source_state_sha256: selectedStateSha256,
       source_state_sha256_reverified_during_materialization: true,
+      source_state_sha256_reverified_before_publication: true,
       streaming_materialization: true,
       json_object_framing_verified: true,
       derived: true,
@@ -508,8 +514,8 @@ export async function materializeVoidPrivateChain2050CliStateV1(
   }
 
   // This pass is deliberately complete and occurs before derivedRoot creation.
-  // A second digest is taken over the bytes actually decoded to close the
-  // post-selection race before the final content-addressed file is published.
+  // A second digest is taken over the bytes actually decoded; checkpoint state
+  // is then hashed once more synchronously immediately before final publication.
   if (sha256File(stateFile) !== selectedStateSha256) {
     hold("startup_selected_state_sha256_mismatch");
   }
