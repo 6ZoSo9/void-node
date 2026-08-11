@@ -3,6 +3,7 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -63,6 +64,8 @@ assert.match(
   selectedText,
   /VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER/,
 );
+assert.match(selectedText, /VOID_MAINNET0_8545_ANVIL_EXECUTABLE/);
+assert.match(selectedText, /VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256/);
 assert.match(
   selectedText,
   /VOID_MAINNET0_8545_START_MODE:-plan/,
@@ -86,12 +89,22 @@ try {
     { mode: 0o755 },
   );
   fs.chmodSync(fakeNode, 0o755);
+  const fakeAnvil = path.join(tempRoot, "sealed-anvil");
+  const fakeAnvilBytes = Buffer.from("#!/bin/sh\nexit 0\n", "utf8");
+  fs.writeFileSync(fakeAnvil, fakeAnvilBytes, { mode: 0o700 });
+  fs.chmodSync(fakeAnvil, 0o700);
+  const fakeAnvilSha256 = crypto
+    .createHash("sha256")
+    .update(fakeAnvilBytes)
+    .digest("hex");
 
   const baseEnv = {
     ...process.env,
     VOID_REPO: repoRoot,
     VOID_NODE_BIN: fakeNode,
     VOID_SELECTOR_CAPTURE: capture,
+    VOID_MAINNET0_8545_ANVIL_EXECUTABLE: fakeAnvil,
+    VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256: fakeAnvilSha256,
     VOID_MAINNET0_8545_BASELINE_STATE: "/operator/private/mainnet0-baseline.json",
     VOID_MAINNET0_8545_BASELINE_STATE_SHA256: "a".repeat(64),
     VOID_MAINNET0_8545_BASELINE_STATE_FORMAT: "anvil_cli_state_json",
@@ -128,6 +141,12 @@ try {
   );
   assert.ok(planArgs.includes("--minimum-block-number"));
   assert.ok(planArgs.includes("125"));
+  const anvilExecutableIndex = planArgs.indexOf("--anvil-executable");
+  assert.ok(anvilExecutableIndex >= 0);
+  assert.equal(planArgs[anvilExecutableIndex + 1], fakeAnvil);
+  const anvilSha256Index = planArgs.indexOf("--anvil-executable-sha256");
+  assert.ok(anvilSha256Index >= 0);
+  assert.equal(planArgs[anvilSha256Index + 1], fakeAnvilSha256);
   assert.equal(planArgs.includes("--apply"), false);
   assert.equal(planArgs.includes("--confirmation"), false);
 
@@ -138,6 +157,23 @@ try {
   });
   assert.equal(missingConfirmation.status, 2);
   assert.match(missingConfirmation.stderr, /selector_start_confirmation_required/);
+  assert.equal(fs.existsSync(capture), false);
+
+  const missingAnvilExecutable = runSelected({
+    VOID_MAINNET0_8545_ANVIL_EXECUTABLE: "",
+  });
+  assert.equal(missingAnvilExecutable.status, 2);
+  assert.match(
+    missingAnvilExecutable.stderr,
+    /missing_env:VOID_MAINNET0_8545_ANVIL_EXECUTABLE/,
+  );
+  assert.equal(fs.existsSync(capture), false);
+
+  const invalidAnvilSha256 = runSelected({
+    VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256: "wrong",
+  });
+  assert.equal(invalidAnvilSha256.status, 2);
+  assert.match(invalidAnvilSha256.stderr, /anvil_executable_sha256_invalid/);
   assert.equal(fs.existsSync(capture), false);
 
   const invalidMinimum = runSelected({
@@ -173,6 +209,8 @@ try {
   console.log("selector_wrapper_directly_executable=1");
   console.log("selector_wrapper_default_read_only_plan=1");
   console.log("independent_minimum_block_required=1");
+  console.log("sealed_anvil_path_and_sha256_forwarded=1");
+  console.log("missing_or_invalid_anvil_binding_rejected=1");
   console.log("apply_exact_confirmation_required=1");
   console.log("manual_catchup_removed=1");
   console.log("VOID_MAINNET0_8545_SELECTOR_RESTORE_RETIREMENT_V1_PROOF_GREEN");

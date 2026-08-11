@@ -28766,7 +28766,7 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
           Symbol.for("__void_forensics_wrapped_v7"),
         ];
         for (const s of syms){
-          try { (fn as any)[s] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27555:29", err); }
+          if ((fn as any)[s] !== true) (fn as any)[s] = true;
         }
 
         // Common flags used by trampolines/wrappers (best-effort; harmless if unused)

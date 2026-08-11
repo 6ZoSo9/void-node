@@ -23,7 +23,10 @@ import {
   buildVoidPrivateChain2050AnvilArgsV1,
   buildVoidPrivateChain2050StartupPlanV1,
   materializeVoidPrivateChain2050CliStateV1,
+  revalidateVoidPrivateChain2050AnvilExecutableBeforeSpawnV1,
   runVoidPrivateChain2050StartupIntegrationV1,
+  spawnVoidPrivateChain2050AnvilV1,
+  validateVoidPrivateChain2050AnvilExecutableV1,
   verifyVoidPrivateChain2050StartedStateV1,
 } from "../tools/void-private-chain2050-startup-integration-v1.mjs";
 
@@ -86,6 +89,15 @@ const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-chain2050-startup-integration-"),
 );
 try {
+  const anvilDirectory = path.join(root, "sealed-runtime");
+  fs.mkdirSync(anvilDirectory, { mode: 0o700 });
+  fs.chmodSync(anvilDirectory, 0o700);
+  const anvilExecutable = path.join(anvilDirectory, "anvil");
+  const anvilBytes = Buffer.from("#!/bin/sh\nexit 0\n", "utf8");
+  fs.writeFileSync(anvilExecutable, anvilBytes, { mode: 0o700 });
+  fs.chmodSync(anvilExecutable, 0o700);
+  const anvilExecutableSha256 = sha256Buffer(anvilBytes);
+
   const baselineState = path.join(root, "baseline.json");
   const baselineBytes = Buffer.from('{"baseline":true}\n', "utf8");
   fs.writeFileSync(baselineState, baselineBytes, { mode: 0o600 });
@@ -176,8 +188,25 @@ try {
     VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1.transaction_replay,
     false,
   );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .anvil_executable_absolute_path_required,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .anvil_executable_sha256_reverified_before_process_start,
+    true,
+  );
+  assert.equal(
+    VOID_PRIVATE_CHAIN2050_STARTUP_INTEGRATION_AUTHORITY_V1
+      .ambient_path_executable_resolution,
+    false,
+  );
 
   const baselinePlan = buildVoidPrivateChain2050StartupPlanV1({
+    anvil_executable: anvilExecutable,
+    anvil_executable_sha256: anvilExecutableSha256,
     baseline_state: baselineState,
     baseline_state_sha256: baselineSha,
     baseline_state_format: "anvil_cli_state_json",
@@ -197,6 +226,17 @@ try {
     VOID_PRIVATE_CHAIN2050_MAX_DERIVED_STATE_BYTES_V1,
   );
   assert.equal(baselinePlan.anvil_generated_accounts, 0);
+  assert.equal(baselinePlan.anvil_command, anvilExecutable);
+  assert.equal(baselinePlan.anvil_executable_path, anvilExecutable);
+  assert.equal(
+    baselinePlan.anvil_executable_sha256,
+    anvilExecutableSha256,
+  );
+  assert.equal(baselinePlan.anvil_executable_reverified_before_spawn, false);
+  assert.deepEqual(
+    revalidateVoidPrivateChain2050AnvilExecutableBeforeSpawnV1(baselinePlan),
+    { path: anvilExecutable, sha256: anvilExecutableSha256 },
+  );
   assert.equal(baselinePlan.post_load_zero_unlocked_accounts_required, true);
   assert.equal(baselinePlan.mining_mode, "auto");
   assert.equal(baselinePlan.block_time, null);
@@ -224,6 +264,8 @@ try {
 
   assert.throws(
     () => buildVoidPrivateChain2050StartupPlanV1({
+      anvil_executable: anvilExecutable,
+      anvil_executable_sha256: anvilExecutableSha256,
       baseline_state: baselineState,
       baseline_state_sha256: baselineSha,
       baseline_state_format: "anvil_cli_state_json",
@@ -264,6 +306,8 @@ try {
   assert.equal(captured.checkpoint_directory_fsync_performed, true);
 
   const checkpointPlan = buildVoidPrivateChain2050StartupPlanV1({
+    anvil_executable: anvilExecutable,
+    anvil_executable_sha256: anvilExecutableSha256,
     baseline_state: baselineState,
     baseline_state_sha256: baselineSha,
     baseline_state_format: "anvil_cli_state_json",
@@ -285,6 +329,8 @@ try {
   assert.equal(fs.existsSync(derivedRoot), false);
 
   const explicitNullPlan = buildVoidPrivateChain2050StartupPlanV1({
+    anvil_executable: anvilExecutable,
+    anvil_executable_sha256: anvilExecutableSha256,
     baseline_state: baselineState,
     baseline_state_sha256: baselineSha,
     baseline_state_format: "anvil_cli_state_json",
@@ -339,6 +385,140 @@ try {
     true,
   );
 
+  let capturedSpawn = null;
+  const fakeChild = Object.freeze({ marker: "fake-child" });
+  const exactStart = spawnVoidPrivateChain2050AnvilV1(
+    checkpointPlan,
+    startupArgs,
+    (command, args, options) => {
+      capturedSpawn = { command, args, options };
+      return fakeChild;
+    },
+  );
+  assert.equal(exactStart.child, fakeChild);
+  assert.equal(capturedSpawn.command, anvilExecutable);
+  assert.deepEqual(capturedSpawn.args, startupArgs);
+  assert.deepEqual(capturedSpawn.options.stdio, ["ignore", "inherit", "inherit"]);
+  assert.equal(capturedSpawn.options.env, process.env);
+  assert.equal(capturedSpawn.command === "anvil", false);
+
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      anvilExecutable,
+      "f".repeat(64),
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_sha256_mismatch",
+  );
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      "relative/anvil",
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_path_not_absolute",
+  );
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      path.join(root, "missing-anvil"),
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_missing",
+  );
+
+  const nonExecutable = path.join(anvilDirectory, "anvil-non-executable");
+  fs.writeFileSync(nonExecutable, anvilBytes, { mode: 0o600 });
+  fs.chmodSync(nonExecutable, 0o600);
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      nonExecutable,
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_not_executable",
+  );
+
+  const unsafeMode = path.join(anvilDirectory, "anvil-unsafe-mode");
+  fs.writeFileSync(unsafeMode, anvilBytes, { mode: 0o722 });
+  fs.chmodSync(unsafeMode, 0o722);
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      unsafeMode,
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_mode_unsafe",
+  );
+
+  const symlinkExecutable = path.join(anvilDirectory, "anvil-symlink");
+  fs.symlinkSync(anvilExecutable, symlinkExecutable);
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      symlinkExecutable,
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_path_symlink_forbidden",
+  );
+
+  const realComponent = path.join(root, "real-runtime-component");
+  fs.mkdirSync(realComponent, { mode: 0o700 });
+  const componentExecutable = path.join(realComponent, "anvil");
+  fs.writeFileSync(componentExecutable, anvilBytes, { mode: 0o700 });
+  fs.chmodSync(componentExecutable, 0o700);
+  const linkedComponent = path.join(root, "linked-runtime-component");
+  fs.symlinkSync(realComponent, linkedComponent);
+  assert.throws(
+    () => validateVoidPrivateChain2050AnvilExecutableV1(
+      path.join(linkedComponent, "anvil"),
+      anvilExecutableSha256,
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_path_symlink_forbidden",
+  );
+
+  const changedAfterPlan = path.join(anvilDirectory, "anvil-changed-after-plan");
+  fs.writeFileSync(changedAfterPlan, anvilBytes, { mode: 0o700 });
+  fs.chmodSync(changedAfterPlan, 0o700);
+  const changedAfterPlanPlan = buildVoidPrivateChain2050StartupPlanV1({
+    anvil_executable: changedAfterPlan,
+    anvil_executable_sha256: anvilExecutableSha256,
+    baseline_state: baselineState,
+    baseline_state_sha256: baselineSha,
+    baseline_state_format: "anvil_cli_state_json",
+    baseline_block_number: BASELINE_BLOCK,
+    baseline_block_hash: BASELINE_HASH,
+    checkpoint_root: checkpointRoot,
+    minimum_block_number: CHECKPOINT_BLOCK,
+    derived_root: derivedRoot,
+    rpc_url: "http://127.0.0.1:8545/",
+  });
+  fs.writeFileSync(changedAfterPlan, "#!/bin/sh\nexit 7\n", { mode: 0o700 });
+  fs.chmodSync(changedAfterPlan, 0o700);
+  let postPlanSpawnCalled = false;
+  assert.throws(
+    () => spawnVoidPrivateChain2050AnvilV1(
+      changedAfterPlanPlan,
+      startupArgs,
+      () => {
+        postPlanSpawnCalled = true;
+        return fakeChild;
+      },
+    ),
+    (error) =>
+      error instanceof VoidPrivateChain2050StartupIntegrationHoldV1 &&
+      error.reason === "startup_anvil_executable_sha256_mismatch",
+  );
+  assert.equal(postPlanSpawnCalled, false);
+
   assert.throws(
     () => assertVoidPrivateChain2050MiningModeAnvilArgsV1(
       [...startupArgs, "--block-time", "2"],
@@ -361,6 +541,8 @@ try {
   );
 
   const intervalPlan = buildVoidPrivateChain2050StartupPlanV1({
+    anvil_executable: anvilExecutable,
+    anvil_executable_sha256: anvilExecutableSha256,
     baseline_state: baselineState,
     baseline_state_sha256: baselineSha,
     baseline_state_format: "anvil_cli_state_json",
@@ -462,6 +644,8 @@ try {
 
   await assert.rejects(
     () => runVoidPrivateChain2050StartupIntegrationV1({
+      anvil_executable: anvilExecutable,
+      anvil_executable_sha256: anvilExecutableSha256,
       baseline_state: baselineState,
       baseline_state_sha256: baselineSha,
       baseline_state_format: "anvil_cli_state_json",
@@ -692,6 +876,13 @@ try {
   console.log("selected_state_sha256_reverified_before_materialization=1");
   console.log("selected_state_sha256_reverified_during_materialization=1");
   console.log("post_selection_state_tamper_rejected=1");
+  console.log("anvil_absolute_executable_required=1");
+  console.log("anvil_executable_sha256_required=1");
+  console.log("anvil_executable_symlink_substitution_rejected=1");
+  console.log("anvil_executable_unsafe_mode_rejected=1");
+  console.log("anvil_executable_post_plan_change_rejected=1");
+  console.log("anvil_exact_absolute_path_spawned=1");
+  console.log("anvil_ambient_path_resolution=0");
   console.log("anvil_accounts_zero_enforced=1");
   console.log("anvil_account_generator_options_forbidden=1");
   console.log("post_load_eth_accounts_empty_required=1");
