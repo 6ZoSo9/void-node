@@ -6,7 +6,7 @@ import {
   getVoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowBoundarySourceMarkerV1,
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowPolicyV1,
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyActivationWindowResponseV1,
-} from "../src/chain/block";
+} from "../src/chain/block.js";
 
 const GREEN = "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ACTIVATION_WINDOW_BOUNDARY_AUDIT_V1_GREEN";
 

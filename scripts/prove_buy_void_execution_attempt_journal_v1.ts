@@ -251,6 +251,7 @@ const recordedConfirmation = recordBuyVoidExecutionConfirmedV1({
   root_dir: root,
   attempt_id: second.attempt.reservation.attempt_id,
   confirmed_record: confirmed.record,
+  delivery_block_hash: `0x${"9".repeat(64)}`,
   now_ms: 1_700_300_600_000,
 });
 if ("reason" in recordedConfirmation) throw new Error(recordedConfirmation.reason);
@@ -260,6 +261,7 @@ const duplicateConfirmation = recordBuyVoidExecutionConfirmedV1({
   root_dir: root,
   attempt_id: second.attempt.reservation.attempt_id,
   confirmed_record: confirmed.record,
+  delivery_block_hash: `0x${"9".repeat(64)}`,
 });
 if ("reason" in duplicateConfirmation) throw new Error(duplicateConfirmation.reason);
 assert.equal(duplicateConfirmation.status, "duplicate");
