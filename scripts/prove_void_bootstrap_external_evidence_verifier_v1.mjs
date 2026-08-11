@@ -251,6 +251,19 @@ const rejectingVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
 });
 assert.equal(rejectingVerifier(receipt), false);
 
+const duplicateCaptureIdentityBundle = structuredClone(bundle);
+duplicateCaptureIdentityBundle.second_peers.provenance.collector_id =
+  duplicateCaptureIdentityBundle.second_ready.provenance.collector_id;
+duplicateCaptureIdentityBundle.second_peers.provenance.capture_id =
+  duplicateCaptureIdentityBundle.second_ready.provenance.capture_id;
+assert.throws(
+  () => createVoidBootstrapExternalEvidenceVerifierV1({
+    evidenceBundle: duplicateCaptureIdentityBundle,
+    verifyCaptureProvenance: reviewedProvenance,
+  }),
+  /capture identity must be unique/,
+);
+
 const tamperedBundle = structuredClone(bundle);
 tamperedBundle.first_ready_after_sync.payload.head = 99;
 const tamperedVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
@@ -293,6 +306,7 @@ console.log("seven_observation_hashes_exactly_bound=true");
 console.log("receipt_semantics_reproduced_from_observations=true");
 console.log("capture_provenance_verifier_required=true");
 console.log("capture_provenance_self_assertion_accepted=false");
+console.log("duplicate_capture_identity_accepted=false");
 console.log("observation_hash_tamper_accepted=false");
 console.log("observation_semantic_tamper_accepted=false");
 console.log("future_observation_accepted=false");
