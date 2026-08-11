@@ -275,6 +275,19 @@ const futureVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
 });
 assert.equal(futureVerifier(receipt), false);
 
+const outOfOrderBundle = structuredClone(bundle);
+outOfOrderBundle.first_ready_after_removal.observed_at = "2026-08-11T14:00:30.000Z";
+const outOfOrderBody = structuredClone(body);
+outOfOrderBody.evidence.first_ready_after_removal_sha256 =
+  hashVoidBootstrapExternalObservationV1(outOfOrderBundle.first_ready_after_removal);
+const outOfOrderVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
+  evidenceBundle: outOfOrderBundle,
+  verifyCaptureProvenance: reviewedProvenance,
+});
+assert.throws(() => buildVoidBootstrapExternalAcceptanceReceiptV1(outOfOrderBody, {
+  verifyExternalEvidence: outOfOrderVerifier,
+}));
+
 console.log(MARKER);
 console.log("seven_observation_hashes_exactly_bound=true");
 console.log("receipt_semantics_reproduced_from_observations=true");
@@ -283,6 +296,7 @@ console.log("capture_provenance_self_assertion_accepted=false");
 console.log("observation_hash_tamper_accepted=false");
 console.log("observation_semantic_tamper_accepted=false");
 console.log("future_observation_accepted=false");
+console.log("out_of_order_observation_accepted=false");
 console.log("network_collection_performed=false");
 console.log("external_machine_provenance_claimed_by_source=false");
 console.log("issue_1005_closure_claimed=false");
