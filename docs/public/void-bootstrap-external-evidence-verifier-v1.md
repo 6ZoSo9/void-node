@@ -31,6 +31,12 @@ Each envelope binds:
 
 The canonical JSON SHA-256 of the entire envelope must exactly equal the corresponding hash stored in the acceptance receipt.
 
+Collector and capture IDs must be literal bounded strings, and every
+`source_sha256` must be a literal lowercase SHA-256 string. Both the
+collector/capture identity pair and the underlying source-capture digest must be
+unique across all seven observations. Changing only a capture ID cannot relabel
+one source capture as two independent required events.
+
 ## Semantic reproduction
 
 Hash equality is necessary but not sufficient. The verifier also reproduces the receipt claims from the observation payloads:

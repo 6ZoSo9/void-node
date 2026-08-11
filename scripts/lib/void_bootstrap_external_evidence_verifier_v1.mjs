@@ -127,8 +127,11 @@ function validateObservation(raw, kind) {
   if (provenance.source_kind !== "external_machine_capture_v1") {
     throw new Error(`${kind} source_kind is invalid`);
   }
-  if (!SHA256_RE.test(String(provenance.source_sha256 || ""))) {
-    throw new Error(`${kind} source_sha256 must be SHA-256`);
+  if (
+    typeof provenance.source_sha256 !== "string" ||
+    !SHA256_RE.test(provenance.source_sha256)
+  ) {
+    throw new Error(`${kind} source_sha256 must be a SHA-256 string`);
   }
   return Object.freeze({
     kind,
@@ -150,6 +153,7 @@ function validateBundle(raw) {
   }
   const normalized = { schema: bundle.schema };
   const captureIdentities = new Set();
+  const sourceCaptures = new Set();
   for (const kind of KINDS) {
     const observation = validateObservation(bundle[kind], kind);
     const captureIdentity = canonicalJson([
@@ -160,6 +164,10 @@ function validateBundle(raw) {
       throw new Error("external acceptance capture identity must be unique");
     }
     captureIdentities.add(captureIdentity);
+    if (sourceCaptures.has(observation.provenance.source_sha256)) {
+      throw new Error("external acceptance source capture SHA-256 must be unique");
+    }
+    sourceCaptures.add(observation.provenance.source_sha256);
     normalized[kind] = observation;
   }
   return Object.freeze(normalized);

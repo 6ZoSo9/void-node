@@ -276,6 +276,29 @@ assert.throws(
   /collector_id is invalid/,
 );
 
+const duplicateSourceCaptureBundle = structuredClone(bundle);
+duplicateSourceCaptureBundle.second_peers.provenance.source_sha256 =
+  duplicateSourceCaptureBundle.second_ready.provenance.source_sha256;
+assert.throws(
+  () => createVoidBootstrapExternalEvidenceVerifierV1({
+    evidenceBundle: duplicateSourceCaptureBundle,
+    verifyCaptureProvenance: reviewedProvenance,
+  }),
+  /source capture SHA-256 must be unique/,
+);
+
+const nonStringSourceCaptureBundle = structuredClone(bundle);
+nonStringSourceCaptureBundle.second_peers.provenance.source_sha256 = [
+  "f".repeat(64),
+];
+assert.throws(
+  () => createVoidBootstrapExternalEvidenceVerifierV1({
+    evidenceBundle: nonStringSourceCaptureBundle,
+    verifyCaptureProvenance: reviewedProvenance,
+  }),
+  /source_sha256 must be a SHA-256 string/,
+);
+
 const tamperedBundle = structuredClone(bundle);
 tamperedBundle.first_ready_after_sync.payload.head = 99;
 const tamperedVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
@@ -320,6 +343,8 @@ console.log("capture_provenance_verifier_required=true");
 console.log("capture_provenance_self_assertion_accepted=false");
 console.log("duplicate_capture_identity_accepted=false");
 console.log("non_string_capture_identity_accepted=false");
+console.log("duplicate_source_capture_sha256_accepted=false");
+console.log("non_string_source_capture_sha256_accepted=false");
 console.log("observation_hash_tamper_accepted=false");
 console.log("observation_semantic_tamper_accepted=false");
 console.log("future_observation_accepted=false");
