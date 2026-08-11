@@ -35,8 +35,16 @@ const copySource = read(COPY);
 const retireSource = read(RETIRE);
 const dist = read(DIST);
 
-if (!copySource.includes('import "./retire_terminal_saveblock_v2_runtime_v1.mjs";')) {
-  fail("runtime copy step does not invoke terminal saveBlock v2 retirement");
+for (const token of [
+  "const RETIREMENT_SCRIPT = path.join(",
+  "const COMPILED_RUNTIME = path.join(ROOT, \"dist\", \"index.js\");",
+  "if (retirementScriptExists || compiledRuntimeExists) {",
+  "if (!retirementScriptExists || !compiledRuntimeExists) {",
+  "await import(pathToFileURL(RETIREMENT_SCRIPT).href);",
+]) {
+  if (!copySource.includes(token)) {
+    fail(`runtime copy step missing fail-closed retirement contract: ${token}`);
+  }
 }
 for (const token of [MARKER, SECTION, FUNCTION, ...LEGACY_GATES]) {
   if (!retireSource.includes(token)) {
