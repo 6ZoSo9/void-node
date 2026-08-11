@@ -4,16 +4,24 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-public-bootstrap-release-locator-composition-v1.yml"
+      - "config/void-bootstrap-record-release-root-v1.json"
       - "docs/public/void-public-bootstrap-release-locator-composition-v1.md"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
       - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
       - "scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs"
   push:
     branches:
       - "feat/bootstrap-release-locator-composition-v1-20260811"
     paths:
       - ".github/workflows/void-public-bootstrap-release-locator-composition-v1.yml"
+      - "config/void-bootstrap-record-release-root-v1.json"
       - "docs/public/void-public-bootstrap-release-locator-composition-v1.md"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
       - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
       - "scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs"
 
 permissions:
