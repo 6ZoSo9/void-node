@@ -24,7 +24,9 @@ for name in \
   VOID_MAINNET0_8545_BASELINE_BLOCK_NUMBER \
   VOID_MAINNET0_8545_BASELINE_BLOCK_HASH \
   VOID_MAINNET0_8545_CHECKPOINT_ROOT \
-  VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER; do
+  VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER \
+  VOID_MAINNET0_8545_ANVIL_BIN \
+  VOID_MAINNET0_8545_ANVIL_SHA256; do
   require_env "$name"
 done
 
@@ -35,6 +37,8 @@ BASELINE_BLOCK_NUMBER="$VOID_MAINNET0_8545_BASELINE_BLOCK_NUMBER"
 BASELINE_BLOCK_HASH="$VOID_MAINNET0_8545_BASELINE_BLOCK_HASH"
 CHECKPOINT_ROOT="$VOID_MAINNET0_8545_CHECKPOINT_ROOT"
 MINIMUM_BLOCK_NUMBER="$VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER"
+ANVIL_BIN="$VOID_MAINNET0_8545_ANVIL_BIN"
+ANVIL_SHA256="$VOID_MAINNET0_8545_ANVIL_SHA256"
 DERIVED_ROOT="${VOID_MAINNET0_8545_DERIVED_ROOT:-}"
 RPC_URL="${VOID_MAINNET0_8545_RPC_URL:-http://127.0.0.1:8545/}"
 MODE="${VOID_MAINNET0_8545_START_MODE:-plan}"
@@ -42,10 +46,12 @@ NODE_BIN="${VOID_NODE_BIN:-node}"
 
 [[ "$BASELINE_STATE" = /* ]] || hold "baseline_state_not_absolute"
 [[ "$CHECKPOINT_ROOT" = /* ]] || hold "checkpoint_root_not_absolute"
+[[ "$ANVIL_BIN" = /* ]] || hold "anvil_bin_not_absolute"
 if [[ -n "$DERIVED_ROOT" ]]; then
   [[ "$DERIVED_ROOT" = /* ]] || hold "derived_root_not_absolute"
 fi
 [[ "$BASELINE_SHA256" =~ ^[0-9a-f]{64}$ ]] || hold "baseline_state_sha256_invalid"
+[[ "$ANVIL_SHA256" =~ ^[0-9a-f]{64}$ ]] || hold "anvil_sha256_invalid"
 [[ "$BASELINE_BLOCK_HASH" =~ ^0x[0-9a-f]{64}$ ]] || hold "baseline_block_hash_invalid"
 [[ "$BASELINE_BLOCK_NUMBER" =~ ^[0-9]+$ ]] || hold "baseline_block_number_invalid"
 [[ "$MINIMUM_BLOCK_NUMBER" =~ ^[1-9][0-9]*$ ]] || hold "minimum_block_number_invalid"
@@ -70,6 +76,8 @@ args=(
   --baseline-block-hash "$BASELINE_BLOCK_HASH"
   --checkpoint-root "$CHECKPOINT_ROOT"
   --minimum-block-number "$MINIMUM_BLOCK_NUMBER"
+  --anvil-bin "$ANVIL_BIN"
+  --anvil-sha256 "$ANVIL_SHA256"
   --rpc-url "$RPC_URL"
 )
 
