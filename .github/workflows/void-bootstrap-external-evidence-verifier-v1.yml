@@ -1,0 +1,43 @@
+name: VOID bootstrap external evidence verifier v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-bootstrap-external-evidence-verifier-v1.yml'
+      - 'docs/public/void-bootstrap-external-evidence-verifier-v1.md'
+      - 'scripts/lib/void_bootstrap_external_evidence_verifier_v1.mjs'
+      - 'scripts/lib/void_bootstrap_external_acceptance_receipt_v1.mjs'
+      - 'scripts/prove_void_bootstrap_external_evidence_verifier_v1.mjs'
+      - 'scripts/prove_void_bootstrap_external_acceptance_receipt_v1.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check
+        run: |
+          node --check scripts/lib/void_bootstrap_external_evidence_verifier_v1.mjs
+          node --check scripts/prove_void_bootstrap_external_evidence_verifier_v1.mjs
+      - name: Prove external evidence verifier
+        run: node scripts/prove_void_bootstrap_external_evidence_verifier_v1.mjs
+      - name: Regress acceptance receipt contract
+        run: node scripts/prove_void_bootstrap_external_acceptance_receipt_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"
