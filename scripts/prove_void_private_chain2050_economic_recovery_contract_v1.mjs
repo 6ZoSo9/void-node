@@ -98,6 +98,8 @@ for (let index = 0; index < blocks.length; index += 1) {
 
 const incident = {
   ...VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_INCIDENT_V1,
+  transaction_hashes: transactions.map((transaction) =>
+    transaction.expected_transaction_hash),
   confirmed_delivery_transaction_hash: transactions[2].expected_transaction_hash,
 };
 const evidence = {
@@ -117,6 +119,8 @@ const evidence = {
       block_number: 37369,
       status: "missing",
       known_block_hash: `0x${"b".repeat(64)}`,
+      mix_hash: `0x${"c".repeat(64)}`,
+      parent_header_sha256: "d".repeat(64),
       missing_fields: ["timestamp"],
       guessed_values: false,
     },
@@ -145,6 +149,11 @@ assert.equal(plan.execution_performed, false);
 assert.equal(plan.confirmed_delivery.fulfillment_retry_forbidden, true);
 assert.equal(plan.candidate.production_8545, false);
 assert.equal(plan.transactions.length, 4);
+assert.equal(plan.headers[1].mix_hash, evidence.headers[1].mix_hash);
+assert.equal(
+  plan.headers[1].parent_header_sha256,
+  evidence.headers[1].parent_header_sha256,
+);
 assert.equal("raw_signed_transaction" in plan.transactions[0], false);
 assert.match(plan.transactions[0].raw_signed_transaction_sha256, /^[0-9a-f]{64}$/);
 assert.match(plan.recovery_plan_id_sha256, /^[0-9a-f]{64}$/);
@@ -177,6 +186,17 @@ assert.notEqual(
   exactPlan.recovery_plan_id_sha256,
 );
 
+const changedKnownMissingHeaderContext = clone(evidence);
+changedKnownMissingHeaderContext.headers[1].mix_hash = `0x${"e".repeat(64)}`;
+const changedKnownMissingHeaderContextPlan = buildEconomicRecoveryCandidatePlanForPolicyV1(
+  { ...request, evidence: changedKnownMissingHeaderContext },
+  incident,
+);
+assert.notEqual(
+  changedKnownMissingHeaderContextPlan.recovery_plan_id_sha256,
+  plan.recovery_plan_id_sha256,
+);
+
 const reconstructed = reconstructSignedType2TransactionV1(transactions[0]);
 assert.equal(reconstructed.transaction_hash, transactions[0].expected_transaction_hash);
 assert.equal("raw_signed_transaction" in reconstructed, false);
@@ -192,6 +212,27 @@ tamperedSender.expected_from_address = `0x${"f".repeat(40)}`;
 expectHold(
   () => reconstructSignedType2TransactionV1(tamperedSender),
   "signed_transaction_sender_mismatch",
+);
+const unrelatedRaw = await wallet.signTransaction({
+  type: 2,
+  chainId: 2050,
+  nonce: 99,
+  to: `0x${"9".repeat(40)}`,
+  value: 99n,
+  gasLimit: 21_000n,
+  maxFeePerGas: 100n,
+  maxPriorityFeePerGas: 2n,
+  data: "0x",
+  accessList: [],
+});
+const wrongHistoricalTransaction = clone(evidence);
+wrongHistoricalTransaction.transactions[0] = transactionEvidence(unrelatedRaw, 37368);
+expectHold(
+  () => buildEconomicRecoveryCandidatePlanForPolicyV1(
+    { ...request, evidence: wrongHistoricalTransaction },
+    incident,
+  ),
+  "transaction_historical_inclusion_binding_mismatch",
 );
 const outOfOrder = clone(evidence);
 [outOfOrder.transactions[0], outOfOrder.transactions[1]] =
@@ -244,7 +285,7 @@ expectHold(
 );
 expectHold(
   () => buildVoidPrivateChain2050EconomicRecoveryCandidatePlanV1(request),
-  "confirmed_delivery_transaction_binding_mismatch",
+  "transaction_historical_inclusion_binding_mismatch",
 );
 
 assert.equal(
@@ -279,9 +320,10 @@ for (const forbidden of [
 console.log(JSON.stringify({
   marker: PROOF,
   signed_transaction_hash_binding: true,
+  historical_transaction_inclusion_pinned: true,
   complete_header_values_bound_to_plan: true,
   exact_reproduction_claim_requires_replay: true,
-  missing_37369_context_explicit: true,
+  missing_37369_known_context_bound: true,
   confirmed_delivery_retry_forbidden: true,
   production_8545_forbidden: true,
   disposable_candidate_root_required: true,
