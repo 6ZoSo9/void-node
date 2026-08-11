@@ -402,6 +402,7 @@ async function createFixture(
     root_dir: root,
     attempt_id: attemptId,
     confirmed_record: confirmation.record,
+    delivery_block_hash: `0x${"9".repeat(64)}`,
     now_ms: Date.parse("2026-08-06T12:10:05.000Z"),
   });
   if ("reason" in confirmedAttempt) throw new Error(confirmedAttempt.reason);

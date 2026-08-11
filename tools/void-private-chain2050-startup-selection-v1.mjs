@@ -8,6 +8,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
+  VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_MARKER_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1,
   VOID_PRIVATE_CHAIN2050_CHECKPOINT_VERSION_V1,
@@ -223,12 +224,26 @@ function normalizeBaseline(baseline, maxStateBytes) {
 }
 
 function checkpointMaterial(manifest) {
+  const deliveryBound =
+    Object.prototype.hasOwnProperty.call(manifest, "delivery_block_number") &&
+    Object.prototype.hasOwnProperty.call(manifest, "delivery_block_hash") &&
+    Object.prototype.hasOwnProperty.call(
+      manifest,
+      "delivery_block_hash_verified",
+    );
   return {
     marker: manifest.marker,
     version: manifest.version,
     chain_id: manifest.chain_id,
     block_number: manifest.block_number,
     block_hash: manifest.block_hash,
+    ...(deliveryBound
+      ? {
+          delivery_block_number: manifest.delivery_block_number,
+          delivery_block_hash: manifest.delivery_block_hash,
+          delivery_block_hash_verified: manifest.delivery_block_hash_verified,
+        }
+      : {}),
     state_sha256: manifest.state_sha256,
     state_bytes: manifest.state_bytes,
     rpc_methods_used: manifest.rpc_methods_used,
@@ -259,6 +274,18 @@ function validateCheckpointManifest(
   } catch {
     hold("checkpoint_manifest_json_invalid");
   }
+  const deliveryKeys = [
+    "delivery_block_number",
+    "delivery_block_hash",
+    "delivery_block_hash_verified",
+  ];
+  const deliveryKeyCount = deliveryKeys.filter((key) =>
+    Object.prototype.hasOwnProperty.call(manifest, key)
+  ).length;
+  if (deliveryKeyCount !== 0 && deliveryKeyCount !== deliveryKeys.length) {
+    hold("checkpoint_delivery_binding_schema_invalid");
+  }
+  const deliveryBound = deliveryKeyCount === deliveryKeys.length;
   exactKeys(
     manifest,
     [
@@ -267,6 +294,7 @@ function validateCheckpointManifest(
       "chain_id",
       "block_number",
       "block_hash",
+      ...(deliveryBound ? deliveryKeys : []),
       "state_sha256",
       "state_bytes",
       "rpc_methods_used",
@@ -297,6 +325,23 @@ function validateCheckpointManifest(
     manifest.block_hash,
     "checkpoint_block_hash_invalid",
   );
+  if (deliveryBound) {
+    const deliveryBlockNumber = safeBlockNumber(
+      manifest.delivery_block_number,
+      "checkpoint_delivery_block_number_invalid",
+    );
+    exactBlockHash(
+      manifest.delivery_block_hash,
+      "checkpoint_delivery_block_hash_invalid",
+    );
+    if (
+      deliveryBlockNumber <= 0 ||
+      deliveryBlockNumber > blockNumber ||
+      manifest.delivery_block_hash_verified !== true
+    ) {
+      hold("checkpoint_delivery_binding_invalid");
+    }
+  }
   const stateSha256 = exactSha256(
     manifest.state_sha256,
     "checkpoint_state_sha256_invalid",
@@ -306,7 +351,11 @@ function validateCheckpointManifest(
   }
   if (
     JSON.stringify(manifest.rpc_methods_used) !==
-    JSON.stringify(VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1)
+    JSON.stringify(
+      deliveryBound
+        ? VOID_PRIVATE_CHAIN2050_CHECKPOINT_DELIVERY_BINDING_RPC_METHODS_V1
+        : VOID_PRIVATE_CHAIN2050_CHECKPOINT_RPC_METHODS_V1,
+    )
   ) {
     hold("checkpoint_rpc_method_contract_invalid");
   }

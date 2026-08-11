@@ -525,6 +525,7 @@ function applyConfirmed(
     root_dir: command.root_dir,
     attempt_id: command.attempt_id,
     confirmed_record: confirmation.record,
+    delivery_block_hash: command.observation.block_hash,
     now_ms: command.now_ms,
   });
   if ("reason" in attempt) {

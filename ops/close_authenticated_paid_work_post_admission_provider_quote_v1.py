@@ -106,10 +106,10 @@ SOURCE_SHA256 = {
         "fb95a5e919a197ade4940839f7d1b01d787da5cec21a58732c99f9ced8c9e681"
     ),
     "scripts/agent_paid_work_order_envelope_v1.ts": (
-        "c803796b968678c9b8b0a35291dede8f96647922b494cf123c3660715f7e3575"
+        "a10583bdffdc92351cd9a45bb7426b6fc78a9561475cc44e462c3f3ec0b8a888"
     ),
     "scripts/agent_paid_work_quote_envelope_v1.ts": (
-        "40311db0e173f19f42193a9b2e6fa4ac0e90d14fa38ef694e53a72a71b30ed23"
+        "9b24253020d114dc27cdbb12ed73b8c5d0ea345583aa3331ff4cef4d1ecbadd7"
     ),
     "tools/void-node-onion-binding-v1.mjs": (
         "5fe4a63294dfbe947c2b8bcebf7fbf578d361eae3d9f7e22aeef1259f7387f26"
