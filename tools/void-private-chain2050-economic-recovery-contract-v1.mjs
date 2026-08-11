@@ -17,6 +17,12 @@ export const VOID_PRIVATE_CHAIN2050_ECONOMIC_RECOVERY_INCIDENT_V1 = Object.freez
   durable_ancestor_block_hash:
     "0x97b6cc60e4f909d2ecfbe62c506cb8e921368a35abcac987be97ad067fed48f3",
   transaction_block_numbers: Object.freeze([37368, 37369, 37370, 37371]),
+  transaction_hashes: Object.freeze([
+    "0x756da9088b49c9d447ef75822fc16fdf3969855eb65720f7569667aca28d8f00",
+    "0x5830900dec5a9cd92d070ba8a542d6072aacb44af5a68b7a22ef3dc9312f7693",
+    "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
+    "0xcc0ed5b5cd0bb0076bab9100a7cf31b8e07488986f55d7cd87ade60bcaac9e15",
+  ]),
   confirmed_delivery_block_number: 37370,
   confirmed_delivery_transaction_hash:
     "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
@@ -271,7 +277,9 @@ function validateHeaderContext(input, expectedBlockNumber) {
       "block_number",
       "guessed_values",
       "known_block_hash",
+      "mix_hash",
       "missing_fields",
+      "parent_header_sha256",
       "status",
     ], `header_${expectedBlockNumber}`);
     if (header.guessed_values !== false) hold("header_guessed_values_forbidden");
@@ -291,6 +299,11 @@ function validateHeaderContext(input, expectedBlockNumber) {
       block_number: expectedBlockNumber,
       status: "missing",
       known_block_hash: hash(header.known_block_hash, "header_known_block_hash"),
+      mix_hash: hash(header.mix_hash, "header_mix_hash"),
+      parent_header_sha256: sha256Value(
+        header.parent_header_sha256,
+        "header_parent_header_sha256",
+      ),
       missing_fields: Object.freeze(missingFields),
       guessed_values: false,
     });
@@ -307,6 +320,20 @@ function normalizeIncidentPolicy(input) {
   }
   const confirmedBlock = Number(incident.confirmed_delivery_block_number);
   if (!blocks.includes(confirmedBlock)) hold("incident_confirmed_delivery_block_invalid");
+  if (!Array.isArray(incident.transaction_hashes) ||
+      incident.transaction_hashes.length !== blocks.length) {
+    hold("incident_transaction_hash_sequence_invalid");
+  }
+  const transactionHashes = incident.transaction_hashes.map((transactionHash, index) =>
+    hash(transactionHash, `incident_transaction_hash_${blocks[index]}`));
+  const confirmedIndex = blocks.indexOf(confirmedBlock);
+  const confirmedTransactionHash = hash(
+    incident.confirmed_delivery_transaction_hash,
+    "incident_confirmed_delivery_transaction_hash",
+  );
+  if (transactionHashes[confirmedIndex] !== confirmedTransactionHash) {
+    hold("incident_confirmed_delivery_transaction_policy_mismatch");
+  }
   return {
     chain_id: Number(incident.chain_id),
     durable_ancestor_block_number: Number(incident.durable_ancestor_block_number),
@@ -315,11 +342,9 @@ function normalizeIncidentPolicy(input) {
       "incident_durable_ancestor_block_hash",
     ),
     transaction_block_numbers: [...blocks],
+    transaction_hashes: transactionHashes,
     confirmed_delivery_block_number: confirmedBlock,
-    confirmed_delivery_transaction_hash: hash(
-      incident.confirmed_delivery_transaction_hash,
-      "incident_confirmed_delivery_transaction_hash",
-    ),
+    confirmed_delivery_transaction_hash: confirmedTransactionHash,
   };
 }
 
@@ -362,6 +387,9 @@ export function buildEconomicRecoveryCandidatePlanForPolicyV1(input, incidentInp
     }
     if (safeNumber(transaction.chain_id, "transaction_chain_id") !== incident.chain_id) {
       hold("transaction_chain_id_mismatch");
+    }
+    if (result.transaction_hash !== incident.transaction_hashes[index]) {
+      hold("transaction_historical_inclusion_binding_mismatch");
     }
     return result;
   });
