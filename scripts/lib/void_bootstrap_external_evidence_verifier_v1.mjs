@@ -148,7 +148,19 @@ function validateBundle(raw) {
     throw new Error("external acceptance evidence bundle schema mismatch");
   }
   const normalized = { schema: bundle.schema };
-  for (const kind of KINDS) normalized[kind] = validateObservation(bundle[kind], kind);
+  const captureIdentities = new Set();
+  for (const kind of KINDS) {
+    const observation = validateObservation(bundle[kind], kind);
+    const captureIdentity = canonicalJson([
+      observation.provenance.collector_id,
+      observation.provenance.capture_id,
+    ]);
+    if (captureIdentities.has(captureIdentity)) {
+      throw new Error("external acceptance capture identity must be unique");
+    }
+    captureIdentities.add(captureIdentity);
+    normalized[kind] = observation;
+  }
   return Object.freeze(normalized);
 }
 
