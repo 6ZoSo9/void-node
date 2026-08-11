@@ -152,6 +152,11 @@ The remote script reads only:
 - `/__void/ready.json`; and
 - `/p2p/peers`, with `/peers` fallback.
 
+The configured peer floor counts live entries in the current runtime's
+`connected` array. `knownAddrs` and `verifiedPeers` remain discovery and
+authenticated-cache evidence; neither satisfies the live peer floor. Legacy
+top-level arrays and `peers` arrays remain accepted for compatibility.
+
 It does not read service environment, credentials, keys, wallets, journals, WC
 ledgers, transaction state, or private configuration.
 

@@ -1,0 +1,98 @@
+name: VOID bootstrap record release root v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-bootstrap-record-release-root-v1.yml'
+      - 'config/void-bootstrap-record-release-root-v1.json'
+      - 'docs/public/void-bootstrap-record-release-root-v1.md'
+      - 'scripts/lib/void_bootstrap_record_release_root_v1.mjs'
+      - 'scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs'
+      - 'scripts/prove_void_bootstrap_record_release_root_v1.mjs'
+      - 'tools/build-public-release-v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-bootstrap-record-release-root-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax-check release-root source
+        run: |
+          node --check scripts/lib/void_bootstrap_record_release_root_v1.mjs
+          node --check scripts/prove_void_bootstrap_record_release_root_v1.mjs
+
+      - name: Prove record release-root boundary and release embedding
+        run: node scripts/prove_void_bootstrap_record_release_root_v1.mjs --full
+
+  repository-and-release-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use repository-default Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Re-prove bootstrap record v2 contract
+        run: node scripts/prove_void_public_bootstrap_record_v2_mirror_contract_v1.mjs
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          else
+            git diff --check HEAD^..HEAD
+          fi
+
+      - name: Reject raw empty catches
+        run: |
+          ! grep -REn 'catch[[:space:]]*\{[[:space:]]*\}' -- \
+            scripts/lib/void_bootstrap_record_release_root_v1.mjs \
+            scripts/prove_void_bootstrap_record_release_root_v1.mjs

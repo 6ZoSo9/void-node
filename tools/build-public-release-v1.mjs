@@ -7,6 +7,7 @@ import path from "node:path";
 import process from "node:process";
 
 const MARKER = "VOID_PUBLIC_RELEASE_BUILDER_V1";
+const SUPPORTED_NODE_MAJORS = new Set([22, 24, 26]);
 
 function fail(message) {
   console.error(`ERROR: ${message}`);
@@ -89,7 +90,9 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 if (packageJson.name !== "void-node") fail(`unexpected package name: ${packageJson.name}`);
 if (packageJson.private !== true) fail("package.json must remain private to prevent accidental npm publication");
 const nodeMajor = Number(process.versions.node.split(".")[0]);
-if (nodeMajor !== 22) fail(`Node.js 22 required; found ${process.version}`);
+if (!SUPPORTED_NODE_MAJORS.has(nodeMajor)) {
+  fail(`Node.js 22, 24, or 26 required; found ${process.version}`);
+}
 const commit = run("git", ["rev-parse", "HEAD"], {capture: true}).trim();
 const short = commit.slice(0, 12);
 const version = requestedVersion || `${packageJson.version}-dev.${short}`;

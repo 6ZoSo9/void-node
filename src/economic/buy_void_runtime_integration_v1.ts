@@ -186,6 +186,7 @@ function isPipelineAction(value: unknown): value is BuyVoidPipelineActionV1 {
 function responseStatus(decision: BuyVoidPipelineCoordinatorDecisionV1): number {
   if (!("reason" in decision)) return 200;
 
+  if (decision.mutation_performed) return 500;
   if (decision.reason === "explicit_confirmation_required") return 428;
   if (decision.reason === "pipeline_command_failed") return 500;
   if (

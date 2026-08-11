@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 
 export const REGISTRY_MARKER = "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1";
 export const POLICY_MARKER = "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1";
+export const SEVERITY_MARKER = "VOID_COORDINATION_SEVERITY_V2";
 
 function fail(message) {
   throw new Error(message);
@@ -96,6 +97,18 @@ function parseRefs(raw, prefix) {
   return output;
 }
 
+function validateRegexList(values, label) {
+  if (!Array.isArray(values)) fail(`${label} must be an array`);
+  for (const value of values) {
+    if (typeof value !== "string" || !value) fail(`${label} contains invalid regex`);
+    try {
+      new RegExp(value, "i");
+    } catch (error) {
+      fail(`invalid ${label} regex: ${error.message}`);
+    }
+  }
+}
+
 export function validatePolicy(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     fail("reservation policy must be an object");
@@ -152,6 +165,30 @@ export function validatePolicy(value) {
       fail(`invalid family regex ${item.id}: ${error.message}`);
     }
   }
+  const severity = value.coordination_severity;
+  if (!severity || typeof severity !== "object" || Array.isArray(severity)) {
+    fail("coordination_severity policy missing");
+  }
+  if (severity.marker !== SEVERITY_MARKER || severity.version !== 2) {
+    fail("coordination_severity marker/version mismatch");
+  }
+  if (
+    severity.default_overlap !== "advisory"
+    || severity.default_reservation !== "advisory"
+  ) {
+    fail("coordination severity defaults must remain advisory");
+  }
+  if (
+    !Array.isArray(severity.hard_reason_prefixes)
+    || severity.hard_reason_prefixes.length === 0
+  ) {
+    fail("hard_reason_prefixes must be a non-empty array");
+  }
+  for (const prefix of severity.hard_reason_prefixes) {
+    if (typeof prefix !== "string" || !prefix) fail("invalid hard reason prefix");
+  }
+  validateRegexList(severity.sensitive_path_patterns, "sensitive_path_patterns");
+  validateRegexList(severity.sensitive_branch_patterns, "sensitive_branch_patterns");
   if (
     typeof value.runtime_evidence_pattern !== "string"
     || !value.runtime_evidence_pattern
@@ -174,6 +211,13 @@ export function compilePolicy(value) {
       regex: new RegExp(item.pattern, "i"),
     })),
     runtime_regex: new RegExp(value.runtime_evidence_pattern, "i"),
+    severity: {
+      hard_reason_prefixes: [...value.coordination_severity.hard_reason_prefixes],
+      sensitive_path_regexes: value.coordination_severity.sensitive_path_patterns
+        .map((pattern) => new RegExp(pattern, "i")),
+      sensitive_branch_regexes: value.coordination_severity.sensitive_branch_patterns
+        .map((pattern) => new RegExp(pattern, "i")),
+    },
   };
 }
 
@@ -243,6 +287,94 @@ export function findPathCollisions(candidatePaths, activePathClaims) {
   return collisions.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
 }
 
+function matchesAny(value, regexes) {
+  return regexes.some((regex) => regex.test(value));
+}
+
+function pathIsSensitive(path, compiledPolicy) {
+  return matchesAny(path, compiledPolicy.severity.sensitive_path_regexes);
+}
+
+function branchIsSensitive(branch, compiledPolicy) {
+  return matchesAny(branch, compiledPolicy.severity.sensitive_branch_regexes);
+}
+
+function reasonIsIntrinsicHard(reason, compiledPolicy) {
+  return compiledPolicy.severity.hard_reason_prefixes
+    .some((prefix) => reason.startsWith(prefix));
+}
+
+export function classifyCandidateSeverity({
+  branch,
+  reasons,
+  plannedPaths,
+  pathCollisions,
+}, compiledPolicy) {
+  const branchSensitive = branchIsSensitive(branch, compiledPolicy);
+  const plannedSensitive = plannedPaths.some((path) => pathIsSensitive(path, compiledPolicy));
+  const hardReasons = [];
+  const advisoryReasons = [];
+
+  for (const reason of reasons) {
+    if (reason === "planned_path_overlap") {
+      if (pathCollisions.length === 0) {
+        (branchSensitive || plannedSensitive ? hardReasons : advisoryReasons).push(reason);
+      }
+      continue;
+    }
+    if (reasonIsIntrinsicHard(reason, compiledPolicy)) {
+      hardReasons.push(reason);
+      continue;
+    }
+    if (reason === "planned_path_metadata_incomplete") {
+      (branchSensitive || plannedSensitive ? hardReasons : advisoryReasons).push(reason);
+      continue;
+    }
+    if (reason.startsWith("exact_reservation:") || reason.startsWith("reserved_family:")) {
+      (branchSensitive ? hardReasons : advisoryReasons).push(reason);
+      continue;
+    }
+    advisoryReasons.push(reason);
+  }
+
+  const hardPathCollisions = [];
+  const advisoryPathCollisions = [];
+  for (const collision of pathCollisions) {
+    const candidatePath = collision.candidate_path ?? "";
+    const activePath = collision.active_path ?? "";
+    const activeBranch = collision.branch ?? "";
+    const sensitive = branchSensitive
+      || pathIsSensitive(candidatePath, compiledPolicy)
+      || pathIsSensitive(activePath, compiledPolicy)
+      || branchIsSensitive(activeBranch, compiledPolicy);
+    (sensitive ? hardPathCollisions : advisoryPathCollisions).push(collision);
+  }
+  if (hardPathCollisions.length > 0) hardReasons.push("sensitive_path_overlap");
+  if (advisoryPathCollisions.length > 0) advisoryReasons.push("nominal_path_overlap");
+
+  const uniqueHard = [...new Set(hardReasons)].sort();
+  const uniqueAdvisory = [...new Set(advisoryReasons)].sort();
+  const decision = uniqueHard.length > 0
+    ? "HARD_STOP"
+    : uniqueAdvisory.length > 0
+      ? "PROCEED_WITH_ADVISORY"
+      : "CLEAR";
+
+  return {
+    decision,
+    hard_stop: decision === "HARD_STOP",
+    proceed_allowed: decision !== "HARD_STOP",
+    priority_fallthrough_allowed: decision !== "HARD_STOP",
+    exploration_allowed: decision !== "HARD_STOP",
+    branch_sensitive: branchSensitive,
+    planned_sensitive: plannedSensitive,
+    hard_reasons: uniqueHard,
+    advisory_reasons: uniqueAdvisory,
+    hard_path_collisions: hardPathCollisions,
+    advisory_path_collisions: advisoryPathCollisions,
+  };
+}
+
 export function assessCandidate({
   branch,
   worktreePath,
@@ -283,15 +415,23 @@ export function assessCandidate({
   if (candidatePaths.length > 0 && !pathMetadataComplete) {
     reasons.push("planned_path_metadata_incomplete");
   }
+  const uniqueReasons = [...new Set(reasons)].sort();
+  const severity = classifyCandidateSeverity({
+    branch,
+    reasons: uniqueReasons,
+    plannedPaths: candidatePaths,
+    pathCollisions,
+  }, compiledPolicy);
   return {
     branch,
     worktree_path: worktreePath,
-    collision_free: reasons.length === 0,
-    reasons: [...new Set(reasons)].sort(),
+    collision_free: uniqueReasons.length === 0,
+    reasons: uniqueReasons,
     planned_paths: [...candidatePaths].sort(),
     path_overlap_checked: candidatePaths.length > 0,
     path_metadata_complete: candidatePaths.length === 0 || pathMetadataComplete,
     path_collisions: pathCollisions,
+    ...severity,
   };
 }
 
@@ -522,7 +662,7 @@ function captureRepository({
     ],
     { check: false },
   );
-  let githubAvailable = gh.status === 0;
+  const githubAvailable = gh.status === 0;
   let openPrs = [];
   if (githubAvailable) {
     openPrs = JSON.parse(gh.stdout);
@@ -706,6 +846,8 @@ function captureRepository({
       sha256: policySha256,
       exact_reservations: policy.reserved_exact_branches.length,
       family_reservations: policy.reserved_families.length,
+      coordination_severity_marker: policy.coordination_severity.marker,
+      coordination_severity_version: policy.coordination_severity.version,
     },
     classification_counts: counts,
     active_lanes: classifications,
@@ -717,7 +859,7 @@ function captureRepository({
 
 function usage() {
   console.log([
-    "VOID active-lane coordination registry V1",
+    "VOID active-lane coordination registry V1 with risk-weighted decision V2",
     "",
     "Capture the current collision map:",
     "  node tools/void-active-lane-registry-v1.mjs capture \\",
@@ -775,8 +917,13 @@ async function main() {
     console.log(`candidate_branch=${registry.candidate.branch}`);
     console.log(`candidate_worktree=${registry.candidate.worktree_path}`);
     console.log(`candidate_collision_free=${registry.candidate.collision_free}`);
+    console.log(`candidate_decision=${registry.candidate.decision}`);
+    console.log(`candidate_hard_stop=${registry.candidate.hard_stop}`);
     console.log(`candidate_planned_paths=${registry.candidate.planned_paths.length}`);
     console.log(`candidate_path_collisions=${registry.candidate.path_collisions.length}`);
+    console.log(
+      `candidate_advisory_count=${registry.candidate.advisory_reasons.length + registry.candidate.advisory_path_collisions.length}`,
+    );
     console.log(
       `candidate_path_metadata_complete=${registry.candidate.path_metadata_complete}`,
     );
@@ -791,7 +938,7 @@ async function main() {
   if (
     args.command === "check"
     && registry.candidate
-    && !registry.candidate.collision_free
+    && registry.candidate.hard_stop
   ) {
     process.exitCode = 2;
   }

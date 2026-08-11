@@ -1,0 +1,66 @@
+name: VOID private Chain-2050 checkpoint v1
+
+on:
+  pull_request:
+    paths:
+      - 'tools/void-private-chain2050-checkpoint-v1.mjs'
+      - 'scripts/prove_void_private_chain2050_checkpoint_v1.mjs'
+      - 'docs/operations/void-private-chain2050-checkpoint-v1.md'
+      - '.github/workflows/void-private-chain2050-checkpoint-v1.yml'
+  push:
+    branches:
+      - 'fix/private-chain2050-checkpoint-v1-20260810'
+    paths:
+      - 'tools/void-private-chain2050-checkpoint-v1.mjs'
+      - 'scripts/prove_void_private_chain2050_checkpoint_v1.mjs'
+      - 'docs/operations/void-private-chain2050-checkpoint-v1.md'
+      - '.github/workflows/void-private-chain2050-checkpoint-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Syntax check checkpoint primitive
+        run: node --check tools/void-private-chain2050-checkpoint-v1.mjs
+
+      - name: Syntax check checkpoint proof
+        run: node --check scripts/prove_void_private_chain2050_checkpoint_v1.mjs
+
+      - name: Prove checkpoint contract
+        run: node scripts/prove_void_private_chain2050_checkpoint_v1.mjs
+
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

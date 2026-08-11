@@ -1,0 +1,64 @@
+name: VOID Index Cartography v1
+
+on:
+  pull_request:
+    paths:
+      - "src/index.ts"
+      - "src/AGENTS.md"
+      - "docs/INDEX_MAP.md"
+      - "docs/index-map-v1.json"
+      - "scripts/generate_void_index_cartography_v1.mjs"
+      - "scripts/prove_void_index_cartography_v1.mjs"
+      - ".github/workflows/void-index-cartography-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/index.ts"
+      - "src/AGENTS.md"
+      - "docs/INDEX_MAP.md"
+      - "docs/index-map-v1.json"
+      - "scripts/generate_void_index_cartography_v1.mjs"
+      - "scripts/prove_void_index_cartography_v1.mjs"
+      - ".github/workflows/void-index-cartography-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cartography:
+    name: cartography-node-${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          node --check scripts/generate_void_index_cartography_v1.mjs
+          node --check scripts/prove_void_index_cartography_v1.mjs
+
+      - name: Adversarial proof
+        run: node scripts/prove_void_index_cartography_v1.mjs
+
+      - name: Resolve current source map
+        run: node scripts/generate_void_index_cartography_v1.mjs --format json > /tmp/void-index-map.json
+
+      - name: Publish human-readable map to job summary
+        if: always()
+        run: node scripts/generate_void_index_cartography_v1.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diff hygiene
+        run: git diff --check
