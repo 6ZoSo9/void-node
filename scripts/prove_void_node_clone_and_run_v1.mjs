@@ -8,7 +8,7 @@ const EXPECTED_ENGINE = "^22.0.0 || ^24.0.0 || ^26.0.0";
 const PINNED_NODE = "v24.18.0";
 const PINNED_SHA = "783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8";
 const EXPECTED_BUILD =
-  "tsc -p tsconfig.build.json && node scripts/copy_void_runtime_js_v1.mjs";
+  "tsc -p tsconfig.build.json && node scripts/copy_void_runtime_js_v1.mjs && node scripts/retire_saveblock_periodic_rewriters_v1.mjs";
 const RUNTIME_SAFETY_DEFAULTS = [
   "VOID_QUARANTINE_HOT_RUNTIME",
   "VOID_DISABLE_WRAPPER_STORM",
