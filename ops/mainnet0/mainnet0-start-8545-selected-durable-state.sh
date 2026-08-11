@@ -18,6 +18,8 @@ require_env() {
 }
 
 for name in \
+  VOID_MAINNET0_8545_ANVIL_EXECUTABLE \
+  VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256 \
   VOID_MAINNET0_8545_BASELINE_STATE \
   VOID_MAINNET0_8545_BASELINE_STATE_SHA256 \
   VOID_MAINNET0_8545_BASELINE_STATE_FORMAT \
@@ -28,6 +30,8 @@ for name in \
   require_env "$name"
 done
 
+ANVIL_EXECUTABLE="$VOID_MAINNET0_8545_ANVIL_EXECUTABLE"
+ANVIL_EXECUTABLE_SHA256="$VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256"
 BASELINE_STATE="$VOID_MAINNET0_8545_BASELINE_STATE"
 BASELINE_SHA256="$VOID_MAINNET0_8545_BASELINE_STATE_SHA256"
 BASELINE_FORMAT="$VOID_MAINNET0_8545_BASELINE_STATE_FORMAT"
@@ -40,6 +44,9 @@ RPC_URL="${VOID_MAINNET0_8545_RPC_URL:-http://127.0.0.1:8545/}"
 MODE="${VOID_MAINNET0_8545_START_MODE:-plan}"
 NODE_BIN="${VOID_NODE_BIN:-node}"
 
+[[ "$ANVIL_EXECUTABLE" = /* ]] || hold "anvil_executable_not_absolute"
+[[ "$ANVIL_EXECUTABLE_SHA256" =~ ^[0-9a-f]{64}$ ]] || \
+  hold "anvil_executable_sha256_invalid"
 [[ "$BASELINE_STATE" = /* ]] || hold "baseline_state_not_absolute"
 [[ "$CHECKPOINT_ROOT" = /* ]] || hold "checkpoint_root_not_absolute"
 if [[ -n "$DERIVED_ROOT" ]]; then
@@ -63,6 +70,8 @@ command -v "$NODE_BIN" >/dev/null 2>&1 || hold "node_runtime_missing"
 
 args=(
   "$TOOL"
+  --anvil-executable "$ANVIL_EXECUTABLE"
+  --anvil-executable-sha256 "$ANVIL_EXECUTABLE_SHA256"
   --baseline-state "$BASELINE_STATE"
   --baseline-state-sha256 "$BASELINE_SHA256"
   --baseline-state-format "$BASELINE_FORMAT"
