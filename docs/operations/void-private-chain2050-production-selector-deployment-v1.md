@@ -39,8 +39,12 @@ The packet consists of:
 - `ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json`
 - `ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example`
 
-The deployment contract is anchored to source commit
-`1b3429b9e938b4c590ecc1601677394d8d7081cb`.
+The deployment contract retains reviewed base anchor
+`1b3429b9e938b4c590ecc1601677394d8d7081cb`. The selector and checkpoint
+modules remain exact blobs from that anchor. The wrapper and startup launcher
+are pinned to the exact reviewed repair blobs in the manifest; P0-C3 must also
+record and verify the merged repair commit containing those blobs before it may
+seal an operator deployment.
 
 The future immutable deployment root is:
 
@@ -49,8 +53,8 @@ The future immutable deployment root is:
 ```
 
 The source packet copies only reviewed selector/startup artifacts into that root.
-The manifest pins each repository path to its exact Git blob at the reviewed
-anchor. It also pins the existing Foundry v1.5.1 Anvil binary by SHA-256.
+The manifest pins every repository path to an exact Git blob. It also pins the
+existing Foundry v1.5.1 Anvil binary by SHA-256.
 
 ## Baseline normalization
 
@@ -111,6 +115,21 @@ The production checkpoint trio is also expressed as `ConditionPathExists`
 requirements, so an installed future unit cannot silently start from the stale
 baseline when the required promoted checkpoint is absent.
 
+The unit additionally binds:
+
+```text
+VOID_MAINNET0_8545_ANVIL_EXECUTABLE=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
+VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256=b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738
+```
+
+The wrapper forwards both values to the canonical launcher. Planning fails
+closed unless the executable path is absolute and normalized, every existing
+path component is non-symlink, the target is an owner-safe regular executable
+with no special or group/other-write mode bits, and its SHA-256 is exact. Apply
+repeats the same validation immediately before spawning that absolute path.
+Bare `anvil` and ambient `PATH` resolution are never used. The unit also has a
+`ConditionPathExists` requirement for this staged executable.
+
 The template deliberately contains one unresolved sentinel:
 
 ```text
@@ -119,6 +138,8 @@ __SEALED_NODE_BIN__
 
 P0-C3 must replace it only after resolving an absolute Node executable and
 pinning its SHA-256. Source review does not guess that operator runtime value.
+Anvil has no unresolved runtime sentinel: its staged path and reviewed digest
+are explicit in both the manifest and unit.
 
 ## Fail-closed semantics
 

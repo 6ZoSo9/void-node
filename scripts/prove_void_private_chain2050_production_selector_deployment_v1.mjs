@@ -71,7 +71,9 @@ exactKeys(
     "service_mutation_performed", "checkpoint_promotion_performed",
     "production_state_load_performed", "wallet_signer_credential_access",
     "transaction_submission_performed", "money_movement_performed",
-    "reviewed_source_anchor", "deployment_root", "service_name",
+    "reviewed_source_anchor",
+    "anvil_binding_repair_source_blobs_require_merged_commit_at_operator_seal",
+    "deployment_root", "service_name",
     "unit_template_path", "source_files", "runtime_seal_requirements",
     "baseline", "checkpoint_promotion_plan", "startup", "roots",
     "future_unit_environment", "authority",
@@ -93,18 +95,22 @@ for (const key of [
 ]) assert.equal(manifest[key], false, key);
 
 assert.equal(manifest.reviewed_source_anchor, ANCHOR);
+assert.equal(
+  manifest.anvil_binding_repair_source_blobs_require_merged_commit_at_operator_seal,
+  true,
+);
 assert.equal(manifest.deployment_root, DEPLOY);
 assert.equal(manifest.service_name, "void-private-chain2050-rpc-v1.service");
 
 const expectedSources = new Map([
   ["ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
-   ["ea0868a02bb8f9c06fe006fbadb66fb24d287729", "0755"]],
+   ["28109ec33fd1467a52624909f53be2276d054591", "0755", false]],
   ["tools/void-private-chain2050-startup-integration-v1.mjs",
-   ["8d00ec0c80a361bbfa71f18ab9c381d8060717a2", "0600"]],
+   ["061a136a1c103f5e7006665be9abe200a18a9ebf", "0600", false]],
   ["tools/void-private-chain2050-startup-selection-v1.mjs",
-   ["074e4429d9b3f534f38e9a0535a123a062b9e37d", "0600"]],
+   ["074e4429d9b3f534f38e9a0535a123a062b9e37d", "0600", true]],
   ["tools/void-private-chain2050-checkpoint-v1.mjs",
-   ["8086330b508c5786ce004dfb2a9ffce73e8f8c77", "0600"]],
+   ["8086330b508c5786ce004dfb2a9ffce73e8f8c77", "0600", true]],
 ]);
 assert.equal(manifest.source_files.length, expectedSources.size);
 for (const item of manifest.source_files) {
@@ -115,7 +121,11 @@ for (const item of manifest.source_files) {
   assert.equal(item.git_blob_sha, expected[0]);
   assert.equal(item.mode, expected[1]);
   assert.equal(item.deployment_relative_path, item.path);
-  assert.equal(git(["rev-parse", `${ANCHOR}:${item.path}`]), item.git_blob_sha);
+  if (expected[2]) {
+    assert.equal(git(["rev-parse", `${ANCHOR}:${item.path}`]), item.git_blob_sha);
+  } else {
+    assert.notEqual(git(["rev-parse", `${ANCHOR}:${item.path}`]), item.git_blob_sha);
+  }
   assert.equal(git(["hash-object", item.path]), item.git_blob_sha);
 }
 
@@ -123,9 +133,19 @@ const seal = manifest.runtime_seal_requirements;
 assert.equal(seal.node_binary_absolute_path_required, true);
 assert.equal(seal.node_binary_sha256_required, true);
 assert.equal(seal.node_binary_unit_sentinel, "__SEALED_NODE_BIN__");
+assert.equal(seal.anvil_binary_absolute_path_required, true);
+assert.equal(seal.anvil_binary_normalized_path_required, true);
+assert.equal(seal.anvil_binary_path_component_symlinks_forbidden, true);
+assert.equal(seal.anvil_binary_owner_safe_mode_executable_required, true);
+assert.equal(
+  seal.anvil_binary_sha256_required_at_plan_and_immediately_before_spawn,
+  true,
+);
+assert.equal(seal.anvil_binary_ambient_path_resolution_allowed, false);
 assert.equal(seal.pinned_anvil_sha256,
   "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738");
 assert.equal(seal.pinned_anvil_mode, "0700");
+assert.equal(seal.pinned_anvil_unit_path, `${DEPLOY}/bin/anvil`);
 
 const baseline = manifest.baseline;
 assert.equal(baseline.source_wrapper_sha256,
@@ -190,6 +210,10 @@ assert.equal(new Set(roots).size, roots.length, "roots must remain distinct");
 const env = manifest.future_unit_environment;
 assert.equal(env.VOID_REPO, DEPLOY);
 assert.equal(env.VOID_NODE_BIN, "__SEALED_NODE_BIN__");
+assert.equal(env.VOID_MAINNET0_8545_ANVIL_EXECUTABLE,
+  `${DEPLOY}/bin/anvil`);
+assert.equal(env.VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256,
+  seal.pinned_anvil_sha256);
 assert.equal(env.VOID_MAINNET0_8545_BASELINE_STATE,
   `${DEPLOY}/state/epoch127.baseline.anvil-dump-state.hex`);
 assert.equal(env.VOID_MAINNET0_8545_BASELINE_STATE_SHA256,
@@ -225,6 +249,7 @@ assert.match(unit, new RegExp(
   `^ExecStart=${esc(DEPLOY)}/ops/mainnet0/` +
   "mainnet0-start-8545-selected-durable-state\\.sh$", "m"));
 assert.match(unit, /^Environment=VOID_NODE_BIN=__SEALED_NODE_BIN__$/m);
+assert.ok(unit.includes(`ConditionPathExists=${DEPLOY}/bin/anvil`));
 for (const [key, value] of Object.entries(env)) {
   assert.match(unit, new RegExp(`^Environment=${key}=${esc(value)}$`, "m"));
 }
@@ -263,6 +288,8 @@ console.log("checkpoint_copy_shape_green=true");
 console.log("root_separation_green=true");
 console.log("selector_service_template_green=true");
 console.log("runtime_specific_node_pin_deferred_to_operator_seal=true");
+console.log("anvil_exact_absolute_path_and_sha256_bound=true");
+console.log("anvil_ambient_path_resolution_allowed=false");
 console.log("stale_fallback_and_automatic_rollback_disabled=true");
 console.log("economic_reentry_remains_separate=true");
 console.log("source_lane_authority_all_false_green=true");
