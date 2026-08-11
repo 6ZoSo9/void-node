@@ -9,6 +9,8 @@ on:
       - "docs/index-map-v1.json"
       - "scripts/generate_void_index_cartography_v1.mjs"
       - "scripts/prove_void_index_cartography_v1.mjs"
+      - "scripts/review_void_index_section_v1.mjs"
+      - "scripts/prove_void_index_section_review_v1.mjs"
       - ".github/workflows/void-index-cartography-v1.yml"
   push:
     branches:
@@ -20,6 +22,8 @@ on:
       - "docs/index-map-v1.json"
       - "scripts/generate_void_index_cartography_v1.mjs"
       - "scripts/prove_void_index_cartography_v1.mjs"
+      - "scripts/review_void_index_section_v1.mjs"
+      - "scripts/prove_void_index_section_review_v1.mjs"
       - ".github/workflows/void-index-cartography-v1.yml"
 
 permissions:
@@ -49,16 +53,45 @@ jobs:
         run: |
           node --check scripts/generate_void_index_cartography_v1.mjs
           node --check scripts/prove_void_index_cartography_v1.mjs
+          node --check scripts/review_void_index_section_v1.mjs
+          node --check scripts/prove_void_index_section_review_v1.mjs
 
-      - name: Adversarial proof
-        run: node scripts/prove_void_index_cartography_v1.mjs
+      - name: Adversarial proofs
+        run: |
+          node scripts/prove_void_index_cartography_v1.mjs
+          node scripts/prove_void_index_section_review_v1.mjs
 
       - name: Resolve current source map
         run: node scripts/generate_void_index_cartography_v1.mjs --format json > /tmp/void-index-map.json
 
+      - name: Exercise bounded landmark viewer
+        run: |
+          node scripts/review_void_index_section_v1.mjs \
+            --landmark runtime.main \
+            --before 2 \
+            --after 2 \
+            --format json > /tmp/void-index-runtime-main-section.json
+          node -e '
+            const fs = require("fs");
+            const value = JSON.parse(fs.readFileSync("/tmp/void-index-runtime-main-section.json", "utf8"));
+            if (value.marker !== "VOID_INDEX_SECTION_REVIEW_V1") process.exit(1);
+            if (value.landmark?.id !== "runtime.main") process.exit(1);
+            if (value.window?.line_count > 5) process.exit(1);
+            if (value.arbitrary_source_path_allowed !== false) process.exit(1);
+            if (value.source_mutation_performed !== false) process.exit(1);
+          '
+
       - name: Publish human-readable map to job summary
         if: always()
         run: node scripts/generate_void_index_cartography_v1.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish bounded runtime.main section to job summary
+        if: always()
+        run: |
+          node scripts/review_void_index_section_v1.mjs \
+            --landmark runtime.main \
+            --before 5 \
+            --after 10 >> "$GITHUB_STEP_SUMMARY"
 
       - name: Diff hygiene
         run: git diff --check
