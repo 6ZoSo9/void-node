@@ -1,66 +1,36 @@
-# VOID Node Self-Hosted Beta CI Plan
+# VOID Node Self-Hosted Beta CI Retirement Record
 
-## Why this exists
+Marker: `VOID_SELF_HOSTED_BETA_CI_RETIRED_V1`
 
-The real bounded proof commands depend on the local live topology:
+Status: retired
 
-- `make wc-wallet-proof`
-- `make public-beta-preflight`
+Retired: 2026-08-11
 
-Those commands require the local node/helper/services topology, local ports, system user layout, and repo state that do **not** exist on GitHub-hosted runners.
+## Decision
 
-So:
+The manual self-hosted beta-proof workflow and its Precision runner path are
+retired. Do not register a runner with the former `self-hosted`, `void-node`,
+and `beta-proof` labels. Do not recreate the `voidfresh` account or the
+former services on ports 4110 and 4314 from this historical record.
 
-- GitHub-hosted CI should keep running `.ci/beta-proof-guards.sh`
-- real proof automation should run only on a self-hosted runner on a machine that actually has the VOID beta stack
+## Evidence
 
-## Proposed runner labels
+The retired workflow depended on an isolated local topology that no longer
+exists:
 
-Use a dedicated self-hosted runner with labels like:
+- the `voidfresh` account and home directory are absent;
+- the former local endpoints on ports 4110 and 4314 are unavailable;
+- the live `void-node-live.service` remains healthy and separate; and
+- the workflow's last recent edit only migrated its checkout action, while the
+  isolated proof path had not materially changed since 2026-03-23.
 
-- `self-hosted`
-- `void-node`
-- `beta-proof`
+Keeping the workflow runnable would imply a live proof environment that is not
+present.
 
-## Preconditions on the self-hosted runner host
+## Preserved beta contracts
 
-The host should already have:
-
-- repo checked out
-- `make`
-- `bash`
-- `node` / `npm`
-- the local VOID beta stack topology available
-- the commands below green when run manually:
-  - `make public-beta-status`
-  - `make wc-wallet-proof`
-  - `make public-beta-preflight`
-
-## Safe rollout plan
-
-1. Keep the GitHub-hosted guard workflow enabled:
-   - `.github/workflows/beta-proof-guards.yml`
-
-2. Add an opt-in self-hosted workflow that is **manual only**:
-   - `workflow_dispatch`
-   - no push trigger initially
-
-3. First validate manually on the runner host:
-   - `make public-beta-status`
-   - `make wc-wallet-proof`
-   - `make public-beta-preflight`
-
-4. Only after repeated green runs, consider adding:
-   - scheduled runs
-   - branch-based runs
-   - optional notifications
-
-## Honest caveat
-
-The self-hosted runner workflow is only trustworthy if it runs on a host that actually matches the real beta topology.
-Do not treat a fake/minimal runner as proof of the live path.
-
-## Current green command set
+GitHub-hosted CI continues to run `.ci/beta-proof-guards.sh` against the
+maintained beta command and documentation contracts:
 
 - `make beta-help`
 - `make public-beta-status`
@@ -68,3 +38,14 @@ Do not treat a fake/minimal runner as proof of the live path.
 - `make wc-wallet-proof`
 - `make public-beta`
 - `./ops/public-beta-quickstart.sh`
+
+The scripts remain available for bounded operator use and historical review.
+Their presence does not prove deployment, external acceptance, wallet authority,
+Work Credit mutation, or a live isolated beta topology.
+
+## Reintroduction boundary
+
+Any future self-hosted proof workflow requires a new reviewed design, a
+dedicated least-authority host, current topology evidence, explicit runner
+registration authority, and a separate activation decision. This record grants
+none of those authorities.
