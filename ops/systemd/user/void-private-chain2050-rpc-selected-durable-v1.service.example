@@ -11,6 +11,7 @@ ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deploy
 ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-startup-integration-v1.mjs
 ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-startup-selection-v1.mjs
 ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/tools/void-private-chain2050-checkpoint-v1.mjs
+ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
 ConditionPathExists=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex
 ConditionPathExists=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1/chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.anvil-dump-state.hex
 ConditionPathExists=/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1/chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.manifest.json
@@ -32,6 +33,8 @@ LimitNOFILE=65536
 
 Environment=VOID_REPO=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1
 Environment=VOID_NODE_BIN=__SEALED_NODE_BIN__
+Environment=VOID_MAINNET0_8545_ANVIL_BIN=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil
+Environment=VOID_MAINNET0_8545_ANVIL_SHA256=b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738
 Environment=VOID_MAINNET0_8545_BASELINE_STATE=/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex
 Environment=VOID_MAINNET0_8545_BASELINE_STATE_SHA256=02afeb49a6eced1c1f3889d62f308f07df099c0c75699226e89d60fdb434ede7
 Environment=VOID_MAINNET0_8545_BASELINE_STATE_FORMAT=anvil_dump_state_hex
