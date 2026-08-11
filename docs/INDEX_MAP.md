@@ -13,19 +13,39 @@ column are resolved from the source on demand.
 
 1. Start with `docs/index-map-v1.json`.
 2. Pick the stable landmark ID for the subsystem under review.
-3. Generate the current map:
+3. Prefer the bounded section viewer for ordinary review:
+
+   ```bash
+   node scripts/review_void_index_section_v1.mjs --landmark runtime.main
+   ```
+
+   The viewer resolves the exact registered landmark against the current source and emits
+   only a bounded window. The default is 20 lines before and 40 lines after the landmark.
+   Each side is capped at 120 lines, so one request can emit at most 241 source lines.
+4. Adjust the bounded window when needed, without changing the source target:
+
+   ```bash
+   node scripts/review_void_index_section_v1.mjs \
+     --landmark datanet.public-explorer \
+     --before 40 \
+     --after 80
+   ```
+
+   `--format json` is available for machine-readable review evidence. There is deliberately
+   no `--source` or `--registry` override: the viewer reads only the canonical
+   `docs/index-map-v1.json` registry and its required `src/index.ts` source target.
+5. Generate the complete current landmark table only when broad navigation is useful:
 
    ```bash
    node scripts/generate_void_index_cartography_v1.mjs --format markdown
    ```
 
-4. Use the generated line as navigation evidence for the exact checked-out source.
-5. Review dependencies and surrounding code normally. A landmark is a navigation aid, not
-   a security boundary or proof that the entire subsystem is contained on one line.
+6. Review dependencies and surrounding code normally. A landmark is a navigation aid, not
+   a security boundary or proof that the entire subsystem is contained in the emitted
+   window.
 
-The generator also emits the SHA-256 of the exact `src/index.ts` bytes it mapped. A line
-number is meaningful only together with the exact source revision or digest that produced
-it.
+Both tools emit the SHA-256 of the exact `src/index.ts` bytes they mapped. A line number is
+meaningful only together with the exact source revision or digest that produced it.
 
 ## Stable IDs, disposable line numbers
 
@@ -73,8 +93,16 @@ runtime lanes.
 - managed source markers that are not registered; and
 - a registered managed marker whose ID and anchor disagree.
 
-The generator performs no source mutation and writes no derived map by default. JSON or
-Markdown is emitted to stdout, which keeps generated line churn out of Git history.
+`review_void_index_section_v1.mjs` additionally rejects:
+
+- unknown or malformed landmark IDs;
+- a registry whose source target is not exactly `src/index.ts`;
+- per-side windows above 120 lines; and
+- arbitrary source/registry path overrides.
+
+Both tools are read-only and perform no source mutation. Generated maps and bounded review
+sections are emitted to stdout rather than committed, which keeps line-number churn out of
+Git history.
 
 ## Concurrency
 
@@ -85,8 +113,8 @@ Cartography should reduce collisions, not create another shared hot file.
 - Existing entries should change only when their stable anchor truly changes.
 - `src/index.ts` remains governed by the root working agreement and any active
   coordination plan.
-- A cartography change grants no runtime, wallet, signer, treasury, validator, Work Credit,
-  transaction, deployment, or fund-movement authority.
+- A cartography or viewer change grants no runtime, wallet, signer, treasury, validator,
+  Work Credit, transaction, deployment, or fund-movement authority.
 
 ## Current scope
 
