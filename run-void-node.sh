@@ -22,14 +22,22 @@ ENV_FILE="$ROOT/.env"
 NODE_KEY_FILE="$ROOT/.nodekey"
 PUBLIC_BOOTSTRAP_RESOLVER="$ROOT/scripts/resolve_void_public_bootstrap_v1.mjs"
 PUBLIC_BOOTSTRAP_SUPERVISOR="$ROOT/scripts/run_void_public_bootstrap_supervisor_v1.mjs"
+TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER="$ROOT/scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs"
+TOR_BOOTSTRAP_SUPERVISOR="$ROOT/scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs"
+MULTIPATH_PUBLIC_BOOTSTRAP_SUPERVISOR="$ROOT/scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs"
 LOCAL_PUBLIC_BOOTSTRAP_MANIFEST="$ROOT/public/bootstrap/v1.json"
 DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST="https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json"
+DEFAULT_TOR_SIGNED_BOOTSTRAP_MANIFEST="$ROOT/public/bootstrap/tor-signed-v1.json"
 
 NODE_BIN=""
 NPM_BIN=""
 RUNTIME_SOURCE=""
 LOCK_HELD=0
 PUBLIC_BOOTSTRAP_STATE="not_checked"
+HTTPS_BOOTSTRAP_STATE="not_checked"
+TOR_BOOTSTRAP_STATE="not_checked"
+HTTPS_BOOTSTRAP_PEERS=""
+TOR_BOOTSTRAP_PEERS=""
 
 say() { printf '%s\n' "$*"; }
 die() { say "ERROR: $*" >&2; exit 1; }
@@ -52,14 +60,18 @@ use sudo or install Node.js globally. It creates a local .env and a private
 node-identity key at .nodekey when they do not already exist. That identity key
 is not a wallet, validator, treasury, or operator-authority key.
 
-The normal run path retrieves the canonical public bootstrap manifest, verifies
-its content address and authority boundary, and live-probes stable HTTPS seeds
-through DNS-pinned requests. When a stable seed exists, the node follows only a
-numeric-loopback client adapter. A hold manifest starts the local node without
-claiming public synchronization. Before the canonical artifact is first merged,
-an explicit HTTP 404 may fall back only to the checked-in, verified hold file.
-Set VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 when the run must fail unless stable public
-synchronization is available.
+The normal run path verifies the canonical HTTPS bootstrap manifest and, when a
+release-root-authorized Tor signed manifest is present, independently verifies
+the Tor bootstrap trust material. Healthy transports are mounted behind separate
+numeric-loopback client adapters and the existing follower provides bounded
+failover between their local origins. Trust/material failures fail closed; a
+verified transport that is merely unavailable may fall through to another
+verified transport. A hold manifest starts the local node without claiming public
+synchronization. Before the canonical HTTPS artifact is first merged, an explicit
+HTTP 404 may fall back only to the checked-in, verified hold file. Set
+VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 when at least one public synchronization transport
+is required. Set VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH=1 only for acceptance
+runs that require both HTTPS and Tor transport classes before startup.
 HELP
 }
 
@@ -234,20 +246,247 @@ NODE
   export P2P_PORT="${P2P_PORT:-4700}"
 }
 
+last_output_line() {
+  printf '%s' "$1" | tail -n 1 | tr -d '\r\n'
+}
+
+log_value() {
+  local key="$1" file="$2"
+  sed -n "s/^${key}=//p" "$file" 2>/dev/null | tail -n 1 | tr -d '\r\n'
+}
+
+resolve_https_public_bootstrap_v1() {
+  local manifest_override="$1"
+  local verify_log live_log reverify_log local_hold_log
+  local verify_output verify_rc verified_peers verified_manifest_id
+  local live_output live_rc live_manifest_id
+  local reverify_output reverify_rc reverify_manifest_id
+  local local_hold_output local_hold_rc
+
+  verify_log="$RUNTIME_ROOT/public-bootstrap-https-verify.log"
+  live_log="$RUNTIME_ROOT/public-bootstrap-https-live.log"
+  reverify_log="$RUNTIME_ROOT/public-bootstrap-https-reverify.log"
+  local_hold_log="$RUNTIME_ROOT/public-bootstrap-local-hold.log"
+  : >"$verify_log"
+  : >"$live_log"
+  : >"$reverify_log"
+  : >"$local_hold_log"
+
+  set +e
+  verify_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" --allow-hold --verify-only 2>"$verify_log"
+  )"
+  verify_rc=$?
+  set -e
+
+  if test "$verify_rc" -eq 3 && \
+     test "$manifest_override" = 0 && \
+     test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1 && \
+     grep -Fq 'manifest request returned HTTP 404' "$verify_log" && \
+     test -f "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST"; then
+    set +e
+    local_hold_output="$(
+      cd "$ROOT"
+      "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" \
+        --allow-hold \
+        --verify-only \
+        --local-hold-file "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST" \
+        2>"$local_hold_log"
+    )"
+    local_hold_rc=$?
+    set -e
+    if test "$local_hold_rc" -ne 0 || \
+       test -n "$(printf '%s' "$local_hold_output" | tr -d '\r\n')"; then
+      cat "$verify_log" >&2 || true
+      cat "$local_hold_log" >&2 || true
+      die "local HTTPS bootstrap hold artifact failed verification"
+    fi
+    HTTPS_BOOTSTRAP_STATE="local_hold_no_stable_seed"
+    return
+  fi
+
+  if test "$verify_rc" -eq 3; then
+    HTTPS_BOOTSTRAP_STATE="transport_unavailable"
+    return
+  fi
+  if test "$verify_rc" -ne 0; then
+    cat "$verify_log" >&2 || true
+    die "HTTPS bootstrap trust verification failed"
+  fi
+
+  verified_peers="$(last_output_line "$verify_output")"
+  verified_manifest_id="$(log_value manifest_id "$verify_log")"
+  test -n "$verified_manifest_id" || die "HTTPS bootstrap verification omitted manifest identity"
+  if test -z "$verified_peers"; then
+    HTTPS_BOOTSTRAP_STATE="hold_no_stable_seed"
+    return
+  fi
+
+  set +e
+  live_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" --allow-hold 2>"$live_log"
+  )"
+  live_rc=$?
+  set -e
+
+  if test "$live_rc" -eq 0; then
+    HTTPS_BOOTSTRAP_PEERS="$(last_output_line "$live_output")"
+    live_manifest_id="$(log_value manifest_id "$live_log")"
+    if test -z "$HTTPS_BOOTSTRAP_PEERS" || \
+       test "$live_manifest_id" != "$verified_manifest_id"; then
+      cat "$verify_log" >&2 || true
+      cat "$live_log" >&2 || true
+      die "HTTPS bootstrap trust material changed between verification and live resolution"
+    fi
+    HTTPS_BOOTSTRAP_STATE="active"
+    return
+  fi
+
+  if test "$live_rc" -eq 2; then
+    cat "$live_log" >&2 || true
+    die "HTTPS bootstrap live resolution encountered invalid trust material"
+  fi
+  if test "$live_rc" -ne 3; then
+    cat "$live_log" >&2 || true
+    die "HTTPS bootstrap live resolution failed without a classified transport result"
+  fi
+
+  # reverify HTTPS bootstrap trust after live-resolution failure
+  set +e
+  reverify_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" --allow-hold --verify-only 2>"$reverify_log"
+  )"
+  reverify_rc=$?
+  set -e
+  reverify_manifest_id="$(log_value manifest_id "$reverify_log")"
+  if test "$reverify_rc" -ne 0 || \
+     test "$(last_output_line "$reverify_output")" != "$verified_peers" || \
+     test "$reverify_manifest_id" != "$verified_manifest_id"; then
+    cat "$verify_log" >&2 || true
+    cat "$live_log" >&2 || true
+    cat "$reverify_log" >&2 || true
+    die "HTTPS bootstrap trust could not be reproduced after live transport failure"
+  fi
+  HTTPS_BOOTSTRAP_STATE="transport_unavailable"
+}
+
+resolve_tor_public_bootstrap_v1() {
+  local signed_manifest="${VOID_TOR_BOOTSTRAP_SIGNED_MANIFEST_FILE:-}"
+  local verify_log live_log reverify_log
+  local verify_output verify_rc verified_manifest_id
+  local live_output live_rc live_manifest_id
+  local reverify_output reverify_rc reverify_manifest_id
+
+  if test -z "$signed_manifest" && test -f "$DEFAULT_TOR_SIGNED_BOOTSTRAP_MANIFEST"; then
+    signed_manifest="$DEFAULT_TOR_SIGNED_BOOTSTRAP_MANIFEST"
+  fi
+  if test -z "$signed_manifest"; then
+    TOR_BOOTSTRAP_STATE="not_configured"
+    return
+  fi
+
+  test -f "$TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER" || die "missing Tor bootstrap release-root resolver"
+  test -f "$TOR_BOOTSTRAP_SUPERVISOR" || die "missing Tor public bootstrap supervisor"
+
+  verify_log="$RUNTIME_ROOT/public-bootstrap-tor-verify.log"
+  live_log="$RUNTIME_ROOT/public-bootstrap-tor-live.log"
+  reverify_log="$RUNTIME_ROOT/public-bootstrap-tor-reverify.log"
+  : >"$verify_log"
+  : >"$live_log"
+  : >"$reverify_log"
+
+  set +e
+  verify_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER" \
+      --verify-only \
+      --signed-manifest-file "$signed_manifest" \
+      2>"$verify_log"
+  )"
+  verify_rc=$?
+  set -e
+  if test "$verify_rc" -ne 0; then
+    cat "$verify_log" >&2 || true
+    die "Tor bootstrap signed trust material failed release-root verification"
+  fi
+  verified_manifest_id="$(last_output_line "$verify_output")"
+  if test -z "$verified_manifest_id" || \
+     test "$(log_value manifest_id "$verify_log")" != "$verified_manifest_id"; then
+    cat "$verify_log" >&2 || true
+    die "Tor bootstrap verification omitted or contradicted manifest identity"
+  fi
+
+  set +e
+  live_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER" \
+      --signed-manifest-file "$signed_manifest" \
+      2>"$live_log"
+  )"
+  live_rc=$?
+  set -e
+  if test "$live_rc" -eq 0; then
+    TOR_BOOTSTRAP_PEERS="$(last_output_line "$live_output")"
+    live_manifest_id="$(log_value manifest_id "$live_log")"
+    if test -z "$TOR_BOOTSTRAP_PEERS" || \
+       test "$live_manifest_id" != "$verified_manifest_id"; then
+      cat "$verify_log" >&2 || true
+      cat "$live_log" >&2 || true
+      die "Tor bootstrap trust material changed between verification and live resolution"
+    fi
+    TOR_BOOTSTRAP_STATE="active"
+    return
+  fi
+
+  # reverify Tor bootstrap trust after live-resolution failure
+  set +e
+  reverify_output="$(
+    cd "$ROOT"
+    "$NODE_BIN" "$TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER" \
+      --verify-only \
+      --signed-manifest-file "$signed_manifest" \
+      2>"$reverify_log"
+  )"
+  reverify_rc=$?
+  set -e
+  reverify_manifest_id="$(last_output_line "$reverify_output")"
+  if test "$reverify_rc" -ne 0 || \
+     test "$reverify_manifest_id" != "$verified_manifest_id" || \
+     test "$(log_value manifest_id "$reverify_log")" != "$verified_manifest_id"; then
+    cat "$verify_log" >&2 || true
+    cat "$live_log" >&2 || true
+    cat "$reverify_log" >&2 || true
+    die "Tor bootstrap trust could not be reproduced after live transport failure"
+  fi
+  TOR_BOOTSTRAP_STATE="transport_unavailable"
+}
+
 resolve_public_bootstrap() {
   if test "${VOID_PUBLIC_BOOTSTRAP_DISABLE:-0}" = 1; then
-    if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1; then
-      die "VOID_PUBLIC_BOOTSTRAP_REQUIRE=1 conflicts with VOID_PUBLIC_BOOTSTRAP_DISABLE=1"
+    if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1 || \
+       test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH:-0}" = 1; then
+      die "public bootstrap requirements conflict with VOID_PUBLIC_BOOTSTRAP_DISABLE=1"
     fi
     PUBLIC_BOOTSTRAP_STATE="disabled_explicitly"
+    HTTPS_BOOTSTRAP_STATE="disabled_explicitly"
+    TOR_BOOTSTRAP_STATE="disabled_explicitly"
     say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
     say "public_sync_active=false"
     say "tailnet_required=false"
     return
   fi
 
+  case "${VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH:-0}" in
+    0|1) ;;
+    *) die "VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH must be exactly 0 or 1" ;;
+  esac
+
   test -f "$PUBLIC_BOOTSTRAP_RESOLVER" || die "missing public bootstrap resolver"
   test -f "$PUBLIC_BOOTSTRAP_SUPERVISOR" || die "missing public bootstrap supervisor"
+  test -f "$MULTIPATH_PUBLIC_BOOTSTRAP_SUPERVISOR" || die "missing multipath public bootstrap supervisor"
 
   local manifest_override=0
   if test -n "${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URLS:-}" || \
@@ -256,77 +495,88 @@ resolve_public_bootstrap() {
   fi
   export VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL="${VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:-$DEFAULT_PUBLIC_BOOTSTRAP_MANIFEST}"
 
-  local resolved error_log local_hold_log local_hold_output
-  error_log="$RUNTIME_ROOT/public-bootstrap-resolver.log"
-  local_hold_log="$RUNTIME_ROOT/public-bootstrap-local-hold.log"
   mkdir -p "$RUNTIME_ROOT"
-  : >"$error_log"
-  : >"$local_hold_log"
+  resolve_https_public_bootstrap_v1 "$manifest_override"
+  resolve_tor_public_bootstrap_v1
 
-  if ! resolved="$(
-    cd "$ROOT"
-    "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" --allow-hold 2>"$error_log"
-  )"; then
-    if test "$manifest_override" = 0 && \
-       test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1 && \
-       grep -Fq 'manifest request returned HTTP 404' "$error_log" && \
-       test -f "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST"; then
-      if local_hold_output="$(
-        cd "$ROOT"
-        "$NODE_BIN" "$PUBLIC_BOOTSTRAP_RESOLVER" \
-          --allow-hold \
-          --local-hold-file "$LOCAL_PUBLIC_BOOTSTRAP_MANIFEST" \
-          2>"$local_hold_log"
-      )" && test -z "$(printf '%s' "$local_hold_output" | tr -d '\r\n')"; then
-        PUBLIC_BOOTSTRAP_STATE="local_hold_no_stable_seed"
-        say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
-        say "canonical_manifest_published=false"
-        say "local_hold_manifest_verified=true"
-        say "public_sync_active=false"
-        say "tailnet_required=false"
-        return
-      fi
-    fi
+  local https_active=0 tor_active=0 active_count=0
+  test "$HTTPS_BOOTSTRAP_STATE" = active && https_active=1
+  test "$TOR_BOOTSTRAP_STATE" = active && tor_active=1
+  active_count=$((https_active + tor_active))
 
-    cat "$error_log" >&2 || true
-    cat "$local_hold_log" >&2 || true
-    if test "${VOID_PUBLIC_BOOTSTRAP_OPTIONAL:-0}" = 1 && \
-       test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" != 1; then
-      PUBLIC_BOOTSTRAP_STATE="unavailable_optional"
-      say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
-      say "public_sync_active=false"
-      say "tailnet_required=false"
-      return
-    fi
-    die "public bootstrap manifest or stable-seed verification failed"
+  if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH:-0}" = 1 && test "$active_count" -ne 2; then
+    die "multipath public bootstrap acceptance requires both HTTPS and Tor transport classes"
+  fi
+  if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1 && test "$active_count" -eq 0; then
+    die "stable public synchronization is required but no verified transport is available"
   fi
 
-  resolved="$(printf '%s' "$resolved" | tail -n 1 | tr -d '\r\n')"
-  if test -z "$resolved"; then
-    PUBLIC_BOOTSTRAP_STATE="hold_no_stable_seed"
-    say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
-    say "canonical_manifest_published=true"
-    say "public_sync_active=false"
-    say "tailnet_required=false"
-    if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1; then
-      cat "$error_log" >&2 || true
-      die "stable public synchronization is required but no stable seed is published"
+  if test "$https_active" = 1; then
+    export VOID_PUBLIC_SEED_CLIENT_PEERS="$HTTPS_BOOTSTRAP_PEERS"
+  fi
+  if test "$tor_active" = 1; then
+    export VOID_TOR_PUBLIC_SEED_CLIENT_PEERS="$TOR_BOOTSTRAP_PEERS"
+  fi
+
+  if test "$active_count" -gt 0; then
+    export VOID_FOLLOWER_AUTOSTART_INTERVAL_MS="${VOID_FOLLOWER_AUTOSTART_INTERVAL_MS:-1000}"
+    export VOID_FOLLOWER_CATCHUP_INTERVAL_MS="${VOID_FOLLOWER_CATCHUP_INTERVAL_MS:-250}"
+    export VOID_FOLLOWER_CATCHUP_PULL_LIMIT="${VOID_FOLLOWER_CATCHUP_PULL_LIMIT:-999}"
+    export VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS="${VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS:-30000}"
+
+    if test "$active_count" -eq 2; then
+      PUBLIC_BOOTSTRAP_STATE="resolved_multipath_https_tor"
+    elif test "$https_active" = 1; then
+      PUBLIC_BOOTSTRAP_STATE="resolved_stable_https_seed"
+    else
+      PUBLIC_BOOTSTRAP_STATE="resolved_stable_tor_seed"
     fi
+
+    say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+    say "https_bootstrap=$HTTPS_BOOTSTRAP_STATE"
+    say "tor_bootstrap=$TOR_BOOTSTRAP_STATE"
+    if test "$active_count" -eq 2; then
+      say "bootstrap_transport_classes=https,tor"
+    elif test "$https_active" = 1; then
+      say "bootstrap_transport_classes=https"
+    else
+      say "bootstrap_transport_classes=tor"
+    fi
+    say "public_sync_active=true"
+    say "public_sync_via_loopback_adapter=true"
+    say "manual_bootstrap_addrs_required=false"
+    say "tailnet_required=false"
     return
   fi
 
-  export VOID_PUBLIC_SEED_CLIENT_PEERS="$resolved"
-  export VOID_FOLLOWER_AUTOSTART_INTERVAL_MS="${VOID_FOLLOWER_AUTOSTART_INTERVAL_MS:-1000}"
-  export VOID_FOLLOWER_CATCHUP_INTERVAL_MS="${VOID_FOLLOWER_CATCHUP_INTERVAL_MS:-250}"
-  export VOID_FOLLOWER_CATCHUP_PULL_LIMIT="${VOID_FOLLOWER_CATCHUP_PULL_LIMIT:-999}"
-  export VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS="${VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS:-30000}"
-  PUBLIC_BOOTSTRAP_STATE="resolved_stable_https_seed"
-  say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
-  say "canonical_manifest_published=true"
-  say "public_seed_count=$(printf '%s' "$resolved" | awk -F, '{print NF}')"
-  say "public_sync_active=true"
-  say "public_sync_via_loopback_adapter=true"
-  say "tailnet_required=false"
+  if test "$HTTPS_BOOTSTRAP_STATE" = "hold_no_stable_seed" || \
+     test "$HTTPS_BOOTSTRAP_STATE" = "local_hold_no_stable_seed"; then
+    PUBLIC_BOOTSTRAP_STATE="$HTTPS_BOOTSTRAP_STATE"
+    say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+    say "https_bootstrap=$HTTPS_BOOTSTRAP_STATE"
+    say "tor_bootstrap=$TOR_BOOTSTRAP_STATE"
+    if test "$HTTPS_BOOTSTRAP_STATE" = "local_hold_no_stable_seed"; then
+      say "canonical_manifest_published=false"
+      say "local_hold_manifest_verified=true"
+    else
+      say "canonical_manifest_published=true"
+    fi
+    say "public_sync_active=false"
+    say "tailnet_required=false"
+    return
+  fi
+
+  if test "${VOID_PUBLIC_BOOTSTRAP_OPTIONAL:-0}" = 1; then
+    PUBLIC_BOOTSTRAP_STATE="unavailable_optional"
+    say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+    say "https_bootstrap=$HTTPS_BOOTSTRAP_STATE"
+    say "tor_bootstrap=$TOR_BOOTSTRAP_STATE"
+    say "public_sync_active=false"
+    say "tailnet_required=false"
+    return
+  fi
+
+  die "no verified public bootstrap transport is currently available"
 }
 
 source_fingerprint() {
@@ -433,9 +683,17 @@ case "$COMMAND" in
     say "[$MARKER] starting VOID node"
     say "readiness=http://127.0.0.1:4100/__void/ready.json"
     cd "$ROOT"
+    if test "$PUBLIC_BOOTSTRAP_STATE" = "resolved_multipath_https_tor"; then
+      export VOID_MULTIPATH_PUBLIC_BOOTSTRAP_NODE_ENTRY="$ROOT/dist/index.js"
+      exec "$NODE_BIN" "$MULTIPATH_PUBLIC_BOOTSTRAP_SUPERVISOR"
+    fi
     if test "$PUBLIC_BOOTSTRAP_STATE" = "resolved_stable_https_seed"; then
       export VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY="$ROOT/dist/index.js"
       exec "$NODE_BIN" "$PUBLIC_BOOTSTRAP_SUPERVISOR"
+    fi
+    if test "$PUBLIC_BOOTSTRAP_STATE" = "resolved_stable_tor_seed"; then
+      export VOID_TOR_PUBLIC_BOOTSTRAP_NODE_ENTRY="$ROOT/dist/index.js"
+      exec "$NODE_BIN" "$TOR_BOOTSTRAP_SUPERVISOR"
     fi
     exec "$NODE_BIN" "$ROOT/dist/index.js"
     ;;
