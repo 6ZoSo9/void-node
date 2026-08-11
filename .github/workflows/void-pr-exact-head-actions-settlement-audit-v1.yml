@@ -1,0 +1,89 @@
+name: VOID PR Exact Head Actions Settlement Audit V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-pr-exact-head-actions-settlement-audit-v1.yml"
+      - "docs/operations/void-pr-exact-head-actions-settlement-audit-v1.md"
+      - "scripts/prove_void_pr_exact_head_actions_settlement_audit_v1.mjs"
+      - "tools/void-pr-exact-head-actions-settlement-audit-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-pr-exact-head-actions-settlement-audit-v1.yml"
+      - "docs/operations/void-pr-exact-head-actions-settlement-audit-v1.md"
+      - "scripts/prove_void_pr_exact_head_actions_settlement_audit_v1.mjs"
+      - "tools/void-pr-exact-head-actions-settlement-audit-v1.mjs"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Exact open same-repository PR number"
+        required: true
+        type: string
+      expected_head:
+        description: "Optional exact 40-hex PR head SHA"
+        required: false
+        type: string
+      minimum_workflows:
+        description: "Minimum distinct observed workflow IDs required"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check tool syntax
+        run: node --check tools/void-pr-exact-head-actions-settlement-audit-v1.mjs
+      - name: Check proof syntax
+        run: node --check scripts/prove_void_pr_exact_head_actions_settlement_audit_v1.mjs
+      - name: Prove exact-head Actions settlement audit
+        run: node scripts/prove_void_pr_exact_head_actions_settlement_audit_v1.mjs
+
+  dispatched-audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_PR: ${{ inputs.pr_number }}
+      EXPECTED_HEAD: ${{ inputs.expected_head }}
+      MINIMUM_WORKFLOWS: ${{ inputs.minimum_workflows }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit latest observed workflows on exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${{ github.repository }}"
+            --pr-number "$TARGET_PR"
+            --minimum-workflows "$MINIMUM_WORKFLOWS"
+            --output "$RUNNER_TEMP/void-pr-exact-head-actions-settlement.json"
+          )
+          if [ -n "$EXPECTED_HEAD" ]; then
+            args+=(--expected-head "$EXPECTED_HEAD")
+          fi
+          node tools/void-pr-exact-head-actions-settlement-audit-v1.mjs "${args[@]}"

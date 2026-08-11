@@ -7,7 +7,7 @@ import {
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardLastAcceptedV1,
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardPolicyV1,
   type VoidLiveCanonicalChainStateApiResponseSignerPolicyRollbackGuardResponseV1,
-} from "../src/chain/block";
+} from "../src/chain/block.js";
 
 const GREEN = "VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_SIGNER_POLICY_ROLLBACK_GUARD_BOUNDARY_AUDIT_V1_GREEN";
 

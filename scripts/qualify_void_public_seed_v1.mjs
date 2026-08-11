@@ -43,7 +43,7 @@ function parseArgs(argv) {
     else if (argument === "--output") values.output = next();
     else if (argument === "--allow-loopback-fixture") values.allowLoopbackFixture = true;
     else if (argument === "--help" || argument === "-h") {
-      console.log(`Usage: node scripts/qualify_void_public_seed_v1.mjs --endpoint https://seed.example [options]\n\nOptions:\n  --samples N          Number of live samples (default: 3)\n  --interval-ms N      Delay between samples (default: 30000)\n  --timeout-ms N       Per-request timeout (default: 10000)\n  --max-bytes N        Maximum response bytes (default: 16777216)\n  --output PATH        Write the qualification receipt atomically\n`);
+      console.log(`Usage: node scripts/qualify_void_public_seed_v1.mjs --endpoint https://seed.example-or-public-ip [options]\n\nOptions:\n  --samples N          Number of live samples (default: 3)\n  --interval-ms N      Delay between samples (default: 30000)\n  --timeout-ms N       Per-request timeout (default: 10000)\n  --max-bytes N        Maximum response bytes (default: 16777216)\n  --output PATH        Write the qualification receipt atomically\n`);
       process.exit(0);
     } else fail(`unknown argument ${argument}`);
   }
@@ -70,6 +70,7 @@ try {
   console.error(GREEN_MARKER);
   console.error(`qualification_id=${receipt.qualification_id}`);
   console.error(`endpoint=${receipt.endpoint}`);
+  console.error(`address_source=${receipt.address_source}`);
   console.error(`sample_count=${receipt.sample_count}`);
   console.error("temporary_provider=false");
   console.error("private_routes_exposed=false");
