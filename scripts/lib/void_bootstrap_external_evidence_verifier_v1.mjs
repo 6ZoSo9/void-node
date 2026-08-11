@@ -76,9 +76,10 @@ function exactKeys(value, expected, what) {
 }
 
 function validLabel(value, what) {
-  const text = String(value || "");
-  if (!LABEL_RE.test(text)) throw new Error(`${what} is invalid`);
-  return text;
+  if (typeof value !== "string" || !LABEL_RE.test(value)) {
+    throw new Error(`${what} is invalid`);
+  }
+  return value;
 }
 
 function canonicalIso(value, what) {
