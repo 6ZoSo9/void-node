@@ -264,6 +264,18 @@ assert.throws(
   /capture identity must be unique/,
 );
 
+const nonStringCaptureIdentityBundle = structuredClone(bundle);
+nonStringCaptureIdentityBundle.second_peers.provenance.collector_id = 7;
+assert.throws(
+  () => createVoidBootstrapExternalEvidenceVerifierV1({
+    evidenceBundle: nonStringCaptureIdentityBundle,
+    verifyCaptureProvenance() {
+      return true;
+    },
+  }),
+  /collector_id is invalid/,
+);
+
 const tamperedBundle = structuredClone(bundle);
 tamperedBundle.first_ready_after_sync.payload.head = 99;
 const tamperedVerifier = createVoidBootstrapExternalEvidenceVerifierV1({
@@ -307,6 +319,7 @@ console.log("receipt_semantics_reproduced_from_observations=true");
 console.log("capture_provenance_verifier_required=true");
 console.log("capture_provenance_self_assertion_accepted=false");
 console.log("duplicate_capture_identity_accepted=false");
+console.log("non_string_capture_identity_accepted=false");
 console.log("observation_hash_tamper_accepted=false");
 console.log("observation_semantic_tamper_accepted=false");
 console.log("future_observation_accepted=false");
