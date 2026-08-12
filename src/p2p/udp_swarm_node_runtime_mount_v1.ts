@@ -9,6 +9,12 @@ import {
   VoidUdpSwarmSocketRuntimeV1,
   type VoidUdpSwarmSocketFamilyV1,
 } from "./udp_swarm_socket_runtime_v1.js";
+import {
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1,
+  VoidUdpSwarmRelayOrchestratorV1,
+  parseVoidUdpSwarmRelayOrchestrationRoutesV1,
+  type VoidUdpSwarmRelayOrchestrationRouteV1,
+} from "./udp_swarm_relay_orchestrator_v1.js";
 
 export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1 =
   "VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1";
@@ -27,6 +33,7 @@ export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1 =
     public_status_observed_endpoint_exposed: false,
     automatic_relay_reservation_performed: false,
     automatic_relay_connection_performed: false,
+    automatic_udp_upgrade_initiation_performed: false,
     relay_retirement_performed: false,
     router_configuration_required: false,
     port_forward_required: false,
@@ -47,6 +54,8 @@ export type VoidUdpSwarmNodeRuntimeEnvironmentV1 = Readonly<{
   bind_host: string;
   bind_port: number;
   allow_nonpublic_endpoints: boolean;
+  orchestration_enabled: boolean;
+  orchestration_routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[];
 }>;
 
 type NodeIdentityV1 = Readonly<{
@@ -144,6 +153,22 @@ export function readVoidUdpSwarmNodeRuntimeEnvironmentV1(
     throw new Error("VOID_P2P_UDP_SWARM_BIND_HOST does not match the UDP family");
   }
   const bindPort = boundedPort(env.VOID_P2P_UDP_SWARM_BIND_PORT, 0);
+  const orchestrationEnabled = exactFlag(
+    env,
+    "VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED",
+  );
+  const orchestrationRoutes = parseVoidUdpSwarmRelayOrchestrationRoutesV1(
+    env.VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES,
+  );
+  if (orchestrationEnabled && !enabled) {
+    throw new Error("UDP swarm relay orchestration requires the UDP runtime");
+  }
+  if (orchestrationEnabled && orchestrationRoutes.length === 0) {
+    throw new Error("UDP swarm relay orchestration requires at least one exact route");
+  }
+  if (!orchestrationEnabled && orchestrationRoutes.length !== 0) {
+    throw new Error("UDP swarm relay orchestration routes require exact opt-in");
+  }
 
   const relayPublicEndpoint =
     String(env.VOID_P2P_UDP_SWARM_RELAY_ENDPOINT || "").trim() || null;
@@ -178,6 +203,8 @@ export function readVoidUdpSwarmNodeRuntimeEnvironmentV1(
     bind_host: bindHost,
     bind_port: bindPort,
     allow_nonpublic_endpoints: allowNonpublicEndpoints,
+    orchestration_enabled: orchestrationEnabled,
+    orchestration_routes: orchestrationRoutes,
   });
 }
 
@@ -191,6 +218,7 @@ function addressClass(address: string | null): string | null {
 
 export class VoidUdpSwarmNodeRuntimeMountV1 {
   private runtime?: VoidUdpSwarmSocketRuntimeV1;
+  private orchestrator?: VoidUdpSwarmRelayOrchestratorV1;
   private promotionTimer: NodeJS.Timeout | null = null;
   private callbacksInstalled = false;
   private installedProbeCallback?: Node["onUdpSwarmProbeAction"];
@@ -224,6 +252,10 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     if (this.node.id !== this.identity.nodeId) {
       throw new Error("UDP swarm Node runtime identity does not match the Node");
     }
+    const orchestrator = new VoidUdpSwarmRelayOrchestratorV1(this.node, {
+      enabled: this.config.orchestration_enabled,
+      routes: this.config.orchestration_routes,
+    });
 
     const runtime = new VoidUdpSwarmSocketRuntimeV1({
       localNodeId: this.identity.nodeId,
@@ -302,6 +334,8 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       }
     }, 100);
     this.promotionTimer.unref?.();
+    this.orchestrator = orchestrator;
+    orchestrator.start();
     this.started = true;
   }
 
@@ -349,6 +383,7 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     const mountedSessionIds = new Set(
       runtime?.sessions.map((entry) => entry.session_id) ?? [],
     );
+    const orchestrationActivity = this.orchestrator?.activity();
     return Object.freeze({
       marker: VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1,
       enabled: this.config.enabled,
@@ -375,6 +410,12 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
         rejected_oversize_datagram_count:
           runtime?.rejected_oversize_datagram_count ?? 0,
       }),
+      orchestration: this.orchestrator?.status() ?? Object.freeze({
+        marker: VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1,
+        enabled: false,
+        route_count: 0,
+        stopped: this.stopped,
+      }),
       node: Object.freeze({
         staged_candidate_count: candidates.candidates.filter((entry) =>
           mountedSessionIds.has(entry.session_id)
@@ -398,7 +439,15 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
         observed_endpoint_exposed: false,
         node_private_key_exposed: false,
       }),
-      authority: VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1,
+      authority: Object.freeze({
+        ...VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1,
+        automatic_relay_reservation_performed:
+          (orchestrationActivity?.reservation_requests ?? 0) > 0,
+        automatic_relay_connection_performed:
+          (orchestrationActivity?.connect_requests ?? 0) > 0,
+        automatic_udp_upgrade_initiation_performed:
+          (orchestrationActivity?.upgrade_requests ?? 0) > 0,
+      }),
     });
   }
 
@@ -409,6 +458,8 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       clearInterval(this.promotionTimer);
       this.promotionTimer = null;
     }
+    this.orchestrator?.stop();
+    this.orchestrator = undefined;
     if (this.callbacksInstalled) {
       if (this.node.onUdpSwarmProbeAction === this.installedProbeCallback) {
         this.node.onUdpSwarmProbeAction = undefined;
