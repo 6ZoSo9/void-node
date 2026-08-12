@@ -42,7 +42,8 @@ The client performs GET-only requests. It emits one JSON report containing:
 - whether authentication and capabilities documents satisfied their exact
   fail-closed read-only contracts, and whether intake was reachable;
 - whether the bounded public-utility catalog was loaded and valid;
-- the catalog's anonymous read-only resources and their purposes;
+- the catalog's anonymous read-only resources, their purposes, and their
+  marker-verified JSON documents;
 - the safe read-only next actions supported by the observed documents.
 
 A missing optional surface is reported as partial readiness. It is never
@@ -56,6 +57,15 @@ bounded read-only capability shapes before it reports them as loaded.
 The catalog is a required part of the composed source contract. Until the new
 manifest and catalog are deployed together, the updated client returns
 `partial_read_only`; it does not confuse merged source with a live surface.
+
+After validating the catalog, the client observes every advertised resource.
+It reuses responses already fetched during first contact and makes no more than
+the catalog's `max_requests_per_cold_start` additional GET requests. A resource
+is returned as useful only when its JSON response is bounded, same-origin,
+successful, and contains its exact `required_marker` as `marker` or
+`green_marker`. Missing, malformed, oversized, redirected, or marker-mismatched
+resources remain visible as failed observations with `document: null`, force
+`partial_read_only`, and never become capability evidence.
 
 ## Meaning of `official_network_verified`
 

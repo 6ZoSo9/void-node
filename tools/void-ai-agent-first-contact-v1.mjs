@@ -482,10 +482,72 @@ function usefulPublicResources(manifest, publicUtility) {
       path: entry.path,
       mode: "anonymous_read_only",
       catalog_observed_by_client: true,
+      required_marker: entry.required_marker,
       runtime_observed: false,
     }];
   });
   return resources.length === catalog.entries.length ? resources : [];
+}
+
+function markerPresent(document, requiredMarker) {
+  return (
+    document !== null &&
+    typeof document === "object" &&
+    !Array.isArray(document) &&
+    (document.marker === requiredMarker ||
+      document.green_marker === requiredMarker)
+  );
+}
+
+async function observeUsefulPublicResources(
+  baseUrl,
+  resources,
+  responseByPath,
+  timeoutMs,
+  maximumNetworkRequests,
+) {
+  let networkRequests = 0;
+  const observations = await Promise.all(
+    resources.map(async (resource) => {
+      let response = responseByPath.get(resource.path);
+      const responseReused = response !== undefined;
+      if (!response) {
+        if (networkRequests >= maximumNetworkRequests) {
+          return {
+            ...resource,
+            http_status: 0,
+            body_bytes: 0,
+            response_reused: false,
+            runtime_observed: false,
+            observation_error: "public_utility_request_budget_exhausted",
+            document: null,
+          };
+        }
+        networkRequests += 1;
+        response = await fetchJson(baseUrl, resource.path, timeoutMs);
+      }
+
+      const runtimeObserved =
+        response.ok === true &&
+        markerPresent(response.body, resource.required_marker);
+      return {
+        ...resource,
+        http_status: response.status,
+        body_bytes: response.body_bytes,
+        response_reused: responseReused,
+        runtime_observed: runtimeObserved,
+        observation_error: runtimeObserved
+          ? null
+          : response.error ??
+            response.parse_error ??
+            (response.ok
+              ? "required_marker_not_observed"
+              : "public_utility_resource_unavailable"),
+        document: runtimeObserved ? response.body : null,
+      };
+    }),
+  );
+  return { observations, networkRequests };
 }
 
 function normalizedKey(value) {
@@ -670,7 +732,26 @@ async function main() {
       fetchEntry("public_utility"),
     ]);
 
-  const resources = usefulPublicResources(manifest, publicUtility);
+  const advertisedResources = usefulPublicResources(manifest, publicUtility);
+  const responseByPath = new Map(
+    [
+      [options.manifestPath, firstContact],
+      [entrypoints.well_known_discovery, discovery],
+      [entrypoints.official_authenticity, authenticity],
+      [entrypoints.authentication, authentication],
+      [entrypoints.capabilities, capabilities],
+      [entrypoints.agent_intake, intake],
+      [entrypoints.public_utility, publicUtility],
+    ].filter(([entryPath]) => typeof entryPath === "string"),
+  );
+  const resourceObservation = await observeUsefulPublicResources(
+    baseUrl,
+    advertisedResources,
+    responseByPath,
+    options.timeoutMs,
+    publicUtility?.body?.limits?.max_requests_per_cold_start ?? 0,
+  );
+  const resources = resourceObservation.observations;
   const authenticationValid = authenticationContractValid(
     manifest,
     authentication,
@@ -694,7 +775,11 @@ async function main() {
     authentication_contract_found: authenticationValid,
     capabilities_loaded: capabilitiesValid,
     agent_intake_reachable: intake.ok,
-    public_utility_catalog_loaded: resources.length > 0,
+    public_utility_catalog_loaded: advertisedResources.length > 0,
+    public_utility_resources_observed:
+      resources.length === advertisedResources.length &&
+      resources.length > 0 &&
+      resources.every((resource) => resource.runtime_observed === true),
   };
 
   const officialNetworkVerified =
@@ -710,6 +795,7 @@ async function main() {
     checks.authentication_contract_found,
     checks.capabilities_loaded,
     checks.public_utility_catalog_loaded,
+    checks.public_utility_resources_observed,
   ].every(Boolean);
 
   const commercial = capabilitiesValid
@@ -765,6 +851,15 @@ async function main() {
         status: publicUtility.status,
         body_bytes: publicUtility.body_bytes,
         error: publicUtility.error ?? null,
+      },
+      public_utility_resources: {
+        advertised: advertisedResources.length,
+        observed: resources.filter(
+          (resource) => resource.runtime_observed === true,
+        ).length,
+        network_requests: resourceObservation.networkRequests,
+        maximum_network_requests:
+          publicUtility?.body?.limits?.max_requests_per_cold_start ?? 0,
       },
     },
     authority: {

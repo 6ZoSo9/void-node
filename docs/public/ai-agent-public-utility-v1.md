@@ -14,6 +14,14 @@ The catalog is additive to the existing first-contact protocol; it is not a para
 
 Each entry is anonymous, `GET`-only, explicitly `same_origin`, source-present, and read-only. Every entry deliberately reports `runtime_observed: false` until an independent check observes the public HTTP response.
 
+The first-contact client now performs that observation at use time. It reuses
+the first-contact and capability responses it already fetched, requests only
+the remaining catalog entries within the four-request budget, verifies each
+advertised marker, and includes only marker-verified JSON as the resource's
+`document`. This changes client evidence, not the source catalog's deployment
+claim: the checked-in entries remain `runtime_observed: false` until separate
+external acceptance updates that source truth.
+
 ## Deterministic boundaries
 
 The catalog is capped at eight entries and 64 KiB. A cold-start client needs no more than four requests for this version, and the contract discourages polling faster than once per minute. Traffic, presence, identity creation, and polling are not rewarded.
@@ -28,6 +36,12 @@ Run:
 node scripts/prove_void_ai_agent_public_utility_v1.mjs
 ```
 
-The proof reads the referenced source artifacts, verifies their declared markers, enforces closed object schemas, rejects traversal and non-public path namespaces, enforces exact safety controls and resource limits, and confirms that first contact advertises the catalog while both surfaces remain explicitly runtime-unobserved.
+The proofs read the referenced source artifacts, verify their declared markers,
+enforce closed object schemas, reject traversal and non-public path namespaces,
+enforce exact safety controls and resource limits, and confirm that first
+contact advertises the catalog while both source surfaces remain explicitly
+runtime-unobserved. The client proof also verifies response reuse, the bounded
+request count, embedded useful JSON, and fail-closed rejection of a reachable
+resource carrying the wrong marker.
 
 The next gate is separate deployment authority followed by independent public HTTP observation of both first contact and the catalog. Source composition is not deployment, and a synthetic loopback proof is not external acceptance.
