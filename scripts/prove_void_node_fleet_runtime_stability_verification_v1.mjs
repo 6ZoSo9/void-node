@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -593,6 +594,32 @@ try {
   ], { allowFailure: true });
   assert.notEqual(staleFile.status, 0);
   assert.match(staleFile.stderr, /file is stale/);
+
+  const oversizedConfigPath = join(root, "oversized-config.json");
+  writeFileSync(oversizedConfigPath, "{" + " ".repeat(4 * 1024 * 1024) + "}");
+  const oversizedConfig = run(process.execPath, [
+    tool,
+    "--config", oversizedConfigPath,
+    "--final-rollout", rolloutPath,
+    "--final-audit", finalAuditPath,
+    "--verification-audit", verificationPath,
+  ], { allowFailure: true });
+  assert.notEqual(oversizedConfig.status, 0);
+  assert.match(oversizedConfig.stderr, /file must contain 2\.\.4194304 bytes before JSON parsing/);
+  assert.match(oversizedConfig.stderr, /"outcome":"HOLD"/);
+
+  const linkedConfigPath = join(root, "linked-config.json");
+  symlinkSync(configPath, linkedConfigPath);
+  const linkedConfig = run(process.execPath, [
+    tool,
+    "--config", linkedConfigPath,
+    "--final-rollout", rolloutPath,
+    "--final-audit", finalAuditPath,
+    "--verification-audit", verificationPath,
+  ], { allowFailure: true });
+  assert.notEqual(linkedConfig.status, 0);
+  assert.match(linkedConfig.stderr, /must be a regular non-symlink file/);
+  assert.match(linkedConfig.stderr, /"outcome":"HOLD"/);
 
   const unknownOption = run(process.execPath, [
     tool,

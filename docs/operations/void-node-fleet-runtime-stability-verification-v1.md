@@ -28,6 +28,11 @@ Provide:
 Both audits must be fresh by file modification time and by every embedded
 `observed_at_epoch`. The default maximum age is 300 seconds.
 
+Every config, rollout, and audit input must be a regular non-symlink file
+between 2 bytes and 4 MiB. The verifier enforces this bound before loading or
+parsing JSON so an oversized or non-regular evidence path returns `HOLD` rather
+than consuming unbounded memory.
+
 The final rollout is strictly reproduced:
 
 - its schema and authority object must be exact;

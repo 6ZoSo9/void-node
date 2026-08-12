@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { chmodSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,7 @@ const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA64_RE = /^[0-9a-f]{64}$/;
 const DEFAULT_MIN_STABILITY_SECONDS = 30;
 const DEFAULT_MAX_EVIDENCE_AGE_SECONDS = 300;
+const MAX_EVIDENCE_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_BOUND_SECONDS = 3600;
 const AUTHORITY_V1 = {
   evidence_file_create_only: true,
@@ -112,6 +113,19 @@ function assertFreshPath(path, label, maxAgeSeconds) {
 }
 
 function readJson(path, label) {
+  let metadata;
+  try {
+    metadata = lstatSync(path);
+  } catch (error) {
+    fail(label + " file cannot be inspected: " + String(error?.message || error));
+  }
+  if (!metadata.isFile()) fail(label + " must be a regular non-symlink file");
+  if (metadata.size < 2 || metadata.size > MAX_EVIDENCE_FILE_BYTES) {
+    fail(
+      label + " file must contain 2.." + MAX_EVIDENCE_FILE_BYTES +
+      " bytes before JSON parsing",
+    );
+  }
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
