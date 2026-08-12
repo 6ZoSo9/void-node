@@ -87,6 +87,17 @@ assert.equal(
     journal_entry_ids: [],
   }),
 );
+assert.equal(
+  create.journal_snapshot_id_after,
+  contentId({
+    schema: "void.btc_void.buyback_lot_journal_snapshot.v1",
+    journal_entry_ids: [create.append_entry.journal_entry_id],
+  }),
+);
+assert.notEqual(
+  create.journal_snapshot_id_after,
+  create.journal_snapshot_id_before,
+);
 assert.equal(create.append_entry.buyback_lot_id, firstPlan.buyback_lot_id);
 assert.equal(
   create.append_entry.buyback_lot_plan_id,
@@ -102,7 +113,7 @@ assert.equal(
 );
 assert.equal(
   create.decision_id,
-  "sha256:6a5fed653478fd422fb86b75901418d41669c695942d396856ab659b883cb12d",
+  "sha256:871ba3b9fce15104b282cfdd78c4e46b77c46005ced6230d0a753050aacc01d5",
 );
 
 const duplicate = transition(firstPlan, [create.append_entry]);
@@ -119,6 +130,10 @@ assert.equal(
 assert.equal(
   duplicate.accepted_buyback_lot_plan_id,
   firstPlan.buyback_lot_plan_id,
+);
+assert.equal(
+  duplicate.journal_snapshot_id_after,
+  duplicate.journal_snapshot_id_before,
 );
 
 const laterObservationPlan = deriveBtcVoidBuybackLotV1(
@@ -146,6 +161,10 @@ assert.equal(
   conflict.accepted_buyback_lot_plan_id,
   firstPlan.buyback_lot_plan_id,
 );
+assert.equal(
+  conflict.journal_snapshot_id_after,
+  conflict.journal_snapshot_id_before,
+);
 
 const authority = create.authority;
 assert.deepEqual(authority, {
@@ -166,6 +185,7 @@ assert.deepEqual(create.invariants, {
   conflicting_plan_requires_hold: true,
   source_sale_maps_to_one_lot: true,
   decision_bound_to_exact_ordered_journal_snapshot: true,
+  expected_post_transition_snapshot_bound: true,
 });
 
 const alternatePlanA = deriveBtcVoidBuybackLotV1(
@@ -209,6 +229,17 @@ assert.notEqual(
   reorderedJournal.journal_snapshot_id_before,
 );
 assert.notEqual(orderedJournal.decision_id, reorderedJournal.decision_id);
+assert.equal(
+  orderedJournal.journal_snapshot_id_after,
+  contentId({
+    schema: "void.btc_void.buyback_lot_journal_snapshot.v1",
+    journal_entry_ids: [
+      alternateEntryA.journal_entry_id,
+      alternateEntryB.journal_entry_id,
+      orderedJournal.append_entry.journal_entry_id,
+    ],
+  }),
+);
 
 const reorderedPlan = Object.fromEntries(Object.entries(firstPlan).reverse());
 assert.equal(transition(reorderedPlan).decision_id, create.decision_id);
@@ -285,7 +316,7 @@ process.stdout.write(
     {
       marker: VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
       status: "PASS",
-      assertions: 49,
+      assertions: 54,
       deterministic_first_decision_id: create.decision_id,
       exact_duplicate_status: duplicate.status,
       conflicting_plan_status: conflict.status,

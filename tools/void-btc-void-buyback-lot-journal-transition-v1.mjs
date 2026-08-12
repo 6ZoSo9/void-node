@@ -217,6 +217,9 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
     status = "HOLD";
     reason = "buyback_lot_id_already_bound_to_different_plan";
   }
+  const journalSnapshotIdAfter = journalSnapshotId(
+    appendEntry === null ? entries : [...entries, appendEntry],
+  );
 
   const decision = {
     schema: TRANSITION_DECISION_SCHEMA,
@@ -225,6 +228,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
     reason,
     journal_entry_count_before: entries.length,
     journal_snapshot_id_before: journalSnapshotIdBefore,
+    journal_snapshot_id_after: journalSnapshotIdAfter,
     buyback_lot_id: candidate.buyback_lot_id,
     candidate_buyback_lot_plan_id: candidate.buyback_lot_plan_id,
     accepted_buyback_lot_plan_id: existing?.buyback_lot_plan_id || null,
@@ -237,6 +241,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
       conflicting_plan_requires_hold: true,
       source_sale_maps_to_one_lot: true,
       decision_bound_to_exact_ordered_journal_snapshot: true,
+      expected_post_transition_snapshot_bound: true,
     },
     authority: {
       source_only_decision: true,

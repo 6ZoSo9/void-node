@@ -20,11 +20,15 @@ Malformed, internally inconsistent, or duplicate entries fail closed.
 
 Every decision also binds the exact ordered journal snapshot it evaluated. The
 planner hashes the ordered sequence of validated `journal_entry_id` values into
-`journal_snapshot_id_before`, then includes that snapshot identity in the
-content-addressed decision. Two different journals with the same entry count,
+`journal_snapshot_id_before` and deterministically derives the expected
+`journal_snapshot_id_after`, then includes both snapshot identities in the
+content-addressed decision. A `CREATE` decision's after-snapshot is the exact
+ordered pre-state plus its emitted entry. `IDEMPOTENT` and `HOLD` decisions bind
+an unchanged after-snapshot. Two different journals with the same entry count,
 or the same entries in a different order, cannot share a decision ID. This is
 the source prerequisite for a later durable store to compare the reviewed
-snapshot before atomically appending; this tool still performs no persistence.
+pre-state and verify the committed post-state around one atomic append; this
+tool still performs no persistence.
 
 ## Deterministic decisions
 
@@ -71,5 +75,6 @@ The proof covers first creation, exact retry idempotence, same-lot conflicting
 confirmation evidence, content tampering, internally inconsistent source/lot
 bindings, fabricated content-addressed accepted plan IDs, duplicate journal
 entries, unknown fields, canonical object ordering, exact ordered journal
-snapshot binding, equal-length journal substitution, journal reordering, and
-the negative authority flags.
+snapshot binding, equal-length journal substitution, journal reordering, the
+expected post-transition snapshot for create and non-create decisions, and the
+negative authority flags.
