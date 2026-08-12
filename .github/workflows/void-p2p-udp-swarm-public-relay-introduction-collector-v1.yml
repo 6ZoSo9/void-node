@@ -49,8 +49,9 @@ jobs:
       - name: Prove public relay-introduction collection
         run: node --import tsx scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts
 
-      - name: Re-prove inherited composition and activation boundaries
+      - name: Re-prove signed observer, composition, and activation boundaries
         run: |
+          node scripts/prove_void_p2p_udp_swarm_signed_observer_authorization_v1.mjs
           node --import tsx scripts/prove_void_p2p_udp_swarm_verified_discovery_composition_v1.mjs
           node --import tsx scripts/prove_void_p2p_udp_swarm_verified_discovery_runtime_activation_v1.ts
           node --import tsx scripts/prove_void_p2p_udp_swarm_relay_orchestrator_v1.ts

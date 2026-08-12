@@ -19,18 +19,41 @@ import {
   fetchVoidUdpSwarmPublicRelayIntroductionV1,
   type VoidUdpSwarmPublicRelayIntroductionNodeV1,
 } from "../src/p2p/udp_swarm_public_relay_introduction_collector_v1.js";
+import {
+  VOID_BOOTSTRAP_RECORD_RELEASE_ROOT_SCHEMA_V1,
+  VOID_BOOTSTRAP_RECORD_SIGNATURE_DOMAIN_V1,
+  voidBootstrapRecordReleaseKeyIdV1,
+  voidBootstrapRecordReleaseRootIdV1,
+} from "./lib/void_bootstrap_record_release_root_v1.mjs";
+import {
+  VOID_P2P_UDP_SWARM_DISCOVERY_AUTHORITY_V1,
+} from "./lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs";
+import {
+  VOID_P2P_UDP_SWARM_SIGNED_OBSERVER_AUTHORIZATION_SCHEMA_V1,
+  VOID_P2P_UDP_SWARM_SIGNED_OBSERVER_AUTHORIZATION_SIGNATURE_DOMAIN_V1,
+  voidP2pUdpSwarmObserverAuthorizationIdV1,
+  voidP2pUdpSwarmObserverAuthorizationSigningPayloadV1,
+} from "./lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs";
 
 const MARKER =
   "VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1_PROOF_GREEN";
-const NOW = Date.now();
+const NOW = Date.parse("2026-08-12T18:20:00.000Z");
 const RELAY_A = "1".repeat(32);
 const RELAY_B = "2".repeat(32);
 const TARGET = "3".repeat(32);
 const DISCOVERY_ID = `voidpud1_${"4".repeat(64)}`;
 const RECORD_ID = `voidpbr2_${"5".repeat(64)}`;
 const MANIFEST_ID = `voidpbm1_${"6".repeat(64)}`;
+const AUTHORITY = VOID_P2P_UDP_SWARM_DISCOVERY_AUTHORITY_V1;
 
-function identity() {
+type Identity = Readonly<{
+  nodeId: string;
+  publicKeyPem: string;
+  privateKey: crypto.KeyObject;
+  publicKey: crypto.KeyObject;
+}>;
+
+function identity(): Identity {
   const pair = crypto.generateKeyPairSync("ed25519");
   const publicKeyPem = pair.publicKey
     .export({ type: "spki", format: "pem" })
@@ -54,6 +77,72 @@ function deepFreeze<T>(raw: T): T {
   return Object.freeze(raw);
 }
 
+function releaseKeyEntry(pair: crypto.KeyPairKeyObjectResult) {
+  const der = pair.publicKey.export({ type: "spki", format: "der" });
+  return Object.freeze({
+    key_id: voidBootstrapRecordReleaseKeyIdV1(der),
+    algorithm: "ed25519",
+    public_key_spki_base64: Buffer.from(der).toString("base64"),
+  });
+}
+
+function activeRoot(entries: ReturnType<typeof releaseKeyEntry>[], threshold: number) {
+  const root = {
+    schema: VOID_BOOTSTRAP_RECORD_RELEASE_ROOT_SCHEMA_V1,
+    network: "VOID Network",
+    chain_id: 2050,
+    status: "active",
+    signature_domain: VOID_BOOTSTRAP_RECORD_SIGNATURE_DOMAIN_V1,
+    threshold,
+    keys: [...entries].sort((a, b) => a.key_id.localeCompare(b.key_id)),
+    authority: AUTHORITY,
+    root_id: "",
+  };
+  root.root_id = voidBootstrapRecordReleaseRootIdV1(root);
+  return root;
+}
+
+function observer(value: Identity) {
+  return Object.freeze({
+    node_id: value.nodeId,
+    public_key_pem: value.publicKeyPem,
+  });
+}
+
+function buildAuthorization(
+  root: ReturnType<typeof activeRoot>,
+  observers: readonly ReturnType<typeof observer>[],
+  signers: readonly Readonly<{ keyId: string; privateKey: crypto.KeyObject }>[],
+) {
+  const body = {
+    schema: VOID_P2P_UDP_SWARM_SIGNED_OBSERVER_AUTHORIZATION_SCHEMA_V1,
+    signature_domain:
+      VOID_P2P_UDP_SWARM_SIGNED_OBSERVER_AUTHORIZATION_SIGNATURE_DOMAIN_V1,
+    network: "VOID Network",
+    chain_id: 2050,
+    root_id: root.root_id,
+    issued_at: new Date(NOW - 60_000).toISOString(),
+    not_before: new Date(NOW - 30_000).toISOString(),
+    expires_at: new Date(NOW + 60 * 60_000).toISOString(),
+    observers: [...observers].sort((a, b) => a.node_id.localeCompare(b.node_id)),
+    authority: AUTHORITY,
+    authorization_id: "",
+  };
+  body.authorization_id = voidP2pUdpSwarmObserverAuthorizationIdV1(body);
+  const payload = voidP2pUdpSwarmObserverAuthorizationSigningPayloadV1(body);
+  return Object.freeze({
+    ...body,
+    signatures: signers
+      .map(({ keyId, privateKey }) => ({
+        key_id: keyId,
+        signature_base64: crypto
+          .sign(null, payload, privateKey)
+          .toString("base64"),
+      }))
+      .sort((a, b) => a.key_id.localeCompare(b.key_id)),
+  });
+}
+
 function envelope(discoveryId = DISCOVERY_ID) {
   return {
     schema: VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_SCHEMA_V1,
@@ -62,9 +151,21 @@ function envelope(discoveryId = DISCOVERY_ID) {
       record_id: RECORD_ID,
     },
     locator_mirrors: [
-      { transport: "https", base_url: "https://a.example/void/bootstrap/v2", failure_domain: "a" },
-      { transport: "https", base_url: "https://b.example/void/bootstrap/v2", failure_domain: "b" },
-      { transport: "https", base_url: "https://c.example/void/bootstrap/v2", failure_domain: "c" },
+      {
+        transport: "https",
+        base_url: "https://a.example/void/bootstrap/v2",
+        failure_domain: "a",
+      },
+      {
+        transport: "https",
+        base_url: "https://b.example/void/bootstrap/v2",
+        failure_domain: "b",
+      },
+      {
+        transport: "https",
+        base_url: "https://c.example/void/bootstrap/v2",
+        failure_domain: "c",
+      },
     ],
     discovery: { discovery_id: discoveryId },
   };
@@ -101,7 +202,7 @@ function composition(localNodeId: string) {
   });
 }
 
-function peer(id: ReturnType<typeof identity>, listens: string[], transport = "direct") {
+function peer(id: Identity, listens: string[], transport = "direct") {
   return {
     id: id.nodeId,
     handshakeDone: true,
@@ -111,10 +212,7 @@ function peer(id: ReturnType<typeof identity>, listens: string[], transport = "d
   };
 }
 
-function fakeNode(
-  local: ReturnType<typeof identity>,
-  peers: Map<string, unknown>,
-) {
+function fakeNode(local: Identity, peers: Map<string, unknown>) {
   return {
     id: local.nodeId,
     peers,
@@ -161,6 +259,22 @@ const local = identity();
 const sourceA = identity();
 const sourceB = identity();
 const sourceC = identity();
+const attackerA = identity();
+const attackerB = identity();
+
+const releaseA = crypto.generateKeyPairSync("ed25519");
+const releaseB = crypto.generateKeyPairSync("ed25519");
+const releaseEntryA = releaseKeyEntry(releaseA);
+const releaseEntryB = releaseKeyEntry(releaseB);
+const releaseRoot = activeRoot([releaseEntryA, releaseEntryB], 2);
+const observerAuthorization = buildAuthorization(
+  releaseRoot,
+  [observer(sourceA), observer(sourceB), observer(sourceC)],
+  [
+    { keyId: releaseEntryA.key_id, privateKey: releaseA.privateKey },
+    { keyId: releaseEntryB.key_id, privateKey: releaseB.privateKey },
+  ],
+);
 
 const originalFetch = globalThis.fetch;
 let fetchOptionsVerified = false;
@@ -255,27 +369,36 @@ const mount = await createVoidUdpSwarmNodeRuntimeMountV1({
 const fetchedUrls: string[] = [];
 let compositionCalls = 0;
 let exactAuthenticatedSourceBinding = false;
-const releaseRoot = Object.freeze({ marker: "synthetic_release_root" });
+let exactObserverAuthorizationBinding = false;
 const collector = await mount.startPublicRelayIntroductionCollectorV1({
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
   nowMs: () => NOW,
   async fetchIntroduction(candidate) {
     fetchedUrls.push(candidate.url);
-    return JSON.stringify(envelope(), null, candidate.source_node_id === sourceA.nodeId ? 0 : 2);
+    return JSON.stringify(
+      envelope(),
+      null,
+      candidate.source_node_id === sourceA.nodeId ? 0 : 2,
+    );
   },
   async fetchRecordBytes() {
-    throw new Error("stub composition must not fetch a record");
+    throw new Error("stub authorized composition must not fetch a record");
   },
   async fetchManifestBytes() {
-    throw new Error("stub composition must not fetch a manifest");
+    throw new Error("stub authorized composition must not fetch a manifest");
   },
-  async composeVerifiedDiscovery(input) {
+  async composeAuthorizedDiscovery(input) {
     compositionCalls += 1;
+    assert.equal(input.observerAuthorization, observerAuthorization);
     assert.equal(input.releaseRoot, releaseRoot);
     assert.equal(input.localNodeId, local.nodeId);
     assert.equal(input.nowMs, NOW);
-    assert.equal((input.discovery as { discovery_id: string }).discovery_id, DISCOVERY_ID);
+    assert.equal(
+      (input.discovery as { discovery_id: string }).discovery_id,
+      DISCOVERY_ID,
+    );
     const sources = input.authenticatedDiscoverySources as Array<{
       node_id: string;
       public_key_pem: string;
@@ -291,18 +414,23 @@ const collector = await mount.startPublicRelayIntroductionCollectorV1({
       );
     }
     exactAuthenticatedSourceBinding = true;
+    exactObserverAuthorizationBinding = true;
     return composition(local.nodeId);
   },
 });
 
 assert.equal(compositionCalls, 1);
 assert.equal(exactAuthenticatedSourceBinding, true);
+assert.equal(exactObserverAuthorizationBinding, true);
 assert.deepEqual(fetchedUrls.sort(), [
   "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
   "http://9.9.9.9:4101/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
 ]);
 const collectorStatus = collector.status() as any;
-assert.equal(collectorStatus.marker, VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1);
+assert.equal(
+  collectorStatus.marker,
+  VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1,
+);
 assert.equal(collectorStatus.last_outcome.status, "activated");
 assert.equal(collectorStatus.last_outcome.authenticated_source_count, 3);
 assert.equal(collectorStatus.last_outcome.transport_candidate_count, 2);
@@ -328,9 +456,18 @@ assert.equal(
   collectorStatus.authority,
   VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1,
 );
+assert.equal(
+  collectorStatus.authority.signed_observer_authorization_required_by_composition,
+  true,
+);
+assert.equal(
+  collectorStatus.authority.unauthorized_authenticated_peers_are_topology_authority,
+  false,
+);
 
 const splitCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   node: directCollectorNode(local.nodeId, peers),
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
   nowMs: () => NOW,
@@ -345,7 +482,7 @@ const splitCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   async fetchManifestBytes() {
     return "{}";
   },
-  async composeVerifiedDiscovery() {
+  async composeAuthorizedDiscovery() {
     assert.fail("split transport responses must not reach composition");
   },
   activateVerifiedComposition() {
@@ -366,8 +503,10 @@ invalidPeers.set(sourceB.nodeId, {
 let invalidFetches = 0;
 const invalidPeerCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   node: directCollectorNode(local.nodeId, invalidPeers),
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
+  nowMs: () => NOW,
   async fetchIntroduction() {
     invalidFetches += 1;
     return envelope();
@@ -378,7 +517,7 @@ const invalidPeerCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1(
   async fetchManifestBytes() {
     return "{}";
   },
-  async composeVerifiedDiscovery() {
+  async composeAuthorizedDiscovery() {
     assert.fail("invalid authenticated peer invariant must fail before composition");
   },
   activateVerifiedComposition() {
@@ -398,8 +537,10 @@ const privatePeers = new Map<string, unknown>([
 ]);
 const singleTransportCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   node: directCollectorNode(local.nodeId, privatePeers),
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
+  nowMs: () => NOW,
   async fetchIntroduction() {
     assert.fail("one public transport source must hold before fetching");
   },
@@ -409,7 +550,7 @@ const singleTransportCollector = new VoidUdpSwarmPublicRelayIntroductionCollecto
   async fetchManifestBytes() {
     return "{}";
   },
-  async composeVerifiedDiscovery() {
+  async composeAuthorizedDiscovery() {
     assert.fail("one public transport source must hold before composition");
   },
   activateVerifiedComposition() {
@@ -424,6 +565,7 @@ singleTransportCollector.stop();
 
 const rejectedCompositionCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   node: directCollectorNode(local.nodeId, peers),
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
   nowMs: () => NOW,
@@ -436,8 +578,8 @@ const rejectedCompositionCollector = new VoidUdpSwarmPublicRelayIntroductionColl
   async fetchManifestBytes() {
     return "{}";
   },
-  async composeVerifiedDiscovery() {
-    throw new Error("proof composition rejection");
+  async composeAuthorizedDiscovery() {
+    throw new Error("proof authorized composition rejection");
   },
   activateVerifiedComposition() {
     assert.fail("rejected composition must not reach activation");
@@ -451,6 +593,7 @@ rejectedCompositionCollector.stop();
 
 const rejectedActivationCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
   node: directCollectorNode(local.nodeId, peers),
+  observerAuthorization,
   releaseRoot,
   intervalMs: 10_000,
   nowMs: () => NOW,
@@ -463,7 +606,7 @@ const rejectedActivationCollector = new VoidUdpSwarmPublicRelayIntroductionColle
   async fetchManifestBytes() {
     return "{}";
   },
-  async composeVerifiedDiscovery() {
+  async composeAuthorizedDiscovery() {
     return composition(local.nodeId);
   },
   activateVerifiedComposition() {
@@ -476,35 +619,95 @@ assert.equal(
 );
 rejectedActivationCollector.stop();
 
-let defaultCompositionError = "";
-try {
-  await composeVoidP2pUdpSwarmRoutesFromPublicRelayIntroductionV1(
+const attackerPeers = new Map<string, unknown>([
+  [attackerA.nodeId, peer(attackerA, ["8.8.4.4:4700"])],
+  [attackerB.nodeId, peer(attackerB, ["1.1.1.1:4701"], "relay")],
+]);
+let attackerTransportFetches = 0;
+let attackerRecordFetches = 0;
+let attackerManifestFetches = 0;
+let attackerActivations = 0;
+const attackerCollector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+  node: directCollectorNode(local.nodeId, attackerPeers),
+  observerAuthorization,
+  releaseRoot,
+  intervalMs: 10_000,
+  nowMs: () => NOW,
+  async fetchIntroduction() {
+    attackerTransportFetches += 1;
+    return envelope();
+  },
+  async fetchRecordBytes() {
+    attackerRecordFetches += 1;
+    return "{}";
+  },
+  async fetchManifestBytes() {
+    attackerManifestFetches += 1;
+    return "{}";
+  },
+  activateVerifiedComposition() {
+    attackerActivations += 1;
+    throw new Error("unauthorized authenticated peers must not activate");
+  },
+});
+const attackerOutcome = await attackerCollector.runOnce();
+assert.equal(attackerOutcome.reason, "verified_composition_rejected");
+assert.equal(attackerOutcome.successful_transport_count, 2);
+assert.equal(attackerOutcome.matching_transport_group_count, 1);
+assert.equal(attackerTransportFetches, 2);
+assert.equal(attackerRecordFetches, 0);
+assert.equal(attackerManifestFetches, 0);
+assert.equal(attackerActivations, 0);
+attackerCollector.stop();
+
+let directRecordFetches = 0;
+let directManifestFetches = 0;
+await assert.rejects(
+  composeVoidP2pUdpSwarmRoutesFromPublicRelayIntroductionV1(
     {
       signedRecordId: envelope().signed_record_id,
       locatorMirrors: envelope().locator_mirrors,
       discovery: envelope().discovery,
       localNodeId: local.nodeId,
-      authenticatedDiscoverySources: [
-        { node_id: sourceA.nodeId, public_key_pem: sourceA.publicKeyPem },
-        { node_id: sourceB.nodeId, public_key_pem: sourceB.publicKeyPem },
-      ],
+      authenticatedDiscoverySources: [observer(attackerA), observer(attackerB)],
       nowMs: NOW,
     },
     {
-      releaseRoot: {},
+      observerAuthorization,
+      releaseRoot,
+      async fetchRecordBytes() {
+        directRecordFetches += 1;
+        return "{}";
+      },
+      async fetchManifestBytes() {
+        directManifestFetches += 1;
+        return "{}";
+      },
+    },
+  ),
+  /insufficient live signed-observer authorization/,
+);
+assert.equal(directRecordFetches, 0);
+assert.equal(directManifestFetches, 0);
+
+assert.throws(
+  () =>
+    new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+      node: directCollectorNode(local.nodeId, peers),
+      observerAuthorization: null,
+      releaseRoot,
       async fetchRecordBytes() {
         return "{}";
       },
       async fetchManifestBytes() {
         return "{}";
       },
-    },
-  );
-} catch (error) {
-  defaultCompositionError = error instanceof Error ? error.message : String(error);
-}
-assert.ok(defaultCompositionError);
-assert.doesNotMatch(defaultCompositionError, /module is unavailable|Cannot find module/);
+      activateVerifiedComposition() {
+        return { route_count: 0 };
+      },
+    }),
+  /signed observer authorization is required/,
+);
 
 await mount.stop();
 assert.equal(collector.status().stopped, true);
@@ -514,9 +717,12 @@ console.log("authenticated_source_count=3");
 console.log("independent_transport_source_count=2");
 console.log("manual_transport_addresses_required=false");
 console.log("matching_transport_quorum_required=true");
+console.log("signed_observer_authorization_required=true");
+console.log("unauthorized_authenticated_peers_are_topology_authority=false");
+console.log("unauthorized_authenticated_transport_quorum_bootstrap_fetches=0");
 console.log(`transport_response_max_bytes=${VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_MAX_BYTES_V1}`);
 console.log("bounded_streaming_fetch_verified=true");
-console.log("existing_verified_composition_invoked=true");
+console.log("authorized_discovery_composition_invoked=true");
 console.log("existing_runtime_activation_invoked=true");
 console.log("peer_identity_exposed_in_status=false");
 console.log("deployment=none");

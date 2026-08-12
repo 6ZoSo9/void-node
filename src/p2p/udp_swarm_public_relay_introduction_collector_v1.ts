@@ -30,6 +30,8 @@ export const VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1 =
     public_numeric_peer_listen_addresses_only: true,
     minimum_independent_transport_sources: 2,
     transport_response_is_authority: false,
+    signed_observer_authorization_required_by_composition: true,
+    unauthorized_authenticated_peers_are_topology_authority: false,
     signed_release_root_required_by_composition: true,
     signed_observation_quorum_required_by_composition: true,
     verified_runtime_activation_only: true,
@@ -95,7 +97,7 @@ export type VoidUdpSwarmPublicRelayIntroductionCompositionInputV1 =
     nowMs: number;
   }>;
 
-export type VoidUdpSwarmVerifiedDiscoveryCompositionImplementationV1 = (
+export type VoidUdpSwarmAuthorizedDiscoveryCompositionImplementationV1 = (
   input: Readonly<Record<string, unknown>>,
 ) => Promise<unknown>;
 
@@ -126,11 +128,12 @@ export type VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1 =
 export type VoidUdpSwarmPublicRelayIntroductionCollectorOptionsV1 =
   Readonly<{
     node: VoidUdpSwarmPublicRelayIntroductionNodeV1;
+    observerAuthorization: unknown;
     releaseRoot: unknown;
     fetchRecordBytes: BootstrapFetchV1;
     fetchManifestBytes: BootstrapFetchV1;
-    composeVerifiedDiscovery?:
-      VoidUdpSwarmVerifiedDiscoveryCompositionImplementationV1;
+    composeAuthorizedDiscovery?:
+      VoidUdpSwarmAuthorizedDiscoveryCompositionImplementationV1;
     activateVerifiedComposition: (raw: unknown) => Readonly<{
       route_count: number;
     }>;
@@ -437,8 +440,8 @@ function boundedInterval(raw: number | undefined): number {
   return interval;
 }
 
-async function defaultVerifiedDiscoveryCompositionV1(): Promise<
-  VoidUdpSwarmVerifiedDiscoveryCompositionImplementationV1
+async function defaultAuthorizedDiscoveryCompositionV1(): Promise<
+  VoidUdpSwarmAuthorizedDiscoveryCompositionImplementationV1
 > {
   const dynamicImport = new Function(
     "specifier",
@@ -446,28 +449,36 @@ async function defaultVerifiedDiscoveryCompositionV1(): Promise<
   ) as (specifier: string) => Promise<Record<string, unknown>>;
   const module = await dynamicImport(
     new URL(
-      "../../scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs",
+      "../../scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs",
       import.meta.url,
     ).href,
   );
   const implementation =
-    module.composeVoidP2pUdpSwarmRoutesFromVerifiedDiscoveryV1;
+    module.composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1;
   if (typeof implementation !== "function") {
-    throw new Error("verified discovery composition module is unavailable");
+    throw new Error("authorized discovery composition module is unavailable");
   }
-  return implementation as VoidUdpSwarmVerifiedDiscoveryCompositionImplementationV1;
+  return implementation as VoidUdpSwarmAuthorizedDiscoveryCompositionImplementationV1;
+}
+
+function requireObserverAuthorization(raw: unknown): void {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("signed observer authorization is required");
+  }
 }
 
 export async function composeVoidP2pUdpSwarmRoutesFromPublicRelayIntroductionV1(
   input: VoidUdpSwarmPublicRelayIntroductionCompositionInputV1,
   dependencies: Readonly<{
+    observerAuthorization: unknown;
     releaseRoot: unknown;
     fetchRecordBytes: BootstrapFetchV1;
     fetchManifestBytes: BootstrapFetchV1;
-    composeVerifiedDiscovery?:
-      VoidUdpSwarmVerifiedDiscoveryCompositionImplementationV1;
+    composeAuthorizedDiscovery?:
+      VoidUdpSwarmAuthorizedDiscoveryCompositionImplementationV1;
   }>,
 ): Promise<unknown> {
+  requireObserverAuthorization(dependencies.observerAuthorization);
   if (typeof dependencies.fetchRecordBytes !== "function") {
     throw new Error("bootstrap record fetch callback is required");
   }
@@ -475,9 +486,10 @@ export async function composeVoidP2pUdpSwarmRoutesFromPublicRelayIntroductionV1(
     throw new Error("bootstrap manifest fetch callback is required");
   }
   const compose =
-    dependencies.composeVerifiedDiscovery ??
-    (await defaultVerifiedDiscoveryCompositionV1());
+    dependencies.composeAuthorizedDiscovery ??
+    (await defaultAuthorizedDiscoveryCompositionV1());
   return compose({
+    observerAuthorization: dependencies.observerAuthorization,
     releaseRoot: dependencies.releaseRoot,
     signedRecordId: input.signedRecordId,
     locatorMirrors: input.locatorMirrors,
@@ -534,6 +546,7 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
   constructor(
     private readonly options: VoidUdpSwarmPublicRelayIntroductionCollectorOptionsV1,
   ) {
+    requireObserverAuthorization(options.observerAuthorization);
     if (typeof options.fetchRecordBytes !== "function") {
       throw new Error("bootstrap record fetch callback is required");
     }
@@ -541,10 +554,10 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
       throw new Error("bootstrap manifest fetch callback is required");
     }
     if (
-      options.composeVerifiedDiscovery !== undefined &&
-      typeof options.composeVerifiedDiscovery !== "function"
+      options.composeAuthorizedDiscovery !== undefined &&
+      typeof options.composeAuthorizedDiscovery !== "function"
     ) {
-      throw new Error("verified discovery composition callback is invalid");
+      throw new Error("authorized discovery composition callback is invalid");
     }
     if (typeof options.activateVerifiedComposition !== "function") {
       throw new Error("verified runtime activation callback is required");
@@ -669,11 +682,12 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
                 nowMs,
               },
               {
+                observerAuthorization: this.options.observerAuthorization,
                 releaseRoot: this.options.releaseRoot,
                 fetchRecordBytes: this.options.fetchRecordBytes,
                 fetchManifestBytes: this.options.fetchManifestBytes,
-                composeVerifiedDiscovery:
-                  this.options.composeVerifiedDiscovery,
+                composeAuthorizedDiscovery:
+                  this.options.composeAuthorizedDiscovery,
               },
             );
           break;
