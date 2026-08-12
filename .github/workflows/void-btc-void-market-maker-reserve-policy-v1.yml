@@ -1,0 +1,49 @@
+name: void-btc-void-market-maker-reserve-policy-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-btc-void-market-maker-reserve-policy-v1.yml"
+      - "docs/operators/void-purpose-vault-allocation-v1.md"
+      - "docs/public/btc-void-market-maker-reserve-policy-v1.md"
+      - "docs/public/btc-void-native-atomic-market-v1.md"
+      - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-btc-void-market-maker-reserve-policy-v1.yml"
+      - "docs/operators/void-purpose-vault-allocation-v1.md"
+      - "docs/public/btc-void-market-maker-reserve-policy-v1.md"
+      - "docs/public/btc-void-native-atomic-market-v1.md"
+      - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: |
+          node --check tools/void-btc-void-market-maker-reserve-policy-v1.mjs
+          node --check scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
+      - run: node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"

@@ -72,6 +72,32 @@ The exact fee, minimum trade, maximum trade, reserve floor, and maximum reserve-
 
 The curve should require no USD price oracle. The BTC/VOID exchange rate emerges from the reserve ratio and completed trades rather than a fiat feed.
 
+### 2A. Confirmed sale proceeds become buyback reserve
+
+The official market is two-sided. A terminally settled BTC-in / VOID-out sale
+must leave its confirmed native BTC proceeds inside the segregated market
+reserve and derive a lower-effective-price VOID buyback lot under
+`VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1`.
+
+The spread is calculated directly in satoshis per native VOID atomic unit. USD,
+fiat prices, stablecoins, wrapped assets, and external price oracles are not
+inputs. Bitcoin network-fee reserve and retained spread remain market-owned;
+sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
+returns to the dedicated market inventory and can be sold again through a new
+atomic settlement.
+
+The derived lot is a ceiling layered with the reserve curve: actual reverse
+BTC output must not exceed either the deterministic curve quote or the lot's
+remaining BTC budget. The source-sale digest creates at most one lot, and only
+terminally settled BTC with sufficient confirmations is bid-eligible. The full
+contract and native-only example are defined in
+`btc-void-market-maker-reserve-policy-v1.md`.
+
+An official reserve-recycling receipt must bind `bitcoin_mainnet`, Chain ID
+`2050`, and VOID network identity `mainnet0` into its source-sale digest.
+Bitcoin testnet/regtest or an isolated Chain-2050 test environment must use
+explicitly separate fixture identities and can never produce a mainnet lot.
+
 ### 3. Reserve snapshots
 
 Every executable quote must bind one content-addressed reserve snapshot.
@@ -165,6 +191,12 @@ The market must therefore define a separate confirmation/risk policy that can va
 - fee behavior makes the exact contract invalid.
 
 This design intentionally does not hard-code a Bitcoin confirmation count. That value belongs to a separately reviewed risk policy.
+
+Reserve recycling must nevertheless bind the funding transaction's confirmed
+block hash/height and the observation-tip hash/height, then derive the claimed
+confirmation count from those heights. The source-only reserve-policy tool does
+not query Bitcoin or prove canonical-chain membership; a later regtest-backed
+observer must supply and independently verify that evidence before mutation.
 
 ## Chain-2050 settlement contract requirements
 
