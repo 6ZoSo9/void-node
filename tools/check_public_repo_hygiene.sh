@@ -20,6 +20,9 @@ while IFS= read -r -d '' path; do
   reason=""
 
   case "$base" in
+    *.bak|*.bak.*|*.bak-*|*.backup|*.backup.*|*.broken|*.broken.*|*.BROKEN|*.BROKEN.*|*.orig|*.prepatch|*.prepatch.*|*.rej|*~)
+      reason="backup/patch artifact"
+      ;;
     .nodeid|.nodeid.*|.nodeid-*|.nodeid_*|.nodekey|.nodekey.*|.nodekey-*|.nodekey_*)
       reason="node identity/key artifact"
       ;;
