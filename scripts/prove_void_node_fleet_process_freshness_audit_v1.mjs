@@ -84,6 +84,7 @@ function baseSnapshot(overrides = {}) {
     observed_at_epoch: 110,
     service_active: true,
     process_present: true,
+    process_invocation_id: "a".repeat(32),
     process_start_epoch: 105,
     process_cwd_matches_repo: true,
     process_entrypoint_matches: true,
@@ -154,6 +155,10 @@ const raced = classifyProcessFreshnessV1(baseSnapshot({
 }));
 assert.equal(raced.classification, "HOLD");
 assert.deepEqual(raced.reasons, ["process_changed_during_collection", "source_changed_during_collection"]);
+
+const missingInvocation = classifyProcessFreshnessV1(baseSnapshot({ process_invocation_id: "" }));
+assert.equal(missingInvocation.classification, "HOLD");
+assert.deepEqual(missingInvocation.reasons, ["process_invocation_id_unavailable"]);
 
 const unreadableStatus = classifyProcessFreshnessV1(baseSnapshot({ worktree_status_readable: false }));
 assert.equal(unreadableStatus.classification, "HOLD");
@@ -248,6 +253,7 @@ assert.match(collectorScript, /systemctl --user show/);
 assert.equal(Array.from(collectorScript.matchAll(/systemctl --user show/g)).length, 2,
   "collector must bracket process evidence with two service snapshots");
 assert.match(collectorScript, /ExecMainStartTimestamp/);
+assert.match(collectorScript, /InvocationID/);
 assert.match(collectorScript, /\/proc\/\$main_pid\/cmdline/);
 assert.doesNotMatch(collectorScript, /\/proc\/\$main_pid\/environ/,
   "the collector must not read the process environment or risk credential exposure");
@@ -395,13 +401,14 @@ http.createServer((request, response) => {
   const fakeSystemctl = join(bin, "systemctl");
   writeFileSync(fakeSystemctl, `#!/bin/sh
 case "$*" in
-  *--property=ActiveState*--property=MainPID*--property=ExecMainStartTimestamp*)
-    printf 'ActiveState=active\\nMainPID=%s\\nExecMainStartTimestamp=@%s\\n' \
-      "$VOID_PROOF_MAIN_PID" "$VOID_PROOF_START_EPOCH"
+  *--property=ActiveState*--property=MainPID*--property=ExecMainStartTimestamp*--property=InvocationID*)
+    printf 'ActiveState=active\\nMainPID=%s\\nExecMainStartTimestamp=@%s\\nInvocationID=%s\\n' \
+      "$VOID_PROOF_MAIN_PID" "$VOID_PROOF_START_EPOCH" "$VOID_PROOF_INVOCATION_ID"
     ;;
   *--property=ActiveState*) printf '%s\\n' active ;;
   *--property=MainPID*) printf '%s\\n' "$VOID_PROOF_MAIN_PID" ;;
   *--property=ExecMainStartTimestamp*) printf '@%s\\n' "$VOID_PROOF_START_EPOCH" ;;
+  *--property=InvocationID*) printf '%s\\n' "$VOID_PROOF_INVOCATION_ID" ;;
   *) exit 1 ;;
 esac
 `, { mode: 0o700 });
@@ -460,6 +467,7 @@ fi
   process.env.PATH = `${bin}:${originalPath}`;
   process.env.VOID_PROOF_MAIN_PID = String(collectorPid);
   process.env.VOID_PROOF_START_EPOCH = String(processStartEpoch);
+  process.env.VOID_PROOF_INVOCATION_ID = "a".repeat(32);
   process.env.VOID_PROOF_SOURCE_COMMIT = firstHead;
   process.env.VOID_PROOF_SOURCE_TREE = firstTree;
   assert.equal(
