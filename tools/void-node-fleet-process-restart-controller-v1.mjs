@@ -26,6 +26,7 @@ export const VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1 =
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA64_RE = /^[0-9a-f]{64}$/;
+const SYSTEMD_INVOCATION_ID_RE = /^[0-9a-f]{32}$/;
 const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_EVIDENCE_AGE_SECONDS = 300;
@@ -59,6 +60,13 @@ function assertSha40(value, label) {
 
 function assertSha64(value, label) {
   if (!SHA64_RE.test(String(value ?? ""))) fail(`${label} must be lowercase 64-hex`);
+  return String(value);
+}
+
+function assertInvocationId(value, label) {
+  if (!SYSTEMD_INVOCATION_ID_RE.test(String(value ?? ""))) {
+    fail(`${label} must be lowercase 32-hex`);
+  }
   return String(value);
 }
 
@@ -259,6 +267,10 @@ export function validateProcessFreshnessAuditV1(audit, selectedNode, expectedSou
   const sourceTree = assertSha40(node.source_tree, "freshness source tree");
   const staleProcessCommit = assertSha40(node.process_source_commit, "freshness stale process commit");
   const staleProcessTree = assertSha40(node.process_source_tree, "freshness stale process tree");
+  const oldProcessInvocationId = assertInvocationId(
+    node.process_invocation_id,
+    "freshness process invocation ID",
+  );
   if (sourceSha !== expectedSourceSha) fail("freshness source SHA does not match converged target");
   if (staleProcessCommit === sourceSha) fail("freshness stale process commit must differ from converged target");
   if (node.reachable !== true || node.source_branch !== "main" || node.dirty_count !== 0 ||
@@ -285,6 +297,7 @@ export function validateProcessFreshnessAuditV1(audit, selectedNode, expectedSou
     source_tree: sourceTree,
     stale_process_commit: staleProcessCommit,
     stale_process_tree: staleProcessTree,
+    old_process_invocation_id: oldProcessInvocationId,
     old_process_start_epoch: node.process_start_epoch,
     head_transition_epoch: node.head_transition_epoch,
     observed_at_epoch: node.observed_at_epoch,
@@ -422,6 +435,7 @@ export function buildRestartPlanV1(sourceReceipt, freshness, transition, config)
     source_tree: freshness.source_tree,
     stale_process_commit: freshness.stale_process_commit,
     stale_process_tree: freshness.stale_process_tree,
+    old_process_invocation_id: freshness.old_process_invocation_id,
     old_process_start_epoch: freshness.old_process_start_epoch,
     head_transition_epoch: freshness.head_transition_epoch,
     changed_paths_sha256: transition.changed_paths_sha256,
@@ -441,6 +455,7 @@ export function buildRestartPlanV1(sourceReceipt, freshness, transition, config)
     source_tree: freshness.source_tree,
     stale_process_commit: freshness.stale_process_commit,
     stale_process_tree: freshness.stale_process_tree,
+    old_process_invocation_id: freshness.old_process_invocation_id,
     old_process_start_epoch: freshness.old_process_start_epoch,
     head_transition_epoch: freshness.head_transition_epoch,
     changed_paths_sha256: transition.changed_paths_sha256,
@@ -457,6 +472,9 @@ export function validateRestartConfirmationsV1(args, plan) {
   if (args.confirmNode !== plan.node) fail("exact node confirmation mismatch");
   if (args.confirmFromSha !== plan.from_sha) fail("exact from-SHA confirmation mismatch");
   if (args.confirmSourceSha !== plan.source_sha) fail("exact source-SHA confirmation mismatch");
+  if (args.confirmOldProcessInvocationId !== plan.old_process_invocation_id) {
+    fail("exact old-process-invocation confirmation mismatch");
+  }
   if (args.confirmOldProcessStartEpoch !== String(plan.old_process_start_epoch)) fail("exact old-process-start confirmation mismatch");
   return true;
 }
@@ -531,6 +549,9 @@ function exactGreenProcessEvidence(snapshot, config, plan) {
       !snapshot.process_entrypoint_matches || !snapshot.process_executable_node || !snapshot.process_identity_stable) {
     reasons.push("process_identity_not_exact");
   }
+  if (!SYSTEMD_INVOCATION_ID_RE.test(snapshot.process_invocation_id ?? "")) {
+    reasons.push("process_invocation_id_not_exact");
+  }
   if (!snapshot.health_json_ok || snapshot.health?.ok !== true) reasons.push("health_not_green");
   if (!snapshot.readiness_json_ok || snapshot.readiness?.ready !== true ||
       ("gap" in (snapshot.readiness ?? {}) && Number(snapshot.readiness.gap) !== 0)) reasons.push("readiness_not_green");
@@ -543,7 +564,10 @@ export function assessPreRestartV1(snapshot, config, plan) {
   if (snapshot.classification !== "STALE_SOURCE_AFTER_PROCESS_START" || snapshot.reasons?.length !== 0) {
     reasons.push("process_no_longer_exact_stale");
   }
-  if (snapshot.process_start_epoch !== plan.old_process_start_epoch) reasons.push("process_identity_advanced");
+  if (snapshot.process_invocation_id !== plan.old_process_invocation_id ||
+      snapshot.process_start_epoch !== plan.old_process_start_epoch) {
+    reasons.push("process_identity_advanced");
+  }
   if (snapshot.process_source_identity_bound !== true ||
       snapshot.process_source_commit !== plan.stale_process_commit ||
       snapshot.process_source_tree !== plan.stale_process_tree ||
@@ -559,7 +583,9 @@ export function assessPostRestartV1(snapshot, config, plan) {
   if (snapshot.classification !== "PROCESS_SOURCE_ALIGNED" || snapshot.reasons?.length !== 0) {
     reasons.push("process_source_not_aligned");
   }
-  if (!Number.isSafeInteger(snapshot.process_start_epoch) || snapshot.process_start_epoch <= plan.old_process_start_epoch) {
+  if (snapshot.process_invocation_id === plan.old_process_invocation_id ||
+      !Number.isSafeInteger(snapshot.process_start_epoch) ||
+      snapshot.process_start_epoch < plan.old_process_start_epoch) {
     reasons.push("new_process_start_not_proven");
   }
   if (snapshot.process_source_identity_bound !== true ||
@@ -579,6 +605,7 @@ export function buildPostRestartIdentityV1(snapshot, config, plan) {
   }
   return {
     marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+    process_invocation_id: snapshot.process_invocation_id,
     process_start_epoch: snapshot.process_start_epoch,
     process_source_commit: snapshot.process_source_commit,
     process_source_tree: snapshot.process_source_tree,
@@ -597,6 +624,7 @@ source_sha=${bashLiteral(plan.source_sha)}
 source_tree=${bashLiteral(plan.source_tree)}
 stale_process_commit=${bashLiteral(plan.stale_process_commit)}
 stale_process_tree=${bashLiteral(plan.stale_process_tree)}
+old_process_invocation_id=${bashLiteral(plan.old_process_invocation_id)}
 old_process_start_epoch=${bashLiteral(String(plan.old_process_start_epoch))}
 head_transition_epoch=${bashLiteral(String(plan.head_transition_epoch))}
 entrypoint=${bashLiteral(PROCESS_ENTRYPOINT_V1)}
@@ -624,10 +652,11 @@ head_log="$(git -C "$repo" rev-parse --path-format=absolute --git-path logs/HEAD
 test -f "$head_log"
 test "$(stat -c %Y -- "$head_log")" = "$head_transition_epoch"
 
-service_show_before="$(systemctl --user show "$service" --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp)"
+service_show_before="$(systemctl --user show "$service" --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp --property=InvocationID)"
 test "$(printf '%s\\n' "$service_show_before" | sed -n 's/^ActiveState=//p' | tail -n 1)" = active
 main_pid="$(printf '%s\\n' "$service_show_before" | sed -n 's/^MainPID=//p' | tail -n 1)"
 start_text="$(printf '%s\\n' "$service_show_before" | sed -n 's/^ExecMainStartTimestamp=//p' | tail -n 1)"
+test "$(printf '%s\\n' "$service_show_before" | sed -n 's/^InvocationID=//p' | tail -n 1)" = "$old_process_invocation_id"
 test "$(date --date="$start_text" +%s)" = "$old_process_start_epoch"
 printf '%s' "$main_pid" | grep -Eq '^[1-9][0-9]*$'
 test -d "/proc/$main_pid"
@@ -658,7 +687,7 @@ printf '%s' "$ready" | "$process_exe" -e 'let s="";process.stdin.on("data",d=>s+
 printf '%s' "$version" | "$process_exe" -e 'const [commit,tree]=process.argv.slice(1);let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const p=JSON.parse(s)?.process_source;if(!p||JSON.stringify(Object.keys(p).sort())!==JSON.stringify(["branch","commit","immutable","marker","tree"])||p.marker!=="VOID_NODE_PROCESS_SOURCE_IDENTITY_V1"||p.commit!==commit||p.tree!==tree||p.branch!=="main"||p.immutable!==true)process.exit(1)})' "$stale_process_commit" "$stale_process_tree"
 printf '%s' "$peers" | "$process_exe" -e 'const min=Number(process.argv[1]);let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const v=JSON.parse(s);const n=Array.isArray(v)?v.length:Array.isArray(v?.connected)?v.connected.length:Array.isArray(v?.peers)?v.peers.length:0;if(n<min)process.exit(1)})' "$min_peers"
 
-test "$(systemctl --user show "$service" --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp)" = "$service_show_before"
+test "$(systemctl --user show "$service" --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp --property=InvocationID)" = "$service_show_before"
 test "$(git -C "$repo" rev-parse HEAD)" = "$source_sha"
 test "$(git -C "$repo" rev-parse 'HEAD^{tree}')" = "$source_tree"
 test -z "$(git -C "$repo" status --porcelain=v1)"
@@ -744,6 +773,7 @@ function parseArgs(argv) {
     confirmNode: "",
     confirmFromSha: "",
     confirmSourceSha: "",
+    confirmOldProcessInvocationId: "",
     confirmOldProcessStartEpoch: "",
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -763,6 +793,7 @@ function parseArgs(argv) {
     else if (arg === "--confirm-node") out.confirmNode = parseValue(argv, i++, arg);
     else if (arg === "--confirm-from-sha") out.confirmFromSha = parseValue(argv, i++, arg);
     else if (arg === "--confirm-source-sha") out.confirmSourceSha = parseValue(argv, i++, arg);
+    else if (arg === "--confirm-old-process-invocation-id") out.confirmOldProcessInvocationId = parseValue(argv, i++, arg);
     else if (arg === "--confirm-old-process-start-epoch") out.confirmOldProcessStartEpoch = parseValue(argv, i++, arg);
     else if (arg === "--help") {
       console.log("Usage: node tools/void-node-fleet-process-restart-controller-v1.mjs --node NAME --source-convergence-receipt PATH [--config PATH] [--freshness-audit PATH] [--output PATH] [--max-evidence-age-seconds N] [--postcheck-seconds N] [--apply plus exact confirmations]");
