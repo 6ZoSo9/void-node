@@ -27,6 +27,11 @@ const COMPOSITION_BOUNDARY = [
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const NETWORK_BINDING_REPAIR_BOUNDARY = [
+  "docs/public/ai-agent-first-contact-v1.md",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -121,20 +126,45 @@ const fixtures = new Map([
     manifest.entrypoints.well_known_discovery,
     {
       marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      canonical: "/public-node/agents/discovery-v1.json",
+      protocol: "void-agent-discovery-well-known/1",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      canonical_discovery: "/public-node/agents/discovery-v1.json",
+      network_authenticity:
+        manifest.entrypoints.official_authenticity,
+      authority: {
+        default: "read_only",
+        mutation_authority_granted: false,
+        credentials_required: false,
+      },
+      safety: {
+        same_origin_only: true,
+        follow_redirects: false,
+      },
     },
   ],
   [
     manifest.entrypoints.official_authenticity,
     {
       marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
-      status: "official",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      identity: "mainnet0",
-      mutation_authority_granted: false,
+      protocol: "void-network-authenticity/1",
+      status: "public_verification_available",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      authority: {
+        verification_only: true,
+        mutation_authority_granted: false,
+        runtime_authority_granted: false,
+        economic_authority_granted: false,
+      },
+      safety: {
+        credentials_required: false,
+        follow_redirects: false,
+      },
     },
   ],
   [
@@ -242,6 +272,27 @@ fixtures.set(DUPLICATE_ID_UTILITY_PATH, {
         "public/public-node/agents/duplicate-first-contact-v1.json",
     },
   ],
+});
+
+const DECOY_BINDING_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-binding-fixture-v1.json";
+const DECOY_DISCOVERY_PATH =
+  "/public-node/agents/decoy-discovery-fixture-v1.json";
+const DECOY_AUTHENTICITY_PATH =
+  "/public-node/agents/decoy-authenticity-fixture-v1.json";
+fixtures.set(DECOY_BINDING_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    well_known_discovery: DECOY_DISCOVERY_PATH,
+    official_authenticity: DECOY_AUTHENTICITY_PATH,
+  },
+});
+fixtures.set(DECOY_DISCOVERY_PATH, {
+  notice: "VOID Mainnet-0 mainnet0 chain 2050",
+});
+fixtures.set(DECOY_AUTHENTICITY_PATH, {
+  notice: "VOID Mainnet-0 mainnet0 chain 2050",
 });
 
 const server = createServer((request, response) => {
@@ -364,6 +415,20 @@ try {
       (action) => action.id === "inspect_public_utility",
     ),
     true,
+  );
+
+  const decoyBinding = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_BINDING_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyBinding.code, 2, decoyBinding.stderr);
+  const decoyBindingReport = JSON.parse(decoyBinding.stdout);
+  assert.equal(decoyBindingReport.official_network_verified, false);
+  assert.equal(
+    decoyBindingReport.checks.network_binding_consistent,
+    false,
   );
 
   const crossOrigin = await runClient([
@@ -511,9 +576,10 @@ let boundaryIntroductionCommit = null;
 if (workingBoundary.length > 0) {
   assert.deepEqual(
     workingBoundary,
-    [...COMPOSITION_BOUNDARY].sort(),
-    "working tree does not match the exact composition boundary",
+    [...NETWORK_BINDING_REPAIR_BOUNDARY].sort(),
+    "working tree does not match the exact network-binding repair boundary",
   );
+  boundaryVerificationMode = "in_boundary_network_binding_repair";
 } else {
   const introductionCommits = await gitLines([
     "log",

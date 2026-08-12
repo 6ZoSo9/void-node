@@ -55,13 +55,19 @@ manifest and catalog are deployed together, the updated client returns
 
 In this client, `official_network_verified` means:
 
-1. the official discovery document was reachable;
-2. the official authenticity document was reachable; and
-3. both were consistent with the manifest's VOID Mainnet-0 / chain `2050`
-   binding.
+1. the first-contact manifest declares the exact `VOID Mainnet-0`, chain
+   `2050`, and `mainnet0` identity;
+2. the official discovery and authenticity documents were reachable;
+3. both responses carry their exact contract markers, protocol versions, and
+   top-level network fields;
+4. discovery links back to the manifest-declared authenticity path; and
+5. both responses preserve their read-only, no-credentials, no-redirect, and
+   authority-zero controls.
 
 It does **not** claim that the client independently revalidated every
 cryptographic signature or reproduced the offline root ceremony.
+Free-form or nested text containing `VOID`, `mainnet0`, or `2050` is not
+network-binding evidence and is rejected.
 
 ## Capability honesty
 

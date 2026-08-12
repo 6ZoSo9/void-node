@@ -6,6 +6,11 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:4100";
 const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
+const OFFICIAL_NETWORK = {
+  name: "VOID Mainnet-0",
+  chain_id: 2050,
+  identity: "mainnet0",
+};
 const PUBLIC_UTILITY_TOP_LEVEL_KEYS = [
   "contract",
   "controls",
@@ -235,25 +240,42 @@ async function fetchJson(baseUrl, path, timeoutMs) {
   }
 }
 
-function normalizedText(value) {
-  return JSON.stringify(value ?? null).toLowerCase().replace(/[^a-z0-9]/g, "");
+function bindingConsistent(manifest, discovery, authenticity) {
+  const discoveryDocument = discovery?.body;
+  const authenticityDocument = authenticity?.body;
+  return (
+    manifest?.network?.name === OFFICIAL_NETWORK.name &&
+    manifest?.network?.chain_id === OFFICIAL_NETWORK.chain_id &&
+    manifest?.network?.identity === OFFICIAL_NETWORK.identity &&
+    discoveryDocument?.marker ===
+      "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1" &&
+    discoveryDocument?.protocol === "void-agent-discovery-well-known/1" &&
+    discoveryDocument?.network?.name === OFFICIAL_NETWORK.name &&
+    discoveryDocument?.network?.chain_id === OFFICIAL_NETWORK.chain_id &&
+    discoveryDocument?.network_authenticity ===
+      manifest?.entrypoints?.official_authenticity &&
+    discoveryDocument?.authority?.default === "read_only" &&
+    discoveryDocument?.authority?.mutation_authority_granted === false &&
+    discoveryDocument?.authority?.credentials_required === false &&
+    discoveryDocument?.safety?.same_origin_only === true &&
+    discoveryDocument?.safety?.follow_redirects === false &&
+    authenticityDocument?.marker ===
+      "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1" &&
+    authenticityDocument?.protocol === "void-network-authenticity/1" &&
+    authenticityDocument?.status === "public_verification_available" &&
+    authenticityDocument?.network?.name === OFFICIAL_NETWORK.name &&
+    authenticityDocument?.network?.chain_id === OFFICIAL_NETWORK.chain_id &&
+    authenticityDocument?.authority?.verification_only === true &&
+    authenticityDocument?.authority?.mutation_authority_granted === false &&
+    authenticityDocument?.authority?.runtime_authority_granted === false &&
+    authenticityDocument?.authority?.economic_authority_granted === false &&
+    authenticityDocument?.safety?.credentials_required === false &&
+    authenticityDocument?.safety?.follow_redirects === false
+  );
 }
 
-function bindingConsistent(manifest, discovery, authenticity) {
-  const expectedName = String(manifest?.network?.name ?? "");
-  const expectedChainId = Number(manifest?.network?.chain_id);
-  const combined = normalizedText({
-    discovery: discovery?.body,
-    authenticity: authenticity?.body,
-  });
-  const nameMatch =
-    expectedName.toLowerCase().includes("void") &&
-    combined.includes("void") &&
-    combined.includes("mainnet0");
-  const chainMatch =
-    Number.isInteger(expectedChainId) &&
-    combined.includes(String(expectedChainId));
-  return nameMatch && chainMatch;
+function normalizedText(value) {
+  return JSON.stringify(value ?? null).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function hasExactKeys(value, expected) {
