@@ -59,8 +59,9 @@ manifest and catalog are deployed together, the updated client returns
 `partial_read_only`; it does not confuse merged source with a live surface.
 
 After validating the catalog, the client observes every advertised resource.
-It reuses responses already fetched during first contact and makes no more than
-the catalog's `max_requests_per_cold_start` additional GET requests. A resource
+It reuses responses already fetched during first contact and enforces the
+catalog's `max_requests_per_cold_start` as one global eight-GET ceiling,
+including the manifest, six entrypoints, and any additional resource. A resource
 is returned as useful only when its JSON response is bounded, same-origin,
 successful, and contains its exact `required_marker` as `marker` or
 `green_marker`. Missing, malformed, oversized, redirected, or marker-mismatched

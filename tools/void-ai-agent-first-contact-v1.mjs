@@ -6,6 +6,7 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:4100";
 const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
+const MAX_COLD_START_NETWORK_REQUESTS = 8;
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -240,6 +241,29 @@ async function fetchJson(baseUrl, path, timeoutMs) {
   }
 }
 
+function createColdStartRequestBudget() {
+  let networkRequests = 0;
+  return {
+    get networkRequests() {
+      return networkRequests;
+    },
+    async fetch(baseUrl, path, timeoutMs) {
+      if (networkRequests >= MAX_COLD_START_NETWORK_REQUESTS) {
+        return {
+          ok: false,
+          status: 0,
+          content_type: null,
+          body: null,
+          body_bytes: 0,
+          error: "cold_start_request_budget_exhausted",
+        };
+      }
+      networkRequests += 1;
+      return fetchJson(baseUrl, path, timeoutMs);
+    },
+  };
+}
+
 function bindingConsistent(manifest, discovery, authenticity) {
   const discoveryDocument = discovery?.body;
   const authenticityDocument = authenticity?.body;
@@ -436,7 +460,8 @@ function usefulPublicResources(manifest, publicUtility) {
     !hasExactKeys(catalog?.limits, PUBLIC_UTILITY_LIMIT_KEYS) ||
     catalog?.limits?.max_catalog_bytes !== MAX_RESPONSE_BYTES ||
     catalog?.limits?.max_entries !== 8 ||
-    catalog?.limits?.max_requests_per_cold_start !== 4 ||
+    catalog?.limits?.max_requests_per_cold_start !==
+      MAX_COLD_START_NETWORK_REQUESTS ||
     !Number.isInteger(catalog?.limits?.minimum_poll_interval_ms) ||
     catalog.limits.minimum_poll_interval_ms < 60_000 ||
     !Array.isArray(catalog?.entries) ||
@@ -504,7 +529,7 @@ async function observeUsefulPublicResources(
   resources,
   responseByPath,
   timeoutMs,
-  maximumNetworkRequests,
+  requestBudget,
 ) {
   let networkRequests = 0;
   const observations = await Promise.all(
@@ -512,19 +537,15 @@ async function observeUsefulPublicResources(
       let response = responseByPath.get(resource.path);
       const responseReused = response !== undefined;
       if (!response) {
-        if (networkRequests >= maximumNetworkRequests) {
-          return {
-            ...resource,
-            http_status: 0,
-            body_bytes: 0,
-            response_reused: false,
-            runtime_observed: false,
-            observation_error: "public_utility_request_budget_exhausted",
-            document: null,
-          };
+        const requestsBefore = requestBudget.networkRequests;
+        response = await requestBudget.fetch(
+          baseUrl,
+          resource.path,
+          timeoutMs,
+        );
+        if (requestBudget.networkRequests > requestsBefore) {
+          networkRequests += 1;
         }
-        networkRequests += 1;
-        response = await fetchJson(baseUrl, resource.path, timeoutMs);
       }
 
       const runtimeObserved =
@@ -694,7 +715,8 @@ function nextActions(manifest, checks, commercial, resources) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const baseUrl = normalizeBaseUrl(options.baseUrl);
-  const firstContact = await fetchJson(
+  const requestBudget = createColdStartRequestBudget();
+  const firstContact = await requestBudget.fetch(
     baseUrl,
     options.manifestPath,
     options.timeoutMs,
@@ -712,7 +734,7 @@ async function main() {
         error: `manifest entrypoint missing: ${key}`,
       };
     }
-    return fetchJson(baseUrl, path, options.timeoutMs);
+    return requestBudget.fetch(baseUrl, path, options.timeoutMs);
   };
 
   const [
@@ -749,7 +771,7 @@ async function main() {
     advertisedResources,
     responseByPath,
     options.timeoutMs,
-    publicUtility?.body?.limits?.max_requests_per_cold_start ?? 0,
+    requestBudget,
   );
   const resources = resourceObservation.observations;
   const authenticationValid = authenticationContractValid(
@@ -857,9 +879,12 @@ async function main() {
         observed: resources.filter(
           (resource) => resource.runtime_observed === true,
         ).length,
-        network_requests: resourceObservation.networkRequests,
-        maximum_network_requests:
-          publicUtility?.body?.limits?.max_requests_per_cold_start ?? 0,
+        reused_responses: resources.filter(
+          (resource) => resource.response_reused === true,
+        ).length,
+        additional_network_requests: resourceObservation.networkRequests,
+        total_network_requests: requestBudget.networkRequests,
+        maximum_total_network_requests: MAX_COLD_START_NETWORK_REQUESTS,
       },
     },
     authority: {

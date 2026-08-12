@@ -39,7 +39,9 @@ const COMPOSITION_PROOF_REPAIR_BOUNDARY = [
 const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
   "docs/public/ai-agent-first-contact-v1.md",
   "docs/public/ai-agent-public-utility-v1.md",
+  "public/public-node/agents/public-utility-v1.json",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
 const ALLOWED_BOUNDARY = [
@@ -359,13 +361,24 @@ fixtures.set(WRONG_RESOURCE_MARKER_MANIFEST_PATH, {
   ...manifest,
   entrypoints: {
     ...manifest.entrypoints,
+    first_contact: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
     public_utility: WRONG_RESOURCE_MARKER_UTILITY_PATH,
   },
 });
 fixtures.set(WRONG_RESOURCE_MARKER_UTILITY_PATH, {
   ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+  },
   entries: publicUtility.entries.map((entry, index) =>
-    index === 2
+    index === 0
+      ? {
+          ...entry,
+          path: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+          repository_path: `public${WRONG_RESOURCE_MARKER_MANIFEST_PATH}`,
+        }
+      : index === 2
       ? {
           ...entry,
           path: WRONG_RESOURCE_MARKER_DATA_PATH,
@@ -377,6 +390,36 @@ fixtures.set(WRONG_RESOURCE_MARKER_UTILITY_PATH, {
 fixtures.set(WRONG_RESOURCE_MARKER_DATA_PATH, {
   marker: "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_DECOY",
 });
+
+const BUDGET_EXHAUSTION_MANIFEST_PATH =
+  "/public-node/agents/first-contact-budget-exhaustion-fixture-v1.json";
+const BUDGET_EXHAUSTION_UTILITY_PATH =
+  "/public-node/agents/public-utility-budget-exhaustion-fixture-v1.json";
+const BUDGET_EXHAUSTION_RESOURCE_PATHS = [
+  "/public-node/agents/budget-resource-a-v1.json",
+  "/public-node/agents/budget-resource-b-v1.json",
+  "/public-node/datanet/budget-resource-c-v1.json",
+];
+fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: BUDGET_EXHAUSTION_UTILITY_PATH,
+  },
+});
+fixtures.set(BUDGET_EXHAUSTION_UTILITY_PATH, {
+  ...publicUtility,
+  entries: publicUtility.entries.map((entry, index) => ({
+    ...entry,
+    path: BUDGET_EXHAUSTION_RESOURCE_PATHS[index],
+    repository_path: `public${BUDGET_EXHAUSTION_RESOURCE_PATHS[index]}`,
+  })),
+});
+for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
+  fixtures.set(path, {
+    marker: publicUtility.entries[index].required_marker,
+  });
+}
 
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
@@ -483,8 +526,10 @@ try {
   assert.deepEqual(report.responses.public_utility_resources, {
     advertised: 3,
     observed: 3,
-    network_requests: 1,
-    maximum_network_requests: 4,
+    reused_responses: 2,
+    additional_network_requests: 1,
+    total_network_requests: 8,
+    maximum_total_network_requests: 8,
   });
   assert.equal(report.responses.public_utility.status, 200);
   assert.equal(report.authority.mutation_authority_granted, false);
@@ -540,6 +585,32 @@ try {
   assert.equal(
     rejectedResource.observation_error,
     "required_marker_not_observed",
+  );
+
+  const exhaustedBudget = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    BUDGET_EXHAUSTION_MANIFEST_PATH,
+  ]);
+  assert.equal(exhaustedBudget.code, 2, exhaustedBudget.stderr);
+  const exhaustedBudgetReport = JSON.parse(exhaustedBudget.stdout);
+  assert.equal(exhaustedBudgetReport.status, "partial_read_only");
+  assert.deepEqual(exhaustedBudgetReport.responses.public_utility_resources, {
+    advertised: 3,
+    observed: 1,
+    reused_responses: 0,
+    additional_network_requests: 1,
+    total_network_requests: 8,
+    maximum_total_network_requests: 8,
+  });
+  assert.equal(
+    exhaustedBudgetReport.useful_public_resources.filter(
+      (resource) =>
+        resource.observation_error ===
+        "cold_start_request_budget_exhausted",
+    ).length,
+    2,
   );
 
   const decoyBinding = await runClient([
