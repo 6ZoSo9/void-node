@@ -1,0 +1,58 @@
+name: VOID node fleet process restart controller v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-node-fleet-process-restart-controller-v1.yml"
+      - "docs/operations/void-node-fleet-process-restart-controller-v1.md"
+      - "scripts/prove_void_node_fleet_process_restart_controller_v1.mjs"
+      - "tools/void-node-fleet-process-restart-controller-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-node-fleet-process-restart-controller-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-proof:
+    name: focused proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          node --check tools/void-node-fleet-process-restart-controller-v1.mjs
+          node --check scripts/prove_void_node_fleet_process_restart_controller_v1.mjs
+
+      - name: Deterministic and live-process adversarial proof
+        run: node scripts/prove_void_node_fleet_process_restart_controller_v1.mjs
+
+      - name: Evidence-chain regressions
+        run: |
+          node scripts/prove_void_node_fleet_source_convergence_v1.mjs
+          node scripts/prove_void_node_fleet_process_freshness_audit_v1.mjs
+
+      - name: Diff hygiene
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git diff --check "origin/$BASE_REF...HEAD"
+          else
+            git diff --check HEAD^..HEAD
+          fi

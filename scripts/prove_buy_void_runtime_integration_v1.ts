@@ -191,6 +191,82 @@ assert.equal(applied.body.decision.mutation_performed, true);
 assert.equal(applied.body.root_dir_server_controlled, true);
 assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), true);
 
+const runtimeRoot = path.join(
+  tmp,
+  "buy_void_v1",
+  "runtime-integration-v1",
+);
+const intent = applied.body.decision.result.claim.intent;
+const wallet = "0x4444444444444444444444444444444444444444";
+const deliveryTx = `0x${"b".repeat(64)}`;
+const executionPolicy = {
+  attempt_journal_enabled: true,
+  max_attempts_per_payment: 2,
+  chain_id: 2050,
+  fulfillment_wallet_allowlist: [wallet],
+};
+const reserved = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "reserve_execution",
+    apply: true,
+    confirmation: "buyVoidReserveExecution",
+    intent,
+    execution_policy: executionPolicy,
+    now_ms: 1_701_500_010_000,
+  },
+});
+assert.equal(reserved.status, 200);
+const attemptId = reserved.body.decision.result.attempt.reservation.attempt_id;
+const prepared = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "prepare_execution",
+    apply: true,
+    confirmation: "buyVoidPrepareExecution",
+    attempt_id: attemptId,
+    intent,
+    execution_policy: executionPolicy,
+    transaction: {
+      chain_id: 2050,
+      transaction_hash: deliveryTx,
+      from_address: wallet,
+      to_address: delivery,
+      amount_units: "50000000",
+    },
+    now_ms: 1_701_500_020_000,
+  },
+});
+assert.equal(prepared.status, 200);
+
+fs.writeFileSync(
+  path.join(runtimeRoot, "buy-void-broadcast-outcomes-v1"),
+  "blocked-by-proof\n",
+  { mode: 0o600 },
+);
+const partialMutation = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "record_broadcast_unknown",
+    apply: true,
+    confirmation: "buyVoidRecordBroadcastUnknown",
+    attempt_id: attemptId,
+    transaction_hash: deliveryTx,
+    reason_code: "synthetic_outcome_journal_fault",
+    provider_submission_id: "provider-runtime-partial-1",
+    now_ms: 1_701_500_030_000,
+  },
+});
+assert.equal(partialMutation.status, 500);
+assert.equal(partialMutation.body.ok, false);
+assert.equal(partialMutation.body.decision.status, "held");
+assert.equal(partialMutation.body.decision.applied, true);
+assert.equal(partialMutation.body.decision.mutation_performed, true);
+assert.equal(
+  partialMutation.body.decision.reason,
+  "broadcast_outcome_state_invalid",
+);
+
 const rootOverride = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
   body: {
@@ -221,4 +297,7 @@ assert.equal(invalidAction.body.error, "invalid_pipeline_action");
 
 assert.equal(routes.has(`GET ${commandRoute}`), false);
 
+fs.rmSync(tmp, { recursive: true, force: true });
+
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_V1_GREEN");
+console.log("partial_mutation_http_status=500");

@@ -4,6 +4,7 @@ import net from "node:net";
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
   isPublicIpAddress,
+  normalizeHostname,
   resolvePublicDns,
 } from "./void_public_seed_qualification_v1.mjs";
 
@@ -141,6 +142,13 @@ function validateSeedResponse(route, bytes) {
   throw terminalSeedResponse(`seed response route is unsupported: ${parsedRoute.pathname}`);
 }
 
+export function publicSeedTlsServernameV1(targetValue) {
+  const target = targetValue instanceof URL ? targetValue : new URL(String(targetValue));
+  if (target.protocol !== "https:") return null;
+  const hostname = normalizeHostname(target.hostname);
+  return net.isIP(hostname) ? null : hostname;
+}
+
 function requestPinnedAddress(
   target,
   address,
@@ -153,6 +161,7 @@ function requestPinnedAddress(
   }
 
   const transport = target.protocol === "https:" ? https : http;
+  const tlsServername = publicSeedTlsServernameV1(target);
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = (error) => {
@@ -168,7 +177,7 @@ function requestPinnedAddress(
         agent: false,
         family,
         autoSelectFamily: false,
-        ...(target.protocol === "https:" ? { servername: target.hostname } : {}),
+        ...(tlsServername ? { servername: tlsServername } : {}),
         headers: {
           accept: "application/json",
           connection: "close",
