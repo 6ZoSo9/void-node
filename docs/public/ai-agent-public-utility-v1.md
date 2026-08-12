@@ -12,7 +12,7 @@ The catalog is additive to the existing first-contact protocol; it is not a para
 - the capability-negotiation catalog, including fail-closed guarded and planned capabilities; and
 - a public-safe, SHA-256-bound DataNet field-replication receipt.
 
-Each entry is anonymous, `GET`-only, same-origin, source-present, and read-only. Every entry deliberately reports `runtime_observed: false` until a later integration change adds the first-contact link and an independent check observes the public HTTP response.
+Each entry is anonymous, `GET`-only, explicitly `same_origin`, source-present, and read-only. Every entry deliberately reports `runtime_observed: false` until a later integration change adds the first-contact link and an independent check observes the public HTTP response.
 
 ## Deterministic boundaries
 
@@ -28,6 +28,6 @@ Run:
 node scripts/prove_void_ai_agent_public_utility_v1.mjs
 ```
 
-The proof reads the referenced source artifacts, verifies their declared markers, enforces exact safety controls and resource limits, and confirms that first contact has not yet advertised the new catalog.
+The proof reads the referenced source artifacts, verifies their declared markers, enforces closed object schemas, rejects traversal and non-public path namespaces, enforces exact safety controls and resource limits, and confirms that first contact has not yet advertised the new catalog.
 
 The next authorization gate is a separate source-only integration change after the same-lane cooldown: add the catalog to the existing first-contact manifest/client and independently revalidate the public HTTP surface. Deployment remains separately authorized.

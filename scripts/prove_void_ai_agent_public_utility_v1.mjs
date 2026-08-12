@@ -7,6 +7,58 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CATALOG_PATH = "public/public-node/agents/public-utility-v1.json";
 const catalogOnly = process.argv.includes("--catalog-only");
+const TOP_LEVEL_KEYS = [
+  "contract",
+  "controls",
+  "entries",
+  "integration",
+  "limits",
+  "marker",
+  "network",
+  "purpose",
+  "status",
+];
+const INTEGRATION_KEYS = [
+  "activation_requires",
+  "advertised_from_first_contact",
+  "first_contact_manifest",
+  "runtime_observed",
+];
+const LIMIT_KEYS = [
+  "max_catalog_bytes",
+  "max_entries",
+  "max_requests_per_cold_start",
+  "minimum_poll_interval_ms",
+];
+const CONTROL_KEYS = [
+  "anonymous_read_allowed",
+  "captcha_required",
+  "credential_required",
+  "earning_advertised",
+  "human_chat_required",
+  "mutation_authority_granted",
+  "paid_work_advertised",
+  "polling_rewarded",
+  "registration_required",
+  "traffic_rewarded",
+  "wallet_required",
+  "work_credit_award_active",
+];
+const ENTRY_KEYS = [
+  "access",
+  "authority",
+  "http_method",
+  "id",
+  "kind",
+  "media_type",
+  "path",
+  "purpose",
+  "repository_path",
+  "required_marker",
+  "runtime_observed",
+  "same_origin",
+  "source_present",
+];
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(path, `file://${ROOT}/`), "utf8"));
@@ -16,9 +68,34 @@ function markerPresent(document, marker) {
   return document.marker === marker || document.green_marker === marker;
 }
 
+function exactKeys(value, expected, label) {
+  assert.equal(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+    true,
+    `${label} must be an object`,
+  );
+  assert.deepEqual(
+    Object.keys(value).sort(),
+    [...expected].sort(),
+    `${label} keys`,
+  );
+}
+
+function validatePublicJsonPath(path) {
+  assert.equal(typeof path, "string", "entry path must be a string");
+  assert.match(path, /^\/public-node\/[A-Za-z0-9._/-]+\.json$/);
+  assert.equal(path.startsWith("//"), false, "entry path must be same-origin");
+  assert.equal(
+    path.split("/").some((segment) => segment === "." || segment === ".."),
+    false,
+    "entry path must not contain traversal segments",
+  );
+}
+
 const raw = await readFile(new URL(CATALOG_PATH, `file://${ROOT}/`), "utf8");
 const catalog = JSON.parse(raw);
 
+exactKeys(catalog, TOP_LEVEL_KEYS, "catalog");
 assert.equal(catalog.contract, "void-ai-agent-first-contact-public-utility/1");
 assert.equal(catalog.marker, "VOID_AI_AGENT_PUBLIC_UTILITY_V1");
 assert.equal(catalog.status, "source_only_not_advertised");
@@ -28,6 +105,7 @@ assert.deepEqual(catalog.network, {
   name: "VOID Mainnet-0"
 });
 
+exactKeys(catalog.integration, INTEGRATION_KEYS, "integration");
 assert.equal(catalog.integration.first_contact_manifest, "/public-node/agents/first-contact-v1.json");
 assert.equal(catalog.integration.advertised_from_first_contact, false);
 assert.equal(catalog.integration.runtime_observed, false);
@@ -36,6 +114,7 @@ assert.deepEqual(catalog.integration.activation_requires, [
   "independent_http_observation"
 ]);
 
+exactKeys(catalog.limits, LIMIT_KEYS, "limits");
 assert.ok(Buffer.byteLength(raw) <= catalog.limits.max_catalog_bytes);
 assert.equal(catalog.limits.max_catalog_bytes, 65536);
 assert.equal(catalog.limits.max_entries, 8);
@@ -44,6 +123,7 @@ assert.ok(catalog.limits.minimum_poll_interval_ms >= 60000);
 assert.ok(catalog.entries.length > 0 && catalog.entries.length <= catalog.limits.max_entries);
 assert.ok(catalog.entries.length <= catalog.limits.max_requests_per_cold_start);
 
+exactKeys(catalog.controls, CONTROL_KEYS, "controls");
 assert.deepEqual(catalog.controls, {
   anonymous_read_allowed: true,
   captcha_required: false,
@@ -62,18 +142,24 @@ assert.deepEqual(catalog.controls, {
 const ids = new Set();
 const paths = new Set();
 for (const entry of catalog.entries) {
+  exactKeys(entry, ENTRY_KEYS, `entry ${entry.id ?? "<missing>"}`);
   assert.equal(ids.has(entry.id), false, `duplicate id: ${entry.id}`);
   assert.equal(paths.has(entry.path), false, `duplicate path: ${entry.path}`);
   ids.add(entry.id);
   paths.add(entry.path);
 
-  assert.match(entry.path, /^\/[A-Za-z0-9._/-]+\.json$/);
-  assert.equal(entry.path.startsWith("//"), false);
+  assert.match(entry.id, /^[a-z0-9]+(?:_[a-z0-9]+)*$/);
+  assert.match(entry.kind, /^[a-z0-9]+(?:_[a-z0-9]+)*$/);
+  assert.equal(typeof entry.purpose, "string");
+  assert.ok(entry.purpose.length > 0 && entry.purpose.length <= 256);
+  assert.match(entry.required_marker, /^[A-Z0-9_]+$/);
+  validatePublicJsonPath(entry.path);
   assert.equal(entry.repository_path, `public${entry.path}`);
   assert.equal(entry.media_type, "application/json");
   assert.equal(entry.http_method, "GET");
   assert.equal(entry.access, "anonymous");
   assert.equal(entry.authority, "read_only");
+  assert.equal(entry.same_origin, true);
   assert.equal(entry.source_present, true);
   assert.equal(entry.runtime_observed, false);
 
@@ -81,6 +167,19 @@ for (const entry of catalog.entries) {
     const source = await readJson(entry.repository_path);
     assert.equal(markerPresent(source, entry.required_marker), true, `marker missing for ${entry.id}`);
   }
+}
+
+for (const path of [
+  "/public-node/agents/../secret.json",
+  "/public-node/./agents/secret.json",
+  "/other/agents/secret.json",
+  "//public-node/agents/secret.json",
+]) {
+  assert.throws(
+    () => validatePublicJsonPath(path),
+    undefined,
+    `unsafe path accepted: ${path}`,
+  );
 }
 
 if (!catalogOnly) {
