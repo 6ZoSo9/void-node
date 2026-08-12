@@ -192,6 +192,12 @@ The market must therefore define a separate confirmation/risk policy that can va
 
 This design intentionally does not hard-code a Bitcoin confirmation count. That value belongs to a separately reviewed risk policy.
 
+Reserve recycling must nevertheless bind the funding transaction's confirmed
+block hash/height and the observation-tip hash/height, then derive the claimed
+confirmation count from those heights. The source-only reserve-policy tool does
+not query Bitcoin or prove canonical-chain membership; a later regtest-backed
+observer must supply and independently verify that evidence before mutation.
+
 ## Chain-2050 settlement contract requirements
 
 A later implementation lane may use a small dedicated Chain-2050 hashlock contract or an equivalent native primitive.

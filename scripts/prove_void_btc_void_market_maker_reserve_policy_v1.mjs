@@ -40,6 +40,10 @@ function request(overrides = {}) {
     bitcoin_network: "bitcoin_mainnet",
     bitcoin_funding_txid: "11".repeat(32),
     bitcoin_funding_vout: 1,
+    bitcoin_confirmed_block_hash: "44".repeat(32),
+    bitcoin_confirmed_block_height: 800000,
+    bitcoin_observed_tip_hash: "55".repeat(32),
+    bitcoin_observed_tip_height: 800005,
     void_chain_id: 2050,
     void_network_identity: "mainnet0",
     void_settlement_receipt_id: "sha256:" + "22".repeat(32),
@@ -184,7 +188,7 @@ assert.equal(
 );
 assert.equal(
   lot.buyback_lot_plan_id,
-  "sha256:6d463cfb8825e0d20ca39611ae8ea28c6e74562937961555e3a368dfa5dd6bc8",
+  "sha256:4d691aeffa3459151367f2829d369b34b6bff8f7c25dcd4ce783e51a36e7808e",
 );
 
 const nativePairOnlyExample = deriveBtcVoidBuybackLotV1(
@@ -246,7 +250,11 @@ assert.throws(
   /does not match canonical settled-sale content/,
 );
 const sameSaleLaterConfirmationEvidence = deriveBtcVoidBuybackLotV1(
-  request({ settlement: { observed_bitcoin_confirmations: 7 } }),
+  request({ settlement: {
+    bitcoin_observed_tip_hash: "66".repeat(32),
+    bitcoin_observed_tip_height: 800006,
+    observed_bitcoin_confirmations: 7,
+  } }),
 );
 assert.equal(
   sameSaleLaterConfirmationEvidence.buyback_lot_id,
@@ -254,6 +262,16 @@ assert.equal(
 );
 assert.notEqual(
   sameSaleLaterConfirmationEvidence.buyback_lot_plan_id,
+  lot.buyback_lot_plan_id,
+);
+const sameSaleReorgEvidence = deriveBtcVoidBuybackLotV1(
+  request({ settlement: {
+    bitcoin_confirmed_block_hash: "77".repeat(32),
+  } }),
+);
+assert.equal(sameSaleReorgEvidence.buyback_lot_id, lot.buyback_lot_id);
+assert.notEqual(
+  sameSaleReorgEvidence.buyback_lot_plan_id,
   lot.buyback_lot_plan_id,
 );
 const distinctSaleSameAmounts = deriveBtcVoidBuybackLotV1(
@@ -295,7 +313,24 @@ assert.throws(
     deriveBtcVoidBuybackLotV1(
       request({ settlement: { observed_bitcoin_confirmations: 5 } }),
     ),
+  /do not match bound block heights/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: {
+        bitcoin_observed_tip_height: 800004,
+        observed_bitcoin_confirmations: 5,
+      } }),
+    ),
   /insufficient Bitcoin confirmations/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { bitcoin_observed_tip_height: 799999 } }),
+    ),
+  /predates the confirmed funding block/,
 );
 assert.throws(
   () =>
@@ -347,6 +382,13 @@ assert.throws(
       request({ settlement: { bitcoin_funding_vout: 0x1_0000_0000 } }),
     ),
   /integer range/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { bitcoin_confirmed_block_hash: "AA".repeat(32) } }),
+    ),
+  /lowercase hex64/,
 );
 assert.throws(
   () =>
@@ -451,6 +493,7 @@ process.stdout.write(
     confirmed_btc_recycled_to_bid_reserve: true,
     source_sale_content_address_verified: true,
     bitcoin_network_bound: true,
+    bitcoin_confirmation_evidence_bound: true,
     void_chain_identity_bound: true,
     source_sale_id: lot.source.settlement.source_sale_id,
     buyback_lot_id: lot.buyback_lot_id,

@@ -43,6 +43,7 @@ export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
 const BPS_DENOMINATOR = 10_000n;
 const MAX_SPREAD_BPS = 5_000;
 const MAX_CONFIRMATIONS = 1_000_000;
+const MAX_BITCOIN_BLOCK_HEIGHT = 10_000_000;
 const MAX_BITCOIN_VOUT = 0xffff_ffff;
 const MAX_ATOMIC_VALUE = (1n << 128n) - 1n;
 const MAX_STDIN_BYTES = 65_536;
@@ -173,6 +174,10 @@ function normalizeRequest(raw) {
       "bitcoin_network",
       "bitcoin_funding_txid",
       "bitcoin_funding_vout",
+      "bitcoin_confirmed_block_hash",
+      "bitcoin_confirmed_block_height",
+      "bitcoin_observed_tip_hash",
+      "bitcoin_observed_tip_height",
       "void_chain_id",
       "void_network_identity",
       "void_settlement_receipt_id",
@@ -216,6 +221,29 @@ function normalizeRequest(raw) {
     0,
     MAX_BITCOIN_VOUT,
   );
+  for (const [value, label] of [
+    [settlement.bitcoin_confirmed_block_hash, "settlement.bitcoin_confirmed_block_hash"],
+    [settlement.bitcoin_observed_tip_hash, "settlement.bitcoin_observed_tip_hash"],
+  ]) {
+    if (typeof value !== "string" || !HEX_64.test(value)) {
+      throw new Error(label + " must be lowercase hex64");
+    }
+  }
+  const bitcoinConfirmedBlockHeight = integer(
+    settlement.bitcoin_confirmed_block_height,
+    "settlement.bitcoin_confirmed_block_height",
+    0,
+    MAX_BITCOIN_BLOCK_HEIGHT,
+  );
+  const bitcoinObservedTipHeight = integer(
+    settlement.bitcoin_observed_tip_height,
+    "settlement.bitcoin_observed_tip_height",
+    0,
+    MAX_BITCOIN_BLOCK_HEIGHT,
+  );
+  if (bitcoinObservedTipHeight < bitcoinConfirmedBlockHeight) {
+    throw new Error("Bitcoin observation tip predates the confirmed funding block");
+  }
   if (settlement.void_chain_id !== 2050) {
     throw new Error("official reserve lots require Chain-2050");
   }
@@ -245,6 +273,13 @@ function normalizeRequest(raw) {
     0,
     MAX_CONFIRMATIONS,
   );
+  const derivedConfirmations =
+    bitcoinObservedTipHeight - bitcoinConfirmedBlockHeight + 1;
+  if (observedConfirmations !== derivedConfirmations) {
+    throw new Error(
+      "observed Bitcoin confirmations do not match bound block heights",
+    );
+  }
   const requiredConfirmations = integer(
     settlement.required_bitcoin_confirmations,
     "settlement.required_bitcoin_confirmations",
@@ -277,6 +312,10 @@ function normalizeRequest(raw) {
     bitcoin_network: settlement.bitcoin_network,
     bitcoin_funding_txid: settlement.bitcoin_funding_txid,
     bitcoin_funding_vout: bitcoinFundingVout,
+    bitcoin_confirmed_block_hash: settlement.bitcoin_confirmed_block_hash,
+    bitcoin_confirmed_block_height: bitcoinConfirmedBlockHeight,
+    bitcoin_observed_tip_hash: settlement.bitcoin_observed_tip_hash,
+    bitcoin_observed_tip_height: bitcoinObservedTipHeight,
     void_chain_id: settlement.void_chain_id,
     void_network_identity: settlement.void_network_identity,
     void_settlement_receipt_id: settlement.void_settlement_receipt_id,

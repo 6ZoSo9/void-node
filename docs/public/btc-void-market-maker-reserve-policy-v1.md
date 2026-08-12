@@ -53,6 +53,20 @@ second lot identity for one sale. `buyback_lot_plan_id` separately addresses
 the complete derived plan, including confirmation evidence, spread, and
 fee-reserve policy.
 
+Confirmation eligibility is not accepted as a free-standing caller assertion.
+The request binds the funding transaction's confirmed Bitcoin block hash and
+height plus the observed tip hash and height. The tool derives confirmations as
+
+```text
+observed_confirmations = observed_tip_height - confirmed_block_height + 1
+```
+
+and rejects a mismatched count or a tip below the funding block. These fields
+are plan evidence, not part of the stable source-sale identity: later tip
+observations keep one lot ID while changing the plan ID. A reorganization that
+changes the confirmed block therefore creates a conflicting plan for the same
+lot and must remain `HOLD` at the later create-once journal.
+
 Without an already funded native-BTC market reserve, the pool cannot truthfully
 publish a funded bid before it receives BTC. In that bootstrap mode, the first
 confirmed sale creates the first buyback budget and every later eligible sale
@@ -111,6 +125,8 @@ floors; it cannot weaken pending settlements or active buyback lots.
 - Only native BTC and native Chain-2050 VOID are supported.
 - Official reserve lots require `bitcoin_mainnet`, Chain ID `2050`, and VOID
   network identity `mainnet0`; test fixtures cannot create mainnet lots.
+- Bitcoin confirmation counts must be derived from bound confirmed-block and
+  observed-tip hashes/heights; inconsistent evidence fails closed.
 - A verified source sale ID maps to exactly one stable buyback-lot ID.
 - A different plan ID for an already journaled lot ID is a conflict and must
   return `HOLD`; it must never replace or add to the accepted lot budget.
