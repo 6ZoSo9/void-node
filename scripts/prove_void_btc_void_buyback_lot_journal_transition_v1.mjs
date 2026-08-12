@@ -22,7 +22,7 @@ function contentId(value) {
 }
 
 function request(overrides = {}) {
-  return {
+  const value = {
     schema: "void.btc_void.reserve_recycling_request.v1",
     settlement: {
       source_sale_id:
@@ -51,6 +51,19 @@ function request(overrides = {}) {
       ...(overrides.policy || {}),
     },
   };
+  value.settlement.source_sale_id = contentId({
+    schema: "void.btc_void.source_sale_receipt.v1",
+    direction: value.settlement.direction,
+    bitcoin_network: value.settlement.bitcoin_network,
+    bitcoin_funding_txid: value.settlement.bitcoin_funding_txid,
+    bitcoin_funding_vout: value.settlement.bitcoin_funding_vout,
+    void_chain_id: value.settlement.void_chain_id,
+    void_network_identity: value.settlement.void_network_identity,
+    void_settlement_receipt_id: value.settlement.void_settlement_receipt_id,
+    btc_received_sats: value.settlement.btc_received_sats,
+    void_sold_atomic: value.settlement.void_sold_atomic,
+  });
+  return value;
 }
 
 function transition(candidatePlan, journalEntries = []) {
@@ -67,6 +80,13 @@ assert.equal(create.marker, VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1);
 assert.equal(create.status, "CREATE");
 assert.equal(create.reason, "new_verified_lot_plan");
 assert.equal(create.journal_entry_count_before, 0);
+assert.equal(
+  create.journal_snapshot_id_before,
+  contentId({
+    schema: "void.btc_void.buyback_lot_journal_snapshot.v1",
+    journal_entry_ids: [],
+  }),
+);
 assert.equal(create.append_entry.buyback_lot_id, firstPlan.buyback_lot_id);
 assert.equal(
   create.append_entry.buyback_lot_plan_id,
@@ -82,13 +102,20 @@ assert.equal(
 );
 assert.equal(
   create.decision_id,
-  "sha256:928c7868dcdf7eaab986e4f3d4aa51e7615928084c5ab3b51ca4f546ebb3ab70",
+  "sha256:6a5fed653478fd422fb86b75901418d41669c695942d396856ab659b883cb12d",
 );
 
 const duplicate = transition(firstPlan, [create.append_entry]);
 assert.equal(duplicate.status, "IDEMPOTENT");
 assert.equal(duplicate.reason, "exact_lot_plan_already_accepted");
 assert.equal(duplicate.append_entry, null);
+assert.equal(
+  duplicate.journal_snapshot_id_before,
+  contentId({
+    schema: "void.btc_void.buyback_lot_journal_snapshot.v1",
+    journal_entry_ids: [create.append_entry.journal_entry_id],
+  }),
+);
 assert.equal(
   duplicate.accepted_buyback_lot_plan_id,
   firstPlan.buyback_lot_plan_id,
@@ -138,7 +165,50 @@ assert.deepEqual(create.invariants, {
   duplicate_append_forbidden: true,
   conflicting_plan_requires_hold: true,
   source_sale_maps_to_one_lot: true,
+  decision_bound_to_exact_ordered_journal_snapshot: true,
 });
+
+const alternatePlanA = deriveBtcVoidBuybackLotV1(
+  request({
+    settlement: {
+      bitcoin_funding_txid: "77".repeat(32),
+      void_settlement_receipt_id: "sha256:" + "88".repeat(32),
+    },
+  }),
+);
+const alternatePlanB = deriveBtcVoidBuybackLotV1(
+  request({
+    settlement: {
+      bitcoin_funding_txid: "99".repeat(32),
+      void_settlement_receipt_id: "sha256:" + "aa".repeat(32),
+    },
+  }),
+);
+const alternateEntryA = transition(alternatePlanA).append_entry;
+const alternateEntryB = transition(alternatePlanB).append_entry;
+const equalLengthJournalA = transition(firstPlan, [alternateEntryA]);
+const equalLengthJournalB = transition(firstPlan, [alternateEntryB]);
+assert.notEqual(
+  equalLengthJournalA.journal_snapshot_id_before,
+  equalLengthJournalB.journal_snapshot_id_before,
+);
+assert.notEqual(
+  equalLengthJournalA.decision_id,
+  equalLengthJournalB.decision_id,
+);
+const orderedJournal = transition(firstPlan, [
+  alternateEntryA,
+  alternateEntryB,
+]);
+const reorderedJournal = transition(firstPlan, [
+  alternateEntryB,
+  alternateEntryA,
+]);
+assert.notEqual(
+  orderedJournal.journal_snapshot_id_before,
+  reorderedJournal.journal_snapshot_id_before,
+);
+assert.notEqual(orderedJournal.decision_id, reorderedJournal.decision_id);
 
 const reorderedPlan = Object.fromEntries(Object.entries(firstPlan).reverse());
 assert.equal(transition(reorderedPlan).decision_id, create.decision_id);
@@ -215,7 +285,7 @@ process.stdout.write(
     {
       marker: VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
       status: "PASS",
-      assertions: 43,
+      assertions: 49,
       deterministic_first_decision_id: create.decision_id,
       exact_duplicate_status: duplicate.status,
       conflicting_plan_status: conflict.status,

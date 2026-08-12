@@ -18,6 +18,14 @@ re-derive its complete accepted plan and reject an arbitrary or corrupted
 `buyback_lot_plan_id` even when the outer journal digest was recomputed.
 Malformed, internally inconsistent, or duplicate entries fail closed.
 
+Every decision also binds the exact ordered journal snapshot it evaluated. The
+planner hashes the ordered sequence of validated `journal_entry_id` values into
+`journal_snapshot_id_before`, then includes that snapshot identity in the
+content-addressed decision. Two different journals with the same entry count,
+or the same entries in a different order, cannot share a decision ID. This is
+the source prerequisite for a later durable store to compare the reviewed
+snapshot before atomically appending; this tool still performs no persistence.
+
 ## Deterministic decisions
 
 - `CREATE`: no entry exists for the candidate `buyback_lot_id`; the result
@@ -62,4 +70,6 @@ node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
 The proof covers first creation, exact retry idempotence, same-lot conflicting
 confirmation evidence, content tampering, internally inconsistent source/lot
 bindings, fabricated content-addressed accepted plan IDs, duplicate journal
-entries, unknown fields, canonical ordering, and the negative authority flags.
+entries, unknown fields, canonical object ordering, exact ordered journal
+snapshot binding, equal-length journal substitution, journal reordering, and
+the negative authority flags.

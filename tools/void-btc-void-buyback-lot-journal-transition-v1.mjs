@@ -17,6 +17,8 @@ const TRANSITION_REQUEST_SCHEMA =
   "void.btc_void.buyback_lot_journal_transition_request.v1";
 const TRANSITION_DECISION_SCHEMA =
   "void.btc_void.buyback_lot_journal_transition_decision.v1";
+const JOURNAL_SNAPSHOT_SCHEMA =
+  "void.btc_void.buyback_lot_journal_snapshot.v1";
 const MAX_JOURNAL_ENTRIES = 10_000;
 const MAX_STDIN_BYTES = 1_048_576;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/;
@@ -178,6 +180,13 @@ function normalizedJournal(raw) {
   return entries;
 }
 
+function journalSnapshotId(entries) {
+  return contentId({
+    schema: JOURNAL_SNAPSHOT_SCHEMA,
+    journal_entry_ids: entries.map((entry) => entry.journal_entry_id),
+  });
+}
+
 export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
   const request = exactKeys(
     structuredClone(raw),
@@ -189,6 +198,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
   }
 
   const entries = normalizedJournal(request.journal_entries);
+  const journalSnapshotIdBefore = journalSnapshotId(entries);
   const candidate = validatedCandidatePlan(request.candidate_plan);
   const existing = entries.find(
     (entry) => entry.buyback_lot_id === candidate.buyback_lot_id,
@@ -214,6 +224,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
     status,
     reason,
     journal_entry_count_before: entries.length,
+    journal_snapshot_id_before: journalSnapshotIdBefore,
     buyback_lot_id: candidate.buyback_lot_id,
     candidate_buyback_lot_plan_id: candidate.buyback_lot_plan_id,
     accepted_buyback_lot_plan_id: existing?.buyback_lot_plan_id || null,
@@ -225,6 +236,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
       duplicate_append_forbidden: true,
       conflicting_plan_requires_hold: true,
       source_sale_maps_to_one_lot: true,
+      decision_bound_to_exact_ordered_journal_snapshot: true,
     },
     authority: {
       source_only_decision: true,
