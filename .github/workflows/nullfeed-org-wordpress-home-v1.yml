@@ -1,0 +1,97 @@
+name: nullfeed.org WordPress home v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/nullfeed-org-wordpress-home-v1.yml"
+      - "docs/operators/nullfeed-org-wordpress-home-v1.md"
+      - "ops/public/nullfeed-org-wordpress-home-v1.html"
+      - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
+      - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/nullfeed-org-wordpress-home-v1.yml"
+      - "docs/operators/nullfeed-org-wordpress-home-v1.md"
+      - "ops/public/nullfeed-org-wordpress-home-v1.html"
+      - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
+      - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Read-only inspect or guarded page apply"
+        required: true
+        default: inspect
+        type: choice
+        options:
+          - inspect
+          - apply
+      expected_modified_gmt:
+        description: "Exact authenticated inspect value; required for apply"
+        required: false
+        type: string
+      expected_content_sha256:
+        description: "Exact authenticated inspect value; required for apply"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nullfeed-org-wordpress-home-v1
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check ops/public/sync-nullfeed-org-wordpress-home-v1.mjs
+      - run: node --check scripts/prove_nullfeed_org_wordpress_home_v1.mjs
+      - run: node scripts/prove_nullfeed_org_wordpress_home_v1.mjs
+
+  inspect:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
+    needs: proof
+    environment: nullfeed-org-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Inspect exact NullFeed WordPress page
+        env:
+          NULLFEED_WORDPRESS_USERNAME: ${{ secrets.NULLFEED_WORDPRESS_USERNAME }}
+          NULLFEED_WORDPRESS_APPLICATION_PASSWORD: ${{ secrets.NULLFEED_WORDPRESS_APPLICATION_PASSWORD }}
+        run: node ops/public/sync-nullfeed-org-wordpress-home-v1.mjs --inspect
+
+  apply:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'apply'
+    needs: proof
+    environment: nullfeed-org-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply exact reviewed NullFeed WordPress page
+        env:
+          NULLFEED_WORDPRESS_USERNAME: ${{ secrets.NULLFEED_WORDPRESS_USERNAME }}
+          NULLFEED_WORDPRESS_APPLICATION_PASSWORD: ${{ secrets.NULLFEED_WORDPRESS_APPLICATION_PASSWORD }}
+          EXPECTED_MODIFIED_GMT: ${{ inputs.expected_modified_gmt }}
+          EXPECTED_CONTENT_SHA256: ${{ inputs.expected_content_sha256 }}
+        run: |
+          node ops/public/sync-nullfeed-org-wordpress-home-v1.mjs \
+            --apply \
+            --expected-modified-gmt "$EXPECTED_MODIFIED_GMT" \
+            --expected-content-sha256 "$EXPECTED_CONTENT_SHA256"
