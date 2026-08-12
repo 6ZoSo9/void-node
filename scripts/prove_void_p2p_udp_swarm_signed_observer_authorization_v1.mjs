@@ -329,7 +329,7 @@ expectReject(
 );
 
 const changedObserverSet = structuredClone(authorization);
-changedObserverSet.observers = [observer(sourceA), observer(sourceB)];
+changedObserverSet.observers = changedObserverSet.observers.slice(0, 2);
 expectReject(
   () =>
     validateVoidP2pUdpSwarmObserverAuthorizationV1(
