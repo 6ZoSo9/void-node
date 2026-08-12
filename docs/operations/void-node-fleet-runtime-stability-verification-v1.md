@@ -60,14 +60,16 @@ For every configured node, both audits must prove:
 - green health and readiness; and
 - a fresh observation.
 
-The second observation must retain the exact process-start epoch,
-source-transition epoch, source commit, and source tree from the final audit,
+The second observation must retain the exact systemd `InvocationID`,
+process-start epoch, source-transition epoch, source commit, and source tree from the final audit,
 while both exact audits continue to bind every aligned process to that shared
 source commit/tree. Its observation epoch must be at least the configured
 interval later for every node. The minimum is 30 seconds and the default is 30
 seconds.
 
-Any crash recovery, manual restart, source checkout, process replacement,
+Because systemd assigns a fresh lowercase 32-hex invocation ID to each service
+invocation, this detects a crash/restart even when both processes share the same
+whole-second start epoch. Any crash recovery, manual restart, source checkout, process replacement,
 health/readiness failure, stale evidence, future timestamp, or schema/digest
 change returns `HOLD`. A failure is not adopted as a new baseline.
 
@@ -100,7 +102,8 @@ Success returns `FLEET_RUNTIME_STABLE` with:
 - normalized IDs and full-receipt digests for both audits;
 - the exact source SHA, source tree, and node order;
 - the required stability interval; and
-- per-node process, source-transition, and observation epochs.
+- per-node systemd invocation IDs plus process, source-transition, and
+  observation epochs.
 
 The optional output file is create-only and mode `0600`. Existing evidence is
 never overwritten. The receipt is sanitized and does not copy private config

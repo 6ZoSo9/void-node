@@ -11,6 +11,7 @@ export const VOID_NODE_FLEET_PROCESS_FRESHNESS_AUDIT_V1 = "VOID_NODE_FLEET_PROCE
 export const VOID_NODE_PROCESS_SOURCE_IDENTITY_V1 = "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
+const SYSTEMD_INVOCATION_ID_RE = /^[0-9a-f]{32}$/;
 const SHA_PREFIX_RE = /^[0-9a-f]{7,40}$/;
 const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const SSH_TARGET_RE = /^[a-z0-9][a-z0-9._@:-]{0,254}$/i;
@@ -181,10 +182,12 @@ if test -n "$head_log" && test -f "$head_log"; then
 fi
 
 service_show_before="$(systemctl --user show "$service" \
-  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp 2>/dev/null || true)"
+  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp \
+  --property=InvocationID 2>/dev/null || true)"
 active_state="$(printf '%s\\n' "$service_show_before" | sed -n 's/^ActiveState=//p' | tail -n 1)"
 main_pid="$(printf '%s\\n' "$service_show_before" | sed -n 's/^MainPID=//p' | tail -n 1)"
 start_text="$(printf '%s\\n' "$service_show_before" | sed -n 's/^ExecMainStartTimestamp=//p' | tail -n 1)"
+process_invocation_id="$(printf '%s\\n' "$service_show_before" | sed -n 's/^InvocationID=//p' | tail -n 1)"
 process_start_epoch="$(date --date="$start_text" +%s 2>/dev/null || true)"
 process_present=0
 cwd_match=0
@@ -268,7 +271,8 @@ if test "$status_readable" = 1 && test "$status_after_readable" = 1 &&
 fi
 
 service_show_after="$(systemctl --user show "$service" \
-  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp 2>/dev/null || true)"
+  --property=ActiveState --property=MainPID --property=ExecMainStartTimestamp \
+  --property=InvocationID 2>/dev/null || true)"
 process_identity_stable=0
 test "$service_show_before" = "$service_show_after" && process_identity_stable=1
 
@@ -283,6 +287,7 @@ printf 'head_transition_epoch\\t%s\\n' "$head_transition_epoch"
 printf 'observed_at_epoch\\t%s\\n' "$(date +%s)"
 printf 'service_active\\t%s\\n' "$active_state"
 printf 'process_present\\t%s\\n' "$process_present"
+printf 'process_invocation_id\\t%s\\n' "$process_invocation_id"
 printf 'process_start_epoch\\t%s\\n' "$process_start_epoch"
 printf 'process_cwd_matches_repo\\t%s\\n' "$cwd_match"
 printf 'process_entrypoint_matches\\t%s\\n' "$entrypoint_match"
@@ -327,6 +332,7 @@ export function parseProcessFreshnessCollectorOutputV1(stdout) {
     observed_at_epoch: integer("observed_at_epoch"),
     service_active: fields.get("service_active") === "active",
     process_present: fields.get("process_present") === "1",
+    process_invocation_id: fields.get("process_invocation_id") ?? "",
     process_start_epoch: integer("process_start_epoch"),
     process_cwd_matches_repo: fields.get("process_cwd_matches_repo") === "1",
     process_entrypoint_matches: fields.get("process_entrypoint_matches") === "1",
@@ -408,6 +414,9 @@ export function classifyProcessFreshnessV1(snapshot) {
   if (!snapshot.head_log_present || !Number.isSafeInteger(snapshot.head_transition_epoch)) reasons.push("head_transition_time_unavailable");
   if (!snapshot.service_active) reasons.push("service_inactive");
   if (!snapshot.process_present) reasons.push("main_process_unavailable");
+  if (!SYSTEMD_INVOCATION_ID_RE.test(snapshot.process_invocation_id ?? "")) {
+    reasons.push("process_invocation_id_unavailable");
+  }
   if (!Number.isSafeInteger(snapshot.process_start_epoch)) reasons.push("process_start_time_unavailable");
   if (!Number.isSafeInteger(snapshot.observed_at_epoch)) reasons.push("observation_time_unavailable");
   if (!snapshot.process_cwd_matches_repo) reasons.push("process_cwd_mismatch");
@@ -485,6 +494,7 @@ export function buildFleetProcessFreshnessDecisionV1(nodes) {
       classification: node.classification,
       reasons: node.reasons,
       source_to_process_start_seconds: node.source_to_process_start_seconds,
+      process_invocation_id: node.process_invocation_id,
       process_source_identity_bound: node.process_source_identity_bound,
       process_source_commit: node.process_source_commit,
       process_source_tree: node.process_source_tree,
@@ -516,6 +526,7 @@ export function collectNodeProcessFreshnessV1(node) {
       source_head: null,
       source_tree: null,
       source_to_process_start_seconds: null,
+      process_invocation_id: null,
       process_source_identity_bound: false,
       process_source_commit: null,
       process_source_tree: null,
@@ -543,6 +554,9 @@ export function collectNodeProcessFreshnessV1(node) {
     process_executable_node: snapshot.process_executable_node,
     process_identity_stable: snapshot.process_identity_stable,
     head_transition_epoch: snapshot.head_transition_epoch,
+    process_invocation_id: SYSTEMD_INVOCATION_ID_RE.test(snapshot.process_invocation_id)
+      ? snapshot.process_invocation_id
+      : null,
     process_start_epoch: snapshot.process_start_epoch,
     observed_at_epoch: snapshot.observed_at_epoch,
     health_ok: Boolean(snapshot.health_json_ok && snapshot.health?.ok === true),

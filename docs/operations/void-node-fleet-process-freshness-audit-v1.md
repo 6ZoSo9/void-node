@@ -36,7 +36,7 @@ that match as process identity. The receipt always includes:
 ```
 
 Process freshness is instead bounded to evidence from the service MainPID, its
-start timestamp, the repository HEAD/tree and reflog transition timestamp, its
+start timestamp and systemd `InvocationID`, the repository HEAD/tree and reflog transition timestamp, its
 working directory and complete command line, the immutable
 `/version.process_source` object, and current clean-source/runtime health checks.
 The collector requires the exact commit/tree identity encoded in the process
@@ -91,8 +91,9 @@ For each node, the collector reads:
 - matching before/after Git HEAD and tree, exact branch, readable porcelain
   status, and modification epoch of that worktree's absolute `logs/HEAD`
   reflog path;
-- matching before/after `ActiveState`, `MainPID`, and
-  `ExecMainStartTimestamp` snapshots from read-only `systemctl --user show`
+- matching before/after `ActiveState`, `MainPID`,
+  `ExecMainStartTimestamp`, and per-invocation `InvocationID` snapshots from
+  read-only `systemctl --user show`
   calls;
 - boolean checks that the MainPID working directory is the configured repo, its
   executable is Node, and its complete argv exactly matches the checked-in
@@ -114,6 +115,11 @@ The tool emits one of three node classifications:
   whole second after process start; or
 - `HOLD` — identity, source, health, timestamp, transport, or parsing evidence is
   missing, changes during collection, or is ambiguous.
+
+The lowercase 32-hex systemd invocation ID is mandatory and is included in the
+normalized audit identity. Unlike the whole-second start epoch, it changes for
+every service invocation, so a same-second crash/restart cannot be mistaken for
+the original process.
 
 The one-second separation is deliberate because the portable evidence is
 second-granularity. Equal-second observations fail closed as

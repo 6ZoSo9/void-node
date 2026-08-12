@@ -74,6 +74,7 @@ function processNode(
   headTransitionEpoch,
   processStartEpoch,
   observedAtEpoch,
+  processInvocationId = sha256(name + ":" + processStartEpoch).slice(0, 32),
 ) {
   const delta = processStartEpoch - headTransitionEpoch;
   const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
@@ -95,6 +96,7 @@ function processNode(
     process_executable_node: true,
     process_identity_stable: true,
     head_transition_epoch: headTransitionEpoch,
+    process_invocation_id: processInvocationId,
     process_start_epoch: processStartEpoch,
     observed_at_epoch: observedAtEpoch,
     health_ok: true,
@@ -158,6 +160,8 @@ function rolloutState(baseline, finalAudit, sourceSha, fromSha) {
       old_process_tree: before.process_source_tree,
       new_process_commit: after.process_source_commit,
       new_process_tree: after.process_source_tree,
+      old_process_invocation_id: before.process_invocation_id,
+      new_process_invocation_id: after.process_invocation_id,
       old_process_start_epoch: before.process_start_epoch,
       new_process_start_epoch: after.process_start_epoch,
     };
@@ -393,6 +397,28 @@ try {
     }),
     /process identity changed/,
     "verification process restart",
+  );
+
+  const sameSecondRestart = clone(verificationAudit);
+  const priorAlienware = sameSecondRestart.nodes[2];
+  sameSecondRestart.nodes[2] = processNode(
+    "alienware",
+    sourceSha,
+    sourceTree,
+    sourceSha,
+    sourceTree,
+    transition,
+    priorAlienware.process_start_epoch,
+    verificationObserved,
+    "f".repeat(32),
+  );
+  expectThrow(
+    () => buildRuntimeStabilityVerificationV1({
+      ...input,
+      verificationAudit: resealAudit(sameSecondRestart),
+    }),
+    /process identity changed/,
+    "same-second process restart",
   );
 
   const transitionTamper = clone(verificationAudit);

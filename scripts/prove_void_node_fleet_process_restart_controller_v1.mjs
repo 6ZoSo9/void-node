@@ -206,6 +206,7 @@ function buildFreshnessAudit(
     source_stable: true,
     service_active: true,
     process_present: true,
+    process_invocation_id: "a".repeat(32),
     process_cwd_matches_repo: true,
     process_entrypoint: "src/index.ts",
     process_entrypoint_matches: true,
@@ -262,6 +263,7 @@ const validatedFreshness = validateProcessFreshnessAuditV1(fixedFreshnessAudit, 
 assert.equal(validatedReceipt.from_sha, fixedFrom);
 assert.equal(validatedReceipt.to_sha, fixedTo);
 assert.equal(validatedFreshness.old_process_start_epoch, 1_700_000_000);
+assert.equal(validatedFreshness.old_process_invocation_id, "a".repeat(32));
 assert.throws(
   () => validateProcessFreshnessAuditV1({ ...fixedFreshnessAudit, decision: "PROCESS_FRESH" }, "nimo", fixedTo),
   /RESTART_REQUIRED/,
@@ -350,6 +352,7 @@ const confirmations = {
   confirmNode: fixedPlan.node,
   confirmFromSha: fixedPlan.from_sha,
   confirmSourceSha: fixedPlan.source_sha,
+  confirmOldProcessInvocationId: fixedPlan.old_process_invocation_id,
   confirmOldProcessStartEpoch: String(fixedPlan.old_process_start_epoch),
 };
 assert.equal(validateRestartConfirmationsV1(confirmations, fixedPlan), true);
@@ -375,6 +378,7 @@ const greenSnapshot = {
   process_entrypoint_matches: true,
   process_executable_node: true,
   process_identity_stable: true,
+  process_invocation_id: fixedPlan.old_process_invocation_id,
   health_json_ok: true,
   health: { ok: true },
   readiness_json_ok: true,
@@ -401,19 +405,29 @@ const postSnapshot = {
   process_source_commit: fixedPlan.source_sha,
   process_source_tree: fixedPlan.source_tree,
   process_source_matches_current: true,
+  process_invocation_id: "b".repeat(32),
   process_start_epoch: fixedPlan.head_transition_epoch + 5,
 };
 assert.equal(assessPostRestartV1(postSnapshot, fixedConfig, fixedPlan).ok, true);
 assert.equal(assessPostRestartV1({ ...postSnapshot, readiness: { ready: false } }, fixedConfig, fixedPlan).ok, false);
 assert.deepEqual(buildPostRestartIdentityV1(postSnapshot, fixedConfig, fixedPlan), {
   marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+  process_invocation_id: postSnapshot.process_invocation_id,
   process_start_epoch: postSnapshot.process_start_epoch,
   process_source_commit: fixedPlan.source_sha,
   process_source_tree: fixedPlan.source_tree,
 });
+assert.equal(assessPostRestartV1({
+  ...postSnapshot,
+  process_start_epoch: fixedPlan.old_process_start_epoch,
+}, fixedConfig, fixedPlan).ok, true, "a distinct invocation may start in the same Unix second");
 assert.throws(
   () => buildPostRestartIdentityV1(
-    { ...postSnapshot, process_start_epoch: fixedPlan.old_process_start_epoch },
+    {
+      ...postSnapshot,
+      process_invocation_id: fixedPlan.old_process_invocation_id,
+      process_start_epoch: fixedPlan.old_process_start_epoch,
+    },
     fixedConfig,
     fixedPlan,
   ),
@@ -603,6 +617,7 @@ for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => server.clos
   });
   writeFileSync(join(state, "pid"), `${oldChild.pid}\n`);
   writeFileSync(join(state, "start_epoch"), `${oldStartEpoch}\n`);
+  writeFileSync(join(state, "invocation_id"), `${"a".repeat(32)}\n`);
   writeFileSync(join(state, "source_commit"), `${fromSha}\n`);
   writeFileSync(join(state, "source_tree"), `${fromTree}\n`);
   await waitForJson(`http://127.0.0.1:${port}/loaded`, (value) => value.loaded === "one");
@@ -616,6 +631,7 @@ command="$1"
 shift
 pid_file=${shellLiteral(join(state, "pid"))}
 epoch_file=${shellLiteral(join(state, "start_epoch"))}
+invocation_file=${shellLiteral(join(state, "invocation_id"))}
 case "$command" in
   show)
     epoch="$(cat "$epoch_file")"
@@ -630,6 +646,7 @@ case "$command" in
     printf 'ActiveState=active\\n'
     printf 'MainPID=%s\\n' "$main_pid"
     printf 'ExecMainStartTimestamp=%s\\n' "$(date -u --date="@$epoch" '+%Y-%m-%d %H:%M:%S UTC')"
+    printf 'InvocationID=%s\\n' "$(cat "$invocation_file")"
     ;;
   restart)
     old_pid="$(cat "$pid_file")"
@@ -658,6 +675,7 @@ case "$command" in
     new_pid=$!
     printf '%s\\n' "$new_pid" > "$pid_file"
     date +%s > "$epoch_file"
+    printf '%s\\n' ${shellLiteral("b".repeat(32))} > "$invocation_file"
     printf '%s\\n' "$process_source_commit" > ${shellLiteral(join(state, "source_commit"))}
     printf '%s\\n' "$process_source_tree" > ${shellLiteral(join(state, "source_tree"))}
     ;;
@@ -825,6 +843,7 @@ fi
     "--confirm-node", dryRun.plan.node,
     "--confirm-from-sha", dryRun.plan.from_sha,
     "--confirm-source-sha", dryRun.plan.source_sha,
+    "--confirm-old-process-invocation-id", dryRun.plan.old_process_invocation_id,
     "--confirm-old-process-start-epoch", String(dryRun.plan.old_process_start_epoch),
   ], { env: process.env, timeoutMs: 30_000 }));
   assert.equal(appliedRun.outcome, "PROCESS_RESTARTED");
@@ -836,6 +855,7 @@ fi
     VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
   );
   assert.ok(appliedRun.post_restart_identity.process_start_epoch > dryRun.plan.old_process_start_epoch);
+  assert.notEqual(appliedRun.post_restart_identity.process_invocation_id, dryRun.plan.old_process_invocation_id);
   assert.equal(appliedRun.post_restart_identity.process_source_commit, dryRun.plan.source_sha);
   assert.equal(appliedRun.post_restart_identity.process_source_tree, dryRun.plan.source_tree);
   assert.equal(appliedRun.authority.service_start_or_restart_attempted, true);

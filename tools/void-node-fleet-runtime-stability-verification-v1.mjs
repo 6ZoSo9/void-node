@@ -16,6 +16,7 @@ export const VOID_NODE_FLEET_RUNTIME_STABILITY_VERIFICATION_V1 =
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA64_RE = /^[0-9a-f]{64}$/;
+const SYSTEMD_INVOCATION_ID_RE = /^[0-9a-f]{32}$/;
 const DEFAULT_MIN_STABILITY_SECONDS = 30;
 const DEFAULT_MAX_EVIDENCE_AGE_SECONDS = 300;
 const MAX_EVIDENCE_FILE_BYTES = 4 * 1024 * 1024;
@@ -265,7 +266,7 @@ export function validateRuntimeStabilityVerificationV1(receipt) {
   for (let index = 0; index < receipt.node_evidence.length; index += 1) {
     const entry = receipt.node_evidence[index];
     exactKeys(entry, [
-      "name", "process_start_epoch", "head_transition_epoch", "final_observed_at_epoch",
+      "name", "process_invocation_id", "process_start_epoch", "head_transition_epoch", "final_observed_at_epoch",
       "verification_observed_at_epoch", "observed_stability_seconds",
     ], "node evidence[" + index + "]");
     if (typeof entry.name !== "string" || entry.name !== receipt.node_order[index] ||
@@ -273,6 +274,9 @@ export function validateRuntimeStabilityVerificationV1(receipt) {
       fail("stability receipt node order is invalid");
     }
     seen.add(entry.name);
+    if (!SYSTEMD_INVOCATION_ID_RE.test(entry.process_invocation_id ?? "")) {
+      fail(entry.name + " process invocation ID must be lowercase 32-hex");
+    }
     for (const [value, label] of [
       [entry.process_start_epoch, "process start"],
       [entry.head_transition_epoch, "head transition"],
@@ -346,7 +350,8 @@ export function buildRuntimeStabilityVerificationV1(input) {
         verificationNode.classification !== "PROCESS_SOURCE_ALIGNED") {
       fail(name + " is not aligned in both stability observations");
     }
-    if (verificationNode.process_start_epoch !== finalNode.process_start_epoch) {
+    if (verificationNode.process_invocation_id !== finalNode.process_invocation_id ||
+        verificationNode.process_start_epoch !== finalNode.process_start_epoch) {
       fail(name + " process identity changed during the stability interval");
     }
     if (verificationNode.head_transition_epoch !== finalNode.head_transition_epoch) {
@@ -359,6 +364,7 @@ export function buildRuntimeStabilityVerificationV1(input) {
     }
     return {
       name,
+      process_invocation_id: finalNode.process_invocation_id,
       process_start_epoch: finalNode.process_start_epoch,
       head_transition_epoch: finalNode.head_transition_epoch,
       final_observed_at_epoch: finalNode.observed_at_epoch,
