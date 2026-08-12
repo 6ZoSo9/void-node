@@ -6,6 +6,58 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:4100";
 const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
+const PUBLIC_UTILITY_TOP_LEVEL_KEYS = [
+  "contract",
+  "controls",
+  "entries",
+  "integration",
+  "limits",
+  "marker",
+  "network",
+  "purpose",
+  "status",
+];
+const PUBLIC_UTILITY_INTEGRATION_KEYS = [
+  "activation_requires",
+  "advertised_from_first_contact",
+  "first_contact_manifest",
+  "runtime_observed",
+];
+const PUBLIC_UTILITY_LIMIT_KEYS = [
+  "max_catalog_bytes",
+  "max_entries",
+  "max_requests_per_cold_start",
+  "minimum_poll_interval_ms",
+];
+const PUBLIC_UTILITY_CONTROL_KEYS = [
+  "anonymous_read_allowed",
+  "captcha_required",
+  "credential_required",
+  "earning_advertised",
+  "human_chat_required",
+  "mutation_authority_granted",
+  "paid_work_advertised",
+  "polling_rewarded",
+  "registration_required",
+  "traffic_rewarded",
+  "wallet_required",
+  "work_credit_award_active",
+];
+const PUBLIC_UTILITY_ENTRY_KEYS = [
+  "access",
+  "authority",
+  "http_method",
+  "id",
+  "kind",
+  "media_type",
+  "path",
+  "purpose",
+  "repository_path",
+  "required_marker",
+  "runtime_observed",
+  "same_origin",
+  "source_present",
+];
 
 function parseArgs(argv) {
   const result = {
@@ -83,7 +135,12 @@ function joinUrl(baseUrl, path) {
   }
   const base = new URL(`${baseUrl}/`);
   const resolved = new URL(path, base);
-  if (resolved.origin !== base.origin || resolved.username || resolved.password) {
+  if (
+    resolved.origin !== base.origin ||
+    resolved.username ||
+    resolved.password ||
+    resolved.pathname !== path
+  ) {
     throw new Error(`cross-origin public path forbidden: ${String(path)}`);
   }
   return resolved.toString();
@@ -199,51 +256,116 @@ function bindingConsistent(manifest, discovery, authenticity) {
   return nameMatch && chainMatch;
 }
 
+function hasExactKeys(value, expected) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === expected.length &&
+    expected.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function isBoundedString(value, maximumLength) {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maximumLength
+  );
+}
+
+function isPublicJsonPath(path) {
+  if (
+    typeof path !== "string" ||
+    !/^\/public-node\/[A-Za-z0-9._/-]+\.json$/.test(path)
+  ) {
+    return false;
+  }
+  try {
+    joinUrl("https://void.invalid", path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function usefulPublicResources(manifest, publicUtility) {
   const catalog = publicUtility?.body;
   if (
     !publicUtility?.ok ||
+    !hasExactKeys(catalog, PUBLIC_UTILITY_TOP_LEVEL_KEYS) ||
     catalog?.marker !== "VOID_AI_AGENT_PUBLIC_UTILITY_V1" ||
     catalog?.contract !== "void-ai-agent-first-contact-public-utility/1" ||
+    catalog?.status !== "source_only_advertised_not_observed" ||
+    !isBoundedString(catalog?.purpose, 256) ||
+    !hasExactKeys(catalog?.network, ["chain_id", "identity", "name"]) ||
     catalog?.network?.name !== manifest?.network?.name ||
     catalog?.network?.chain_id !== manifest?.network?.chain_id ||
     catalog?.network?.identity !== manifest?.network?.identity ||
+    !hasExactKeys(catalog?.integration, PUBLIC_UTILITY_INTEGRATION_KEYS) ||
     catalog?.integration?.first_contact_manifest !== manifest?.entrypoints?.first_contact ||
     catalog?.integration?.advertised_from_first_contact !== true ||
     catalog?.integration?.runtime_observed !== false ||
+    !Array.isArray(catalog?.integration?.activation_requires) ||
+    catalog.integration.activation_requires.length !== 1 ||
+    catalog.integration.activation_requires[0] !==
+      "independent_http_observation" ||
+    !hasExactKeys(catalog?.controls, PUBLIC_UTILITY_CONTROL_KEYS) ||
     catalog?.controls?.anonymous_read_allowed !== true ||
+    catalog?.controls?.captcha_required !== false ||
+    catalog?.controls?.credential_required !== false ||
     catalog?.controls?.mutation_authority_granted !== false ||
     catalog?.controls?.paid_work_advertised !== false ||
     catalog?.controls?.earning_advertised !== false ||
+    catalog?.controls?.human_chat_required !== false ||
+    catalog?.controls?.polling_rewarded !== false ||
+    catalog?.controls?.registration_required !== false ||
+    catalog?.controls?.traffic_rewarded !== false ||
+    catalog?.controls?.wallet_required !== false ||
+    catalog?.controls?.work_credit_award_active !== false ||
+    !hasExactKeys(catalog?.limits, PUBLIC_UTILITY_LIMIT_KEYS) ||
     catalog?.limits?.max_catalog_bytes !== MAX_RESPONSE_BYTES ||
-    !Number.isInteger(catalog?.limits?.max_entries) ||
-    catalog.limits.max_entries < 1 ||
+    catalog?.limits?.max_entries !== 8 ||
+    catalog?.limits?.max_requests_per_cold_start !== 4 ||
+    !Number.isInteger(catalog?.limits?.minimum_poll_interval_ms) ||
+    catalog.limits.minimum_poll_interval_ms < 60_000 ||
     !Array.isArray(catalog?.entries) ||
     catalog.entries.length < 1 ||
-    catalog.entries.length > catalog?.limits?.max_entries
+    catalog.entries.length > catalog.limits.max_entries ||
+    catalog.entries.length > catalog.limits.max_requests_per_cold_start
   ) {
     return [];
   }
 
+  const ids = new Set();
+  const paths = new Set();
   const resources = catalog.entries.flatMap((entry) => {
-    try {
-      joinUrl("https://void.invalid", entry?.path);
-    } catch {
-      return [];
-    }
     if (
-      !entry.path.startsWith("/public-node/") ||
+      !hasExactKeys(entry, PUBLIC_UTILITY_ENTRY_KEYS) ||
+      typeof entry?.id !== "string" ||
+      !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(entry.id) ||
+      ids.has(entry.id) ||
+      typeof entry?.kind !== "string" ||
+      !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(entry.kind) ||
+      !isBoundedString(entry?.purpose, 256) ||
+      !isPublicJsonPath(entry?.path) ||
+      paths.has(entry.path) ||
+      entry.repository_path !== `public${entry.path}` ||
+      typeof entry?.required_marker !== "string" ||
+      !/^[A-Z0-9_]+$/.test(entry.required_marker) ||
       entry.http_method !== "GET" ||
       entry.media_type !== "application/json" ||
       entry.access !== "anonymous" ||
       entry.authority !== "read_only" ||
       entry.same_origin !== true ||
+      entry.source_present !== true ||
       entry.runtime_observed !== false ||
-      typeof entry.id !== "string" ||
-      typeof entry.purpose !== "string"
+      ids.size >= catalog.limits.max_entries
     ) {
       return [];
     }
+    ids.add(entry.id);
+    paths.add(entry.path);
     return [{
       id: entry.id,
       purpose: entry.purpose,

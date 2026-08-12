@@ -194,6 +194,56 @@ fixtures.set(OVERSIZED_UTILITY_PATH, {
   padding: "x".repeat(65_536),
 });
 
+const NORMALIZED_PATH_MANIFEST_PATH =
+  "/public-node/agents/first-contact-normalized-path-fixture-v1.json";
+fixtures.set(NORMALIZED_PATH_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: "/public-node/%2e%2e/private.json",
+  },
+});
+
+const OPEN_SCHEMA_MANIFEST_PATH =
+  "/public-node/agents/first-contact-open-schema-fixture-v1.json";
+const OPEN_SCHEMA_UTILITY_PATH =
+  "/public-node/agents/public-utility-open-schema-fixture-v1.json";
+fixtures.set(OPEN_SCHEMA_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: OPEN_SCHEMA_UTILITY_PATH,
+  },
+});
+fixtures.set(OPEN_SCHEMA_UTILITY_PATH, {
+  ...publicUtility,
+  unreviewed_extension: true,
+});
+
+const DUPLICATE_ID_MANIFEST_PATH =
+  "/public-node/agents/first-contact-duplicate-id-fixture-v1.json";
+const DUPLICATE_ID_UTILITY_PATH =
+  "/public-node/agents/public-utility-duplicate-id-fixture-v1.json";
+fixtures.set(DUPLICATE_ID_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: DUPLICATE_ID_UTILITY_PATH,
+  },
+});
+fixtures.set(DUPLICATE_ID_UTILITY_PATH, {
+  ...publicUtility,
+  entries: [
+    ...publicUtility.entries,
+    {
+      ...publicUtility.entries[0],
+      path: "/public-node/agents/duplicate-first-contact-v1.json",
+      repository_path:
+        "public/public-node/agents/duplicate-first-contact-v1.json",
+    },
+  ],
+});
+
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
     response.writeHead(405, {
@@ -349,6 +399,42 @@ try {
     oversizedReport.responses.public_utility.error,
     /response exceeds 65536 bytes/,
   );
+
+  const normalizedPath = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    NORMALIZED_PATH_MANIFEST_PATH,
+  ]);
+  assert.equal(normalizedPath.code, 2, normalizedPath.stderr);
+  const normalizedPathReport = JSON.parse(normalizedPath.stdout);
+  assert.equal(
+    normalizedPathReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    normalizedPathReport.responses.public_utility.error,
+    /cross-origin public path forbidden/,
+  );
+
+  for (const manifestPath of [
+    OPEN_SCHEMA_MANIFEST_PATH,
+    DUPLICATE_ID_MANIFEST_PATH,
+  ]) {
+    const invalidSchema = await runClient([
+      "--base-url",
+      baseUrl,
+      "--manifest-path",
+      manifestPath,
+    ]);
+    assert.equal(invalidSchema.code, 2, invalidSchema.stderr);
+    const invalidSchemaReport = JSON.parse(invalidSchema.stdout);
+    assert.equal(
+      invalidSchemaReport.checks.public_utility_catalog_loaded,
+      false,
+    );
+    assert.deepEqual(invalidSchemaReport.useful_public_resources, []);
+  }
 
   const unsafeBaseUrl = await runClient([
     "--base-url",
