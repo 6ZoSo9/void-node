@@ -98,7 +98,7 @@ const catalog = JSON.parse(raw);
 exactKeys(catalog, TOP_LEVEL_KEYS, "catalog");
 assert.equal(catalog.contract, "void-ai-agent-first-contact-public-utility/1");
 assert.equal(catalog.marker, "VOID_AI_AGENT_PUBLIC_UTILITY_V1");
-assert.equal(catalog.status, "source_only_not_advertised");
+assert.equal(catalog.status, "source_only_advertised_not_observed");
 assert.deepEqual(catalog.network, {
   chain_id: 2050,
   identity: "mainnet0",
@@ -107,10 +107,9 @@ assert.deepEqual(catalog.network, {
 
 exactKeys(catalog.integration, INTEGRATION_KEYS, "integration");
 assert.equal(catalog.integration.first_contact_manifest, "/public-node/agents/first-contact-v1.json");
-assert.equal(catalog.integration.advertised_from_first_contact, false);
+assert.equal(catalog.integration.advertised_from_first_contact, true);
 assert.equal(catalog.integration.runtime_observed, false);
 assert.deepEqual(catalog.integration.activation_requires, [
-  "first_contact_entrypoint_added",
   "independent_http_observation"
 ]);
 
@@ -184,7 +183,16 @@ for (const path of [
 
 if (!catalogOnly) {
   const firstContact = await readJson("public/public-node/agents/first-contact-v1.json");
-  assert.equal(Object.values(firstContact.entrypoints).includes("/public-node/agents/public-utility-v1.json"), false);
+  assert.equal(
+    firstContact.entrypoints.public_utility,
+    "/public-node/agents/public-utility-v1.json",
+  );
+  assert.equal(
+    firstContact.verification.required_checks.includes(
+      "public_utility_catalog_loaded",
+    ),
+    true,
+  );
 }
 
 process.stdout.write(`${JSON.stringify({

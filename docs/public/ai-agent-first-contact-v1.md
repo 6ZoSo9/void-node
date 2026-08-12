@@ -20,6 +20,7 @@ transactions, wallets, credentials, or autonomous execution.
 | Agent authentication | `/.well-known/void-agent-authentication.json` |
 | Agent capabilities | `/public-node/agents/capabilities-v1.json` |
 | Agent intake capability | `/.well-known/void-agent-intake-capability-v1.json` |
+| Useful public data and evidence | `/public-node/agents/public-utility-v1.json` |
 
 ## One-command client
 
@@ -38,23 +39,41 @@ The client performs GET-only requests. It emits one JSON report containing:
 - whether official discovery and authenticity evidence were reachable;
 - whether those documents are consistent with VOID Mainnet-0 and chain ID
   `2050`;
-- whether authentication, capabilities, and intake documents were available;
+- whether authentication and capabilities documents satisfied their exact
+  fail-closed read-only contracts, and whether intake was reachable;
+- whether the bounded public-utility catalog was loaded and valid;
+- the catalog's anonymous read-only resources and their purposes;
 - the safe read-only next actions supported by the observed documents.
 
 A missing optional surface is reported as partial readiness. It is never
 silently converted into a positive claim.
 
+Authentication or capability endpoints returning unrelated JSON are likewise
+not readiness evidence. The client checks their exact V1 markers, network
+binding, negotiation mode, authority-zero controls, safety controls, and
+bounded read-only capability shapes before it reports them as loaded.
+
+The catalog is a required part of the composed source contract. Until the new
+manifest and catalog are deployed together, the updated client returns
+`partial_read_only`; it does not confuse merged source with a live surface.
+
 ## Meaning of `official_network_verified`
 
 In this client, `official_network_verified` means:
 
-1. the official discovery document was reachable;
-2. the official authenticity document was reachable; and
-3. both were consistent with the manifest's VOID Mainnet-0 / chain `2050`
-   binding.
+1. the first-contact manifest declares the exact `VOID Mainnet-0`, chain
+   `2050`, and `mainnet0` identity;
+2. the official discovery and authenticity documents were reachable;
+3. both responses carry their exact contract markers, protocol versions, and
+   top-level network fields;
+4. discovery links back to the manifest-declared authenticity path; and
+5. both responses preserve their read-only, no-credentials, no-redirect, and
+   authority-zero controls.
 
 It does **not** claim that the client independently revalidated every
 cryptographic signature or reproduced the offline root ceremony.
+Free-form or nested text containing `VOID`, `mainnet0`, or `2050` is not
+network-binding evidence and is rejected.
 
 ## Capability honesty
 
@@ -237,6 +256,12 @@ The public files become available through the existing public static-file
 surface when a later deployment lane updates the serving checkout. No service
 restart is part of this source lane.
 
+The catalog composition reuses this protocol and modifies only the existing
+first-contact and public-utility source families. It adds no endpoint family,
+runtime route, account requirement, earning promise, or mutation authority.
+The client rejects redirects, cross-origin and traversal paths, credentialed
+origins, non-JSON responses, and responses larger than 64 KiB.
+
 ## Proof
 
 ```bash
@@ -244,5 +269,5 @@ node scripts/prove_void_ai_agent_first_contact_v1.mjs
 ```
 
 The proof starts a loopback-only fixture server, runs the real client against
-it, validates the JSON report, checks the HTML links, enforces GET-only client
-behavior, and confirms the exact six-file Git boundary.
+it, validates the public-utility composition and JSON report, checks the HTML
+links, and enforces GET-only, same-origin, bounded-response client behavior.

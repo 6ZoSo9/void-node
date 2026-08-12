@@ -6,13 +6,34 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 const ROOT = process.cwd();
-const BOUNDARY = [
+const ORIGINAL_BOUNDARY = [
   ".github/workflows/void-ai-agent-first-contact-v1.yml",
   "docs/public/ai-agent-first-contact-v1.md",
   "public/public-node/agents/first-contact-v1.json",
   "public/public-node/agents/join-v1.html",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs"
+];
+const COMPOSITION_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-public-utility-v1.yml",
+  "docs/public/ai-agent-first-contact-v1.md",
+  "docs/public/ai-agent-public-utility-v1.md",
+  "public/public-node/agents/first-contact-v1.json",
+  "public/public-node/agents/public-utility-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const NETWORK_BINDING_REPAIR_BOUNDARY = [
+  "docs/public/ai-agent-first-contact-v1.md",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const ALLOWED_BOUNDARY = [
+  ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
 const AUTHENTICITY_ROUTE = "/.well-known/void-network-authenticity.json";
 const MANIFEST_PATH = join(
@@ -27,8 +48,21 @@ const CLIENT_PATH = join(
   ROOT,
   "tools/void-ai-agent-first-contact-v1.mjs",
 );
+const PUBLIC_UTILITY_PATH = join(
+  ROOT,
+  "public/public-node/agents/public-utility-v1.json",
+);
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
+const publicUtility = JSON.parse(
+  await readFile(PUBLIC_UTILITY_PATH, "utf8"),
+);
+const capabilitiesCatalog = JSON.parse(
+  await readFile(
+    join(ROOT, "public/public-node/agents/capabilities-v1.json"),
+    "utf8",
+  ),
+);
 assert.equal(manifest.marker, "VOID_AI_AGENT_FIRST_CONTACT_V1");
 assert.equal(manifest.protocol, "void-ai-agent-first-contact");
 assert.equal(manifest.version, "1");
@@ -37,6 +71,16 @@ assert.equal(manifest.network.name, "VOID Mainnet-0");
 assert.equal(manifest.network.chain_id, 2050);
 assert.equal(manifest.connection_mode, "read_only");
 assert.equal(manifest.entrypoints.official_authenticity, AUTHENTICITY_ROUTE);
+assert.equal(
+  manifest.entrypoints.public_utility,
+  "/public-node/agents/public-utility-v1.json",
+);
+assert.equal(
+  manifest.verification.required_checks.includes(
+    "public_utility_catalog_loaded",
+  ),
+  true,
+);
 assert.equal(manifest.honesty.paid_work_promised, false);
 assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
@@ -83,46 +127,77 @@ assert.equal(
 
 const fixtures = new Map([
   [manifest.entrypoints.first_contact, manifest],
+  [manifest.entrypoints.public_utility, publicUtility],
   [
     manifest.entrypoints.well_known_discovery,
     {
       marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      canonical: "/public-node/agents/discovery-v1.json",
+      protocol: "void-agent-discovery-well-known/1",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      canonical_discovery: "/public-node/agents/discovery-v1.json",
+      network_authenticity:
+        manifest.entrypoints.official_authenticity,
+      authority: {
+        default: "read_only",
+        mutation_authority_granted: false,
+        credentials_required: false,
+      },
+      safety: {
+        same_origin_only: true,
+        follow_redirects: false,
+      },
     },
   ],
   [
     manifest.entrypoints.official_authenticity,
     {
       marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
-      status: "official",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      identity: "mainnet0",
-      mutation_authority_granted: false,
+      protocol: "void-network-authenticity/1",
+      status: "public_verification_available",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      authority: {
+        verification_only: true,
+        mutation_authority_granted: false,
+        runtime_authority_granted: false,
+        economic_authority_granted: false,
+      },
+      safety: {
+        credentials_required: false,
+        follow_redirects: false,
+      },
     },
   ],
   [
     manifest.entrypoints.authentication,
     {
-      marker: "VOID_AI_AGENT_AUTHENTICATION_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
+      marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
+      protocol: "void-agent-authentication-well-known/1",
+      contract_published: true,
+      canonical_authentication_contract:
+        "/public-node/agents/authentication-v1.json",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      authenticated_routes_active: false,
+      verifier_runtime_active: false,
+      mutation_authority_granted: false,
+      safety: {
+        same_origin_only: true,
+        follow_redirects: false,
+        send_credentials_now: false,
+        send_signed_envelopes_now: false,
+        treat_unknown_as: "not_granted",
+      },
     },
   ],
-  [
-    manifest.entrypoints.capabilities,
-    {
-      marker: "VOID_AI_AGENT_CAPABILITIES_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      paid_work_promised: false,
-      work_credit_earning_promised: false,
-    },
-  ],
+  [manifest.entrypoints.capabilities, capabilitiesCatalog],
   [
     manifest.entrypoints.agent_intake,
     {
@@ -133,6 +208,126 @@ const fixtures = new Map([
     },
   ],
 ]);
+
+const CROSS_ORIGIN_MANIFEST_PATH =
+  "/public-node/agents/first-contact-cross-origin-fixture-v1.json";
+fixtures.set(CROSS_ORIGIN_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: "//127.0.0.1:9/cross-origin.json",
+  },
+});
+
+const OVERSIZED_MANIFEST_PATH =
+  "/public-node/agents/first-contact-oversized-fixture-v1.json";
+const OVERSIZED_UTILITY_PATH =
+  "/public-node/agents/public-utility-oversized-fixture-v1.json";
+fixtures.set(OVERSIZED_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: OVERSIZED_UTILITY_PATH,
+  },
+});
+fixtures.set(OVERSIZED_UTILITY_PATH, {
+  marker: "VOID_AI_AGENT_PUBLIC_UTILITY_V1",
+  padding: "x".repeat(65_536),
+});
+
+const NORMALIZED_PATH_MANIFEST_PATH =
+  "/public-node/agents/first-contact-normalized-path-fixture-v1.json";
+fixtures.set(NORMALIZED_PATH_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: "/public-node/%2e%2e/private.json",
+  },
+});
+
+const OPEN_SCHEMA_MANIFEST_PATH =
+  "/public-node/agents/first-contact-open-schema-fixture-v1.json";
+const OPEN_SCHEMA_UTILITY_PATH =
+  "/public-node/agents/public-utility-open-schema-fixture-v1.json";
+fixtures.set(OPEN_SCHEMA_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: OPEN_SCHEMA_UTILITY_PATH,
+  },
+});
+fixtures.set(OPEN_SCHEMA_UTILITY_PATH, {
+  ...publicUtility,
+  unreviewed_extension: true,
+});
+
+const DUPLICATE_ID_MANIFEST_PATH =
+  "/public-node/agents/first-contact-duplicate-id-fixture-v1.json";
+const DUPLICATE_ID_UTILITY_PATH =
+  "/public-node/agents/public-utility-duplicate-id-fixture-v1.json";
+fixtures.set(DUPLICATE_ID_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: DUPLICATE_ID_UTILITY_PATH,
+  },
+});
+fixtures.set(DUPLICATE_ID_UTILITY_PATH, {
+  ...publicUtility,
+  entries: [
+    ...publicUtility.entries,
+    {
+      ...publicUtility.entries[0],
+      path: "/public-node/agents/duplicate-first-contact-v1.json",
+      repository_path:
+        "public/public-node/agents/duplicate-first-contact-v1.json",
+    },
+  ],
+});
+
+const DECOY_BINDING_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-binding-fixture-v1.json";
+const DECOY_DISCOVERY_PATH =
+  "/public-node/agents/decoy-discovery-fixture-v1.json";
+const DECOY_AUTHENTICITY_PATH =
+  "/public-node/agents/decoy-authenticity-fixture-v1.json";
+fixtures.set(DECOY_BINDING_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    well_known_discovery: DECOY_DISCOVERY_PATH,
+    official_authenticity: DECOY_AUTHENTICITY_PATH,
+  },
+});
+fixtures.set(DECOY_DISCOVERY_PATH, {
+  notice: "VOID Mainnet-0 mainnet0 chain 2050",
+});
+fixtures.set(DECOY_AUTHENTICITY_PATH, {
+  notice: "VOID Mainnet-0 mainnet0 chain 2050",
+});
+
+const DECOY_CONTRACT_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-contract-fixture-v1.json";
+const DECOY_AUTHENTICATION_PATH =
+  "/public-node/agents/decoy-authentication-fixture-v1.json";
+const DECOY_CAPABILITIES_PATH =
+  "/public-node/agents/decoy-capabilities-fixture-v1.json";
+fixtures.set(DECOY_CONTRACT_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    authentication: DECOY_AUTHENTICATION_PATH,
+    capabilities: DECOY_CAPABILITIES_PATH,
+  },
+});
+fixtures.set(DECOY_AUTHENTICATION_PATH, {
+  notice: "VOID authentication is ready read only",
+});
+fixtures.set(DECOY_CAPABILITIES_PATH, {
+  notice: "VOID public discovery and capability negotiation are live",
+  paid_work_enabled: true,
+  work_credit_earning_enabled: true,
+});
 
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
@@ -168,15 +363,11 @@ await new Promise((resolve, reject) => {
   server.listen(0, "127.0.0.1", resolve);
 });
 
-try {
-  const address = server.address();
-  assert.equal(typeof address, "object");
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-
-  const result = await new Promise((resolve, reject) => {
+async function runClient(args) {
+  return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [CLIENT_PATH, "--base-url", baseUrl],
+      [CLIENT_PATH, ...args],
       {
         cwd: ROOT,
         stdio: ["ignore", "pipe", "pipe"],
@@ -197,6 +388,14 @@ try {
       resolve({ code, stdout, stderr });
     });
   });
+}
+
+try {
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const result = await runClient(["--base-url", baseUrl]);
 
   assert.equal(result.code, 0, result.stderr);
   const report = JSON.parse(result.stdout);
@@ -208,6 +407,25 @@ try {
   assert.equal(report.connection_mode, "read_only");
   assert.equal(report.official_network_verified, true);
   assert.equal(Object.values(report.checks).every(Boolean), true);
+  assert.equal(report.checks.public_utility_catalog_loaded, true);
+  assert.equal(report.useful_public_resources.length, 3);
+  assert.deepEqual(
+    report.useful_public_resources.map((entry) => entry.id),
+    [
+      "first_contact",
+      "capability_honesty",
+      "datanet_replication_receipt",
+    ],
+  );
+  assert.equal(
+    report.useful_public_resources.every(
+      (entry) =>
+        entry.catalog_observed_by_client === true &&
+        entry.runtime_observed === false,
+    ),
+    true,
+  );
+  assert.equal(report.responses.public_utility.status, 200);
   assert.equal(report.authority.mutation_authority_granted, false);
   assert.equal(report.authority.wallet_accessed, false);
   assert.equal(report.authority.credentials_accessed, false);
@@ -225,6 +443,137 @@ try {
       action.id.includes("work_credit"),
     ),
     false,
+  );
+  assert.equal(
+    report.next_actions.some(
+      (action) => action.id === "inspect_public_utility",
+    ),
+    true,
+  );
+
+  const decoyBinding = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_BINDING_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyBinding.code, 2, decoyBinding.stderr);
+  const decoyBindingReport = JSON.parse(decoyBinding.stdout);
+  assert.equal(decoyBindingReport.official_network_verified, false);
+  assert.equal(
+    decoyBindingReport.checks.network_binding_consistent,
+    false,
+  );
+
+  const decoyContracts = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_CONTRACT_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyContracts.code, 2, decoyContracts.stderr);
+  const decoyContractsReport = JSON.parse(decoyContracts.stdout);
+  assert.equal(decoyContractsReport.status, "partial_read_only");
+  assert.equal(
+    decoyContractsReport.checks.authentication_contract_found,
+    false,
+  );
+  assert.equal(decoyContractsReport.checks.capabilities_loaded, false);
+  assert.deepEqual(decoyContractsReport.observed_capabilities, {
+    paid_work_observed: false,
+    work_credit_earning_observed: false,
+  });
+  assert.equal(
+    decoyContractsReport.next_actions.some(
+      (action) => action.id === "inspect_authentication",
+    ),
+    false,
+  );
+  assert.equal(
+    decoyContractsReport.next_actions.some(
+      (action) => action.id === "inspect_capabilities",
+    ),
+    false,
+  );
+
+  const crossOrigin = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    CROSS_ORIGIN_MANIFEST_PATH,
+  ]);
+  assert.equal(crossOrigin.code, 2, crossOrigin.stderr);
+  const crossOriginReport = JSON.parse(crossOrigin.stdout);
+  assert.equal(
+    crossOriginReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    crossOriginReport.responses.public_utility.error,
+    /invalid public path/,
+  );
+
+  const oversized = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    OVERSIZED_MANIFEST_PATH,
+  ]);
+  assert.equal(oversized.code, 2, oversized.stderr);
+  const oversizedReport = JSON.parse(oversized.stdout);
+  assert.equal(
+    oversizedReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    oversizedReport.responses.public_utility.error,
+    /response exceeds 65536 bytes/,
+  );
+
+  const normalizedPath = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    NORMALIZED_PATH_MANIFEST_PATH,
+  ]);
+  assert.equal(normalizedPath.code, 2, normalizedPath.stderr);
+  const normalizedPathReport = JSON.parse(normalizedPath.stdout);
+  assert.equal(
+    normalizedPathReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    normalizedPathReport.responses.public_utility.error,
+    /cross-origin public path forbidden/,
+  );
+
+  for (const manifestPath of [
+    OPEN_SCHEMA_MANIFEST_PATH,
+    DUPLICATE_ID_MANIFEST_PATH,
+  ]) {
+    const invalidSchema = await runClient([
+      "--base-url",
+      baseUrl,
+      "--manifest-path",
+      manifestPath,
+    ]);
+    assert.equal(invalidSchema.code, 2, invalidSchema.stderr);
+    const invalidSchemaReport = JSON.parse(invalidSchema.stdout);
+    assert.equal(
+      invalidSchemaReport.checks.public_utility_catalog_loaded,
+      false,
+    );
+    assert.deepEqual(invalidSchemaReport.useful_public_resources, []);
+  }
+
+  const unsafeBaseUrl = await runClient([
+    "--base-url",
+    "http://example.invalid",
+  ]);
+  assert.equal(unsafeBaseUrl.code, 78, unsafeBaseUrl.stderr);
+  assert.match(
+    unsafeBaseUrl.stderr,
+    /HTTPS or loopback HTTP/,
   );
 } finally {
   await new Promise((resolve) => server.close(resolve));
@@ -277,26 +626,25 @@ const workingBoundary = [
     ).map((line) => line.slice(3)),
   ),
 ].sort();
-const expectedBoundary = [...BOUNDARY].sort();
 const outsideBoundary = workingBoundary.filter(
-  (path) => !BOUNDARY.includes(path),
+  (path) => !ALLOWED_BOUNDARY.includes(path),
 );
 assert.deepEqual(
   outsideBoundary,
   [],
-  "working tree contains a change outside the six-file lane",
+  "working tree contains a change outside the composition lane",
 );
 
 let boundaryVerificationMode = "working_tree";
 let boundaryIntroductionCommit = null;
 
-if (
-  workingBoundary.length === expectedBoundary.length &&
-  workingBoundary.every(
-    (path, index) => path === expectedBoundary[index],
-  )
-) {
-  assert.deepEqual(workingBoundary, expectedBoundary);
+if (workingBoundary.length > 0) {
+  assert.deepEqual(
+    workingBoundary,
+    [...NETWORK_BINDING_REPAIR_BOUNDARY].sort(),
+    "working tree does not match the exact network-binding repair boundary",
+  );
+  boundaryVerificationMode = "in_boundary_network_binding_repair";
 } else {
   const introductionCommits = await gitLines([
     "log",
@@ -328,7 +676,7 @@ if (
 
   assert.deepEqual(
     introducedBoundary,
-    expectedBoundary,
+    [...ORIGINAL_BOUNDARY].sort(),
     "the introduction commit did not add the exact six-file lane",
   );
   boundaryVerificationMode =
@@ -354,5 +702,7 @@ console.log("get_only_client=true");
 console.log("paid_work_promised=false");
 console.log("work_credit_earning_promised=false");
 console.log("mutation_authority_granted=false");
-console.log("boundary_file_count=6");
+console.log("public_utility_catalog_loaded=true");
+console.log("useful_public_resource_count=3");
+console.log("composition_boundary_file_count=11");
 console.log("VOID_AI_AGENT_FIRST_CONTACT_KIT_V1_PROOF_EXACT_GREEN");

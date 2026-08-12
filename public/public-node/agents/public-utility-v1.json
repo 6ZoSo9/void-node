@@ -1,7 +1,7 @@
 {
   "contract": "void-ai-agent-first-contact-public-utility/1",
   "marker": "VOID_AI_AGENT_PUBLIC_UTILITY_V1",
-  "status": "source_only_not_advertised",
+  "status": "source_only_advertised_not_observed",
   "purpose": "Give an unknown agent useful, bounded, read-only VOID evidence before registration, credentials, wallets, CAPTCHA, or human chat.",
   "network": {
     "chain_id": 2050,
@@ -10,10 +10,9 @@
   },
   "integration": {
     "first_contact_manifest": "/public-node/agents/first-contact-v1.json",
-    "advertised_from_first_contact": false,
+    "advertised_from_first_contact": true,
     "runtime_observed": false,
     "activation_requires": [
-      "first_contact_entrypoint_added",
       "independent_http_observation"
     ]
   },
