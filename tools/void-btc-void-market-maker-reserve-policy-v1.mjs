@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 export const VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1 =
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1";
 
+export const VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS = 100;
+
 export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
   schema: "void.premine.purpose_vault_target.v1",
   marker: "VOID_PREMINE_PURPOSE_VAULT_TARGET_V1",
@@ -296,6 +298,9 @@ function normalizeRequest(raw) {
     1,
     MAX_SPREAD_BPS,
   );
+  if (minimumSpreadBps !== VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS) {
+    throw new Error("v1 minimum spread must be exactly 100 basis points");
+  }
   const networkFeeReserve = atomic(
     policy.bitcoin_network_fee_reserve_sats,
     "policy.bitcoin_network_fee_reserve_sats",

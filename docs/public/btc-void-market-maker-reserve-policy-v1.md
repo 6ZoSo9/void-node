@@ -75,10 +75,11 @@ separately approved native-BTC seed must exist before activation. This source
 policy neither authorizes that seed nor allows presale inventory or receipts to
 be silently repurposed for it.
 
-The recommended initial minimum spread is **2%** (`200` basis points), separate
-from explicit Bitcoin network-fee reserve. That recommendation is a source
-policy value, not an activated mainnet parameter. A later governed policy may
-change it without granting the operational signer arbitrary pricing authority.
+The V1 minimum spread is **1%** (`100` basis points), separate from explicit
+Bitcoin network-fee reserve. This is a source policy value, not an activated
+mainnet parameter. V1 inputs that request a different spread fail closed. Any
+later change requires a separately reviewed versioned policy and must not grant
+the operational signer arbitrary pricing authority.
 
 For a settled sale receiving `B` satoshis for `V` VOID atomic units, fee reserve
 `F`, and spread `S` basis points:

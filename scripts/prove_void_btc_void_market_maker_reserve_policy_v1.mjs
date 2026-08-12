@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
+  VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
   VOID_PREMINE_PURPOSE_VAULT_TARGET_V1,
   canonicalJson,
   deriveBtcVoidBuybackLotV1,
@@ -63,7 +64,7 @@ function request(overrides = {}) {
       ...settlement,
     },
     policy: {
-      minimum_spread_bps: 200,
+      minimum_spread_bps: VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
       bitcoin_network_fee_reserve_sats: "10000",
       ...(overrides.policy || {}),
     },
@@ -136,16 +137,20 @@ assert.equal(lot.market.void_network_identity, "mainnet0");
 assert.equal(lot.market.fiat_or_usd_value_used, false);
 assert.equal(lot.market.external_price_oracle_used, false);
 assert.equal(
+  lot.source.policy.minimum_spread_bps,
+  VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
+);
+assert.equal(
   lot.reserve_recycling.confirmed_btc_added_to_market_reserve_sats,
   "1000000",
 );
-assert.equal(lot.reserve_recycling.automatic_bid_budget_sats, "970200");
+assert.equal(lot.reserve_recycling.automatic_bid_budget_sats, "980100");
 assert.equal(lot.reserve_recycling.bitcoin_network_fee_reserve_sats, "10000");
-assert.equal(lot.reserve_recycling.retained_spread_equity_sats, "19800");
+assert.equal(lot.reserve_recycling.retained_spread_equity_sats, "9900");
 assert.equal(lot.reserve_recycling.automatic_ops_treasury_sweep_sats, "0");
 assert.equal(lot.reserve_recycling.proceeds_conserved, true);
 assert.equal(lot.buyback_lot.target_void_atomic, "2000000");
-assert.equal(lot.buyback_lot.maximum_btc_out_sats, "970200");
+assert.equal(lot.buyback_lot.maximum_btc_out_sats, "980100");
 assert.equal(
   lot.buyback_lot.full_source_lot_round_trip_btc_out_lt_btc_received,
   true,
@@ -188,7 +193,7 @@ assert.equal(
 );
 assert.equal(
   lot.buyback_lot_plan_id,
-  "sha256:4d691aeffa3459151367f2829d369b34b6bff8f7c25dcd4ce783e51a36e7808e",
+  "sha256:a67b1d79f766f94d983a5f07f747e9637494b7aded2eda029d11f3b9c8e0f0ff",
 );
 
 const nativePairOnlyExample = deriveBtcVoidBuybackLotV1(
@@ -229,14 +234,15 @@ assert.notEqual(
   lot.buyback_lot_plan_id,
 );
 
-const sameSaleDifferentPolicy = deriveBtcVoidBuybackLotV1(
-  request({ policy: { minimum_spread_bps: 300 } }),
-);
-assert.equal(sameSaleDifferentPolicy.buyback_lot_id, lot.buyback_lot_id);
-assert.notEqual(
-  sameSaleDifferentPolicy.buyback_lot_plan_id,
-  lot.buyback_lot_plan_id,
-);
+for (const offPolicySpreadBps of [99, 101, 200, 300]) {
+  assert.throws(
+    () =>
+      deriveBtcVoidBuybackLotV1(
+        request({ policy: { minimum_spread_bps: offPolicySpreadBps } }),
+      ),
+    /v1 minimum spread must be exactly 100 basis points/,
+  );
+}
 assert.throws(
   () =>
     deriveBtcVoidBuybackLotV1(
@@ -439,7 +445,7 @@ for (const expected of [
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
   "confirmed BTC",
   "buyback lot",
-  "2%",
+  "1%",
   "No USD",
   "100 VOID for 1 BTC",
   "automatic_ops_treasury_sweep_sats: 0",
