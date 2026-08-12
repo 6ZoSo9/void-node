@@ -72,6 +72,27 @@ The exact fee, minimum trade, maximum trade, reserve floor, and maximum reserve-
 
 The curve should require no USD price oracle. The BTC/VOID exchange rate emerges from the reserve ratio and completed trades rather than a fiat feed.
 
+### 2A. Confirmed sale proceeds become buyback reserve
+
+The official market is two-sided. A terminally settled BTC-in / VOID-out sale
+must leave its confirmed native BTC proceeds inside the segregated market
+reserve and derive a lower-effective-price VOID buyback lot under
+`VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1`.
+
+The spread is calculated directly in satoshis per native VOID atomic unit. USD,
+fiat prices, stablecoins, wrapped assets, and external price oracles are not
+inputs. Bitcoin network-fee reserve and retained spread remain market-owned;
+sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
+returns to the dedicated market inventory and can be sold again through a new
+atomic settlement.
+
+The derived lot is a ceiling layered with the reserve curve: actual reverse
+BTC output must not exceed either the deterministic curve quote or the lot's
+remaining BTC budget. The source-sale digest creates at most one lot, and only
+terminally settled BTC with sufficient confirmations is bid-eligible. The full
+contract and native-only example are defined in
+`btc-void-market-maker-reserve-policy-v1.md`.
+
 ### 3. Reserve snapshots
 
 Every executable quote must bind one content-addressed reserve snapshot.
