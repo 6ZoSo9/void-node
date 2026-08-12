@@ -1,0 +1,518 @@
+{
+  "marker": "VOID_WORKER_COORDINATION_STATE_V3",
+  "version": 3,
+  "repository": "6ZoSo9/void-node",
+  "main_sha": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+  "updated_at": "2026-08-12T18:30:00.000Z",
+  "plan_issue": 1182,
+  "policy": {
+    "active_states": [
+      "ACTIVE_SOURCE",
+      "ACTIVE_OPERATOR",
+      "ACTIVE_RESEARCH"
+    ],
+    "parked_states": [
+      "PARKED",
+      "HELD",
+      "REVIEW_REQUIRED",
+      "FROZEN_STACK"
+    ],
+    "terminal_states": [
+      "COMPLETE",
+      "SUPERSEDED"
+    ],
+    "capability_gate_order": [
+      "source_green",
+      "merged",
+      "deployed",
+      "runtime_green",
+      "external_accepted"
+    ],
+    "semantic_invalidation_state": "REVIEW_REQUIRED",
+    "wip_limits_enforced": true
+  },
+  "lanes": [
+    {
+      "id": "fleet-runtime-refresh-v47",
+      "title": "Canary-first three-box source convergence and runtime refresh",
+      "owner_worker_id": "ren",
+      "state": "ACTIVE_OPERATOR",
+      "priority": "P0",
+      "experimental": false,
+      "sensitive": true,
+      "canonical_branch": null,
+      "canonical_pr": null,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [],
+      "semantic_dependencies": [
+        {
+          "id": "exact-main-target",
+          "kind": "git-commit",
+          "anchor": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+          "required_state": "exact_audited_target"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged",
+        "deployed",
+        "runtime_green"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": true,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Run the read-only fleet drift audit, then converge and refresh Nimo first through the checked-in fail-closed controllers.",
+      "hold_reasons": [],
+      "authority_boundary": "Only the already-authorized staged source convergence and node-service restart sequence is in scope; router, firewall, DNS, interface, key, wallet, validator, Work Credit, treasury, transaction, and funds actions remain excluded.",
+      "stack_prs": []
+    },
+    {
+      "id": "agent-sdk-node-compatibility-v1",
+      "title": "Agent SDK Node 22/24/26 compatibility",
+      "owner_worker_id": "larry",
+      "state": "REVIEW_REQUIRED",
+      "priority": "P2",
+      "experimental": false,
+      "sensitive": false,
+      "canonical_branch": "fix/void-agent-sdk-node-compatibility-v1-20260812",
+      "canonical_pr": 1235,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        ".github/workflows/void-agent-sdk-release-pack-v1.yml",
+        "integrations/agents/void-agent-sdk-v1/README.md",
+        "integrations/agents/void-agent-sdk-v1/integrity.json",
+        "integrations/agents/void-agent-sdk-v1/package.json",
+        "scripts/prove_void_agent_sdk_release_pack_v1.mjs"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "repository-node-engine-contract",
+          "kind": "file-contract",
+          "anchor": "package.json#engines.node",
+          "required_state": "exact_match"
+        }
+      ],
+      "invalidated_by": [
+        {
+          "kind": "main-movement",
+          "reference": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+          "reason": "Draft head predates current main and must refresh ancestry and exact-head evidence before promotion."
+        }
+      ],
+      "required_gates": [
+        "source_green",
+        "merged"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Reconcile current-main ancestry without changing the bounded SDK compatibility scope, then rerun exact-head checks.",
+      "hold_reasons": [],
+      "authority_boundary": "Source, release-pack metadata, proof, and CI only; no package publication, deployment, credentials, paid work, wallet, Work Credit, transaction, or funds action.",
+      "stack_prs": []
+    },
+    {
+      "id": "buy-void-presale-event-driven-v1",
+      "title": "Buy VOID presale event-driven correctness lane",
+      "owner_worker_id": "curly",
+      "state": "PARKED",
+      "priority": "P1",
+      "experimental": false,
+      "sensitive": true,
+      "canonical_branch": null,
+      "canonical_pr": null,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [],
+      "semantic_dependencies": [],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged",
+        "deployed",
+        "runtime_green"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": true,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Resume only when a concrete payment, fulfillment, inventory, durability, reconciliation, or exactly-once receipt event creates a real gap.",
+      "hold_reasons": [
+        "no_concrete_presale_event_requires_new_source_work"
+      ],
+      "authority_boundary": "No purchase execution, inventory use, wallet/signer access, transaction signing or broadcast, closeout, conversion, treasury action, or funds movement without a separate operation-bound gate.",
+      "stack_prs": []
+    },
+    {
+      "id": "udp-swarm-public-relay-introduction-collector-v1",
+      "title": "Public relay-introduction collector",
+      "owner_worker_id": "moe",
+      "state": "REVIEW_REQUIRED",
+      "priority": "P1",
+      "experimental": false,
+      "sensitive": true,
+      "canonical_branch": "feat/void-p2p-udp-swarm-public-relay-introduction-collector-v1-20260812",
+      "canonical_pr": 1231,
+      "tracking_issues": [
+        1005,
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        ".github/workflows/void-p2p-udp-swarm-public-relay-introduction-collector-v1.yml",
+        "docs/public/void-p2p-udp-swarm-public-relay-introduction-collector-v1.md",
+        "scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts",
+        "src/p2p/udp_swarm_node_runtime_mount_v1.ts",
+        "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "signed-observer-public-discovery-boundary",
+          "kind": "exported-contract",
+          "anchor": "composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1@58443d5c615814152dac3a370ccda82e36083846",
+          "required_state": "integrated_and_proven"
+        }
+      ],
+      "invalidated_by": [
+        {
+          "kind": "merged-pr",
+          "reference": "#1233",
+          "reason": "Public discovery now requires signed observer authorization; the draft collector still calls the lower-level verified-discovery composition."
+        }
+      ],
+      "required_gates": [
+        "source_green",
+        "merged",
+        "deployed",
+        "runtime_green",
+        "external_accepted"
+      ],
+      "gates": {
+        "source_green": false,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Reconcile #1231 to the signed-observer wrapper and prove arbitrary fresh authenticated peers cannot enter discovery quorum.",
+      "hold_reasons": [
+        "semantic_dependency_changed_after_draft_creation"
+      ],
+      "authority_boundary": "Source reconciliation only; no release-root or observer-set publication, deployment, restart, router/firewall/DNS/interface mutation, credentials, wallet, validator, Work Credit, transaction, or funds action.",
+      "stack_prs": []
+    },
+    {
+      "id": "udp-swarm-relay-retirement-stack-v1",
+      "title": "Parent-first UDP relay health and retirement stack",
+      "owner_worker_id": "moe",
+      "state": "FROZEN_STACK",
+      "priority": "P3",
+      "experimental": false,
+      "sensitive": true,
+      "canonical_branch": "feat/p2p-udp-swarm-direct-route-health-observer-v1-20260809",
+      "canonical_pr": 1132,
+      "tracking_issues": [
+        1005,
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        "src/node_core.ts",
+        "src/p2p/udp_swarm_direct_route_health_observer_v1.ts",
+        "src/p2p/udp_swarm_direct_route_health_probe_v1.ts",
+        "src/p2p/udp_swarm_relay_retirement_executor_v1.ts",
+        "src/p2p/udp_swarm_relay_retirement_receipt_v1.ts",
+        "src/p2p/udp_swarm_post_retirement_recovery_policy_v1.ts"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "parent-first-stack",
+          "kind": "pull-request-stack",
+          "anchor": "#1132->#1134->#1137->#1139->(#1140+#1141)->#1144->#1146",
+          "required_state": "parent_merged_before_descendant_mutation"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Process only the current root #1132 after a fresh current-main review; descendants remain frozen until their parent advances.",
+      "hold_reasons": [
+        "stack_compressed_to_single_parent_first_lane"
+      ],
+      "authority_boundary": "No descendant mutation merely to chase ancestry; no live socket, relay, route, deployment, network, credential, wallet, Work Credit, transaction, or funds action.",
+      "stack_prs": [
+        1132,
+        1134,
+        1137,
+        1139,
+        1140,
+        1141,
+        1144,
+        1146
+      ]
+    },
+    {
+      "id": "btc-void-buyback-lot-journal-transition-v1",
+      "title": "Create-once BTC/VOID buyback-lot journal transition",
+      "owner_worker_id": "satoshi",
+      "state": "ACTIVE_SOURCE",
+      "priority": "P2",
+      "experimental": false,
+      "sensitive": true,
+      "canonical_branch": "feat/btc-void-buyback-lot-journal-transition-v1-20260812",
+      "canonical_pr": 1225,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        ".github/workflows/void-btc-void-buyback-lot-journal-transition-v1.yml",
+        "docs/public/btc-void-buyback-lot-journal-transition-v1.md",
+        "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs",
+        "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "native-btc-void-reserve-policy",
+          "kind": "merged-pr",
+          "anchor": "#1218",
+          "required_state": "merged_policy_preserved"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Preserve the bounded source-only scope while reconciling current-main truth before any ready or merge decision.",
+      "hold_reasons": [],
+      "authority_boundary": "No persistence, inventory reservation, signer/wallet/RPC access, market activation, liquidity seeding, settlement, transaction, or funds movement.",
+      "stack_prs": []
+    },
+    {
+      "id": "ai-agent-first-contact-resource-observation-v1",
+      "title": "Verify and return advertised AI public resources",
+      "owner_worker_id": "turing",
+      "state": "ACTIVE_SOURCE",
+      "priority": "P2",
+      "experimental": false,
+      "sensitive": false,
+      "canonical_branch": "fix/ai-agent-public-utility-resource-observation-v1-20260812",
+      "canonical_pr": 1227,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        "docs/public/ai-agent-first-contact-v1.md",
+        "docs/public/ai-agent-public-utility-v1.md",
+        "public/public-node/agents/public-utility-v1.json",
+        "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+        "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+        "tools/void-ai-agent-first-contact-v1.mjs"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "ai-public-utility-runtime-route",
+          "kind": "merged-pr",
+          "anchor": "#1224",
+          "required_state": "merged_contract_preserved"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged",
+        "deployed",
+        "runtime_green"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Refresh current-main ancestry and exact-head checks; deployment and independent public HTTP observation remain separate gates.",
+      "hold_reasons": [],
+      "authority_boundary": "GET-only source work; no deployment, outreach, registration, credentials, paid work, Work Credit mutation, wallet, transaction, or funds action.",
+      "stack_prs": []
+    },
+    {
+      "id": "worker-coordination-v3-experiment",
+      "title": "Worker roster, semantic dependencies, WIP limits, and capability gates",
+      "owner_worker_id": "ada",
+      "state": "ACTIVE_SOURCE",
+      "priority": "P1",
+      "experimental": true,
+      "sensitive": false,
+      "canonical_branch": "feat/worker-coordination-v3-experiment-20260812",
+      "canonical_pr": null,
+      "tracking_issues": [
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        ".github/workflows/void-worker-coordination-v3.yml",
+        "docs/operations/void-worker-coordination-v3.md",
+        "ops/coordination/worker-coordination-state-v3.json",
+        "ops/coordination/worker-roster-v1.json",
+        "scripts/prove_void_worker_coordination_v3.mjs",
+        "tools/void-worker-coordination-v3.mjs"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "active-lane-registry-v1",
+          "kind": "coordination-contract",
+          "anchor": "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1",
+          "required_state": "preserved_as_collision_evidence"
+        },
+        {
+          "id": "coordination-fallthrough-v2",
+          "kind": "coordination-contract",
+          "anchor": "VOID_COORDINATION_PRIORITY_FALLTHROUGH_V2",
+          "required_state": "preserved"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Publish the bounded draft PR, obtain exact-head CI, and keep merge separate.",
+      "hold_reasons": [],
+      "authority_boundary": "Coordination metadata, read-only validation, documentation, proof, and CI only; no deployment, service, credential, wallet, signer, payment, Work Credit, validator, treasury, transaction, or funds authority.",
+      "stack_prs": []
+    },
+    {
+      "id": "ci-topology-audit-v1",
+      "title": "Evidence-based GitHub Actions topology and fan-out audit",
+      "owner_worker_id": "grace",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P2",
+      "experimental": true,
+      "sensitive": false,
+      "canonical_branch": null,
+      "canonical_pr": null,
+      "tracking_issues": [
+        1237
+      ],
+      "tracking_state": "open",
+      "changed_paths": [
+        ".github/workflows/",
+        "docs/operations/",
+        "scripts/check_void_ci_cost_boundary_v1.py"
+      ],
+      "semantic_dependencies": [
+        {
+          "id": "current-workflow-inventory",
+          "kind": "repository-snapshot",
+          "anchor": "main@63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+          "required_state": "fresh_read_before_recommendation"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green"
+      ],
+      "gates": {
+        "source_green": false,
+        "merged": false,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Produce a read-only machine-readable workflow/run inventory and rank consolidation candidates without changing required checks.",
+      "hold_reasons": [],
+      "authority_boundary": "Read-only audit first; no workflow deletion, disablement, required-check weakening, billing mutation, secrets, deployment, or funds action.",
+      "stack_prs": []
+    },
+    {
+      "id": "public-bootstrap-acceptance-truth-v1",
+      "title": "Multipath bootstrap capability and external-acceptance truth",
+      "owner_worker_id": "shannon",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P0",
+      "experimental": true,
+      "sensitive": true,
+      "canonical_branch": null,
+      "canonical_pr": null,
+      "tracking_issues": [
+        1005,
+        1182
+      ],
+      "tracking_state": "open",
+      "changed_paths": [],
+      "semantic_dependencies": [
+        {
+          "id": "issue-1005-acceptance-contract",
+          "kind": "acceptance-contract",
+          "anchor": "#1005",
+          "required_state": "external_n_minus_one_evidence"
+        }
+      ],
+      "invalidated_by": [],
+      "required_gates": [
+        "source_green",
+        "merged",
+        "deployed",
+        "runtime_green",
+        "external_accepted"
+      ],
+      "gates": {
+        "source_green": true,
+        "merged": true,
+        "deployed": false,
+        "runtime_green": false,
+        "external_accepted": false
+      },
+      "next_gate": "Bind the three-box refresh and later ordinary-machine N-1 evidence to exact source/runtime identities; do not close #1005 before every required gate is proven.",
+      "hold_reasons": [],
+      "authority_boundary": "Evidence and tracking integrity only; no deployment, restart, router/firewall/DNS/interface mutation, credentials, release signing, wallet, validator, Work Credit, transaction, treasury, or funds action.",
+      "stack_prs": []
+    }
+  ]
+}
