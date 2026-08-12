@@ -294,6 +294,19 @@ for (const expected of [
   );
 }
 
+const workflowDoc = fs.readFileSync(
+  ".github/workflows/void-btc-void-market-maker-reserve-policy-v1.yml",
+  "utf8",
+);
+for (const expected of [
+  "node --check tools/void-btc-void-market-maker-reserve-policy-v1.mjs",
+  "node --check scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
+  "node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
+]) {
+  assert.ok(workflowDoc.includes(expected), `workflow missing ${expected}`);
+}
+assert.equal(workflowDoc.includes("market_maker-reserve_policy"), false);
+
 process.stdout.write(
   JSON.stringify({
     marker: "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1_PROOF_GREEN",

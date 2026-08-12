@@ -40,7 +40,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - run: |
           node --check tools/void-btc-void-market-maker-reserve-policy-v1.mjs
-          node --check scripts/prove_void_btc_void_market_maker-reserve-policy-v1.mjs
+          node --check scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
       - run: node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
       - name: Diff hygiene
         env:
