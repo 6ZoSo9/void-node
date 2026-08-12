@@ -360,6 +360,7 @@ assert.equal(
   composed.marker,
   VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_COMPOSITION_V1,
 );
+assert.equal(composed.expires_at, EXPIRES_AT);
 assert.equal(composed.route_count, 2);
 assert.equal(composed.source_count, 3);
 assert.equal(composed.relay_count, 2);
@@ -544,6 +545,7 @@ console.log(`marker=${MARKER}`);
 console.log(`record_id=${composed.record_id}`);
 console.log(`manifest_id=${composed.manifest_id}`);
 console.log(`discovery_id=${composed.discovery_id}`);
+console.log(`expires_at=${composed.expires_at}`);
 console.log(`route_count=${composed.route_count}`);
 console.log(`signed_source_count=${composed.source_count}`);
 console.log(`relay_count=${composed.relay_count}`);

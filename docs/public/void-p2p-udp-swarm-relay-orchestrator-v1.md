@@ -1,6 +1,7 @@
 # VOID P2P UDP swarm relay orchestrator v1
 
-Status: source-only, exact opt-in, bounded field-test topology.
+Status: source-only, exact opt-in, bounded static and verified-discovery
+topology.
 
 ## Purpose
 
@@ -35,9 +36,16 @@ Each identifier is exactly 32 lowercase hexadecimal characters. Duplicate,
 self-referential, malformed, or more than eight routes fail closed. Enabling
 orchestration also requires `VOID_P2P_UDP_SWARM_RUNTIME_ENABLED=1`.
 
-The read-only runtime status reports only enablement, route count, and bounded
-counters. It does not expose relay IDs, target IDs, stream IDs, observed
-endpoints, or key material.
+The static environment routes remain the field-test fallback. The runtime mount
+may replace them only with a closed, frozen verified-discovery composition
+result. Route validation completes before a single state-reference swap; an
+invalid replacement preserves the prior route set. Routes removed from the new
+set lose their retry state, unchanged routes retain it, and clearing or expiry
+restores the original static routes.
+
+The read-only runtime status reports only enablement, route count, route source,
+revision, and bounded counters. It does not expose relay IDs, target IDs, stream
+IDs, discovery IDs, observed endpoints, or key material.
 
 ## Public onboarding boundary
 
@@ -45,12 +53,13 @@ This exact environment contract is a field-test injection seam, not the final
 zero-configuration onboarding mechanism and not closure of issue #1005.
 Ordinary users must not be required to copy operator addresses or node IDs.
 
-Before #1005 can close, independently verifiable multipath bootstrap records
-must supply multiple eligible relay/target introductions to this controller,
-and outside-network N-1 acceptance must prove continued onboarding when any
-one bootstrap component disappears. The current controller deliberately does
-not invent identities, scrape an unauthenticated directory, select a single
-required relay, or grant a transport endpoint network authority.
+Before #1005 can close, a public transport must collect independently signed
+relay/target introductions after normal peer authentication and feed their
+verified composition to this controller. Outside-network N-1 acceptance must
+then prove continued onboarding when any one bootstrap component disappears.
+The current controller deliberately does not invent identities, scrape an
+unauthenticated directory, select a single required relay, or grant a transport
+endpoint network authority.
 
 ## Authority boundary
 

@@ -14,8 +14,10 @@ consumed by the merged orchestrator:
 - `VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED=1`
 - `VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES=<relay>/<target>[,...]`
 
-The composition function returns those values as inert data. It does not mutate
-the process environment or mount, start, stop, restart, or deploy a node.
+The frozen composition result also carries the exact verified `expires_at` value
+so a runtime consumer can bind the routes to the discovery lease. It returns all
+of these values as inert data. It does not mutate the process environment or
+mount, start, stop, restart, or deploy a node.
 
 ## Trust chain
 
@@ -76,15 +78,19 @@ The green marker is:
 VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_COMPOSITION_V1_PROOF_GREEN
 ```
 
-## Remaining activation gate
+## Runtime consumer and remaining transport gate
 
 The checked-in production release root remains
 `hold_no_signed_bootstrap_record`, and the public bootstrap v1 manifest does not
 publish relay introductions. Therefore this source composition is not a claim
 of deployed zero-configuration discovery.
 
-A follow-on activation lane must define the public introduction transport,
-collect authenticated peer identities and signed observations, use an active
-reviewed release root, call this composition, and pass the returned values to a
-launcher adapter without weakening the fail-closed boundaries. That lane needs
-separate review and authorization before any service restart or deployment.
+`VoidUdpSwarmNodeRuntimeMountV1.activateVerifiedDiscoveryCompositionV1` is the
+bounded source-level consumer for the direct frozen result. It revalidates the
+closed output contract, installs the routes atomically, and restores the static
+fallback when the verified `expires_at` lease ends.
+
+A later lane must still define the public introduction transport, collect
+authenticated peer identities and signed observations, use an active reviewed
+release root, and call this composition after normal peer authentication. No
+such collector, service restart, or deployment is included here.
