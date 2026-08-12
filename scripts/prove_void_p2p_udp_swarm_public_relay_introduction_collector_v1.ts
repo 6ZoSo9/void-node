@@ -37,7 +37,7 @@ import {
 
 const MARKER =
   "VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1_PROOF_GREEN";
-const NOW = Date.parse("2026-08-12T18:20:00.000Z");
+const NOW = Date.now();
 const RELAY_A = "1".repeat(32);
 const RELAY_B = "2".repeat(32);
 const TARGET = "3".repeat(32);
