@@ -357,7 +357,7 @@ export function validateVoidP2pUdpSwarmObserverAuthorizationV1(
   });
 }
 
-export function authorizeVoidP2pUdpSwarmDiscoverySourcesV1({
+function authorizedDiscoverySourceContext({
   observerAuthorization,
   releaseRoot,
   authenticatedDiscoverySources,
@@ -424,7 +424,68 @@ export function authorizeVoidP2pUdpSwarmDiscoverySourcesV1({
       "insufficient live signed-observer authorization for UDP swarm discovery",
     );
   }
-  return Object.freeze(eligible);
+  return Object.freeze({
+    eligible_sources: Object.freeze(eligible),
+    authorization: validatedAuthorization.authorization,
+  });
+}
+
+export function authorizeVoidP2pUdpSwarmDiscoverySourcesV1(options) {
+  return authorizedDiscoverySourceContext(options).eligible_sources;
+}
+
+function enforceDiscoveryAuthorizationWindow(rawDiscovery, authorization) {
+  const discovery = plainObject(
+    rawDiscovery,
+    "authorized UDP swarm discovery",
+  );
+  const generatedAt = canonicalTime(
+    discovery.generated_at,
+    "authorized UDP swarm discovery generated_at",
+  );
+  const expiresAt = canonicalTime(
+    discovery.expires_at,
+    "authorized UDP swarm discovery expires_at",
+  );
+  const authorizationNotBefore = canonicalTime(
+    authorization.not_before,
+    "UDP swarm observer authorization not_before",
+  );
+  const authorizationExpiresAt = canonicalTime(
+    authorization.expires_at,
+    "UDP swarm observer authorization expires_at",
+  );
+  if (generatedAt < authorizationNotBefore) {
+    throw new Error(
+      "UDP swarm discovery predates observer authorization",
+    );
+  }
+  if (expiresAt > authorizationExpiresAt) {
+    throw new Error(
+      "UDP swarm discovery lease exceeds observer authorization",
+    );
+  }
+  if (!Array.isArray(discovery.observations)) {
+    throw new Error("authorized UDP swarm discovery observations must be an array");
+  }
+  for (const [index, rawObservation] of discovery.observations.entries()) {
+    const observation = plainObject(
+      rawObservation,
+      `authorized UDP swarm discovery observation ${index + 1}`,
+    );
+    const observedAt = canonicalTime(
+      observation.observed_at,
+      `authorized UDP swarm discovery observation ${index + 1} observed_at`,
+    );
+    if (
+      observedAt < authorizationNotBefore ||
+      observedAt >= authorizationExpiresAt
+    ) {
+      throw new Error(
+        "UDP swarm discovery observation falls outside observer authorization",
+      );
+    }
+  }
 }
 
 export async function composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
@@ -435,17 +496,21 @@ export async function composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
   nowMs = Date.now(),
   ...compositionInput
 }) {
-  const eligibleSources = authorizeVoidP2pUdpSwarmDiscoverySourcesV1({
+  const context = authorizedDiscoverySourceContext({
     observerAuthorization,
     releaseRoot,
     authenticatedDiscoverySources,
     localNodeId,
     nowMs,
   });
+  enforceDiscoveryAuthorizationWindow(
+    compositionInput.discovery,
+    context.authorization,
+  );
   return composeVoidP2pUdpSwarmRoutesFromVerifiedDiscoveryV1({
     ...compositionInput,
     releaseRoot,
-    authenticatedDiscoverySources: eligibleSources,
+    authenticatedDiscoverySources: context.eligible_sources,
     localNodeId,
     nowMs,
   });
