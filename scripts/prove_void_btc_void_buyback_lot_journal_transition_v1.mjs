@@ -78,11 +78,11 @@ assert.equal(
 );
 assert.equal(
   create.append_entry.journal_entry_id,
-  "sha256:4e9bfcd8d9165c2a408396b0ca5f5ae861f38bc076241a7306cbd0c486602dd4",
+  "sha256:66fcf0fe3a4566b95e8b39f8043b9be9cfbf247a5b39c7402beeb2eec47e7b34",
 );
 assert.equal(
   create.decision_id,
-  "sha256:4499323fcc890acde046e69760ee13855b8a498599a62c4a5ed52761000156dd",
+  "sha256:928c7868dcdf7eaab986e4f3d4aa51e7615928084c5ab3b51ca4f546ebb3ab70",
 );
 
 const duplicate = transition(firstPlan, [create.append_entry]);
@@ -133,6 +133,7 @@ assert.deepEqual(authority, {
 });
 assert.deepEqual(create.invariants, {
   candidate_plan_rederived_from_source: true,
+  accepted_plan_rederived_from_source: true,
   create_once_by_buyback_lot_id: true,
   duplicate_append_forbidden: true,
   conflicting_plan_requires_hold: true,
@@ -150,10 +151,21 @@ assert.throws(
 );
 
 const tamperedEntry = structuredClone(create.append_entry);
-tamperedEntry.buyback_lot_plan_id = laterObservationPlan.buyback_lot_plan_id;
+tamperedEntry.journal_entry_id = "sha256:" + "33".repeat(32);
 assert.throws(
   () => transition(firstPlan, [tamperedEntry]),
   /journal_entry_id content mismatch/,
+);
+
+const fabricatedPlanEntry = structuredClone(create.append_entry);
+fabricatedPlanEntry.buyback_lot_plan_id = "sha256:" + "77".repeat(32);
+const { journal_entry_id: ignoredFabricatedId, ...fabricatedPlanPayload } =
+  fabricatedPlanEntry;
+void ignoredFabricatedId;
+fabricatedPlanEntry.journal_entry_id = contentId(fabricatedPlanPayload);
+assert.throws(
+  () => transition(firstPlan, [fabricatedPlanEntry]),
+  /buyback_lot_plan_id does not match accepted_plan_source/,
 );
 
 const inconsistentLotEntry = structuredClone(create.append_entry);
@@ -203,7 +215,7 @@ process.stdout.write(
     {
       marker: VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
       status: "PASS",
-      assertions: 41,
+      assertions: 43,
       deterministic_first_decision_id: create.decision_id,
       exact_duplicate_status: duplicate.status,
       conflicting_plan_status: conflict.status,

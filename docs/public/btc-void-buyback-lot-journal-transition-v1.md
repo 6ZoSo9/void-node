@@ -13,6 +13,9 @@ budget, spread, chain identity, confirmation evidence, or any other plan field.
 Journal entries are closed, content-addressed records. The planner also
 re-derives each entry's `buyback_lot_id` from its `source_sale_id`, so a record
 with a valid outer digest cannot fabricate a conflicting source-to-lot mapping.
+Each entry carries the accepted reserve-policy source, allowing the planner to
+re-derive its complete accepted plan and reject an arbitrary or corrupted
+`buyback_lot_plan_id` even when the outer journal digest was recomputed.
 Malformed, internally inconsistent, or duplicate entries fail closed.
 
 ## Deterministic decisions
@@ -28,9 +31,10 @@ Malformed, internally inconsistent, or duplicate entries fail closed.
 
 The journal also rejects duplicate lot IDs and any attempt to map one
 `source_sale_id` to multiple lot IDs, including a content-addressed record whose
-lot identity does not derive from its source-sale identity. This planner does not define a competing
-settlement, pricing, or discovery protocol; it consumes the already versioned
-reserve-policy plan.
+lot identity does not derive from its source-sale identity or whose plan ID does
+not derive from its accepted reserve-policy source. This planner does not define
+a competing settlement, pricing, or discovery protocol; it consumes the already
+versioned reserve-policy plan.
 
 ## Safety and authority boundary
 
@@ -57,5 +61,5 @@ node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
 
 The proof covers first creation, exact retry idempotence, same-lot conflicting
 confirmation evidence, content tampering, internally inconsistent source/lot
-bindings, duplicate journal entries, unknown fields, canonical ordering, and
-the negative authority flags.
+bindings, fabricated content-addressed accepted plan IDs, duplicate journal
+entries, unknown fields, canonical ordering, and the negative authority flags.

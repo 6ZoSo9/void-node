@@ -97,7 +97,9 @@ async function reserveLoopbackUdpPort(): Promise<number> {
   return port;
 }
 
-function participantRuntimeConfig(): VoidUdpSwarmNodeRuntimeEnvironmentV1 {
+function participantRuntimeConfig(
+  route?: Readonly<{ relayNodeId: string; targetNodeId: string }>,
+): VoidUdpSwarmNodeRuntimeEnvironmentV1 {
   return readVoidUdpSwarmNodeRuntimeEnvironmentV1({
     NODE_ENV: "test",
     VOID_P2P_UDP_SWARM_RUNTIME_ENABLED: "1",
@@ -105,6 +107,10 @@ function participantRuntimeConfig(): VoidUdpSwarmNodeRuntimeEnvironmentV1 {
     VOID_P2P_UDP_SWARM_FAMILY: "udp4",
     VOID_P2P_UDP_SWARM_BIND_HOST: "127.0.0.1",
     VOID_P2P_UDP_SWARM_BIND_PORT: "0",
+    VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED: route ? "1" : "0",
+    VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES: route
+      ? `${route.relayNodeId}/${route.targetNodeId}`
+      : "",
   });
 }
 
@@ -195,6 +201,22 @@ async function main(): Promise<void> {
       }),
       /must match the configured family and bind port/,
     );
+    assert.throws(
+      () => readVoidUdpSwarmNodeRuntimeEnvironmentV1({
+        VOID_P2P_UDP_SWARM_RUNTIME_ENABLED: "1",
+        VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES:
+          `${"a".repeat(32)}/${"b".repeat(32)}`,
+      }),
+      /require exact opt-in/,
+    );
+    assert.throws(
+      () => readVoidUdpSwarmNodeRuntimeEnvironmentV1({
+        VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED: "1",
+        VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES:
+          `${"a".repeat(32)}/${"b".repeat(32)}`,
+      }),
+      /requires the UDP runtime/,
+    );
 
     const relayIdentity = keypair();
     const targetIdentity = keypair();
@@ -274,14 +296,16 @@ async function main(): Promise<void> {
     sourceMount = await createVoidUdpSwarmNodeRuntimeMountV1({
       node: source,
       identity: sourceIdentity,
-      config: participantRuntimeConfig(),
+      config: participantRuntimeConfig({
+        relayNodeId: relayIdentity.nodeId,
+        targetNodeId: targetIdentity.nodeId,
+      }),
     });
     await waitFor(
       () => source!.peers.get(relayIdentity.nodeId)?.handshakeDone === true,
       "source authenticated direct control peer to relay",
     );
 
-    assert(source.connectViaRelay(relayIdentity.nodeId, targetIdentity.nodeId));
     await waitFor(
       () => {
         const peer = source!.peers.get(targetIdentity.nodeId);
@@ -312,13 +336,6 @@ async function main(): Promise<void> {
     assert(sourceRelayStream && targetRelayStream);
     assert.equal(sourceRelayStream.stream_id, targetRelayStream.stream_id);
 
-    const requested = source.requestUdpSwarmUpgradeV1(
-      relayIdentity.nodeId,
-      targetIdentity.nodeId,
-      sourceRelayStream.stream_id,
-    );
-    assert.equal(requested.ok, true);
-
     await waitFor(
       () => source!.udpSwarmPromotedDirectRouteSnapshotV1().promoted_route_count === 1,
       "source normal-authenticated UDP candidate promotion",
@@ -345,8 +362,26 @@ async function main(): Promise<void> {
     assert.equal(
       (sourceStatus.authority as { automatic_relay_connection_performed: boolean })
         .automatic_relay_connection_performed,
-      false,
+      true,
     );
+    assert.equal(
+      (sourceStatus.authority as {
+        automatic_udp_upgrade_initiation_performed: boolean;
+      }).automatic_udp_upgrade_initiation_performed,
+      true,
+    );
+    const orchestrationCounters = (
+      sourceStatus.orchestration as {
+        counters: {
+          reservation_requests: number;
+          connect_requests: number;
+          upgrade_requests: number;
+        };
+      }
+    ).counters;
+    assert.equal(orchestrationCounters.reservation_requests > 0, true);
+    assert.equal(orchestrationCounters.connect_requests > 0, true);
+    assert.equal(orchestrationCounters.upgrade_requests > 0, true);
     assert.equal(
       (sourceStatus.authority as { relay_retirement_performed: boolean })
         .relay_retirement_performed,
@@ -411,7 +446,7 @@ async function main(): Promise<void> {
         normal_peer_route_promoted: true,
         live_relay_fallback_preserved: true,
         sanitized_readonly_status: true,
-        automatic_relay_orchestration_performed: false,
+        automatic_relay_orchestration_performed: true,
         relay_retirement_performed: false,
       },
     }, null, 2));

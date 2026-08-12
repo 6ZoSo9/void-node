@@ -71,6 +71,7 @@ function entryPayload(plan) {
     buyback_lot_id: plan.buyback_lot_id,
     buyback_lot_plan_id: plan.buyback_lot_plan_id,
     source_sale_id: plan.source.settlement.source_sale_id,
+    accepted_plan_source: structuredClone(plan.source),
   };
 }
 
@@ -100,6 +101,7 @@ function validateEntry(raw, index) {
       "buyback_lot_id",
       "buyback_lot_plan_id",
       "source_sale_id",
+      "accepted_plan_source",
       "journal_entry_id",
     ],
     label,
@@ -126,6 +128,24 @@ function validateEntry(raw, index) {
   }
   if (entry.buyback_lot_id !== buybackLotIdForSourceSale(entry.source_sale_id)) {
     throw new Error(label + ".buyback_lot_id does not match source_sale_id");
+  }
+  const acceptedPlan = deriveBtcVoidBuybackLotV1(entry.accepted_plan_source);
+  if (
+    acceptedPlan.source.settlement.source_sale_id !== entry.source_sale_id
+  ) {
+    throw new Error(
+      label + ".accepted_plan_source does not match source_sale_id",
+    );
+  }
+  if (acceptedPlan.buyback_lot_id !== entry.buyback_lot_id) {
+    throw new Error(
+      label + ".accepted_plan_source does not match buyback_lot_id",
+    );
+  }
+  if (acceptedPlan.buyback_lot_plan_id !== entry.buyback_lot_plan_id) {
+    throw new Error(
+      label + ".buyback_lot_plan_id does not match accepted_plan_source",
+    );
   }
   const { journal_entry_id: suppliedId, ...payload } = entry;
   if (suppliedId !== contentId(payload)) {
@@ -200,6 +220,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
     append_entry: appendEntry,
     invariants: {
       candidate_plan_rederived_from_source: true,
+      accepted_plan_rederived_from_source: true,
       create_once_by_buyback_lot_id: true,
       duplicate_append_forbidden: true,
       conflicting_plan_requires_hold: true,
