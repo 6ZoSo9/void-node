@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -76,6 +76,21 @@ const policy = {
 
 validatePolicy(policy);
 const compiled = compilePolicy(policy);
+
+const repositoryPolicy = JSON.parse(readFileSync(
+  new URL("../ops/coordination/active-lane-reservations-v1.json", import.meta.url),
+  "utf8",
+));
+validatePolicy(repositoryPolicy);
+assert.equal(repositoryPolicy.reserved_exact_branches.length, 0);
+assert.equal(repositoryPolicy.retired_exact_reservations.length, 10);
+assert.deepEqual(
+  repositoryPolicy.retired_exact_reservations
+    .filter((item) => item.retired_reason.startsWith("merged_pr_"))
+    .map((item) => item.retired_reason)
+    .sort(),
+  ["merged_pr_840", "merged_pr_841", "merged_pr_844"],
+);
 
 for (const safe of [
   "feat/void-operator-webhook-receiver-v1",
@@ -238,6 +253,8 @@ assert.equal(sensitiveOverlap.collision_free, false);
 assert.equal(sensitiveOverlap.decision, "HARD_STOP");
 assert.equal(sensitiveOverlap.hard_stop, true);
 assert.equal(sensitiveOverlap.proceed_allowed, false);
+assert.equal(sensitiveOverlap.priority_fallthrough_allowed, true);
+assert.equal(sensitiveOverlap.exploration_allowed, true);
 assert.ok(sensitiveOverlap.hard_reasons.includes("sensitive_path_overlap"));
 assert.equal(sensitiveOverlap.hard_path_collisions.length, 1);
 
@@ -249,6 +266,9 @@ const sensitiveIncomplete = assessCandidate({
   pathMetadataComplete: false,
 });
 assert.equal(sensitiveIncomplete.decision, "HARD_STOP");
+assert.equal(sensitiveIncomplete.proceed_allowed, false);
+assert.equal(sensitiveIncomplete.priority_fallthrough_allowed, true);
+assert.equal(sensitiveIncomplete.exploration_allowed, true);
 assert.ok(
   sensitiveIncomplete.hard_reasons.includes("planned_path_metadata_incomplete"),
 );
@@ -260,6 +280,9 @@ const sensitiveFamily = assessCandidate({
 });
 assert.equal(sensitiveFamily.decision, "HARD_STOP");
 assert.equal(sensitiveFamily.branch_sensitive, true);
+assert.equal(sensitiveFamily.proceed_allowed, false);
+assert.equal(sensitiveFamily.priority_fallthrough_allowed, true);
+assert.equal(sensitiveFamily.exploration_allowed, true);
 assert.ok(sensitiveFamily.hard_reasons.includes("reserved_family:buy-void"));
 
 const collisions = assessCandidate({
@@ -278,6 +301,9 @@ const collisions = assessCandidate({
 assert.equal(collisions.collision_free, false);
 assert.equal(collisions.decision, "HARD_STOP");
 assert.equal(collisions.hard_stop, true);
+assert.equal(collisions.proceed_allowed, false);
+assert.equal(collisions.priority_fallthrough_allowed, true);
+assert.equal(collisions.exploration_allowed, true);
 for (const expected of [
   "branch_checked_out",
   "exact_reservation:test reservation",
@@ -298,6 +324,21 @@ for (const expected of [
   assert.ok(collisions.hard_reasons.includes(expected), expected);
 }
 assert.ok(collisions.advisory_reasons.includes("exact_reservation:test reservation"));
+
+assert.throws(
+  () => validatePolicy({ ...policy, reserved_exact_branches: "untrusted" }),
+  /reserved_exact_branches must be an array/,
+);
+assert.throws(
+  () => compilePolicy({
+    ...policy,
+    coordination_severity: {
+      ...policy.coordination_severity,
+      sensitive_path_patterns: ["("],
+    },
+  }),
+  /invalid sensitive_path_patterns regex/,
+);
 
 const temp = mkdtempSync(join(tmpdir(), "void-active-lane-proof-"));
 try {
@@ -347,6 +388,10 @@ console.log("planned_path_overlap_guard_green=true");
 console.log("nominal_overlap_advisory_green=true");
 console.log("family_reservation_advisory_green=true");
 console.log("sensitive_overlap_hard_stop_green=true");
+console.log("candidate_local_red_fallthrough_green=true");
+console.log("candidate_local_red_exploration_green=true");
+console.log("untrustworthy_policy_hold_green=true");
+console.log("retired_exact_reservation_audit_green=true");
 console.log("incomplete_metadata_risk_weighting_green=true");
 console.log("priority_fallthrough_green=true");
 console.log("exploration_permission_green=true");
