@@ -3,7 +3,7 @@
   "version": 3,
   "repository": "6ZoSo9/void-node",
   "main_sha": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
-  "updated_at": "2026-08-12T18:30:00.000Z",
+  "updated_at": "2026-08-12T18:41:00.000Z",
   "plan_issue": 1182,
   "policy": {
     "active_states": [
@@ -383,7 +383,7 @@
       "experimental": true,
       "sensitive": false,
       "canonical_branch": "feat/worker-coordination-v3-experiment-20260812",
-      "canonical_pr": null,
+      "canonical_pr": 1238,
       "tracking_issues": [
         1182
       ],
@@ -422,7 +422,7 @@
         "runtime_green": false,
         "external_accepted": false
       },
-      "next_gate": "Publish the bounded draft PR, obtain exact-head CI, and keep merge separate.",
+      "next_gate": "Obtain exact-head CI for draft PR #1238 and keep merge separate.",
       "hold_reasons": [],
       "authority_boundary": "Coordination metadata, read-only validation, documentation, proof, and CI only; no deployment, service, credential, wallet, signer, payment, Work Credit, validator, treasury, transaction, or funds authority.",
       "stack_prs": []
