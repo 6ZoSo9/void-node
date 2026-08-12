@@ -1,0 +1,96 @@
+name: VOID PR Stack Dependency Audit V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-pr-stack-dependency-audit-v1.yml"
+      - "docs/operations/void-pr-stack-dependency-audit-v1.md"
+      - "scripts/prove_void_pr_stack_dependency_audit_v1.mjs"
+      - "tools/void-pr-stack-dependency-audit-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-pr-stack-dependency-audit-v1.yml"
+      - "docs/operations/void-pr-stack-dependency-audit-v1.md"
+      - "scripts/prove_void_pr_stack_dependency_audit_v1.mjs"
+      - "tools/void-pr-stack-dependency-audit-v1.mjs"
+  workflow_dispatch:
+    inputs:
+      parent_branch:
+        description: "Exact open parent PR head branch to audit"
+        required: true
+        type: string
+      expected_parent_head:
+        description: "Optional exact 40-hex parent head SHA"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Prove PR stack dependency audit
+        run: node scripts/prove_void_pr_stack_dependency_audit_v1.mjs
+
+  live-pr-self-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PARENT_BRANCH: ${{ github.event.pull_request.head.ref }}
+      EXPECTED_PARENT_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Audit this PR branch for open children
+        run: |
+          node tools/void-pr-stack-dependency-audit-v1.mjs \
+            --repo "${{ github.repository }}" \
+            --parent-branch "$PARENT_BRANCH" \
+            --expected-parent-head "$EXPECTED_PARENT_HEAD" \
+            --output "$RUNNER_TEMP/void-pr-stack-self-audit.json"
+
+  dispatched-parent-audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PARENT_BRANCH: ${{ inputs.parent_branch }}
+      EXPECTED_PARENT_HEAD: ${{ inputs.expected_parent_head }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Audit selected parent branch
+        shell: bash
+        run: |
+          args=(
+            --repo "${{ github.repository }}"
+            --parent-branch "$PARENT_BRANCH"
+            --output "$RUNNER_TEMP/void-pr-stack-parent-audit.json"
+          )
+          if [ -n "$EXPECTED_PARENT_HEAD" ]; then
+            args+=(--expected-parent-head "$EXPECTED_PARENT_HEAD")
+          fi
+          node tools/void-pr-stack-dependency-audit-v1.mjs "${args[@]}"

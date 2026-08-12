@@ -6,6 +6,9 @@ import {
   type BuyVoidNativeChain2050BroadcasterPolicyV1,
   type BuyVoidNativeChain2050JsonRpcTransportV1,
 } from "./buy_void_native_chain2050_broadcaster_v1.js";
+import {
+  wrapBuyVoidChain2050DurabilityBroadcasterV1,
+} from "./buy_void_chain2050_durability_gate_v1.js";
 import type {
   BuyVoidPreparedTransactionBroadcastRequestV1,
   BuyVoidPreparedTransactionBroadcasterDecisionV1,
@@ -22,6 +25,8 @@ export const VOID_BUY_VOID_PREPARED_TRANSACTION_CHAIN2050_TRANSPORT_AUTHORITY_V1
   expected_chain_id: 2050,
   loopback_http_only: true,
   existing_chain2050_broadcaster_reused_for_submit: true,
+  durability_gate_required_before_submit_rpc: true,
+  debt_armed_before_eth_send_raw_transaction: true,
   submit_rpc_mutation_method: "eth_sendRawTransaction",
   inspection_rpc_methods: [
     "eth_chainId",
@@ -159,6 +164,8 @@ export type BuyVoidPreparedTransactionChain2050TransportDecisionV1 =
 export type BuyVoidPreparedTransactionChain2050TransportDependenciesV1 = {
   submit_rpc_transport?: BuyVoidNativeChain2050JsonRpcTransportV1;
   read_transport?: BuyVoidPreparedTransactionChain2050ReadTransportV1;
+  durability_root_dir?: string;
+  durability_now_ms?: () => number;
 };
 
 function text(value: unknown): string {
@@ -671,6 +678,19 @@ export async function createBuyVoidPreparedTransactionChain2050TransportV1(
       policy.rpc_url_fingerprint_sha256,
     );
   }
+  let broadcaster;
+  try {
+    broadcaster = wrapBuyVoidChain2050DurabilityBroadcasterV1({
+      broadcaster: native.broadcaster,
+      root_dir: dependencies.durability_root_dir,
+      now_ms: dependencies.durability_now_ms,
+    });
+  } catch {
+    return factoryHeld(
+      "chain2050_transport_durability_gate_not_ready",
+      policy.rpc_url_fingerprint_sha256,
+    );
+  }
 
   const readTransport =
     dependencies.read_transport || createHttpReadTransport(policy);
@@ -686,7 +706,7 @@ export async function createBuyVoidPreparedTransactionChain2050TransportV1(
       const provider = stableProviderId(policy, request.signed_transaction_hash);
       let result;
       try {
-        result = await native.broadcaster.broadcast_signed_transaction(
+        result = await broadcaster.broadcast_signed_transaction(
           request.raw_signed_transaction,
         );
       } catch {

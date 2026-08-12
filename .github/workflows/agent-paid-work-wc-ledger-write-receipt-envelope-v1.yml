@@ -46,7 +46,7 @@ jobs:
           51f5444f36a17e276c7e844ffb9b5abee3829d184acabff15ec58611176febae  examples/agent-paid-work-wc-ledger-write-receipt-envelope-v1.example.json
           3a975318a029b093b89716afef634024c9cbbd8419b2c61c57fcaa1f7976c09f  schemas/agent-paid-work-wc-ledger-write-receipt-envelope-v1.schema.json
           827b1c8462c08caa1e2e2daa116f29ec1a59f3850cdc835670700720a677b9d8  docs/public/agent-paid-work-wc-ledger-write-receipt-envelope-v1.md
-          8325395c72cf04ce6384f21e81ae078640f6e1c92ecc07c1c92f6efe83fd370f  scripts/agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
+          e81a7f5a54a9054794e24c5b38a8acdf2b523f9991b8c57f9a39582e6e4f4f76  scripts/agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
           8a4eeb581608b2b26ded61fcf5e73db0ee484fcbf34a47a70f053dace46db1d6  scripts/prove_agent_paid_work_wc_ledger_write_receipt_envelope_v1.ts
           SUMS
 

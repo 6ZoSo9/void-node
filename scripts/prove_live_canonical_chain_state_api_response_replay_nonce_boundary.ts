@@ -5,7 +5,7 @@ import {
   type LiveCanonicalChainStateApiResponseReplayNonceCandidateV1,
   type LiveCanonicalChainStateApiResponseReplayNoncePolicyV1,
   type LiveCanonicalChainStateApiResponseReplayNonceStateV1,
-} from '../src/chain/block';
+} from '../src/chain/block.js';
 
 const policy: LiveCanonicalChainStateApiResponseReplayNoncePolicyV1 = {
   enabled: true,
