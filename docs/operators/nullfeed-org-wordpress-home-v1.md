@@ -49,7 +49,8 @@ wrapper repair, responsive layout contracts, unique IDs, an exact link allowlist
 the honest capability boundary, and an entirely static page. It adversarially
 rejects paragraph contamination, lost layout rules, executable elements,
 unreviewed links, and any mismatch in the page ID, slug, template, status, or
-canonical link.
+canonical link. It also verifies the production-main dispatch guard and bounded
+stream reader used by the publication tool.
 
 ## Read-only inspection
 
@@ -70,7 +71,7 @@ Do not put either value in source, commands, logs, issues, pull requests, or
 receipts. NullFeed must not reuse the `voidchain.org` application password or
 GitHub environment secrets.
 
-## Guarded apply and rollback
+## Guarded apply and recovery
 
 Apply requires credentials plus the exact authenticated-inspect values:
 
@@ -84,13 +85,29 @@ node ops/public/sync-nullfeed-org-wordpress-home-v1.mjs \
 Immediately before its write, the tool re-reads page `350041` and holds if the
 modification time or raw-content digest changed. It writes the reviewed title
 and canonical content, re-reads the raw page, and verifies the public rendered
-page. If post-write verification fails, it attempts to restore the prior title
-and content and confirms that restoration before reporting a hold. WordPress
-revisions remain an additional operator recovery path.
+page.
+
+After any mutation attempt, a verification or transport failure is treated as
+an uncertain production state. The tool does **not** issue an automatic second
+write to restore stale pre-apply content, because that could overwrite a human
+or agent edit that arrived concurrently. It reports that manual recovery is
+required. Re-inspect the exact current page first; if restoration is necessary,
+use the retained WordPress revision or another separately reviewed recovery
+operation.
 
 The workflow runs proof for pull requests. Manual inspect and apply jobs use the
-separate `nullfeed-org-production` environment. That environment and its two
-secrets must be configured through a later, separately authorized operation.
+separate `nullfeed-org-production` environment. Production apply additionally
+fails unless the workflow dispatch ref is exactly `refs/heads/main`; a feature
+branch or tag cannot reach the apply job merely by selecting the `apply` input.
+The credentials remain in the GitHub environment and are not stored in source.
+
+## Bounded network reads
+
+WordPress REST responses are limited to 2 MiB. A declared oversized
+`Content-Length` is rejected before body consumption, and chunked or otherwise
+lengthless responses are counted while streaming and cancelled as soon as the
+limit is exceeded. Redirects remain rejected and each request keeps a 20-second
+timeout.
 
 ## Operational truth
 

@@ -80,24 +80,65 @@ const credentials = () => {
   return Buffer.from(`${username}:${applicationPassword}`).toString("base64");
 };
 
+const readBoundedResponseBytes = async (response) => {
+  const contentLengthHeader = response.headers.get("content-length");
+  if (contentLengthHeader !== null) {
+    const contentLength = Number(contentLengthHeader);
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+      throw new Error("invalid response content-length");
+    }
+    if (contentLength > MAX_RESPONSE_BYTES) {
+      throw new Error("response exceeds size limit");
+    }
+  }
+
+  if (!response.body) {
+    return new Uint8Array();
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("response body yielded a non-byte chunk");
+      }
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error("response exceeds size limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+};
+
 const requestJson = async (url, options = {}) => {
   const response = await fetch(url, {
     ...options,
     redirect: "error",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-  const contentLength = Number(response.headers.get("content-length") || "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-    throw new Error("response exceeds size limit");
-  }
   const contentType = String(response.headers.get("content-type") || "").toLowerCase();
   if (!contentType.includes("application/json")) {
     throw new Error(`unexpected content type on HTTP ${response.status}`);
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
-    throw new Error("response exceeds size limit");
-  }
+  const bytes = await readBoundedResponseBytes(response);
   let value;
   try {
     value = JSON.parse(new TextDecoder().decode(bytes));
@@ -292,25 +333,14 @@ const updatePage = async (authorization, title, content) => {
   return page;
 };
 
-const restorePreviousPage = async (authorization, previous) => {
-  const observed = await editableRawPage(authorization);
-  if (sha256(observed.content) === sha256(previous.content) && observed.title === previous.title) {
-    return false;
-  }
-  await updatePage(authorization, previous.title, previous.content);
-  const restored = await editableRawPage(authorization);
-  if (sha256(restored.content) !== sha256(previous.content) || restored.title !== previous.title) {
-    throw new Error("automatic rollback could not restore the previous page");
-  }
-  return true;
-};
-
 export {
+  MAX_RESPONSE_BYTES,
   PAGE_ID,
   PAGE_LINK,
   PAGE_SLUG,
   PAGE_TEMPLATE,
   PAGE_TITLE,
+  readBoundedResponseBytes,
   validateCanonical,
   validatePage,
   validateRenderedIntegrity,
@@ -404,20 +434,11 @@ if (args) {
           raw_content_equivalent: true,
           live_layout_verified: true,
           rollback_performed: false,
+          recovery_policy: "manual_revision_recovery",
         })}\n`);
       } catch (error) {
-        let rollbackPerformed = false;
-        if (writeAttempted) {
-          try {
-            rollbackPerformed = await restorePreviousPage(authorization, previous);
-          } catch (rollbackError) {
-            throw new Error(
-              `${String(error?.message || error)}; rollback_failed: ${String(rollbackError?.message || rollbackError)}`,
-            );
-          }
-        }
         throw new Error(
-          `${String(error?.message || error)}; rollback_performed=${String(rollbackPerformed)}`,
+          `${String(error?.message || error)}; mutation_attempted=${String(writeAttempted)}; automatic_rollback_disabled=true; manual_recovery_required=${String(writeAttempted)}`,
         );
       }
     }
