@@ -174,10 +174,14 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
       config.routes.length >
       VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1
     ) {
-      throw new Error("UDP swarm relay orchestration route count exceeds the bound");
+      throw new Error(
+        "UDP swarm relay orchestration route count exceeds the bound",
+      );
     }
     if (config.enabled && config.routes.length === 0) {
-      throw new Error("UDP swarm relay orchestration requires at least one exact route");
+      throw new Error(
+        "UDP swarm relay orchestration requires at least one exact route",
+      );
     }
     if (!config.enabled && config.routes.length !== 0) {
       throw new Error("UDP swarm relay orchestration routes require exact opt-in");
@@ -191,9 +195,9 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
         route.relay_node_id === node.id ||
         route.target_node_id === node.id
       ) {
-      throw new Error(
-        "UDP swarm relay orchestration route is invalid for this node",
-      );
+        throw new Error(
+          "UDP swarm relay orchestration route is invalid for this node",
+        );
       }
       const key = routeKey(route);
       if (seen.has(key)) {
