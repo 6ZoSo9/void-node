@@ -22,6 +22,8 @@ const COMPOSITION_BOUNDARY = [
   "public/public-node/agents/first-contact-v1.json",
   "public/public-node/agents/public-utility-v1.json",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
@@ -485,5 +487,5 @@ console.log("work_credit_earning_promised=false");
 console.log("mutation_authority_granted=false");
 console.log("public_utility_catalog_loaded=true");
 console.log("useful_public_resource_count=3");
-console.log("composition_boundary_file_count=9");
+console.log("composition_boundary_file_count=11");
 console.log("VOID_AI_AGENT_FIRST_CONTACT_KIT_V1_PROOF_EXACT_GREEN");
