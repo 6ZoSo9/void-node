@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-agent-sdk-release-pack-v1.yml"
       - "integrations/agents/void-agent-sdk-v1/**"
       - "scripts/prove_void_agent_sdk_release_pack_v1.mjs"
+      - "package.json"
   workflow_dispatch:
 
 permissions:
@@ -17,15 +18,20 @@ concurrency:
 
 jobs:
   prove:
+    name: prove (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node }}
       - name: Check JavaScript syntax
         run: |
           node --check integrations/agents/void-agent-sdk-v1/index.mjs
