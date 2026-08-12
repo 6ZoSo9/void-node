@@ -1,0 +1,37 @@
+name: void-btc-void-buyback-lot-journal-transition-v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
+      - "docs/public/btc-void-buyback-lot-journal-transition-v1.md"
+      - ".github/workflows/void-btc-void-buyback-lot-journal-transition-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
+      - "docs/public/btc-void-buyback-lot-journal-transition-v1.md"
+      - ".github/workflows/void-btc-void-buyback-lot-journal-transition-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: node-${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs

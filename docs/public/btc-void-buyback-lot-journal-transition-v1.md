@@ -1,0 +1,57 @@
+# BTC/VOID Buyback-Lot Journal Transition V1
+
+Marker: `VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1`
+
+This source-only transition planner closes one Phase-0 invariant deferred by the
+BTC/VOID market-maker reserve policy: one verified source sale can create at
+most one accepted buyback-lot plan. It is narrowly scoped to the official
+post-presale native BTC/native VOID pair.
+
+The planner re-derives every candidate with the reserve-policy tool before it
+examines the journal. A caller cannot keep a valid plan ID while changing the
+budget, spread, chain identity, confirmation evidence, or any other plan field.
+Journal entries are closed, content-addressed records, and malformed or duplicate
+entries fail closed.
+
+## Deterministic decisions
+
+- `CREATE`: no entry exists for the candidate `buyback_lot_id`; the result
+  includes exactly one content-addressed entry that a later authorized durable
+  store may append.
+- `IDEMPOTENT`: the journal already binds that lot ID to the exact same
+  `buyback_lot_plan_id`; no second entry is emitted.
+- `HOLD`: the lot ID is already bound to a different plan ID, including a plan
+  derived from changed confirmation observation. The accepted record remains
+  authoritative and no replacement or additive budget is emitted.
+
+The journal also rejects duplicate lot IDs and any attempt to map one
+`source_sale_id` to multiple lot IDs. This planner does not define a competing
+settlement, pricing, or discovery protocol; it consumes the already versioned
+reserve-policy plan.
+
+## Safety and authority boundary
+
+The tool does not persist a journal, lock a file, reserve inventory, mutate
+reserve state, access a wallet or signer, call Bitcoin or Chain-2050 RPC,
+construct or broadcast a transaction, seed liquidity, or move funds. Its
+`append_entry` is only a deterministic source artifact for later review.
+
+This is not live market capability. A separately reviewed durable compare-and-
+append store, aggregate reserve snapshot, executable quote binding, Bitcoin
+regtest and isolated Chain-2050 atomic-settlement proofs, activation controls,
+funding authorization, and deployment evidence remain required.
+
+The Buy VOID presale stays separate and unchanged. No presale receipt or
+inventory is accepted by this contract. There is no USD, fiat, stablecoin,
+wrapped-BTC, external-oracle, leverage, lending, margin, credit, treasury sweep,
+or automatic refill path.
+
+## Local proof
+
+```sh
+node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
+```
+
+The proof covers first creation, exact retry idempotence, same-lot conflicting
+confirmation evidence, content tampering, duplicate journal entries, unknown
+fields, canonical ordering, and the negative authority flags.
