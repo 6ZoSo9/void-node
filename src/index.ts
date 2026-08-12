@@ -77,6 +77,11 @@ import * as __SegStoreMod from "./chain/seg_store.js";
 // compat: tsx is exposing seg_store.ts as default-only; pull ctor from default object
 const SegStore: any = ((__SegStoreMod as any).SegStore || (__SegStoreMod as any).default || __SegStoreMod);
 import { Node } from "./node_core.js";
+import {
+  createVoidUdpSwarmNodeRuntimeMountV1,
+  readVoidUdpSwarmNodeRuntimeEnvironmentV1,
+  registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1,
+} from "./p2p/udp_swarm_node_runtime_mount_v1.js";
 import * as __blockMod from "./chain/block.js";
 const blockHash: any = ((__blockMod as any).blockHash || ((__blockMod as any).default && (__blockMod as any).default.blockHash));
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js";
@@ -344,11 +349,31 @@ async function __main__() {
 
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
-  const node = new Node(P2P_PORT, kp, { allowEmptyBlocks: ALLOW_EMPTY_BLOCKS });
+  const udpSwarmRuntimeConfig =
+    readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env);
+  const node = new Node(P2P_PORT, kp, {
+    allowEmptyBlocks: ALLOW_EMPTY_BLOCKS,
+    relayServer: udpSwarmRuntimeConfig.relay_server_enabled,
+    udpSwarmRelayEndpoint:
+      udpSwarmRuntimeConfig.relay_public_endpoint ?? undefined,
+    udpSwarmAllowNonPublicEndpoint:
+      udpSwarmRuntimeConfig.allow_nonpublic_endpoints,
+  });
 // [ADD] expose live node globally for shims/bridges
 ;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
 console.log("[shim] published global node (post-construct)");
   await node.start();
+  let udpSwarmNodeRuntimeMount;
+  try {
+    udpSwarmNodeRuntimeMount = await createVoidUdpSwarmNodeRuntimeMountV1({
+      node,
+      identity: kp,
+      config: udpSwarmRuntimeConfig,
+    });
+  } catch (error) {
+    node.stop();
+    throw error;
+  }
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
   if ("onSealed" in (((globalThis as any).__void_node || (globalThis as any).node) as any)) {
@@ -393,6 +418,10 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
 
 const app = express();
+registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
+  app,
+  udpSwarmNodeRuntimeMount,
+);
 
 // === wc-mutation-containment-v1 BEGIN ===
 ;(() => {
