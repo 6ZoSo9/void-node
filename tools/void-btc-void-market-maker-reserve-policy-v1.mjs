@@ -111,8 +111,11 @@ function sourceSaleIdentityPayload(settlement) {
   return {
     schema: "void.btc_void.source_sale_receipt.v1",
     direction: settlement.direction,
+    bitcoin_network: settlement.bitcoin_network,
     bitcoin_funding_txid: settlement.bitcoin_funding_txid,
     bitcoin_funding_vout: settlement.bitcoin_funding_vout,
+    void_chain_id: settlement.void_chain_id,
+    void_network_identity: settlement.void_network_identity,
     void_settlement_receipt_id: settlement.void_settlement_receipt_id,
     btc_received_sats: settlement.btc_received_sats,
     void_sold_atomic: settlement.void_sold_atomic,
@@ -167,8 +170,11 @@ function normalizeRequest(raw) {
       "source_sale_id",
       "direction",
       "status",
+      "bitcoin_network",
       "bitcoin_funding_txid",
       "bitcoin_funding_vout",
+      "void_chain_id",
+      "void_network_identity",
       "void_settlement_receipt_id",
       "btc_received_sats",
       "void_sold_atomic",
@@ -195,6 +201,9 @@ function normalizeRequest(raw) {
   if (settlement.status !== "settled") {
     throw new Error("BTC proceeds are not bid-eligible before terminal settlement");
   }
+  if (settlement.bitcoin_network !== "bitcoin_mainnet") {
+    throw new Error("official reserve lots require bitcoin_mainnet");
+  }
   if (
     typeof settlement.bitcoin_funding_txid !== "string" ||
     !HEX_64.test(settlement.bitcoin_funding_txid)
@@ -207,6 +216,12 @@ function normalizeRequest(raw) {
     0,
     MAX_BITCOIN_VOUT,
   );
+  if (settlement.void_chain_id !== 2050) {
+    throw new Error("official reserve lots require Chain-2050");
+  }
+  if (settlement.void_network_identity !== "mainnet0") {
+    throw new Error("official reserve lots require VOID mainnet0");
+  }
   if (
     typeof settlement.void_settlement_receipt_id !== "string" ||
     !SHA256_ID.test(settlement.void_settlement_receipt_id)
@@ -259,8 +274,11 @@ function normalizeRequest(raw) {
     source_sale_id: settlement.source_sale_id,
     direction: settlement.direction,
     status: settlement.status,
+    bitcoin_network: settlement.bitcoin_network,
     bitcoin_funding_txid: settlement.bitcoin_funding_txid,
     bitcoin_funding_vout: bitcoinFundingVout,
+    void_chain_id: settlement.void_chain_id,
+    void_network_identity: settlement.void_network_identity,
     void_settlement_receipt_id: settlement.void_settlement_receipt_id,
     btc_received_sats: btcReceived.toString(),
     void_sold_atomic: voidSold.toString(),
@@ -319,7 +337,10 @@ export function deriveBtcVoidBuybackLotV1(raw) {
     market: {
       pair: "BTC_VOID",
       bitcoin_asset: "native_btc",
+      bitcoin_network: "bitcoin_mainnet",
       void_asset: "native_void_chain_2050",
+      void_chain_id: 2050,
+      void_network_identity: "mainnet0",
       settlement: "native_cross_chain_atomic",
       pricing_basis: "native_btc_sats_per_native_void_atomic_only",
       fiat_or_usd_value_used: false,

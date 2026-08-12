@@ -93,6 +93,11 @@ terminally settled BTC with sufficient confirmations is bid-eligible. The full
 contract and native-only example are defined in
 `btc-void-market-maker-reserve-policy-v1.md`.
 
+An official reserve-recycling receipt must bind `bitcoin_mainnet`, Chain ID
+`2050`, and VOID network identity `mainnet0` into its source-sale digest.
+Bitcoin testnet/regtest or an isolated Chain-2050 test environment must use
+explicitly separate fixture identities and can never produce a mainnet lot.
+
 ### 3. Reserve snapshots
 
 Every executable quote must bind one content-addressed reserve snapshot.

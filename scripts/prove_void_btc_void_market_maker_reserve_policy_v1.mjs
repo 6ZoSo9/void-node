@@ -22,8 +22,11 @@ function sourceSaleId(settlement) {
   return contentId({
     schema: "void.btc_void.source_sale_receipt.v1",
     direction: settlement.direction,
+    bitcoin_network: settlement.bitcoin_network,
     bitcoin_funding_txid: settlement.bitcoin_funding_txid,
     bitcoin_funding_vout: settlement.bitcoin_funding_vout,
+    void_chain_id: settlement.void_chain_id,
+    void_network_identity: settlement.void_network_identity,
     void_settlement_receipt_id: settlement.void_settlement_receipt_id,
     btc_received_sats: settlement.btc_received_sats,
     void_sold_atomic: settlement.void_sold_atomic,
@@ -34,8 +37,11 @@ function request(overrides = {}) {
   const baseSettlement = {
     direction: "btc_to_void",
     status: "settled",
+    bitcoin_network: "bitcoin_mainnet",
     bitcoin_funding_txid: "11".repeat(32),
     bitcoin_funding_vout: 1,
+    void_chain_id: 2050,
+    void_network_identity: "mainnet0",
     void_settlement_receipt_id: "sha256:" + "22".repeat(32),
     btc_received_sats: "1000000",
     void_sold_atomic: "2000000",
@@ -120,6 +126,9 @@ assert.equal(
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
 );
 assert.equal(lot.market.pricing_basis, "native_btc_sats_per_native_void_atomic_only");
+assert.equal(lot.market.bitcoin_network, "bitcoin_mainnet");
+assert.equal(lot.market.void_chain_id, 2050);
+assert.equal(lot.market.void_network_identity, "mainnet0");
 assert.equal(lot.market.fiat_or_usd_value_used, false);
 assert.equal(lot.market.external_price_oracle_used, false);
 assert.equal(
@@ -167,15 +176,15 @@ assert.match(lot.buyback_lot_id, /^sha256:[0-9a-f]{64}$/);
 assert.match(lot.buyback_lot_plan_id, /^sha256:[0-9a-f]{64}$/);
 assert.equal(
   lot.source.settlement.source_sale_id,
-  "sha256:6869f35cc3aab56c98e18510522b68ca4deab9aa9201c0aca0036d33f8996f80",
+  "sha256:b60b88ff3c3e9271ef9b9c38a60f62cbc3051884a876073a71bfc83c653a88ad",
 );
 assert.equal(
   lot.buyback_lot_id,
-  "sha256:7fa7b77ef3f9d51b310bb1bc586dca43f50607b1bc5f56ff0c7904a13b90bd77",
+  "sha256:47bc1085cc19e206bfaeb21e83b3c94ce2eafffc1b2c33fc18092f50db6eec97",
 );
 assert.equal(
   lot.buyback_lot_plan_id,
-  "sha256:ffd04506e0baa2ec4bc47f066690852e1ffdb7363f7c703711c29a6ec3024eff",
+  "sha256:6d463cfb8825e0d20ca39611ae8ea28c6e74562937961555e3a368dfa5dd6bc8",
 );
 
 const nativePairOnlyExample = deriveBtcVoidBuybackLotV1(
@@ -294,6 +303,29 @@ assert.throws(
       request({ settlement: { direction: "void_to_btc" } }),
     ),
   /only settled BTC-to-VOID sales/,
+);
+for (const bitcoinNetwork of ["bitcoin_testnet", "bitcoin_regtest"]) {
+  assert.throws(
+    () =>
+      deriveBtcVoidBuybackLotV1(
+        request({ settlement: { bitcoin_network: bitcoinNetwork } }),
+      ),
+    /require bitcoin_mainnet/,
+  );
+}
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { void_chain_id: 2051 } }),
+    ),
+  /require Chain-2050/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { void_network_identity: "devnet" } }),
+    ),
+  /require VOID mainnet0/,
 );
 assert.throws(
   () =>
@@ -418,6 +450,8 @@ process.stdout.write(
     ops_treasury_target_void: "5000000",
     confirmed_btc_recycled_to_bid_reserve: true,
     source_sale_content_address_verified: true,
+    bitcoin_network_bound: true,
+    void_chain_identity_bound: true,
     source_sale_id: lot.source.settlement.source_sale_id,
     buyback_lot_id: lot.buyback_lot_id,
     buyback_lot_plan_id: lot.buyback_lot_plan_id,

@@ -40,9 +40,12 @@ Each terminally settled BTC-to-VOID sale creates one source-bound buyback lot:
    `BTCVoidMarketVault` and may be sold again through a new atomic settlement.
 
 The `source_sale_id` is the SHA-256 identity of the exact immutable sale
-content: direction, native Bitcoin funding transaction ID and output index,
-Chain-2050 settlement-receipt ID, BTC received, and VOID sold. Altering any of
-those fields while reusing the ID fails closed. Including the Bitcoin outpoint
+content: direction, Bitcoin network (`bitcoin_mainnet`), native Bitcoin funding
+transaction ID and output index, VOID chain ID (`2050`), VOID network identity
+(`mainnet0`), Chain-2050 settlement-receipt ID, BTC received, and VOID sold.
+Altering any of those fields while reusing the ID fails closed. Including both
+chain identities prevents testnet, regtest, or another VOID environment from
+being misclassified as an official-market sale. Including the Bitcoin outpoint
 prevents two distinct equal-amount sales from collapsing into one identity.
 The stable `buyback_lot_id` is derived only from that verified source-sale
 identity, so policy or later confirmation-observation changes cannot create a
@@ -106,6 +109,8 @@ floors; it cannot weaken pending settlements or active buyback lots.
 
 - Buy VOID presale inventory and receipts never enter this market.
 - Only native BTC and native Chain-2050 VOID are supported.
+- Official reserve lots require `bitcoin_mainnet`, Chain ID `2050`, and VOID
+  network identity `mainnet0`; test fixtures cannot create mainnet lots.
 - A verified source sale ID maps to exactly one stable buyback-lot ID.
 - A different plan ID for an already journaled lot ID is a conflict and must
   return `HOLD`; it must never replace or add to the accepted lot budget.
