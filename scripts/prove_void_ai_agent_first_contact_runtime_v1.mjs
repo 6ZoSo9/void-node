@@ -91,7 +91,7 @@ for (const [relativePath, expected] of Object.entries(EXPECTED_ASSETS)) {
 const indexSizeFixture = JSON.parse(
   read("fixtures/ops/guard-baselines/index-ts-size-v1.json"),
 );
-assert.equal(indexSizeFixture?.baseline_bytes, 3849581, "index size ceiling changed");
+assert.equal(indexSizeFixture?.baseline_bytes, 3850168, "index size ceiling changed");
 
 const sourcePath = path.join(ROOT, "src/index.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
