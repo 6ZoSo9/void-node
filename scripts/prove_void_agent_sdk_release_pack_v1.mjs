@@ -38,6 +38,12 @@ const packageRoot = path.join(root, "integrations/agents/void-agent-sdk-v1");
 const wellKnownPath = "/.well-known/void-agent-discovery.json";
 const canonicalPath = "/public-node/agents/discovery-v1.json";
 const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
+const supportedNodeMajors = [22, 24, 26];
+const runtimeNodeMajor = Number.parseInt(process.versions.node.split(".")[0], 10);
+assertCondition(
+  supportedNodeMajors.includes(runtimeNodeMajor),
+  `proof_runtime_node_major_unsupported:${runtimeNodeMajor}`,
+);
 
 const wellKnown = {
   marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
@@ -334,6 +340,10 @@ assertCondition(
   manifest.marker === "VOID_AGENT_SDK_RELEASE_MANIFEST_V1",
   "integrity marker mismatch",
 );
+assertCondition(
+  JSON.stringify(manifest.supported_node_majors) === JSON.stringify(supportedNodeMajors),
+  "integrity supported Node majors mismatch",
+);
 for (const [relative, expected] of Object.entries(manifest.files)) {
   const bytes = fs.readFileSync(path.join(packageRoot, relative));
   assertCondition(bytes.length === expected.bytes, `byte mismatch: ${relative}`);
@@ -350,7 +360,17 @@ assertCondition(
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"),
 );
-assertCondition(packageJson.engines.node === ">=22 <23", "Node engine mismatch");
+const repositoryPackageJson = JSON.parse(
+  fs.readFileSync(path.join(root, "package.json"), "utf8"),
+);
+assertCondition(
+  packageJson.engines.node === repositoryPackageJson.engines.node,
+  "SDK Node engine diverged from repository contract",
+);
+assertCondition(
+  packageJson.engines.node === "^22.0.0 || ^24.0.0 || ^26.0.0",
+  "Node engine mismatch",
+);
 assertCondition(packageJson.dependencies === undefined, "runtime dependencies added");
 assertCondition(packageJson.devDependencies === undefined, "dev dependencies added");
 
@@ -377,6 +397,8 @@ console.log(`report_id=${report.report_id}`);
 console.log(`granted_capabilities=${report.negotiation.granted.length}`);
 console.log(`not_granted_capabilities=${report.negotiation.not_granted.length}`);
 console.log(`integrity_files=${Object.keys(manifest.files).length}`);
+console.log(`runtime_node_major=${runtimeNodeMajor}`);
+console.log("supported_node_majors=22,24,26");
 console.log("zero_dependencies=true");
 console.log("same_origin_only=true");
 console.log("redirects_rejected=true");
