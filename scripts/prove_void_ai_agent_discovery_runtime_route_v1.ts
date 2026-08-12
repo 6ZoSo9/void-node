@@ -51,6 +51,11 @@ const expectedRoutes = [
     marker: null,
   },
   {
+    route: "/public-node/agents/public-utility-v1.json",
+    relativePath: "public/public-node/agents/public-utility-v1.json",
+    marker: "VOID_AI_AGENT_PUBLIC_UTILITY_V1",
+  },
+  {
     route: "/.well-known/void-agent-capabilities.json",
     relativePath: "public/.well-known/void-agent-capabilities.json",
     marker: "VOID_AI_AGENT_CAPABILITY_WELL_KNOWN_V1",
@@ -88,8 +93,8 @@ assert.equal(
 );
 assert.equal(
   voidAiAgentDiscoveryRuntimeRoutesV1.length,
-  12,
-  "exactly twelve runtime routes",
+  13,
+  "exactly thirteen runtime routes",
 );
 assert.deepEqual(
   voidAiAgentDiscoveryRuntimeRoutesV1,
@@ -98,14 +103,14 @@ assert.deepEqual(
 );
 assert.equal(
   new Set(voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.route)).size,
-  12,
+  13,
   "no duplicate runtime routes",
 );
 assert.equal(
   new Set(
     voidAiAgentDiscoveryRuntimeRoutesV1.map((entry) => entry.relativePath),
   ).size,
-  12,
+  13,
   "no duplicate runtime relative paths",
 );
 
@@ -241,6 +246,15 @@ assert.equal(
   ),
   1,
   "paid-work discovery schema route appears exactly once",
+);
+
+assert.equal(
+  count(
+    runtimeModuleSource,
+    'route: "/public-node/agents/public-utility-v1.json"',
+  ),
+  1,
+  "public-utility route appears exactly once",
 );
 
 assert.equal(
@@ -605,6 +619,8 @@ console.log("well_known_capability_get=200");
 console.log("well_known_capability_head=200");
 console.log("well_known_capability_schema_get=200");
 console.log("well_known_capability_schema_head=200");
+console.log("public_utility_get=200");
+console.log("public_utility_head=200");
 console.log("paid_work_discovery_get=200");
 console.log("paid_work_discovery_head=200");
 console.log("paid_work_schema_get=200");
