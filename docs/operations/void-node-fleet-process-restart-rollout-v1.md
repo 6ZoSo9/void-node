@@ -55,13 +55,13 @@ Success returns `NEXT_RESTART_READY` and names exactly one `next_node`, or
 Each later inspection requires a fresh full-fleet audit at the original source
 SHA. The coordinator requires:
 
-- every initially aligned process to retain its exact baseline process-start,
-  source-transition, and process-source commit/tree identity;
-- every completed node to remain aligned at the exact process-start epoch
-  and exact new process-source commit/tree recorded when its restart receipt was
-  appended;
-- every pending node to retain its exact baseline stale process-source
-  commit/tree, process start, and source transition; and
+- every initially aligned process to retain its exact baseline systemd
+  invocation ID, process-start, source-transition, and process-source
+  commit/tree identity;
+- every completed node to remain aligned at the exact receipted systemd
+  invocation ID, process-start epoch, and new process-source commit/tree;
+- every pending node to retain its exact baseline stale systemd invocation ID,
+  process-source commit/tree, process start, and source transition; and
 - the fleet decision to agree with the number of completed restart candidates.
 
 An unreceipted process restart, crash recovery, process-source identity change,
@@ -96,7 +96,8 @@ The coordinator reproduces:
 3. the restart-only Git transition against current canonical `main`;
 4. the complete deterministic restart plan;
 5. the successful, non-retried restart receipt, exact authority object, and
-   controller-observed post-restart process epoch/commit/tree; and
+   controller-observed post-restart systemd invocation ID and process
+   epoch/commit/tree; and
 6. an exact match between that receipted post-restart identity and the new
    aligned process in the current fleet audit.
 
