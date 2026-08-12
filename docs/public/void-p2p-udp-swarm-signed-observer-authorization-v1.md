@@ -48,6 +48,12 @@ composition is invoked. The existing composition then independently retains its
 own two-source-per-route signature quorum, relay/target rules, failure-domain
 coverage, bootstrap binding, freshness, and route limits.
 
+The authorization also bounds time-of-authority: discovery `generated_at` and
+every relay observation must fall inside the signed observer-authorization
+window, and discovery `expires_at` may not exceed authorization `expires_at`.
+Therefore the runtime route lease produced by the existing composition cannot
+outlive the observer authority that admitted its sources.
+
 Raising the route quorum alone is deliberately not treated as a Sybil defense.
 Identity admission and route quorum remain separate controls.
 
@@ -78,12 +84,15 @@ Authorization rejects:
 - expired, future, or overlong authorization windows;
 - signatures from keys outside the release root;
 - duplicate, malformed, incorrectly ordered, invalid, or sub-threshold
-  signatures; and
+  signatures;
+- discovery creation or relay observations outside the authorization window;
+- a discovery lease that extends beyond observer authorization; and
 - any authority object that differs from the compiled zero-authority contract.
 
 Normally authenticated but unauthorized peers are ignored for discovery quorum.
 If fewer than two authorized observers are currently live, the wrapper holds
-before bootstrap-record or manifest fetches occur.
+before bootstrap-record or manifest fetches occur. Window violations also hold
+before downstream bootstrap fetches.
 
 ## Proof
 
@@ -100,6 +109,8 @@ identities, two arbitrary attacker identities, and one local identity. It proves
 - a mixed live peer set yields only the three explicitly authorized identities;
 - the two arbitrary authenticated attackers cannot satisfy the authorization
   gate and cause zero downstream bootstrap fetches;
+- a discovery lease cannot outlive observer authorization;
+- an observation made before observer authorization cannot contribute;
 - a sub-threshold authorization fails;
 - attacker-generated signatures pretending to be release-root signatures fail;
 - node-ID/public-key substitution fails;
