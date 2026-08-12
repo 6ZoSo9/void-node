@@ -1,16 +1,25 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
   VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
+  canonicalJson,
   deriveBtcVoidBuybackLotV1,
 } from "../tools/void-btc-void-market-maker-reserve-policy-v1.mjs";
 import {
   VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
   evaluateBtcVoidBuybackLotJournalTransitionV1,
 } from "../tools/void-btc-void-buyback-lot-journal-transition-v1.mjs";
+
+function contentId(value) {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")
+  );
+}
 
 function request(overrides = {}) {
   return {
@@ -147,6 +156,17 @@ assert.throws(
   /journal_entry_id content mismatch/,
 );
 
+const inconsistentLotEntry = structuredClone(create.append_entry);
+inconsistentLotEntry.buyback_lot_id = "sha256:" + "99".repeat(32);
+const { journal_entry_id: ignoredEntryId, ...inconsistentLotPayload } =
+  inconsistentLotEntry;
+void ignoredEntryId;
+inconsistentLotEntry.journal_entry_id = contentId(inconsistentLotPayload);
+assert.throws(
+  () => transition(firstPlan, [inconsistentLotEntry]),
+  /buyback_lot_id does not match source_sale_id/,
+);
+
 assert.throws(
   () => transition(firstPlan, [create.append_entry, create.append_entry]),
   /duplicate buyback_lot_id/,
@@ -183,7 +203,7 @@ process.stdout.write(
     {
       marker: VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
       status: "PASS",
-      assertions: 39,
+      assertions: 41,
       deterministic_first_decision_id: create.decision_id,
       exact_duplicate_status: duplicate.status,
       conflicting_plan_status: conflict.status,

@@ -10,8 +10,10 @@ post-presale native BTC/native VOID pair.
 The planner re-derives every candidate with the reserve-policy tool before it
 examines the journal. A caller cannot keep a valid plan ID while changing the
 budget, spread, chain identity, confirmation evidence, or any other plan field.
-Journal entries are closed, content-addressed records, and malformed or duplicate
-entries fail closed.
+Journal entries are closed, content-addressed records. The planner also
+re-derives each entry's `buyback_lot_id` from its `source_sale_id`, so a record
+with a valid outer digest cannot fabricate a conflicting source-to-lot mapping.
+Malformed, internally inconsistent, or duplicate entries fail closed.
 
 ## Deterministic decisions
 
@@ -25,7 +27,8 @@ entries fail closed.
   authoritative and no replacement or additive budget is emitted.
 
 The journal also rejects duplicate lot IDs and any attempt to map one
-`source_sale_id` to multiple lot IDs. This planner does not define a competing
+`source_sale_id` to multiple lot IDs, including a content-addressed record whose
+lot identity does not derive from its source-sale identity. This planner does not define a competing
 settlement, pricing, or discovery protocol; it consumes the already versioned
 reserve-policy plan.
 
@@ -53,5 +56,6 @@ node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
 ```
 
 The proof covers first creation, exact retry idempotence, same-lot conflicting
-confirmation evidence, content tampering, duplicate journal entries, unknown
-fields, canonical ordering, and the negative authority flags.
+confirmation evidence, content tampering, internally inconsistent source/lot
+bindings, duplicate journal entries, unknown fields, canonical ordering, and
+the negative authority flags.

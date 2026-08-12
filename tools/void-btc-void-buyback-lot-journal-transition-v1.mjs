@@ -82,6 +82,13 @@ function createEntry(plan) {
   });
 }
 
+function buybackLotIdForSourceSale(sourceSaleId) {
+  return contentId({
+    schema: "void.btc_void.buyback_lot_identity.v1",
+    source_sale_id: sourceSaleId,
+  });
+}
+
 function validateEntry(raw, index) {
   const label = `journal_entries[${index}]`;
   const entry = exactKeys(
@@ -116,6 +123,9 @@ function validateEntry(raw, index) {
     "journal_entry_id",
   ]) {
     sha256Id(entry[key], `${label}.${key}`);
+  }
+  if (entry.buyback_lot_id !== buybackLotIdForSourceSale(entry.source_sale_id)) {
+    throw new Error(label + ".buyback_lot_id does not match source_sale_id");
   }
   const { journal_entry_id: suppliedId, ...payload } = entry;
   if (suppliedId !== contentId(payload)) {
@@ -163,19 +173,10 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
   const existing = entries.find(
     (entry) => entry.buyback_lot_id === candidate.buyback_lot_id,
   );
-  const sourceConflict = entries.find(
-    (entry) =>
-      entry.source_sale_id === candidate.source.settlement.source_sale_id &&
-      entry.buyback_lot_id !== candidate.buyback_lot_id,
-  );
-
   let status;
   let reason;
   let appendEntry = null;
-  if (sourceConflict) {
-    status = "HOLD";
-    reason = "source_sale_id_already_mapped_to_different_lot";
-  } else if (!existing) {
+  if (!existing) {
     status = "CREATE";
     reason = "new_verified_lot_plan";
     appendEntry = createEntry(candidate);

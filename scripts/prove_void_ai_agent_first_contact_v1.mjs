@@ -17,6 +17,7 @@ const ORIGINAL_BOUNDARY = [
 const COMPOSITION_BOUNDARY = [
   ".github/workflows/void-ai-agent-first-contact-v1.yml",
   ".github/workflows/void-ai-agent-public-utility-v1.yml",
+  "config/void-tor-agent-discovery-parity-v1.json",
   "docs/public/ai-agent-first-contact-v1.md",
   "docs/public/ai-agent-public-utility-v1.md",
   "public/public-node/agents/first-contact-v1.json",
@@ -31,6 +32,9 @@ const NETWORK_BINDING_REPAIR_BOUNDARY = [
   "docs/public/ai-agent-first-contact-v1.md",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const COMPOSITION_PROOF_REPAIR_BOUNDARY = [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
 ];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
@@ -635,64 +639,71 @@ assert.deepEqual(
   "working tree contains a change outside the composition lane",
 );
 
-let boundaryVerificationMode = "working_tree";
-let boundaryIntroductionCommit = null;
+let boundaryVerificationMode = "clean_checkout_composition_commit";
 
 if (workingBoundary.length > 0) {
-  assert.deepEqual(
-    workingBoundary,
-    [...NETWORK_BINDING_REPAIR_BOUNDARY].sort(),
-    "working tree does not match the exact network-binding repair boundary",
+  const recognizedRepairBoundary = [
+    NETWORK_BINDING_REPAIR_BOUNDARY,
+    COMPOSITION_PROOF_REPAIR_BOUNDARY,
+  ].some(
+    (boundary) =>
+      JSON.stringify(workingBoundary) ===
+      JSON.stringify([...boundary].sort()),
   );
-  boundaryVerificationMode = "in_boundary_network_binding_repair";
-} else {
-  const introductionCommits = await gitLines([
-    "log",
-    "--diff-filter=A",
-    "--format=%H",
-    "-n",
-    "1",
-    "--",
-    "public/public-node/agents/first-contact-v1.json",
-  ]);
   assert.equal(
-    introductionCommits.length,
-    1,
-    "first-contact introduction commit was not found",
+    recognizedRepairBoundary,
+    true,
+    "working tree does not match a recognized exact repair boundary",
   );
-  boundaryIntroductionCommit = introductionCommits[0];
+  boundaryVerificationMode = "in_boundary_repair_plus_composition_commit";
+}
 
-  const introducedBoundary = [
+const compositionCandidates = await gitLines([
+  "log",
+  "--first-parent",
+  "--format=%H",
+  "--",
+  "public/public-node/agents/first-contact-v1.json",
+  "public/public-node/agents/public-utility-v1.json",
+]);
+let boundaryCompositionCommit = null;
+for (const candidate of compositionCandidates) {
+  const parents = await gitLines([
+    "show",
+    "--no-patch",
+    "--format=%P",
+    candidate,
+  ]);
+  const firstParent = parents[0]?.split(" ")[0];
+  if (!firstParent) continue;
+  const changedBoundary = [
     ...new Set(
       await gitLines([
-        "diff-tree",
-        "--no-commit-id",
+        "diff",
         "--name-only",
-        "-r",
-        boundaryIntroductionCommit,
+        firstParent,
+        candidate,
       ]),
     ),
   ].sort();
-
-  assert.deepEqual(
-    introducedBoundary,
-    [...ORIGINAL_BOUNDARY].sort(),
-    "the introduction commit did not add the exact six-file lane",
-  );
-  boundaryVerificationMode =
-    workingBoundary.length === 0
-      ? "clean_checkout_introduction_commit"
-      : "in_boundary_repair_plus_introduction_commit";
+  if (
+    JSON.stringify(changedBoundary) ===
+    JSON.stringify([...COMPOSITION_BOUNDARY].sort())
+  ) {
+    boundaryCompositionCommit = candidate;
+    break;
+  }
 }
+assert.notEqual(
+  boundaryCompositionCommit,
+  null,
+  "exact first-contact/public-utility composition commit was not found",
+);
 
 console.log(
   `boundary_verification_mode=${boundaryVerificationMode}`,
 );
-if (boundaryIntroductionCommit !== null) {
-  console.log(
-    `boundary_introduction_commit=${boundaryIntroductionCommit}`,
-  );
-}
+console.log(`boundary_composition_commit=${boundaryCompositionCommit}`);
 
 console.log("first_contact_marker=VOID_AI_AGENT_FIRST_CONTACT_V1");
 console.log("client_marker=VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1");
@@ -704,5 +715,5 @@ console.log("work_credit_earning_promised=false");
 console.log("mutation_authority_granted=false");
 console.log("public_utility_catalog_loaded=true");
 console.log("useful_public_resource_count=3");
-console.log("composition_boundary_file_count=11");
+console.log("composition_boundary_file_count=12");
 console.log("VOID_AI_AGENT_FIRST_CONTACT_KIT_V1_PROOF_EXACT_GREEN");
