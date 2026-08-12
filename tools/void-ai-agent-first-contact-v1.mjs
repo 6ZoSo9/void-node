@@ -320,6 +320,51 @@ function authenticationContractValid(manifest, authentication) {
   );
 }
 
+function agentIntakeContractValid(intake) {
+  const contract = intake?.body;
+  return (
+    intake?.ok === true &&
+    contract?.schema ===
+      "void-external-opportunity-agent-intake-capability-v1" &&
+    contract?.marker ===
+      "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1" &&
+    contract?.version === 1 &&
+    contract?.capability_id ===
+      "void.external_opportunity.paper_intake.v1" &&
+    contract?.availability === "offline_static_contract" &&
+    contract?.manifest_fingerprint_sha256 ===
+      "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a" &&
+    contract?.transport?.network_endpoint === false &&
+    contract?.transport?.network_listener === false &&
+    contract?.transport?.authentication === "none" &&
+    contract?.unsupported?.network_endpoint === true &&
+    contract?.unsupported?.network_listener === true &&
+    contract?.unsupported?.authentication_secret === true &&
+    contract?.unsupported?.provider_polling === true &&
+    contract?.unsupported?.paid_work_submission === true &&
+    contract?.unsupported?.wc_earning === true &&
+    contract?.unsupported?.wallet_or_key_access === true &&
+    contract?.unsupported?.transaction_construction === true &&
+    contract?.unsupported?.transaction_submission === true &&
+    contract?.unsupported?.runtime_mutation === true &&
+    contract?.unsupported?.service_mutation === true &&
+    contract?.unsupported?.scheduler_mutation === true &&
+    contract?.unsupported?.live_execution === true &&
+    contract?.authority?.implicit_or_scheduled_access === false &&
+    contract?.authority?.network_request === false &&
+    contract?.authority?.credential_access === false &&
+    contract?.authority?.wallet_or_key_access === false &&
+    contract?.authority?.transaction_construction === false &&
+    contract?.authority?.transaction_submission === false &&
+    contract?.authority?.runtime_mutation === false &&
+    contract?.authority?.service_mutation === false &&
+    contract?.authority?.scheduler_mutation === false &&
+    contract?.authority?.paid_work_submission === false &&
+    contract?.authority?.wc_earning === false &&
+    contract?.authority?.live_execution === false
+  );
+}
+
 function capabilitiesContractValid(manifest, capabilities) {
   const catalog = capabilities?.body;
   if (
@@ -782,6 +827,7 @@ async function main() {
     manifest,
     capabilities,
   );
+  const agentIntakeValid = agentIntakeContractValid(intake);
 
   const checks = {
     first_contact_manifest_reachable:
@@ -796,7 +842,7 @@ async function main() {
       bindingConsistent(manifest, discovery, authenticity),
     authentication_contract_found: authenticationValid,
     capabilities_loaded: capabilitiesValid,
-    agent_intake_reachable: intake.ok,
+    agent_intake_reachable: agentIntakeValid,
     public_utility_catalog_loaded: advertisedResources.length > 0,
     public_utility_resources_observed:
       resources.length === advertisedResources.length &&

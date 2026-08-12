@@ -54,6 +54,13 @@ not readiness evidence. The client checks their exact V1 markers, network
 binding, negotiation mode, authority-zero controls, safety controls, and
 bounded read-only capability shapes before it reports them as loaded.
 
+The optional agent-intake action is also fail-closed. A successful JSON
+response alone is not enough: the client requires the exact V1 schema, marker,
+capability identity, offline-static availability, published manifest
+fingerprint, no-network transport, unsupported-operation declarations, and
+zero network, credential, wallet, transaction, runtime, paid-work, and Work
+Credit authority before it offers the contract for read-only inspection.
+
 The catalog is a required part of the composed source contract. Until the new
 manifest and catalog are deployed together, the updated client returns
 `partial_read_only`; it does not confuse merged source with a live surface.

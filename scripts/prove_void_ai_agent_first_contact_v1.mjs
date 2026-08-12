@@ -75,6 +75,49 @@ const capabilitiesCatalog = JSON.parse(
     "utf8",
   ),
 );
+const agentIntakeCapability = {
+  schema: "void-external-opportunity-agent-intake-capability-v1",
+  marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+  version: 1,
+  capability_id: "void.external_opportunity.paper_intake.v1",
+  availability: "offline_static_contract",
+  manifest_fingerprint_sha256:
+    "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
+  transport: {
+    network_endpoint: false,
+    network_listener: false,
+    authentication: "none",
+  },
+  unsupported: {
+    network_endpoint: true,
+    network_listener: true,
+    authentication_secret: true,
+    provider_polling: true,
+    paid_work_submission: true,
+    wc_earning: true,
+    wallet_or_key_access: true,
+    transaction_construction: true,
+    transaction_submission: true,
+    runtime_mutation: true,
+    service_mutation: true,
+    scheduler_mutation: true,
+    live_execution: true,
+  },
+  authority: {
+    implicit_or_scheduled_access: false,
+    network_request: false,
+    credential_access: false,
+    wallet_or_key_access: false,
+    transaction_construction: false,
+    transaction_submission: false,
+    runtime_mutation: false,
+    service_mutation: false,
+    scheduler_mutation: false,
+    paid_work_submission: false,
+    wc_earning: false,
+    live_execution: false,
+  },
+};
 const datanetReceipt = JSON.parse(
   await readFile(
     join(
@@ -220,15 +263,7 @@ const fixtures = new Map([
   ],
   [manifest.entrypoints.capabilities, capabilitiesCatalog],
   [publicUtility.entries[2].path, datanetReceipt],
-  [
-    manifest.entrypoints.agent_intake,
-    {
-      marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-    },
-  ],
+  [manifest.entrypoints.agent_intake, agentIntakeCapability],
 ]);
 
 const CROSS_ORIGIN_MANIFEST_PATH =
@@ -349,6 +384,46 @@ fixtures.set(DECOY_CAPABILITIES_PATH, {
   notice: "VOID public discovery and capability negotiation are live",
   paid_work_enabled: true,
   work_credit_earning_enabled: true,
+});
+
+const DECOY_INTAKE_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-intake-fixture-v1.json";
+const DECOY_INTAKE_PATH =
+  "/public-node/agents/decoy-intake-fixture-v1.json";
+const DECOY_INTAKE_UTILITY_PATH =
+  "/public-node/agents/public-utility-decoy-intake-fixture-v1.json";
+fixtures.set(DECOY_INTAKE_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    first_contact: DECOY_INTAKE_MANIFEST_PATH,
+    agent_intake: DECOY_INTAKE_PATH,
+    public_utility: DECOY_INTAKE_UTILITY_PATH,
+  },
+});
+fixtures.set(DECOY_INTAKE_UTILITY_PATH, {
+  ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: DECOY_INTAKE_MANIFEST_PATH,
+  },
+  entries: publicUtility.entries.map((entry, index) =>
+    index === 0
+      ? {
+          ...entry,
+          path: DECOY_INTAKE_MANIFEST_PATH,
+          repository_path: `public${DECOY_INTAKE_MANIFEST_PATH}`,
+        }
+      : entry,
+  ),
+});
+fixtures.set(DECOY_INTAKE_PATH, {
+  ...agentIntakeCapability,
+  availability: "live",
+  authority: {
+    ...agentIntakeCapability.authority,
+    paid_work_submission: true,
+  },
 });
 
 const WRONG_RESOURCE_MARKER_MANIFEST_PATH =
@@ -654,6 +729,23 @@ try {
   assert.equal(
     decoyContractsReport.next_actions.some(
       (action) => action.id === "inspect_capabilities",
+    ),
+    false,
+  );
+
+  const decoyIntake = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_INTAKE_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyIntake.code, 0, decoyIntake.stderr);
+  const decoyIntakeReport = JSON.parse(decoyIntake.stdout);
+  assert.equal(decoyIntakeReport.status, "ready_read_only");
+  assert.equal(decoyIntakeReport.checks.agent_intake_reachable, false);
+  assert.equal(
+    decoyIntakeReport.next_actions.some(
+      (action) => action.id === "inspect_agent_intake",
     ),
     false,
   );
