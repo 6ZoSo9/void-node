@@ -96,7 +96,7 @@ assert.equal(
 
 const coordinationLane = laneById.get("worker-coordination-v3-experiment");
 assert.equal(coordinationLane.state, "ACTIVE_SOURCE");
-assert.equal(coordinationLane.gates.source_green, false);
+assert.equal(coordinationLane.gates.source_green, true);
 assert.equal(coordinationLane.gates.merged, false);
 
 const stackLane = laneById.get("udp-swarm-relay-retirement-stack-v1");
@@ -194,7 +194,7 @@ console.log(`deployed_runtime_pin=${DEPLOYED_RUNTIME_PIN}`);
 console.log("fleet_runtime_green=true");
 console.log("collector_source_merged=true");
 console.log("collector_operational_state=parked");
-console.log("coordination_source_green=false_pending_exact_head_ci");
+console.log("coordination_source_green=true_exact_head_ci_sealed");
 console.log("experimental_worker_ids=ada,grace,shannon");
 console.log("issue_1005_tracking_state=open");
 console.log("capability_gate_collapse_rejected=true");

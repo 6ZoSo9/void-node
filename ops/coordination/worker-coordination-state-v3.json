@@ -3,7 +3,7 @@
   "version": 3,
   "repository": "6ZoSo9/void-node",
   "main_sha": "fb5ee3593c3040921a09548d8da2f7d876321b85",
-  "updated_at": "2026-08-12T19:47:00.000Z",
+  "updated_at": "2026-08-12T20:26:00.000Z",
   "plan_issue": 1182,
   "policy": {
     "active_states": [
@@ -410,13 +410,13 @@
         "merged"
       ],
       "gates": {
-        "source_green": false,
+        "source_green": true,
         "merged": false,
         "deployed": false,
         "runtime_green": false,
         "external_accepted": false
       },
-      "next_gate": "Run exact-head Coordination V3 and exploration-extension workflows on Node.js 22, 24, and 26. Set source_green=true only in a later evidence-seal commit after exact-green.",
+      "next_gate": "Confirm the evidence-seal head repeats exact-green Coordination V3 and exploration-extension proofs on Node.js 22, 24, and 26, then inspect the ready-for-review gate; merge remains separate.",
       "hold_reasons": [],
       "authority_boundary": "Coordination metadata, read-only validation, documentation, proof, and CI only; no deployment, service, credential, wallet, signer, payment, Work Credit, validator, treasury, transaction, or funds authority.",
       "stack_prs": []
