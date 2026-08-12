@@ -274,6 +274,94 @@ function bindingConsistent(manifest, discovery, authenticity) {
   );
 }
 
+function authenticationContractValid(manifest, authentication) {
+  const contract = authentication?.body;
+  return (
+    authentication?.ok === true &&
+    contract?.marker === "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1" &&
+    contract?.protocol === "void-agent-authentication-well-known/1" &&
+    contract?.contract_published === true &&
+    contract?.canonical_authentication_contract ===
+      "/public-node/agents/authentication-v1.json" &&
+    contract?.network?.name === manifest?.network?.name &&
+    contract?.network?.chain_id === manifest?.network?.chain_id &&
+    contract?.authenticated_routes_active === false &&
+    contract?.verifier_runtime_active === false &&
+    contract?.mutation_authority_granted === false &&
+    contract?.safety?.same_origin_only === true &&
+    contract?.safety?.follow_redirects === false &&
+    contract?.safety?.send_credentials_now === false &&
+    contract?.safety?.send_signed_envelopes_now === false &&
+    contract?.safety?.treat_unknown_as === "not_granted"
+  );
+}
+
+function capabilitiesContractValid(manifest, capabilities) {
+  const catalog = capabilities?.body;
+  if (
+    capabilities?.ok !== true ||
+    catalog?.marker !== "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1" ||
+    catalog?.protocol !== "void-agent-capability-negotiation/1" ||
+    catalog?.network?.name !== manifest?.network?.name ||
+    catalog?.network?.chain_id !== manifest?.network?.chain_id ||
+    catalog?.authority?.default !== "not_granted" ||
+    catalog?.authority?.discovery_authority !== "read_only" ||
+    catalog?.authority?.mutation_authority_granted !== false ||
+    catalog?.negotiation?.mode !== "client_side_intersection" ||
+    catalog?.negotiation?.default_result !== "not_granted" ||
+    catalog?.negotiation?.request_submission_enabled !== false ||
+    catalog?.negotiation?.server_round_trip_required !== false ||
+    catalog?.safety?.same_origin_only !== true ||
+    catalog?.safety?.follow_redirects !== false ||
+    catalog?.safety?.send_credentials !== false ||
+    catalog?.safety?.send_operator_keys !== false ||
+    catalog?.safety?.send_secrets !== false ||
+    catalog?.safety?.send_wallet_material !== false ||
+    !Array.isArray(catalog?.capabilities) ||
+    catalog.capabilities.length === 0
+  ) {
+    return false;
+  }
+
+  const identifiers = new Set();
+  for (const capability of catalog.capabilities) {
+    if (
+      typeof capability?.id !== "string" ||
+      !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(capability.id) ||
+      identifiers.has(capability.id) ||
+      typeof capability?.enabled !== "boolean" ||
+      typeof capability?.state !== "string" ||
+      typeof capability?.access !== "string" ||
+      typeof capability?.authority !== "string" ||
+      !Array.isArray(capability?.http_methods) ||
+      !capability.http_methods.every((method) =>
+        ["GET", "HEAD"].includes(method)
+      ) ||
+      !Array.isArray(capability?.paths) ||
+      !capability.paths.every((path) => {
+        try {
+          joinUrl("https://void.invalid", path);
+          return path.endsWith(".json");
+        } catch {
+          return false;
+        }
+      }) ||
+      (capability.enabled === true &&
+        (capability.state !== "live" ||
+          capability.access !== "anonymous" ||
+          capability.authority !== "read_only" ||
+          capability.http_methods.length === 0))
+    ) {
+      return false;
+    }
+    identifiers.add(capability.id);
+  }
+  return (
+    identifiers.has("public_discovery") &&
+    identifiers.has("capability_negotiation")
+  );
+}
+
 function normalizedText(value) {
   return JSON.stringify(value ?? null).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -583,6 +671,14 @@ async function main() {
     ]);
 
   const resources = usefulPublicResources(manifest, publicUtility);
+  const authenticationValid = authenticationContractValid(
+    manifest,
+    authentication,
+  );
+  const capabilitiesValid = capabilitiesContractValid(
+    manifest,
+    capabilities,
+  );
 
   const checks = {
     first_contact_manifest_reachable:
@@ -595,8 +691,8 @@ async function main() {
       discovery.ok &&
       authenticity.ok &&
       bindingConsistent(manifest, discovery, authenticity),
-    authentication_contract_found: authentication.ok,
-    capabilities_loaded: capabilities.ok,
+    authentication_contract_found: authenticationValid,
+    capabilities_loaded: capabilitiesValid,
     agent_intake_reachable: intake.ok,
     public_utility_catalog_loaded: resources.length > 0,
   };
@@ -616,7 +712,12 @@ async function main() {
     checks.public_utility_catalog_loaded,
   ].every(Boolean);
 
-  const commercial = observedCommercialSignals(capabilities);
+  const commercial = capabilitiesValid
+    ? observedCommercialSignals(capabilities)
+    : {
+        paid_work_observed: false,
+        work_credit_earning_observed: false,
+      };
   const report = {
     marker: MARKER,
     protocol: "void-ai-agent-first-contact",

@@ -39,13 +39,19 @@ The client performs GET-only requests. It emits one JSON report containing:
 - whether official discovery and authenticity evidence were reachable;
 - whether those documents are consistent with VOID Mainnet-0 and chain ID
   `2050`;
-- whether authentication, capabilities, and intake documents were available;
+- whether authentication and capabilities documents satisfied their exact
+  fail-closed read-only contracts, and whether intake was reachable;
 - whether the bounded public-utility catalog was loaded and valid;
 - the catalog's anonymous read-only resources and their purposes;
 - the safe read-only next actions supported by the observed documents.
 
 A missing optional surface is reported as partial readiness. It is never
 silently converted into a positive claim.
+
+Authentication or capability endpoints returning unrelated JSON are likewise
+not readiness evidence. The client checks their exact V1 markers, network
+binding, negotiation mode, authority-zero controls, safety controls, and
+bounded read-only capability shapes before it reports them as loaded.
 
 The catalog is a required part of the composed source contract. Until the new
 manifest and catalog are deployed together, the updated client returns

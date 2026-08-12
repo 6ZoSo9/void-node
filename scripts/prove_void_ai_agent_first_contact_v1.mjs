@@ -57,6 +57,12 @@ const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
 const publicUtility = JSON.parse(
   await readFile(PUBLIC_UTILITY_PATH, "utf8"),
 );
+const capabilitiesCatalog = JSON.parse(
+  await readFile(
+    join(ROOT, "public/public-node/agents/capabilities-v1.json"),
+    "utf8",
+  ),
+);
 assert.equal(manifest.marker, "VOID_AI_AGENT_FIRST_CONTACT_V1");
 assert.equal(manifest.protocol, "void-ai-agent-first-contact");
 assert.equal(manifest.version, "1");
@@ -170,23 +176,28 @@ const fixtures = new Map([
   [
     manifest.entrypoints.authentication,
     {
-      marker: "VOID_AI_AGENT_AUTHENTICATION_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
+      marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
+      protocol: "void-agent-authentication-well-known/1",
+      contract_published: true,
+      canonical_authentication_contract:
+        "/public-node/agents/authentication-v1.json",
+      network: {
+        name: "VOID Mainnet-0",
+        chain_id: 2050,
+      },
+      authenticated_routes_active: false,
+      verifier_runtime_active: false,
+      mutation_authority_granted: false,
+      safety: {
+        same_origin_only: true,
+        follow_redirects: false,
+        send_credentials_now: false,
+        send_signed_envelopes_now: false,
+        treat_unknown_as: "not_granted",
+      },
     },
   ],
-  [
-    manifest.entrypoints.capabilities,
-    {
-      marker: "VOID_AI_AGENT_CAPABILITIES_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-      paid_work_promised: false,
-      work_credit_earning_promised: false,
-    },
-  ],
+  [manifest.entrypoints.capabilities, capabilitiesCatalog],
   [
     manifest.entrypoints.agent_intake,
     {
@@ -293,6 +304,29 @@ fixtures.set(DECOY_DISCOVERY_PATH, {
 });
 fixtures.set(DECOY_AUTHENTICITY_PATH, {
   notice: "VOID Mainnet-0 mainnet0 chain 2050",
+});
+
+const DECOY_CONTRACT_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-contract-fixture-v1.json";
+const DECOY_AUTHENTICATION_PATH =
+  "/public-node/agents/decoy-authentication-fixture-v1.json";
+const DECOY_CAPABILITIES_PATH =
+  "/public-node/agents/decoy-capabilities-fixture-v1.json";
+fixtures.set(DECOY_CONTRACT_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    authentication: DECOY_AUTHENTICATION_PATH,
+    capabilities: DECOY_CAPABILITIES_PATH,
+  },
+});
+fixtures.set(DECOY_AUTHENTICATION_PATH, {
+  notice: "VOID authentication is ready read only",
+});
+fixtures.set(DECOY_CAPABILITIES_PATH, {
+  notice: "VOID public discovery and capability negotiation are live",
+  paid_work_enabled: true,
+  work_credit_earning_enabled: true,
 });
 
 const server = createServer((request, response) => {
@@ -428,6 +462,37 @@ try {
   assert.equal(decoyBindingReport.official_network_verified, false);
   assert.equal(
     decoyBindingReport.checks.network_binding_consistent,
+    false,
+  );
+
+  const decoyContracts = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_CONTRACT_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyContracts.code, 2, decoyContracts.stderr);
+  const decoyContractsReport = JSON.parse(decoyContracts.stdout);
+  assert.equal(decoyContractsReport.status, "partial_read_only");
+  assert.equal(
+    decoyContractsReport.checks.authentication_contract_found,
+    false,
+  );
+  assert.equal(decoyContractsReport.checks.capabilities_loaded, false);
+  assert.deepEqual(decoyContractsReport.observed_capabilities, {
+    paid_work_observed: false,
+    work_credit_earning_observed: false,
+  });
+  assert.equal(
+    decoyContractsReport.next_actions.some(
+      (action) => action.id === "inspect_authentication",
+    ),
+    false,
+  );
+  assert.equal(
+    decoyContractsReport.next_actions.some(
+      (action) => action.id === "inspect_capabilities",
+    ),
     false,
   );
 
