@@ -42,17 +42,21 @@ Darwin may recommend only one candidate from each ranked exploration report. Bro
 
 ## Non-idle fallback for existing workers
 
-The current V3 snapshot has three active workers without an active lane because their primary work is parked or review-required:
+The reconciled V3 snapshot still has three active workers without an active base lane:
 
-- Larry — SDK lane requires current-main review;
+- Larry — the SDK lane requires current-main review;
 - Curly — no concrete presale event currently requires mutation; and
-- Moe — the collector requires semantic reconciliation while the older relay-retirement stack remains frozen.
+- Moe — the public relay-introduction collector source is merged but operationally parked, while the older relay-retirement stack remains frozen.
 
 This extension gives each a bounded `ACTIVE_RESEARCH` fallback:
 
 - Larry explores repository usability, SDK ergonomics, developer tooling, and small correctness gaps.
 - Curly explores participant onboarding, receipt clarity, presale-exit readiness, and economic honesty without manufacturing payment or inventory work.
-- Moe explores disjoint networking observability, bootstrap resilience, transport portability, and failure recovery without entering blocked descendants or live network authority.
+- Moe explores disjoint networking observability, bootstrap resilience, transport portability, and failure recovery without entering unpublished collector activation work or blocked descendants.
+
+The collector's merge does not grant release-root publication, observer-set publication, relay-introduction publication, deployment, runtime activation, or external acceptance. Moe's fallback remains disjoint from those operational gates.
+
+Ren is not an idle worker in this snapshot. The completed three-box rollout has transitioned to an `ACTIVE_RESEARCH` fleet-stability lane that tracks the proven deployed runtime pin and source drift without implying another restart or convergence operation.
 
 The extension validator requires fallback assignments to cover exactly the active base workers that lack an active V3 lane. If the base state changes, stale fallback assignments fail closed and must be reviewed.
 

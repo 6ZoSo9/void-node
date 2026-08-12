@@ -146,7 +146,7 @@
       "priority": "P3",
       "tracking_issue": 1182,
       "sensitive": true,
-      "reason": "Canonical collector is review-required and the retirement stack is frozen; explore disjoint networking reliability gaps instead of mutating blocked descendants.",
+      "reason": "Collector source #1231 is merged and operationally parked while the retirement stack remains frozen; explore disjoint networking reliability gaps without entering unpublished activation or blocked descendant work.",
       "exploration_domains": [
         "network-observability",
         "bootstrap-resilience",

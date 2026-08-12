@@ -25,7 +25,7 @@ V3 does not replace Red/Amber/Green path checks. Every source candidate still re
 
 ## Worker expansion experiment
 
-Three workers are added for the first bounded experiment:
+Three workers are added for the first bounded experiment.
 
 ### Ada
 
@@ -58,7 +58,28 @@ Shannon owns capability and acceptance truth:
 - tracking-state mismatch detection; and
 - prevention of issue closure when required external gates remain unproven.
 
-Shannon's first lane is reopened issue #1005. It remains open until its ordinary-machine, independent-failure-domain N−1 acceptance contract is actually satisfied.
+Shannon's first lane is reopened issue #1005. It remains open until its ordinary-machine, independent-failure-domain N-1 acceptance contract is actually satisfied.
+
+## Source main versus deployed runtime pin
+
+`state.main_sha` records the current repository source anchor. It is not automatically the commit that every running node must execute.
+
+The current source anchor is:
+
+`fb5ee3593c3040921a09548d8da2f7d876321b85`
+
+The three-box rollout separately proved and deployed the intentionally pinned runtime:
+
+`58443d5c615814152dac3a370ccda82e36083846`
+
+Nimo, Precision, and Alienware were verified healthy on that runtime pin. Later unrelated source-only changes on `main` do not invalidate that deployed runtime truth and do not create automatic restart or convergence authority.
+
+The fleet lane therefore records the rollout gates as green and remains `ACTIVE_RESEARCH` only for read-only stability and source-drift evidence. A future source convergence or service restart is a new operator gate; it is not implied merely because `main` advances.
+
+This distinction prevents two opposite truth failures:
+
+- treating an undeployed source commit as if it were live; and
+- treating a proven live runtime as stale merely because unrelated source work merged later.
 
 ## Lifecycle classes
 
@@ -98,25 +119,50 @@ V3 fixes the order:
 
 A later gate cannot be true while an earlier gate is false or unknown. Closing a tracked issue while any required gate remains incomplete is rejected.
 
-This prevents source implementation or a successful merge from being treated as deployment or external acceptance. The reopened #1005 lane records the current truth: source and merge gates are green, while deployment, runtime, and external N−1 acceptance remain false.
+This prevents source implementation or a successful merge from being treated as deployment or external acceptance.
 
-## Semantic invalidation
+The reopened #1005 lane remains a separate capability truth surface. The base fleet runtime being green does not prove that #1005's multipath/bootstrap capability is deployed, runtime-green, or independently accepted. Those gates stay false until evidence for that specific capability exists.
+
+## Semantic invalidation and resolution
 
 Path disjointness does not prove semantic compatibility. A lane may consume an exported function, schema, release root, authorization wrapper, execution policy, or acceptance contract that later changes on another path.
 
 Each lane may therefore record `semantic_dependencies`. When a required dependency changes, the lane enters `REVIEW_REQUIRED` with `invalidated_by` evidence.
 
-The current example is PR #1231. It remains the canonical public relay-introduction collector, but merged PR #1233 established the signed-observer authorization boundary for public discovery. #1231 must integrate and prove that boundary before its source-green state can be restored.
+PR #1231 is the current resolution example. Merged PR #1233 established the signed-observer authorization boundary for public discovery. #1231 was reconciled to `composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1`, proved hostile authenticated peers cannot become topology authority, and then merged into `main`.
+
+That source lane is now `PARKED`, not `REVIEW_REQUIRED`:
+
+- `source_green=true`;
+- `merged=true`;
+- `deployed=false`;
+- `runtime_green=false`; and
+- `external_accepted=false`.
+
+Publication of an active release root, signed observer set, relay-introduction artifacts, live dependency wiring, deployment, runtime activation, and independent external acceptance remain separate gates.
 
 ## WIP and stack compression
 
-Workers normally have at most one active lane and one parked lane. A temporary roster-specific exception is explicit rather than implicit; Moe currently has two parked items because the held collector and the older eight-PR relay-retirement stack are distinct obligations.
+Workers normally have at most one active lane and one parked lane. Roster-specific exceptions are explicit rather than implicit.
+
+Moe currently has two parked obligations:
+
+- merged #1231 is operationally parked behind publication/deployment/acceptance gates; and
+- the older relay-retirement stack remains frozen parent-first.
 
 The older stack is represented once:
 
 `#1132 -> #1134 -> #1137 -> #1139 -> (#1140 + #1141) -> #1144 -> #1146`
 
 It does not count as eight independently active jobs. Only the current root is actionable after a fresh current-main review.
+
+## Exact-head evidence rule
+
+The checked-in coordination state must not claim its own source lane green before the exact-head proof has run.
+
+During a reconciliation commit, `worker-coordination-v3-experiment.gates.source_green` stays `false`. After the exact branch head passes the Coordination V3 and exploration-extension matrices on Node.js 22, 24, and 26, a later evidence-seal commit may set it to `true`.
+
+This keeps the coordination layer subject to the same truth discipline that it imposes on other lanes.
 
 ## Commands
 
@@ -143,12 +189,12 @@ node scripts/prove_void_worker_coordination_v3.mjs
 
 ## Point-in-time boundary
 
-The checked-in state is a reviewed snapshot, not a distributed scheduler or lock. Workers must refresh current `main`, open pull requests, reviews, checks, changed paths, issue states, and recent writes before mutation. Live V1 Red evidence always overrides an older V3 snapshot.
+The checked-in state is a reviewed snapshot, not a distributed scheduler or lock. Workers must refresh current `main`, open pull requests, reviews, checks, changed paths, issue states, consumed contracts, and recent writes before mutation. Live V1 Red evidence always overrides an older V3 snapshot.
 
 When current reality differs from the state file, the correct response is to update the lane state or emit `HOLD`; do not reinterpret stale metadata as authority.
 
 ## Authority boundary
 
-Coordination V3 performs validation and status reporting only. It grants no deployment, restart, router/firewall/DNS/interface mutation, credential/private-key access, release signing, wallet/signer use, payment, Work Credit mutation, validator action, transaction, treasury action, or funds movement.
+Coordination V3 performs validation and status reporting only. It grants no deployment, restart, router/firewall/DNS/interface mutation, credential/private-key access, release signing, wallet/signer use, payment, Work Credit mutation, validator action, transaction, treasury action, liquidity action, or funds movement.
 
 `PROTECT THE CORE`.

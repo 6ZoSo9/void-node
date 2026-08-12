@@ -2,8 +2,8 @@
   "marker": "VOID_WORKER_COORDINATION_STATE_V3",
   "version": 3,
   "repository": "6ZoSo9/void-node",
-  "main_sha": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
-  "updated_at": "2026-08-12T18:41:00.000Z",
+  "main_sha": "fb5ee3593c3040921a09548d8da2f7d876321b85",
+  "updated_at": "2026-08-12T19:47:00.000Z",
   "plan_issue": 1182,
   "policy": {
     "active_states": [
@@ -34,9 +34,9 @@
   "lanes": [
     {
       "id": "fleet-runtime-refresh-v47",
-      "title": "Canary-first three-box source convergence and runtime refresh",
+      "title": "Three-box pinned-runtime stability and source-drift truth",
       "owner_worker_id": "ren",
-      "state": "ACTIVE_OPERATOR",
+      "state": "ACTIVE_RESEARCH",
       "priority": "P0",
       "experimental": false,
       "sensitive": true,
@@ -49,10 +49,10 @@
       "changed_paths": [],
       "semantic_dependencies": [
         {
-          "id": "exact-main-target",
+          "id": "deployed-runtime-pin",
           "kind": "git-commit",
-          "anchor": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
-          "required_state": "exact_audited_target"
+          "anchor": "58443d5c615814152dac3a370ccda82e36083846",
+          "required_state": "deployed_runtime_green"
         }
       ],
       "invalidated_by": [],
@@ -65,13 +65,13 @@
       "gates": {
         "source_green": true,
         "merged": true,
-        "deployed": false,
-        "runtime_green": false,
+        "deployed": true,
+        "runtime_green": true,
         "external_accepted": false
       },
-      "next_gate": "Run the read-only fleet drift audit, then converge and refresh Nimo first through the checked-in fail-closed controllers.",
+      "next_gate": "Maintain read-only fleet stability and source-drift evidence for deployed runtime pin 58443d5c615814152dac3a370ccda82e36083846; do not chase unrelated main changes or restart/converge nodes without a new operator gate.",
       "hold_reasons": [],
-      "authority_boundary": "Only the already-authorized staged source convergence and node-service restart sequence is in scope; router, firewall, DNS, interface, key, wallet, validator, Work Credit, treasury, transaction, and funds actions remain excluded.",
+      "authority_boundary": "Read-only fleet stability and source-drift evidence only. The completed rollout does not grant another source convergence, service restart, router/firewall/DNS/interface mutation, key, wallet, validator, Work Credit, treasury, transaction, or funds action.",
       "stack_prs": []
     },
     {
@@ -106,7 +106,7 @@
       "invalidated_by": [
         {
           "kind": "main-movement",
-          "reference": "63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+          "reference": "fb5ee3593c3040921a09548d8da2f7d876321b85",
           "reason": "Draft head predates current main and must refresh ancestry and exact-head evidence before promotion."
         }
       ],
@@ -167,7 +167,7 @@
       "id": "udp-swarm-public-relay-introduction-collector-v1",
       "title": "Public relay-introduction collector",
       "owner_worker_id": "moe",
-      "state": "REVIEW_REQUIRED",
+      "state": "PARKED",
       "priority": "P1",
       "experimental": false,
       "sensitive": true,
@@ -193,13 +193,7 @@
           "required_state": "integrated_and_proven"
         }
       ],
-      "invalidated_by": [
-        {
-          "kind": "merged-pr",
-          "reference": "#1233",
-          "reason": "Public discovery now requires signed observer authorization; the draft collector still calls the lower-level verified-discovery composition."
-        }
-      ],
+      "invalidated_by": [],
       "required_gates": [
         "source_green",
         "merged",
@@ -208,17 +202,17 @@
         "external_accepted"
       ],
       "gates": {
-        "source_green": false,
-        "merged": false,
+        "source_green": true,
+        "merged": true,
         "deployed": false,
         "runtime_green": false,
         "external_accepted": false
       },
-      "next_gate": "Reconcile #1231 to the signed-observer wrapper and prove arbitrary fresh authenticated peers cannot enter discovery quorum.",
+      "next_gate": "Keep source merged and operationally parked until active release-root and signed-observer publication, live dependency wiring, deployment authorization, runtime proof, and independent external acceptance are separately reviewed.",
       "hold_reasons": [
-        "semantic_dependency_changed_after_draft_creation"
+        "source_merged_operational_activation_separate"
       ],
-      "authority_boundary": "Source reconciliation only; no release-root or observer-set publication, deployment, restart, router/firewall/DNS/interface mutation, credentials, wallet, validator, Work Credit, transaction, or funds action.",
+      "authority_boundary": "Merged source only. No release-root, observer-set, or introduction publication; no deployment, restart, router/firewall/DNS/interface mutation, credentials, wallet, validator, Work Credit, transaction, treasury, liquidity, or funds action.",
       "stack_prs": []
     },
     {
@@ -416,13 +410,13 @@
         "merged"
       ],
       "gates": {
-        "source_green": true,
+        "source_green": false,
         "merged": false,
         "deployed": false,
         "runtime_green": false,
         "external_accepted": false
       },
-      "next_gate": "Obtain exact-head CI for draft PR #1238 and keep merge separate.",
+      "next_gate": "Run exact-head Coordination V3 and exploration-extension workflows on Node.js 22, 24, and 26. Set source_green=true only in a later evidence-seal commit after exact-green.",
       "hold_reasons": [],
       "authority_boundary": "Coordination metadata, read-only validation, documentation, proof, and CI only; no deployment, service, credential, wallet, signer, payment, Work Credit, validator, treasury, transaction, or funds authority.",
       "stack_prs": []
@@ -450,7 +444,7 @@
         {
           "id": "current-workflow-inventory",
           "kind": "repository-snapshot",
-          "anchor": "main@63d31a8991a78bb10ff8fd4de4c5dde23b48955e",
+          "anchor": "main@fb5ee3593c3040921a09548d8da2f7d876321b85",
           "required_state": "fresh_read_before_recommendation"
         }
       ],
@@ -509,7 +503,7 @@
         "runtime_green": false,
         "external_accepted": false
       },
-      "next_gate": "Bind the three-box refresh and later ordinary-machine N-1 evidence to exact source/runtime identities; do not close #1005 before every required gate is proven.",
+      "next_gate": "Bind acceptance evidence to current source main fb5ee3593c3040921a09548d8da2f7d876321b85 and the proven base fleet runtime pin 58443d5c615814152dac3a370ccda82e36083846, while keeping #1005 deployment/runtime/external gates false until that specific capability is actually deployed and independently accepted.",
       "hold_reasons": [],
       "authority_boundary": "Evidence and tracking integrity only; no deployment, restart, router/firewall/DNS/interface mutation, credentials, release signing, wallet, validator, Work Credit, transaction, treasury, or funds action.",
       "stack_prs": []
