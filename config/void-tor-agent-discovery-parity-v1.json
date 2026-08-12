@@ -16,7 +16,7 @@
     "public/public-node/agents/discovery-v1.json": "4611a9c0b3263224a0934f9dd4eb63ebcbc5ef3bfc960d3bb1d3fadcf5c360c7",
     "public/public-node/agents/capabilities-v1.json": "9f20d5983f47bfb6a5a5f547b1040cf902dd38df635cf9cb7cebc7c2ed446206",
     "public/public-node/agents/authentication-v1.json": "9f1b55a64898b8fc7ee8eeffa870813e1222fb5fd0c51ba4c6882f99e6104d4f",
-    "public/public-node/agents/first-contact-v1.json": "73b2936cdb03c2028746db27159cbaa6e556e264652d8442a91fafa988dab45f",
+    "public/public-node/agents/first-contact-v1.json": "5d0412dffffcdaaea3f96814f5712cfcf685761147b927f5910abfb7619c66a4",
     "public/.well-known/void-agent-discovery.json": "252676ed80c2450e1281d34750cf7858485a14e02deba90a7fa33f69f97f718f",
     "public/.well-known/void-network-authenticity.json": "597c451a349728c4713e1ac2ce9ca5478a80378bfc12cf0ca1ce4138e82ea692",
     "config/void-tor-agent-access-client-v1.json": "cf2d9d2bf2c11629f1129aaafa9706141cdc27d40c7bd5148a0a6d610b27f002"
